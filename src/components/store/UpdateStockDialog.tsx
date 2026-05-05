@@ -1,0 +1,137 @@
+'use client';
+
+import { useState, useEffect } from 'react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { toast } from 'sonner';
+import { updateStock } from '@/lib/storeApi';
+import type { StoreProduct } from '@/types/store';
+
+interface UpdateStockDialogProps {
+  isOpen: boolean;
+  onClose: () => void;
+  product: StoreProduct | null;
+  onSuccess: () => void;
+}
+
+export default function UpdateStockDialog({ isOpen, onClose, product, onSuccess }: UpdateStockDialogProps) {
+  const [mode, setMode] = useState<'add' | 'subtract' | 'set'>('add');
+  const [quantity, setQuantity] = useState(0);
+  const [isLoading, setIsLoading] = useState(false);
+
+  useEffect(() => {
+    if (!isOpen) {
+      setMode('add');
+      setQuantity(0);
+    }
+  }, [isOpen]);
+
+  const previewStock = () => {
+    if (!product) return 0;
+    
+    switch (mode) {
+      case 'add':
+        return product.stock_quantity + quantity;
+      case 'subtract':
+        return Math.max(0, product.stock_quantity - quantity);
+      case 'set':
+        return Math.max(0, quantity);
+      default:
+        return product.stock_quantity;
+    }
+  };
+
+  async function handleSubmit() {
+    if (!product) return;
+
+    setIsLoading(true);
+    try {
+      await updateStock(product.id, { mode, quantity });
+      toast.success('המלאי עודכן בהצלחה!');
+      onSuccess();
+      onClose();
+    } catch (error: any) {
+      console.error('Error updating stock:', error);
+      const errorMessage = error?.response?.data?.error || error?.message || 'שגיאה לא ידועה';
+      toast.error(`שגיאה בעדכון המלאי:\n${errorMessage}`);
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  if (!product) return null;
+
+  return (
+    <Dialog open={isOpen} onOpenChange={onClose}>
+      <DialogContent className="max-w-md p-8">
+        <DialogHeader>
+          <DialogTitle className="text-2xl">עדכון מלאי - {product.name}</DialogTitle>
+        </DialogHeader>
+
+        <div className="space-y-6 px-2 mt-6">
+          {/* Current Stock */}
+          <div className="bg-teal-50 p-4 rounded-lg text-center">
+            <p className="text-sm text-gray-600 mb-1">מלאי נוכחי</p>
+            <p className="text-3xl font-bold text-teal-600">{product.stock_quantity}</p>
+          </div>
+
+          {/* Mode Selection */}
+          <div>
+            <label className="block text-sm font-medium mb-3">סוג עדכון</label>
+            <div className="grid grid-cols-3 gap-3">
+              <Button
+                variant={mode === 'add' ? 'default' : 'outline'}
+                onClick={() => setMode('add')}
+                className="w-full"
+              >
+                הוסף
+              </Button>
+              <Button
+                variant={mode === 'subtract' ? 'default' : 'outline'}
+                onClick={() => setMode('subtract')}
+                className="w-full"
+              >
+                הפחת
+              </Button>
+              <Button
+                variant={mode === 'set' ? 'default' : 'outline'}
+                onClick={() => setMode('set')}
+                className="w-full"
+              >
+                קבע
+              </Button>
+            </div>
+          </div>
+
+          {/* Quantity Input */}
+          <div>
+            <label className="block text-sm font-medium mb-2">כמות</label>
+            <Input
+              type="number"
+              min="0"
+              value={quantity}
+              onChange={(e) => setQuantity(Math.max(0, parseInt(e.target.value) || 0))}
+              placeholder="הזן כמות"
+            />
+          </div>
+
+          {/* Preview */}
+          <div className="bg-gray-50 p-4 rounded-lg">
+            <p className="text-sm text-gray-600 mb-1">מלאי לאחר עדכון</p>
+            <p className="text-2xl font-bold">{previewStock()}</p>
+          </div>
+
+          {/* Actions */}
+          <div className="flex gap-3 justify-end mt-8 pt-4 border-t">
+            <Button variant="outline" onClick={onClose}>ביטול</Button>
+            <Button onClick={handleSubmit} disabled={isLoading}>
+              {isLoading ? 'מעדכן...' : 'עדכן מלאי'}
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+

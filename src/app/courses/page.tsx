@@ -1,0 +1,253 @@
+'use client';
+
+import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import AppLayout from '@/components/AppLayout';
+import PageHeader from '@/components/PageHeader';
+import api from '@/lib/api';
+import { CourseTypeWithStats } from '@/types/course';
+import AddCourseTypeDialog from '@/components/dialogs/AddCourseTypeDialog';
+
+export default function CoursesPage() {
+  const router = useRouter();
+  const [courseTypes, setCourseTypes] = useState<CourseTypeWithStats[]>([]);
+  const [filteredCourseTypes, setFilteredCourseTypes] = useState<CourseTypeWithStats[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [showAddDialog, setShowAddDialog] = useState(false);
+
+  useEffect(() => {
+    fetchCourseTypes();
+  }, []);
+
+  useEffect(() => {
+    // Filter course types by search query
+    if (searchQuery.trim()) {
+      const filtered = courseTypes.filter((ct) =>
+        ct.name.toLowerCase().includes(searchQuery.toLowerCase())
+      );
+      setFilteredCourseTypes(filtered);
+    } else {
+      setFilteredCourseTypes(courseTypes);
+    }
+  }, [searchQuery, courseTypes]);
+
+  const fetchCourseTypes = async () => {
+    try {
+      const response = await api.get('/courses/types/');
+      // Handle both array response and paginated response
+      const data = Array.isArray(response.data) ? response.data : (response.data.results || []);
+      setCourseTypes(data);
+      setFilteredCourseTypes(data);
+    } catch (error) {
+      console.error('Error fetching course types:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCardClick = (courseTypeId: string) => {
+    router.push(`/courses/${courseTypeId}`);
+  };
+
+  const handleAddCourseType = () => {
+    setShowAddDialog(true);
+  };
+
+  const handleCourseTypeAdded = () => {
+    setShowAddDialog(false);
+    fetchCourseTypes();
+  };
+
+  return (
+    <AppLayout>
+      <div dir="rtl" className="space-y-6">
+        {/* Header */}
+        <PageHeader
+          title="קטלוג חוגים"
+          description="תחומים ורמות"
+          actions={
+            <button
+              onClick={handleAddCourseType}
+              className="btn-primary flex items-center gap-2"
+            >
+              <span>+</span>
+              <span>הוספת תחום</span>
+            </button>
+          }
+        />
+
+        {/* Search */}
+        <div className="card">
+          <input
+            type="text"
+            placeholder="חיפוש תחום..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500"
+          />
+        </div>
+
+        {/* Course Types Grid */}
+        {loading ? (
+          <div className="card">
+            <p className="text-muted-foreground text-center">טוען נתונים...</p>
+          </div>
+        ) : filteredCourseTypes.length === 0 ? (
+          <div className="card">
+            <div className="text-center py-12">
+              <p className="text-muted-foreground mb-4">
+                {searchQuery ? 'לא נמצאו תחומים התואמים לחיפוש' : 'אין תחומים להצגה'}
+              </p>
+              {!searchQuery && (
+                <button onClick={handleAddCourseType} className="btn-secondary">
+                  צור תחום ראשון
+                </button>
+              )}
+            </div>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {filteredCourseTypes.map((courseType) => (
+              <div
+                key={courseType.id}
+                onClick={() => handleCardClick(courseType.id)}
+                className="card hover:shadow-lg transition-shadow cursor-pointer overflow-hidden"
+              >
+                {/* Header with course type name */}
+                <div className="bg-gradient-to-br from-teal-500 to-teal-600 p-8 text-center">
+                  <h3 className="text-3xl font-bold text-white">
+                    {courseType.name.charAt(0)}
+                  </h3>
+                </div>
+
+                {/* Content */}
+                <div className="p-6 space-y-4">
+                  <div>
+                    <h4 className="text-xl font-semibold text-gray-900 mb-2">
+                      {courseType.name}
+                    </h4>
+                    {courseType.description && (
+                      <p className="text-sm text-gray-600 line-clamp-2">
+                        {courseType.description}
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Stats */}
+                  <div className="flex items-center justify-between text-sm border-t pt-4">
+                    <div className="text-center flex-1">
+                      <div className="flex items-center justify-center mb-1">
+                        <svg
+                          className="w-5 h-5 text-gray-400"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"
+                          />
+                        </svg>
+                      </div>
+                      <p className="font-semibold text-gray-900">
+                        {courseType.courses_count}
+                      </p>
+                      <p className="text-gray-500">חוגים</p>
+                    </div>
+
+                    <div className="h-12 w-px bg-gray-200" />
+
+                    <div className="text-center flex-1">
+                      <div className="flex items-center justify-center mb-1">
+                        <svg
+                          className="w-5 h-5 text-gray-400"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+                          />
+                        </svg>
+                      </div>
+                      <p className="font-semibold text-gray-900">
+                        {courseType.lessons_count}
+                      </p>
+                      <p className="text-gray-500">שיעורים</p>
+                    </div>
+
+                    <div className="h-12 w-px bg-gray-200" />
+
+                    <div className="text-center flex-1">
+                      <div className="flex items-center justify-center mb-1">
+                        <svg
+                          className="w-5 h-5 text-gray-400"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
+                          />
+                        </svg>
+                      </div>
+                      <p className="font-semibold text-gray-900">
+                        {courseType.students_count}
+                      </p>
+                      <p className="text-gray-500">תלמידים</p>
+                    </div>
+                  </div>
+
+                  {/* Branches */}
+                  {courseType.branches.length > 0 && (
+                    <div className="border-t pt-4">
+                      <div className="flex flex-wrap gap-2">
+                        {courseType.branches.map((branch: any) => (
+                          <span
+                            key={branch.id}
+                            className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-700"
+                          >
+                            <svg
+                              className="w-3 h-3 ml-1"
+                              fill="currentColor"
+                              viewBox="0 0 20 20"
+                            >
+                              <path
+                                fillRule="evenodd"
+                                d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z"
+                                clipRule="evenodd"
+                              />
+                            </svg>
+                            {branch.name}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Add Course Type Dialog */}
+      {showAddDialog && (
+        <AddCourseTypeDialog
+          open={showAddDialog}
+          onClose={() => setShowAddDialog(false)}
+          onSuccess={handleCourseTypeAdded}
+        />
+      )}
+    </AppLayout>
+  );
+}

@@ -1,0 +1,191 @@
+@import url('https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;600;700;800&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Color palette as CSS custom properties */
+    --background: 210 20% 98%;
+    --foreground: 222 47% 11%;
+    --card: 0 0% 100%;
+    --card-foreground: 222 47% 11%;
+    --primary: 173 58% 39%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 210 20% 96%;
+    --secondary-foreground: 222 47% 11%;
+    --accent: 15 90% 65%;
+    --accent-foreground: 0 0% 100%;
+    --muted: 210 15% 94%;
+    --muted-foreground: 222 47% 40%;
+    --success: 142 71% 45%;
+    --warning: 38 92% 50%;
+    --info: 217 91% 60%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 210 20% 90%;
+    --input: 210 20% 90%;
+    --ring: 173 58% 39%;
+    --radius: 0.75rem;
+  }
+
+  * {
+    @apply border-gray-200;
+  }
+  
+  html {
+    direction: rtl;
+  }
+  
+  body {
+    @apply bg-background text-foreground font-sans;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+}
+
+@layer components {
+  /* Card styles */
+  .card {
+    @apply bg-white rounded-lg shadow-sm border border-gray-100 p-6;
+  }
+  
+  /* Button styles */
+  .btn {
+    @apply px-4 py-2 rounded-lg font-medium transition-all duration-200;
+  }
+  
+  .btn-primary {
+    @apply btn bg-primary text-primary-foreground hover:opacity-90;
+  }
+  
+  .btn-secondary {
+    @apply btn bg-secondary text-secondary-foreground hover:bg-secondary/80;
+  }
+  
+  .btn-accent {
+    @apply btn bg-accent text-accent-foreground hover:opacity-90;
+  }
+  
+  /* Badge styles */
+  .badge {
+    @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium;
+  }
+  
+  .badge-success {
+    @apply badge bg-success/10 text-success;
+  }
+  
+  .badge-warning {
+    @apply badge bg-warning/10 text-warning;
+  }
+  
+  .badge-info {
+    @apply badge bg-info/10 text-info;
+  }
+  
+  .badge-destructive {
+    @apply badge bg-destructive/10 text-destructive;
+  }
+  
+  /* Input styles */
+  .input {
+    @apply w-full px-3 py-2 border border-gray-200 rounded-lg bg-white text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors;
+  }
+  
+  /* Table styles */
+  .table {
+    @apply w-full border-collapse;
+  }
+  
+  .table thead {
+    @apply border-b border-gray-200;
+  }
+  
+  .table th {
+    @apply px-4 py-3 text-right text-sm font-semibold text-foreground;
+  }
+  
+  .table td {
+    @apply px-4 py-3 text-right text-sm text-foreground;
+  }
+  
+  .table tbody tr {
+    @apply border-b border-gray-100 hover:bg-secondary/50 transition-colors;
+  }
+}
+
+@layer utilities {
+  /* Animation utilities */
+  .animate-fade-in {
+    animation: fadeIn 0.3s ease-in;
+  }
+  
+  .animate-slide-up {
+    animation: slideUp 0.3s ease-out;
+  }
+  
+  .animate-scale-in {
+    animation: scaleIn 0.2s ease-out;
+  }
+}
+
+/* Recharts specific styles */
+.recharts-wrapper {
+  direction: ltr !important;
+}
+
+.recharts-surface {
+  overflow: visible;
+}
+
+.recharts-cartesian-axis-tick-value {
+  fill: hsl(var(--muted-foreground));
+}
+
+.recharts-legend-item-text {
+  color: hsl(var(--foreground)) !important;
+}
+
+.recharts-tooltip-wrapper {
+  outline: none;
+}
+
+.recharts-default-tooltip {
+  background-color: hsl(var(--card)) !important;
+  border: 1px solid hsl(var(--border)) !important;
+  border-radius: 8px !important;
+  padding: 8px !important;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes scaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
