@@ -171,6 +171,7 @@ export interface LessonFormData {
   start_time: string;
   end_time: string;
   price?: number;
+  lesson_price_override?: number;
   instructor_salary_override?: number;
   notes?: string;
 }

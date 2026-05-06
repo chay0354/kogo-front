@@ -50,6 +50,7 @@ export default function EditLessonDialog({
     start_time: lesson.start_time,
     end_time: lesson.end_time,
     price: lesson.price !== null && lesson.price !== undefined ? Number(lesson.price) : undefined,
+    lesson_price_override: lesson.lesson_price_override !== null && lesson.lesson_price_override !== undefined ? Number(lesson.lesson_price_override) : undefined,
     instructor_salary_override: lesson.instructor_salary_override !== null && lesson.instructor_salary_override !== undefined ? Number(lesson.instructor_salary_override) : undefined,
     notes: lesson.notes || '',
   });
@@ -89,6 +90,7 @@ export default function EditLessonDialog({
         start_time: lesson.start_time,
         end_time: lesson.end_time,
         price: lesson.price !== null && lesson.price !== undefined ? Number(lesson.price) : undefined,
+        lesson_price_override: lesson.lesson_price_override !== null && lesson.lesson_price_override !== undefined ? Number(lesson.lesson_price_override) : undefined,
         instructor_salary_override: lesson.instructor_salary_override !== null && lesson.instructor_salary_override !== undefined ? Number(lesson.instructor_salary_override) : undefined,
         notes: lesson.notes || '',
       });
@@ -167,6 +169,7 @@ export default function EditLessonDialog({
       const submitData = {
         ...formData,
         price: formData.price || null,
+        lesson_price_override: formData.lesson_price_override || null,
         instructor_salary_override: formData.instructor_salary_override || null,
         is_recurring: true,
         status: 'scheduled',
@@ -342,29 +345,55 @@ export default function EditLessonDialog({
                 </select>
               </div>
 
-              {/* Price */}
-              <div>
-                <label htmlFor="price" className="block text-sm font-medium text-gray-700 mb-1">
-                  מחיר שיעור (₪)
-                </label>
-                <input
-                  type="number"
-                  id="price"
-                  value={formData.price || ''}
-                  onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      price: e.target.value ? Number(e.target.value) : undefined,
-                    })
-                  }
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500"
-                  placeholder="השאר ריק לשימוש במחיר החוג"
-                  min="0"
-                  step="0.01"
-                />
-                <p className="text-xs text-gray-500 mt-1">
-                  אופציונלי - אם ריק, ישתמש במחיר החוג
-                </p>
+              {/* Price row */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label htmlFor="price" className="block text-sm font-medium text-gray-700 mb-1">
+                    מחיר שיעור (₪)
+                  </label>
+                  <input
+                    type="number"
+                    id="price"
+                    value={formData.price || ''}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        price: e.target.value ? Number(e.target.value) : undefined,
+                      })
+                    }
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500"
+                    placeholder="השאר ריק לשימוש במחיר החוג"
+                    min="0"
+                    step="0.01"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    אופציונלי - אם ריק, ישתמש במחיר החוג
+                  </p>
+                </div>
+
+                <div>
+                  <label htmlFor="lesson_price_override" className="block text-sm font-medium text-gray-700 mb-1">
+                    מחיר לתלמידים שכבר רשומים לחוגים נוספים (₪)
+                  </label>
+                  <input
+                    type="number"
+                    id="lesson_price_override"
+                    value={formData.lesson_price_override || ''}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        lesson_price_override: e.target.value ? Number(e.target.value) : undefined,
+                      })
+                    }
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500"
+                    placeholder="השאר ריק לשימוש במחיר הרגיל"
+                    min="0"
+                    step="0.01"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    תלמידים הרשומים לחוג אחד או יותר
+                  </p>
+                </div>
               </div>
 
               {/* Salary Override */}
