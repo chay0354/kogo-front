@@ -51,6 +51,9 @@ export default function CustomersPage() {
   const [enrollDialogOpen, setEnrollDialogOpen] = useState(false);
   const [addCustomerDialogOpen, setAddCustomerDialogOpen] = useState(false);
   const [addCustomerStep, setAddCustomerStep] = useState<'choice' | 'existing' | 'new'>('choice');
+  const [statusDialogOpen, setStatusDialogOpen] = useState(false);
+  const [statusDialogValue, setStatusDialogValue] = useState('');
+  const [statusSaving, setStatusSaving] = useState(false);
 
   // Load filter options
   useEffect(() => {
@@ -175,6 +178,27 @@ export default function CustomersPage() {
     }
   };
   
+  const handleStatusClick = (child: ChildWithDetails) => {
+    setSelectedChild(child);
+    setStatusDialogValue(child.status || '');
+    setStatusDialogOpen(true);
+  };
+
+  const handleStatusSave = async () => {
+    if (!selectedChild) return;
+    setStatusSaving(true);
+    try {
+      await api.patch(`/customers/children/${selectedChild.id}/`, { status: statusDialogValue });
+      setChildren(prev => prev.map(c => c.id === selectedChild.id ? { ...c, status: statusDialogValue as any } : c));
+      setStatusDialogOpen(false);
+    } catch (error) {
+      console.error('Error updating status:', error);
+      alert('שגיאה בעדכון הסטטוס');
+    } finally {
+      setStatusSaving(false);
+    }
+  };
+
   const handleEnroll = async () => {
     // Refresh the children list after successful enrollment
     try {
@@ -449,9 +473,9 @@ export default function CustomersPage() {
                         </td>
                         
                         {/* Status */}
-                        <td>
-                          <span 
-                            className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${
+                        <td onClick={(e) => { e.stopPropagation(); handleStatusClick(child); }}>
+                          <span
+                            className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium cursor-pointer hover:opacity-75 transition-opacity ${
                               status.color === 'green' ? 'bg-green-100 text-green-800 border border-green-300' :
                               status.color === 'red' ? 'bg-red-100 text-red-800 border border-red-300' :
                               status.color === 'orange' ? 'bg-orange-100 text-orange-800 border border-orange-300' :
@@ -459,7 +483,7 @@ export default function CustomersPage() {
                               status.color === 'black' ? 'bg-gray-100 text-gray-800 border border-gray-300' :
                               'bg-gray-100 text-gray-600 border border-gray-300'
                             }`}
-                            title={status.description}
+                            title="לחץ לשינוי סטטוס"
                           >
                             {status.hebrewStatus}
                           </span>
@@ -543,6 +567,38 @@ export default function CustomersPage() {
           />
         </>
       )}
+
+      {/* Status Change Dialog */}
+      <Dialog open={statusDialogOpen} onOpenChange={setStatusDialogOpen}>
+        <DialogContent className="max-w-sm" dir="rtl">
+          <DialogHeader>
+            <DialogTitle>שינוי סטטוס — {selectedChild?.full_name}</DialogTitle>
+          </DialogHeader>
+          <div className="py-4">
+            <label className="block text-sm font-medium mb-2">סטטוס</label>
+            <select
+              className="input w-full"
+              value={statusDialogValue}
+              onChange={(e) => setStatusDialogValue(e.target.value)}
+            >
+              <option value="active">פעיל</option>
+              <option value="trial_signed">נרשם לניסיון</option>
+              <option value="trial_completed">ביצע ניסיון</option>
+              <option value="payment_problem">בעיות באשראי</option>
+              <option value="not_paid">לא שולם</option>
+              <option value="pending">בתהליך רישום</option>
+              <option value="ghost">רפאים</option>
+              <option value="inactive">לא פעיל</option>
+            </select>
+          </div>
+          <div className="flex gap-2 justify-end">
+            <button className="btn-secondary" onClick={() => setStatusDialogOpen(false)}>ביטול</button>
+            <button className="btn-primary" disabled={statusSaving} onClick={handleStatusSave}>
+              {statusSaving ? 'שומר...' : 'שמור'}
+            </button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Add Customer Dialog */}
       <Dialog open={addCustomerDialogOpen} onOpenChange={setAddCustomerDialogOpen}>
