@@ -190,7 +190,7 @@ export default function EnrollToLessonDialog({ child, isOpen, onClose, onEnroll 
         >
           {/* Header */}
           <div className="flex items-center justify-between px-6 py-4 border-b sticky top-0 bg-white z-10">
-            <h2 className="text-xl font-bold">רישום לשיעור - {child.full_name}</h2>
+            <h2 className="text-xl font-bold">רישום לחוג - {child.full_name}</h2>
             <button onClick={onClose} className="p-2 hover:bg-muted rounded-lg transition-colors">
               <X className="w-5 h-5" />
             </button>
