@@ -287,7 +287,7 @@ export const fetchCourseTypesList = async () => {
  * Fetch all active instructors for dropdowns
  */
 export const fetchInstructorsList = async () => {
-  const response = await api.get('/instructors/instructors/');
+  const response = await api.get('/instructors/');
   return response.data;
 };
 
