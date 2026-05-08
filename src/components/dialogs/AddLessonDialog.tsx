@@ -43,6 +43,7 @@ export default function AddLessonDialog({
     end_time: '16:45',
     price: undefined,
     instructor_salary_override: undefined,
+    max_students: undefined,
     notes: '',
   });
 
@@ -142,6 +143,7 @@ export default function AddLessonDialog({
         ...formData,
         price: formData.price || null,
         instructor_salary_override: formData.instructor_salary_override || null,
+        max_students: formData.max_students || null,
         is_recurring: true,
         status: 'scheduled',
       };
@@ -314,6 +316,31 @@ export default function AddLessonDialog({
                     </option>
                   ))}
                 </select>
+              </div>
+
+              {/* Max Students */}
+              <div>
+                <label htmlFor="max_students" className="block text-sm font-medium text-gray-700 mb-1">
+                  מקסימום תלמידים
+                </label>
+                <input
+                  type="number"
+                  id="max_students"
+                  value={formData.max_students ?? ''}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      max_students: e.target.value ? Number(e.target.value) : undefined,
+                    })
+                  }
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500"
+                  placeholder="השאר ריק לשימוש בקיבולת החדר"
+                  min="1"
+                  step="1"
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  אופציונלי - מספר התלמידים המקסימלי שיכולים להירשם לשיעור
+                </p>
               </div>
 
               {/* Price */}

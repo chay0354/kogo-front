@@ -52,6 +52,7 @@ export default function EditLessonDialog({
     price: lesson.price !== null && lesson.price !== undefined ? Number(lesson.price) : undefined,
     lesson_price_override: lesson.lesson_price_override !== null && lesson.lesson_price_override !== undefined ? Number(lesson.lesson_price_override) : undefined,
     instructor_salary_override: lesson.instructor_salary_override !== null && lesson.instructor_salary_override !== undefined ? Number(lesson.instructor_salary_override) : undefined,
+    max_students: lesson.max_students !== null && lesson.max_students !== undefined ? Number(lesson.max_students) : undefined,
     notes: lesson.notes || '',
   });
 
@@ -92,6 +93,7 @@ export default function EditLessonDialog({
         price: lesson.price !== null && lesson.price !== undefined ? Number(lesson.price) : undefined,
         lesson_price_override: lesson.lesson_price_override !== null && lesson.lesson_price_override !== undefined ? Number(lesson.lesson_price_override) : undefined,
         instructor_salary_override: lesson.instructor_salary_override !== null && lesson.instructor_salary_override !== undefined ? Number(lesson.instructor_salary_override) : undefined,
+        max_students: lesson.max_students !== null && lesson.max_students !== undefined ? Number(lesson.max_students) : undefined,
         notes: lesson.notes || '',
       });
     }
@@ -171,6 +173,7 @@ export default function EditLessonDialog({
         price: formData.price || null,
         lesson_price_override: formData.lesson_price_override || null,
         instructor_salary_override: formData.instructor_salary_override || null,
+        max_students: formData.max_students || null,
         is_recurring: true,
         status: 'scheduled',
       };
@@ -343,6 +346,31 @@ export default function EditLessonDialog({
                     </option>
                   ))}
                 </select>
+              </div>
+
+              {/* Max Students */}
+              <div>
+                <label htmlFor="max_students" className="block text-sm font-medium text-gray-700 mb-1">
+                  מקסימום תלמידים
+                </label>
+                <input
+                  type="number"
+                  id="max_students"
+                  value={formData.max_students ?? ''}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      max_students: e.target.value ? Number(e.target.value) : undefined,
+                    })
+                  }
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500"
+                  placeholder="השאר ריק לשימוש בקיבולת החדר"
+                  min="1"
+                  step="1"
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  אופציונלי - מספר התלמידים המקסימלי שיכולים להירשם לשיעור
+                </p>
               </div>
 
               {/* Price row */}
