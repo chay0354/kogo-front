@@ -46,6 +46,8 @@ export default function AddLessonDialog({
     notes: '',
   });
 
+  const [additionalDays, setAdditionalDays] = useState<number[]>([]);
+
   const [branches, setBranches] = useState<Branch[]>([]);
   const [rooms, setRooms] = useState<Room[]>([]);
   const [instructors, setInstructors] = useState<Instructor[]>([]);
@@ -111,9 +113,35 @@ export default function AddLessonDialog({
     }
   };
 
+  const usedDays = new Set<number>([formData.day_of_week, ...additionalDays]);
+
+  const addDay = () => {
+    const next = daysOfWeek.find((d) => !usedDays.has(d.value));
+    if (next) {
+      setAdditionalDays([...additionalDays, next.value]);
+    }
+  };
+
+  const updateAdditionalDay = (index: number, value: number) => {
+    setAdditionalDays(additionalDays.map((d, i) => (i === index ? value : d)));
+  };
+
+  const removeAdditionalDay = (index: number) => {
+    setAdditionalDays(additionalDays.filter((_, i) => i !== index));
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+
+    const selectedDays = Array.from(
+      new Set<number>([formData.day_of_week, ...additionalDays])
+    ).sort((a, b) => a - b);
+
+    if (selectedDays.length === 0) {
+      setError('יש לבחור לפחות יום אחד');
+      return;
+    }
 
     if (!formData.branch) {
       setError('יש לבחור סניף');
@@ -137,8 +165,7 @@ export default function AddLessonDialog({
 
     setLoading(true);
     try {
-      // Prepare data for submission
-      const submitData = {
+      const basePayload = {
         ...formData,
         price: formData.price || null,
         instructor_salary_override: formData.instructor_salary_override || null,
@@ -146,8 +173,31 @@ export default function AddLessonDialog({
         status: 'scheduled',
       };
 
-      await api.post('/courses/lessons/', submitData);
-      onSuccess();
+      const results = await Promise.allSettled(
+        selectedDays.map((day) =>
+          api.post('/courses/lessons/', { ...basePayload, day_of_week: day })
+        )
+      );
+
+      const failures = results
+        .map((r, i) => ({ r, day: selectedDays[i] }))
+        .filter(({ r }) => r.status === 'rejected');
+
+      if (failures.length === 0) {
+        onSuccess();
+      } else {
+        const dayLabel = (d: number) => daysOfWeek.find((x) => x.value === d)?.label || d;
+        const firstErr: any = (failures[0].r as PromiseRejectedResult).reason;
+        const errorData = firstErr?.response?.data;
+        const detail =
+          errorData?.room ||
+          errorData?.instructor ||
+          errorData?.detail ||
+          errorData?.message ||
+          'שגיאה ביצירת שיעור';
+        const failedDays = failures.map((f) => dayLabel(f.day)).join(', ');
+        setError(`${detail} (${failedDays})`);
+      }
     } catch (err: any) {
       const errorData = err.response?.data;
       if (errorData?.room) {
@@ -215,6 +265,48 @@ export default function AddLessonDialog({
                     </option>
                   ))}
                 </select>
+
+                {additionalDays.map((day, index) => (
+                  <div key={index} className="flex gap-2 mt-2">
+                    <select
+                      value={day}
+                      onChange={(e) => updateAdditionalDay(index, Number(e.target.value))}
+                      className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500"
+                    >
+                      {daysOfWeek.map((d) => (
+                        <option
+                          key={d.value}
+                          value={d.value}
+                          disabled={d.value !== day && usedDays.has(d.value)}
+                        >
+                          {d.label}
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      type="button"
+                      onClick={() => removeAdditionalDay(index)}
+                      className="px-3 py-2 border border-gray-300 text-gray-600 rounded-lg hover:bg-gray-50"
+                      aria-label="הסר יום"
+                    >
+                      ×
+                    </button>
+                  </div>
+                ))}
+
+                <button
+                  type="button"
+                  onClick={addDay}
+                  disabled={usedDays.size >= daysOfWeek.length}
+                  className="mt-2 px-4 py-2 text-teal-700 border border-teal-300 rounded-lg hover:bg-teal-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  + הוסף יום
+                </button>
+                {additionalDays.length > 0 && (
+                  <p className="text-xs text-gray-500 mt-1">
+                    ייווצר שיעור נפרד לכל יום שנבחר
+                  </p>
+                )}
               </div>
 
               {/* Time Range */}
@@ -388,7 +480,11 @@ export default function AddLessonDialog({
                   className="flex-1 px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors disabled:bg-gray-400"
                   disabled={loading}
                 >
-                  {loading ? 'שומר...' : 'הוסף שיעור'}
+                  {loading
+                    ? 'שומר...'
+                    : usedDays.size > 1
+                      ? `הוסף ${usedDays.size} שיעורים`
+                      : 'הוסף שיעור'}
                 </button>
               </div>
             </form>

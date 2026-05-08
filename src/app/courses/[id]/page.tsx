@@ -150,6 +150,48 @@ export default function CourseTypeDetailsPage() {
     }
   };
 
+  // Group lessons that share branch/room/instructor/time/price (i.e. the same
+  // logical lesson but on different days of the week) so the table shows one
+  // row per slot with all the days.
+  const groupLessons = (lessons: any[]): any[][] => {
+    const groups = new Map<string, any[]>();
+    for (const lesson of lessons) {
+      const key = JSON.stringify({
+        start: lesson.start_time,
+        end: lesson.end_time,
+        branch: lesson.branch?.id ?? null,
+        room: lesson.room?.id ?? null,
+        instructor: lesson.instructor?.id ?? null,
+        price: lesson.price ?? null,
+        salary_override: lesson.instructor_salary_override ?? null,
+      });
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key)!.push(lesson);
+    }
+    return Array.from(groups.values())
+      .map((g) => g.slice().sort((a, b) => a.day_of_week - b.day_of_week))
+      .sort((a, b) => a[0].day_of_week - b[0].day_of_week || a[0].start_time.localeCompare(b[0].start_time));
+  };
+
+  const handleDeleteLessonGroup = async (group: any[]) => {
+    const days = group
+      .map((l) => getDayName(l.day_of_week))
+      .join(', ');
+    const msg =
+      group.length > 1
+        ? `האם למחוק את השיעור בכל הימים (${days})? פעולה זו אינה ניתנת לביטול.`
+        : 'האם אתה בטוח שברצונך למחוק את השיעור? פעולה זו אינה ניתנת לביטול.';
+    if (!confirm(msg)) return;
+
+    try {
+      await Promise.all(group.map((l) => api.delete(`/courses/lessons/${l.id}/`)));
+      fetchCourseTypeDetails();
+    } catch (err: any) {
+      const errorMsg = err.response?.data?.error || 'שגיאה במחיקת השיעור';
+      alert(errorMsg);
+    }
+  };
+
   if (loading) {
     return (
       <AppLayout>
@@ -409,16 +451,36 @@ export default function CourseTypeDetailsPage() {
                               </tr>
                             </thead>
                             <tbody>
-                              {course.lessons.map((lesson: any) => {
-                                const lessonFinancials = calculateLessonFinancials(lesson, course.price);
-                                const displayPrice = lesson.price !== null && lesson.price !== undefined ? Number(lesson.price) : Number(course.price);
+                              {groupLessons(course.lessons).map((group: any[]) => {
+                                const lesson = group[0];
+                                const aggregated = group.reduce(
+                                  (acc, l) => {
+                                    const f = calculateLessonFinancials(l, course.price);
+                                    return {
+                                      students: acc.students + (l.total_students_count || l.enrolled_count),
+                                      revenue: acc.revenue + f.revenue,
+                                      salary: acc.salary + f.salary,
+                                      profit: acc.profit + f.profit,
+                                    };
+                                  },
+                                  { students: 0, revenue: 0, salary: 0, profit: 0 }
+                                );
+                                const displayPrice =
+                                  lesson.price !== null && lesson.price !== undefined
+                                    ? Number(lesson.price)
+                                    : Number(course.price);
+                                const daysLabel = group.map((l) => getDayName(l.day_of_week)).join(', ');
+                                const groupKey = group.map((l) => l.id).join('-');
                                 return (
-                                  <tr key={lesson.id} className="border-b last:border-b-0">
+                                  <tr key={groupKey} className="border-b last:border-b-0">
                                     <td className="py-3">
                                       <div>
                                         <p className="font-medium">
-                                          {getDayName(lesson.day_of_week)} {formatTimeRange(lesson.start_time, lesson.end_time)}
+                                          {daysLabel} {formatTimeRange(lesson.start_time, lesson.end_time)}
                                         </p>
+                                        {group.length > 1 && (
+                                          <p className="text-xs text-gray-500">{group.length} שיעורים בשבוע</p>
+                                        )}
                                       </div>
                                     </td>
                                     <td className="py-3">
@@ -430,34 +492,34 @@ export default function CourseTypeDetailsPage() {
                                       </span>
                                     </td>
                                     <td className="py-3">{lesson.instructor?.full_name || '—'}</td>
-                                    <td className="py-3">{lesson.total_students_count || lesson.enrolled_count}</td>
+                                    <td className="py-3">{aggregated.students}</td>
                                     <td className="py-3 font-medium">
                                       {displayPrice.toFixed(0)}₪
                                     </td>
                                     <td className="py-3 text-green-600 font-medium">
-                                      {lessonFinancials.revenue.toFixed(0)}₪
+                                      {aggregated.revenue.toFixed(0)}₪
                                     </td>
                                     <td className="py-3 text-orange-600 font-medium">
-                                      {lessonFinancials.salary.toFixed(0)}₪
+                                      {aggregated.salary.toFixed(0)}₪
                                     </td>
-                                    <td className={`py-3 font-medium ${getProfitColorClass(lessonFinancials.profit)}`}>
-                                      {lessonFinancials.profit >= 0 ? '' : '-'}{Math.abs(lessonFinancials.profit).toFixed(0)}₪
+                                    <td className={`py-3 font-medium ${getProfitColorClass(aggregated.profit)}`}>
+                                      {aggregated.profit >= 0 ? '' : '-'}{Math.abs(aggregated.profit).toFixed(0)}₪
                                     </td>
                                     <td className="py-3 text-center">
                                       <div className="flex items-center justify-center gap-1">
                                         <button
                                           onClick={() => handleEditLesson(lesson, course.id)}
                                           className="p-1 hover:bg-blue-50 rounded transition-colors"
-                                          title="עריכת שיעור"
+                                          title={group.length > 1 ? 'עריכת שיעור (יום ראשון בקבוצה)' : 'עריכת שיעור'}
                                         >
                                           <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                                           </svg>
                                         </button>
                                         <button
-                                          onClick={() => handleDeleteLesson(lesson)}
+                                          onClick={() => handleDeleteLessonGroup(group)}
                                           className="p-1 hover:bg-red-50 rounded transition-colors"
-                                          title="מחיקת שיעור"
+                                          title={group.length > 1 ? 'מחיקת כל הימים' : 'מחיקת שיעור'}
                                         >
                                           <svg className="w-4 h-4 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
