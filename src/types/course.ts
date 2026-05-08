@@ -82,6 +82,7 @@ export interface Lesson {
   price?: number | null;
   lesson_price_override?: number | null;
   instructor_salary_override?: number | null;
+  max_students?: number | null;
   status: 'scheduled' | 'completed' | 'cancelled';
   is_recurring: boolean;
   notes: string;
@@ -173,6 +174,7 @@ export interface LessonFormData {
   price?: number;
   lesson_price_override?: number;
   instructor_salary_override?: number;
+  max_students?: number;
   notes?: string;
 }
 
