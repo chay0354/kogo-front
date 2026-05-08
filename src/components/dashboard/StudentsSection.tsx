@@ -96,7 +96,8 @@ export default function StudentsSection({ globalDateRange }: Props) {
   const kpis = data?.kpis || {};
   const studentList = data?.student_list || [];
   const abnormalByBranch = data?.abnormal_attendance_by_branch || [];
-  const quitData = data?.quit_percentage || { total_quit: 0, by_status: [] };
+  const quitData = data?.quit_percentage || { total_quit: 0, by_status: [], by_course_type: [] };
+  const quitByCourseType = quitData.by_course_type || [];
 
   const handleAbnormalClick = () => {
     router.push('/customers?abnormal_attendance=true');
@@ -235,8 +236,8 @@ export default function StudentsSection({ globalDateRange }: Props) {
         </Card>
       </div>
 
-      {/* Abnormal Attendance & Quit Percentage */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      {/* Abnormal Attendance, Quit Percentage & Quit By Course Type */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <Card className="rounded-xl bg-card shadow-md border border-border/50">
           <CardHeader>
             <CardTitle>נוכחות חריגה לפי סניף</CardTitle>
@@ -300,6 +301,46 @@ export default function StudentsSection({ globalDateRange }: Props) {
                     </Pie>
                     <Tooltip />
                   </PieChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="flex items-center justify-center h-full text-muted-foreground">
+                  אין נתונים להצגה
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="rounded-xl bg-card shadow-md border border-border/50">
+          <CardHeader>
+            <CardTitle>נושרים לפי תחום</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="h-64">
+              {quitByCourseType.length > 0 ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={quitByCourseType} margin={{ top: 8, right: 16, left: 8, bottom: 8 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                    <XAxis
+                      dataKey="course_type_name"
+                      stroke="hsl(var(--muted-foreground))"
+                      interval={0}
+                    />
+                    <YAxis stroke="hsl(var(--muted-foreground))" allowDecimals={false} />
+                    <Tooltip
+                      contentStyle={{
+                        backgroundColor: "hsl(var(--card))",
+                        border: "1px solid hsl(var(--border))",
+                        borderRadius: "8px",
+                        direction: "rtl",
+                      }}
+                    />
+                    <Bar dataKey="count" name="נושרים">
+                      {quitByCourseType.map((_entry: any, index: number) => (
+                        <Cell key={`ct-cell-${index}`} fill={BRANCH_COLORS[index % BRANCH_COLORS.length]} />
+                      ))}
+                    </Bar>
+                  </BarChart>
                 </ResponsiveContainer>
               ) : (
                 <div className="flex items-center justify-center h-full text-muted-foreground">

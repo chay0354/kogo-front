@@ -20,8 +20,25 @@ interface LocalFilters {
   branch_id: string;
 }
 
+type BranchMetric = 'revenue' | 'expenses' | 'profit';
+type InstructorMetric = 'revenue' | 'salary' | 'profit';
+
+const BRANCH_METRIC_OPTIONS: { key: BranchMetric; label: string; color: string }[] = [
+  { key: 'revenue', label: 'הכנסות', color: 'hsl(var(--success))' },
+  { key: 'expenses', label: 'הוצאות', color: 'hsl(var(--warning))' },
+  { key: 'profit', label: 'רווח', color: 'hsl(var(--primary))' },
+];
+
+const INSTRUCTOR_METRIC_OPTIONS: { key: InstructorMetric; label: string; color: string }[] = [
+  { key: 'revenue', label: 'הכנסות', color: 'hsl(var(--success))' },
+  { key: 'salary', label: 'שכר', color: 'hsl(var(--warning))' },
+  { key: 'profit', label: 'רווח', color: 'hsl(var(--primary))' },
+];
+
 export default function FinancialSection({ globalDateRange }: Props) {
   const [filters, setFilters] = useState<LocalFilters>({ branch_id: 'all' });
+  const [branchMetric, setBranchMetric] = useState<BranchMetric>('revenue');
+  const [instructorMetric, setInstructorMetric] = useState<InstructorMetric>('revenue');
 
   // Fetch branches list for dropdown
   const { data: branchesData } = useQuery({
@@ -151,49 +168,86 @@ export default function FinancialSection({ globalDateRange }: Props) {
 
       {/* Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Revenue by Branch */}
+        {/* Revenue / Expenses / Profit by Branch */}
         <Card className="rounded-xl bg-card shadow-md border border-border/50">
-          <CardHeader>
-            <CardTitle>הכנסות לפי סניף</CardTitle>
+          <CardHeader className="flex flex-row items-center justify-between gap-3 space-y-0">
+            <CardTitle>
+              {BRANCH_METRIC_OPTIONS.find((o) => o.key === branchMetric)?.label} לפי סניף
+            </CardTitle>
+            <div
+              role="tablist"
+              aria-label="בחר מדד"
+              className="inline-flex items-center rounded-lg bg-muted/60 p-1"
+            >
+              {BRANCH_METRIC_OPTIONS.map((opt) => {
+                const active = branchMetric === opt.key;
+                return (
+                  <button
+                    key={opt.key}
+                    type="button"
+                    role="tab"
+                    aria-selected={active}
+                    onClick={() => setBranchMetric(opt.key)}
+                    className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
+                      active
+                        ? 'bg-card text-foreground shadow-sm'
+                        : 'text-muted-foreground hover:text-foreground'
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                );
+              })}
+            </div>
           </CardHeader>
           <CardContent>
-            <div className="h-64">
+            <div className="h-72">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart 
-                  data={revenueByBranch} 
-                  layout="vertical"
-                  margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
+                <BarChart
+                  data={revenueByBranch}
+                  margin={{ top: 8, right: 16, left: 8, bottom: 8 }}
+                  barCategoryGap="28%"
                 >
                   <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
-                  <XAxis 
-                    type="number" 
+                  <XAxis
+                    dataKey="branch_name"
                     stroke="hsl(var(--muted-foreground))"
-                    tick={{ fill: 'hsl(var(--muted-foreground))' }}
+                    tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }}
+                    interval={0}
+                    tickMargin={8}
                   />
-                  <YAxis 
-                    dataKey="branch_name" 
-                    type="category" 
-                    stroke="hsl(var(--muted-foreground))" 
-                    width={100}
-                    tick={{ fill: 'hsl(var(--muted-foreground))' }}
+                  <YAxis
+                    stroke="hsl(var(--muted-foreground))"
+                    tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }}
+                    tickFormatter={(value: number) => {
+                      if (Math.abs(value) >= 1000) {
+                        return `₪${(value / 1000).toLocaleString('he-IL', { maximumFractionDigits: 1 })}K`;
+                      }
+                      return `₪${value}`;
+                    }}
+                    width={70}
                   />
                   <Tooltip
                     contentStyle={{
-                      backgroundColor: "hsl(var(--card))",
-                      border: "1px solid hsl(var(--border))",
-                      borderRadius: "8px",
-                      direction: "rtl",
-                      color: "hsl(var(--foreground))",
+                      backgroundColor: 'hsl(var(--card))',
+                      border: '1px solid hsl(var(--border))',
+                      borderRadius: '8px',
+                      direction: 'rtl',
+                      color: 'hsl(var(--foreground))',
                     }}
-                    cursor={{ fill: 'hsl(var(--muted))' }}
+                    cursor={{ fill: 'hsl(var(--muted))', opacity: 0.4 }}
+                    formatter={(value: number, name: string) => [
+                      `₪${Number(value).toLocaleString('he-IL')}`,
+                      name,
+                    ]}
                   />
-                  <Legend 
-                    wrapperStyle={{ direction: 'rtl', paddingTop: '10px' }}
-                    iconType="rect"
+                  <Bar
+                    dataKey={branchMetric}
+                    name={BRANCH_METRIC_OPTIONS.find((o) => o.key === branchMetric)?.label}
+                    fill={BRANCH_METRIC_OPTIONS.find((o) => o.key === branchMetric)?.color}
+                    radius={[6, 6, 0, 0]}
+                    maxBarSize={56}
                   />
-                  <Bar dataKey="revenue" name="הכנסות" fill="hsl(var(--success))" radius={[0, 4, 4, 0]} />
-                  <Bar dataKey="expenses" name="הוצאות" fill="hsl(var(--warning))" radius={[0, 4, 4, 0]} />
-                  <Bar dataKey="profit" name="רווח" fill="hsl(var(--primary))" radius={[0, 4, 4, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -261,45 +315,86 @@ export default function FinancialSection({ globalDateRange }: Props) {
         </Card>
       </div>
 
-      {/* Revenue by Instructor */}
+      {/* Revenue / Salary / Profit by Instructor */}
       <Card className="rounded-xl bg-card shadow-md border border-border/50">
-        <CardHeader>
-          <CardTitle>הכנסות לפי מדריך</CardTitle>
+        <CardHeader className="flex flex-row items-center justify-between gap-3 space-y-0">
+          <CardTitle>
+            {INSTRUCTOR_METRIC_OPTIONS.find((o) => o.key === instructorMetric)?.label} לפי מדריך
+          </CardTitle>
+          <div
+            role="tablist"
+            aria-label="בחר מדד"
+            className="inline-flex items-center rounded-lg bg-muted/60 p-1"
+          >
+            {INSTRUCTOR_METRIC_OPTIONS.map((opt) => {
+              const active = instructorMetric === opt.key;
+              return (
+                <button
+                  key={opt.key}
+                  type="button"
+                  role="tab"
+                  aria-selected={active}
+                  onClick={() => setInstructorMetric(opt.key)}
+                  className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
+                    active
+                      ? 'bg-card text-foreground shadow-sm'
+                      : 'text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              );
+            })}
+          </div>
         </CardHeader>
         <CardContent>
           <div className="h-80">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart 
+              <BarChart
                 data={revenueByInstructor}
-                margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
+                margin={{ top: 8, right: 16, left: 8, bottom: 8 }}
+                barCategoryGap="28%"
               >
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
-                <XAxis 
-                  dataKey="instructor_name" 
+                <XAxis
+                  dataKey="instructor_name"
                   stroke="hsl(var(--muted-foreground))"
-                  tick={{ fill: 'hsl(var(--muted-foreground))' }}
+                  tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }}
+                  interval={0}
+                  tickMargin={8}
                 />
-                <YAxis 
+                <YAxis
                   stroke="hsl(var(--muted-foreground))"
-                  tick={{ fill: 'hsl(var(--muted-foreground))' }}
+                  tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }}
+                  tickFormatter={(value: number) => {
+                    if (Math.abs(value) >= 1000) {
+                      return `₪${(value / 1000).toLocaleString('he-IL', { maximumFractionDigits: 1 })}K`;
+                    }
+                    return `₪${value}`;
+                  }}
+                  width={70}
                 />
                 <Tooltip
                   contentStyle={{
-                    backgroundColor: "hsl(var(--card))",
-                    border: "1px solid hsl(var(--border))",
-                    borderRadius: "8px",
-                    direction: "rtl",
-                    color: "hsl(var(--foreground))",
+                    backgroundColor: 'hsl(var(--card))',
+                    border: '1px solid hsl(var(--border))',
+                    borderRadius: '8px',
+                    direction: 'rtl',
+                    color: 'hsl(var(--foreground))',
                   }}
-                  cursor={{ fill: 'hsl(var(--muted))' }}
+                  cursor={{ fill: 'hsl(var(--muted))', opacity: 0.4 }}
+                  formatter={(value: number, name: string) => [
+                    `₪${Number(value).toLocaleString('he-IL')}`,
+                    name,
+                  ]}
                 />
-                <Legend 
-                  wrapperStyle={{ direction: 'rtl', paddingTop: '10px' }}
-                  iconType="rect"
+                <Bar
+                  dataKey={instructorMetric}
+                  name={INSTRUCTOR_METRIC_OPTIONS.find((o) => o.key === instructorMetric)?.label}
+                  fill={INSTRUCTOR_METRIC_OPTIONS.find((o) => o.key === instructorMetric)?.color}
+                  radius={[6, 6, 0, 0]}
+                  maxBarSize={56}
                 />
-                <Bar dataKey="revenue" name="הכנסות" fill="hsl(var(--success))" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="salary" name="שכר" fill="hsl(var(--warning))" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="profit" name="רווח" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>
