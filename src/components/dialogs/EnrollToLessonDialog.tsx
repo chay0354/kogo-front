@@ -24,6 +24,8 @@ interface Course {
   course_type: string;
   branch_name: string;
   price: string | null;
+  capacity?: number | null;
+  enrolled_students_count?: number | null;
 }
 
 interface Lesson {
@@ -35,7 +37,34 @@ interface Lesson {
   branch_name: string;
   instructor_name: string | null;
   price: string | null;
+  enrolled_students_count?: number | null;
+  room_capacity?: number | null;
+  max_students?: number | null;
 }
+
+const computeSeatsLeft = (capacity: number | null | undefined, enrolled: number | null | undefined) => {
+  if (capacity == null) return null;
+  const used = typeof enrolled === 'number' ? enrolled : 0;
+  return Math.max(0, capacity - used);
+};
+
+const courseSeatsLeft = (course: Course) =>
+  computeSeatsLeft(course.capacity, course.enrolled_students_count);
+
+const lessonSeatsLeft = (lesson: Lesson) => {
+  // Effective capacity: smaller of explicit lesson cap and the room capacity, when both exist.
+  const caps = [lesson.max_students, lesson.room_capacity].filter(
+    (v): v is number => typeof v === 'number'
+  );
+  const capacity = caps.length ? Math.min(...caps) : null;
+  return computeSeatsLeft(capacity, lesson.enrolled_students_count);
+};
+
+const formatSeatsSuffix = (seats: number | null) => {
+  if (seats == null) return '';
+  if (seats <= 0) return ' — מלא';
+  return ` — נותרו ${seats} מקומות`;
+};
 
 export default function EnrollToLessonDialog({ child, isOpen, onClose, onEnroll }: EnrollToLessonDialogProps) {
   const [courseTypes, setCourseTypes] = useState<CourseType[]>([]);
@@ -258,11 +287,15 @@ export default function EnrollToLessonDialog({ child, isOpen, onClose, onEnroll 
                       className="input w-full"
                     >
                       <option value="">-- בחר חוג --</option>
-                      {courses.map((course: any) => (
-                        <option key={course.id} value={course.id}>
-                          {course.name} - {course.branch_name}
-                        </option>
-                      ))}
+                      {courses.map((course) => {
+                        const seats = courseSeatsLeft(course);
+                        const isFull = seats === 0;
+                        return (
+                          <option key={course.id} value={course.id} disabled={isFull}>
+                            {course.name} - {course.branch_name}{formatSeatsSuffix(seats)}
+                          </option>
+                        );
+                      })}
                     </select>
                   )}
                 </div>
@@ -285,12 +318,17 @@ export default function EnrollToLessonDialog({ child, isOpen, onClose, onEnroll 
                       className="input w-full"
                     >
                       <option value="">-- בחר שיעור --</option>
-                      {lessons.map((lesson: any) => (
-                        <option key={lesson.id} value={lesson.id}>
-                          {dayNames[lesson.day_of_week]} {lesson.start_time} - {lesson.end_time}
-                          {lesson.instructor_name && ` (${lesson.instructor_name})`}
-                        </option>
-                      ))}
+                      {lessons.map((lesson) => {
+                        const seats = lessonSeatsLeft(lesson);
+                        const isFull = seats === 0;
+                        return (
+                          <option key={lesson.id} value={lesson.id} disabled={isFull}>
+                            {dayNames[lesson.day_of_week]} {lesson.start_time} - {lesson.end_time}
+                            {lesson.instructor_name && ` (${lesson.instructor_name})`}
+                            {formatSeatsSuffix(seats)}
+                          </option>
+                        );
+                      })}
                     </select>
                   )}
                 </div>
@@ -309,6 +347,12 @@ export default function EnrollToLessonDialog({ child, isOpen, onClose, onEnroll 
                       {selectedLessonDetails.instructor_name && (
                         <div>מדריך: {selectedLessonDetails.instructor_name}</div>
                       )}
+                      {(() => {
+                        const seats = lessonSeatsLeft(selectedLessonDetails);
+                        if (seats == null) return null;
+                        if (seats <= 0) return <div className="text-red-600 font-medium">השיעור מלא</div>;
+                        return <div>מקומות פנויים: {seats}</div>;
+                      })()}
                       {displayPrice && (
                         <div className="text-lg font-bold text-green-600 mt-2">
                           מחיר: ₪{displayPrice}

@@ -31,13 +31,14 @@ export default function CustomersPage() {
   const [courses, setCourses] = useState<Course[]>([]);
   const [instructors, setInstructors] = useState<Instructor[]>([]);
   
-  // Active filters - Default to 'active' status
+  // Active filters - default to all statuses so newly added children
+  // (created with status='pending') are visible immediately.
   const [filters, setFilters] = useState<CustomerFilters>({
     search: '',
     branch: 'all',
     course: 'all',
     instructor: 'all',
-    status: 'active',
+    status: 'all',
     absent_irregularly: 'all',
     trial: 'all',  // Keep for now - can remove later if not needed
     payment: 'all', // Keep for now - can remove later if not needed
@@ -288,7 +289,7 @@ export default function CustomersPage() {
             
             {/* Clear Filters Button */}
             {(filters.search || filters.branch !== 'all' || filters.course !== 'all' || 
-              filters.instructor !== 'all' || filters.status !== 'active' || filters.absent_irregularly !== 'all') && (
+              filters.instructor !== 'all' || filters.status !== 'all' || filters.absent_irregularly !== 'all') && (
               <button
               onClick={() => {
                 setChildrenPage(1);
@@ -297,7 +298,7 @@ export default function CustomersPage() {
                   branch: 'all',
                   course: 'all',
                   instructor: 'all',
-                  status: 'active',
+                  status: 'all',
                   absent_irregularly: 'all',
                   trial: 'all',
                   payment: 'all',
@@ -650,8 +651,18 @@ export default function CustomersPage() {
                 onSuccess={() => {
                   setAddCustomerDialogOpen(false);
                   setAddCustomerStep('choice');
-                  // Refresh children list
-                  window.location.reload();
+                  // Reset filters and refetch so the newly added child is visible
+                  setChildrenPage(1);
+                  setFilters({
+                    search: '',
+                    branch: 'all',
+                    course: 'all',
+                    instructor: 'all',
+                    status: 'all',
+                    absent_irregularly: 'all',
+                    trial: 'all',
+                    payment: 'all',
+                  });
                 }}
                 onCancel={() => setAddCustomerStep('choice')}
               />
@@ -662,8 +673,18 @@ export default function CustomersPage() {
                 onSuccess={() => {
                   setAddCustomerDialogOpen(false);
                   setAddCustomerStep('choice');
-                  // Refresh children list
-                  window.location.reload();
+                  // Reset filters and refetch so the newly added child is visible
+                  setChildrenPage(1);
+                  setFilters({
+                    search: '',
+                    branch: 'all',
+                    course: 'all',
+                    instructor: 'all',
+                    status: 'all',
+                    absent_irregularly: 'all',
+                    trial: 'all',
+                    payment: 'all',
+                  });
                 }}
                 onCancel={() => setAddCustomerStep('choice')}
               />
@@ -691,6 +712,15 @@ function AddChildToExistingFamilyForm({ onSuccess, onCancel }: { onSuccess: () =
     gender: '',
   });
 
+  const getFamilyName = (family: any) => String(family?.name ?? family?.family_name ?? '').trim();
+  const getFamilyPhone = (family: any) => String(family?.phone ?? family?.family_phone ?? '').trim();
+  const getFamilyParentId = (family: any) => String(family?.parent_id_number ?? '').trim();
+  const getFamilyOptionValue = (family: any) => {
+    const name = getFamilyName(family) || 'משפחה ללא שם';
+    const phone = getFamilyPhone(family);
+    return phone ? `${name} - ${phone}` : name;
+  };
+
   useEffect(() => {
     const loadFamilies = async () => {
       try {
@@ -705,6 +735,10 @@ function AddChildToExistingFamilyForm({ onSuccess, onCancel }: { onSuccess: () =
 
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
+
+    if (!selectedFamily) {
+      newErrors.family = 'חובה לבחור משפחה קיימת מהרשימה';
+    }
     
     // Validate first/last name (must be strings)
     if (!formData.first_name.trim()) {
@@ -747,19 +781,27 @@ function AddChildToExistingFamilyForm({ onSuccess, onCancel }: { onSuccess: () =
       });
       alert('הילד נוסף בהצלחה!');
       onSuccess();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error adding child:', error);
-      alert('שגיאה בהוספת הילד');
+      const details = error?.response?.data;
+      alert(`שגיאה בהוספת הילד${details ? `: ${JSON.stringify(details)}` : ''}`);
     } finally {
       setLoading(false);
     }
   };
   
-  const filteredFamilies = families.filter(family => 
-    family.name.toLowerCase().includes(familySearchTerm.toLowerCase()) ||
-    family.phone.includes(familySearchTerm) ||
-    (family.parent_id_number && family.parent_id_number.includes(familySearchTerm))
-  );
+  const filteredFamilies = (Array.isArray(families) ? families : []).filter((family) => {
+    if (!family) return false;
+    const rawQuery = String(familySearchTerm ?? '').trim();
+    if (!rawQuery) return true;
+    const query = rawQuery.toLowerCase();
+
+    return (
+      getFamilyName(family).toLowerCase().includes(query) ||
+      getFamilyPhone(family).includes(rawQuery) ||
+      getFamilyParentId(family).includes(rawQuery)
+    );
+  });
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
@@ -771,20 +813,19 @@ function AddChildToExistingFamilyForm({ onSuccess, onCancel }: { onSuccess: () =
           placeholder="חפש או בחר משפחה..."
           value={familySearchTerm}
           onChange={(e) => {
-            setFamilySearchTerm(e.target.value);
-            const selected = families.find(f => 
-              `${f.name} - ${f.phone}` === e.target.value
-            );
-            if (selected) {
-              setSelectedFamily(selected.id);
-            }
+            const value = e.target.value;
+            setFamilySearchTerm(value);
+            const selected = families.find((family) => getFamilyOptionValue(family) === value);
+            setSelectedFamily(selected?.id || '');
+            setErrors((prev) => ({ ...prev, family: '' }));
           }}
-          className="input w-full"
+          className={`input w-full ${errors.family ? 'border-red-500' : ''}`}
           required
         />
+        {errors.family && <p className="text-red-500 text-xs mt-1">{errors.family}</p>}
         <datalist id="families-list">
           {filteredFamilies.map((family) => (
-            <option key={family.id} value={`${family.name} - ${family.phone}`} />
+            <option key={family.id} value={getFamilyOptionValue(family)} />
           ))}
         </datalist>
       </div>
@@ -1005,9 +1046,10 @@ function AddNewFamilyForm({ onSuccess, onCancel }: { onSuccess: () => void; onCa
 
       alert('המשפחה והילד נוספו בהצלחה!');
       onSuccess();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error adding family:', error);
-      alert('שגיאה בהוספת המשפחה');
+      const details = error?.response?.data;
+      alert(`שגיאה בהוספת המשפחה או הילד${details ? `: ${JSON.stringify(details)}` : ''}`);
     } finally {
       setLoading(false);
     }
