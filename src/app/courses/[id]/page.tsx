@@ -320,7 +320,7 @@ export default function CourseTypeDetailsPage() {
 
         {/* Courses and Lessons */}
         <div className="card">
-          <h2 className="text-xl font-semibold mb-4">חוגים ושיעורים</h2>
+          <h2 className="text-xl font-semibold mb-4">קבוצות</h2>
 
           {filteredCourses.length === 0 ? (
             <p className="text-muted-foreground text-center py-8">אין חוגים התואמים לסינון</p>

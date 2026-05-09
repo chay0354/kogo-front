@@ -235,7 +235,7 @@ export default function ChildProfileDialog({
                 </TabsTrigger>
                 <TabsTrigger value="courses">
                   <GraduationCap className="h-4 w-4" />
-                  חוגים ושיעורים
+                  קבוצות
                 </TabsTrigger>
                 <TabsTrigger value="payments">
                   <CreditCard className="h-4 w-4" />
@@ -390,7 +390,7 @@ export default function ChildProfileDialog({
               <TabsContent value="courses" className="pt-6">
                 <div className="px-6 pb-6">
                   <div className="flex items-center justify-between mb-4">
-                    <h3 className="font-semibold text-lg">חוגים ושיעורים</h3>
+                    <h3 className="font-semibold text-lg">קבוצות</h3>
                     <Button
                       variant="gradient"
                       size="sm"
