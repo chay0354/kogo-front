@@ -65,6 +65,13 @@ export interface Course {
   updated_at: string;
 }
 
+// Tier price for students concurrently enrolled in additional courses.
+// course_index is 1-based and >= 2 (2 = student's 2nd concurrent course).
+export interface LessonPriceTier {
+  course_index: number;
+  price: number;
+}
+
 // Lesson (שיעור) - Individual recurring lesson
 export interface Lesson {
   id: string;
@@ -81,6 +88,7 @@ export interface Lesson {
   total_students_count?: number; // All students regardless of status (for display)
   price?: number | null;
   lesson_price_override?: number | null;
+  additional_course_prices?: LessonPriceTier[];
   instructor_salary_override?: number | null;
   max_students?: number | null;
   status: 'scheduled' | 'completed' | 'cancelled';
@@ -173,6 +181,7 @@ export interface LessonFormData {
   end_time: string;
   price?: number;
   lesson_price_override?: number;
+  additional_course_prices?: LessonPriceTier[];
   instructor_salary_override?: number;
   max_students?: number;
   notes?: string;

@@ -132,6 +132,7 @@ export interface PaymentInitiationRequest {
 export interface PaymentInitiationResponse {
   payment_id: string;
   tranzila_url: string;
+  course_index?: number;
   base_amount?: number;
   discount_amount?: number;
   final_amount: number;
