@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogCloseButton } from '@/components/ui/dialog';
 import { fetchAnalytics } from '@/lib/storeApi';
 import type { StoreAnalytics } from '@/types/store';
 
@@ -15,6 +16,7 @@ export default function StoreDashboard() {
   const [analytics, setAnalytics] = useState<StoreAnalytics | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [days, setDays] = useState(30);
+  const [isLowStockDialogOpen, setIsLowStockDialogOpen] = useState(false);
 
   useEffect(() => {
     loadAnalytics();
@@ -129,7 +131,25 @@ export default function StoreDashboard() {
           </CardContent>
         </Card>
 
-        <Card className={analytics.low_stock_count > 0 ? 'border-red-500' : ''}>
+        <Card
+          role="button"
+          tabIndex={0}
+          aria-label="הצג מוצרים במלאי נמוך"
+          onClick={() => {
+            if (analytics.low_stock_count > 0) setIsLowStockDialogOpen(true);
+          }}
+          onKeyDown={(e) => {
+            if ((e.key === 'Enter' || e.key === ' ') && analytics.low_stock_count > 0) {
+              e.preventDefault();
+              setIsLowStockDialogOpen(true);
+            }
+          }}
+          className={`transition-shadow ${
+            analytics.low_stock_count > 0
+              ? 'border-red-500 cursor-pointer hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500'
+              : 'cursor-default'
+          }`}
+        >
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
@@ -137,12 +157,68 @@ export default function StoreDashboard() {
                 <p className="text-3xl font-bold text-red-600 mt-2">
                   {analytics.low_stock_count}
                 </p>
+                {analytics.low_stock_count > 0 && (
+                  <p className="text-xs text-red-500 mt-1">לחץ לצפייה במוצרים</p>
+                )}
               </div>
               <AlertTriangle className={`h-12 w-12 ${analytics.low_stock_count > 0 ? 'text-red-500' : 'text-gray-400'} opacity-80`} />
             </div>
           </CardContent>
         </Card>
       </div>
+
+      {/* Low Stock Products Dialog */}
+      <Dialog open={isLowStockDialogOpen} onOpenChange={setIsLowStockDialogOpen}>
+        <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto p-6">
+          <DialogHeader>
+            <div className="flex items-center justify-between gap-4">
+              <DialogTitle className="text-red-600 flex items-center gap-2">
+                <AlertTriangle className="h-5 w-5" />
+                מוצרים במלאי נמוך ({analytics.low_stock_count})
+              </DialogTitle>
+              <DialogCloseButton />
+            </div>
+          </DialogHeader>
+
+          <div className="mt-4">
+            {analytics.low_stock_products && analytics.low_stock_products.length > 0 ? (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>מוצר</TableHead>
+                    <TableHead>קטגוריה</TableHead>
+                    <TableHead>סניף</TableHead>
+                    <TableHead>מלאי נוכחי</TableHead>
+                    <TableHead>מינימום</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {analytics.low_stock_products.map((product) => (
+                    <TableRow key={product.id}>
+                      <TableCell className="font-medium">{product.name}</TableCell>
+                      <TableCell>{product.category}</TableCell>
+                      <TableCell>{product.branch_name || 'משלוח'}</TableCell>
+                      <TableCell>
+                        <Badge variant="destructive">{product.stock_quantity}</Badge>
+                      </TableCell>
+                      <TableCell>{product.min_stock_alert}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            ) : (
+              <p className="text-gray-500 text-center py-8">אין מוצרים במלאי נמוך</p>
+            )}
+
+            <div className="mt-6 flex justify-end gap-2">
+              <Link href="/store?stock=low">
+                <Button variant="outline">פתח את החנות</Button>
+              </Link>
+              <Button onClick={() => setIsLowStockDialogOpen(false)}>סגור</Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Charts Section */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
