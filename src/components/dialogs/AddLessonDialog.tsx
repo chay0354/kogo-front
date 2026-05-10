@@ -2,14 +2,26 @@
 
 import { useState, useEffect } from 'react';
 import api from '@/lib/api';
-import { LessonFormData } from '@/types/course';
+import { LessonFormData, LessonPriceTier } from '@/types/course';
+
+const FIRST_PRICE_TIER_INDEX = 2;
 
 interface AddLessonDialogProps {
   courseId: string;
   open: boolean;
   onClose: () => void;
   onSuccess: () => void;
+  /** Default price (course price) used to pre-fill the lesson price input. */
+  coursePrice?: number | string | null;
 }
+
+const toPositiveNumber = (
+  value: number | string | null | undefined
+): number | undefined => {
+  if (value === null || value === undefined || value === '') return undefined;
+  const n = Number(value);
+  return Number.isFinite(n) ? n : undefined;
+};
 
 interface Branch {
   id: string;
@@ -32,6 +44,7 @@ export default function AddLessonDialog({
   open,
   onClose,
   onSuccess,
+  coursePrice,
 }: AddLessonDialogProps) {
   const [formData, setFormData] = useState<LessonFormData>({
     course: courseId,
@@ -41,11 +54,23 @@ export default function AddLessonDialog({
     day_of_week: 0,
     start_time: '16:00',
     end_time: '16:45',
-    price: undefined,
+    price: toPositiveNumber(coursePrice),
+    lesson_price_override: undefined,
     instructor_salary_override: undefined,
     max_students: undefined,
     notes: '',
   });
+
+  // Keep the price input in sync if the course context changes while the dialog
+  // is mounted (e.g. user reopens for a different course). We only seed when
+  // the user hasn't yet typed anything custom into the price field.
+  useEffect(() => {
+    setFormData((prev) =>
+      prev.price === undefined ? { ...prev, price: toPositiveNumber(coursePrice) } : prev
+    );
+  }, [coursePrice]);
+
+  const [extraTiers, setExtraTiers] = useState<LessonPriceTier[]>([]);
 
   const [branches, setBranches] = useState<Branch[]>([]);
   const [rooms, setRooms] = useState<Room[]>([]);
@@ -53,6 +78,28 @@ export default function AddLessonDialog({
   const [loading, setLoading] = useState(false);
   const [loadingData, setLoadingData] = useState(true);
   const [error, setError] = useState('');
+
+  const addExtraTier = () => {
+    setExtraTiers((prev) => [
+      ...prev,
+      { course_index: FIRST_PRICE_TIER_INDEX + prev.length, price: 0 },
+    ]);
+  };
+
+  const removeExtraTier = (idx: number) => {
+    setExtraTiers((prev) =>
+      prev
+        .filter((_, i) => i !== idx)
+        .map((t, i) => ({ course_index: FIRST_PRICE_TIER_INDEX + i, price: t.price }))
+    );
+  };
+
+  const updateExtraTierPrice = (idx: number, raw: string) => {
+    const value = raw === '' ? 0 : Number(raw);
+    setExtraTiers((prev) =>
+      prev.map((t, i) => (i === idx ? { ...t, price: Number.isFinite(value) ? value : 0 } : t))
+    );
+  };
 
   const daysOfWeek = [
     { value: 0, label: 'ראשון' },
@@ -138,10 +185,18 @@ export default function AddLessonDialog({
 
     setLoading(true);
     try {
-      // Prepare data for submission
+      const cleanedExtraTiers = extraTiers
+        .filter((t) => Number.isFinite(t.price) && t.price > 0)
+        .map((t, i) => ({ course_index: FIRST_PRICE_TIER_INDEX + i, price: Number(t.price) }));
+      const secondLessonTier = cleanedExtraTiers.find(
+        (t) => t.course_index === FIRST_PRICE_TIER_INDEX
+      );
+
       const submitData = {
         ...formData,
         price: formData.price || null,
+        lesson_price_override: secondLessonTier?.price || null,
+        additional_course_prices: cleanedExtraTiers,
         instructor_salary_override: formData.instructor_salary_override || null,
         max_students: formData.max_students || null,
         is_recurring: true,
@@ -366,6 +421,51 @@ export default function AddLessonDialog({
                 <p className="text-xs text-gray-500 mt-1">
                   אופציונלי - אם ריק, ישתמש במחיר החוג
                 </p>
+              </div>
+
+              <div className="rounded-lg border border-dashed border-gray-300 bg-gray-50 p-4 space-y-3">
+                {extraTiers.length > 0 && (
+                  <div className="space-y-2">
+                    {extraTiers.map((tier, idx) => (
+                      <div
+                        key={idx}
+                        className="flex items-center gap-2 bg-white border border-gray-200 rounded-md px-3 py-2"
+                      >
+                        <span className="flex-1 text-sm text-gray-700">
+                          מחיר עבור השיעור ה-{tier.course_index}
+                        </span>
+                        <input
+                          type="number"
+                          value={tier.price ? tier.price : ''}
+                          onChange={(e) => updateExtraTierPrice(idx, e.target.value)}
+                          className="w-32 px-3 py-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-teal-500 text-sm"
+                          placeholder="₪"
+                          min="0"
+                          step="0.01"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => removeExtraTier(idx)}
+                          aria-label="הסר מדרגה"
+                          className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <button
+                  type="button"
+                  onClick={addExtraTier}
+                  className="inline-flex items-center gap-1 text-sm font-medium text-teal-600 hover:text-teal-700"
+                >
+                  <span className="text-lg leading-none">+</span>
+                  הוסף מחיר עבור השיעור ה-{FIRST_PRICE_TIER_INDEX + extraTiers.length}
+                </button>
               </div>
 
               {/* Salary Override */}

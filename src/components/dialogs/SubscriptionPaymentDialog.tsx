@@ -215,7 +215,9 @@ export default function SubscriptionPaymentDialog({
                 
                 <div className="space-y-3">
                   <div className="flex justify-between text-sm">
-                    <span className="text-gray-600">מחיר בסיס:</span>
+                    <span className="text-gray-600">
+                      מחיר לשיעור ה-{paymentData.course_index || 1}:
+                    </span>
                     <span className="font-medium">₪{Number(paymentData.base_amount || 0).toFixed(2)}</span>
                   </div>
 

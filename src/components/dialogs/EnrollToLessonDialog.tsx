@@ -37,10 +37,50 @@ interface Lesson {
   branch_name: string;
   instructor_name: string | null;
   price: string | null;
+  lesson_price_override?: string | number | null;
+  additional_course_prices?: Array<{ course_index: number | string; price: number | string }>;
   enrolled_students_count?: number | null;
   room_capacity?: number | null;
   max_students?: number | null;
 }
+
+const BILLING_ENROLLMENT_STATUSES = new Set(['active', 'payments_problem']);
+
+const toNumberOrNull = (value: number | string | null | undefined) => {
+  if (value === null || value === undefined || value === '') return null;
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
+};
+
+const getChildLessonIndexForBilling = (child: ChildWithDetails, lessonId: string) => {
+  const signedLessons = child.enrollments.filter(
+    (enrollment) =>
+      BILLING_ENROLLMENT_STATUSES.has(enrollment.status) &&
+      enrollment.lesson_id !== lessonId
+  );
+  return signedLessons.length + 1;
+};
+
+const getEffectiveLessonPrice = (
+  child: ChildWithDetails,
+  lesson: Lesson,
+  coursePrice: string | null | undefined
+) => {
+  const basePrice = toNumberOrNull(lesson.price) ?? toNumberOrNull(coursePrice);
+  const lessonIndex = getChildLessonIndexForBilling(child, lesson.id);
+
+  if (lessonIndex <= 1) return basePrice;
+
+  const tier = [...(lesson.additional_course_prices || [])]
+    .map((entry) => ({
+      course_index: Number(entry.course_index),
+      price: toNumberOrNull(entry.price),
+    }))
+    .filter((entry) => Number.isFinite(entry.course_index) && entry.course_index <= lessonIndex && entry.price !== null)
+    .sort((a, b) => b.course_index - a.course_index)[0];
+
+  return tier?.price ?? toNumberOrNull(lesson.lesson_price_override) ?? basePrice;
+};
 
 const computeSeatsLeft = (capacity: number | null | undefined, enrolled: number | null | undefined) => {
   if (capacity == null) return null;
@@ -203,10 +243,12 @@ export default function EnrollToLessonDialog({ child, isOpen, onClose, onEnroll 
 
   const selectedLessonDetails = lessons.find(l => l.id === selectedLesson);
   const selectedCourseDetails = courses.find(c => c.id === selectedCourse);
-  
-  const lessonPrice = selectedLessonDetails?.price;
-  const coursePrice = selectedCourseDetails?.price;
-  const displayPrice = lessonPrice || coursePrice;
+  const lessonIndex = selectedLessonDetails
+    ? getChildLessonIndexForBilling(child, selectedLessonDetails.id)
+    : 1;
+  const displayPrice = selectedLessonDetails
+    ? getEffectiveLessonPrice(child, selectedLessonDetails, selectedCourseDetails?.price)
+    : null;
 
   const dayNames = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שבת'];
 
@@ -353,9 +395,9 @@ export default function EnrollToLessonDialog({ child, isOpen, onClose, onEnroll 
                         if (seats <= 0) return <div className="text-red-600 font-medium">השיעור מלא</div>;
                         return <div>מקומות פנויים: {seats}</div>;
                       })()}
-                      {displayPrice && (
+                      {displayPrice !== null && (
                         <div className="text-lg font-bold text-green-600 mt-2">
-                          מחיר: ₪{displayPrice}
+                          מחיר לשיעור ה-{lessonIndex}: ₪{displayPrice}
                         </div>
                       )}
                     </div>

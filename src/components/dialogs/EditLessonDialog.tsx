@@ -2,13 +2,43 @@
 
 import { useState, useEffect } from 'react';
 import api from '@/lib/api';
-import { LessonFormData, Lesson } from '@/types/course';
+import { LessonFormData, Lesson, LessonPriceTier } from '@/types/course';
+
+const FIRST_PRICE_TIER_INDEX = 2;
+
+const sanitizePriceTiers = (
+  tiers: LessonPriceTier[] | null | undefined,
+  legacySecondLessonPrice?: number | string | null
+): LessonPriceTier[] => {
+  const normalized = Array.isArray(tiers)
+    ? tiers
+        .filter((t) => t && Number(t.course_index) >= FIRST_PRICE_TIER_INDEX)
+        .map((t) => ({ course_index: Number(t.course_index), price: Number(t.price) || 0 }))
+    : [];
+
+  const legacyPrice = legacySecondLessonPrice == null ? 0 : Number(legacySecondLessonPrice);
+  const hasSecondLessonTier = normalized.some((t) => t.course_index === FIRST_PRICE_TIER_INDEX);
+  if (!hasSecondLessonTier && Number.isFinite(legacyPrice) && legacyPrice > 0) {
+    normalized.unshift({ course_index: FIRST_PRICE_TIER_INDEX, price: legacyPrice });
+  }
+
+  return normalized
+    .sort((a, b) => a.course_index - b.course_index)
+    .map((t, i) => ({ course_index: FIRST_PRICE_TIER_INDEX + i, price: t.price }));
+};
 
 interface EditLessonDialogProps {
   lesson: Lesson;
   open: boolean;
   onClose: () => void;
   onSuccess: () => void;
+  /**
+   * Price of the course this lesson belongs to, used as the fallback default
+   * for the lesson price input when `lesson.price` is null. Saving the form
+   * will then persist this value as `lesson.price`; clearing the field falls
+   * back to the course price as before.
+   */
+  coursePrice?: number | string | null;
 }
 
 interface Branch {
@@ -32,6 +62,7 @@ export default function EditLessonDialog({
   open,
   onClose,
   onSuccess,
+  coursePrice,
 }: EditLessonDialogProps) {
   // Extract course ID - it might be a string ID or an object
   const getCourseId = (course: any): string => {
@@ -39,6 +70,23 @@ export default function EditLessonDialog({
     if (typeof course === 'string') return course;
     if (course.id) return course.id;
     return '';
+  };
+
+  // Effective lesson price = explicit lesson.price OR the parent course price
+  // (when null/undefined). Returning undefined leaves the input empty.
+  const resolveInitialPrice = (
+    lessonPrice: number | string | null | undefined,
+    fallback: number | string | null | undefined
+  ): number | undefined => {
+    if (lessonPrice !== null && lessonPrice !== undefined && lessonPrice !== '') {
+      const n = Number(lessonPrice);
+      if (Number.isFinite(n)) return n;
+    }
+    if (fallback !== null && fallback !== undefined && fallback !== '') {
+      const n = Number(fallback);
+      if (Number.isFinite(n)) return n;
+    }
+    return undefined;
   };
 
   const [formData, setFormData] = useState<LessonFormData>({
@@ -49,12 +97,16 @@ export default function EditLessonDialog({
     day_of_week: lesson.day_of_week,
     start_time: lesson.start_time,
     end_time: lesson.end_time,
-    price: lesson.price !== null && lesson.price !== undefined ? Number(lesson.price) : undefined,
+    price: resolveInitialPrice(lesson.price, coursePrice),
     lesson_price_override: lesson.lesson_price_override !== null && lesson.lesson_price_override !== undefined ? Number(lesson.lesson_price_override) : undefined,
     instructor_salary_override: lesson.instructor_salary_override !== null && lesson.instructor_salary_override !== undefined ? Number(lesson.instructor_salary_override) : undefined,
     max_students: lesson.max_students !== null && lesson.max_students !== undefined ? Number(lesson.max_students) : undefined,
     notes: lesson.notes || '',
   });
+
+  const [extraTiers, setExtraTiers] = useState<LessonPriceTier[]>(() =>
+    sanitizePriceTiers(lesson.additional_course_prices, lesson.lesson_price_override)
+  );
 
   const [branches, setBranches] = useState<Branch[]>([]);
   const [rooms, setRooms] = useState<Room[]>([]);
@@ -90,14 +142,37 @@ export default function EditLessonDialog({
         day_of_week: lesson.day_of_week,
         start_time: lesson.start_time,
         end_time: lesson.end_time,
-        price: lesson.price !== null && lesson.price !== undefined ? Number(lesson.price) : undefined,
+        price: resolveInitialPrice(lesson.price, coursePrice),
         lesson_price_override: lesson.lesson_price_override !== null && lesson.lesson_price_override !== undefined ? Number(lesson.lesson_price_override) : undefined,
         instructor_salary_override: lesson.instructor_salary_override !== null && lesson.instructor_salary_override !== undefined ? Number(lesson.instructor_salary_override) : undefined,
         max_students: lesson.max_students !== null && lesson.max_students !== undefined ? Number(lesson.max_students) : undefined,
         notes: lesson.notes || '',
       });
+      setExtraTiers(sanitizePriceTiers(lesson.additional_course_prices, lesson.lesson_price_override));
     }
-  }, [lesson]);
+  }, [lesson, coursePrice]);
+
+  const addExtraTier = () => {
+    setExtraTiers((prev) => [
+      ...prev,
+      { course_index: FIRST_PRICE_TIER_INDEX + prev.length, price: 0 },
+    ]);
+  };
+
+  const removeExtraTier = (idx: number) => {
+    setExtraTiers((prev) =>
+      prev
+        .filter((_, i) => i !== idx)
+        .map((t, i) => ({ course_index: FIRST_PRICE_TIER_INDEX + i, price: t.price }))
+    );
+  };
+
+  const updateExtraTierPrice = (idx: number, raw: string) => {
+    const value = raw === '' ? 0 : Number(raw);
+    setExtraTiers((prev) =>
+      prev.map((t, i) => (i === idx ? { ...t, price: Number.isFinite(value) ? value : 0 } : t))
+    );
+  };
 
   useEffect(() => {
     // Auto-calculate end time (45 minutes after start time)
@@ -167,11 +242,18 @@ export default function EditLessonDialog({
 
     setLoading(true);
     try {
-      // Prepare data for submission
+      const cleanedExtraTiers = extraTiers
+        .filter((t) => Number.isFinite(t.price) && t.price > 0)
+        .map((t, i) => ({ course_index: FIRST_PRICE_TIER_INDEX + i, price: Number(t.price) }));
+      const secondLessonTier = cleanedExtraTiers.find(
+        (t) => t.course_index === FIRST_PRICE_TIER_INDEX
+      );
+
       const submitData = {
         ...formData,
         price: formData.price || null,
-        lesson_price_override: formData.lesson_price_override || null,
+        lesson_price_override: secondLessonTier?.price || null,
+        additional_course_prices: cleanedExtraTiers,
         instructor_salary_override: formData.instructor_salary_override || null,
         max_students: formData.max_students || null,
         is_recurring: true,
@@ -373,55 +455,76 @@ export default function EditLessonDialog({
                 </p>
               </div>
 
-              {/* Price row */}
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label htmlFor="price" className="block text-sm font-medium text-gray-700 mb-1">
-                    מחיר שיעור (₪)
-                  </label>
-                  <input
-                    type="number"
-                    id="price"
-                    value={formData.price || ''}
-                    onChange={(e) =>
-                      setFormData({
-                        ...formData,
-                        price: e.target.value ? Number(e.target.value) : undefined,
-                      })
-                    }
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500"
-                    placeholder="השאר ריק לשימוש במחיר החוג"
-                    min="0"
-                    step="0.01"
-                  />
-                  <p className="text-xs text-gray-500 mt-1">
-                    אופציונלי - אם ריק, ישתמש במחיר החוג
-                  </p>
-                </div>
+              {/* Price */}
+              <div>
+                <label htmlFor="price" className="block text-sm font-medium text-gray-700 mb-1">
+                  מחיר שיעור (₪)
+                </label>
+                <input
+                  type="number"
+                  id="price"
+                  value={formData.price || ''}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      price: e.target.value ? Number(e.target.value) : undefined,
+                    })
+                  }
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500"
+                  placeholder="השאר ריק לשימוש במחיר החוג"
+                  min="0"
+                  step="0.01"
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  אופציונלי - אם ריק, ישתמש במחיר החוג
+                </p>
+              </div>
 
-                <div>
-                  <label htmlFor="lesson_price_override" className="block text-sm font-medium text-gray-700 mb-1">
-                    מחיר לתלמידים שכבר רשומים לחוגים נוספים (₪)
-                  </label>
-                  <input
-                    type="number"
-                    id="lesson_price_override"
-                    value={formData.lesson_price_override || ''}
-                    onChange={(e) =>
-                      setFormData({
-                        ...formData,
-                        lesson_price_override: e.target.value ? Number(e.target.value) : undefined,
-                      })
-                    }
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500"
-                    placeholder="השאר ריק לשימוש במחיר הרגיל"
-                    min="0"
-                    step="0.01"
-                  />
-                  <p className="text-xs text-gray-500 mt-1">
-                    תלמידים הרשומים לחוג אחד או יותר
-                  </p>
-                </div>
+              <div className="rounded-lg border border-dashed border-gray-300 bg-gray-50 p-4 space-y-3">
+                {extraTiers.length > 0 && (
+                  <div className="space-y-2">
+                    {extraTiers.map((tier, idx) => (
+                      <div
+                        key={idx}
+                        className="flex items-center gap-2 bg-white border border-gray-200 rounded-md px-3 py-2"
+                      >
+                        <span className="flex-1 text-sm text-gray-700">
+                          מחיר עבור השיעור ה-{tier.course_index}
+                        </span>
+                        <div className="relative">
+                          <input
+                            type="number"
+                            value={tier.price ? tier.price : ''}
+                            onChange={(e) => updateExtraTierPrice(idx, e.target.value)}
+                            className="w-32 px-3 py-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-teal-500 text-sm"
+                            placeholder="₪"
+                            min="0"
+                            step="0.01"
+                          />
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => removeExtraTier(idx)}
+                          aria-label="הסר מדרגה"
+                          className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <button
+                  type="button"
+                  onClick={addExtraTier}
+                  className="inline-flex items-center gap-1 text-sm font-medium text-teal-600 hover:text-teal-700"
+                >
+                  <span className="text-lg leading-none">+</span>
+                  הוסף מחיר עבור השיעור ה-{FIRST_PRICE_TIER_INDEX + extraTiers.length}
+                </button>
               </div>
 
               {/* Salary Override */}

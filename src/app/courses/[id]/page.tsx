@@ -37,6 +37,7 @@ export default function CourseTypeDetailsPage() {
   const [showAddCourseDialog, setShowAddCourseDialog] = useState(false);
   const [showAddLessonDialog, setShowAddLessonDialog] = useState(false);
   const [selectedCourseId, setSelectedCourseId] = useState<string>('');
+  const [selectedCoursePrice, setSelectedCoursePrice] = useState<number | null>(null);
   
   // Edit/Delete states
   const [showEditCourseDialog, setShowEditCourseDialog] = useState(false);
@@ -81,8 +82,12 @@ export default function CourseTypeDetailsPage() {
     setExpandedCourses(newExpanded);
   };
 
-  const handleAddLesson = (courseId: string) => {
+  const handleAddLesson = (courseId: string, coursePrice?: number | string | null) => {
     setSelectedCourseId(courseId);
+    const parsed = coursePrice === null || coursePrice === undefined || coursePrice === ''
+      ? null
+      : Number(coursePrice);
+    setSelectedCoursePrice(Number.isFinite(parsed as number) ? (parsed as number) : null);
     setShowAddLessonDialog(true);
   };
 
@@ -123,10 +128,18 @@ export default function CourseTypeDetailsPage() {
     }
   };
 
-  const handleEditLesson = (lesson: Lesson, courseId: string) => {
+  const handleEditLesson = (
+    lesson: Lesson,
+    courseId: string,
+    coursePrice?: number | string | null
+  ) => {
     // Attach course ID to lesson since nested lessons don't include it
     const lessonWithCourse = { ...lesson, course: courseId };
     setSelectedLesson(lessonWithCourse);
+    const parsed = coursePrice === null || coursePrice === undefined || coursePrice === ''
+      ? null
+      : Number(coursePrice);
+    setSelectedCoursePrice(Number.isFinite(parsed as number) ? (parsed as number) : null);
     setShowEditLessonDialog(true);
   };
 
@@ -446,7 +459,7 @@ export default function CourseTypeDetailsPage() {
                                     <td className="py-3 text-center">
                                       <div className="flex items-center justify-center gap-1">
                                         <button
-                                          onClick={() => handleEditLesson(lesson, course.id)}
+                                          onClick={() => handleEditLesson(lesson, course.id, course.price)}
                                           className="p-1 hover:bg-blue-50 rounded transition-colors"
                                           title="עריכת שיעור"
                                         >
@@ -477,7 +490,7 @@ export default function CourseTypeDetailsPage() {
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
-                              handleAddLesson(course.id);
+                              handleAddLesson(course.id, course.price);
                             }}
                             className="btn-secondary text-sm"
                           >
@@ -523,6 +536,7 @@ export default function CourseTypeDetailsPage() {
       {showAddLessonDialog && (
         <AddLessonDialog
           courseId={selectedCourseId}
+          coursePrice={selectedCoursePrice}
           open={showAddLessonDialog}
           onClose={() => setShowAddLessonDialog(false)}
           onSuccess={handleLessonAdded}
@@ -544,6 +558,7 @@ export default function CourseTypeDetailsPage() {
       {showEditLessonDialog && selectedLesson && (
         <EditLessonDialog
           lesson={selectedLesson}
+          coursePrice={selectedCoursePrice}
           open={showEditLessonDialog}
           onClose={() => {
             setShowEditLessonDialog(false);
