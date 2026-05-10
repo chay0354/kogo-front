@@ -229,6 +229,18 @@ export default function EditProductDialog({ isOpen, onClose, product, onSuccess 
               />
             </div>
           </div>
+          {(() => {
+            const effectiveStock = sizeRows.length > 0 ? totalSizeStock : Number(formData.stock_quantity ?? 0);
+            const minAlert = Number(formData.min_stock_alert ?? 0);
+            if (effectiveStock <= minAlert) {
+              return (
+                <p className="text-xs text-red-600 -mt-3">
+                  מוצר זה ייספר כ"מלאי נמוך" בדשבורד (כמות במלאי {effectiveStock} ≤ התראת מינימום {minAlert}).
+                </p>
+              );
+            }
+            return null;
+          })()}
 
           {/* Sizes + per-size stock */}
           <div className="border rounded-lg p-4 space-y-3 bg-gray-50">
