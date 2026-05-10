@@ -52,8 +52,19 @@ export default function PurchaseDialog({ isOpen, onClose, product, onSuccess }: 
   const [cvv, setCvv] = useState('');
   const [cardHolderId, setCardHolderId] = useState('');
 
-  // Parse available sizes
-  const sizes = product.size ? product.size.split(',').map(s => s.trim()) : [];
+  // Per-size stock takes precedence over the legacy CSV `size` field.
+  const hasPerSizeStock = Array.isArray(product.size_stocks) && product.size_stocks.length > 0;
+  const sizeOptions = hasPerSizeStock
+    ? product.size_stocks!.map((s) => ({ size: s.size, stock: Number(s.stock_quantity) || 0 }))
+    : (product.size ? product.size.split(',').map((s) => s.trim()).filter(Boolean) : [])
+        .map((size) => ({ size, stock: product.stock_quantity }));
+
+  // Stock available for the *currently selected* size (or the product total when no sizes).
+  const selectedSizeStock = (() => {
+    if (sizeOptions.length === 0) return product.stock_quantity;
+    const match = sizeOptions.find((opt) => opt.size === selectedSize);
+    return match ? match.stock : 0;
+  })();
 
   // Calculate total
   const total = product.sale_price * quantity;
@@ -294,13 +305,15 @@ export default function PurchaseDialog({ isOpen, onClose, product, onSuccess }: 
           </div>
 
           {/* Size Selection */}
-          {sizes.length > 0 && (
+          {sizeOptions.length > 0 && (
             <div>
               <label className="block text-sm font-medium mb-2">בחירת מידה *</label>
               <Select value={selectedSize} onChange={(e) => setSelectedSize(e.target.value)}>
                 <option value="">בחר מידה</option>
-                {sizes.map(size => (
-                  <option key={size} value={size}>{size}</option>
+                {sizeOptions.map((opt) => (
+                  <option key={opt.size} value={opt.size} disabled={hasPerSizeStock && opt.stock <= 0}>
+                    {hasPerSizeStock ? `${opt.size} (במלאי: ${opt.stock})` : opt.size}
+                  </option>
                 ))}
               </Select>
             </div>
@@ -308,13 +321,26 @@ export default function PurchaseDialog({ isOpen, onClose, product, onSuccess }: 
 
           {/* Quantity */}
           <div>
-            <label className="block text-sm font-medium mb-2">כמות</label>
+            <label className="block text-sm font-medium mb-2">
+              כמות
+              {hasPerSizeStock && selectedSize && (
+                <span className="text-xs text-gray-500 mr-2">(מלאי למידה {selectedSize}: {selectedSizeStock})</span>
+              )}
+            </label>
             <Input
               type="number"
               min="1"
-              max={product.stock_quantity}
+              max={selectedSizeStock || 1}
+              disabled={hasPerSizeStock && !selectedSize}
               value={quantity}
-              onChange={(e) => setQuantity(Math.max(1, Math.min(product.stock_quantity, parseInt(e.target.value) || 1)))}
+              onChange={(e) =>
+                setQuantity(
+                  Math.max(
+                    1,
+                    Math.min(selectedSizeStock || 1, parseInt(e.target.value) || 1)
+                  )
+                )
+              }
             />
           </div>
 
@@ -490,9 +516,10 @@ export default function PurchaseDialog({ isOpen, onClose, product, onSuccess }: 
             <Button
               onClick={handlePurchase}
               disabled={
-                isLoading || 
-                (customerType === 'existing' && !selectedChild) || 
-                (sizes.length > 0 && !selectedSize) ||
+                isLoading ||
+                (customerType === 'existing' && !selectedChild) ||
+                (sizeOptions.length > 0 && !selectedSize) ||
+                (hasPerSizeStock && quantity > selectedSizeStock) ||
                 (useDirectCard && (!cardNumber || !expiryMonth || !expiryYear || !cvv || !cardHolderId))
               }
             >

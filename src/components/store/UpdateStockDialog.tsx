@@ -1,9 +1,10 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Select } from '@/components/ui/select';
 import { toast } from 'sonner';
 import { updateStock } from '@/lib/storeApi';
 import type { StoreProduct } from '@/types/store';
@@ -18,36 +19,66 @@ interface UpdateStockDialogProps {
 export default function UpdateStockDialog({ isOpen, onClose, product, onSuccess }: UpdateStockDialogProps) {
   const [mode, setMode] = useState<'add' | 'subtract' | 'set'>('add');
   const [quantity, setQuantity] = useState(0);
+  const [selectedSize, setSelectedSize] = useState<string>('');
   const [isLoading, setIsLoading] = useState(false);
+
+  const sizeStocks = useMemo(
+    () => (Array.isArray(product?.size_stocks) ? product!.size_stocks! : []),
+    [product]
+  );
+  const hasPerSizeStock = sizeStocks.length > 0;
 
   useEffect(() => {
     if (!isOpen) {
       setMode('add');
       setQuantity(0);
+      setSelectedSize('');
+      return;
     }
-  }, [isOpen]);
+    if (hasPerSizeStock) {
+      setSelectedSize((current) => current || sizeStocks[0]?.size || '');
+    } else {
+      setSelectedSize('');
+    }
+  }, [isOpen, hasPerSizeStock, sizeStocks]);
+
+  const targetCurrentStock = (() => {
+    if (!product) return 0;
+    if (hasPerSizeStock) {
+      const row = sizeStocks.find((s) => s.size === selectedSize);
+      return row ? Number(row.stock_quantity) || 0 : 0;
+    }
+    return Number(product.stock_quantity) || 0;
+  })();
 
   const previewStock = () => {
-    if (!product) return 0;
-    
     switch (mode) {
       case 'add':
-        return product.stock_quantity + quantity;
+        return targetCurrentStock + quantity;
       case 'subtract':
-        return Math.max(0, product.stock_quantity - quantity);
+        return Math.max(0, targetCurrentStock - quantity);
       case 'set':
         return Math.max(0, quantity);
       default:
-        return product.stock_quantity;
+        return targetCurrentStock;
     }
   };
 
   async function handleSubmit() {
     if (!product) return;
 
+    if (hasPerSizeStock && !selectedSize) {
+      toast.error('יש לבחור מידה לעדכון');
+      return;
+    }
+
     setIsLoading(true);
     try {
-      await updateStock(product.id, { mode, quantity });
+      await updateStock(product.id, {
+        mode,
+        quantity,
+        size: hasPerSizeStock ? selectedSize : undefined,
+      });
       toast.success('המלאי עודכן בהצלחה!');
       onSuccess();
       onClose();
@@ -70,10 +101,33 @@ export default function UpdateStockDialog({ isOpen, onClose, product, onSuccess 
         </DialogHeader>
 
         <div className="space-y-6 px-2 mt-6">
+          {hasPerSizeStock && (
+            <div>
+              <label className="block text-sm font-medium mb-2">בחירת מידה</label>
+              <Select
+                value={selectedSize}
+                onChange={(e) => setSelectedSize(e.target.value)}
+              >
+                {sizeStocks.map((row) => (
+                  <option key={row.size} value={row.size}>
+                    {row.size} (מלאי: {row.stock_quantity})
+                  </option>
+                ))}
+              </Select>
+            </div>
+          )}
+
           {/* Current Stock */}
           <div className="bg-teal-50 p-4 rounded-lg text-center">
-            <p className="text-sm text-gray-600 mb-1">מלאי נוכחי</p>
-            <p className="text-3xl font-bold text-teal-600">{product.stock_quantity}</p>
+            <p className="text-sm text-gray-600 mb-1">
+              מלאי נוכחי{hasPerSizeStock && selectedSize ? ` (${selectedSize})` : ''}
+            </p>
+            <p className="text-3xl font-bold text-teal-600">{targetCurrentStock}</p>
+            {hasPerSizeStock && (
+              <p className="text-xs text-gray-500 mt-2">
+                סך הכל לכל המידות: {product.stock_quantity}
+              </p>
+            )}
           </div>
 
           {/* Mode Selection */}
@@ -118,7 +172,9 @@ export default function UpdateStockDialog({ isOpen, onClose, product, onSuccess 
 
           {/* Preview */}
           <div className="bg-gray-50 p-4 rounded-lg">
-            <p className="text-sm text-gray-600 mb-1">מלאי לאחר עדכון</p>
+            <p className="text-sm text-gray-600 mb-1">
+              מלאי לאחר עדכון{hasPerSizeStock && selectedSize ? ` (${selectedSize})` : ''}
+            </p>
             <p className="text-2xl font-bold">{previewStock()}</p>
           </div>
 
@@ -134,4 +190,3 @@ export default function UpdateStockDialog({ isOpen, onClose, product, onSuccess 
     </Dialog>
   );
 }
-
