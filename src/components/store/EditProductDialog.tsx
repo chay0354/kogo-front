@@ -6,9 +6,10 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { toast } from 'sonner';
+import { Plus, Trash2 } from 'lucide-react';
 import { updateProduct } from '@/lib/storeApi';
 import api from '@/lib/api';
-import type { StoreProduct } from '@/types/store';
+import type { StoreProduct, ProductSizeStock } from '@/types/store';
 import type { Branch } from '@/types/branch';
 
 interface EditProductDialogProps {
@@ -18,10 +19,42 @@ interface EditProductDialogProps {
   onSuccess: () => void;
 }
 
+function deriveSizeRows(product: StoreProduct | null): ProductSizeStock[] {
+  if (!product) return [];
+
+  if (Array.isArray(product.size_stocks) && product.size_stocks.length > 0) {
+    return product.size_stocks
+      .map((row, index) => ({
+        size: row.size,
+        stock_quantity: Number(row.stock_quantity) || 0,
+        sort_order: row.sort_order ?? index,
+      }))
+      .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
+  }
+
+  // Legacy: only a CSV size string. Seed rows so the staff can start tracking
+  // per-size stock; first size keeps the current total to preserve inventory.
+  const csvSizes = (product.size || '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
+
+  if (csvSizes.length === 0) return [];
+
+  return csvSizes.map((size, index) => ({
+    size,
+    stock_quantity: index === 0 ? Number(product.stock_quantity) || 0 : 0,
+    sort_order: index,
+  }));
+}
+
 export default function EditProductDialog({ isOpen, onClose, product, onSuccess }: EditProductDialogProps) {
   const [formData, setFormData] = useState<any>({});
+  const [sizeRows, setSizeRows] = useState<ProductSizeStock[]>([]);
   const [branches, setBranches] = useState<Branch[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+
+  const totalSizeStock = sizeRows.reduce((sum, row) => sum + (Number(row.stock_quantity) || 0), 0);
 
   useEffect(() => {
     if (product && isOpen) {
@@ -37,9 +70,22 @@ export default function EditProductDialog({ isOpen, onClose, product, onSuccess 
         image_url: product.image_url || '',
         notes: product.notes || ''
       });
+      setSizeRows(deriveSizeRows(product));
       fetchBranches();
     }
   }, [product, isOpen]);
+
+  function addSizeRow() {
+    setSizeRows((rows) => [...rows, { size: '', stock_quantity: 0, sort_order: rows.length }]);
+  }
+
+  function updateSizeRow(index: number, patch: Partial<ProductSizeStock>) {
+    setSizeRows((rows) => rows.map((row, i) => (i === index ? { ...row, ...patch } : row)));
+  }
+
+  function removeSizeRow(index: number) {
+    setSizeRows((rows) => rows.filter((_, i) => i !== index));
+  }
 
   async function fetchBranches() {
     try {
@@ -59,9 +105,33 @@ export default function EditProductDialog({ isOpen, onClose, product, onSuccess 
   async function handleSubmit() {
     if (!product) return;
 
+    const cleanedSizeRows = sizeRows
+      .map((row, index) => ({
+        size: row.size.trim(),
+        stock_quantity: Math.max(0, Math.floor(Number(row.stock_quantity) || 0)),
+        sort_order: index
+      }))
+      .filter((row) => row.size.length > 0);
+
+    const seenSizes = new Set<string>();
+    for (const row of cleanedSizeRows) {
+      if (seenSizes.has(row.size)) {
+        toast.error(`מידה "${row.size}" מופיעה יותר מפעם אחת`);
+        return;
+      }
+      seenSizes.add(row.size);
+    }
+
+    const payload: any = {
+      ...formData,
+      size: cleanedSizeRows.length ? cleanedSizeRows.map((r) => r.size).join(',') : formData.size,
+      stock_quantity: cleanedSizeRows.length ? totalSizeStock : formData.stock_quantity,
+      size_stocks: cleanedSizeRows,
+    };
+
     setIsLoading(true);
     try {
-      await updateProduct(product.id, formData);
+      await updateProduct(product.id, payload);
       toast.success('המוצר עודכן בהצלחה!');
       onSuccess();
       onClose();
@@ -92,22 +162,12 @@ export default function EditProductDialog({ isOpen, onClose, product, onSuccess 
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium mb-2">קטגוריה</label>
-              <Input
-                value={formData.category || ''}
-                onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium mb-2">מידות</label>
-              <Input
-                value={formData.size || ''}
-                onChange={(e) => setFormData({ ...formData, size: e.target.value })}
-                placeholder="S,M,L,XL"
-              />
-            </div>
+          <div>
+            <label className="block text-sm font-medium mb-2">קטגוריה</label>
+            <Input
+              value={formData.category || ''}
+              onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+            />
           </div>
 
           <div className="grid grid-cols-2 gap-4">
@@ -150,10 +210,13 @@ export default function EditProductDialog({ isOpen, onClose, product, onSuccess 
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium mb-2">כמות במלאי</label>
+              <label className="block text-sm font-medium mb-2">
+                כמות במלאי {sizeRows.length > 0 && <span className="text-xs text-gray-500">(מחושב לפי מידות)</span>}
+              </label>
               <Input
                 type="number"
-                value={formData.stock_quantity || 0}
+                disabled={sizeRows.length > 0}
+                value={sizeRows.length > 0 ? totalSizeStock : (formData.stock_quantity ?? 0)}
                 onChange={(e) => setFormData({ ...formData, stock_quantity: parseInt(e.target.value) || 0 })}
               />
             </div>
@@ -165,6 +228,64 @@ export default function EditProductDialog({ isOpen, onClose, product, onSuccess 
                 onChange={(e) => setFormData({ ...formData, min_stock_alert: parseInt(e.target.value) || 0 })}
               />
             </div>
+          </div>
+
+          {/* Sizes + per-size stock */}
+          <div className="border rounded-lg p-4 space-y-3 bg-gray-50">
+            <div className="flex items-center justify-between">
+              <label className="block text-sm font-medium">מידות ומלאי לכל מידה</label>
+              <Button type="button" size="sm" variant="outline" onClick={addSizeRow}>
+                <Plus className="h-4 w-4 ml-1" />
+                הוסף מידה
+              </Button>
+            </div>
+
+            {sizeRows.length === 0 ? (
+              <p className="text-xs text-gray-500">
+                אם אין מידות, ניתן לדלג על שלב זה ולהשתמש בכמות במלאי הכללית למטה.
+              </p>
+            ) : (
+              <div className="space-y-2">
+                {sizeRows.map((row, index) => (
+                  <div key={index} className="grid grid-cols-12 gap-2 items-center">
+                    <div className="col-span-5">
+                      <Input
+                        value={row.size}
+                        onChange={(e) => updateSizeRow(index, { size: e.target.value })}
+                        placeholder="מידה (S, M, L, 42, ...)"
+                      />
+                    </div>
+                    <div className="col-span-5">
+                      <Input
+                        type="number"
+                        min="0"
+                        value={row.stock_quantity}
+                        onChange={(e) =>
+                          updateSizeRow(index, {
+                            stock_quantity: Math.max(0, parseInt(e.target.value) || 0)
+                          })
+                        }
+                        placeholder="כמות במלאי"
+                      />
+                    </div>
+                    <div className="col-span-2 flex justify-end">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={() => removeSizeRow(index)}
+                        className="text-red-600"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+                <div className="text-xs text-gray-600 pt-1">
+                  סך הכל במלאי לפי מידות: <span className="font-semibold">{totalSizeStock}</span>
+                </div>
+              </div>
+            )}
           </div>
 
           <div>
@@ -188,4 +309,3 @@ export default function EditProductDialog({ isOpen, onClose, product, onSuccess 
     </Dialog>
   );
 }
-

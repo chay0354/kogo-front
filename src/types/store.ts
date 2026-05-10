@@ -2,6 +2,13 @@
  * Store Types - TypeScript type definitions for store management
  */
 
+export interface ProductSizeStock {
+  id?: string;
+  size: string;
+  stock_quantity: number;
+  sort_order?: number;
+}
+
 export interface StoreProduct {
   id: string;
   name: string;
@@ -18,6 +25,7 @@ export interface StoreProduct {
   notes: string;
   is_active: boolean;
   profit_margin: number;
+  size_stocks?: ProductSizeStock[];
   created_at: string;
   updated_at: string;
 }
@@ -102,11 +110,13 @@ export interface ProductFormData {
   min_stock_alert: number;
   image_url: string;
   notes: string;
+  size_stocks?: ProductSizeStock[];
 }
 
 export interface StockUpdateData {
   mode: 'add' | 'subtract' | 'set';
   quantity: number;
+  size?: string | null;
 }
 
 export interface CustomerInfo {
