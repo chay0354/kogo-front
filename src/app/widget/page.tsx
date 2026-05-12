@@ -1,8 +1,10 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import AppLayout from '@/components/AppLayout';
+import { useEffect, useState, Fragment } from 'react';
+import { ChevronDown, ChevronUp } from 'lucide-react';
 import api from '@/lib/api';
+import { getDayName, formatTimeRange } from '@/lib/courseUtils';
+import CourseRegistrationForm from './CourseRegistrationForm';
 import {
   Table,
   TableBody,
@@ -24,6 +26,13 @@ interface Branch {
   city_name: string;
 }
 
+interface CourseLesson {
+  day_of_week: number;
+  start_time: string;
+  end_time: string;
+  instructor_name: string | null;
+}
+
 interface Course {
   id: string;
   name: string;
@@ -34,7 +43,7 @@ interface Course {
   max_age: number | null;
   price: number | null;
   lessons_count: number;
-  enrolled_students_count: number;
+  lessons: CourseLesson[];
 }
 
 export default function WidgetPage() {
@@ -49,6 +58,24 @@ export default function WidgetPage() {
 
   const [loadingBranches, setLoadingBranches] = useState(true);
   const [loadingCourses, setLoadingCourses] = useState(false);
+  const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
+  const [registrationRows, setRegistrationRows] = useState<Set<string>>(new Set());
+
+  const toggleRow = (id: string) =>
+    setExpandedRows((prev) => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      if (!next.has(id)) {
+        setRegistrationRows((r) => { const s = new Set(r); s.delete(id); return s; });
+      }
+      return next;
+    });
+
+  const openRegistration = (id: string) =>
+    setRegistrationRows((prev) => new Set(prev).add(id));
+
+  const closeRegistration = (id: string) =>
+    setRegistrationRows((prev) => { const s = new Set(prev); s.delete(id); return s; });
 
   // Derived state
   const filteredBranches = selectedCity
@@ -111,7 +138,7 @@ export default function WidgetPage() {
     }
     setLoadingCourses(true);
     api
-      .get(`/courses/courses/?branch_id=${selectedBranch}`)
+      .get(`/courses/courses/?branch_id=${selectedBranch}&include_lessons=true`)
       .then((res) => {
         const data = Array.isArray(res.data) ? res.data : res.data.results ?? [];
         setBranchCourses(data);
@@ -138,13 +165,14 @@ export default function WidgetPage() {
     setSelectedAge('');
   };
 
+  const selectedBranchName = allBranches.find((b) => b.id === selectedBranch)?.name ?? '—';
+
   const ageLabel = (age: number) => `${age} שנים`;
 
   const showTable = Boolean(selectedBranch);
 
   return (
-    <AppLayout>
-      <div dir="rtl" className="space-y-6 p-6">
+    <div dir="rtl" className="space-y-6 p-6">
         {/* Filter strip */}
         <div className="card p-4">
           <div className="flex gap-4 flex-wrap">
@@ -247,35 +275,105 @@ export default function WidgetPage() {
                     <TableHead>טווח גילאים</TableHead>
                     <TableHead>מחיר חודשי</TableHead>
                     <TableHead>שיעורים שבועיים</TableHead>
-                    <TableHead>תלמידים רשומים</TableHead>
+                    <TableHead>ימים ושעות</TableHead>
+                    <TableHead>פרטים</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredCourses.map((course) => (
-                    <TableRow key={course.id}>
-                      <TableCell className="font-medium">{course.name}</TableCell>
-                      <TableCell>{course.course_type_name || '—'}</TableCell>
-                      <TableCell>{course.branch_name || '—'}</TableCell>
-                      <TableCell>
-                        {course.min_age != null && course.max_age != null
-                          ? `${course.min_age}–${course.max_age}`
-                          : course.min_age != null
-                          ? `${course.min_age}+`
-                          : '—'}
-                      </TableCell>
-                      <TableCell>
-                        {course.price != null ? `₪${course.price}` : '—'}
-                      </TableCell>
-                      <TableCell>{course.lessons_count}</TableCell>
-                      <TableCell>{course.enrolled_students_count}</TableCell>
-                    </TableRow>
-                  ))}
+                  {filteredCourses.map((course) => {
+                    const isExpanded = expandedRows.has(course.id);
+                    return (
+                      <Fragment key={course.id}>
+                        <TableRow>
+                          <TableCell className="font-medium">{course.name}</TableCell>
+                          <TableCell>{course.course_type_name || '—'}</TableCell>
+                          <TableCell>{course.branch_name || selectedBranchName}</TableCell>
+                          <TableCell>
+                            {course.min_age != null && course.max_age != null
+                              ? `${course.min_age}–${course.max_age}`
+                              : course.min_age != null
+                              ? `${course.min_age}+`
+                              : '—'}
+                          </TableCell>
+                          <TableCell>
+                            {course.price != null ? `₪${course.price}` : '—'}
+                          </TableCell>
+                          <TableCell>{course.lessons_count}</TableCell>
+                          <TableCell>
+                            {course.lessons?.length
+                              ? course.lessons.map((l) => `${getDayName(l.day_of_week)} ${formatTimeRange(l.start_time, l.end_time)}`).join(', ')
+                              : '—'}
+                          </TableCell>
+                          <TableCell>
+                            <button
+                              onClick={() => toggleRow(course.id)}
+                              className="p-1 rounded hover:bg-gray-100"
+                            >
+                              {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                            </button>
+                          </TableCell>
+                        </TableRow>
+                        {isExpanded && (
+                          <TableRow>
+                            <TableCell colSpan={8} className="bg-gray-50 p-4">
+                              {registrationRows.has(course.id) ? (
+                                <CourseRegistrationForm
+                                  courseName={course.name}
+                                  onBack={() => closeRegistration(course.id)}
+                                  onSubmit={() => closeRegistration(course.id)}
+                                />
+                              ) : (
+                                <div className="grid grid-cols-3 gap-4">
+                                  {/* Instructor */}
+                                  <div className="border rounded-lg p-4 bg-white min-h-[80px]">
+                                    <p className="text-xs font-medium text-gray-500 mb-1">מדריך</p>
+                                    {course.lessons?.length ? (
+                                      Array.from(new Set(course.lessons.map((l) => l.instructor_name).filter(Boolean))).map((name) => (
+                                        <p key={name} className="text-sm">{name}</p>
+                                      ))
+                                    ) : (
+                                      <p className="text-sm text-gray-400">—</p>
+                                    )}
+                                  </div>
+                                  {/* Days & hours */}
+                                  <div className="border rounded-lg p-4 bg-white min-h-[80px]">
+                                    <p className="text-xs font-medium text-gray-500 mb-1">ימים ושעות</p>
+                                    {course.lessons?.length ? (
+                                      course.lessons.map((l, i) => (
+                                        <p key={i} className="text-sm">{getDayName(l.day_of_week)} {formatTimeRange(l.start_time, l.end_time)}</p>
+                                      ))
+                                    ) : (
+                                      <p className="text-sm text-gray-400">—</p>
+                                    )}
+                                  </div>
+                                  {/* Price & registration */}
+                                  <div className="border rounded-lg p-4 bg-white min-h-[80px] flex flex-col gap-2">
+                                    <p className="text-sm font-medium">
+                                      {course.price != null ? `₪${course.price} לחודש` : '—'}
+                                    </p>
+                                    <button
+                                      onClick={() => openRegistration(course.id)}
+                                      className="w-full rounded-md bg-teal-600 px-3 py-1.5 text-sm text-white hover:bg-teal-700"
+                                    >
+                                      הירשם לחוג
+                                    </button>
+                                    <button className="w-full rounded-md border border-teal-600 px-3 py-1.5 text-sm text-teal-600 hover:bg-teal-50">
+                                      הירשם לשיעור ניסיון
+                                    </button>
+                                  </div>
+                                </div>
+                              )}
+                            </TableCell>
+                          </TableRow>
+                        )}
+                      </Fragment>
+                    );
+                  })}
                 </TableBody>
               </Table>
             )}
           </div>
         )}
       </div>
-    </AppLayout>
   );
 }
