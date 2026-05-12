@@ -183,9 +183,11 @@ export default function CourseRegistrationForm({
       </label>
 
       {/* Signature */}
-      <div>
-        <label className={labelClass}>חתימה</label>
-        <SignatureCanvas onChange={(val) => set('signature', val)} />
+      <div className="flex justify-start">
+        <div className="w-1/2">
+          <label className={labelClass}>חתימה</label>
+          <SignatureCanvas onChange={(val) => set('signature', val)} />
+        </div>
       </div>
 
       {/* Rules consent */}
