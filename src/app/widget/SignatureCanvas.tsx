@@ -6,6 +6,9 @@ interface SignatureCanvasProps {
   onChange?: (dataUrl: string | null) => void;
 }
 
+const CSS_WIDTH = 400;
+const CSS_HEIGHT = 96;
+
 export default function SignatureCanvas({ onChange }: SignatureCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const drawing = useRef(false);
@@ -14,10 +17,13 @@ export default function SignatureCanvas({ onChange }: SignatureCanvasProps) {
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = CSS_WIDTH * dpr;
+    canvas.height = CSS_HEIGHT * dpr;
+    const ctx = canvas.getContext('2d')!;
+    ctx.scale(dpr, dpr);
     ctx.strokeStyle = '#111';
-    ctx.lineWidth = 2;
+    ctx.lineWidth = 1.5;
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
   }, []);
@@ -25,8 +31,8 @@ export default function SignatureCanvas({ onChange }: SignatureCanvasProps) {
   const getPos = (e: React.MouseEvent | React.TouchEvent) => {
     const canvas = canvasRef.current!;
     const rect = canvas.getBoundingClientRect();
-    const scaleX = canvas.width / rect.width;
-    const scaleY = canvas.height / rect.height;
+    const scaleX = CSS_WIDTH / rect.width;
+    const scaleY = CSS_HEIGHT / rect.height;
     if ('touches' in e) {
       return {
         x: (e.touches[0].clientX - rect.left) * scaleX,
@@ -41,8 +47,7 @@ export default function SignatureCanvas({ onChange }: SignatureCanvasProps) {
 
   const startDraw = (e: React.MouseEvent | React.TouchEvent) => {
     e.preventDefault();
-    const canvas = canvasRef.current!;
-    const ctx = canvas.getContext('2d')!;
+    const ctx = canvasRef.current!.getContext('2d')!;
     const { x, y } = getPos(e);
     ctx.beginPath();
     ctx.moveTo(x, y);
@@ -67,8 +72,9 @@ export default function SignatureCanvas({ onChange }: SignatureCanvasProps) {
 
   const clear = () => {
     const canvas = canvasRef.current!;
+    const dpr = window.devicePixelRatio || 1;
     const ctx = canvas.getContext('2d')!;
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.clearRect(0, 0, CSS_WIDTH * dpr, CSS_HEIGHT * dpr);
     setIsEmpty(true);
     onChange?.(null);
   };
@@ -77,9 +83,8 @@ export default function SignatureCanvas({ onChange }: SignatureCanvasProps) {
     <div className="flex flex-col gap-1">
       <canvas
         ref={canvasRef}
-        width={400}
-        height={26}
-        className="w-full border border-gray-300 rounded-md bg-white touch-none cursor-crosshair"
+        style={{ width: '100%', height: `${CSS_HEIGHT}px` }}
+        className="border border-gray-300 rounded-md bg-white touch-none cursor-crosshair"
         onMouseDown={startDraw}
         onMouseMove={draw}
         onMouseUp={stopDraw}
