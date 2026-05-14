@@ -236,9 +236,9 @@ export default function FinancialSection({ globalDateRange }: Props) {
                       color: 'hsl(var(--foreground))',
                     }}
                     cursor={{ fill: 'hsl(var(--muted))', opacity: 0.4 }}
-                    formatter={(value: number, name: string) => [
-                      `₪${Number(value).toLocaleString('he-IL')}`,
-                      name,
+                    formatter={(value, name) => [
+                      `₪${Number(value ?? 0).toLocaleString('he-IL')}`,
+                      String(name),
                     ]}
                   />
                   <Bar
@@ -383,9 +383,9 @@ export default function FinancialSection({ globalDateRange }: Props) {
                     color: 'hsl(var(--foreground))',
                   }}
                   cursor={{ fill: 'hsl(var(--muted))', opacity: 0.4 }}
-                  formatter={(value: number, name: string) => [
-                    `₪${Number(value).toLocaleString('he-IL')}`,
-                    name,
+                  formatter={(value, name) => [
+                    `₪${Number(value ?? 0).toLocaleString('he-IL')}`,
+                    String(name),
                   ]}
                 />
                 <Bar
