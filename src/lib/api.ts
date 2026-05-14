@@ -12,6 +12,9 @@ import type {
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1';
 
+/** DRF Token auth for cross-origin (Vercel front + API); cookie still set for same-site. */
+export const AUTH_TOKEN_STORAGE_KEY = 'kogomalo_auth_token';
+
 const api = axios.create({
   baseURL: API_BASE_URL,
   headers: {
@@ -20,10 +23,15 @@ const api = axios.create({
   withCredentials: true,
 });
 
-// Request interceptor for adding auth token (will be implemented later)
+// Request interceptor: Bearer-style Token header when stored (cross-site); cookies still used withCredentials.
 api.interceptors.request.use(
   (config) => {
-    // Cookie-based auth (auth_token) is sent automatically via withCredentials
+    if (typeof window !== 'undefined') {
+      const token = window.localStorage.getItem(AUTH_TOKEN_STORAGE_KEY);
+      if (token) {
+        config.headers.Authorization = `Token ${token}`;
+      }
+    }
     return config;
   },
   (error) => {

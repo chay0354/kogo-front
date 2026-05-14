@@ -1,4 +1,4 @@
-import api from '@/lib/api';
+import api, { AUTH_TOKEN_STORAGE_KEY } from '@/lib/api';
 
 export type UserRole = 'manager' | 'worker';
 
@@ -13,11 +13,21 @@ export type CurrentUser = {
 
 export async function login(email: string, password: string): Promise<CurrentUser> {
   const res = await api.post('/core/auth/login/', { email, password });
+  const token = res.data?.token as string | undefined;
+  if (token && typeof window !== 'undefined') {
+    window.localStorage.setItem(AUTH_TOKEN_STORAGE_KEY, token);
+  }
   return res.data.user as CurrentUser;
 }
 
 export async function logout(): Promise<void> {
-  await api.post('/core/auth/logout/');
+  try {
+    await api.post('/core/auth/logout/');
+  } finally {
+    if (typeof window !== 'undefined') {
+      window.localStorage.removeItem(AUTH_TOKEN_STORAGE_KEY);
+    }
+  }
 }
 
 export async function me(): Promise<CurrentUser> {
