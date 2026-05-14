@@ -27,6 +27,7 @@ interface Branch {
 }
 
 interface CourseLesson {
+  id: string;
   day_of_week: number;
   start_time: string;
   end_time: string;
@@ -319,8 +320,15 @@ export default function WidgetPage() {
                               {registrationRows.has(course.id) ? (
                                 <CourseRegistrationForm
                                   courseName={course.name}
+                                  lessons={course.lessons ?? []}
                                   onBack={() => closeRegistration(course.id)}
-                                  onSubmit={() => closeRegistration(course.id)}
+                                  onComplete={(paymentUrl) => {
+                                    if (paymentUrl) {
+                                      window.location.href = paymentUrl;
+                                    } else {
+                                      closeRegistration(course.id);
+                                    }
+                                  }}
                                 />
                               ) : (
                                 <div className="grid grid-cols-3 gap-4">
