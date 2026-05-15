@@ -193,6 +193,9 @@ export interface StudentsFilters extends DashboardFilters {
   search_query?: string;
   course_id?: string;
   student_status?: string;
+  /** When set with quit_date_to, churn stats use this window instead of date_from/date_to */
+  quit_date_from?: string;
+  quit_date_to?: string;
 }
 
 export interface CoursesFilters extends DashboardFilters {

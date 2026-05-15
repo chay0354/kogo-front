@@ -929,6 +929,7 @@ function AddNewFamilyForm({ onSuccess, onCancel }: { onSuccess: () => void; onCa
     parent_first_name: '',
     parent_last_name: '',
     parent_phone: '',
+    parent_phone_secondary: '',
     parent_email: '',
     // Child info
     child_first_name: '',
@@ -986,6 +987,15 @@ function AddNewFamilyForm({ onSuccess, onCancel }: { onSuccess: () => void; onCa
     if (formData.child_phone_number && !/^0\d{1,2}-?\d{7}$|^05\d{8}$/.test(formData.child_phone_number.replace(/\s/g, ''))) {
       newErrors.child_phone_number = 'מספר טלפון לא תקין';
     }
+
+    const secondary = formData.parent_phone_secondary.replace(/\s/g, '');
+    if (secondary) {
+      if (!/^0\d{1,2}-?\d{7}$|^05\d{8}$/.test(secondary)) {
+        newErrors.parent_phone_secondary = 'מספר טלפון לא תקין';
+      } else if (secondary === formData.parent_phone.replace(/\s/g, '')) {
+        newErrors.parent_phone_secondary = 'הטלפון הנוסף חייב להיות שונה מהטלפון הראשי';
+      }
+    }
     
     // Validate birth date and gender
     if (!formData.child_birth_date) {
@@ -1031,6 +1041,18 @@ function AddNewFamilyForm({ onSuccess, onCancel }: { onSuccess: () => void; onCa
         email: formData.parent_email,
         is_primary: true,
       });
+
+      const secondaryPhone = formData.parent_phone_secondary.trim();
+      if (secondaryPhone) {
+        await api.post('/customers/parents/', {
+          family: familyId,
+          first_name: formData.parent_first_name,
+          last_name: formData.parent_last_name,
+          phone: secondaryPhone,
+          email: '',
+          is_primary: false,
+        });
+      }
 
       // Create child
       await api.post('/customers/children/', {
@@ -1111,6 +1133,21 @@ function AddNewFamilyForm({ onSuccess, onCancel }: { onSuccess: () => void; onCa
               required
             />
             {errors.parent_phone && <p className="text-red-500 text-xs mt-1">{errors.parent_phone}</p>}
+            <div className="mt-3 space-y-1">
+              <label className="block text-sm font-medium mb-1">טלפון נוסף</label>
+              <input
+                type="tel"
+                value={formData.parent_phone_secondary}
+                onChange={(e) =>
+                  setFormData({ ...formData, parent_phone_secondary: e.target.value })
+                }
+                className={`input w-full ${errors.parent_phone_secondary ? 'border-red-500' : ''}`}
+                placeholder="05X-XXXXXXX (אופציונלי)"
+              />
+              {errors.parent_phone_secondary && (
+                <p className="text-red-500 text-xs">{errors.parent_phone_secondary}</p>
+              )}
+            </div>
           </div>
           <div>
             <label className="block text-sm font-medium mb-1">אימייל</label>

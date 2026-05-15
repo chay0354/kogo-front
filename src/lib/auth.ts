@@ -12,6 +12,9 @@ export type CurrentUser = {
 };
 
 export async function login(email: string, password: string): Promise<CurrentUser> {
+  if (typeof window !== 'undefined') {
+    window.localStorage.removeItem(AUTH_TOKEN_STORAGE_KEY);
+  }
   const res = await api.post('/core/auth/login/', { email, password });
   const token = res.data?.token as string | undefined;
   if (token && typeof window !== 'undefined') {

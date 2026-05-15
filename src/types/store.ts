@@ -7,6 +7,10 @@ export interface ProductSizeStock {
   size: string;
   stock_quantity: number;
   sort_order?: number;
+  /** Branch UUID, or null / omitted for delivery */
+  branch?: string | null;
+  /** Display name when API includes it (read-only) */
+  branch_name?: string | null;
 }
 
 export interface StoreProduct {
@@ -73,6 +77,10 @@ export interface CartItem {
   product_id: string;
   quantity: number;
   size?: string;
+  /** Inventory row branch UUID, or omit / null for משלוח row */
+  branch?: string | null;
+  /** Exact `StoreProductSize` row when multiple rows share the same size label */
+  size_stock_id?: string | null;
 }
 
 export interface PaymentInitiationResponse {
@@ -117,6 +125,8 @@ export interface StockUpdateData {
   mode: 'add' | 'subtract' | 'set';
   quantity: number;
   size?: string | null;
+  /** Exact `StoreProductSize` row (size + location); preferred when product has size_stocks */
+  size_stock_id?: string | null;
 }
 
 export interface CustomerInfo {

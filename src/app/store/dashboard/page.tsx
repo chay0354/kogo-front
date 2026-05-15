@@ -10,6 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogCloseButton } from '@/components/ui/dialog';
 import { fetchAnalytics } from '@/lib/storeApi';
+import { getProductStockLocationLabels } from '@/lib/storeProductDisplay';
 import type { StoreAnalytics } from '@/types/store';
 
 export default function StoreDashboard() {
@@ -197,7 +198,13 @@ export default function StoreDashboard() {
                     <TableRow key={product.id}>
                       <TableCell className="font-medium">{product.name}</TableCell>
                       <TableCell>{product.category}</TableCell>
-                      <TableCell>{product.branch_name || 'משלוח'}</TableCell>
+                      <TableCell className="max-w-[14rem]">
+                        <div className="flex flex-col gap-0.5 text-sm leading-snug">
+                          {getProductStockLocationLabels(product, null).map((label, i) => (
+                            <span key={`${product.id}-loc-${i}`}>{label}</span>
+                          ))}
+                        </div>
+                      </TableCell>
                       <TableCell>
                         <Badge variant="destructive">{product.stock_quantity}</Badge>
                       </TableCell>
