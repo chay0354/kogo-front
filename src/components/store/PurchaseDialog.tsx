@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -24,7 +24,7 @@ interface PurchaseDialogProps {
 
 export default function PurchaseDialog({ isOpen, onClose, product, onSuccess }: PurchaseDialogProps) {
   const [quantity, setQuantity] = useState(1);
-  const [selectedSize, setSelectedSize] = useState('');
+  const [selectedLineKey, setSelectedLineKey] = useState('');
   const [paymentMethod, setPaymentMethod] = useState<'credit_card' | 'cash' | 'monthly_billing'>('credit_card');
   const [customerType, setCustomerType] = useState<'existing' | 'walkin'>('existing');
   
@@ -52,19 +52,65 @@ export default function PurchaseDialog({ isOpen, onClose, product, onSuccess }: 
   const [cvv, setCvv] = useState('');
   const [cardHolderId, setCardHolderId] = useState('');
 
-  // Per-size stock takes precedence over the legacy CSV `size` field.
-  const hasPerSizeStock = Array.isArray(product.size_stocks) && product.size_stocks.length > 0;
-  const sizeOptions = hasPerSizeStock
-    ? product.size_stocks!.map((s) => ({ size: s.size, stock: Number(s.stock_quantity) || 0 }))
-    : (product.size ? product.size.split(',').map((s) => s.trim()).filter(Boolean) : [])
-        .map((size) => ({ size, stock: product.stock_quantity }));
+  type StockLineOption = {
+    key: string;
+    size: string;
+    stock: number;
+    branch: string | null;
+    size_stock_id: string | null;
+    label: string;
+  };
 
-  // Stock available for the *currently selected* size (or the product total when no sizes).
-  const selectedSizeStock = (() => {
-    if (sizeOptions.length === 0) return product.stock_quantity;
-    const match = sizeOptions.find((opt) => opt.size === selectedSize);
-    return match ? match.stock : 0;
-  })();
+  const hasPerSizeStock = Array.isArray(product.size_stocks) && product.size_stocks.length > 0;
+
+  const lineOptions = useMemo((): StockLineOption[] => {
+    if (hasPerSizeStock && product.size_stocks?.length) {
+      return product.size_stocks.map((row, i) => {
+        const loc = row.branch_name?.trim() || (row.branch ? String(row.branch) : 'משלוח');
+        const stock = Number(row.stock_quantity) || 0;
+        return {
+          key: row.id ?? `idx-${i}`,
+          size: row.size,
+          stock,
+          branch: row.branch ?? null,
+          size_stock_id: row.id ?? null,
+          label: `${row.size} — ${loc} (במלאי: ${stock})`,
+        };
+      });
+    }
+    const sizes = product.size ? product.size.split(',').map((s) => s.trim()).filter(Boolean) : [];
+    return sizes.map((size, i) => ({
+      key: `csv-${size}-${i}`,
+      size,
+      stock: product.stock_quantity,
+      branch: null,
+      size_stock_id: null,
+      label: size,
+    }));
+  }, [product, hasPerSizeStock]);
+
+  const selectedLine = lineOptions.find((o) => o.key === selectedLineKey) ?? null;
+
+  const selectedSizeStock =
+    lineOptions.length === 0 ? product.stock_quantity : selectedLine ? selectedLine.stock : 0;
+
+  function buildCartLine(): CartItem {
+    const base: CartItem = { product_id: product.id, quantity };
+    if (!selectedLine) return { ...base, size: '' };
+    const item: CartItem = { ...base, size: selectedLine.size };
+    if (selectedLine.branch) item.branch = selectedLine.branch;
+    if (selectedLine.size_stock_id) item.size_stock_id = selectedLine.size_stock_id;
+    return item;
+  }
+
+  useEffect(() => {
+    if (!isOpen) return;
+    if (lineOptions.length === 0) {
+      setSelectedLineKey('');
+      return;
+    }
+    setSelectedLineKey((k) => (k && lineOptions.some((o) => o.key === k) ? k : lineOptions[0].key));
+  }, [isOpen, product.id, lineOptions]);
 
   // Calculate total
   const total = product.sale_price * quantity;
@@ -99,11 +145,7 @@ export default function PurchaseDialog({ isOpen, onClose, product, onSuccess }: 
   async function handleDirectCardCharge() {
     setIsLoading(true);
     try {
-      const cartItems: CartItem[] = [{
-        product_id: product.id,
-        quantity,
-        size: selectedSize
-      }];
+      const cartItems: CartItem[] = [buildCartLine()];
       
       const customerInfo: CustomerInfo | undefined = customerType === 'walkin' 
         ? { name: walkInName, phone: walkInPhone }
@@ -156,11 +198,7 @@ export default function PurchaseDialog({ isOpen, onClose, product, onSuccess }: 
     setIsLoading(true);
     
     try {
-      const cartItems: CartItem[] = [{
-        product_id: product.id,
-        quantity,
-        size: selectedSize
-      }];
+      const cartItems: CartItem[] = [buildCartLine()];
 
       if (paymentMethod === 'credit_card') {
         // Credit card - initiate payment with smart routing
@@ -256,7 +294,7 @@ export default function PurchaseDialog({ isOpen, onClose, product, onSuccess }: 
 
   function handleReset() {
     setQuantity(1);
-    setSelectedSize('');
+    setSelectedLineKey('');
     setPaymentMethod('credit_card');
     setCustomerType('existing');
     setSelectedChild(null);
@@ -305,14 +343,16 @@ export default function PurchaseDialog({ isOpen, onClose, product, onSuccess }: 
           </div>
 
           {/* Size Selection */}
-          {sizeOptions.length > 0 && (
+          {lineOptions.length > 0 && (
             <div>
-              <label className="block text-sm font-medium mb-2">בחירת מידה *</label>
-              <Select value={selectedSize} onChange={(e) => setSelectedSize(e.target.value)}>
-                <option value="">בחר מידה</option>
-                {sizeOptions.map((opt) => (
-                  <option key={opt.size} value={opt.size} disabled={hasPerSizeStock && opt.stock <= 0}>
-                    {hasPerSizeStock ? `${opt.size} (במלאי: ${opt.stock})` : opt.size}
+              <label className="block text-sm font-medium mb-2">
+                {hasPerSizeStock ? 'בחירת מידה ומיקום *' : 'בחירת מידה *'}
+              </label>
+              <Select value={selectedLineKey} onChange={(e) => setSelectedLineKey(e.target.value)}>
+                <option value="">בחר שורת מלאי</option>
+                {lineOptions.map((opt) => (
+                  <option key={opt.key} value={opt.key} disabled={hasPerSizeStock && opt.stock <= 0}>
+                    {hasPerSizeStock ? opt.label : opt.size}
                   </option>
                 ))}
               </Select>
@@ -323,15 +363,17 @@ export default function PurchaseDialog({ isOpen, onClose, product, onSuccess }: 
           <div>
             <label className="block text-sm font-medium mb-2">
               כמות
-              {hasPerSizeStock && selectedSize && (
-                <span className="text-xs text-gray-500 mr-2">(מלאי למידה {selectedSize}: {selectedSizeStock})</span>
+              {hasPerSizeStock && selectedLine && (
+                <span className="text-xs text-gray-500 mr-2">
+                  (מלאי לשורה {selectedLine.size}: {selectedSizeStock})
+                </span>
               )}
             </label>
             <Input
               type="number"
               min="1"
               max={selectedSizeStock || 1}
-              disabled={hasPerSizeStock && !selectedSize}
+              disabled={hasPerSizeStock && !selectedLineKey}
               value={quantity}
               onChange={(e) =>
                 setQuantity(
@@ -518,7 +560,7 @@ export default function PurchaseDialog({ isOpen, onClose, product, onSuccess }: 
               disabled={
                 isLoading ||
                 (customerType === 'existing' && !selectedChild) ||
-                (sizeOptions.length > 0 && !selectedSize) ||
+                (lineOptions.length > 0 && !selectedLineKey) ||
                 (hasPerSizeStock && quantity > selectedSizeStock) ||
                 (useDirectCard && (!cardNumber || !expiryMonth || !expiryYear || !cvv || !cardHolderId))
               }

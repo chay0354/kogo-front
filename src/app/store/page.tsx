@@ -12,6 +12,7 @@ import { Select } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table';
 import { fetchProducts } from '@/lib/storeApi';
+import { getProductStockLocationLabels } from '@/lib/storeProductDisplay';
 import api from '@/lib/api';
 import type { StoreProduct } from '@/types/store';
 import type { Branch } from '@/types/branch';
@@ -302,7 +303,13 @@ export default function StorePage() {
                   <TableCell>{product.size || '-'}</TableCell>
                   <TableCell>₪{product.cost_price}</TableCell>
                   <TableCell className="text-teal-600 font-medium">₪{product.sale_price}</TableCell>
-                  <TableCell>{product.branch_name || 'משלוח'}</TableCell>
+                  <TableCell className="max-w-[14rem]">
+                    <div className="flex flex-col gap-0.5 text-sm leading-snug">
+                      {getProductStockLocationLabels(product, branches).map((label, i) => (
+                        <span key={`${product.id}-loc-${i}`}>{label}</span>
+                      ))}
+                    </div>
+                  </TableCell>
                   <TableCell>
                     <Badge variant={product.is_low_stock ? 'destructive' : 'outline'}>
                       {product.stock_quantity} יחידות

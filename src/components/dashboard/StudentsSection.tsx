@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Users, UserPlus, Ghost, ClipboardCheck, CheckCircle, Download, AlertTriangle } from 'lucide-react';
 import { BarChart, Bar, PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip, XAxis, YAxis, CartesianGrid, Cell as BarCell } from 'recharts';
-import { format } from 'date-fns';
+import { format, subDays } from 'date-fns';
 import { toast } from 'sonner';
 import type { DateRange } from './GlobalDateFilter';
 
@@ -39,6 +39,8 @@ interface LocalFilters {
   branch_id: string;
 }
 
+type QuitPeriodPreset = 'global' | '7' | '30' | '90' | '365';
+
 export default function StudentsSection({ globalDateRange }: Props) {
   const router = useRouter();
   const [filters, setFilters] = useState<LocalFilters>({
@@ -46,6 +48,7 @@ export default function StudentsSection({ globalDateRange }: Props) {
     course_id: 'all',
     branch_id: 'all',
   });
+  const [quitPeriodPreset, setQuitPeriodPreset] = useState<QuitPeriodPreset>('global');
   const [selectedQuitStatus, setSelectedQuitStatus] = useState<any>(null);
   const [isQuitModalOpen, setIsQuitModalOpen] = useState(false);
 
@@ -72,13 +75,23 @@ export default function StudentsSection({ globalDateRange }: Props) {
     return data.map((b: any) => ({ id: b.id, name: b.name }));
   }, [branchesData]);
 
-  const apiFilters = useMemo(() => ({
-    search_query: filters.search_query,
-    course_id: filters.course_id,
-    branch_id: filters.branch_id,
-    date_from: format(globalDateRange.date_from, 'yyyy-MM-dd'),
-    date_to: format(globalDateRange.date_to, 'yyyy-MM-dd'),
-  }), [filters, globalDateRange]);
+  const apiFilters = useMemo(() => {
+    const base: Record<string, string> = {
+      search_query: filters.search_query,
+      course_id: filters.course_id,
+      branch_id: filters.branch_id,
+      date_from: format(globalDateRange.date_from, 'yyyy-MM-dd'),
+      date_to: format(globalDateRange.date_to, 'yyyy-MM-dd'),
+    };
+    if (quitPeriodPreset !== 'global') {
+      const days = parseInt(quitPeriodPreset, 10);
+      const end = new Date();
+      const start = subDays(end, Math.max(0, days - 1));
+      base.quit_date_from = format(start, 'yyyy-MM-dd');
+      base.quit_date_to = format(end, 'yyyy-MM-dd');
+    }
+    return base;
+  }, [filters, globalDateRange, quitPeriodPreset]);
 
   const { data, isLoading } = useQuery({
     queryKey: ['dashboard-students', apiFilters],
@@ -275,8 +288,29 @@ export default function StudentsSection({ globalDateRange }: Props) {
         </Card>
 
         <Card className="rounded-xl bg-card shadow-md border border-border/50">
-          <CardHeader>
-            <CardTitle>אחוז נשירה (סה"כ: {quitData.total_quit})</CardTitle>
+          <CardHeader className="space-y-3">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <CardTitle className="text-base sm:text-lg leading-snug">
+                אחוז נשירה (סה״כ: {quitData.total_quit})
+              </CardTitle>
+              <div className="flex flex-col gap-1 shrink-0 w-full sm:w-auto sm:min-w-[11rem]">
+                <label htmlFor="quit-period" className="text-xs text-muted-foreground">
+                  תקופת נשירה
+                </label>
+                <select
+                  id="quit-period"
+                  value={quitPeriodPreset}
+                  onChange={(e) => setQuitPeriodPreset(e.target.value as QuitPeriodPreset)}
+                  className="w-full h-9 px-2 py-1.5 text-sm rounded-md border border-input bg-background"
+                >
+                  <option value="global">כל הזמנים</option>
+                  <option value="7">7 ימים אחרונים</option>
+                  <option value="30">30 ימים אחרונים</option>
+                  <option value="90">90 ימים אחרונים</option>
+                  <option value="365">שנה אחרונה</option>
+                </select>
+              </div>
+            </div>
           </CardHeader>
           <CardContent>
             <div className="h-64">

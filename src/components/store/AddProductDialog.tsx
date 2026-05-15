@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, type ChangeEvent } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -8,6 +8,11 @@ import { Select } from '@/components/ui/select';
 import { toast } from 'sonner';
 import { Plus, Trash2 } from 'lucide-react';
 import { createProduct } from '@/lib/storeApi';
+import {
+  coerceBranchFromApi,
+  resolveStoreBranchId,
+  storeBranchSelectValue,
+} from '@/lib/storeBranch';
 import api from '@/lib/api';
 import type { ProductFormData, ProductSizeStock } from '@/types/store';
 import type { Branch } from '@/types/branch';
@@ -42,7 +47,15 @@ export default function AddProductDialog({ isOpen, onClose, onSuccess }: AddProd
   const totalSizeStock = sizeRows.reduce((sum, row) => sum + (Number(row.stock_quantity) || 0), 0);
 
   function addSizeRow() {
-    setSizeRows((rows) => [...rows, { size: '', stock_quantity: 0, sort_order: rows.length }]);
+    setSizeRows((rows) => [
+      ...rows,
+      {
+        size: '',
+        stock_quantity: 0,
+        sort_order: rows.length,
+        branch: rows.length === 0 ? formData.branch : null,
+      },
+    ]);
   }
 
   function updateSizeRow(index: number, patch: Partial<ProductSizeStock>) {
@@ -65,12 +78,10 @@ export default function AddProductDialog({ isOpen, onClose, onSuccess }: AddProd
         params: { is_active: true }
       });
       const data = response.data;
-      console.log('Fetched branches response:', data); // Debug log
-      
+
       // Handle paginated response - extract results array
       const branchesArray = data.results || data;
-      console.log('Branches array:', branchesArray); // Debug log
-      
+
       // Ensure we have an array
       setBranches(Array.isArray(branchesArray) ? branchesArray : []);
     } catch (error) {
@@ -99,34 +110,64 @@ export default function AddProductDialog({ isOpen, onClose, onSuccess }: AddProd
   async function handleSubmit() {
     if (!validate()) return;
 
-    const cleanedSizeRows = sizeRows
-      .map((row, index) => ({
-        size: row.size.trim(),
-        stock_quantity: Math.max(0, Math.floor(Number(row.stock_quantity) || 0)),
-        sort_order: index
-      }))
-      .filter((row) => row.size.length > 0);
+    const cleanedSizeRows: Array<{
+      size: string;
+      stock_quantity: number;
+      sort_order: number;
+      branch: string | null;
+    }> = [];
 
-    const seenSizes = new Set<string>();
-    for (const row of cleanedSizeRows) {
-      if (seenSizes.has(row.size)) {
-        toast.error(`מידה "${row.size}" מופיעה יותר מפעם אחת`);
+    for (const row of sizeRows) {
+      const size = row.size.trim();
+      if (!size.length) continue;
+      const rawBranch = coerceBranchFromApi(row.branch);
+      const branchId = resolveStoreBranchId(row.branch, branches);
+      if (rawBranch && branchId == null) {
+        toast.error(`מיקום לא תקף למידה "${size}". בחרו מיקום מהרשימה או משלוח.`);
         return;
       }
-      seenSizes.add(row.size);
+      cleanedSizeRows.push({
+        size,
+        stock_quantity: Math.max(0, Math.floor(Number(row.stock_quantity) || 0)),
+        sort_order: cleanedSizeRows.length,
+        branch: branchId,
+      });
+    }
+
+    const seen = new Set<string>();
+    for (const row of cleanedSizeRows) {
+      const key = `${row.size}\u0000${row.branch ?? ''}`;
+      if (seen.has(key)) {
+        toast.error(`שילוב מידה "${row.size}" ומיקום מופיע פעמיים — שנה מיקום או מידה.`);
+        return;
+      }
+      seen.add(key);
+    }
+
+    const topRaw = coerceBranchFromApi(formData.branch);
+    const topBranchId = resolveStoreBranchId(formData.branch, branches);
+    if (topRaw && topBranchId == null) {
+      toast.error('מיקום ברירת המחדל לא תקף. בחרו מיקום מהרשימה או משלוח.');
+      return;
     }
 
     const payload: ProductFormData = {
-      ...formData,
-      size: cleanedSizeRows.length ? cleanedSizeRows.map((r) => r.size).join(',') : formData.size,
-      stock_quantity: cleanedSizeRows.length ? totalSizeStock : formData.stock_quantity,
+      name: formData.name,
+      category: formData.category,
+      size: cleanedSizeRows.length ? [...new Set(cleanedSizeRows.map((r) => r.size))].join(',') : formData.size,
+      cost_price: Number(formData.cost_price) || 0,
+      sale_price: Number(formData.sale_price) || 0,
+      branch: topBranchId,
+      stock_quantity: cleanedSizeRows.length ? totalSizeStock : Math.max(0, Math.floor(Number(formData.stock_quantity) || 0)),
+      min_stock_alert: Math.max(0, Math.floor(Number(formData.min_stock_alert) || 0)),
+      image_url: formData.image_url ?? '',
+      notes: formData.notes ?? '',
       size_stocks: cleanedSizeRows
     };
 
     setIsLoading(true);
     try {
-      const result = await createProduct(payload);
-      console.log('Product created:', result); // Debug log
+      await createProduct(payload);
       toast.success('המוצר נוסף בהצלחה!');
       handleReset();
       onClose();
@@ -134,8 +175,14 @@ export default function AddProductDialog({ isOpen, onClose, onSuccess }: AddProd
       onSuccess();
     } catch (error: any) {
       console.error('Error creating product:', error);
-      const errorMessage = error?.response?.data?.error || error?.message || 'שגיאה לא ידועה';
-      toast.error(`שגיאה ביצירת המוצר:\n${errorMessage}`);
+      const d = error?.response?.data;
+      const detail =
+        (typeof d === 'string' && d) ||
+        d?.error ||
+        (d && typeof d === 'object' ? JSON.stringify(d) : null) ||
+        error?.message ||
+        'שגיאה לא ידועה';
+      toast.error(`שגיאה ביצירת המוצר:\n${detail}`);
     } finally {
       setIsLoading(false);
     }
@@ -187,21 +234,49 @@ export default function AddProductDialog({ isOpen, onClose, onSuccess }: AddProd
             </div>
 
             {sizeRows.length === 0 ? (
-              <p className="text-xs text-gray-500">
-                אם אין מידות, ניתן לדלג על שלב זה ולהשתמש בכמות במלאי הכללית למטה.
-              </p>
+              <div className="space-y-3">
+                <p className="text-xs text-gray-500">
+                  אם אין מידות, ניתן לדלג על שלב זה ולהשתמש בכמות במלאי הכללית למטה.
+                </p>
+                <div>
+                  <label className="block text-sm font-medium mb-2">מיקום *</label>
+                  <Select
+                    value={storeBranchSelectValue(formData.branch)}
+                    onChange={(e: ChangeEvent<HTMLSelectElement>) => {
+                      const v = e.target.value;
+                      setFormData({ ...formData, branch: v === 'delivery' ? null : v });
+                    }}
+                  >
+                    <option value="delivery">משלוח</option>
+                    {Array.isArray(branches) &&
+                      branches.map((branch: Branch) => (
+                        <option key={branch.id} value={branch.id}>
+                          {branch.name}
+                        </option>
+                      ))}
+                  </Select>
+                  {branches.length === 0 && (
+                    <p className="text-sm text-gray-500 mt-1">טוען סניפים...</p>
+                  )}
+                </div>
+              </div>
             ) : (
               <div className="space-y-2">
                 {sizeRows.map((row, index) => (
-                  <div key={index} className="grid grid-cols-12 gap-2 items-center">
-                    <div className="col-span-5">
+                  <div
+                    key={`sr-${index}-${row.size}-${coerceBranchFromApi(row.branch) ?? 'd'}`}
+                    className="grid grid-cols-1 sm:grid-cols-12 gap-2 items-end sm:items-center border-b border-gray-200 pb-3 last:border-0 last:pb-0"
+                  >
+                    <div className="sm:col-span-3">
+                      <label className="block text-xs text-gray-600 mb-1 sm:sr-only">מידה</label>
                       <Input
                         value={row.size}
                         onChange={(e) => updateSizeRow(index, { size: e.target.value })}
                         placeholder="מידה (S, M, L, 42, ...)"
                       />
                     </div>
-                    <div className="col-span-5">
+                    <div className="sm:col-span-2">
+                      <label className="block text-xs text-gray-600 mb-1 sm:sr-only">כמות במלאי</label>
                       <Input
                         type="number"
                         min="0"
@@ -214,7 +289,25 @@ export default function AddProductDialog({ isOpen, onClose, onSuccess }: AddProd
                         placeholder="כמות במלאי"
                       />
                     </div>
-                    <div className="col-span-2 flex justify-end">
+                    <div className="sm:col-span-5">
+                      <Select
+                        aria-label="מיקום"
+                        value={storeBranchSelectValue(row.branch)}
+                        onChange={(e: ChangeEvent<HTMLSelectElement>) => {
+                          const v = e.target.value;
+                          updateSizeRow(index, { branch: v === 'delivery' ? null : v });
+                        }}
+                      >
+                        <option value="delivery">משלוח</option>
+                        {Array.isArray(branches) &&
+                          branches.map((branch: Branch) => (
+                            <option key={branch.id} value={branch.id}>
+                              {branch.name}
+                            </option>
+                          ))}
+                      </Select>
+                    </div>
+                    <div className="sm:col-span-2 flex justify-end">
                       <Button
                         type="button"
                         size="sm"
@@ -255,25 +348,6 @@ export default function AddProductDialog({ isOpen, onClose, onSuccess }: AddProd
               />
               {errors.sale_price && <p className="text-red-500 text-sm mt-1">{errors.sale_price}</p>}
             </div>
-          </div>
-
-          {/* Branch */}
-          <div>
-            <label className="block text-sm font-medium mb-2">מיקום *</label>
-            <Select
-              value={formData.branch || 'delivery'}
-              onChange={(e) => {
-                const value = e.target.value;
-                setFormData({ ...formData, branch: value === 'delivery' ? null : value });
-              }}
-            >
-              <option value="">בחר מיקום...</option>
-              {Array.isArray(branches) && branches.map((branch: any) => (
-                <option key={branch.id} value={branch.id}>{branch.name}</option>
-              ))}
-              <option value="delivery">משלוח</option>
-            </Select>
-            {branches.length === 0 && <p className="text-sm text-gray-500 mt-1">טוען סניפים...</p>}
           </div>
 
           {/* Stock */}
