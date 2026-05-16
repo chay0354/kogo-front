@@ -3,6 +3,7 @@ import { ScheduleEvent } from '@/types/schedule';
 import { formatTime } from '@/lib/scheduleUtils';
 import { useAuth } from '@/components/AuthProvider';
 import EventDialog from './EventDialog';
+import RentalDialog from './RentalDialog';
 
 type EventDetailsDialogProps = {
   event: ScheduleEvent;
@@ -40,7 +41,11 @@ export default function EventDetailsDialog({ event, onClose, onSuccess }: EventD
                 {event.name}
               </h2>
               <p className="text-sm text-gray-600 mt-1">
-                {event.event_type === 'one_time' ? 'אירוע חד-פעמי' : 'אירוע שבועי'}
+                {event.is_studio_rental
+                  ? 'שכירות סטודיו'
+                  : event.event_type === 'one_time'
+                    ? 'אירוע חד-פעמי'
+                    : 'אירוע שבועי'}
               </p>
             </div>
           </div>
@@ -119,6 +124,26 @@ export default function EventDetailsDialog({ event, onClose, onSuccess }: EventD
                   <div className="mt-1">{event.studio_name}</div>
                 </div>
               )}
+
+              {event.is_studio_rental && (
+                <>
+                  {event.renter_name ? (
+                    <div>
+                      <span className="text-gray-600 font-medium">שוכר:</span>
+                      <div className="mt-1">{event.renter_name}</div>
+                    </div>
+                  ) : null}
+                  <div>
+                    <span className="text-gray-600 font-medium">מחיר לפעם אחת:</span>
+                    <div className="mt-1">
+                      ₪
+                      {event.price_per_session != null && event.price_per_session !== ''
+                        ? Number(event.price_per_session).toLocaleString('he-IL')
+                        : '0'}
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
           </div>
 
@@ -193,17 +218,28 @@ export default function EventDetailsDialog({ event, onClose, onSuccess }: EventD
       </div>
 
       {/* Edit Dialog */}
-      {showEditDialog && (
-        <EventDialog
-          event={event}
-          onClose={() => setShowEditDialog(false)}
-          onSuccess={() => {
-            setShowEditDialog(false);
-            onSuccess?.();
-            onClose();
-          }}
-        />
-      )}
+      {showEditDialog &&
+        (event.is_studio_rental ? (
+          <RentalDialog
+            event={event}
+            onClose={() => setShowEditDialog(false)}
+            onSuccess={() => {
+              setShowEditDialog(false);
+              onSuccess?.();
+              onClose();
+            }}
+          />
+        ) : (
+          <EventDialog
+            event={event}
+            onClose={() => setShowEditDialog(false)}
+            onSuccess={() => {
+              setShowEditDialog(false);
+              onSuccess?.();
+              onClose();
+            }}
+          />
+        ))}
     </div>
   );
 }

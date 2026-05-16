@@ -2,16 +2,17 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { 
-  Users, 
-  BookOpen, 
-  Calendar, 
-  MapPin, 
+import {
+  Users,
+  BookOpen,
+  Calendar,
+  MapPin,
   GraduationCap,
   LayoutDashboard,
   Settings,
   Tag,
-  ShoppingBag
+  ShoppingBag,
+  KeyRound,
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -31,6 +32,7 @@ function getMenuItems(role: string | null | undefined) {
     { name: 'לקוחות', href: '/customers', icon: Users },
     { name: 'קטלוג חוגים', href: '/courses', icon: BookOpen },
     { name: 'לוח זמנים', href: '/schedule', icon: Calendar },
+    { name: 'שכירויות', href: '/rentals', icon: KeyRound },
     { name: 'סניפים', href: '/branches', icon: MapPin },
     { name: 'מדריכים', href: '/instructors', icon: GraduationCap },
     { name: 'חנות', href: '/store', icon: ShoppingBag },

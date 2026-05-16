@@ -19,7 +19,10 @@ export async function fetchEvents(filters?: ScheduleEventFilters): Promise<Sched
   if (filters?.city_id) {
     params.append('city_id', filters.city_id);
   }
-  
+  if (filters?.studio_rental) {
+    params.append('studio_rental', '1');
+  }
+
   const response = await api.get(`/scheduling/events/?${params.toString()}`);
   return response.data;
 }

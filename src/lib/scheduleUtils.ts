@@ -1,5 +1,5 @@
 import api from '@/lib/api';
-import { Lesson, LessonDetail, LessonFilters, AttendanceMark, AttendanceRecord, InstructorSalary, SalaryHistory } from '@/types/schedule';
+import { Lesson, LessonDetail, LessonFilters, AttendanceMark, AttendanceRecord, InstructorSalary, SalaryHistory, type ScheduleEvent, DAY_NAMES, type WeekDay } from '@/types/schedule';
 
 /**
  * Fetch lessons with optional filters
@@ -169,6 +169,45 @@ export function groupLessonsByDate(lessons: Lesson[], weekDates: Date[]): Record
   }
   
   return grouped;
+}
+
+/**
+ * Lesson day_of_week (0=Sunday .. 6=Saturday) from YYYY-MM-DD in local time.
+ */
+export function lessonDayOfWeekFromISODate(isoDate: string): number {
+  const d = new Date(`${isoDate}T12:00:00`);
+  return d.getDay();
+}
+
+export function initialWeeklyRepeatDays(
+  ev?: ScheduleEvent | null,
+  fallbackDateIso?: string
+): number[] {
+  if (ev?.event_type === 'weekly' && ev.weekly_repeat_days && ev.weekly_repeat_days.length > 0) {
+    return [...new Set(ev.weekly_repeat_days.map((x) => Number(x)))]
+      .filter((d) => d >= 0 && d <= 6)
+      .sort((a, b) => a - b);
+  }
+  const d = ev?.event_date || fallbackDateIso;
+  if (d) return [lessonDayOfWeekFromISODate(d)];
+  return [];
+}
+
+/** Comma-separated Hebrew weekday names for a weekly event (expanded list or anchor day). */
+export function formatWeeklyRepeatDaysHebrew(ev: {
+  event_type: string;
+  event_date: string;
+  weekly_repeat_days?: number[];
+}): string {
+  if (ev.event_type !== 'weekly') return '—';
+  if (ev.weekly_repeat_days && ev.weekly_repeat_days.length > 0) {
+    return [...new Set(ev.weekly_repeat_days.map((x) => Number(x)))]
+      .filter((d) => d >= 0 && d <= 6)
+      .sort((a, b) => a - b)
+      .map((d) => DAY_NAMES[d as WeekDay])
+      .join(', ');
+  }
+  return DAY_NAMES[lessonDayOfWeekFromISODate(ev.event_date) as WeekDay];
 }
 
 /**
