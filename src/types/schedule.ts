@@ -119,6 +119,12 @@ export type ScheduleEvent = {
   notes?: string;
   files?: string[];
   is_active: boolean;
+  is_studio_rental?: boolean;
+  renter_name?: string;
+  /** Revenue per occurrence (one-time = once; weekly = each week in selected range for dashboards) */
+  price_per_session?: string;
+  /** 0=Sunday..6=Saturday; empty in API means anchor weekday from event_date */
+  weekly_repeat_days?: number[];
   created_at: string;
   updated_at: string;
 };
@@ -128,5 +134,7 @@ export type ScheduleEventFilters = {
   end_date?: string;
   branch_id?: string;
   city_id?: string;
+  /** When true, only studio rentals (שכירויות) are returned */
+  studio_rental?: boolean;
 };
 

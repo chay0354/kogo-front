@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
-import { ScheduleEvent } from '@/types/schedule';
+import { ScheduleEvent, DAY_NAMES, type WeekDay } from '@/types/schedule';
 import { createEvent, updateEvent } from '@/lib/eventUtils';
+import { initialWeeklyRepeatDays, lessonDayOfWeekFromISODate } from '@/lib/scheduleUtils';
 import api from '@/lib/api';
 
 type Branch = {
@@ -67,6 +68,18 @@ export default function EventDialog({ event, onClose, onSuccess, initialDate }: 
   const [color, setColor] = useState(event?.color || '#9333ea');
   const [notes, setNotes] = useState(event?.notes || '');
   const selectedColorName = COLOR_PRESETS.find((p) => p.color === color)?.name || color;
+  const [weeklyDays, setWeeklyDays] = useState<number[]>(() => initialWeeklyRepeatDays(event, initialDate));
+
+  const toggleWeeklyDay = (d: number) => {
+    setWeeklyDays((prev) => {
+      const s = new Set(prev);
+      if (s.has(d)) s.delete(d);
+      else s.add(d);
+      let next = [...s].sort((a, b) => a - b);
+      if (next.length === 0 && eventDate) next = [lessonDayOfWeekFromISODate(eventDate)];
+      return next;
+    });
+  };
 
   useEffect(() => {
     loadBranches();
@@ -189,6 +202,14 @@ export default function EventDialog({ event, onClose, onSuccess, initialDate }: 
         color: color || '#9333ea',
         notes: notes.trim() || undefined,
         files: [],
+        weekly_repeat_days:
+          !isDailyEvent && eventType === 'weekly'
+            ? weeklyDays.length > 0
+              ? weeklyDays
+              : eventDate
+                ? [lessonDayOfWeekFromISODate(eventDate)]
+                : []
+            : [],
       };
 
       if (isEditMode && event) {
@@ -272,14 +293,40 @@ export default function EventDialog({ event, onClose, onSuccess, initialDate }: 
             </label>
             <select
               value={eventType}
-              onChange={(e) => setEventType(e.target.value as 'one_time' | 'weekly')}
+              onChange={(e) => {
+                const v = e.target.value as 'one_time' | 'weekly';
+                setEventType(v);
+                if (v === 'weekly' && eventDate) {
+                  setWeeklyDays((prev) => (prev.length > 0 ? prev : [lessonDayOfWeekFromISODate(eventDate)]));
+                }
+              }}
               className="w-full px-3 py-2 border rounded-lg"
               required
             >
               <option value="one_time">חד-פעמי</option>
-              <option value="weekly">שבועי (חוזר בכל שבוע באותו יום ובאותה שעה)</option>
+              <option value="weekly">שבועי (ניתן לבחור כמה ימים, באותה שעה)</option>
             </select>
           </div>
+
+          {!isDailyEvent && eventType === 'weekly' && (
+            <div>
+              <label className="block text-sm font-medium mb-2">ימים בשבוע</label>
+              <div className="flex flex-wrap gap-3 border rounded-lg p-3 bg-gray-50">
+                {([0, 1, 2, 3, 4, 5, 6] as WeekDay[]).map((d) => (
+                  <label key={d} className="flex items-center gap-2 cursor-pointer text-sm">
+                    <input
+                      type="checkbox"
+                      className="w-4 h-4"
+                      checked={weeklyDays.includes(d)}
+                      onChange={() => toggleWeeklyDay(d)}
+                    />
+                    <span>{DAY_NAMES[d]}</span>
+                  </label>
+                ))}
+              </div>
+              <p className="text-xs text-gray-500 mt-1">ברירת מחדל: יום של תאריך האירוע</p>
+            </div>
+          )}
 
           {/* אירוע יומי */}
           <div className="flex items-center gap-2">

@@ -736,7 +736,12 @@ function EventCard({ event, onClick }: { event: ScheduleEvent; onClick?: () => v
         borderColor: bgColor,
       }}
     >
-      <div className="flex items-center gap-1">
+      <div className="flex items-center gap-1 flex-wrap">
+        {event.is_studio_rental && (
+          <span className="text-[10px] font-semibold uppercase tracking-wide bg-amber-100 text-amber-900 px-1.5 py-0.5 rounded">
+            שכירות
+          </span>
+        )}
         <span className="text-xs">📅</span>
         <div className="font-medium text-xs truncate" style={{ color: bgColor }}>
           {event.name}
