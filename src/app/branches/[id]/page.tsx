@@ -1,63 +1,120 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
+import { useQueries, useQueryClient } from '@tanstack/react-query';
 import AppLayout from '@/components/AppLayout';
-import PageHeader from '@/components/PageHeader';
 import EditBranchDialog from '@/components/dialogs/EditBranchDialog';
 import CourseDetailsDialog from '@/components/dialogs/CourseDetailsDialog';
 import BranchSectionFilters from '@/components/branches/BranchSectionFilters';
 import api from '@/lib/api';
-import { BranchDetail, BranchStatistics, ProductStock } from '@/types/branch';
+import { BranchDetail, BranchStatistics } from '@/types/branch';
 import { formatCurrency, getBranchStatusBadge } from '@/lib/branchUtils';
 import { DAY_OF_WEEK_HEBREW } from '@/types/branch';
-import { 
+import {
   Users, BookOpen, Calendar, GraduationCap, TrendingUp, TrendingDown, DollarSign,
   ArrowLeft, Edit, MapPin, Wifi, Bluetooth, Package, Trash2
 } from 'lucide-react';
+
+const STALE = 5 * 60 * 1000;
+
+const toArray = (data: any) => {
+  const arr = data?.results ?? data;
+  return Array.isArray(arr) ? arr : [];
+};
 
 export default function BranchDetailsPage() {
   const router = useRouter();
   const params = useParams();
   const branchId = params.id as string;
+  const queryClient = useQueryClient();
 
-  const [branch, setBranch] = useState<BranchDetail | null>(null);
-  const [statistics, setStatistics] = useState<BranchStatistics | null>(null);
-  const [products, setProducts] = useState<ProductStock[]>([]);
-  const [courses, setCourses] = useState<any[]>([]);
-  const [lessons, setLessons] = useState<any[]>([]);
-  const [instructors, setInstructors] = useState<any[]>([]);
-  const [students, setStudents] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [selectedCourse, setSelectedCourse] = useState<any | null>(null);
-  const [lessonFilters, setLessonFilters] = useState({
-    instructor_id: 'all',
-    room_id: 'all',
-  });
-  const [studentFilters, setStudentFilters] = useState({
-    course_id: 'all',
-    status: 'all',
+  const [lessonFilters, setLessonFilters] = useState({ instructor_id: 'all', room_id: 'all' });
+  const [studentFilters, setStudentFilters] = useState({ course_id: 'all', status: 'all' });
+
+  const [
+    { data: branch, isLoading, isError },
+    { data: statistics },
+    { data: products = [] },
+    { data: courses = [] },
+    { data: lessons = [] },
+    { data: instructors = [] },
+    { data: students = [] },
+  ] = useQueries({
+    queries: [
+      {
+        queryKey: ['branch', branchId],
+        queryFn: (): Promise<BranchDetail> =>
+          api.get(`/core/branches/${branchId}/`).then(r => r.data),
+        staleTime: STALE,
+        enabled: !!branchId,
+      },
+      {
+        queryKey: ['branch-stats', branchId],
+        queryFn: (): Promise<BranchStatistics> =>
+          api.get(`/core/branches/${branchId}/statistics/`).then(r => r.data),
+        staleTime: STALE,
+        enabled: !!branchId,
+      },
+      {
+        queryKey: ['branch-products', branchId],
+        queryFn: () =>
+          api.get(`/store/products/?branch=${branchId}`).then(r => toArray(r.data)),
+        staleTime: STALE,
+        enabled: !!branchId,
+      },
+      {
+        queryKey: ['branch-courses', branchId],
+        queryFn: () =>
+          api.get(`/courses/courses/?branch_id=${branchId}`).then(r => toArray(r.data)),
+        staleTime: STALE,
+        enabled: !!branchId,
+      },
+      {
+        queryKey: ['branch-lessons', branchId],
+        queryFn: () =>
+          api.get(`/courses/lessons/?branch_id=${branchId}`).then(r => toArray(r.data)),
+        staleTime: STALE,
+        enabled: !!branchId,
+      },
+      {
+        queryKey: ['branch-instructors', branchId],
+        queryFn: () =>
+          api.get(`/instructors/?branch=${branchId}&simple=true`).then(r =>
+            toArray(r.data.instructors ?? r.data)
+          ),
+        staleTime: STALE,
+        enabled: !!branchId,
+      },
+      {
+        queryKey: ['branch-students', branchId],
+        queryFn: () =>
+          api.get(`/customers/children/?branch=${branchId}`).then(r => toArray(r.data)),
+        staleTime: STALE,
+        enabled: !!branchId,
+      },
+    ],
   });
 
-  useEffect(() => {
-    if (branchId) {
-      fetchBranchData();
-    }
-  }, [branchId]);
-
-  const handleEditSuccess = () => {
-    fetchBranchData();
+  const invalidateAll = () => {
+    queryClient.invalidateQueries({ queryKey: ['branch', branchId] });
+    queryClient.invalidateQueries({ queryKey: ['branch-stats', branchId] });
+    queryClient.invalidateQueries({ queryKey: ['branch-products', branchId] });
+    queryClient.invalidateQueries({ queryKey: ['branch-courses', branchId] });
+    queryClient.invalidateQueries({ queryKey: ['branch-lessons', branchId] });
+    queryClient.invalidateQueries({ queryKey: ['branch-instructors', branchId] });
+    queryClient.invalidateQueries({ queryKey: ['branch-students', branchId] });
   };
+
+  const handleEditSuccess = () => invalidateAll();
 
   const handleDeleteBranch = async () => {
     if (!branch) return;
-    
     if (!confirm(`האם אתה בטוח שברצונך למחוק את סניף "${branch.name}"? פעולה זו אינה ניתנת לביטול.`)) {
       return;
     }
-
     try {
       await api.delete(`/core/branches/${branch.id}/`);
       router.push('/branches');
@@ -67,68 +124,49 @@ export default function BranchDetailsPage() {
     }
   };
 
-  const handleLessonFilterChange = (key: string, value: string) => {
+  const handleLessonFilterChange = (key: string, value: string) =>
     setLessonFilters(prev => ({ ...prev, [key]: value }));
-  };
-
-  const handleClearLessonFilters = () => {
+  const handleClearLessonFilters = () =>
     setLessonFilters({ instructor_id: 'all', room_id: 'all' });
-  };
 
-  const handleStudentFilterChange = (key: string, value: string) => {
+  const handleStudentFilterChange = (key: string, value: string) =>
     setStudentFilters(prev => ({ ...prev, [key]: value }));
-  };
-
-  const handleClearStudentFilters = () => {
+  const handleClearStudentFilters = () =>
     setStudentFilters({ course_id: 'all', status: 'all' });
-  };
 
-  // Filter lessons based on filters
   const filteredLessons = lessons.filter(lesson => {
-    if (lessonFilters.instructor_id !== 'all' && lesson.instructor !== lessonFilters.instructor_id) {
-      return false;
-    }
-    if (lessonFilters.room_id !== 'all' && lesson.room !== lessonFilters.room_id) {
-      return false;
-    }
+    if (lessonFilters.instructor_id !== 'all' && lesson.instructor !== lessonFilters.instructor_id) return false;
+    if (lessonFilters.room_id !== 'all' && lesson.room !== lessonFilters.room_id) return false;
     return true;
   });
 
-  // Filter students based on filters
   const filteredStudents = students.filter(student => {
-    if (studentFilters.status !== 'all' && student.status !== studentFilters.status) {
-      return false;
-    }
-    // For course filter, check if student is enrolled in that course
+    if (studentFilters.status !== 'all' && student.status !== studentFilters.status) return false;
     if (studentFilters.course_id !== 'all') {
       const enrollments = student.enrollments || [];
-      const hasMatchingCourse = enrollments.some((e: any) => e.course_id === studentFilters.course_id);
-      if (!hasMatchingCourse) return false;
+      if (!enrollments.some((e: any) => e.course_id === studentFilters.course_id)) return false;
     }
     return true;
   });
 
-  // Get unique instructors and rooms for filter options
   const uniqueInstructors = Array.from(
     new Map(
       lessons
-        .filter(l => l.instructor && l.instructor_name)
-        .map(l => [l.instructor, { value: l.instructor, label: l.instructor_name }])
+        .filter((l: any) => l.instructor && l.instructor_name)
+        .map((l: any) => [l.instructor, { value: l.instructor, label: l.instructor_name }])
     ).values()
   );
 
   const uniqueRooms = Array.from(
     new Map(
       lessons
-        .filter(l => l.room && l.room_name)
-        .map(l => [l.room, { value: l.room, label: l.room_name }])
+        .filter((l: any) => l.room && l.room_name)
+        .map((l: any) => [l.room, { value: l.room, label: l.room_name }])
     ).values()
   );
 
-  // Course options for student filter
-  const courseOptions = courses.map(c => ({ value: c.id, label: c.name }));
+  const courseOptions = courses.map((c: any) => ({ value: c.id, label: c.name }));
 
-  // Status options for student filter
   const statusOptions = [
     { value: 'trial', label: 'ניסיון' },
     { value: 'active', label: 'פעיל' },
@@ -136,80 +174,7 @@ export default function BranchDetailsPage() {
     { value: 'expired', label: 'פג תוקף' },
   ];
 
-  const fetchBranchData = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-
-      // Fetch branch details
-      const branchResponse = await api.get(`/core/branches/${branchId}/`);
-      setBranch(branchResponse.data);
-
-      // Fetch statistics
-      const statsResponse = await api.get(`/core/branches/${branchId}/statistics/`);
-      setStatistics(statsResponse.data);
-
-      // Fetch products
-      try {
-        const productsResponse = await api.get(`/customers/product-stock/?branch_id=${branchId}`);
-        // Handle paginated response
-        const productsData = productsResponse.data.results || productsResponse.data;
-        setProducts(Array.isArray(productsData) ? productsData : []);
-      } catch (err) {
-        // Products might not exist, that's okay
-        console.log('No products for this branch');
-        setProducts([]);
-      }
-
-      // Fetch courses for this branch with lessons
-      try {
-        const coursesResponse = await api.get(`/courses/courses/?branch_id=${branchId}&include_lessons=true`);
-        const coursesData = coursesResponse.data.results || coursesResponse.data;
-        setCourses(Array.isArray(coursesData) ? coursesData : []);
-      } catch (err) {
-        console.error('Error fetching courses:', err);
-        setCourses([]);
-      }
-
-      // Fetch lessons for this branch
-      try {
-        const lessonsResponse = await api.get(`/courses/lessons/?branch_id=${branchId}`);
-        const lessonsData = lessonsResponse.data.results || lessonsResponse.data;
-        setLessons(Array.isArray(lessonsData) ? lessonsData : []);
-      } catch (err) {
-        console.error('Error fetching lessons:', err);
-        setLessons([]);
-      }
-
-      // Fetch instructors for this branch (with simplified salary calculation)
-      try {
-        const instructorsResponse = await api.get(`/instructors/?branch=${branchId}&simple=true`);
-        const instructorsData = instructorsResponse.data.instructors || instructorsResponse.data.results || instructorsResponse.data;
-        setInstructors(Array.isArray(instructorsData) ? instructorsData : []);
-      } catch (err) {
-        console.error('Error fetching instructors:', err);
-        setInstructors([]);
-      }
-
-      // Fetch students for this branch
-      try {
-        const studentsResponse = await api.get(`/customers/children/?branch=${branchId}`);
-        const studentsData = studentsResponse.data.results || studentsResponse.data;
-        setStudents(Array.isArray(studentsData) ? studentsData : []);
-      } catch (err) {
-        console.error('Error fetching students:', err);
-        setStudents([]);
-      }
-
-    } catch (error) {
-      console.error('Error fetching branch data:', error);
-      setError('שגיאה בטעינת נתוני הסניף');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  if (loading) {
+  if (isLoading) {
     return (
       <AppLayout>
         <div className="card animate-fade-in">
@@ -219,11 +184,11 @@ export default function BranchDetailsPage() {
     );
   }
 
-  if (error || !branch) {
+  if (isError || !branch) {
     return (
       <AppLayout>
         <div className="card">
-          <p className="text-destructive">{error || 'סניף לא נמצא'}</p>
+          <p className="text-destructive">שגיאה בטעינת נתוני הסניף</p>
           <button onClick={() => router.push('/branches')} className="btn-secondary mt-4">
             חזרה לרשימת סניפים
           </button>
@@ -239,7 +204,7 @@ export default function BranchDetailsPage() {
       {/* Header */}
       <div className="mb-6 animate-fade-in">
         <div className="flex items-center gap-4 mb-2">
-          <button 
+          <button
             onClick={() => router.push('/branches')}
             className="p-2 hover:bg-accent rounded-lg transition-colors"
           >
@@ -260,14 +225,14 @@ export default function BranchDetailsPage() {
             )}
           </div>
           <div className="flex items-center gap-2">
-            <button 
+            <button
               className="btn-secondary flex items-center gap-2"
               onClick={() => setShowEditDialog(true)}
             >
               <Edit className="w-4 h-4" />
               עריכת סניף
             </button>
-            <button 
+            <button
               className="px-4 py-2 border border-red-300 text-red-600 rounded-lg hover:bg-red-50 transition-colors flex items-center gap-2"
               onClick={handleDeleteBranch}
             >
@@ -417,7 +382,7 @@ export default function BranchDetailsPage() {
         </div>
       )}
 
-      {/* Products Card (if any) */}
+      {/* Products Card */}
       {products.length > 0 && (
         <div className="card mb-6 animate-slide-up" style={{ animationDelay: '300ms' }}>
           <div className="flex items-center gap-2 mb-4">
@@ -435,16 +400,16 @@ export default function BranchDetailsPage() {
                 </tr>
               </thead>
               <tbody>
-                {products.map((product) => (
+                {products.map((product: any) => (
                   <tr key={product.id} className="border-b border-border/50">
-                    <td className="py-2 px-4">{product.product_name}</td>
-                    <td className="py-2 px-4">{product.product_category}</td>
+                    <td className="py-2 px-4">{product.name}</td>
+                    <td className="py-2 px-4">{product.category}</td>
                     <td className="py-2 px-4">
                       <span className={product.is_low_stock ? 'text-destructive font-medium' : ''}>
-                        {product.quantity}
+                        {product.stock_quantity}
                       </span>
                     </td>
-                    <td className="py-2 px-4">{formatCurrency(product.product_sale_price)}</td>
+                    <td className="py-2 px-4">{formatCurrency(product.sale_price)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -465,7 +430,7 @@ export default function BranchDetailsPage() {
           <BookOpen className="w-5 h-5" />
           <h2 className="text-xl font-bold">חוגים פעילים בסניף ({courses.length})</h2>
         </div>
-        
+
         {courses.length === 0 ? (
           <div className="text-center py-8 text-muted-foreground">
             אין חוגים פעילים בסניף זה
@@ -481,27 +446,22 @@ export default function BranchDetailsPage() {
                 </tr>
               </thead>
               <tbody>
-                {courses.map((course: any) => {
-                  const lessonsCount = course.lessons_count || 0;
-                  const studentsCount = course.enrolled_students_count || 0;
-
-                  return (
-                    <tr 
-                      key={course.id} 
-                      className="border-b border-border/50 hover:bg-accent/50 cursor-pointer transition-colors"
-                      onClick={() => setSelectedCourse(course)}
-                    >
-                      <td className="py-3 px-4 font-medium">{course.name}</td>
-                      <td className="py-3 px-4 text-muted-foreground">{lessonsCount}</td>
-                      <td className="py-3 px-4">
-                        <span className="inline-flex items-center gap-1">
-                          <Users className="w-4 h-4" />
-                          {studentsCount} תלמידים
-                        </span>
-                      </td>
-                    </tr>
-                  );
-                })}
+                {courses.map((course: any) => (
+                  <tr
+                    key={course.id}
+                    className="border-b border-border/50 hover:bg-accent/50 cursor-pointer transition-colors"
+                    onClick={() => setSelectedCourse(course)}
+                  >
+                    <td className="py-3 px-4 font-medium">{course.name}</td>
+                    <td className="py-3 px-4 text-muted-foreground">{course.lessons_count || 0}</td>
+                    <td className="py-3 px-4">
+                      <span className="inline-flex items-center gap-1">
+                        <Users className="w-4 h-4" />
+                        {course.enrolled_students_count || 0} תלמידים
+                      </span>
+                    </td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>
@@ -515,33 +475,21 @@ export default function BranchDetailsPage() {
           <h2 className="text-xl font-bold">שיעורים בסניף ({filteredLessons.length})</h2>
         </div>
 
-        {/* Filters */}
         {lessons.length > 0 && (
           <BranchSectionFilters
             filters={lessonFilters}
             onFilterChange={handleLessonFilterChange}
             onClearFilters={handleClearLessonFilters}
             filterOptions={[
-              {
-                key: 'instructor_id',
-                label: 'כל המדריכים',
-                options: uniqueInstructors,
-              },
-              {
-                key: 'room_id',
-                label: 'כל הסטודיואים',
-                options: uniqueRooms,
-              },
+              { key: 'instructor_id', label: 'כל המדריכים', options: uniqueInstructors },
+              { key: 'room_id', label: 'כל הסטודיואים', options: uniqueRooms },
             ]}
           />
         )}
 
         {filteredLessons.length === 0 ? (
           <div className="text-center py-8 text-muted-foreground">
-            {lessons.length === 0 
-              ? 'אין שיעורים מתוכננים בסניף זה'
-              : 'לא נמצאו שיעורים מתאימים לפילטר'
-            }
+            {lessons.length === 0 ? 'אין שיעורים מתוכננים בסניף זה' : 'לא נמצאו שיעורים מתאימים לפילטר'}
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -557,7 +505,7 @@ export default function BranchDetailsPage() {
                 </tr>
               </thead>
               <tbody>
-                {filteredLessons.map((lesson) => (
+                {filteredLessons.map((lesson: any) => (
                   <tr key={lesson.id} className="border-b border-border/50 hover:bg-accent/50">
                     <td className="py-3 px-4 font-medium">
                       {lesson.day_name || DAY_OF_WEEK_HEBREW[lesson.day_of_week]}
@@ -566,12 +514,8 @@ export default function BranchDetailsPage() {
                       {lesson.start_time} - {lesson.end_time}
                     </td>
                     <td className="py-3 px-4">{lesson.course_name}</td>
-                    <td className="py-3 px-4 text-muted-foreground">
-                      {lesson.room_name || 'לא משויך'}
-                    </td>
-                    <td className="py-3 px-4 text-muted-foreground">
-                      {lesson.instructor_name || 'לא משויך'}
-                    </td>
+                    <td className="py-3 px-4 text-muted-foreground">{lesson.room_name || 'לא משויך'}</td>
+                    <td className="py-3 px-4 text-muted-foreground">{lesson.instructor_name || 'לא משויך'}</td>
                     <td className="py-3 px-4">
                       <span className="inline-flex items-center gap-1">
                         <Users className="w-4 h-4" />
@@ -634,33 +578,21 @@ export default function BranchDetailsPage() {
           <h2 className="text-xl font-bold">רשימת תלמידים ({filteredStudents.length})</h2>
         </div>
 
-        {/* Filters */}
         {students.length > 0 && (
           <BranchSectionFilters
             filters={studentFilters}
             onFilterChange={handleStudentFilterChange}
             onClearFilters={handleClearStudentFilters}
             filterOptions={[
-              {
-                key: 'course_id',
-                label: 'כל החוגים',
-                options: courseOptions,
-              },
-              {
-                key: 'status',
-                label: 'כל הסטטוסים',
-                options: statusOptions,
-              },
+              { key: 'course_id', label: 'כל החוגים', options: courseOptions },
+              { key: 'status', label: 'כל הסטטוסים', options: statusOptions },
             ]}
           />
         )}
 
         {filteredStudents.length === 0 ? (
           <div className="text-center py-8 text-muted-foreground">
-            {students.length === 0 
-              ? 'אין תלמידים רשומים בסניף זה'
-              : 'לא נמצאו תלמידים מתאימים לפילטר'
-            }
+            {students.length === 0 ? 'אין תלמידים רשומים בסניף זה' : 'לא נמצאו תלמידים מתאימים לפילטר'}
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -675,30 +607,27 @@ export default function BranchDetailsPage() {
                 </tr>
               </thead>
               <tbody>
-                {filteredStudents.map((student) => {
+                {filteredStudents.map((student: any) => {
                   const enrollments = student.enrollments || [];
                   const courseNames = enrollments.map((e: any) => e.course_name).join(', ');
-                  
-                  const statusConfig = {
+
+                  const statusConfig: Record<string, { label: string; className: string }> = {
                     trial: { label: 'ניסיון', className: 'bg-warning/10 text-warning border-warning/20' },
                     active: { label: 'פעיל', className: 'bg-success/10 text-success border-success/20' },
                     payment_problem: { label: 'בעיית תשלום', className: 'bg-destructive/10 text-destructive border-destructive/20' },
                     expired: { label: 'פג תוקף', className: 'bg-muted/50 text-muted-foreground border-muted' },
                   };
-
-                  const status = statusConfig[student.status as keyof typeof statusConfig] || statusConfig.trial;
+                  const statusStyle = statusConfig[student.status] || statusConfig.trial;
 
                   return (
                     <tr key={student.id} className="border-b border-border/50 hover:bg-accent/50">
                       <td className="py-3 px-4 font-medium">{student.full_name}</td>
                       <td className="py-3 px-4 text-muted-foreground">{student.family_name}</td>
                       <td className="py-3 px-4 text-muted-foreground">{student.family_phone || '-'}</td>
-                      <td className="py-3 px-4 text-sm">
-                        {courseNames || 'לא רשום לחוגים'}
-                      </td>
+                      <td className="py-3 px-4 text-sm">{courseNames || 'לא רשום לחוגים'}</td>
                       <td className="py-3 px-4">
-                        <span className={`px-2 py-1 rounded-full text-xs font-medium border ${status.className}`}>
-                          {status.label}
+                        <span className={`px-2 py-1 rounded-full text-xs font-medium border ${statusStyle.className}`}>
+                          {statusStyle.label}
                         </span>
                       </td>
                     </tr>
@@ -710,7 +639,6 @@ export default function BranchDetailsPage() {
         )}
       </div>
 
-      {/* Edit Branch Dialog */}
       <EditBranchDialog
         isOpen={showEditDialog}
         onClose={() => setShowEditDialog(false)}
@@ -718,7 +646,6 @@ export default function BranchDetailsPage() {
         branch={branch}
       />
 
-      {/* Course Details Dialog */}
       <CourseDetailsDialog
         isOpen={!!selectedCourse}
         onClose={() => setSelectedCourse(null)}
@@ -727,4 +654,3 @@ export default function BranchDetailsPage() {
     </AppLayout>
   );
 }
-
