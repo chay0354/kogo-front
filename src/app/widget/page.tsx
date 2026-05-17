@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, Fragment } from 'react';
+import React, { useEffect, useState, Fragment, useRef } from 'react';
 import { ChevronDown, ChevronUp } from 'lucide-react';
 import api from '@/lib/api';
 import { getDayName, formatTimeRange } from '@/lib/courseUtils';
@@ -13,6 +13,44 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+
+function FilterSelect({
+  value,
+  onChange,
+  disabled,
+  placeholder,
+  children,
+  active,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  disabled?: boolean;
+  placeholder: string;
+  children: React.ReactNode;
+  active?: boolean;
+}) {
+  const selectRef = useRef<HTMLSelectElement>(null);
+  return (
+    <div className={`flex flex-1 min-w-[160px] items-stretch border-2 ${active ? 'border-red-500' : 'border-transparent'}`}>
+      <select
+        ref={selectRef}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        disabled={disabled}
+        className="flex-1 h-10 bg-[#DDE0F5] px-3 text-sm text-[#1a1a5e] appearance-none border-0 outline-none disabled:opacity-60 disabled:cursor-not-allowed"
+      >
+        <option value="">{placeholder}</option>
+        {children}
+      </select>
+      <div
+        className="h-10 w-10 flex-shrink-0 flex items-center justify-center bg-[#F5C518] cursor-pointer"
+        onClick={() => !disabled && selectRef.current?.click()}
+      >
+        <ChevronDown size={16} className="text-[#1a1a5e]" />
+      </div>
+    </div>
+  );
+}
 
 interface City {
   id: string;
@@ -172,37 +210,6 @@ export default function WidgetPage() {
 
   const showTable = Boolean(selectedBranch);
 
-  const FilterSelect = ({
-    value,
-    onChange,
-    disabled,
-    placeholder,
-    children,
-    active,
-  }: {
-    value: string;
-    onChange: (v: string) => void;
-    disabled?: boolean;
-    placeholder: string;
-    children: React.ReactNode;
-    active?: boolean;
-  }) => (
-    <div className={`flex flex-1 min-w-[160px] items-stretch border-2 ${active ? 'border-red-500' : 'border-transparent'}`}>
-      <select
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        disabled={disabled}
-        className="flex-1 h-10 bg-[#DDE0F5] px-3 text-sm text-[#1a1a5e] appearance-none border-0 outline-none disabled:opacity-60 disabled:cursor-not-allowed"
-      >
-        <option value="">{placeholder}</option>
-        {children}
-      </select>
-      <div className="h-10 w-10 flex-shrink-0 flex items-center justify-center bg-[#F5C518]">
-        <ChevronDown size={16} className="text-[#1a1a5e]" />
-      </div>
-    </div>
-  );
-
   return (
     <div dir="rtl" className="space-y-6 p-6">
         {/* Filter strip */}
@@ -236,7 +243,6 @@ export default function WidgetPage() {
             onChange={handleCourseTypeChange}
             disabled={!selectedBranch || loadingCourses}
             placeholder="בחרו חוג"
-            active={Boolean(selectedBranch && !selectedCourseType)}
           >
             {courseTypes.map((t) => (
               <option key={t.id} value={t.id}>{t.name}</option>
@@ -265,15 +271,15 @@ export default function WidgetPage() {
             ) : (
               <Table>
                 <TableHeader>
-                  <TableRow>
-                    <TableHead>שם החוג</TableHead>
-                    <TableHead>תחום</TableHead>
-                    <TableHead>סניף</TableHead>
-                    <TableHead>טווח גילאים</TableHead>
-                    <TableHead>מחיר חודשי</TableHead>
-                    <TableHead>שיעורים שבועיים</TableHead>
-                    <TableHead>ימים ושעות</TableHead>
-                    <TableHead>פרטים</TableHead>
+                  <TableRow className="bg-[#2B3090] hover:bg-[#2B3090]">
+                    <TableHead className="text-white font-semibold">שם החוג</TableHead>
+                    <TableHead className="text-white font-semibold">תחום</TableHead>
+                    <TableHead className="text-white font-semibold">סניף</TableHead>
+                    <TableHead className="text-white font-semibold">טווח גילאים</TableHead>
+                    <TableHead className="text-white font-semibold">מחיר חודשי</TableHead>
+                    <TableHead className="text-white font-semibold">שיעורים שבועיים</TableHead>
+                    <TableHead className="text-white font-semibold">ימים ושעות</TableHead>
+                    <TableHead className="text-white font-semibold">פרטים</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -329,8 +335,9 @@ export default function WidgetPage() {
                               ) : (
                                 <div className="grid grid-cols-3 gap-4">
                                   {/* Instructor */}
-                                  <div className="border rounded-lg p-4 bg-white min-h-[80px]">
-                                    <p className="text-xs font-medium text-gray-500 mb-1">מדריך</p>
+                                  <div className="border rounded-lg overflow-hidden bg-white min-h-[80px]">
+                                    <p className="text-xs font-semibold text-white px-3 py-1.5" style={{ backgroundColor: 'rgb(113, 145, 38)' }}>מדריך</p>
+                                    <div className="p-3">
                                     {course.lessons?.length ? (
                                       Array.from(new Set(course.lessons.map((l) => l.instructor_name).filter(Boolean))).map((name) => (
                                         <p key={name} className="text-sm">{name}</p>
@@ -338,10 +345,12 @@ export default function WidgetPage() {
                                     ) : (
                                       <p className="text-sm text-gray-400">—</p>
                                     )}
+                                    </div>
                                   </div>
                                   {/* Days & hours */}
-                                  <div className="border rounded-lg p-4 bg-white min-h-[80px]">
-                                    <p className="text-xs font-medium text-gray-500 mb-1">ימים ושעות</p>
+                                  <div className="border rounded-lg overflow-hidden bg-white min-h-[80px]">
+                                    <p className="text-xs font-semibold text-white px-3 py-1.5" style={{ backgroundColor: 'rgb(113, 145, 38)' }}>ימים ושעות</p>
+                                    <div className="p-3">
                                     {course.lessons?.length ? (
                                       course.lessons.map((l, i) => (
                                         <p key={i} className="text-sm">{getDayName(l.day_of_week)} {formatTimeRange(l.start_time, l.end_time)}</p>
@@ -349,21 +358,27 @@ export default function WidgetPage() {
                                     ) : (
                                       <p className="text-sm text-gray-400">—</p>
                                     )}
+                                    </div>
                                   </div>
                                   {/* Price & registration */}
-                                  <div className="border rounded-lg p-4 bg-white min-h-[80px] flex flex-col gap-2">
+                                  <div className="border rounded-lg overflow-hidden bg-white min-h-[80px] flex flex-col">
+                                    <p className="text-xs font-semibold text-white px-3 py-1.5" style={{ backgroundColor: 'rgb(113, 145, 38)' }}>מחיר</p>
+                                    <div className="p-3 flex flex-col gap-2 flex-1">
                                     <p className="text-sm font-medium">
                                       {course.price != null ? `₪${course.price} לחודש` : '—'}
                                     </p>
                                     <button
                                       onClick={() => openRegistration(course.id)}
-                                      className="w-full rounded-md bg-teal-600 px-3 py-1.5 text-sm text-white hover:bg-teal-700"
+                                      className="w-full rounded-md px-3 py-1.5 text-sm text-white bg-[#2B3090]"
                                     >
                                       הירשם לחוג
                                     </button>
-                                    <button className="w-full rounded-md border border-teal-600 px-3 py-1.5 text-sm text-teal-600 hover:bg-teal-50">
+                                    <button
+                                      className="w-full rounded-md px-3 py-1.5 text-sm border border-[#2B3090] text-[#2B3090]"
+                                    >
                                       הירשם לשיעור ניסיון
                                     </button>
+                                    </div>
                                   </div>
                                 </div>
                               )}
