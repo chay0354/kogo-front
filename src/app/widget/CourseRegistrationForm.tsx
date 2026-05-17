@@ -3,7 +3,6 @@
 import { useState } from 'react';
 import api from '@/lib/api';
 import SignatureCanvas from './SignatureCanvas';
-import { getDayName, formatTimeRange } from '@/lib/courseUtils';
 
 export interface CourseLesson {
   id: string;
@@ -48,7 +47,7 @@ export default function CourseRegistrationForm({ courseName, lessons, onBack, on
   const [childIdNumber, setChildIdNumber] = useState('');
   const [childBirthDate, setChildBirthDate] = useState('');
   const [childGender, setChildGender] = useState<'male' | 'female' | ''>('');
-  const [lessonId, setLessonId] = useState(lessons.length === 1 ? lessons[0].id : '');
+  const [lessonId] = useState(lessons.length === 1 ? lessons[0].id : '');
 
   // Lookup result — used for discount step
   const [lookup, setLookup] = useState<LookupResult | null>(null);
@@ -62,10 +61,6 @@ export default function CourseRegistrationForm({ courseName, lessons, onBack, on
   // ── Step 1 submit ──────────────────────────────────────────────────────────
   const handleDetailsSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!lessonId) {
-      setErrorMsg('נא לבחור שיעור');
-      return;
-    }
     setErrorMsg('');
     try {
       const res = await api.post('/customers/widget/lookup/', {
@@ -152,27 +147,6 @@ export default function CourseRegistrationForm({ courseName, lessons, onBack, on
     return (
       <form onSubmit={handleDetailsSubmit} className="space-y-5" dir="rtl">
         {header}
-
-        {/* Lesson selector (only when course has >1 lesson) */}
-        {lessons.length > 1 && (
-          <div>
-            <label className={labelClass}>בחר שיעור *</label>
-            <select
-              required
-              value={lessonId}
-              onChange={(e) => setLessonId(e.target.value)}
-              className={inputClass}
-            >
-              <option value="">-- בחר שיעור --</option>
-              {lessons.map((l) => (
-                <option key={l.id} value={l.id}>
-                  {getDayName(l.day_of_week)} {formatTimeRange(l.start_time, l.end_time)}
-                  {l.instructor_name ? ` — ${l.instructor_name}` : ''}
-                </option>
-              ))}
-            </select>
-          </div>
-        )}
 
         {/* Parent section */}
         <fieldset className="border border-gray-200 rounded-md p-4 space-y-3">
