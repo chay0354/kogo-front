@@ -31,7 +31,7 @@ function FilterSelect({
 }) {
   const selectRef = useRef<HTMLSelectElement>(null);
   return (
-    <div className={`flex flex-1 min-w-[160px] items-stretch border-2 ${active ? 'border-red-500' : 'border-transparent'}`}>
+    <div className={`flex flex-1 min-w-[160px] items-stretch border-2 rounded-[5px] overflow-hidden ${active ? 'border-red-500' : 'border-transparent'}`}>
       <select
         ref={selectRef}
         value={value}
