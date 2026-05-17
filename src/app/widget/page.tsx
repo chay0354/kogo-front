@@ -172,91 +172,87 @@ export default function WidgetPage() {
 
   const showTable = Boolean(selectedBranch);
 
+  const FilterSelect = ({
+    value,
+    onChange,
+    disabled,
+    placeholder,
+    children,
+    active,
+  }: {
+    value: string;
+    onChange: (v: string) => void;
+    disabled?: boolean;
+    placeholder: string;
+    children: React.ReactNode;
+    active?: boolean;
+  }) => (
+    <div className={`flex flex-1 min-w-[160px] items-stretch border-2 ${active ? 'border-red-500' : 'border-transparent'}`}>
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        disabled={disabled}
+        className="flex-1 h-10 bg-[#DDE0F5] px-3 text-sm text-[#1a1a5e] appearance-none border-0 outline-none disabled:opacity-60 disabled:cursor-not-allowed"
+      >
+        <option value="">{placeholder}</option>
+        {children}
+      </select>
+      <div className="h-10 w-10 flex-shrink-0 flex items-center justify-center bg-[#F5C518]">
+        <ChevronDown size={16} className="text-[#1a1a5e]" />
+      </div>
+    </div>
+  );
+
   return (
     <div dir="rtl" className="space-y-6 p-6">
         {/* Filter strip */}
-        <div className="card p-4">
-          <div className="flex gap-4 flex-wrap">
-            {/* City */}
-            <div className="flex-1 min-w-[160px]">
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                עיר
-              </label>
-              <select
-                value={selectedCity}
-                onChange={(e) => handleCityChange(e.target.value)}
-                disabled={loadingBranches}
-                className="w-full h-10 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <option value="">-- בחר עיר --</option>
-                {cities.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
-              </select>
-            </div>
+        <div className="flex items-center gap-0 bg-[#2B3090] px-3 py-2 flex-wrap">
+          <span className="text-white font-bold text-base px-4 whitespace-nowrap">חיפוש חוגים</span>
 
-            {/* Branch */}
-            <div className="flex-1 min-w-[160px]">
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                סניף
-              </label>
-              <select
-                value={selectedBranch}
-                onChange={(e) => handleBranchChange(e.target.value)}
-                disabled={!selectedCity}
-                className="w-full h-10 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <option value="">-- בחר סניף --</option>
-                {filteredBranches.map((b) => (
-                  <option key={b.id} value={b.id}>
-                    {b.name}
-                  </option>
-                ))}
-              </select>
-            </div>
+          <FilterSelect
+            value={selectedCity}
+            onChange={handleCityChange}
+            disabled={loadingBranches}
+            placeholder="בחרו עיר"
+          >
+            {cities.map((c) => (
+              <option key={c.id} value={c.id}>{c.name}</option>
+            ))}
+          </FilterSelect>
 
-            {/* Course Type */}
-            <div className="flex-1 min-w-[160px]">
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                חוג
-              </label>
-              <select
-                value={selectedCourseType}
-                onChange={(e) => handleCourseTypeChange(e.target.value)}
-                disabled={!selectedBranch || loadingCourses}
-                className="w-full h-10 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <option value="">-- בחר חוג --</option>
-                {courseTypes.map((t) => (
-                  <option key={t.id} value={t.id}>
-                    {t.name}
-                  </option>
-                ))}
-              </select>
-            </div>
+          <FilterSelect
+            value={selectedBranch}
+            onChange={handleBranchChange}
+            disabled={!selectedCity}
+            placeholder="בחרו סניף"
+          >
+            {filteredBranches.map((b) => (
+              <option key={b.id} value={b.id}>{b.name}</option>
+            ))}
+          </FilterSelect>
 
-            {/* Age */}
-            <div className="flex-1 min-w-[160px]">
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                גיל
-              </label>
-              <select
-                value={selectedAge}
-                onChange={(e) => setSelectedAge(e.target.value)}
-                disabled={!selectedCourseType}
-                className="w-full h-10 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <option value="">-- בחר גיל --</option>
-                {ageOptions.map((age) => (
-                  <option key={age} value={age}>
-                    {ageLabel(age)}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
+          <FilterSelect
+            value={selectedCourseType}
+            onChange={handleCourseTypeChange}
+            disabled={!selectedBranch || loadingCourses}
+            placeholder="בחרו חוג"
+            active={Boolean(selectedBranch && !selectedCourseType)}
+          >
+            {courseTypes.map((t) => (
+              <option key={t.id} value={t.id}>{t.name}</option>
+            ))}
+          </FilterSelect>
+
+          <FilterSelect
+            value={selectedAge}
+            onChange={setSelectedAge}
+            disabled={!selectedCourseType}
+            placeholder="בחרו גיל"
+          >
+            {ageOptions.map((age) => (
+              <option key={age} value={age}>{ageLabel(age)}</option>
+            ))}
+          </FilterSelect>
         </div>
 
         {/* Results table */}
