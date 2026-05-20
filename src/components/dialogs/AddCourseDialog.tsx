@@ -211,7 +211,7 @@ export default function AddCourseDialog({
                 className="flex-1 px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors disabled:bg-gray-400"
                 disabled={loading}
               >
-                {loading ? 'שומר...' : 'הוסף חוג'}
+                {loading ? 'שומר...' : 'הוסף קבוצה'}
               </button>
             </div>
           </form>

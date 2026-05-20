@@ -236,7 +236,7 @@ export default function CourseTypeDetailsPage() {
             className="btn-primary flex items-center gap-2"
           >
             <span>+</span>
-            <span>הוסף חוג</span>
+            <span>הוסף קבוצה</span>
           </button>
         </div>
 
@@ -338,87 +338,75 @@ export default function CourseTypeDetailsPage() {
           {filteredCourses.length === 0 ? (
             <p className="text-muted-foreground text-center py-8">אין חוגים התואמים לסינון</p>
           ) : (
-            <div className="space-y-4">
+            <div className="flex flex-col gap-1">
               {filteredCourses.map((course) => {
                 const isExpanded = expandedCourses.has(course.id);
                 const courseFinancials = calculateCourseFinancials(course);
                 const totalStudents = course.lessons.reduce((sum, l) => sum + (l.total_students_count || l.enrolled_count), 0);
 
                 return (
-                  <div key={course.id} className="border border-gray-200 rounded-lg overflow-hidden">
+                  <div key={course.id} className="border border-gray-200 overflow-hidden" style={{ borderRadius: '3px' }}>
                     {/* Course Header */}
                     <div
                       onClick={() => toggleCourseExpanded(course.id)}
-                      className="p-4 bg-gray-50 hover:bg-gray-100 cursor-pointer flex items-center justify-between"
+                      className="px-3 py-2 bg-gray-50 hover:bg-gray-100 cursor-pointer flex items-center gap-3"
                     >
-                      <div className="flex items-center gap-4 flex-1">
-                        <svg
-                          className={`w-5 h-5 text-gray-500 transition-transform ${isExpanded ? 'rotate-90' : ''}`}
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
+                      <svg
+                        className={`w-4 h-4 text-gray-400 flex-shrink-0 transition-transform ${isExpanded ? 'rotate-90' : ''}`}
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                      </svg>
+                      <span className="font-medium text-sm text-gray-900 w-40 truncate flex-shrink-0">{course.name}</span>
+                      <span className="text-xs text-gray-500 flex-shrink-0">{formatAgeRange(course.min_age, course.max_age)}</span>
+                      <span className="text-xs text-gray-500 flex-shrink-0">{formatCurrency(course.price)}/חודש</span>
+                      <span className="text-xs text-gray-500 flex-shrink-0"><span className="font-semibold text-gray-700">{totalStudents}</span> תלמידים</span>
+                      <span className="text-xs text-gray-500 flex-shrink-0"><span className="font-semibold text-gray-700">{course.lessons.length}</span> שיעורים</span>
+                      <span className={`text-xs font-semibold flex-shrink-0 ${getProfitColorClass(courseFinancials.monthlyProfit)}`}>
+                        רווח: {formatCurrency(courseFinancials.monthlyProfit)}
+                      </span>
+                      <div className="flex items-center gap-1 mr-auto" onClick={(e) => e.stopPropagation()}>
+                        <button
+                          onClick={() => handleEditCourse(course)}
+                          className="p-1 hover:bg-blue-50 rounded transition-colors"
+                          title="עריכת חוג"
                         >
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                        </svg>
-                        <div>
-                          <h3 className="font-semibold text-gray-900">{course.name}</h3>
-                          <p className="text-sm text-gray-600">
-                            {formatAgeRange(course.min_age, course.max_age)} • {formatCurrency(course.price)}/חודש • {totalStudents} תלמידים
-                          </p>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-6">
-                        <div className="text-right">
-                          <p className="text-xs text-gray-500">שיעורים</p>
-                          <p className="font-semibold">{course.lessons.length}</p>
-                        </div>
-                        <div className="text-right">
-                          <p className="text-xs text-gray-500">רווח חודשי</p>
-                          <p className={`font-semibold ${getProfitColorClass(courseFinancials.monthlyProfit)}`}>
-                            {formatCurrency(courseFinancials.monthlyProfit)}
-                          </p>
-                        </div>
-                        <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
-                          <button
-                            onClick={() => handleEditCourse(course)}
-                            className="p-2 hover:bg-blue-50 rounded-lg transition-colors"
-                            title="עריכת חוג"
-                          >
-                            <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                            </svg>
-                          </button>
-                          <button
-                            onClick={() => handleDeleteCourse(course)}
-                            className="p-2 hover:bg-red-50 rounded-lg transition-colors"
-                            title="מחיקת חוג"
-                          >
-                            <svg className="w-4 h-4 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                            </svg>
-                          </button>
-                        </div>
+                          <svg className="w-3.5 h-3.5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                          </svg>
+                        </button>
+                        <button
+                          onClick={() => handleDeleteCourse(course)}
+                          className="p-1 hover:bg-red-50 rounded transition-colors"
+                          title="מחיקת חוג"
+                        >
+                          <svg className="w-3.5 h-3.5 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                          </svg>
+                        </button>
                       </div>
                     </div>
 
                     {/* Lessons Table (when expanded) */}
                     {isExpanded && (
-                      <div className="p-4">
+                      <div className="px-3 py-2">
                         {course.lessons.length === 0 ? (
-                          <p className="text-muted-foreground text-center py-4">אין שיעורים בחוג זה</p>
+                          <p className="text-muted-foreground text-center py-3">אין שיעורים בחוג זה</p>
                         ) : (
                           <table className="w-full text-sm">
                             <thead>
                               <tr className="border-b text-right">
-                                <th className="pb-2 font-medium text-gray-700">יום ושעה</th>
-                                <th className="pb-2 font-medium text-gray-700">סניף</th>
-                                <th className="pb-2 font-medium text-gray-700">מדריך</th>
-                                <th className="pb-2 font-medium text-gray-700">תלמידים</th>
-                                <th className="pb-2 font-medium text-gray-700">מחיר</th>
-                                <th className="pb-2 font-medium text-gray-700">הכנסה</th>
-                                <th className="pb-2 font-medium text-gray-700">שכר</th>
-                                <th className="pb-2 font-medium text-gray-700">רווח/הפסד</th>
-                                <th className="pb-2 font-medium text-gray-700 text-center">פעולות</th>
+                                <th className="pb-1 font-medium text-gray-700 text-xs">יום ושעה</th>
+                                <th className="pb-1 font-medium text-gray-700 text-xs">סניף</th>
+                                <th className="pb-1 font-medium text-gray-700 text-xs">מדריך</th>
+                                <th className="pb-1 font-medium text-gray-700 text-xs">תלמידים</th>
+                                <th className="pb-1 font-medium text-gray-700 text-xs">מחיר</th>
+                                <th className="pb-1 font-medium text-gray-700 text-xs">הכנסה</th>
+                                <th className="pb-1 font-medium text-gray-700 text-xs">שכר</th>
+                                <th className="pb-1 font-medium text-gray-700 text-xs">רווח/הפסד</th>
+                                <th className="pb-1 font-medium text-gray-700 text-xs text-center">פעולות</th>
                               </tr>
                             </thead>
                             <tbody>
@@ -427,14 +415,10 @@ export default function CourseTypeDetailsPage() {
                                 const displayPrice = lesson.price !== null && lesson.price !== undefined ? Number(lesson.price) : Number(course.price);
                                 return (
                                   <tr key={lesson.id} className="border-b last:border-b-0">
-                                    <td className="py-3">
-                                      <div>
-                                        <p className="font-medium">
-                                          {getDayName(lesson.day_of_week)} {formatTimeRange(lesson.start_time, lesson.end_time)}
-                                        </p>
-                                      </div>
+                                    <td className="py-1 text-xs font-medium">
+                                      {getDayName(lesson.day_of_week)} {formatTimeRange(lesson.start_time, lesson.end_time)}
                                     </td>
-                                    <td className="py-3">
+                                    <td className="py-1 text-xs">
                                       <span className="inline-flex items-center gap-1">
                                         <svg className="w-3 h-3 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
                                           <path fillRule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clipRule="evenodd" />
@@ -442,37 +426,31 @@ export default function CourseTypeDetailsPage() {
                                         {lesson.branch.name}
                                       </span>
                                     </td>
-                                    <td className="py-3">{lesson.instructor?.full_name || '—'}</td>
-                                    <td className="py-3">{lesson.total_students_count || lesson.enrolled_count}</td>
-                                    <td className="py-3 font-medium">
-                                      {displayPrice.toFixed(0)}₪
-                                    </td>
-                                    <td className="py-3 text-green-600 font-medium">
-                                      {lessonFinancials.revenue.toFixed(0)}₪
-                                    </td>
-                                    <td className="py-3 text-orange-600 font-medium">
-                                      {lessonFinancials.salary.toFixed(0)}₪
-                                    </td>
-                                    <td className={`py-3 font-medium ${getProfitColorClass(lessonFinancials.profit)}`}>
+                                    <td className="py-1 text-xs">{lesson.instructor?.full_name || '—'}</td>
+                                    <td className="py-1 text-xs">{lesson.total_students_count || lesson.enrolled_count}</td>
+                                    <td className="py-1 text-xs font-medium">{displayPrice.toFixed(0)}₪</td>
+                                    <td className="py-1 text-xs text-green-600 font-medium">{lessonFinancials.revenue.toFixed(0)}₪</td>
+                                    <td className="py-1 text-xs text-orange-600 font-medium">{lessonFinancials.salary.toFixed(0)}₪</td>
+                                    <td className={`py-1 text-xs font-medium ${getProfitColorClass(lessonFinancials.profit)}`}>
                                       {lessonFinancials.profit >= 0 ? '' : '-'}{Math.abs(lessonFinancials.profit).toFixed(0)}₪
                                     </td>
-                                    <td className="py-3 text-center">
+                                    <td className="py-1 text-center">
                                       <div className="flex items-center justify-center gap-1">
                                         <button
                                           onClick={() => handleEditLesson(lesson, course.id, course.price)}
-                                          className="p-1 hover:bg-blue-50 rounded transition-colors"
+                                          className="p-0.5 hover:bg-blue-50 rounded transition-colors"
                                           title="עריכת שיעור"
                                         >
-                                          <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                          <svg className="w-3.5 h-3.5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                                           </svg>
                                         </button>
                                         <button
                                           onClick={() => handleDeleteLesson(lesson)}
-                                          className="p-1 hover:bg-red-50 rounded transition-colors"
+                                          className="p-0.5 hover:bg-red-50 rounded transition-colors"
                                           title="מחיקת שיעור"
                                         >
-                                          <svg className="w-4 h-4 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                          <svg className="w-3.5 h-3.5 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                                           </svg>
                                         </button>
@@ -486,31 +464,20 @@ export default function CourseTypeDetailsPage() {
                         )}
 
                         {/* Course Financial Summary */}
-                        <div className="mt-4 pt-4 border-t flex items-center justify-between">
+                        <div className="mt-2 pt-2 border-t flex items-center justify-between">
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
                               handleAddLesson(course.id, course.price);
                             }}
-                            className="btn-secondary text-sm"
+                            className="btn-secondary text-xs py-1 px-2"
                           >
                             + הוסף שיעור
                           </button>
-                          <div className="flex items-center gap-6 text-sm">
-                            <div className="text-right">
-                              <p className="text-gray-600">סה"כ הכנסות (חודשי)</p>
-                              <p className="font-semibold text-green-600">{formatCurrency(courseFinancials.monthlyRevenue)}</p>
-                            </div>
-                            <div className="text-right">
-                              <p className="text-gray-600">סה"כ שכר (חודשי)</p>
-                              <p className="font-semibold text-orange-600">{formatCurrency(courseFinancials.monthlySalary)}</p>
-                            </div>
-                            <div className="text-right">
-                              <p className="text-gray-600">רווח/הפסד (חודשי)</p>
-                              <p className={`font-semibold ${getProfitColorClass(courseFinancials.monthlyProfit)}`}>
-                                {formatCurrency(courseFinancials.monthlyProfit)}
-                              </p>
-                            </div>
+                          <div className="flex items-center gap-4 text-xs text-gray-500">
+                            <span>הכנסות: <span className="font-semibold text-green-600">{formatCurrency(courseFinancials.monthlyRevenue)}</span></span>
+                            <span>שכר: <span className="font-semibold text-orange-600">{formatCurrency(courseFinancials.monthlySalary)}</span></span>
+                            <span>רווח: <span className={`font-semibold ${getProfitColorClass(courseFinancials.monthlyProfit)}`}>{formatCurrency(courseFinancials.monthlyProfit)}</span></span>
                           </div>
                         </div>
                       </div>
