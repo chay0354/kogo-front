@@ -18,6 +18,7 @@ function FilterSelect({
   value,
   onChange,
   disabled,
+  loading,
   placeholder,
   children,
   active,
@@ -25,6 +26,7 @@ function FilterSelect({
   value: string;
   onChange: (v: string) => void;
   disabled?: boolean;
+  loading?: boolean;
   placeholder: string;
   children: React.ReactNode;
   active?: boolean;
@@ -36,7 +38,7 @@ function FilterSelect({
         ref={selectRef}
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        disabled={disabled}
+        disabled={disabled || loading}
         className="flex-1 h-10 bg-[#DDE0F5] px-3 text-sm text-[#1a1a5e] appearance-none border-0 outline-none disabled:opacity-60 disabled:cursor-not-allowed"
       >
         <option value="">{placeholder}</option>
@@ -44,9 +46,16 @@ function FilterSelect({
       </select>
       <div
         className="h-10 w-10 flex-shrink-0 flex items-center justify-center bg-[#F5C518] cursor-pointer"
-        onClick={() => !disabled && selectRef.current?.click()}
+        onClick={() => !disabled && !loading && selectRef.current?.click()}
       >
-        <ChevronDown size={16} className="text-[#1a1a5e]" />
+        {loading ? (
+          <svg className="animate-spin text-[#1a1a5e]" width="16" height="16" viewBox="0 0 24 24" fill="none">
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
+          </svg>
+        ) : (
+          <ChevronDown size={16} className="text-[#1a1a5e]" />
+        )}
       </div>
     </div>
   );
@@ -208,7 +217,8 @@ export default function WidgetPage() {
 
   const ageLabel = (age: number) => `${age} שנים`;
 
-  const showTable = Boolean(selectedBranch);
+  const filledDropdowns = [selectedCity, selectedBranch, selectedCourseType, selectedAge].filter(Boolean).length;
+  const showTable = filledDropdowns >= 3;
 
   return (
     <div dir="rtl" className="space-y-6 p-6">
@@ -219,7 +229,7 @@ export default function WidgetPage() {
           <FilterSelect
             value={selectedCity}
             onChange={handleCityChange}
-            disabled={loadingBranches}
+            loading={loadingBranches}
             placeholder="בחרו עיר"
           >
             {cities.map((c) => (
@@ -231,6 +241,7 @@ export default function WidgetPage() {
             value={selectedBranch}
             onChange={handleBranchChange}
             disabled={!selectedCity}
+            loading={loadingBranches}
             placeholder="בחרו סניף"
           >
             {filteredBranches.map((b) => (
@@ -241,7 +252,8 @@ export default function WidgetPage() {
           <FilterSelect
             value={selectedCourseType}
             onChange={handleCourseTypeChange}
-            disabled={!selectedBranch || loadingCourses}
+            disabled={!selectedBranch}
+            loading={loadingCourses}
             placeholder="בחרו חוג"
           >
             {courseTypes.map((t) => (
@@ -253,6 +265,7 @@ export default function WidgetPage() {
             value={selectedAge}
             onChange={setSelectedAge}
             disabled={!selectedCourseType}
+            loading={Boolean(selectedCourseType && loadingCourses)}
             placeholder="בחרו גיל"
           >
             {ageOptions.map((age) => (
