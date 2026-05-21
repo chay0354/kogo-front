@@ -1,0 +1,284 @@
+.overlay {
+  position: fixed;
+  inset: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 50;
+}
+
+.dialog {
+  background-color: #f8fafc; /* slate-50 */
+  border-radius: 0.5rem;
+  box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
+  max-width: 42rem;
+  width: 100%;
+  margin-left: 1rem;
+  margin-right: 1rem;
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+.dialogBody {
+  padding: 1.5rem;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+}
+
+.title {
+  font-size: 1.5rem;
+  line-height: 2rem;
+  font-weight: 600;
+  color: #111827; /* gray-900 */
+}
+
+.closeButton {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  color: #9ca3af; /* gray-400 */
+  transition: color 150ms;
+}
+
+.closeButton:hover {
+  color: #4b5563; /* gray-600 */
+}
+
+.iconLg {
+  width: 1.5rem;
+  height: 1.5rem;
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.label {
+  display: block;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  font-weight: 500;
+  color: #374151; /* gray-700 */
+  margin-bottom: 0.25rem;
+}
+
+.required {
+  color: #ef4444; /* red-500 */
+}
+
+.input {
+  width: 100%;
+  padding: 0.25rem 0.5rem;
+  border: 1px solid #d1d5db; /* gray-300 */
+  border-radius: 3px;
+  background-color: #fff;
+  box-sizing: border-box;
+}
+
+.input:focus {
+  outline: none;
+  box-shadow: 0 0 0 2px #14b8a6; /* teal-500 */
+}
+
+.select {
+  width: 100%;
+  padding: 0.25rem 0.5rem;
+  border: 1px solid #d1d5db; /* gray-300 */
+  border-radius: 3px;
+  background-color: #fff;
+  box-sizing: border-box;
+}
+
+.select:focus {
+  outline: none;
+  box-shadow: 0 0 0 2px #14b8a6; /* teal-500 */
+}
+
+.grid2 {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.lessonSection {
+  border: 1px solid #99f6e4; /* teal-200 */
+  border-radius: 0.5rem;
+  padding: 1rem;
+  background-color: #f0fdfa; /* teal-50 */
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.lessonSectionTitle {
+  font-size: 1.125rem;
+  line-height: 1.75rem;
+  font-weight: 600;
+  color: #115e59; /* teal-800 */
+  border-bottom: 1px solid #99f6e4; /* teal-200 */
+  padding-bottom: 0.5rem;
+}
+
+.loadingText {
+  padding-top: 1rem;
+  padding-bottom: 1rem;
+  text-align: center;
+  color: #4b5563; /* gray-600 */
+}
+
+.helperText {
+  font-size: 0.75rem;
+  line-height: 1rem;
+  color: #6b7280; /* gray-500 */
+  margin-top: 0.25rem;
+}
+
+.tiersContainer {
+  border-radius: 0.5rem;
+  border: 1px dashed #d1d5db; /* gray-300 */
+  background-color: #fff;
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.tiersRows {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.tierRow {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background-color: #f9fafb; /* gray-50 */
+  border: 1px solid #e5e7eb; /* gray-200 */
+  border-radius: 0.375rem;
+  padding: 0.5rem 0.75rem;
+}
+
+.tierLabel {
+  flex: 1 1 0%;
+  font-size: 0.875rem;
+  color: #374151; /* gray-700 */
+}
+
+.tierInput {
+  width: 8rem;
+  padding: 3px 0.375rem;
+  border: 1px solid #d1d5db; /* gray-300 */
+  border-radius: 3px;
+  font-size: 0.875rem;
+  background-color: #fff;
+}
+
+.tierInput:focus {
+  outline: none;
+  box-shadow: 0 0 0 2px #14b8a6; /* teal-500 */
+}
+
+.removeTierButton {
+  padding: 0.375rem;
+  color: #9ca3af; /* gray-400 */
+  border-radius: 0.375rem;
+  border: none;
+  background: none;
+  cursor: pointer;
+  transition: color 150ms, background-color 150ms;
+}
+
+.removeTierButton:hover {
+  color: #dc2626; /* red-600 */
+  background-color: #fef2f2; /* red-50 */
+}
+
+.iconSm {
+  width: 1rem;
+  height: 1rem;
+}
+
+.addTierButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #0d9488; /* teal-600 */
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+}
+
+.addTierButton:hover {
+  color: #0f766e; /* teal-700 */
+}
+
+.addTierIcon {
+  font-size: 1.125rem;
+  line-height: 1;
+}
+
+.errorBox {
+  padding: 0.75rem;
+  background-color: #fef2f2; /* red-50 */
+  border: 1px solid #fecaca; /* red-200 */
+  border-radius: 0.5rem;
+}
+
+.errorText {
+  font-size: 0.875rem;
+  color: #dc2626; /* red-600 */
+}
+
+.actions {
+  display: flex;
+  gap: 0.75rem;
+  padding-top: 1rem;
+}
+
+.cancelButton {
+  flex: 1 1 0%;
+  padding: 0.5rem 1rem;
+  border: 1px solid #d1d5db; /* gray-300 */
+  color: #374151; /* gray-700 */
+  border-radius: 0.5rem;
+  background-color: transparent;
+  cursor: pointer;
+  transition: background-color 150ms;
+}
+
+.cancelButton:hover {
+  background-color: #f9fafb; /* gray-50 */
+}
+
+.submitButton {
+  flex: 1 1 0%;
+  padding: 0.5rem 1rem;
+  background-color: #0d9488; /* teal-600 */
+  color: #fff;
+  border: none;
+  border-radius: 0.5rem;
+  cursor: pointer;
+  transition: background-color 150ms;
+}
+
+.submitButton:hover {
+  background-color: #0f766e; /* teal-700 */
+}
+
+.submitButton:disabled {
+  background-color: #9ca3af; /* gray-400 */
+  cursor: not-allowed;
+}

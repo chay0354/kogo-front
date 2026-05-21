@@ -263,7 +263,7 @@ export default function AddLessonDialog({
                   id="day_of_week"
                   value={formData.day_of_week}
                   onChange={(e) => setFormData({ ...formData, day_of_week: Number(e.target.value) })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500"
+                  className="w-full px-2 py-1 border border-gray-300 rounded-[3px] focus:outline-none focus:ring-2 focus:ring-teal-500"
                   required
                 >
                   {daysOfWeek.map((day) => (
@@ -285,7 +285,7 @@ export default function AddLessonDialog({
                     id="start_time"
                     value={formData.start_time}
                     onChange={(e) => setFormData({ ...formData, start_time: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500"
+                    className="w-full px-2 py-1 border border-gray-300 rounded-[3px] focus:outline-none focus:ring-2 focus:ring-teal-500"
                     required
                   />
                 </div>
@@ -299,7 +299,7 @@ export default function AddLessonDialog({
                     id="end_time"
                     value={formData.end_time}
                     onChange={(e) => setFormData({ ...formData, end_time: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500"
+                    className="w-full px-2 py-1 border border-gray-300 rounded-[3px] focus:outline-none focus:ring-2 focus:ring-teal-500"
                     required
                   />
                   <p className="text-xs text-gray-500 mt-1">מתעדכן אוטומטית (+45 דקות)</p>
@@ -315,7 +315,7 @@ export default function AddLessonDialog({
                   id="branch"
                   value={formData.branch}
                   onChange={(e) => setFormData({ ...formData, branch: e.target.value, room: '' })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500"
+                  className="w-full px-2 py-1 border border-gray-300 rounded-[3px] focus:outline-none focus:ring-2 focus:ring-teal-500"
                   required
                 >
                   <option value="">בחר סניף</option>
@@ -336,7 +336,7 @@ export default function AddLessonDialog({
                   id="room"
                   value={formData.room}
                   onChange={(e) => setFormData({ ...formData, room: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500"
+                  className="w-full px-2 py-1 border border-gray-300 rounded-[3px] focus:outline-none focus:ring-2 focus:ring-teal-500"
                   disabled={!formData.branch}
                   required
                 >
@@ -361,7 +361,7 @@ export default function AddLessonDialog({
                   id="instructor"
                   value={formData.instructor}
                   onChange={(e) => setFormData({ ...formData, instructor: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500"
+                  className="w-full px-2 py-1 border border-gray-300 rounded-[3px] focus:outline-none focus:ring-2 focus:ring-teal-500"
                   required
                 >
                   <option value="">בחר מדריך</option>
@@ -388,7 +388,7 @@ export default function AddLessonDialog({
                       max_students: e.target.value ? Number(e.target.value) : undefined,
                     })
                   }
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500"
+                  className="w-full px-2 py-1 border border-gray-300 rounded-[3px] focus:outline-none focus:ring-2 focus:ring-teal-500"
                   placeholder="השאר ריק לשימוש בקיבולת החדר"
                   min="1"
                   step="1"
@@ -413,7 +413,7 @@ export default function AddLessonDialog({
                       price: e.target.value ? Number(e.target.value) : undefined,
                     })
                   }
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500"
+                  className="w-full px-2 py-1 border border-gray-300 rounded-[3px] focus:outline-none focus:ring-2 focus:ring-teal-500"
                   placeholder="השאר ריק לשימוש במחיר החוג"
                   min="0"
                   step="0.01"
@@ -438,7 +438,7 @@ export default function AddLessonDialog({
                           type="number"
                           value={tier.price ? tier.price : ''}
                           onChange={(e) => updateExtraTierPrice(idx, e.target.value)}
-                          className="w-32 px-3 py-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-teal-500 text-sm"
+                          className="w-32 px-1.5 py-[3px] border border-gray-300 rounded-[3px] focus:outline-none focus:ring-2 focus:ring-teal-500 text-sm"
                           placeholder="₪"
                           min="0"
                           step="0.01"
@@ -483,7 +483,7 @@ export default function AddLessonDialog({
                       instructor_salary_override: e.target.value ? Number(e.target.value) : undefined,
                     })
                   }
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500"
+                  className="w-full px-2 py-1 border border-gray-300 rounded-[3px] focus:outline-none focus:ring-2 focus:ring-teal-500"
                   placeholder="השאר ריק לשכר רגיל"
                   min="0"
                   step="0.01"
