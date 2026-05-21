@@ -107,23 +107,14 @@ export default function WidgetPage() {
   const [loadingBranches, setLoadingBranches] = useState(true);
   const [loadingCourses, setLoadingCourses] = useState(false);
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
-  const [registrationRows, setRegistrationRows] = useState<Set<string>>(new Set());
+  const [drawerCourse, setDrawerCourse] = useState<Course | null>(null);
 
   const toggleRow = (id: string) =>
     setExpandedRows((prev) => {
       const next = new Set(prev);
       next.has(id) ? next.delete(id) : next.add(id);
-      if (!next.has(id)) {
-        setRegistrationRows((r) => { const s = new Set(r); s.delete(id); return s; });
-      }
       return next;
     });
-
-  const openRegistration = (id: string) =>
-    setRegistrationRows((prev) => new Set(prev).add(id));
-
-  const closeRegistration = (id: string) =>
-    setRegistrationRows((prev) => { const s = new Set(prev); s.delete(id); return s; });
 
   // Derived state
   const filteredBranches = selectedCity
@@ -332,69 +323,54 @@ export default function WidgetPage() {
                         {isExpanded && (
                           <TableRow>
                             <TableCell colSpan={8} className="bg-gray-50 p-4">
-                              {registrationRows.has(course.id) ? (
-                                <CourseRegistrationForm
-                                  courseName={course.name}
-                                  lessons={course.lessons ?? []}
-                                  onBack={() => closeRegistration(course.id)}
-                                  onComplete={(paymentUrl) => {
-                                    if (paymentUrl) {
-                                      window.location.href = paymentUrl;
-                                    } else {
-                                      closeRegistration(course.id);
-                                    }
-                                  }}
-                                />
-                              ) : (
-                                <div className="grid grid-cols-3 gap-4">
-                                  {/* Instructor */}
-                                  <div className="border rounded-lg overflow-hidden bg-white min-h-[80px]">
-                                    <p className="text-xs font-semibold text-white px-3 py-1.5" style={{ backgroundColor: 'rgb(113, 145, 38)' }}>מדריך</p>
-                                    <div className="p-3">
-                                    {course.lessons?.length ? (
-                                      Array.from(new Set(course.lessons.map((l) => l.instructor_name).filter(Boolean))).map((name) => (
-                                        <p key={name} className="text-sm">{name}</p>
-                                      ))
-                                    ) : (
-                                      <p className="text-sm text-gray-400">—</p>
-                                    )}
-                                    </div>
-                                  </div>
-                                  {/* Days & hours */}
-                                  <div className="border rounded-lg overflow-hidden bg-white min-h-[80px]">
-                                    <p className="text-xs font-semibold text-white px-3 py-1.5" style={{ backgroundColor: 'rgb(113, 145, 38)' }}>ימים ושעות</p>
-                                    <div className="p-3">
-                                    {course.lessons?.length ? (
-                                      course.lessons.map((l, i) => (
-                                        <p key={i} className="text-sm">{getDayName(l.day_of_week)} {formatTimeRange(l.start_time, l.end_time)}</p>
-                                      ))
-                                    ) : (
-                                      <p className="text-sm text-gray-400">—</p>
-                                    )}
-                                    </div>
-                                  </div>
-                                  {/* Price & registration */}
-                                  <div className="border rounded-lg overflow-hidden bg-white min-h-[80px] flex flex-col">
-                                    <p className="text-xs font-semibold text-white px-3 py-1.5" style={{ backgroundColor: 'rgb(113, 145, 38)' }}>מחיר</p>
-                                    <div className="p-3 flex flex-col gap-2 flex-1">
-                                    <p className="text-sm font-medium">
-                                      {course.price != null ? `₪${course.price} לחודש` : '—'}
-                                    </p>
-                                    <button
-                                      onClick={() => openRegistration(course.id)}
-                                      className="w-full rounded-md px-3 py-1.5 text-sm text-white bg-[#2B3090]"
-                                    >
-                                      הירשם לחוג
-                                    </button>
-                                    <button
-                                      className="w-full rounded-md px-3 py-1.5 text-sm border border-[#2B3090] text-[#2B3090]"
-                                    >
-                                      הירשם לשיעור ניסיון
-                                    </button>
-                                    </div>
+                              <div className="grid grid-cols-3 gap-4">
+                                {/* Instructor */}
+                                <div className="border rounded-lg overflow-hidden bg-white min-h-[80px]">
+                                  <p className="text-xs font-semibold text-white px-3 py-1.5" style={{ backgroundColor: 'rgb(113, 145, 38)' }}>מדריך</p>
+                                  <div className="p-3">
+                                  {course.lessons?.length ? (
+                                    Array.from(new Set(course.lessons.map((l) => l.instructor_name).filter(Boolean))).map((name) => (
+                                      <p key={name} className="text-sm">{name}</p>
+                                    ))
+                                  ) : (
+                                    <p className="text-sm text-gray-400">—</p>
+                                  )}
                                   </div>
                                 </div>
-                              )}
+                                {/* Days & hours */}
+                                <div className="border rounded-lg overflow-hidden bg-white min-h-[80px]">
+                                  <p className="text-xs font-semibold text-white px-3 py-1.5" style={{ backgroundColor: 'rgb(113, 145, 38)' }}>ימים ושעות</p>
+                                  <div className="p-3">
+                                  {course.lessons?.length ? (
+                                    course.lessons.map((l, i) => (
+                                      <p key={i} className="text-sm">{getDayName(l.day_of_week)} {formatTimeRange(l.start_time, l.end_time)}</p>
+                                    ))
+                                  ) : (
+                                    <p className="text-sm text-gray-400">—</p>
+                                  )}
+                                  </div>
+                                </div>
+                                {/* Price & registration */}
+                                <div className="border rounded-lg overflow-hidden bg-white min-h-[80px] flex flex-col">
+                                  <p className="text-xs font-semibold text-white px-3 py-1.5" style={{ backgroundColor: 'rgb(113, 145, 38)' }}>מחיר</p>
+                                  <div className="p-3 flex flex-col gap-2 flex-1">
+                                  <p className="text-sm font-medium">
+                                    {course.price != null ? `₪${course.price} לחודש` : '—'}
+                                  </p>
+                                  <button
+                                    onClick={() => setDrawerCourse(course)}
+                                    className="w-full rounded-md px-3 py-1.5 text-sm text-white bg-[#2B3090]"
+                                  >
+                                    הירשם לחוג
+                                  </button>
+                                  <button
+                                    className="w-full rounded-md px-3 py-1.5 text-sm border border-[#2B3090] text-[#2B3090]"
+                                  >
+                                    הירשם לשיעור ניסיון
+                                  </button>
+                                  </div>
+                                </div>
+                              </div>
                             </TableCell>
                           </TableRow>
                         )}
@@ -406,6 +382,34 @@ export default function WidgetPage() {
             )}
           </div>
         )}
+
+      {/* Enrollment side drawer */}
+      {drawerCourse && (
+        <>
+          <div
+            className="fixed inset-0 bg-black/40"
+            style={{ zIndex: 1000 }}
+            onClick={() => setDrawerCourse(null)}
+          />
+          <div
+            className="fixed top-0 right-0 h-full w-full max-w-md bg-white shadow-2xl overflow-y-auto p-6"
+            style={{ zIndex: 1001 }}
+          >
+            <CourseRegistrationForm
+              courseId={drawerCourse.id}
+              courseName={drawerCourse.name}
+              onBack={() => setDrawerCourse(null)}
+              onComplete={(paymentUrl) => {
+                if (paymentUrl) {
+                  window.location.href = paymentUrl;
+                } else {
+                  setDrawerCourse(null);
+                }
+              }}
+            />
+          </div>
+        </>
+      )}
       </div>
   );
 }
