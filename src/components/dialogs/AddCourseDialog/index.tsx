@@ -7,12 +7,7 @@ import { formatAge } from '@/lib/courseUtils';
 import styles from './index.module.css';
 import { Branch, Room, Instructor, AddCourseDialogProps } from './types';
 import { FIRST_PRICE_TIER_INDEX, AGE_OPTIONS, DAYS_OF_WEEK } from './constants';
-
-const toPositiveNumber = (value: number | string | null | undefined): number | undefined => {
-  if (value === null || value === undefined || value === '') return undefined;
-  const n = Number(value);
-  return Number.isFinite(n) ? n : undefined;
-};
+import { toPositiveNumber, calcEndTime, addExtraTier, removeExtraTier, updateExtraTierPrice } from './utils';
 
 export default function AddCourseDialog({
   courseTypeId,
@@ -72,13 +67,7 @@ export default function AddCourseDialog({
   // Auto-calculate end time (+45 min) on start time change
   useEffect(() => {
     if (lessonData.start_time) {
-      const [hours, minutes] = lessonData.start_time.split(':').map(Number);
-      const startMinutes = hours * 60 + minutes;
-      const endMinutes = startMinutes + 45;
-      const endHours = Math.floor(endMinutes / 60);
-      const endMins = endMinutes % 60;
-      const endTime = `${String(endHours).padStart(2, '0')}:${String(endMins).padStart(2, '0')}`;
-      setLessonData((prev) => ({ ...prev, end_time: endTime }));
+      setLessonData((prev) => ({ ...prev, end_time: calcEndTime(prev.start_time) }));
     }
   }, [lessonData.start_time]);
 
@@ -105,27 +94,9 @@ export default function AddCourseDialog({
     }
   };
 
-  const addExtraTier = () => {
-    setExtraTiers((prev) => [
-      ...prev,
-      { course_index: FIRST_PRICE_TIER_INDEX + prev.length, price: 0 },
-    ]);
-  };
-
-  const removeExtraTier = (idx: number) => {
-    setExtraTiers((prev) =>
-      prev
-        .filter((_, i) => i !== idx)
-        .map((t, i) => ({ course_index: FIRST_PRICE_TIER_INDEX + i, price: t.price }))
-    );
-  };
-
-  const updateExtraTierPrice = (idx: number, raw: string) => {
-    const value = raw === '' ? 0 : Number(raw);
-    setExtraTiers((prev) =>
-      prev.map((t, i) => (i === idx ? { ...t, price: Number.isFinite(value) ? value : 0 } : t))
-    );
-  };
+  const handleAddExtraTier = () => setExtraTiers((prev) => addExtraTier(prev));
+  const handleRemoveExtraTier = (idx: number) => setExtraTiers((prev) => removeExtraTier(prev, idx));
+  const handleUpdateExtraTierPrice = (idx: number, raw: string) => setExtraTiers((prev) => updateExtraTierPrice(prev, idx, raw));
 
   const filteredRooms = lessonData.branch
     ? rooms.filter((room) => {
@@ -402,8 +373,8 @@ export default function AddCourseDialog({
                               <span className={styles.tierLabel}>
                                 מחיר עבור השיעור ה-{tier.course_index}
                               </span>
-                              <input type="number" value={tier.price ? tier.price : ''} onChange={(e) => updateExtraTierPrice(idx, e.target.value)} className={styles.tierInput} placeholder="₪" min="0" step="0.01" />
-                              <button type="button" onClick={() => removeExtraTier(idx)} aria-label="הסר מדרגה" className={styles.removeTierButton}>
+                              <input type="number" value={tier.price ? tier.price : ''} onChange={(e) => handleUpdateExtraTierPrice(idx, e.target.value)} className={styles.tierInput} placeholder="₪" min="0" step="0.01" />
+                              <button type="button" onClick={() => handleRemoveExtraTier(idx)} aria-label="הסר מדרגה" className={styles.removeTierButton}>
                                 <svg className={styles.iconSm} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                                 </svg>
@@ -412,7 +383,7 @@ export default function AddCourseDialog({
                           ))}
                         </div>
                       )}
-                      <button type="button" onClick={addExtraTier} className={styles.addTierButton}>
+                      <button type="button" onClick={handleAddExtraTier} className={styles.addTierButton}>
                         <span className={styles.addTierIcon}>+</span>
                         הוסף מחיר עבור השיעור ה-{FIRST_PRICE_TIER_INDEX + extraTiers.length}
                       </button>
