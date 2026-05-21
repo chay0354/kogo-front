@@ -13,8 +13,8 @@ export interface CourseLesson {
 }
 
 interface Props {
+  courseId: string;
   courseName: string;
-  lessons: CourseLesson[];
   onBack: () => void;
   onComplete: (paymentUrl?: string) => void;
 }
@@ -33,7 +33,7 @@ const inputClass =
   'w-full h-10 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500';
 const labelClass = 'block text-sm font-medium text-gray-700 mb-1';
 
-export default function CourseRegistrationForm({ courseName, lessons, onBack, onComplete }: Props) {
+export default function CourseRegistrationForm({ courseId, courseName, onBack, onComplete }: Props) {
   const [step, setStep] = useState<Step>('details');
   const [errorMsg, setErrorMsg] = useState('');
 
@@ -47,7 +47,6 @@ export default function CourseRegistrationForm({ courseName, lessons, onBack, on
   const [childIdNumber, setChildIdNumber] = useState('');
   const [childBirthDate, setChildBirthDate] = useState('');
   const [childGender, setChildGender] = useState<'male' | 'female' | ''>('');
-  const [lessonId] = useState(lessons.length === 1 ? lessons[0].id : '');
 
   // Lookup result — used for discount step
   const [lookup, setLookup] = useState<LookupResult | null>(null);
@@ -110,7 +109,7 @@ export default function CourseRegistrationForm({ courseName, lessons, onBack, on
         child_id_number: childIdNumber,
         child_birth_date: childBirthDate,
         child_gender: childGender,
-        lesson_id: lessonId,
+        course_id: courseId,
         signature: signature,
         discount_confirmed: discountConfirmed,
         existing_child_id: existingChildId,
@@ -215,7 +214,7 @@ export default function CourseRegistrationForm({ courseName, lessons, onBack, on
           </div>
         </fieldset>
 
-        {errorMsg && <p className="text-sm text-red-600">{errorMsg}</p>}
+{errorMsg && <p className="text-sm text-red-600">{errorMsg}</p>}
 
         <button type="submit"
           className="w-full rounded-md bg-teal-600 px-4 py-2 text-sm font-medium text-white hover:bg-teal-700">
