@@ -1,0 +1,364 @@
+/* ── Page layout ── */
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+/* ── Header ── */
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.headerLeft {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.backButton {
+  padding: 0.5rem;
+  border-radius: 0.5rem;
+  border: none;
+  background: none;
+  cursor: pointer;
+  transition: background-color 150ms;
+}
+.backButton:hover {
+  background-color: #f3f4f6;
+}
+
+.backIcon {
+  width: 1.5rem;
+  height: 1.5rem;
+  display: block;
+}
+
+.pageTitle {
+  font-size: 1.875rem;
+  font-weight: 700;
+  color: #111827;
+  margin: 0;
+}
+
+.addCourseButton {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+/* ── Financial summary cards ── */
+.financialGrid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1rem;
+}
+@media (min-width: 768px) {
+  .financialGrid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+.financialCardGreen {
+  background-color: #f0fdf4;
+  border-color: #bbf7d0;
+}
+.financialCardOrange {
+  background-color: #fff7ed;
+  border-color: #fed7aa;
+}
+.financialCardRed {
+  background-color: #fef2f2;
+  border-color: #fecaca;
+}
+
+.financialCardInner {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.financialIconWrap {
+  padding: 0.75rem;
+  border-radius: 0.5rem;
+  flex-shrink: 0;
+}
+.financialIconWrapGreen  { background-color: #dcfce7; }
+.financialIconWrapOrange { background-color: #ffedd5; }
+.financialIconWrapRed    { background-color: #fee2e2; }
+
+.financialIcon {
+  width: 1.5rem;
+  height: 1.5rem;
+  display: block;
+}
+.financialIconGreen  { color: #16a34a; }
+.financialIconOrange { color: #ea580c; }
+
+.financialLabel {
+  font-size: 0.875rem;
+  color: #4b5563;
+  margin: 0;
+}
+
+.financialValue {
+  font-size: 1.5rem;
+  font-weight: 700;
+  margin: 0;
+}
+.financialValueGreen  { color: #16a34a; }
+.financialValueOrange { color: #ea580c; }
+
+/* ── Filters ── */
+.filtersRow {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.filtersLabel {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #374151;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.filtersIcon {
+  width: 1rem;
+  height: 1rem;
+  display: block;
+}
+
+.filterSelect {
+  padding: 0.5rem 1rem;
+  border: 1px solid #d1d5db;
+  border-radius: 0.5rem;
+  font-size: 0.875rem;
+  background: white;
+  outline: none;
+}
+.filterSelect:focus {
+  box-shadow: 0 0 0 2px #14b8a6;
+}
+
+/* ── Courses section ── */
+.sectionTitle {
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin: 0 0 1rem;
+}
+
+.emptyState {
+  text-align: center;
+  padding: 2rem 0;
+}
+
+.courseList {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+/* ── Course row ── */
+.courseRow {
+  border: 1px solid #e5e7eb;
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.courseHeader {
+  padding: 0.5rem 0.75rem;
+  background-color: #f9fafb;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  transition: background-color 150ms;
+}
+.courseHeader:hover {
+  background-color: #f3f4f6;
+}
+
+.chevron {
+  width: 1rem;
+  height: 1rem;
+  color: #9ca3af;
+  flex-shrink: 0;
+  transition: transform 150ms;
+}
+.chevronExpanded {
+  transform: rotate(90deg);
+}
+
+.courseName {
+  font-weight: 500;
+  font-size: 0.875rem;
+  color: #111827;
+  width: 10rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.courseMeta {
+  font-size: 0.75rem;
+  color: #6b7280;
+  flex-shrink: 0;
+}
+
+.courseMetaNumber {
+  font-weight: 600;
+  color: #374151;
+}
+
+.courseProfit {
+  font-size: 0.75rem;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.courseActions {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  margin-inline-start: auto;
+}
+
+.actionButton {
+  padding: 0.25rem;
+  border-radius: 0.25rem;
+  border: none;
+  background: none;
+  cursor: pointer;
+  transition: background-color 150ms;
+}
+
+.editButton:hover   { background-color: #eff6ff; }
+.deleteButton:hover { background-color: #fef2f2; }
+
+.editIcon {
+  width: 0.875rem;
+  height: 0.875rem;
+  color: #2563eb;
+  display: block;
+}
+.deleteIcon {
+  width: 0.875rem;
+  height: 0.875rem;
+  color: #dc2626;
+  display: block;
+}
+
+/* ── Lessons (expanded) ── */
+.lessonsBody {
+  padding: 0.5rem 0.75rem;
+}
+
+.lessonsEmptyState {
+  text-align: center;
+  padding: 0.75rem 0;
+}
+
+.lessonsTable {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.tableHeadRow {
+  border-bottom: 1px solid #e5e7eb;
+  text-align: right;
+}
+
+.th {
+  padding-bottom: 0.25rem;
+  font-weight: 500;
+  color: #374151;
+  font-size: 0.75rem;
+  text-align: right;
+}
+.thCenter {
+  text-align: center;
+}
+
+.tableRow {
+  border-bottom: 1px solid #e5e7eb;
+}
+.tableRow:last-child {
+  border-bottom: none;
+}
+
+.td {
+  padding: 0.25rem 0;
+  font-size: 0.75rem;
+}
+.tdBold    { font-weight: 500; }
+.tdRevenue { color: #16a34a; font-weight: 500; }
+.tdSalary  { color: #ea580c; font-weight: 500; }
+.tdCenter  { text-align: center; }
+
+.branchCell {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.branchIcon {
+  width: 0.75rem;
+  height: 0.75rem;
+  color: #9ca3af;
+  display: block;
+}
+
+.lessonActionButtons {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.25rem;
+}
+
+.lessonActionButton {
+  padding: 0.125rem;
+  border-radius: 0.25rem;
+  border: none;
+  background: none;
+  cursor: pointer;
+  transition: background-color 150ms;
+}
+.lessonActionButton.editButton:hover   { background-color: #eff6ff; }
+.lessonActionButton.deleteButton:hover { background-color: #fef2f2; }
+
+/* ── Course financial footer ── */
+.courseFooter {
+  margin-top: 0.5rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid #e5e7eb;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.addLessonButton {
+  font-size: 0.75rem;
+  padding: 0.25rem 0.5rem;
+}
+
+.courseFooterStats {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  font-size: 0.75rem;
+  color: #6b7280;
+}
+
+.statRevenue { font-weight: 600; color: #16a34a; }
+.statSalary  { font-weight: 600; color: #ea580c; }
+.statValue   { font-weight: 600; }
+
+/* ── Profit / Loss colors ── */
+.profit { color: #16a34a; }
+.loss   { color: #dc2626; }
