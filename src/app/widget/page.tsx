@@ -224,7 +224,7 @@ export default function WidgetPage() {
         <>
           <div className={styles.drawerOverlay} onClick={() => setDrawerCourse(null)} />
           <div className={styles.drawerPanel}>
-            <CourseRegistrationForm courseId={drawerCourse.id} courseName={drawerCourse.name} onBack={() => setDrawerCourse(null)} onComplete={(paymentUrl) => { if (paymentUrl) { window.location.href = paymentUrl; } else { setDrawerCourse(null); } }} />
+            <CourseRegistrationForm courseId={drawerCourse.id} courseName={drawerCourse.name} onBack={() => setDrawerCourse(null)} onComplete={() => setDrawerCourse(null)} />
           </div>
         </>
       )}
