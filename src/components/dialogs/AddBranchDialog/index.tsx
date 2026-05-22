@@ -4,12 +4,8 @@ import { useState, useEffect } from 'react';
 import { X, Plus, Trash2 } from 'lucide-react';
 import api from '@/lib/api';
 import { City } from '@/types/branch';
-
-interface AddBranchDialogProps {
-  isOpen: boolean;
-  onClose: () => void;
-  onSuccess: () => void;
-}
+import { AddBranchDialogProps } from './types';
+import styles from './index.module.css';
 
 export default function AddBranchDialog({ isOpen, onClose, onSuccess }: AddBranchDialogProps) {
   const [cities, setCities] = useState<City[]>([]);
@@ -18,7 +14,6 @@ export default function AddBranchDialog({ isOpen, onClose, onSuccess }: AddBranc
   const [showAddCity, setShowAddCity] = useState(false);
   const [newCityName, setNewCityName] = useState('');
 
-  // Form state
   const [formData, setFormData] = useState({
     name: '',
     branch_codes: [''],
@@ -33,12 +28,10 @@ export default function AddBranchDialog({ isOpen, onClose, onSuccess }: AddBranc
     notes: '',
   });
 
-  // Studios/Rooms state
   const [studios, setStudios] = useState([
     { name: 'סטודיו 1', capacity: 20, notes: '' },
     { name: 'סטודיו 2', capacity: 20, notes: '' },
   ]);
-
 
   useEffect(() => {
     if (isOpen) {
@@ -49,7 +42,6 @@ export default function AddBranchDialog({ isOpen, onClose, onSuccess }: AddBranc
   const fetchCities = async () => {
     try {
       const response = await api.get('/core/cities/');
-      // Handle paginated response
       const data = response.data.results || response.data;
       setCities(Array.isArray(data) ? data : []);
     } catch (error) {
@@ -100,19 +92,17 @@ export default function AddBranchDialog({ isOpen, onClose, onSuccess }: AddBranc
     setStudios(newStudios);
   };
 
-
   const validateForm = (): string | null => {
     if (!formData.name.trim()) return 'שם הסניף הוא שדה חובה';
     if (formData.name.length < 2) return 'שם הסניף חייב להכיל לפחות 2 תווים';
     if (formData.name.length > 100) return 'שם הסניף לא יכול להכיל יותר מ-100 תווים';
     if (!formData.city) return 'יש לבחור עיר';
-
     return null;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     const validationError = validateForm();
     if (validationError) {
       setError(validationError);
@@ -123,7 +113,6 @@ export default function AddBranchDialog({ isOpen, onClose, onSuccess }: AddBranc
     setError(null);
 
     try {
-      // Filter out empty values from arrays
       const cleanedData = {
         name: formData.name,
         branch_codes: formData.branch_codes.filter(c => c.trim()),
@@ -139,11 +128,9 @@ export default function AddBranchDialog({ isOpen, onClose, onSuccess }: AddBranc
         is_active: true,
       };
 
-      // Create branch
       const branchResponse = await api.post('/core/branches/', cleanedData);
       const branchId = branchResponse.data.id;
 
-      // Create studios with user-defined capacities
       const studioPromises = studios.map(studio =>
         api.post('/core/rooms/', {
           name: studio.name,
@@ -193,30 +180,28 @@ export default function AddBranchDialog({ isOpen, onClose, onSuccess }: AddBranc
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-background rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
-        {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-border sticky top-0 bg-background">
-          <h2 className="text-2xl font-bold">הוספת סניף חדש</h2>
-          <button onClick={handleClose} className="p-2 hover:bg-accent rounded-lg transition-colors">
+    <div className={styles.overlay}>
+      <div className={styles.panel}>
+        <div className={styles.header}>
+          <h2 className={styles.title}>הוספת סניף חדש</h2>
+          <button onClick={handleClose} className={styles.closeButton}>
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        {/* Form */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-6">
+        <form onSubmit={handleSubmit} className={styles.form}>
           {error && (
-            <div className="p-4 bg-destructive/10 text-destructive rounded-lg">
+            <div className={styles.errorAlert}>
               {error}
             </div>
           )}
 
           {/* Basic Info */}
-          <div className="space-y-4">
-            <h3 className="text-lg font-semibold">פרטים בסיסיים</h3>
-            
+          <div className={styles.section}>
+            <h3 className={styles.sectionTitle}>פרטים בסיסיים</h3>
+
             <div>
-              <label className="block text-sm font-medium mb-2">
+              <label className={styles.label}>
                 שם הסניף <span className="text-destructive">*</span>
               </label>
               <input
@@ -230,11 +215,11 @@ export default function AddBranchDialog({ isOpen, onClose, onSuccess }: AddBranc
             </div>
 
             <div>
-              <label className="block text-sm font-medium mb-2">
+              <label className={styles.label}>
                 עיר <span className="text-destructive">*</span>
               </label>
               {!showAddCity ? (
-                <div className="flex gap-2">
+                <div className={styles.cityRow}>
                   <select
                     value={formData.city}
                     onChange={(e) => setFormData({ ...formData, city: e.target.value })}
@@ -257,7 +242,7 @@ export default function AddBranchDialog({ isOpen, onClose, onSuccess }: AddBranc
                   </button>
                 </div>
               ) : (
-                <div className="flex gap-2">
+                <div className={styles.cityRow}>
                   <input
                     type="text"
                     value={newCityName}
@@ -265,18 +250,10 @@ export default function AddBranchDialog({ isOpen, onClose, onSuccess }: AddBranc
                     className="input flex-1"
                     placeholder="שם העיר"
                   />
-                  <button
-                    type="button"
-                    onClick={handleAddCity}
-                    className="btn-primary"
-                  >
+                  <button type="button" onClick={handleAddCity} className="btn-primary">
                     הוסף
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => setShowAddCity(false)}
-                    className="btn-secondary"
-                  >
+                  <button type="button" onClick={() => setShowAddCity(false)} className="btn-secondary">
                     ביטול
                   </button>
                 </div>
@@ -284,7 +261,7 @@ export default function AddBranchDialog({ isOpen, onClose, onSuccess }: AddBranc
             </div>
 
             <div>
-              <label className="block text-sm font-medium mb-2">כתובת</label>
+              <label className={styles.label}>כתובת</label>
               <input
                 type="text"
                 value={formData.address}
@@ -296,9 +273,9 @@ export default function AddBranchDialog({ isOpen, onClose, onSuccess }: AddBranc
 
             {/* Branch Codes */}
             <div>
-              <label className="block text-sm font-medium mb-2">קודי סניף</label>
+              <label className={styles.label}>קודי סניף</label>
               {formData.branch_codes.map((code, index) => (
-                <div key={index} className="flex gap-2 mb-2">
+                <div key={index} className={styles.arrayFieldRow}>
                   <input
                     type="text"
                     value={code}
@@ -329,12 +306,12 @@ export default function AddBranchDialog({ isOpen, onClose, onSuccess }: AddBranc
           </div>
 
           {/* Costs */}
-          <div className="space-y-4">
-            <h3 className="text-lg font-semibold">עלויות</h3>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className={styles.section}>
+            <h3 className={styles.sectionTitle}>עלויות</h3>
+
+            <div className={styles.twoColGrid}>
               <div>
-                <label className="block text-sm font-medium mb-2">עלות חודשית (₪)</label>
+                <label className={styles.label}>עלות חודשית (₪)</label>
                 <input
                   type="number"
                   value={formData.monthly_cost}
@@ -347,7 +324,7 @@ export default function AddBranchDialog({ isOpen, onClose, onSuccess }: AddBranc
               </div>
 
               <div>
-                <label className="block text-sm font-medium mb-2">עלות ניקיון (₪)</label>
+                <label className={styles.label}>עלות ניקיון (₪)</label>
                 <input
                   type="number"
                   value={formData.cleaning_cost}
@@ -362,9 +339,9 @@ export default function AddBranchDialog({ isOpen, onClose, onSuccess }: AddBranc
 
             {/* Cleaning Managers */}
             <div>
-              <label className="block text-sm font-medium mb-2">אחראי ניקיון</label>
+              <label className={styles.label}>אחראי ניקיון</label>
               {formData.cleaning_managers.map((manager, index) => (
-                <div key={index} className="flex gap-2 mb-2">
+                <div key={index} className={styles.arrayFieldRow}>
                   <input
                     type="text"
                     value={manager}
@@ -395,12 +372,12 @@ export default function AddBranchDialog({ isOpen, onClose, onSuccess }: AddBranc
           </div>
 
           {/* WiFi & Bluetooth */}
-          <div className="space-y-4">
-            <h3 className="text-lg font-semibold">חיבורים</h3>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className={styles.section}>
+            <h3 className={styles.sectionTitle}>חיבורים</h3>
+
+            <div className={styles.twoColGrid}>
               <div>
-                <label className="block text-sm font-medium mb-2">שם WiFi</label>
+                <label className={styles.label}>שם WiFi</label>
                 <input
                   type="text"
                   value={formData.wifi_name}
@@ -411,7 +388,7 @@ export default function AddBranchDialog({ isOpen, onClose, onSuccess }: AddBranc
               </div>
 
               <div>
-                <label className="block text-sm font-medium mb-2">סיסמת WiFi</label>
+                <label className={styles.label}>סיסמת WiFi</label>
                 <input
                   type="text"
                   value={formData.wifi_code}
@@ -424,9 +401,9 @@ export default function AddBranchDialog({ isOpen, onClose, onSuccess }: AddBranc
 
             {/* Bluetooth Codes */}
             <div>
-              <label className="block text-sm font-medium mb-2">קודי Bluetooth</label>
+              <label className={styles.label}>קודי Bluetooth</label>
               {formData.bluetooth_codes.map((code, index) => (
-                <div key={index} className="flex gap-2 mb-2">
+                <div key={index} className={styles.arrayFieldRow}>
                   <input
                     type="text"
                     value={code}
@@ -457,15 +434,15 @@ export default function AddBranchDialog({ isOpen, onClose, onSuccess }: AddBranc
           </div>
 
           {/* Rooms and Studios */}
-          <div className="space-y-4">
-            <h3 className="text-lg font-semibold">חדרים וסטודיואים</h3>
+          <div className={styles.section}>
+            <h3 className={styles.sectionTitle}>חדרים וסטודיואים</h3>
             <p className="text-sm text-muted-foreground">הגדר את קיבולת החדרים שייווצרו עם הסניף</p>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className={styles.twoColGrid}>
               {studios.map((studio, index) => (
-                <div key={index} className="p-4 border border-border rounded-lg">
-                  <div className="font-medium mb-2">{studio.name}</div>
+                <div key={index} className={styles.studioCard}>
+                  <div className={styles.studioName}>{studio.name}</div>
                   <div>
-                    <label className="block text-sm font-medium mb-1">קיבולת החדר</label>
+                    <label className={styles.studioLabel}>קיבולת החדר</label>
                     <input
                       type="number"
                       value={studio.capacity}
@@ -481,7 +458,7 @@ export default function AddBranchDialog({ isOpen, onClose, onSuccess }: AddBranc
           </div>
 
           {/* Actions */}
-          <div className="flex justify-end gap-3 pt-4 border-t border-border">
+          <div className={styles.actions}>
             <button
               type="button"
               onClick={handleClose}
@@ -503,4 +480,3 @@ export default function AddBranchDialog({ isOpen, onClose, onSuccess }: AddBranc
     </div>
   );
 }
-
