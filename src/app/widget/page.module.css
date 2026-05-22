@@ -74,7 +74,7 @@
 }
 
 .expandButton {
-  @apply p-1 rounded;
+  @apply p-1 rounded bg-gray-200;
 }
 
 .expandButton:hover {
