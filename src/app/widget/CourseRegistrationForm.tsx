@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import api from '@/lib/api';
 import SignatureCanvas from './SignatureCanvas';
 
@@ -16,10 +16,18 @@ interface Props {
   courseId: string;
   courseName: string;
   onBack: () => void;
-  onComplete: (paymentUrl?: string) => void;
+  onComplete: () => void;
 }
 
-type Step = 'details' | 'discount_confirm' | 'consents' | 'submitting' | 'error';
+type Step =
+  | 'details'
+  | 'discount_confirm'
+  | 'consents'
+  | 'submitting'
+  | 'error'
+  | 'payment'
+  | 'payment_success'
+  | 'payment_failed';
 
 interface LookupResult {
   family_status: 'new' | 'existing';
@@ -29,9 +37,20 @@ interface LookupResult {
   discount_question: string | null;
 }
 
+interface PaymentResponse {
+  payment_id: string;
+  tranzila_url: string;
+  final_amount: number;
+  base_amount: number;
+  discount_amount: number;
+  discounts_applied: Array<{ name: string; amount: number }>;
+}
+
 const inputClass =
   'w-full h-10 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500';
 const labelClass = 'block text-sm font-medium text-gray-700 mb-1';
+
+const MAX_POLL_ATTEMPTS = 30;
 
 export default function CourseRegistrationForm({ courseId, courseName, onBack, onComplete }: Props) {
   const [step, setStep] = useState<Step>('details');
@@ -56,6 +75,82 @@ export default function CourseRegistrationForm({ courseId, courseName, onBack, o
   const [termsConsent, setTermsConsent] = useState(false);
   const [rulesConsent, setRulesConsent] = useState(false);
   const [signature, setSignature] = useState<string | null>(null);
+
+  // Payment step
+  const [paymentData, setPaymentData] = useState<PaymentResponse | null>(null);
+  const [polling, setPolling] = useState(false);
+  const pollAttemptsRef = useRef(0);
+  const pollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Auto-poll when entering the payment step
+  useEffect(() => {
+    if (step !== 'payment' || !paymentData) return;
+
+    pollAttemptsRef.current = 0;
+    setPolling(true);
+
+    const doPoll = async () => {
+      try {
+        const res = await api.get(`/customers/payments/${paymentData.payment_id}/`);
+        const status: string = res.data.status;
+
+        if (status === 'completed') {
+          setPolling(false);
+          setStep('payment_success');
+          setTimeout(() => onComplete(), 3000);
+          return;
+        }
+        if (status === 'failed' || status === 'cancelled') {
+          setPolling(false);
+          setErrorMsg('התשלום נכשל. אנא נסה שנית.');
+          setStep('payment_failed');
+          return;
+        }
+      } catch {
+        // network error — keep polling
+      }
+
+      pollAttemptsRef.current += 1;
+      if (pollAttemptsRef.current < MAX_POLL_ATTEMPTS) {
+        pollTimeoutRef.current = setTimeout(doPoll, 10000);
+      } else {
+        setPolling(false);
+        setErrorMsg('פג הזמן להמתנה לאישור תשלום. אם ביצעת תשלום, פנה לצוות.');
+        setStep('payment_failed');
+      }
+    };
+
+    doPoll();
+
+    return () => {
+      if (pollTimeoutRef.current) clearTimeout(pollTimeoutRef.current);
+    };
+  }, [step, paymentData?.payment_id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleManualPoll = async () => {
+    if (!paymentData || polling) return;
+    if (pollTimeoutRef.current) clearTimeout(pollTimeoutRef.current);
+    setPolling(true);
+    try {
+      const res = await api.get(`/customers/payments/${paymentData.payment_id}/`);
+      const status: string = res.data.status;
+      if (status === 'completed') {
+        setPolling(false);
+        setStep('payment_success');
+        setTimeout(() => onComplete(), 3000);
+        return;
+      }
+      if (status === 'failed' || status === 'cancelled') {
+        setPolling(false);
+        setErrorMsg('התשלום נכשל. אנא נסה שנית.');
+        setStep('payment_failed');
+        return;
+      }
+    } catch {
+      // ignore
+    }
+    setPolling(false);
+  };
 
   // ── Step 1 submit ──────────────────────────────────────────────────────────
   const handleDetailsSubmit = async (e: React.FormEvent) => {
@@ -94,9 +189,11 @@ export default function CourseRegistrationForm({ courseId, courseName, onBack, o
     const discountConfirmed = (lookup as (LookupResult & { _confirmed?: boolean }) | null)?._confirmed ?? false;
     const existingChildId   = discountConfirmed ? (lookup?.child_id ?? '') : '';
 
-    const successUrl  = `${window.location.origin}/widget/payment-success`;
-    const errorUrl    = `${window.location.origin}/widget/payment-error`;
-    const callbackUrl = `${process.env.NEXT_PUBLIC_API_URL ?? ''}/api/v1/customers/payments/webhook/`;
+    const webhookBase =
+      process.env.NEXT_PUBLIC_WEBHOOK_BASE_URL ||
+      process.env.NEXT_PUBLIC_API_URL ||
+      'http://localhost:8000/api/v1';
+    const callbackUrl = `${webhookBase.replace('/api/v1', '')}/api/v1/customers/payments/webhook/`;
 
     try {
       const res = await api.post('/customers/widget/register/', {
@@ -113,11 +210,17 @@ export default function CourseRegistrationForm({ courseId, courseName, onBack, o
         signature: signature,
         discount_confirmed: discountConfirmed,
         existing_child_id: existingChildId,
-        success_url: successUrl,
-        error_url: errorUrl,
         callback_url: callbackUrl,
       });
-      onComplete(res.data.tranzila_url);
+      setPaymentData({
+        payment_id: res.data.payment_id,
+        tranzila_url: res.data.tranzila_url,
+        final_amount: res.data.final_amount,
+        base_amount: res.data.base_amount,
+        discount_amount: res.data.discount_amount,
+        discounts_applied: res.data.discounts_applied ?? [],
+      });
+      setStep('payment');
     } catch (err: unknown) {
       const msg =
         (err as { response?: { data?: { error?: string } } })?.response?.data?.error ??
@@ -214,7 +317,7 @@ export default function CourseRegistrationForm({ courseId, courseName, onBack, o
           </div>
         </fieldset>
 
-{errorMsg && <p className="text-sm text-red-600">{errorMsg}</p>}
+        {errorMsg && <p className="text-sm text-red-600">{errorMsg}</p>}
 
         <button type="submit"
           className="w-full rounded-md bg-teal-600 px-4 py-2 text-sm font-medium text-white hover:bg-teal-700">
@@ -285,6 +388,103 @@ export default function CourseRegistrationForm({ courseId, courseName, onBack, o
           שלח והמשך לתשלום
         </button>
       </form>
+    );
+  }
+
+  // ── STEP 4: Payment iframe ─────────────────────────────────────────────────
+  if (step === 'payment' && paymentData) {
+    return (
+      <div className="space-y-4" dir="rtl">
+        <h3 className="text-base font-semibold">הרשמה לחוג: {courseName}</h3>
+
+        {/* Payment summary */}
+        <div className="rounded-lg border border-teal-200 bg-teal-50 p-4 text-sm space-y-2">
+          <p className="font-semibold text-gray-800 mb-1">סיכום תשלום</p>
+          <div className="flex justify-between text-gray-600">
+            <span>מחיר בסיס</span>
+            <span>₪{Number(paymentData.base_amount).toFixed(2)}</span>
+          </div>
+          {paymentData.discount_amount > 0 && (
+            <div className="flex justify-between text-green-700">
+              <span>הנחה</span>
+              <span>-₪{Number(paymentData.discount_amount).toFixed(2)}</span>
+            </div>
+          )}
+          <div className="flex justify-between font-bold border-t border-teal-300 pt-2 text-gray-900">
+            <span>לתשלום</span>
+            <span className="text-teal-700">₪{Number(paymentData.final_amount).toFixed(2)}</span>
+          </div>
+        </div>
+
+        {/* Tranzila iframe */}
+        <div className="border border-gray-300 rounded-lg overflow-hidden" style={{ height: '480px' }}>
+          <iframe
+            src={paymentData.tranzila_url}
+            className="w-full h-full"
+            title="Tranzila Payment"
+            allow="payment"
+            sandbox="allow-forms allow-scripts allow-same-origin allow-top-navigation"
+          />
+        </div>
+
+        {polling && (
+          <p className="text-xs text-center text-gray-400">ממתין לאישור תשלום...</p>
+        )}
+
+        <button
+          type="button"
+          onClick={handleManualPoll}
+          disabled={polling}
+          className="w-full rounded-md border border-teal-600 text-teal-700 px-4 py-2 text-sm font-medium hover:bg-teal-50 disabled:opacity-50"
+        >
+          בדוק סטטוס תשלום
+        </button>
+      </div>
+    );
+  }
+
+  // ── STEP 5: Payment success ────────────────────────────────────────────────
+  if (step === 'payment_success') {
+    return (
+      <div className="py-12 text-center space-y-4" dir="rtl">
+        <div className="text-green-500 text-6xl">✓</div>
+        <p className="text-lg font-semibold text-gray-800">התשלום בוצע בהצלחה!</p>
+        <p className="text-sm text-gray-600">{childFirstName} נרשמ/ה לחוג {courseName}.</p>
+        <button
+          type="button"
+          onClick={onComplete}
+          className="rounded-md bg-teal-600 px-6 py-2 text-sm font-medium text-white hover:bg-teal-700"
+        >
+          סגור
+        </button>
+      </div>
+    );
+  }
+
+  // ── STEP 5: Payment failed ─────────────────────────────────────────────────
+  if (step === 'payment_failed') {
+    return (
+      <div className="py-12 text-center space-y-4" dir="rtl">
+        <div className="text-red-500 text-6xl">✗</div>
+        <p className="text-lg font-semibold text-gray-800">התשלום נכשל</p>
+        <p className="text-sm text-gray-500">{errorMsg || 'אנא נסה שנית או פנה לצוות.'}</p>
+        <div className="flex gap-3 justify-center">
+          <button
+            type="button"
+            onClick={() => { setErrorMsg(''); pollAttemptsRef.current = 0; setStep('payment'); }}
+            className="rounded-md bg-teal-600 px-4 py-2 text-sm font-medium text-white hover:bg-teal-700"
+          >
+            נסה שנית
+          </button>
+          <button
+            type="button"
+            onClick={onBack}
+            className="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+          >
+            סגור
+          </button>
+        </div>
+      </div>
     );
   }
 
