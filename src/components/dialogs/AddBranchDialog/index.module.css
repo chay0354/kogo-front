@@ -1,0 +1,67 @@
+.overlay {
+  @apply fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4;
+}
+
+.panel {
+  @apply bg-background rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto;
+}
+
+.header {
+  @apply flex items-center justify-between p-6 border-b border-border sticky top-0 bg-background;
+}
+
+.title {
+  @apply text-2xl font-bold;
+}
+
+.closeButton {
+  @apply p-2 hover:bg-accent rounded-lg transition-colors;
+}
+
+.form {
+  @apply p-6 space-y-6;
+}
+
+.errorAlert {
+  @apply p-4 bg-destructive/10 text-destructive rounded-lg;
+}
+
+.section {
+  @apply space-y-4;
+}
+
+.sectionTitle {
+  @apply text-lg font-semibold;
+}
+
+.label {
+  @apply block text-sm font-medium mb-2;
+}
+
+.studioLabel {
+  @apply block text-sm font-medium mb-1;
+}
+
+.cityRow {
+  @apply flex gap-2;
+}
+
+.arrayFieldRow {
+  @apply flex gap-2 mb-2;
+}
+
+.twoColGrid {
+  @apply grid grid-cols-1 md:grid-cols-2 gap-4;
+}
+
+.studioCard {
+  @apply p-4 border border-border rounded-lg;
+}
+
+.studioName {
+  @apply font-medium mb-2;
+}
+
+.actions {
+  @apply flex justify-end gap-3 pt-4 border-t border-border;
+}
