@@ -13,6 +13,7 @@ import {
   Tag,
   ShoppingBag,
   KeyRound,
+  MessageCircle,
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -37,6 +38,7 @@ function getMenuItems(role: string | null | undefined) {
     { name: 'מדריכים', href: '/instructors', icon: GraduationCap },
     { name: 'חנות', href: '/store', icon: ShoppingBag },
     { name: 'הנחות', href: '/discounts', icon: Tag },
+    { name: 'WhatsApp', href: '/whatsapp', icon: MessageCircle },
     { name: 'הגדרות', href: '/settings', icon: Settings },
   ];
 }

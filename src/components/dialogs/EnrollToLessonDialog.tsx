@@ -46,6 +46,8 @@ interface Lesson {
 
 const BILLING_ENROLLMENT_STATUSES = new Set(['active', 'payments_problem']);
 
+const DAY_NAMES = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שבת'];
+
 const toNumberOrNull = (value: number | string | null | undefined) => {
   if (value === null || value === undefined || value === '') return null;
   const n = Number(value);
@@ -250,7 +252,7 @@ export default function EnrollToLessonDialog({ child, isOpen, onClose, onEnroll 
     ? getEffectiveLessonPrice(child, selectedLessonDetails, selectedCourseDetails?.price)
     : null;
 
-  const dayNames = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שבת'];
+  const dayNames = DAY_NAMES;
 
   return (
     <>
@@ -407,7 +409,7 @@ export default function EnrollToLessonDialog({ child, isOpen, onClose, onEnroll 
             </div>
 
             {/* Footer */}
-            <div className="flex justify-end gap-2 pt-6 mt-6 border-t">
+            <div className="flex flex-wrap items-center justify-end gap-2 pt-6 mt-6 border-t">
               <button 
                 type="button" 
                 onClick={onClose} 
