@@ -176,6 +176,7 @@ export interface CourseFormData {
 
 export interface LessonFormData {
   course: string;
+  branch?: string;
   room: string;
   instructor: string;
   day_of_week: number;
