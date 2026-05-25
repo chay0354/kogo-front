@@ -169,7 +169,7 @@ export interface CourseFormData {
   description: string;
   price: number;
   capacity: number;
-  branch: string;
+  branch?: string;
   min_age: number;
   max_age: number;
 }
