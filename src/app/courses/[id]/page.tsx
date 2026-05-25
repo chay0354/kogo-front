@@ -324,6 +324,9 @@ export default function CourseTypeDetailsPage() {
                       </svg>
 
                       <span className={styles.courseName}>{course.name}</span>
+                      {course.branch_name && (
+                        <span className={styles.courseMeta}>{course.branch_name}</span>
+                      )}
                       <span className={styles.courseMeta}>{formatAgeRange(course.min_age, course.max_age)}</span>
                       <span className={styles.courseMeta}>{formatCurrency(course.price)}/חודש</span>
                       <span className={styles.courseMeta}>
@@ -368,7 +371,6 @@ export default function CourseTypeDetailsPage() {
                             <thead>
                               <tr className={styles.tableHeadRow}>
                                 <th className={styles.th}>יום ושעה</th>
-                                <th className={styles.th}>סניף</th>
                                 <th className={styles.th}>מדריך</th>
                                 <th className={styles.th}>תלמידים</th>
                                 <th className={styles.th}>מחיר</th>
@@ -386,14 +388,6 @@ export default function CourseTypeDetailsPage() {
                                   <tr key={lesson.id} className={styles.tableRow}>
                                     <td className={`${styles.td} ${styles.tdBold}`}>
                                       {getDayName(lesson.day_of_week)} {formatTimeRange(lesson.start_time, lesson.end_time)}
-                                    </td>
-                                    <td className={styles.td}>
-                                      <span className={styles.branchCell}>
-                                        <svg className={styles.branchIcon} fill="currentColor" viewBox="0 0 20 20">
-                                          <path fillRule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clipRule="evenodd" />
-                                        </svg>
-                                        {lesson.branch.name}
-                                      </span>
                                     </td>
                                     <td className={styles.td}>{lesson.instructor?.full_name || '—'}</td>
                                     <td className={styles.td}>{lesson.total_students_count || lesson.enrolled_count}</td>

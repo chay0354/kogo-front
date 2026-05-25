@@ -105,6 +105,8 @@ export interface CourseWithLessons {
   capacity: number;
   min_age?: number | null;
   max_age?: number | null;
+  branch?: string;
+  branch_name?: string;
   lessons: Lesson[];
   is_active: boolean;
 }
