@@ -82,6 +82,7 @@ export interface Lesson {
   day_name: string;
   start_time: string;
   end_time: string;
+  branch?: { id: string; name: string } | null;
   room?: Room | null;
   instructor: Instructor | null;
   enrolled_count: number; // Active students only (for income calculation)
