@@ -187,3 +187,5 @@ For Railway, Render, Netlify, etc.:
 
 **Important:** The webhook URL must be publicly accessible. Tranzila cannot send webhooks to `localhost`.
 
+Note:
+Once Claude writes the migration file, you run python manage.py migrate again and it will apply it.

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import api from '@/lib/api';
 import { CourseFormData, LessonFormData, LessonPriceTier } from '@/types/course';
 import { formatAge } from '@/lib/courseUtils';
@@ -21,13 +22,13 @@ export default function AddCourseDialog({
     description: '',
     price: 0,
     capacity: 20,
+    branch: '',
     min_age: 6,
     max_age: 18,
   });
 
   const [lessonData, setLessonData] = useState<LessonFormData>({
     course: '',
-    branch: '',
     room: '',
     instructor: '',
     day_of_week: 0,
@@ -41,6 +42,7 @@ export default function AddCourseDialog({
   });
   const [extraTiers, setExtraTiers] = useState<LessonPriceTier[]>([]);
 
+  const queryClient = useQueryClient();
   const [branches, setBranches] = useState<Branch[]>([]);
   const [rooms, setRooms] = useState<Room[]>([]);
   const [instructors, setInstructors] = useState<Instructor[]>([]);
@@ -98,13 +100,13 @@ export default function AddCourseDialog({
   const handleRemoveExtraTier = (idx: number) => setExtraTiers((prev) => removeExtraTier(prev, idx));
   const handleUpdateExtraTierPrice = (idx: number, raw: string) => setExtraTiers((prev) => updateExtraTierPrice(prev, idx, raw));
 
-  const filteredRooms = lessonData.branch
+  const filteredRooms = courseData.branch
     ? rooms.filter((room) => {
         const branchId =
           typeof (room as any).branch === 'string'
             ? (room as any).branch
             : (room as any).branch?.id;
-        return branchId === lessonData.branch;
+        return branchId === courseData.branch;
       })
     : [];
 
@@ -135,7 +137,7 @@ export default function AddCourseDialog({
     }
 
     // Lesson validation
-    if (!lessonData.branch) { setError('יש לבחור סניף'); return; }
+    if (!courseData.branch) { setError('יש לבחור סניף'); return; }
     if (!lessonData.room) { setError('יש לבחור סטודיו'); return; }
     if (!lessonData.instructor) { setError('יש לבחור מדריך'); return; }
     if (lessonData.end_time <= lessonData.start_time) {
@@ -172,6 +174,7 @@ export default function AddCourseDialog({
         };
 
         await api.post('/courses/lessons/', lessonSubmitData);
+        await queryClient.invalidateQueries({ queryKey: ['courses'] });
         onSuccess();
       } catch (lessonErr: any) {
         const errorData = lessonErr.response?.data;
@@ -256,6 +259,23 @@ export default function AddCourseDialog({
               </div>
             </div>
 
+            {/* Branch */}
+            <div>
+              <label htmlFor="course_branch" className={styles.label}>
+                סניף <span className={styles.required}>*</span>
+              </label>
+              {loadingData ? (
+                <div className={styles.loadingText}>טוען נתונים...</div>
+              ) : (
+                <select id="course_branch" value={courseData.branch} onChange={(e) => { setCourseData({ ...courseData, branch: e.target.value }); setLessonData((prev) => ({ ...prev, room: '' })); }} className={styles.select} required>
+                  <option value="">בחר סניף</option>
+                  {branches.map((branch) => (
+                    <option key={branch.id} value={branch.id}>{branch.name}</option>
+                  ))}
+                </select>
+              )}
+            </div>
+
             {/* Description */}
             <div>
               <label htmlFor="description" className={styles.label}>
@@ -301,31 +321,18 @@ export default function AddCourseDialog({
                       </div>
                     </div>
 
-                    {/* Branch */}
-                    <div>
-                      <label htmlFor="lesson_branch" className={styles.label}>
-                        סניף <span className={styles.required}>*</span>
-                      </label>
-                      <select id="lesson_branch" value={lessonData.branch} onChange={(e) => setLessonData({ ...lessonData, branch: e.target.value, room: '' })} className={styles.select} required>
-                        <option value="">בחר סניף</option>
-                        {branches.map((branch) => (
-                          <option key={branch.id} value={branch.id}>{branch.name}</option>
-                        ))}
-                      </select>
-                    </div>
-
                     {/* Room */}
                     <div>
                       <label htmlFor="lesson_room" className={styles.label}>
                         סטודיו / חדר <span className={styles.required}>*</span>
                       </label>
-                      <select id="lesson_room" value={lessonData.room} onChange={(e) => setLessonData({ ...lessonData, room: e.target.value })} className={styles.select} disabled={!lessonData.branch} required>
+                      <select id="lesson_room" value={lessonData.room} onChange={(e) => setLessonData({ ...lessonData, room: e.target.value })} className={styles.select} disabled={!courseData.branch} required>
                         <option value="">בחר סטודיו</option>
                         {filteredRooms.map((room) => (
                           <option key={room.id} value={room.id}>{room.name}</option>
                         ))}
                       </select>
-                      {!lessonData.branch && (
+                      {!courseData.branch && (
                         <p className={styles.helperText}>יש לבחור סניף קודם</p>
                       )}
                     </div>

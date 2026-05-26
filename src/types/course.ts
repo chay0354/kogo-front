@@ -57,7 +57,8 @@ export interface Course {
   description: string;
   price: number;
   capacity: number;
-  branch?: string | null;
+  branch: string;
+  branch_name?: string;
   min_age?: number | null;
   max_age?: number | null;
   is_active: boolean;
@@ -81,7 +82,7 @@ export interface Lesson {
   day_name: string;
   start_time: string;
   end_time: string;
-  branch: Branch;
+  branch?: { id: string; name: string } | null;
   room?: Room | null;
   instructor: Instructor | null;
   enrolled_count: number; // Active students only (for income calculation)
@@ -105,6 +106,8 @@ export interface CourseWithLessons {
   capacity: number;
   min_age?: number | null;
   max_age?: number | null;
+  branch?: string;
+  branch_name?: string;
   lessons: Lesson[];
   is_active: boolean;
 }
@@ -167,13 +170,14 @@ export interface CourseFormData {
   description: string;
   price: number;
   capacity: number;
+  branch?: string;
   min_age: number;
   max_age: number;
 }
 
 export interface LessonFormData {
   course: string;
-  branch: string;
+  branch?: string;
   room: string;
   instructor: string;
   day_of_week: number;
