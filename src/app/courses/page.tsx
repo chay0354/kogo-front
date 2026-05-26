@@ -7,6 +7,7 @@ import PageHeader from '@/components/PageHeader';
 import api from '@/lib/api';
 import { CourseTypeWithStats } from '@/types/course';
 import AddCourseTypeDialog from '@/components/dialogs/AddCourseTypeDialog';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 
 export default function CoursesPage() {
   const router = useRouter();
@@ -15,6 +16,7 @@ export default function CoursesPage() {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [showAddDialog, setShowAddDialog] = useState(false);
+  const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
 
   useEffect(() => {
     fetchCourseTypes();
@@ -57,6 +59,18 @@ export default function CoursesPage() {
   const handleCourseTypeAdded = () => {
     setShowAddDialog(false);
     fetchCourseTypes();
+  };
+
+  const handleDeleteConfirm = async (confirmed: boolean) => {
+    if (!confirmed || !deleteTargetId) return;
+    try {
+      await api.delete(`/courses/types/${deleteTargetId}/`);
+      setCourseTypes((prev) => prev.filter((ct) => ct.id !== deleteTargetId));
+    } catch (error) {
+      console.error('Error deleting course type:', error);
+    } finally {
+      setDeleteTargetId(null);
+    }
   };
 
   return (
@@ -115,7 +129,18 @@ export default function CoursesPage() {
                 className="card hover:shadow-lg transition-shadow cursor-pointer overflow-hidden"
               >
                 {/* Header with course type name */}
-                <div className="bg-gradient-to-br from-teal-500 to-teal-600 p-8 text-center">
+                <div className="group/header relative bg-gradient-to-br from-teal-500 to-teal-600 p-8 text-center">
+                  {courseType.courses_count === 0 && (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); setDeleteTargetId(courseType.id); }}
+                      className="absolute top-2 left-2 p-1.5 text-white/70 hover:text-white hover:bg-white/20 rounded transition-colors opacity-0 group-hover/header:opacity-100"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                          d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
+                    </button>
+                  )}
                   <h3 className="text-3xl font-bold text-white">
                     {courseType.name.charAt(0)}
                   </h3>
@@ -239,6 +264,16 @@ export default function CoursesPage() {
           </div>
         )}
       </div>
+
+      <ConfirmDialog
+        isOpen={deleteTargetId !== null}
+        onClose={() => setDeleteTargetId(null)}
+        onConfirm={handleDeleteConfirm}
+        title="מחיקת תחום"
+        message="האם אתה בטוח שברצונך למחוק תחום זה?"
+        confirmText="מחק"
+        type="warning"
+      />
 
       {/* Add Course Type Dialog */}
       {showAddDialog && (
