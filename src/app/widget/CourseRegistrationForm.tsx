@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState } from 'react';
 import api from '@/lib/api';
 import SignatureCanvas from './SignatureCanvas';
 
@@ -39,7 +39,6 @@ interface LookupResult {
 
 interface PaymentResponse {
   payment_id: string;
-  tranzila_url: string;
   final_amount: number;
   base_amount: number;
   discount_amount: number;
@@ -50,7 +49,6 @@ const inputClass =
   'w-full h-10 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500';
 const labelClass = 'block text-sm font-medium text-gray-700 mb-1';
 
-const MAX_POLL_ATTEMPTS = 30;
 
 export default function CourseRegistrationForm({ courseId, courseName, onBack, onComplete }: Props) {
   const [step, setStep] = useState<Step>('details');
@@ -78,78 +76,42 @@ export default function CourseRegistrationForm({ courseId, courseName, onBack, o
 
   // Payment step
   const [paymentData, setPaymentData] = useState<PaymentResponse | null>(null);
-  const [polling, setPolling] = useState(false);
-  const pollAttemptsRef = useRef(0);
-  const pollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [cardNumber, setCardNumber] = useState('');
+  const [expiryMonth, setExpiryMonth] = useState('');
+  const [expiryYear, setExpiryYear] = useState('');
+  const [cvv, setCvv] = useState('');
+  const [cardHolderId, setCardHolderId] = useState('');
+  const [charging, setCharging] = useState(false);
 
-  // Auto-poll when entering the payment step
-  useEffect(() => {
-    if (step !== 'payment' || !paymentData) return;
-
-    pollAttemptsRef.current = 0;
-    setPolling(true);
-
-    const doPoll = async () => {
-      try {
-        const res = await api.get(`/customers/payments/${paymentData.payment_id}/`);
-        const status: string = res.data.status;
-
-        if (status === 'completed') {
-          setPolling(false);
-          setStep('payment_success');
-          setTimeout(() => onComplete(), 3000);
-          return;
-        }
-        if (status === 'failed' || status === 'cancelled') {
-          setPolling(false);
-          setErrorMsg('התשלום נכשל. אנא נסה שנית.');
-          setStep('payment_failed');
-          return;
-        }
-      } catch {
-        // network error — keep polling
-      }
-
-      pollAttemptsRef.current += 1;
-      if (pollAttemptsRef.current < MAX_POLL_ATTEMPTS) {
-        pollTimeoutRef.current = setTimeout(doPoll, 10000);
-      } else {
-        setPolling(false);
-        setErrorMsg('פג הזמן להמתנה לאישור תשלום. אם ביצעת תשלום, פנה לצוות.');
-        setStep('payment_failed');
-      }
-    };
-
-    doPoll();
-
-    return () => {
-      if (pollTimeoutRef.current) clearTimeout(pollTimeoutRef.current);
-    };
-  }, [step, paymentData?.payment_id]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const handleManualPoll = async () => {
-    if (!paymentData || polling) return;
-    if (pollTimeoutRef.current) clearTimeout(pollTimeoutRef.current);
-    setPolling(true);
+  const handleCardCharge = async () => {
+    if (!paymentData || !cardNumber || !expiryMonth || !expiryYear || !cvv) return;
+    setCharging(true);
+    setErrorMsg('');
     try {
-      const res = await api.get(`/customers/payments/${paymentData.payment_id}/`);
-      const status: string = res.data.status;
-      if (status === 'completed') {
-        setPolling(false);
+      const res = await api.post('/customers/widget/charge/', {
+        payment_id: paymentData.payment_id,
+        card_details: {
+          card_number: cardNumber.replace(/\s/g, ''),
+          expiry_month: parseInt(expiryMonth),
+          expiry_year: parseInt(expiryYear),
+          cvv,
+          card_holder_id: cardHolderId,
+        },
+      });
+      if (res.data.success) {
         setStep('payment_success');
         setTimeout(() => onComplete(), 3000);
-        return;
-      }
-      if (status === 'failed' || status === 'cancelled') {
-        setPolling(false);
-        setErrorMsg('התשלום נכשל. אנא נסה שנית.');
+      } else {
+        setErrorMsg(res.data.error || 'התשלום נכשל');
         setStep('payment_failed');
-        return;
       }
-    } catch {
-      // ignore
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'שגיאה בסליקה';
+      setErrorMsg(msg);
+      setStep('payment_failed');
+    } finally {
+      setCharging(false);
     }
-    setPolling(false);
   };
 
   // ── Step 1 submit ──────────────────────────────────────────────────────────
@@ -189,12 +151,6 @@ export default function CourseRegistrationForm({ courseId, courseName, onBack, o
     const discountConfirmed = (lookup as (LookupResult & { _confirmed?: boolean }) | null)?._confirmed ?? false;
     const existingChildId   = discountConfirmed ? (lookup?.child_id ?? '') : '';
 
-    const webhookBase =
-      process.env.NEXT_PUBLIC_WEBHOOK_BASE_URL ||
-      process.env.NEXT_PUBLIC_API_URL ||
-      'http://localhost:8000/api/v1';
-    const callbackUrl = `${webhookBase.replace('/api/v1', '')}/api/v1/customers/payments/webhook/`;
-
     try {
       const res = await api.post('/customers/widget/register/', {
         parent_id_number: parentIdNumber,
@@ -210,11 +166,9 @@ export default function CourseRegistrationForm({ courseId, courseName, onBack, o
         signature: signature,
         discount_confirmed: discountConfirmed,
         existing_child_id: existingChildId,
-        callback_url: callbackUrl,
       });
       setPaymentData({
         payment_id: res.data.payment_id,
-        tranzila_url: res.data.tranzila_url,
         final_amount: res.data.final_amount,
         base_amount: res.data.base_amount,
         discount_amount: res.data.discount_amount,
@@ -391,7 +345,7 @@ export default function CourseRegistrationForm({ courseId, courseName, onBack, o
     );
   }
 
-  // ── STEP 4: Payment iframe ─────────────────────────────────────────────────
+  // ── STEP 4: Card entry ────────────────────────────────────────────────────
   if (step === 'payment' && paymentData) {
     return (
       <div className="space-y-4" dir="rtl">
@@ -416,28 +370,47 @@ export default function CourseRegistrationForm({ courseId, courseName, onBack, o
           </div>
         </div>
 
-        {/* Tranzila iframe */}
-        <div className="border border-gray-300 rounded-lg overflow-hidden" style={{ height: '480px' }}>
-          <iframe
-            src={paymentData.tranzila_url}
-            className="w-full h-full"
-            title="Tranzila Payment"
-            allow="payment"
-            sandbox="allow-forms allow-scripts allow-same-origin allow-top-navigation"
-          />
+        {/* Card entry form */}
+        <div className="space-y-3">
+          <p className="text-sm font-semibold text-gray-800">פרטי כרטיס אשראי</p>
+          <div>
+            <label className={labelClass}>מספר כרטיס</label>
+            <input
+              className={inputClass}
+              placeholder="4580 4580 4580 4580"
+              value={cardNumber}
+              onChange={e => setCardNumber(e.target.value)}
+            />
+          </div>
+          <div className="grid grid-cols-3 gap-3">
+            <div>
+              <label className={labelClass}>חודש תפוגה</label>
+              <input className={inputClass} placeholder="12" value={expiryMonth} onChange={e => setExpiryMonth(e.target.value)} />
+            </div>
+            <div>
+              <label className={labelClass}>שנת תפוגה</label>
+              <input className={inputClass} placeholder="2026" value={expiryYear} onChange={e => setExpiryYear(e.target.value)} />
+            </div>
+            <div>
+              <label className={labelClass}>CVV</label>
+              <input className={inputClass} placeholder="123" value={cvv} onChange={e => setCvv(e.target.value)} />
+            </div>
+          </div>
+          <div>
+            <label className={labelClass}>תעודת זהות בעל הכרטיס</label>
+            <input className={inputClass} placeholder="012345678" value={cardHolderId} onChange={e => setCardHolderId(e.target.value)} />
+          </div>
         </div>
 
-        {polling && (
-          <p className="text-xs text-center text-gray-400">ממתין לאישור תשלום...</p>
-        )}
+        {errorMsg && <p className="text-sm text-red-600">{errorMsg}</p>}
 
         <button
           type="button"
-          onClick={handleManualPoll}
-          disabled={polling}
-          className="w-full rounded-md border border-teal-600 text-teal-700 px-4 py-2 text-sm font-medium hover:bg-teal-50 disabled:opacity-50"
+          onClick={handleCardCharge}
+          disabled={charging || !cardNumber || !expiryMonth || !expiryYear || !cvv}
+          className="w-full rounded-md bg-teal-600 px-4 py-2 text-sm font-medium text-white hover:bg-teal-700 disabled:opacity-50"
         >
-          בדוק סטטוס תשלום
+          {charging ? 'מעבד...' : `שלם ₪${Number(paymentData.final_amount).toFixed(2)}`}
         </button>
       </div>
     );
@@ -471,7 +444,7 @@ export default function CourseRegistrationForm({ courseId, courseName, onBack, o
         <div className="flex gap-3 justify-center">
           <button
             type="button"
-            onClick={() => { setErrorMsg(''); pollAttemptsRef.current = 0; setStep('payment'); }}
+            onClick={() => { setErrorMsg(''); setStep('payment'); }}
             className="rounded-md bg-teal-600 px-4 py-2 text-sm font-medium text-white hover:bg-teal-700"
           >
             נסה שנית
