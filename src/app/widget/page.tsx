@@ -82,7 +82,7 @@ export default function WidgetPage() {
 
   useEffect(() => {
     setLoadingBranches(true);
-    Promise.all([api.get('/core/cities/'), api.get('/core/branches/?simple=true')])
+    Promise.all([api.get('/customers/widget/cities/'), api.get('/customers/widget/branches/')])
       .then(([citiesRes, branchesRes]) => {
         const citiesData = Array.isArray(citiesRes.data) ? citiesRes.data : citiesRes.data.results ?? [];
         const branchesData = Array.isArray(branchesRes.data) ? branchesRes.data : branchesRes.data.results ?? [];
