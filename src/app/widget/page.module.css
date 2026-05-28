@@ -1,10 +1,17 @@
 /* FilterSelect */
 
 .filterWrapper {
-  @apply flex flex-1 items-stretch border-2 overflow-hidden;
-  min-width: 160px;
+  @apply flex items-stretch border-2 overflow-hidden w-full;
   border-radius: 5px;
   border-color: transparent;
+}
+
+@media (min-width: 768px) {
+  .filterWrapper {
+    @apply flex-1;
+    min-width: 160px;
+    width: auto;
+  }
 }
 
 .filterWrapperActive {
@@ -42,13 +49,55 @@
 }
 
 .filterStrip {
-  @apply flex items-center px-3 py-2 flex-wrap;
-  gap: 0;
+  @apply flex flex-col items-stretch px-4 py-4;
+  gap: 12px;
   background-color: #2B3090;
 }
 
+@media (min-width: 768px) {
+  .filterStrip {
+    @apply flex-row items-center flex-wrap px-3 py-2;
+    gap: 0;
+  }
+}
+
+.filterStripTitle {
+  @apply text-center font-extrabold;
+  color: #F5C518;
+  font-size: 1.4rem;
+  line-height: 1.2;
+  padding: 4px 0 8px;
+}
+
+@media (min-width: 768px) {
+  .filterStripTitle {
+    @apply w-full text-center;
+    font-size: 1.5rem;
+    padding: 0 0 8px;
+  }
+}
+
+.filterStripDivider {
+  @apply flex items-center w-full;
+  gap: 10px;
+  margin-bottom: 1rem;
+}
+
+.filterStripLine {
+  @apply flex-1;
+  height: 1px;
+  background-color: rgba(255, 255, 255, 0.6);
+}
+
 .filterStripLabel {
-  @apply text-white font-bold text-base px-4 whitespace-nowrap;
+  @apply text-white font-bold whitespace-nowrap px-3;
+  font-size: 1.1rem;
+}
+
+@media (min-width: 768px) {
+  .filterStripDivider {
+    @apply w-full;
+  }
 }
 
 /* Results table */

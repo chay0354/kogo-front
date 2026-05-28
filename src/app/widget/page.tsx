@@ -112,8 +112,13 @@ export default function WidgetPage() {
     <div dir="rtl" className={styles.page}>
       {/* Filter strip */}
       <div className={styles.filterStrip}>
-        <span className={styles.filterStripLabel}>חיפוש חוגים</span>
-
+        <h1 className={styles.filterStripTitle}>הרשמה לחוגים / שיעור נסיון</h1>
+        <div className={styles.filterStripDivider}>
+          <span className={styles.filterStripLine} />
+          <span className={styles.filterStripLabel}>חיפוש חוגים</span>
+          <span className={styles.filterStripLine} />
+        </div>
+          
         <FilterSelect value={selectedCity} onChange={handleCityChange} loading={loadingBranches} placeholder="בחרו עיר">
           {cities.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
         </FilterSelect>
