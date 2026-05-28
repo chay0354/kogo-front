@@ -1,10 +1,18 @@
 /* FilterSelect */
 
 .filterWrapper {
-  @apply flex flex-1 items-stretch border-2 overflow-hidden;
-  min-width: 160px;
+  @apply flex items-stretch border-2 w-full relative;
   border-radius: 5px;
   border-color: transparent;
+  overflow: hidden;
+}
+
+@media (min-width: 768px) {
+  .filterWrapper {
+    @apply flex-1;
+    min-width: 160px;
+    width: auto;
+  }
 }
 
 .filterWrapperActive {
@@ -12,13 +20,25 @@
 }
 
 .filterSelect {
-  @apply flex-1 h-10 px-3 text-sm appearance-none border-0 outline-none;
-  background-color: #DDE0F5;
-  color: #1a1a5e;
+  @apply appearance-none border-0 outline-none;
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+  z-index: 1;
 }
 
 .filterSelect:disabled {
-  @apply opacity-60 cursor-not-allowed;
+  cursor: not-allowed;
+}
+
+.filterDisplayText {
+  @apply flex-1 h-10 px-3 text-sm flex items-center truncate;
+  background-color: #DDE0F5;
+  color: #1a1a5e;
+  pointer-events: none;
 }
 
 .filterIconBox {
@@ -38,17 +58,104 @@
 /* Page layout */
 
 .page {
-  @apply space-y-6 p-6;
+  @apply space-y-6;
+  padding: 5px;
+}
+
+@media (min-width: 768px) {
+  .page {
+    @apply p-6;
+  }
 }
 
 .filterStrip {
-  @apply flex items-center px-3 py-2 flex-wrap;
-  gap: 0;
+  @apply flex flex-col items-stretch px-4 py-4;
+  gap: 12px;
   background-color: #2B3090;
 }
 
+@media (min-width: 768px) {
+  .filterStrip {
+    @apply flex-row items-center flex-wrap px-3 py-2;
+    gap: 0;
+  }
+}
+
+.filterStripTitle {
+  @apply text-center font-extrabold;
+  color: #F5C518;
+  font-size: 1.4rem;
+  line-height: 1.2;
+  padding: 4px 0 8px;
+}
+
+@media (min-width: 768px) {
+  .filterStripTitle {
+    @apply w-full text-center;
+    font-size: 1.5rem;
+    padding: 0 0 8px;
+  }
+}
+
+.filterStripDivider {
+  @apply flex items-center w-full;
+  gap: 10px;
+  margin-bottom: 1rem;
+}
+
+.filterStripLine {
+  @apply flex-1;
+  height: 1px;
+  background-color: rgba(255, 255, 255, 0.6);
+}
+
 .filterStripLabel {
-  @apply text-white font-bold text-base px-4 whitespace-nowrap;
+  @apply text-white font-bold whitespace-nowrap px-3;
+  font-size: 1.1rem;
+}
+
+@media (min-width: 768px) {
+  .filterStripDivider {
+    @apply w-full;
+  }
+}
+
+/* Override card padding on mobile */
+
+.cardCompact {
+  padding: 10px;
+}
+
+@media (min-width: 768px) {
+  .cardCompact {
+    padding: 1.5rem;
+  }
+}
+
+/* Reduce table cell padding on mobile */
+
+.tableCompact td,
+.tableCompact th {
+  padding: 5px;
+}
+
+@media (min-width: 768px) {
+  .tableCompact td,
+  .tableCompact th {
+    padding: 1rem;
+  }
+}
+
+/* Hide columns on mobile */
+
+.colHideMobile {
+  display: none;
+}
+
+@media (min-width: 768px) {
+  .colHideMobile {
+    display: table-cell;
+  }
 }
 
 /* Results table */
@@ -73,8 +180,17 @@
   @apply font-medium;
 }
 
+.clickableRow {
+  cursor: pointer;
+}
+
+.clickableRow:hover {
+  background-color: #f5f5f5;
+}
+
 .expandButton {
   @apply p-1 rounded bg-gray-200;
+  pointer-events: none;
 }
 
 .expandButton:hover {
@@ -86,7 +202,13 @@
 }
 
 .detailGrid {
-  @apply grid grid-cols-3 gap-4;
+  @apply grid grid-cols-1 gap-4;
+}
+
+@media (min-width: 768px) {
+  .detailGrid {
+    @apply grid-cols-3;
+  }
 }
 
 .detailCard {

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState, Fragment, useRef } from 'react';
+import React, { useEffect, useState, Fragment } from 'react';
 import { ChevronDown, ChevronUp } from 'lucide-react';
 import api from '@/lib/api';
 import { getDayName, formatTimeRange } from '@/lib/courseUtils';
@@ -9,15 +9,16 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import type { City, Branch, Course } from './types';
 import styles from './page.module.css';
 
-function FilterSelect({ value, onChange, disabled, loading, placeholder, children, active }: { value: string; onChange: (v: string) => void; disabled?: boolean; loading?: boolean; placeholder: string; children: React.ReactNode; active?: boolean }) {
-  const selectRef = useRef<HTMLSelectElement>(null);
+function FilterSelect({ value, onChange, disabled, loading, placeholder, selectedLabel, children, active }: { value: string; onChange: (v: string) => void; disabled?: boolean; loading?: boolean; placeholder: string; selectedLabel?: string; children: React.ReactNode; active?: boolean }) {
   return (
     <div className={`${styles.filterWrapper} ${active ? styles.filterWrapperActive : ''}`}>
-      <select ref={selectRef} value={value} onChange={(e) => onChange(e.target.value)} disabled={disabled || loading} className={styles.filterSelect}>
+      {/* Invisible select covers entire wrapper so tapping the yellow box opens the picker on mobile */}
+      <select value={value} onChange={(e) => onChange(e.target.value)} disabled={disabled || loading} className={styles.filterSelect}>
         <option value="">{placeholder}</option>
         {children}
       </select>
-      <div className={styles.filterIconBox} onClick={() => !disabled && !loading && selectRef.current?.click()}>
+      <span className={styles.filterDisplayText}>{value ? selectedLabel : placeholder}</span>
+      <div className={styles.filterIconBox}>
         {loading ? (
           <svg className={styles.filterSpinner} width="16" height="16" viewBox="0 0 24 24" fill="none">
             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
@@ -112,42 +113,47 @@ export default function WidgetPage() {
     <div dir="rtl" className={styles.page}>
       {/* Filter strip */}
       <div className={styles.filterStrip}>
-        <span className={styles.filterStripLabel}>חיפוש חוגים</span>
-
-        <FilterSelect value={selectedCity} onChange={handleCityChange} loading={loadingBranches} placeholder="בחרו עיר">
+        <h1 className={styles.filterStripTitle}>הרשמה לחוגים / שיעור נסיון</h1>
+        <div className={styles.filterStripDivider}>
+          <span className={styles.filterStripLine} />
+          <span className={styles.filterStripLabel}>חיפוש חוגים</span>
+          <span className={styles.filterStripLine} />
+        </div>
+          
+        <FilterSelect value={selectedCity} onChange={handleCityChange} loading={loadingBranches} placeholder="בחרו עיר" selectedLabel={cities.find((c) => c.id === selectedCity)?.name}>
           {cities.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
         </FilterSelect>
 
-        <FilterSelect value={selectedBranch} onChange={handleBranchChange} disabled={!selectedCity} loading={loadingBranches} placeholder="בחרו סניף">
+        <FilterSelect value={selectedBranch} onChange={handleBranchChange} disabled={!selectedCity} loading={loadingBranches} placeholder="בחרו סניף" selectedLabel={filteredBranches.find((b) => b.id === selectedBranch)?.name}>
           {filteredBranches.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
         </FilterSelect>
 
-        <FilterSelect value={selectedCourseType} onChange={handleCourseTypeChange} disabled={!selectedBranch} loading={loadingCourses} placeholder="בחרו חוג">
+        <FilterSelect value={selectedCourseType} onChange={handleCourseTypeChange} disabled={!selectedBranch} loading={loadingCourses} placeholder="בחרו חוג" selectedLabel={courseTypes.find((t) => t.id === selectedCourseType)?.name}>
           {courseTypes.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
         </FilterSelect>
 
-        <FilterSelect value={selectedAge} onChange={setSelectedAge} disabled={!selectedCourseType} loading={Boolean(selectedCourseType && loadingCourses)} placeholder="בחרו גיל">
+        <FilterSelect value={selectedAge} onChange={setSelectedAge} disabled={!selectedCourseType} loading={Boolean(selectedCourseType && loadingCourses)} placeholder="בחרו גיל" selectedLabel={selectedAge ? ageLabel(parseInt(selectedAge)) : undefined}>
           {ageOptions.map((age) => <option key={age} value={age}>{ageLabel(age)}</option>)}
         </FilterSelect>
       </div>
 
       {/* Results table */}
       {showTable && (
-        <div className="card">
+        <div className={`card ${styles.cardCompact}`}>
           {loadingCourses ? (
             <p className={styles.emptyMessage}>טוען חוגים...</p>
           ) : filteredCourses.length === 0 ? (
             <p className={styles.emptyMessage}>לא נמצאו חוגים</p>
           ) : (
-            <Table>
+            <Table className={styles.tableCompact}>
               <TableHeader>
                 <TableRow className={styles.headerRow}>
                   <TableHead className={styles.headerCell}>שם החוג</TableHead>
-                  <TableHead className={styles.headerCell}>תחום</TableHead>
-                  <TableHead className={styles.headerCell}>סניף</TableHead>
-                  <TableHead className={styles.headerCell}>טווח גילאים</TableHead>
-                  <TableHead className={styles.headerCell}>מחיר חודשי</TableHead>
-                  <TableHead className={styles.headerCell}>שיעורים שבועיים</TableHead>
+                  <TableHead className={`${styles.headerCell} ${styles.colHideMobile}`}>תחום</TableHead>
+                  <TableHead className={`${styles.headerCell} ${styles.colHideMobile}`}>סניף</TableHead>
+                  <TableHead className={`${styles.headerCell} ${styles.colHideMobile}`}>טווח גילאים</TableHead>
+                  <TableHead className={`${styles.headerCell} ${styles.colHideMobile}`}>מחיר חודשי</TableHead>
+                  <TableHead className={`${styles.headerCell} ${styles.colHideMobile}`}>שיעורים שבועיים</TableHead>
                   <TableHead className={styles.headerCell}>ימים ושעות</TableHead>
                   <TableHead className={styles.headerCell}>פרטים</TableHead>
                 </TableRow>
@@ -157,13 +163,13 @@ export default function WidgetPage() {
                   const isExpanded = expandedRows.has(course.id);
                   return (
                     <Fragment key={course.id}>
-                      <TableRow>
+                      <TableRow onClick={() => toggleRow(course.id)} className={styles.clickableRow}>
                         <TableCell className={styles.nameCell}>{course.name}</TableCell>
-                        <TableCell>{course.course_type_name || '—'}</TableCell>
-                        <TableCell>{course.branch_name || selectedBranchName}</TableCell>
-                        <TableCell>{course.min_age != null && course.max_age != null ? `${course.min_age}–${course.max_age}` : course.min_age != null ? `${course.min_age}+` : '—'}</TableCell>
-                        <TableCell>{course.price != null ? `₪${course.price}` : '—'}</TableCell>
-                        <TableCell>{course.lessons_count}</TableCell>
+                        <TableCell className={styles.colHideMobile}>{course.course_type_name || '—'}</TableCell>
+                        <TableCell className={styles.colHideMobile}>{course.branch_name || selectedBranchName}</TableCell>
+                        <TableCell className={styles.colHideMobile}>{course.min_age != null && course.max_age != null ? `${course.min_age}–${course.max_age}` : course.min_age != null ? `${course.min_age}+` : '—'}</TableCell>
+                        <TableCell className={styles.colHideMobile}>{course.price != null ? `₪${course.price}` : '—'}</TableCell>
+                        <TableCell className={styles.colHideMobile}>{course.lessons_count}</TableCell>
                         <TableCell>{course.lessons?.length ? course.lessons.map((l) => `${getDayName(l.day_of_week)} ${formatTimeRange(l.start_time, l.end_time)}`).join(', ') : '—'}</TableCell>
                         <TableCell>
                           <button onClick={() => toggleRow(course.id)} className={styles.expandButton}>
