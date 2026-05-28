@@ -95,7 +95,7 @@ export default function WidgetPage() {
   useEffect(() => {
     if (!selectedBranch) { setBranchCourses([]); return; }
     setLoadingCourses(true);
-    api.get(`/courses/courses/?branch_id=${selectedBranch}&include_lessons=true`)
+    api.get(`/customers/widget/courses/?branch_id=${selectedBranch}`)
       .then((res) => { const data = Array.isArray(res.data) ? res.data : res.data.results ?? []; setBranchCourses(data); })
       .finally(() => setLoadingCourses(false));
   }, [selectedBranch]);
