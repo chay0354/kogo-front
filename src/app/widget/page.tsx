@@ -57,10 +57,10 @@ export default function WidgetPage() {
   const filteredBranches = selectedCity ? allBranches.filter((b) => b.city === selectedCity) : [];
 
   const courseTypes = Array.from(
-    new Map(branchCourses.map((c) => [c.course_type, c.course_type_name])).entries()
+    new Map(branchCourses.map((c) => [String(c.course_type), c.course_type_name])).entries()
   ).map(([id, name]) => ({ id, name }));
 
-  const coursesForType = selectedCourseType ? branchCourses.filter((c) => c.course_type === selectedCourseType) : branchCourses;
+  const coursesForType = selectedCourseType ? branchCourses.filter((c) => String(c.course_type) === selectedCourseType) : branchCourses;
 
   const ageOptions = (() => {
     const min = Math.min(...coursesForType.map((c) => c.min_age ?? 3));
@@ -70,7 +70,7 @@ export default function WidgetPage() {
   })();
 
   const filteredCourses = branchCourses.filter((course) => {
-    if (selectedCourseType && course.course_type !== selectedCourseType) return false;
+    if (selectedCourseType && String(course.course_type) !== selectedCourseType) return false;
     if (selectedAge) {
       const age = parseInt(selectedAge);
       const minAge = course.min_age ?? 0;
@@ -95,7 +95,7 @@ export default function WidgetPage() {
   useEffect(() => {
     if (!selectedBranch) { setBranchCourses([]); return; }
     setLoadingCourses(true);
-    api.get(`/courses/courses/?branch_id=${selectedBranch}&include_lessons=true`)
+    api.get(`/customers/widget/courses/?branch_id=${selectedBranch}`)
       .then((res) => { const data = Array.isArray(res.data) ? res.data : res.data.results ?? []; setBranchCourses(data); })
       .finally(() => setLoadingCourses(false));
   }, [selectedBranch]);
