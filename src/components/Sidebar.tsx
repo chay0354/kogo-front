@@ -14,6 +14,7 @@ import {
   ShoppingBag,
   KeyRound,
   CreditCard,
+  MessageCircle,
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -39,6 +40,7 @@ function getMenuItems(role: string | null | undefined) {
     { name: 'חנות', href: '/store', icon: ShoppingBag },
     { name: 'הנחות', href: '/discounts', icon: Tag },
     { name: 'סליקת אשראי', href: '/credit-charge', icon: CreditCard },
+    { name: 'WhatsApp', href: '/whatsapp', icon: MessageCircle },
     { name: 'הגדרות', href: '/settings', icon: Settings },
   ];
 }

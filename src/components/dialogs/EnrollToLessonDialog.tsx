@@ -46,6 +46,8 @@ interface Lesson {
 
 const BILLING_ENROLLMENT_STATUSES = new Set(['active', 'payments_problem']);
 
+const DAY_NAMES = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שבת'];
+
 const toNumberOrNull = (value: number | string | null | undefined) => {
   if (value === null || value === undefined || value === '') return null;
   const n = Number(value);
@@ -189,19 +191,23 @@ export default function EnrollToLessonDialog({ child, isOpen, onClose, onEnroll 
 
     setLoading(true);
     try {
-      // Create lesson enrollment
-      await api.post('/enrollments/lesson-enrollments/', {
+      const enrollRes = await api.post('/enrollments/lesson-enrollments/', {
         lesson: selectedLesson,
         child: child.id,
         status: 'active',
+        trial_registration: true,
       });
 
-      // Update child status to trial_signed
-      await api.patch(`/customers/children/${child.id}/`, {
-        status: 'trial_signed',
-      });
-
-      alert('הילד נרשם לניסיון בהצלחה!');
+      const whatsapp = enrollRes.data?.whatsapp;
+      if (whatsapp && !whatsapp.sent) {
+        console.warn('Trial enrollment saved but WhatsApp failed:', whatsapp);
+        alert(
+          'הילד נרשם לניסיון במערכת, אך הודעת WhatsApp לא נשלחה. ' +
+            (whatsapp.error || whatsapp.reason || 'בדוק ManyChat')
+        );
+      } else {
+        alert('הילד נרשם לניסיון בהצלחה!');
+      }
       onEnroll();
       onClose();
     } catch (error: any) {
@@ -250,7 +256,7 @@ export default function EnrollToLessonDialog({ child, isOpen, onClose, onEnroll 
     ? getEffectiveLessonPrice(child, selectedLessonDetails, selectedCourseDetails?.price)
     : null;
 
-  const dayNames = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שבת'];
+  const dayNames = DAY_NAMES;
 
   return (
     <>
@@ -407,7 +413,7 @@ export default function EnrollToLessonDialog({ child, isOpen, onClose, onEnroll 
             </div>
 
             {/* Footer */}
-            <div className="flex justify-end gap-2 pt-6 mt-6 border-t">
+            <div className="flex flex-wrap items-center justify-end gap-2 pt-6 mt-6 border-t">
               <button 
                 type="button" 
                 onClick={onClose} 
