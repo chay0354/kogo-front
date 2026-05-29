@@ -11,7 +11,9 @@ import type {
   PaymentInitiationResponse,
   ProductFormData,
   StockUpdateData,
-  CustomerInfo
+  CustomerInfo,
+  AdjustStockData,
+  TransferStockData,
 } from '@/types/store';
 
 // ============================
@@ -50,6 +52,16 @@ export async function deleteProduct(id: string): Promise<void> {
 
 export async function updateStock(id: string, stockUpdate: StockUpdateData): Promise<StoreProduct> {
   const { data } = await api.patch(`/store/products/${id}/update_stock/`, stockUpdate);
+  return data;
+}
+
+export async function adjustStock(id: string, adjustment: AdjustStockData): Promise<StoreProduct> {
+  const { data } = await api.post(`/store/products/${id}/adjust_stock/`, adjustment);
+  return data;
+}
+
+export async function transferStock(id: string, transfer: TransferStockData): Promise<StoreProduct> {
+  const { data } = await api.post(`/store/products/${id}/transfer_stock/`, transfer);
   return data;
 }
 
@@ -97,9 +109,9 @@ export async function fetchSales(params?: {
   return data;
 }
 
-export async function fetchAnalytics(days?: number): Promise<StoreAnalytics> {
+export async function fetchAnalytics(days?: number, branch?: string): Promise<StoreAnalytics> {
   const { data } = await api.get('/store/sales/analytics/', {
-    params: { days: days || 30 }
+    params: { days: days || 30, ...(branch && branch !== 'all' ? { branch } : {}) }
   });
   return data;
 }

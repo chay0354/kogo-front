@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, TrendingUp, DollarSign, ShoppingBag, AlertTriangle } from 'lucide-react';
+import { ArrowLeft, TrendingUp, DollarSign, ShoppingBag, AlertTriangle, Package, Trophy } from 'lucide-react';
 import AppLayout from '@/components/AppLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -11,6 +11,7 @@ import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogCloseButton } from '@/components/ui/dialog';
 import { fetchAnalytics } from '@/lib/storeApi';
 import { getProductStockLocationLabels } from '@/lib/storeProductDisplay';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import type { StoreAnalytics } from '@/types/store';
 
 export default function StoreDashboard() {
@@ -37,6 +38,9 @@ export default function StoreDashboard() {
         net_profit: 0,
         total_sales_count: 0,
         low_stock_count: 0,
+        inventory_value: 0,
+        top_product: null,
+        shrinkage_by_reason: [],
         monthly_revenue: [],
         sales_by_product: [],
         sales_by_category: [],
@@ -44,7 +48,7 @@ export default function StoreDashboard() {
         sales_by_payment_method: [],
         low_stock_products: [],
         recent_sales: []
-      });
+      } as StoreAnalytics);
     } finally {
       setIsLoading(false);
     }
@@ -88,7 +92,7 @@ export default function StoreDashboard() {
         </div>
       </div>
 
-      {/* KPI Cards */}
+      {/* KPI Cards — row 1: revenue, profit, sales, low stock */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card>
           <CardContent className="p-6">
@@ -168,6 +172,43 @@ export default function StoreDashboard() {
         </Card>
       </div>
 
+      {/* KPI Cards — row 2: inventory value, top product */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <Card>
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-gray-600">שווי מלאי נוכחי</p>
+                <p className="text-3xl font-bold text-purple-600 mt-2">
+                  ₪{(analytics.inventory_value ?? 0).toLocaleString('he-IL', { maximumFractionDigits: 0 })}
+                </p>
+                <p className="text-xs text-gray-400 mt-1">לפי מחיר מכירה × כמות במלאי</p>
+              </div>
+              <Package className="h-12 w-12 text-purple-400 opacity-80" />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-gray-600">מוצר מוביל</p>
+                {analytics.top_product ? (
+                  <>
+                    <p className="text-xl font-bold text-amber-600 mt-2">{analytics.top_product.name}</p>
+                    <p className="text-xs text-gray-500 mt-1">{analytics.top_product.quantity} יחידות בתקופה</p>
+                  </>
+                ) : (
+                  <p className="text-gray-400 mt-2">אין מכירות בתקופה</p>
+                )}
+              </div>
+              <Trophy className="h-12 w-12 text-amber-400 opacity-80" />
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
       {/* Low Stock Products Dialog */}
       <Dialog open={isLowStockDialogOpen} onOpenChange={setIsLowStockDialogOpen}>
         <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto p-6">
@@ -226,6 +267,57 @@ export default function StoreDashboard() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Trend Chart — revenue over time */}
+      <Card>
+        <CardHeader>
+          <CardTitle>מגמת הכנסות לאורך זמן</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {analytics.monthly_revenue && analytics.monthly_revenue.length > 1 ? (
+            <ResponsiveContainer width="100%" height={220}>
+              <LineChart data={analytics.monthly_revenue} margin={{ top: 5, right: 20, left: 10, bottom: 5 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                <XAxis dataKey="month" tick={{ fontSize: 12 }} />
+                <YAxis tickFormatter={(v) => `₪${v.toLocaleString()}`} tick={{ fontSize: 11 }} width={70} />
+                <Tooltip formatter={(value) => [`₪${Number(value).toLocaleString('he-IL', { minimumFractionDigits: 0 })}`, 'הכנסות']} />
+                <Line type="monotone" dataKey="revenue" stroke="#14b8a6" strokeWidth={2.5} dot={{ r: 4 }} activeDot={{ r: 6 }} />
+              </LineChart>
+            </ResponsiveContainer>
+          ) : (
+            <p className="text-gray-500 text-center py-12">אין מספיק נתונים להצגת מגמה</p>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Shrinkage by reason */}
+      {analytics.shrinkage_by_reason && analytics.shrinkage_by_reason.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-orange-600">📉 נתוני הפחת</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>סיבה</TableHead>
+                  <TableHead>יחידות שנגרעו</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {analytics.shrinkage_by_reason.map((row) => (
+                  <TableRow key={row.reason}>
+                    <TableCell className="font-medium">{row.reason_label}</TableCell>
+                    <TableCell>
+                      <Badge variant="destructive">{row.total_units}</Badge>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Charts Section */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

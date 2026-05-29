@@ -97,6 +97,9 @@ export interface StoreAnalytics {
   net_profit: number;
   total_sales_count: number;
   low_stock_count: number;
+  inventory_value: number;
+  top_product: { name: string; quantity: number } | null;
+  shrinkage_by_reason: Array<{ reason: string; reason_label: string; total_units: number }>;
   monthly_revenue: Array<{ month: string; revenue: number }>;
   sales_by_product: Array<{ product: string; quantity: number; revenue: number }>;
   sales_by_category: Array<{ category: string; total: number }>;
@@ -132,5 +135,34 @@ export interface StockUpdateData {
 export interface CustomerInfo {
   name: string;
   phone: string;
+}
+
+export type AdjustmentReason = 'receipt' | 'theft' | 'damage' | 'recount' | 'other';
+
+export interface AdjustStockData {
+  quantity_delta: number;
+  reason: AdjustmentReason;
+  note?: string;
+  size_stock_id?: string | null;
+}
+
+export interface TransferStockData {
+  quantity: number;
+  from_size_stock_id: string;
+  to_size_stock_id: string;
+}
+
+export interface InventoryAdjustment {
+  id: string;
+  product: string;
+  size_stock: string | null;
+  size_stock_label: string | null;
+  quantity_delta: number;
+  reason: AdjustmentReason;
+  reason_display: string;
+  note: string;
+  adjusted_by: string | null;
+  adjusted_by_name: string | null;
+  created_at: string;
 }
 
