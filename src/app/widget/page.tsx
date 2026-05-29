@@ -5,7 +5,7 @@ import { ChevronDown, ChevronUp } from 'lucide-react';
 import api from '@/lib/api';
 import { getDayName, formatTimeRange } from '@/lib/courseUtils';
 import CourseRegistrationForm from './CourseRegistrationForm';
-import CourseExpandedDetail from './CourseExpandedDetail';
+import CourseExpandedDetail from './CourseExpandedDetail/index';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import type { City, Branch, Course } from './types';
 import styles from './page.module.css';

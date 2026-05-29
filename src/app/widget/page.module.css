@@ -197,66 +197,6 @@
   @apply bg-gray-100;
 }
 
-.expandedCell {
-  @apply bg-gray-50 p-4;
-}
-
-.detailGrid {
-  @apply grid grid-cols-1 gap-4;
-}
-
-@media (min-width: 768px) {
-  .detailGrid {
-    @apply grid-cols-3;
-  }
-}
-
-.detailCard {
-  @apply border rounded-lg overflow-hidden bg-white;
-  min-height: 80px;
-}
-
-.detailCardFlex {
-  @apply border rounded-lg overflow-hidden bg-white flex flex-col;
-  min-height: 80px;
-}
-
-.detailCardHeader {
-  @apply text-xs font-semibold text-white px-3 py-1.5;
-  background-color: rgb(113, 145, 38);
-}
-
-.detailCardBody {
-  @apply p-3;
-}
-
-.detailCardBodyFlex {
-  @apply p-3 flex flex-col gap-2 flex-1;
-}
-
-.detailText {
-  @apply text-sm;
-}
-
-.detailTextMuted {
-  @apply text-sm text-gray-400;
-}
-
-.detailPrice {
-  @apply text-sm font-medium;
-}
-
-.enrollButton {
-  @apply w-full rounded-md px-3 py-1.5 text-sm text-white;
-  background-color: #2B3090;
-}
-
-.trialButton {
-  @apply w-full rounded-md px-3 py-1.5 text-sm;
-  border: 1px solid #2B3090;
-  color: #2B3090;
-}
-
 /* Drawer */
 
 .drawerOverlay {

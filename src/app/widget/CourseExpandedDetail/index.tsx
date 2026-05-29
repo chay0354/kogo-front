@@ -1,7 +1,7 @@
 import { getDayName, formatTimeRange } from '@/lib/courseUtils';
-import type { Course } from './types';
-import styles from './page.module.css';
+import type { Course } from '../types';
 import { TableCell } from '@/components/ui/table';
+import styles from './CourseExpandedDetail.module.css';
 
 interface CourseExpandedDetailProps {
   course: Course;
