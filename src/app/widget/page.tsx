@@ -5,6 +5,7 @@ import { ChevronDown, ChevronUp } from 'lucide-react';
 import api from '@/lib/api';
 import { getDayName, formatTimeRange } from '@/lib/courseUtils';
 import CourseRegistrationForm from './CourseRegistrationForm';
+import CourseExpandedDetail from './CourseExpandedDetail';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import type { City, Branch, Course } from './types';
 import styles from './page.module.css';
@@ -179,41 +180,7 @@ export default function WidgetPage() {
                       </TableRow>
                       {isExpanded && (
                         <TableRow>
-                          <TableCell colSpan={8} className={styles.expandedCell}>
-                            <div className={styles.detailGrid}>
-                              {/* Instructor */}
-                              <div className={styles.detailCard}>
-                                <p className={styles.detailCardHeader}>מדריך</p>
-                                <div className={styles.detailCardBody}>
-                                  {course.lessons?.length ? (
-                                    Array.from(new Set(course.lessons.map((l) => l.instructor_name).filter(Boolean))).map((name) => <p key={name} className={styles.detailText}>{name}</p>)
-                                  ) : (
-                                    <p className={styles.detailTextMuted}>—</p>
-                                  )}
-                                </div>
-                              </div>
-                              {/* Days & hours */}
-                              <div className={styles.detailCard}>
-                                <p className={styles.detailCardHeader}>ימים ושעות</p>
-                                <div className={styles.detailCardBody}>
-                                  {course.lessons?.length ? (
-                                    course.lessons.map((l, i) => <p key={i} className={styles.detailText}>{getDayName(l.day_of_week)} {formatTimeRange(l.start_time, l.end_time)}</p>)
-                                  ) : (
-                                    <p className={styles.detailTextMuted}>—</p>
-                                  )}
-                                </div>
-                              </div>
-                              {/* Price & registration */}
-                              <div className={styles.detailCardFlex}>
-                                <p className={styles.detailCardHeader}>מחיר</p>
-                                <div className={styles.detailCardBodyFlex}>
-                                  <p className={styles.detailPrice}>{course.price != null ? `₪${course.price} לחודש` : '—'}</p>
-                                  <button onClick={() => setDrawerCourse(course)} className={styles.enrollButton}>הירשם לחוג</button>
-                                  <button className={styles.trialButton}>הירשם לשיעור ניסיון</button>
-                                </div>
-                              </div>
-                            </div>
-                          </TableCell>
+                          <CourseExpandedDetail course={course} onEnroll={() => setDrawerCourse(course)} />
                         </TableRow>
                       )}
                     </Fragment>
