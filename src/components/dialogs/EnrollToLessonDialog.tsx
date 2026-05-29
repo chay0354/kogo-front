@@ -191,19 +191,23 @@ export default function EnrollToLessonDialog({ child, isOpen, onClose, onEnroll 
 
     setLoading(true);
     try {
-      // Create lesson enrollment
-      await api.post('/enrollments/lesson-enrollments/', {
+      const enrollRes = await api.post('/enrollments/lesson-enrollments/', {
         lesson: selectedLesson,
         child: child.id,
         status: 'active',
+        trial_registration: true,
       });
 
-      // Update child status to trial_signed
-      await api.patch(`/customers/children/${child.id}/`, {
-        status: 'trial_signed',
-      });
-
-      alert('הילד נרשם לניסיון בהצלחה!');
+      const whatsapp = enrollRes.data?.whatsapp;
+      if (whatsapp && !whatsapp.sent) {
+        console.warn('Trial enrollment saved but WhatsApp failed:', whatsapp);
+        alert(
+          'הילד נרשם לניסיון במערכת, אך הודעת WhatsApp לא נשלחה. ' +
+            (whatsapp.error || whatsapp.reason || 'בדוק ManyChat')
+        );
+      } else {
+        alert('הילד נרשם לניסיון בהצלחה!');
+      }
       onEnroll();
       onClose();
     } catch (error: any) {
