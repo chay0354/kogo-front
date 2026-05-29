@@ -70,11 +70,13 @@ export default function EditProductDialog({ isOpen, onClose, product, onSuccess 
   const [sizeRows, setSizeRows] = useState<ProductSizeStock[]>([]);
   const [branches, setBranches] = useState<Branch[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [filterBranch, setFilterBranch] = useState<string>('all');
 
   const totalSizeStock = sizeRows.reduce((sum, row) => sum + (Number(row.stock_quantity) || 0), 0);
 
   useEffect(() => {
     if (product && isOpen) {
+      setFilterBranch('all');
       setFormData({
         name: product.name,
         category: product.category,
@@ -350,7 +352,35 @@ export default function EditProductDialog({ isOpen, onClose, product, onSuccess 
               </div>
             ) : (
               <div className="space-y-2">
-                {sizeRows.map((row, index) => (
+                {/* Location filter — client-side only, does not affect save */}
+                {branches.length > 0 && (
+                  <div className="flex items-center gap-2 pb-2 border-b border-gray-200">
+                    <label className="text-xs text-gray-600 whitespace-nowrap">סנן לפי מיקום:</label>
+                    <Select
+                      value={filterBranch}
+                      onChange={(e: ChangeEvent<HTMLSelectElement>) => setFilterBranch(e.target.value)}
+                      className="text-sm h-8"
+                    >
+                      <option value="all">כל המיקומים ({sizeRows.length})</option>
+                      <option value="delivery">
+                        משלוח ({sizeRows.filter(r => !r.branch).length})
+                      </option>
+                      {branches.map((b) => (
+                        <option key={b.id} value={b.id}>
+                          {b.name} ({sizeRows.filter(r => r.branch === b.id).length})
+                        </option>
+                      ))}
+                    </Select>
+                  </div>
+                )}
+                {sizeRows.map((row, index) => {
+                  // Apply client-side filter — hidden rows are still saved
+                  const rowBranch = row.branch ?? null;
+                  const visible =
+                    filterBranch === 'all' ||
+                    (filterBranch === 'delivery' ? !rowBranch : rowBranch === filterBranch);
+                  if (!visible) return null;
+                  return (
                   <div
                     key={`sr-${index}-${row.size}-${coerceBranchFromApi(row.branch) ?? 'd'}`}
                     className="grid grid-cols-1 sm:grid-cols-12 gap-2 items-end sm:items-center border-b border-gray-200 pb-3 last:border-0 last:pb-0"
@@ -407,9 +437,17 @@ export default function EditProductDialog({ isOpen, onClose, product, onSuccess 
                       </Button>
                     </div>
                   </div>
-                ))}
+                  );
+                })}
                 <div className="text-xs text-gray-600 pt-1">
                   סך הכל במלאי לפי מידות: <span className="font-semibold">{totalSizeStock}</span>
+                  {filterBranch !== 'all' && (
+                    <span className="text-gray-400 mr-2">
+                      (מוצג: {sizeRows.filter(r =>
+                        filterBranch === 'delivery' ? !r.branch : r.branch === filterBranch
+                      ).length} מתוך {sizeRows.length} שורות)
+                    </span>
+                  )}
                 </div>
               </div>
             )}

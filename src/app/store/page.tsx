@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Package, ShoppingCart, TrendingUp, AlertTriangle, Plus, Search, Edit, RefreshCw, X, ArrowUpDown } from 'lucide-react';
+import { Package, ShoppingCart, TrendingUp, AlertTriangle, Plus, Search, Edit, RefreshCw, X, ArrowUpDown, ArrowLeftRight } from 'lucide-react';
 import AppLayout from '@/components/AppLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -18,7 +18,8 @@ import type { StoreProduct } from '@/types/store';
 import type { Branch } from '@/types/branch';
 import AddProductDialog from '@/components/store/AddProductDialog';
 import EditProductDialog from '@/components/store/EditProductDialog';
-import UpdateStockDialog from '@/components/store/UpdateStockDialog';
+import AdjustStockDialog from '@/components/store/AdjustStockDialog';
+import TransferStockDialog from '@/components/store/TransferStockDialog';
 import PurchaseDialog from '@/components/store/PurchaseDialog';
 
 export default function StorePage() {
@@ -37,7 +38,8 @@ export default function StorePage() {
   // Dialog states
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
-  const [isStockDialogOpen, setIsStockDialogOpen] = useState(false);
+  const [isAdjustDialogOpen, setIsAdjustDialogOpen] = useState(false);
+  const [isTransferDialogOpen, setIsTransferDialogOpen] = useState(false);
   const [isPurchaseDialogOpen, setIsPurchaseDialogOpen] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<StoreProduct | null>(null);
 
@@ -68,12 +70,6 @@ export default function StorePage() {
     }
   }
 
-  // Calculate KPIs
-  const totalProducts = products.length;
-  const totalStock = products.reduce((sum, p) => sum + p.stock_quantity, 0);
-  const inventoryValue = products.reduce((sum, p) => sum + (p.stock_quantity * p.sale_price), 0);
-  const lowStockProducts = products.filter(p => p.is_low_stock);
-
   // Filter and sort products
   const filteredAndSortedProducts = products
     .filter(product => {
@@ -93,6 +89,15 @@ export default function StorePage() {
       if (sortField === 'stock_quantity') return (a.stock_quantity - b.stock_quantity) * modifier;
       return 0;
     });
+
+  // KPIs use branch-filtered products so numbers match the active location filter
+  const kpiBase = selectedBranch === 'all'
+    ? products
+    : filteredAndSortedProducts;
+  const totalProducts = kpiBase.length;
+  const totalStock = kpiBase.reduce((sum, p) => sum + p.stock_quantity, 0);
+  const inventoryValue = kpiBase.reduce((sum, p) => sum + (p.stock_quantity * p.sale_price), 0);
+  const lowStockProducts = kpiBase.filter(p => p.is_low_stock);
 
   function handleSort(field: typeof sortField) {
     if (sortField === field) {
@@ -326,12 +331,20 @@ export default function StorePage() {
                       }}>
                         <Edit className="h-4 w-4" />
                       </Button>
-                      <Button size="sm" variant="outline" onClick={() => {
+                      <Button size="sm" variant="outline" title="עדכון מלאי" onClick={() => {
                         setSelectedProduct(product);
-                        setIsStockDialogOpen(true);
+                        setIsAdjustDialogOpen(true);
                       }}>
                         <RefreshCw className="h-4 w-4" />
                       </Button>
+                      {(product.size_stocks?.length ?? 0) >= 2 && (
+                        <Button size="sm" variant="outline" title="העבר מלאי" onClick={() => {
+                          setSelectedProduct(product);
+                          setIsTransferDialogOpen(true);
+                        }}>
+                          <ArrowLeftRight className="h-4 w-4" />
+                        </Button>
+                      )}
                       <Button 
                         size="sm" 
                         onClick={() => {
@@ -367,10 +380,19 @@ export default function StorePage() {
         product={selectedProduct}
         onSuccess={loadData}
       />
-      <UpdateStockDialog
-        isOpen={isStockDialogOpen}
+      <AdjustStockDialog
+        isOpen={isAdjustDialogOpen}
         onClose={() => {
-          setIsStockDialogOpen(false);
+          setIsAdjustDialogOpen(false);
+          setSelectedProduct(null);
+        }}
+        product={selectedProduct}
+        onSuccess={loadData}
+      />
+      <TransferStockDialog
+        isOpen={isTransferDialogOpen}
+        onClose={() => {
+          setIsTransferDialogOpen(false);
           setSelectedProduct(null);
         }}
         product={selectedProduct}

@@ -52,6 +52,9 @@ export default function PurchaseDialog({ isOpen, onClose, product, onSuccess }: 
   const [cvv, setCvv] = useState('');
   const [cardHolderId, setCardHolderId] = useState('');
 
+  // Location filter for size/stock row selector
+  const [filterBranch, setFilterBranch] = useState<string>('all');
+
   type StockLineOption = {
     key: string;
     size: string;
@@ -89,7 +92,31 @@ export default function PurchaseDialog({ isOpen, onClose, product, onSuccess }: 
     }));
   }, [product, hasPerSizeStock]);
 
-  const selectedLine = lineOptions.find((o) => o.key === selectedLineKey) ?? null;
+  // Unique branches from size_stocks for the filter dropdown
+  const branchOptions = useMemo(() => {
+    if (!hasPerSizeStock) return [];
+    const seen = new Map<string, string>(); // branch id → label
+    lineOptions.forEach((opt) => {
+      const key = opt.branch ?? '__delivery__';
+      if (!seen.has(key)) {
+        const label = opt.branch
+          ? (product.size_stocks?.find(r => r.branch === opt.branch)?.branch_name ?? opt.branch)
+          : 'משלוח';
+        seen.set(key, label);
+      }
+    });
+    return Array.from(seen.entries()).map(([id, name]) => ({ id, name }));
+  }, [lineOptions, hasPerSizeStock, product.size_stocks]);
+
+  const filteredLineOptions = useMemo(() => {
+    if (!hasPerSizeStock || filterBranch === 'all') return lineOptions;
+    if (filterBranch === 'delivery') return lineOptions.filter(o => !o.branch);
+    return lineOptions.filter(o => o.branch === filterBranch);
+  }, [lineOptions, filterBranch, hasPerSizeStock]);
+
+  const selectedLine = filteredLineOptions.find((o) => o.key === selectedLineKey)
+    ?? lineOptions.find((o) => o.key === selectedLineKey)
+    ?? null;
 
   const selectedSizeStock =
     lineOptions.length === 0 ? product.stock_quantity : selectedLine ? selectedLine.stock : 0;
@@ -105,12 +132,20 @@ export default function PurchaseDialog({ isOpen, onClose, product, onSuccess }: 
 
   useEffect(() => {
     if (!isOpen) return;
+    setFilterBranch('all');
     if (lineOptions.length === 0) {
       setSelectedLineKey('');
       return;
     }
     setSelectedLineKey((k) => (k && lineOptions.some((o) => o.key === k) ? k : lineOptions[0].key));
   }, [isOpen, product.id, lineOptions]);
+
+  // When filter changes, reset selectedLineKey to first visible option
+  useEffect(() => {
+    if (filteredLineOptions.length > 0 && !filteredLineOptions.some(o => o.key === selectedLineKey)) {
+      setSelectedLineKey(filteredLineOptions[0].key);
+    }
+  }, [filterBranch]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Calculate total
   const total = product.sale_price * quantity;
@@ -344,13 +379,31 @@ export default function PurchaseDialog({ isOpen, onClose, product, onSuccess }: 
 
           {/* Size Selection */}
           {lineOptions.length > 0 && (
-            <div>
-              <label className="block text-sm font-medium mb-2">
+            <div className="space-y-2">
+              <label className="block text-sm font-medium">
                 {hasPerSizeStock ? 'בחירת מידה ומיקום *' : 'בחירת מידה *'}
               </label>
+              {/* Location filter — only shown for per-size products with multiple branches */}
+              {hasPerSizeStock && branchOptions.length > 1 && (
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-gray-500 whitespace-nowrap">סנן מיקום:</span>
+                  <Select
+                    value={filterBranch}
+                    onChange={(e) => setFilterBranch(e.target.value)}
+                    className="text-sm h-8"
+                  >
+                    <option value="all">כל המיקומים</option>
+                    {branchOptions.map(b => (
+                      <option key={b.id} value={b.id === '__delivery__' ? 'delivery' : b.id}>
+                        {b.name}
+                      </option>
+                    ))}
+                  </Select>
+                </div>
+              )}
               <Select value={selectedLineKey} onChange={(e) => setSelectedLineKey(e.target.value)}>
                 <option value="">בחר שורת מלאי</option>
-                {lineOptions.map((opt) => (
+                {filteredLineOptions.map((opt) => (
                   <option key={opt.key} value={opt.key} disabled={hasPerSizeStock && opt.stock <= 0}>
                     {hasPerSizeStock ? opt.label : opt.size}
                   </option>

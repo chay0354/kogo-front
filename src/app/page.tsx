@@ -5,7 +5,7 @@ import AppLayout from '@/components/AppLayout';
 import PageHeader from '@/components/PageHeader';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
-import { Wallet, GraduationCap, Users, BookOpen, Building2, RefreshCw } from 'lucide-react';
+import { Wallet, GraduationCap, Users, BookOpen, Building2, RefreshCw, ShoppingBag } from 'lucide-react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { refreshCurrentMonthSnapshots } from '@/lib/api';
 import { toast } from 'sonner';
@@ -17,6 +17,7 @@ import InstructorsSection from '@/components/dashboard/InstructorsSection';
 import StudentsSection from '@/components/dashboard/StudentsSection';
 import CoursesSection from '@/components/dashboard/CoursesSection';
 import BranchesSection from '@/components/dashboard/BranchesSection';
+import StoreDashboardTab from '@/components/dashboard/StoreDashboardTab';
 
 export default function HomePage() {
   const [activeTab, setActiveTab] = useState('financial');
@@ -69,7 +70,7 @@ export default function HomePage() {
         </div>
         
         <Tabs defaultValue="financial" value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="grid w-full grid-cols-5 h-auto">
+          <TabsList className="grid w-full grid-cols-6 h-auto">
             <TabsTrigger value="financial" className="gap-2 py-3">
               <Wallet className="h-4 w-4" />
               <span className="hidden sm:inline">כספים</span>
@@ -89,6 +90,10 @@ export default function HomePage() {
             <TabsTrigger value="branches" className="gap-2 py-3">
               <Building2 className="h-4 w-4" />
               <span className="hidden sm:inline">סניפים</span>
+            </TabsTrigger>
+            <TabsTrigger value="store" className="gap-2 py-3">
+              <ShoppingBag className="h-4 w-4" />
+              <span className="hidden sm:inline">חנות</span>
             </TabsTrigger>
           </TabsList>
 
@@ -110,6 +115,10 @@ export default function HomePage() {
 
           <TabsContent value="branches" className="mt-6">
             <BranchesSection globalDateRange={globalDateRange} />
+          </TabsContent>
+
+          <TabsContent value="store" className="mt-6">
+            <StoreDashboardTab />
           </TabsContent>
         </Tabs>
       </div>
