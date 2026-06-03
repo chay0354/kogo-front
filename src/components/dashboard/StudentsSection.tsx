@@ -8,7 +8,7 @@ import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Users, UserPlus, Ghost, ClipboardCheck, CheckCircle, Download, AlertTriangle } from 'lucide-react';
+import { Users, UserPlus, Ghost, ClipboardCheck, CheckCircle, Download, AlertTriangle, Loader2 } from 'lucide-react';
 import { BarChart, Bar, PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip, XAxis, YAxis, CartesianGrid, Cell as BarCell } from 'recharts';
 import { format, subDays } from 'date-fns';
 import { toast } from 'sonner';
@@ -103,7 +103,14 @@ export default function StudentsSection({ globalDateRange }: Props) {
   };
 
   if (isLoading) {
-    return <div className="flex items-center justify-center h-64">טוען נתונים...</div>;
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="flex items-center gap-2 text-muted-foreground">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          <span>טוען נתוני תלמידים...</span>
+        </div>
+      </div>
+    );
   }
 
   const kpis = data?.kpis || {};

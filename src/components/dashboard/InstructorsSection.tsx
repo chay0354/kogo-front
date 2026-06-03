@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Download } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { GraduationCap, Gift, Wallet, TrendingUp } from 'lucide-react';
+import { GraduationCap, Gift, Wallet, TrendingUp, Loader2 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
@@ -71,7 +71,14 @@ export default function InstructorsSection({ globalDateRange }: Props) {
   };
 
   if (isLoading) {
-    return <div className="flex items-center justify-center h-64">טוען נתונים...</div>;
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="flex items-center gap-2 text-muted-foreground">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          <span>טוען נתוני מדריכים...</span>
+        </div>
+      </div>
+    );
   }
 
   const kpis = data?.kpis || {};

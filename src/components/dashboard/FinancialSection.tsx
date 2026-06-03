@@ -6,7 +6,7 @@ import { fetchFinancialData, fetchBranchesList } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Download } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
-import { Wallet, TrendingUp, TrendingDown } from 'lucide-react';
+import { Wallet, TrendingUp, TrendingDown, Loader2 } from 'lucide-react';
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
@@ -73,7 +73,10 @@ export default function FinancialSection({ globalDateRange }: Props) {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="text-lg text-muted-foreground">טוען נתונים...</div>
+        <div className="flex items-center gap-2 text-muted-foreground">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          <span>טוען נתונים כספיים...</span>
+        </div>
       </div>
     );
   }
