@@ -1,6 +1,23 @@
 'use client';
 
+import { useEffect } from 'react';
+
 export default function WidgetTestPage() {
+  useEffect(() => {
+    const handler = (e: MessageEvent) => {
+      const iframe = document.getElementById('kogo-widget') as HTMLIFrameElement | null;
+      if (!iframe) return;
+      if (e.data?.type === 'kogo-widget-expand') {
+        iframe.dataset.origStyle = iframe.getAttribute('style') ?? '';
+        iframe.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;z-index:9999;border:none';
+      } else if (e.data?.type === 'kogo-widget-collapse') {
+        iframe.setAttribute('style', iframe.dataset.origStyle ?? '');
+      }
+    };
+    window.addEventListener('message', handler);
+    return () => window.removeEventListener('message', handler);
+  }, []);
+
   return (
     <div className="min-h-screen bg-gray-100" dir="rtl">
       {/* Mock studio website header */}
@@ -32,8 +49,9 @@ export default function WidgetTestPage() {
         </div>
 
         {/* Widget iframe */}
-        <div className="bg-white rounded-2xl shadow-md overflow-hidden border border-gray-200">
+        <div className="bg-white rounded-2xl shadow-md border border-gray-200">
           <iframe
+            id="kogo-widget"
             src="/widget"
             width="100%"
             height="800"

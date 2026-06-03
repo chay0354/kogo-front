@@ -45,15 +45,11 @@ export default function WidgetPage() {
 
   const [loadingBranches, setLoadingBranches] = useState(true);
   const [loadingCourses, setLoadingCourses] = useState(false);
-  const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
+  const [detailCourse, setDetailCourse] = useState<Course | null>(null);
   const [drawerCourse, setDrawerCourse] = useState<Course | null>(null);
 
-  const toggleRow = (id: string) =>
-    setExpandedRows((prev) => {
-      const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
-      return next;
-    });
+  const toggleDetail = (course: Course) =>
+    setDetailCourse((prev) => (prev?.id === course.id ? null : course));
 
   const filteredBranches = selectedCity ? allBranches.filter((b) => b.city === selectedCity) : [];
 
@@ -100,6 +96,14 @@ export default function WidgetPage() {
       .then((res) => { const data = Array.isArray(res.data) ? res.data : res.data.results ?? []; setBranchCourses(data); })
       .finally(() => setLoadingCourses(false));
   }, [selectedBranch]);
+
+  useEffect(() => {
+    const expanded = !!(detailCourse || drawerCourse);
+    window.parent.postMessage(
+      { type: expanded ? 'kogo-widget-expand' : 'kogo-widget-collapse' },
+      '*'
+    );
+  }, [detailCourse, drawerCourse]);
 
   const handleCityChange = (cityId: string) => { setSelectedCity(cityId); setSelectedBranch(''); setBranchCourses([]); setSelectedCourseType(''); setSelectedAge(''); };
   const handleBranchChange = (branchId: string) => { setSelectedBranch(branchId); setSelectedCourseType(''); setSelectedAge(''); };
@@ -161,10 +165,10 @@ export default function WidgetPage() {
               </TableHeader>
               <TableBody>
                 {filteredCourses.map((course) => {
-                  const isExpanded = expandedRows.has(course.id);
+                  const isExpanded = detailCourse?.id === course.id;
                   return (
                     <Fragment key={course.id}>
-                      <TableRow onClick={() => toggleRow(course.id)} className={styles.clickableRow}>
+                      <TableRow onClick={() => toggleDetail(course)} className={styles.clickableRow}>
                         <TableCell className={styles.nameCell}>{course.name}</TableCell>
                         <TableCell className={styles.colHideMobile}>{course.course_type_name || '—'}</TableCell>
                         <TableCell className={styles.colHideMobile}>{course.branch_name || selectedBranchName}</TableCell>
@@ -173,16 +177,11 @@ export default function WidgetPage() {
                         <TableCell className={styles.colHideMobile}>{course.lessons_count}</TableCell>
                         <TableCell>{course.lessons?.length ? course.lessons.map((l) => `${getDayName(l.day_of_week)} ${formatTimeRange(l.start_time, l.end_time)}`).join(', ') : '—'}</TableCell>
                         <TableCell>
-                          <button onClick={() => toggleRow(course.id)} className={styles.expandButton}>
+                          <button onClick={(e) => { e.stopPropagation(); toggleDetail(course); }} className={styles.expandButton}>
                             {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
                           </button>
                         </TableCell>
                       </TableRow>
-                      {isExpanded && (
-                        <TableRow>
-                          <CourseExpandedDetail course={course} onEnroll={() => setDrawerCourse(course)} />
-                        </TableRow>
-                      )}
                     </Fragment>
                   );
                 })}
@@ -190,6 +189,20 @@ export default function WidgetPage() {
             </Table>
           )}
         </div>
+      )}
+
+      {/* Course detail overlay */}
+      {detailCourse && (
+        <>
+          <div className={styles.detailOverlay} onClick={() => setDetailCourse(null)} />
+          <div className={styles.detailPanel}>
+            <CourseExpandedDetail
+              course={detailCourse}
+              onClose={() => setDetailCourse(null)}
+              onEnroll={() => { setDrawerCourse(detailCourse); setDetailCourse(null); }}
+            />
+          </div>
+        </>
       )}
 
       {/* Enrollment side drawer */}

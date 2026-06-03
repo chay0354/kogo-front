@@ -1,15 +1,15 @@
 import { getDayName, formatTimeRange } from '@/lib/courseUtils';
 import type { Course } from '../types';
-import { TableCell } from '@/components/ui/table';
-import { MapPin, Users, CalendarDays, Wallet } from 'lucide-react';
+import { MapPin, Users, CalendarDays, Wallet, X } from 'lucide-react';
 import styles from './CourseExpandedDetail.module.css';
 
 interface CourseExpandedDetailProps {
   course: Course;
   onEnroll: () => void;
+  onClose: () => void;
 }
 
-export default function CourseExpandedDetail({ course, onEnroll }: CourseExpandedDetailProps) {
+export default function CourseExpandedDetail({ course, onEnroll, onClose }: CourseExpandedDetailProps) {
   const instructors = Array.from(
     new Set(course.lessons?.map((l) => l.instructor_name).filter(Boolean))
   ) as string[];
@@ -22,8 +22,10 @@ export default function CourseExpandedDetail({ course, onEnroll }: CourseExpande
       : '—';
 
   return (
-    <TableCell colSpan={8} className={styles.expandedCell}>
-      <div className={styles.card} dir="rtl">
+    <div className={styles.card} dir="rtl">
+      <button onClick={onClose} className={styles.closeButton} aria-label="סגור">
+        <X size={20} />
+      </button>
 
         {/* Header */}
         <div className={styles.header}>
@@ -94,6 +96,5 @@ export default function CourseExpandedDetail({ course, onEnroll }: CourseExpande
         </button>
 
       </div>
-    </TableCell>
   );
 }
