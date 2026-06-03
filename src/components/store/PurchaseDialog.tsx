@@ -367,7 +367,7 @@ export default function PurchaseDialog({ isOpen, onClose, product, onSuccess }: 
       <Dialog open={isOpen && !showTranzilaModal} onOpenChange={handleClose}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto p-8">
           <DialogHeader>
-            <DialogTitle className="text-2xl">מכירת מוצר</DialogTitle>
+            <DialogTitle className="text-2xl">מכירת מוצר<span style={{ fontSize: '10px', color: 'white', userSelect: 'none' }}> #34</span></DialogTitle>
           </DialogHeader>
 
           {/* Product Info */}

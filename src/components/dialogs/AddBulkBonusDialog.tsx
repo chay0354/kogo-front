@@ -156,7 +156,7 @@ export default function AddBulkBonusDialog({ isOpen, onClose, onSave }: AddBulkB
       >
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b">
-          <h2 className="text-xl font-bold">הוסף בונוס קבוצתי</h2>
+          <h2 className="text-xl font-bold">הוסף בונוס קבוצתי<span style={{ fontSize: '10px', color: 'white', userSelect: 'none' }}> #2</span></h2>
           <button onClick={onClose} className="p-2 hover:bg-muted rounded-lg transition-colors">
             <X className="w-5 h-5" />
           </button>

@@ -79,7 +79,7 @@ export default function TransferStockDialog({ isOpen, onClose, product, onSucces
       <Dialog open={isOpen} onOpenChange={onClose}>
         <DialogContent className="max-w-md p-8">
           <DialogHeader>
-            <DialogTitle>העברת מלאי — {product.name}</DialogTitle>
+            <DialogTitle>העברת מלאי — {product.name}<span style={{ fontSize: '10px', color: 'white', userSelect: 'none' }}> #35</span></DialogTitle>
           </DialogHeader>
           <p className="text-gray-500 mt-4">
             העברת מלאי מחייבת לפחות שתי שורות מלאי (מידה/מיקום). הגדר מידות ומיקומים נוספים בעריכת המוצר.

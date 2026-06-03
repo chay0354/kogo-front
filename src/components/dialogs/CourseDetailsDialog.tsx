@@ -20,7 +20,7 @@ export default function CourseDetailsDialog({ isOpen, onClose, course }: CourseD
       <div className="bg-background rounded-lg shadow-xl max-w-3xl w-full max-h-[90vh] overflow-y-auto">
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-border sticky top-0 bg-background">
-          <h2 className="text-2xl font-bold">{course.name}</h2>
+          <h2 className="text-2xl font-bold">{course.name}<span style={{ fontSize: '10px', color: 'white', userSelect: 'none' }}> #12</span></h2>
           <button onClick={onClose} className="p-2 hover:bg-accent rounded-lg transition-colors">
             <X className="w-5 h-5" />
           </button>

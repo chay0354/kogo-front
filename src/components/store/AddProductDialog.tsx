@@ -198,7 +198,7 @@ export default function AddProductDialog({ isOpen, onClose, onSuccess }: AddProd
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto p-8">
         <DialogHeader>
-          <DialogTitle className="text-2xl">הוסף מוצר חדש</DialogTitle>
+          <DialogTitle className="text-2xl">הוסף מוצר חדש<span style={{ fontSize: '10px', color: 'white', userSelect: 'none' }}> #31</span></DialogTitle>
         </DialogHeader>
 
         <div className="space-y-6 px-2 mt-6">

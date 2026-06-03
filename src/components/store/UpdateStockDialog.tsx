@@ -131,7 +131,7 @@ export default function UpdateStockDialog({ isOpen, onClose, product, onSuccess 
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-w-lg p-8">
         <DialogHeader>
-          <DialogTitle className="text-2xl">עדכון מלאי - {product.name}</DialogTitle>
+          <DialogTitle className="text-2xl">עדכון מלאי - {product.name}<span style={{ fontSize: '10px', color: 'white', userSelect: 'none' }}> #36</span></DialogTitle>
         </DialogHeader>
 
         <div className="space-y-6 px-2 mt-6">

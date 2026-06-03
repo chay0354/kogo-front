@@ -97,7 +97,7 @@ export default function AddInstructorBonusDialog({
       >
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b">
-          <h2 className="text-xl font-bold">הוספת בונוס</h2>
+          <h2 className="text-xl font-bold">הוספת בונוס<span style={{ fontSize: '10px', color: 'white', userSelect: 'none' }}> #5</span></h2>
           <button onClick={onClose} className="p-2 hover:bg-muted rounded-lg transition-colors">
             <X className="w-5 h-5" />
           </button>

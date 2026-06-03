@@ -296,7 +296,7 @@ export default function EditLessonDialog({
       <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
         <div className="p-6">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-2xl font-semibold text-gray-900">עריכת שיעור</h2>
+            <h2 className="text-2xl font-semibold text-gray-900">עריכת שיעור<span style={{ fontSize: '10px', color: 'white', userSelect: 'none' }}> #21</span></h2>
             <button
               onClick={onClose}
               className="text-gray-400 hover:text-gray-600 transition-colors"

@@ -69,7 +69,7 @@ export default function RefundDialog({
               <AlertTriangle className="h-6 w-6 text-yellow-600" />
             </div>
             <DialogTitle className="text-lg font-semibold text-gray-900">
-              {title}
+              {title}<span style={{ fontSize: '10px', color: 'white', userSelect: 'none' }}> #28</span>
             </DialogTitle>
           </div>
           {!loading && (

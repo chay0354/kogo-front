@@ -2,7 +2,7 @@
 
 .filterWrapper {
   @apply flex items-stretch border-2 w-full relative;
-  border-radius: 5px;
+  border-radius: 15px;
   border-color: transparent;
   overflow: hidden;
 }

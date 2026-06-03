@@ -39,6 +39,12 @@
   @apply text-sm text-gray-500 mt-1;
 }
 
+/* Course type description */
+.description {
+  @apply text-sm text-gray-600 text-center mb-5;
+  line-height: 1.6;
+}
+
 /* Info pills row */
 .infoRow {
   @apply flex items-stretch justify-center rounded-xl mb-5;
@@ -57,7 +63,7 @@
 }
 
 .infoIcon {
-  color: #4b7c2f;
+  color: #2B3090;
   margin-bottom: 2px;
 }
 
@@ -82,7 +88,7 @@
   @apply rounded-full flex items-center justify-center text-white font-bold text-lg flex-shrink-0;
   width: 52px;
   height: 52px;
-  background: linear-gradient(135deg, #4b7c2f, #6aa63f);
+  background: linear-gradient(135deg, #2B3090, #4a55c8);
 }
 
 .instructorInfo {
@@ -131,11 +137,11 @@
 /* Buttons */
 .enrollButton {
   @apply w-full rounded-xl py-3.5 text-base font-semibold text-white mb-3;
-  background-color: #2a6049;
+  background-color: #2B3090;
 }
 
 .enrollButton:hover {
-  background-color: #1e4a37;
+  background-color: #1e2570;
 }
 
 .saveButton {

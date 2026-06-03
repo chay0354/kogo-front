@@ -7,6 +7,7 @@ import PageHeader from '@/components/PageHeader';
 import api from '@/lib/api';
 import { CourseTypeWithStats } from '@/types/course';
 import AddCourseTypeDialog from '@/components/dialogs/AddCourseTypeDialog';
+import EditCourseTypeDialog from '@/components/dialogs/EditCourseTypeDialog';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 
 export default function CoursesPage() {
@@ -17,6 +18,7 @@ export default function CoursesPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
+  const [editTarget, setEditTarget] = useState<CourseTypeWithStats | null>(null);
 
   useEffect(() => {
     fetchCourseTypes();
@@ -58,6 +60,11 @@ export default function CoursesPage() {
 
   const handleCourseTypeAdded = () => {
     setShowAddDialog(false);
+    fetchCourseTypes();
+  };
+
+  const handleEditSuccess = () => {
+    setEditTarget(null);
     fetchCourseTypes();
   };
 
@@ -130,6 +137,16 @@ export default function CoursesPage() {
               >
                 {/* Header with course type name */}
                 <div className="group/header relative bg-gradient-to-br from-teal-500 to-teal-600 p-8 text-center">
+                  <button
+                    onClick={(e) => { e.stopPropagation(); setEditTarget(courseType); }}
+                    className="absolute top-2 right-2 p-1.5 text-white/70 hover:text-white hover:bg-white/20 rounded transition-colors opacity-0 group-hover/header:opacity-100"
+                    title="עריכה"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                        d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                    </svg>
+                  </button>
                   {courseType.courses_count === 0 && (
                     <button
                       onClick={(e) => { e.stopPropagation(); setDeleteTargetId(courseType.id); }}
@@ -281,6 +298,16 @@ export default function CoursesPage() {
           open={showAddDialog}
           onClose={() => setShowAddDialog(false)}
           onSuccess={handleCourseTypeAdded}
+        />
+      )}
+
+      {/* Edit Course Type Dialog */}
+      {editTarget && (
+        <EditCourseTypeDialog
+          courseType={editTarget}
+          open={true}
+          onClose={() => setEditTarget(null)}
+          onSuccess={handleEditSuccess}
         />
       )}
     </AppLayout>

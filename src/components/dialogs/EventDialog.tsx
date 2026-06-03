@@ -241,7 +241,7 @@ export default function EventDialog({ event, onClose, onSuccess, initialDate }: 
         dir="rtl"
       >
         <div className="flex justify-between items-start mb-6">
-          <h2 className="text-2xl font-bold">{isEditMode ? 'ערוך אירוע' : 'הוסף אירוע'}</h2>
+          <h2 className="text-2xl font-bold">{isEditMode ? 'ערוך אירוע' : 'הוסף אירוע'}<span style={{ fontSize: '10px', color: 'white', userSelect: 'none' }}> #25</span></h2>
           <button
             onClick={onClose}
             className="text-gray-400 hover:text-gray-600 text-2xl"

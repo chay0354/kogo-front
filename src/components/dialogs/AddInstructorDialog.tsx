@@ -160,7 +160,7 @@ export default function AddInstructorDialog({ isOpen, onClose, onSave }: AddInst
       >
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b sticky top-0 bg-white z-10">
-          <h2 className="text-xl font-bold">הוסף מדריך חדש</h2>
+          <h2 className="text-xl font-bold">הוסף מדריך חדש<span style={{ fontSize: '10px', color: 'white', userSelect: 'none' }}> #6</span></h2>
           <button onClick={onClose} className="p-2 hover:bg-muted rounded-lg transition-colors">
             <X className="w-5 h-5" />
           </button>

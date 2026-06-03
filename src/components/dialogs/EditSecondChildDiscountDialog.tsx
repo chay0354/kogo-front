@@ -88,7 +88,7 @@ export default function EditSecondChildDiscountDialog({
       <div className="bg-background rounded-lg shadow-xl max-w-lg w-full">
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-border">
-          <h2 className="text-2xl font-bold">עריכת הנחת ילד נוסף</h2>
+          <h2 className="text-2xl font-bold">עריכת הנחת ילד נוסף<span style={{ fontSize: '10px', color: 'white', userSelect: 'none' }}> #22</span></h2>
           <button
             onClick={handleClose}
             className="p-2 hover:bg-accent rounded-lg transition-colors"

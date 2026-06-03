@@ -2,22 +2,24 @@
 
 import { useState } from 'react';
 import api from '@/lib/api';
-import { CourseTypeFormData } from '@/types/course';
+import { CourseTypeWithStats } from '@/types/course';
 
-interface AddCourseTypeDialogProps {
+interface EditCourseTypeDialogProps {
+  courseType: CourseTypeWithStats;
   open: boolean;
   onClose: () => void;
   onSuccess: () => void;
 }
 
-export default function AddCourseTypeDialog({
+export default function EditCourseTypeDialog({
+  courseType,
   open,
   onClose,
   onSuccess,
-}: AddCourseTypeDialogProps) {
-  const [formData, setFormData] = useState<CourseTypeFormData>({
-    name: '',
-    description: '',
+}: EditCourseTypeDialogProps) {
+  const [formData, setFormData] = useState({
+    name: courseType.name,
+    description: courseType.description ?? '',
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -33,10 +35,10 @@ export default function AddCourseTypeDialog({
 
     setLoading(true);
     try {
-      await api.post('/courses/types/', formData);
+      await api.patch(`/courses/types/${courseType.id}/`, formData);
       onSuccess();
     } catch (err: any) {
-      setError(err.response?.data?.message || 'שגיאה ביצירת תחום');
+      setError(err.response?.data?.message || 'שגיאה בעדכון תחום');
     } finally {
       setLoading(false);
     }
@@ -49,11 +51,8 @@ export default function AddCourseTypeDialog({
       <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4">
         <div className="p-6">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-2xl font-semibold text-gray-900">הוספת תחום חדש<span style={{ fontSize: '10px', color: 'white' }}> #4</span></h2>
-            <button
-              onClick={onClose}
-              className="text-gray-400 hover:text-gray-600 transition-colors"
-            >
+            <h2 className="text-2xl font-semibold text-gray-900">עריכת תחום</h2>
+            <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition-colors">
               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
               </svg>
@@ -61,29 +60,26 @@ export default function AddCourseTypeDialog({
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
-            {/* Name */}
             <div>
-              <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-1">
+              <label htmlFor="ct-name" className="block text-sm font-medium text-gray-700 mb-1">
                 שם התחום <span className="text-red-500">*</span>
               </label>
               <input
                 type="text"
-                id="name"
+                id="ct-name"
                 value={formData.name}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500"
-                placeholder="לדוגמה: קפוארה, כדורסל, ג'ודו"
                 required
               />
             </div>
 
-            {/* Description */}
             <div>
-              <label htmlFor="description" className="block text-sm font-medium text-gray-700 mb-1">
+              <label htmlFor="ct-description" className="block text-sm font-medium text-gray-700 mb-1">
                 תיאור
               </label>
               <textarea
-                id="description"
+                id="ct-description"
                 value={formData.description}
                 onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                 rows={3}
@@ -92,14 +88,12 @@ export default function AddCourseTypeDialog({
               />
             </div>
 
-            {/* Error Message */}
             {error && (
               <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
                 <p className="text-sm text-red-600">{error}</p>
               </div>
             )}
 
-            {/* Actions */}
             <div className="flex gap-3 pt-4">
               <button
                 type="button"
@@ -114,7 +108,7 @@ export default function AddCourseTypeDialog({
                 className="flex-1 px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors disabled:bg-gray-400"
                 disabled={loading}
               >
-                {loading ? 'שומר...' : 'הוסף תחום'}
+                {loading ? 'שומר...' : 'שמור שינויים'}
               </button>
             </div>
           </form>
@@ -123,4 +117,3 @@ export default function AddCourseTypeDialog({
     </div>
   );
 }
-

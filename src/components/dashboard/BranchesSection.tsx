@@ -5,7 +5,7 @@ import { useQuery } from '@tanstack/react-query';
 import { fetchBranchesData, fetchBranchesList, fetchCitiesList } from '@/lib/api';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Users, TrendingUp, Download, Tags } from 'lucide-react';
+import { Users, TrendingUp, Download, Tags, Loader2 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
@@ -67,7 +67,14 @@ export default function BranchesSection({ globalDateRange }: Props) {
   };
 
   if (isLoading) {
-    return <div className="flex items-center justify-center h-64">טוען נתונים...</div>;
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="flex items-center gap-2 text-muted-foreground">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          <span>טוען נתוני סניפים...</span>
+        </div>
+      </div>
+    );
   }
 
   const kpis = data?.kpis || {};

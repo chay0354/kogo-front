@@ -33,6 +33,11 @@ export default function CourseExpandedDetail({ course, onEnroll, onClose }: Cour
           <p className={styles.subtitle}>{course.course_type_name}</p>
         </div>
 
+        {/* Course type description */}
+        {course.course_type_description && (
+          <p className={styles.description}>{course.course_type_description}</p>
+        )}
+
         {/* Info pills */}
         <div className={styles.infoRow}>
           <div className={styles.infoPill}>

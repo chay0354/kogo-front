@@ -188,7 +188,7 @@ export default function LessonDetailsDialog({
       <div className="bg-white rounded-lg p-6 max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
         <div className="flex justify-between items-start mb-4">
           <div>
-            <h2 className="text-2xl font-bold">נוכחות שיעור</h2>
+            <h2 className="text-2xl font-bold">נוכחות שיעור<span style={{ fontSize: '10px', color: 'white', userSelect: 'none' }}> #26</span></h2>
             {lesson && (
               <p className="text-sm text-gray-600 mt-1">
                 {lesson.day_of_week_display}, {lesson.lesson_date || ''}

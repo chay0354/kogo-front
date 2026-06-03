@@ -49,7 +49,7 @@ export default function EditChildDialog({ child, isOpen, onClose, onSave }: Edit
       >
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b">
-          <h2 className="text-xl font-bold">עריכת פרופיל - {child.full_name}</h2>
+          <h2 className="text-xl font-bold">עריכת פרופיל - {child.full_name}<span style={{ fontSize: '10px', color: 'white', userSelect: 'none' }}> #17</span></h2>
           <button onClick={onClose} className="p-2 hover:bg-muted rounded-lg transition-colors">
             <X className="w-5 h-5" />
           </button>
