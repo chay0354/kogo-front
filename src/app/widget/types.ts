@@ -23,6 +23,7 @@ export interface Course {
   name: string;
   course_type: string;
   course_type_name: string;
+  course_type_description: string | null;
   branch_name: string;
   min_age: number | null;
   max_age: number | null;

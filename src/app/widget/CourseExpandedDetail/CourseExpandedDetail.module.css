@@ -39,6 +39,12 @@
   @apply text-sm text-gray-500 mt-1;
 }
 
+/* Course type description */
+.description {
+  @apply text-sm text-gray-600 text-center mb-5;
+  line-height: 1.6;
+}
+
 /* Info pills row */
 .infoRow {
   @apply flex items-stretch justify-center rounded-xl mb-5;

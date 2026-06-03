@@ -276,14 +276,6 @@ export default function AddCourseDialog({
               )}
             </div>
 
-            {/* Description */}
-            <div>
-              <label htmlFor="description" className={styles.label}>
-                תיאור
-              </label>
-              <textarea id="description" value={courseData.description} onChange={(e) => setCourseData({ ...courseData, description: e.target.value })} rows={3} className={styles.input} placeholder="תיאור אופציונלי של החוג" />
-            </div>
-
             {/* Lesson fields */}
             <div className={styles.lessonSection}>
                 <h3 className={styles.lessonSectionTitle}>פרטי השיעור</h3>
