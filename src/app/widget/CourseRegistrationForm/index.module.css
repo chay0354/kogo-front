@@ -1,0 +1,132 @@
+/* Shared inputs */
+.input {
+  @apply w-full h-10 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500;
+}
+.label {
+  @apply block text-sm font-medium text-gray-700 mb-1;
+}
+
+/* Layout */
+.form {
+  @apply space-y-5;
+}
+.header {
+  @apply flex items-center gap-3 mb-4;
+}
+.backLink {
+  @apply text-sm text-teal-600 underline hover:text-teal-800;
+}
+.title {
+  @apply text-base font-semibold;
+}
+.fieldset {
+  @apply border border-gray-200 rounded-md p-4 space-y-3;
+}
+.legend {
+  @apply text-sm font-semibold text-gray-700 px-1;
+}
+.grid2 {
+  @apply grid grid-cols-2 gap-4;
+}
+.grid3 {
+  @apply grid grid-cols-3 gap-3;
+}
+.genderOptions {
+  @apply flex gap-6 mt-1;
+}
+.radioLabel {
+  @apply flex items-center gap-2 text-sm cursor-pointer;
+}
+
+/* Buttons */
+.submitButton {
+  @apply w-full rounded-md bg-teal-600 px-4 py-2 text-sm font-medium text-white hover:bg-teal-700 disabled:opacity-50;
+}
+.primaryButton {
+  @apply flex-1 rounded-md bg-teal-600 px-4 py-2 text-sm font-medium text-white hover:bg-teal-700;
+}
+.secondaryButton {
+  @apply flex-1 rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50;
+}
+.closeButton {
+  @apply rounded-md bg-teal-600 px-6 py-2 text-sm font-medium text-white hover:bg-teal-700;
+}
+.outlineButton {
+  @apply rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50;
+}
+.buttonRow {
+  @apply flex gap-3;
+}
+
+/* Consents step */
+.consentLabel {
+  @apply flex items-start gap-3 text-sm cursor-pointer;
+}
+.checkbox {
+  @apply mt-0.5 accent-teal-600;
+}
+.signatureWrapper {
+  @apply w-1/2;
+}
+
+/* Discount step */
+.discountBox {
+  @apply rounded-lg border border-teal-200 bg-teal-50 p-5 text-sm leading-relaxed text-gray-700;
+}
+
+/* Payment step */
+.paymentContainer {
+  @apply space-y-4;
+}
+.paymentSummary {
+  @apply rounded-lg border border-teal-200 bg-teal-50 p-4 text-sm space-y-2;
+}
+.summaryTitle {
+  @apply font-semibold text-gray-800 mb-1;
+}
+.summaryRow {
+  @apply flex justify-between text-gray-600;
+}
+.discountRow {
+  @apply flex justify-between text-green-700;
+}
+.totalRow {
+  @apply flex justify-between font-bold border-t border-teal-300 pt-2 text-gray-900;
+}
+.totalAmount {
+  @apply text-teal-700;
+}
+.cardFields {
+  @apply space-y-3;
+}
+.sectionTitle {
+  @apply text-sm font-semibold text-gray-800;
+}
+
+/* Result screens */
+.resultContainer {
+  @apply py-12 text-center space-y-4;
+}
+.successIcon {
+  @apply text-green-500 text-6xl;
+}
+.failIcon {
+  @apply text-red-500 text-6xl;
+}
+.resultTitle {
+  @apply text-lg font-semibold text-gray-800;
+}
+.resultSubtext {
+  @apply text-sm text-gray-600;
+}
+.resultActions {
+  @apply flex gap-3 justify-center;
+}
+
+/* Misc */
+.errorText {
+  @apply text-sm text-red-600;
+}
+.submittingContainer {
+  @apply py-10 text-center text-sm text-gray-500;
+}
