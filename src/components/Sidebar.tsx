@@ -15,6 +15,7 @@ import {
   KeyRound,
   CreditCard,
   MessageCircle,
+  FileText,
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -38,6 +39,7 @@ function getMenuItems(role: string | null | undefined) {
     { name: 'סניפים', href: '/branches', icon: MapPin },
     { name: 'מדריכים', href: '/instructors', icon: GraduationCap },
     { name: 'חנות', href: '/store', icon: ShoppingBag },
+    { name: 'חשבוניות', href: '/invoices', icon: FileText },
     { name: 'הנחות', href: '/discounts', icon: Tag },
     { name: 'סליקת אשראי', href: '/credit-charge', icon: CreditCard },
     { name: 'WhatsApp', href: '/whatsapp', icon: MessageCircle },
