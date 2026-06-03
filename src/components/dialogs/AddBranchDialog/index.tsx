@@ -183,7 +183,7 @@ export default function AddBranchDialog({ isOpen, onClose, onSuccess }: AddBranc
     <div className={styles.overlay}>
       <div className={styles.panel}>
         <div className={styles.header}>
-          <h2 className={styles.title}>הוספת סניף חדש</h2>
+          <h2 className={styles.title}>הוספת סניף חדש<span style={{ fontSize: '10px', color: 'white', userSelect: 'none' }}> #1</span></h2>
           <button onClick={handleClose} className={styles.closeButton}>
             <X className="w-5 h-5" />
           </button>

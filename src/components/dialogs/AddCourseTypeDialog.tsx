@@ -49,7 +49,7 @@ export default function AddCourseTypeDialog({
       <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4">
         <div className="p-6">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-2xl font-semibold text-gray-900">הוספת תחום חדש</h2>
+            <h2 className="text-2xl font-semibold text-gray-900">הוספת תחום חדש<span style={{ fontSize: '10px', color: 'white' }}> #4</span></h2>
             <button
               onClick={onClose}
               className="text-gray-400 hover:text-gray-600 transition-colors"

@@ -202,7 +202,7 @@ export default function AddCourseDialog({
       <div className={styles.dialog}>
         <div className={styles.dialogBody}>
           <div className={styles.header}>
-            <h2 className={styles.title}>הוספת חוג חדש</h2>
+            <h2 className={styles.title}>הוספת חוג חדש<span style={{ fontSize: '10px', color: 'white', userSelect: 'none' }}> #3</span></h2>
             <button onClick={handleClose} className={styles.closeButton}>
               <svg className={styles.iconLg} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />

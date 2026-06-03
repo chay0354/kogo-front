@@ -48,7 +48,7 @@ export function ConfirmDialog({
           <div className="flex justify-center mb-4">
             {icons[type]}
           </div>
-          <DialogTitle className="text-xl text-center">{title}</DialogTitle>
+          <DialogTitle className="text-xl text-center">{title}<span style={{ fontSize: '10px', color: 'white', userSelect: 'none' }}> #37</span></DialogTitle>
         </DialogHeader>
 
         <div className="py-4">

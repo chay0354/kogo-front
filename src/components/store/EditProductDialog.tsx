@@ -241,7 +241,7 @@ export default function EditProductDialog({ isOpen, onClose, product, onSuccess 
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto p-8">
         <DialogHeader>
-          <DialogTitle className="text-2xl">ערוך מוצר</DialogTitle>
+          <DialogTitle className="text-2xl">ערוך מוצר<span style={{ fontSize: '10px', color: 'white', userSelect: 'none' }}> #33</span></DialogTitle>
         </DialogHeader>
 
         <div className="space-y-6 px-2 mt-6">

@@ -23,7 +23,7 @@ export default function DeleteChildDialog({ child, isOpen, onClose, onConfirm }:
         <div className="flex items-center justify-between px-6 py-4 border-b bg-destructive/10">
           <div className="flex items-center gap-2">
             <AlertTriangle className="w-5 h-5 text-destructive" />
-            <h2 className="text-xl font-bold text-destructive">מחיקת פרופיל</h2>
+            <h2 className="text-xl font-bold text-destructive">מחיקת פרופיל<span style={{ fontSize: '10px', color: 'white', userSelect: 'none' }}> #13</span></h2>
           </div>
           <button onClick={onClose} className="p-2 hover:bg-muted rounded-lg transition-colors">
             <X className="w-5 h-5" />

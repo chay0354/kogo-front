@@ -134,7 +134,7 @@ export default function EditEarlySignupDiscountDialog({
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-border">
           <h2 className="text-2xl font-bold">
-            {discount ? 'עריכת הנחת רישום מוקדם' : 'הוספת טווח תאריכים חדש'}
+            {discount ? 'עריכת הנחת רישום מוקדם' : 'הוספת טווח תאריכים חדש'}<span style={{ fontSize: '10px', color: 'white', userSelect: 'none' }}> #19</span>
           </h2>
           <button
             onClick={handleClose}

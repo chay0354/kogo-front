@@ -38,7 +38,7 @@ export default function EventDetailsDialog({ event, onClose, onSuccess }: EventD
             />
             <div>
               <h2 className="text-2xl font-bold" style={{ color: bgColor }}>
-                {event.name}
+                {event.name}<span style={{ fontSize: '10px', color: 'white', userSelect: 'none' }}> #24</span>
               </h2>
               <p className="text-sm text-gray-600 mt-1">
                 {event.is_studio_rental

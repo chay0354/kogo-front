@@ -252,7 +252,7 @@ export default function RentalDialog({ event, onClose, onSuccess }: RentalDialog
         dir="rtl"
       >
         <div className="flex justify-between items-start mb-6">
-          <h2 className="text-2xl font-bold">{isEditMode ? 'ערוך שכירות' : 'הוסף שכירות סטודיו'}</h2>
+          <h2 className="text-2xl font-bold">{isEditMode ? 'ערוך שכירות' : 'הוסף שכירות סטודיו'}<span style={{ fontSize: '10px', color: 'white', userSelect: 'none' }}> #29</span></h2>
           <button type="button" onClick={onClose} className="text-gray-400 hover:text-gray-600 text-2xl">
             ✕
           </button>

@@ -219,6 +219,7 @@ export default function ChildProfileDialog({
                   {genderText}
                 </Badge>
                 <Badge variant="secondary">גיל {child.age}</Badge>
+                <span style={{ fontSize: '10px', color: 'white', userSelect: 'none' }}> #11</span>
               </DialogTitle>
               <DialogDescription>פרופיל ילד ומידע נוסף</DialogDescription>
             </DialogHeader>
