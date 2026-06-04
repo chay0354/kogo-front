@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import api from '@/lib/api';
 import { CourseFormData, Course, CourseWithLessons } from '@/types/course';
 import { formatAge } from '@/lib/courseUtils';
+import ManagerMultiSelect from './ManagerMultiSelect';
 
 interface EditCourseDialogProps {
   course: Course | CourseWithLessons;
@@ -36,6 +37,7 @@ export default function EditCourseDialog({
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [managerIds, setManagerIds] = useState<string[]>([]);
 
   // Age options (1-18) to support ages 1-6 and grades א-יב (7-18)
   const ageOptions = Array.from({ length: 18 }, (_, i) => i + 1);
@@ -54,6 +56,26 @@ export default function EditCourseDialog({
       });
     }
   }, [course]);
+
+  // Load the course's currently assigned managers (details endpoint omits them).
+  useEffect(() => {
+    let cancelled = false;
+    if (open && course?.id) {
+      api
+        .get(`/courses/courses/${course.id}/`)
+        .then((res) => {
+          if (cancelled) return;
+          const ids = (res.data?.managers || []).map((m: any) => String(m));
+          setManagerIds(ids);
+        })
+        .catch(() => {
+          if (!cancelled) setManagerIds([]);
+        });
+    }
+    return () => {
+      cancelled = true;
+    };
+  }, [open, course?.id]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -76,7 +98,7 @@ export default function EditCourseDialog({
 
     setLoading(true);
     try {
-      await api.put(`/courses/courses/${course.id}/`, formData);
+      await api.put(`/courses/courses/${course.id}/`, { ...formData, managers: managerIds });
       onSuccess();
     } catch (err: any) {
       setError(err.response?.data?.message || 'שגיאה בעדכון חוג');
@@ -210,6 +232,9 @@ export default function EditCourseDialog({
                 placeholder="תיאור אופציונלי של החוג"
               />
             </div>
+
+            {/* Authorized managers */}
+            <ManagerMultiSelect value={managerIds} onChange={setManagerIds} />
 
             {/* Error Message */}
             {error && (

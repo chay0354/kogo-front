@@ -9,6 +9,7 @@ import styles from './index.module.css';
 import { Branch, Room, Instructor, AddCourseDialogProps } from './types';
 import { FIRST_PRICE_TIER_INDEX, AGE_OPTIONS, DAYS_OF_WEEK } from './constants';
 import { toPositiveNumber, calcEndTime, addExtraTier, removeExtraTier, updateExtraTierPrice } from './utils';
+import ManagerMultiSelect from '../ManagerMultiSelect';
 
 export default function AddCourseDialog({
   courseTypeId,
@@ -41,6 +42,7 @@ export default function AddCourseDialog({
     notes: '',
   });
   const [extraTiers, setExtraTiers] = useState<LessonPriceTier[]>([]);
+  const [managerIds, setManagerIds] = useState<string[]>([]);
 
   const queryClient = useQueryClient();
   const [branches, setBranches] = useState<Branch[]>([]);
@@ -148,7 +150,10 @@ export default function AddCourseDialog({
     setLoading(true);
     try {
       // Step 1: create the course
-      const courseRes = await api.post('/courses/courses/', courseData);
+      const courseRes = await api.post('/courses/courses/', {
+        ...courseData,
+        managers: managerIds,
+      });
       const newCourseId = courseRes.data.id;
 
       // Step 2: create the lesson assigned to the new course
@@ -276,6 +281,16 @@ export default function AddCourseDialog({
               )}
             </div>
 
+            {/* Description */}
+            <div>
+              <label htmlFor="description" className={styles.label}>
+                תיאור
+              </label>
+              <textarea id="description" value={courseData.description} onChange={(e) => setCourseData({ ...courseData, description: e.target.value })} rows={3} className={styles.input} placeholder="תיאור אופציונלי של החוג" />
+            </div>
+
+            {/* Authorized managers */}
+            <ManagerMultiSelect value={managerIds} onChange={setManagerIds} />
             {/* Lesson fields */}
             <div className={styles.lessonSection}>
                 <h3 className={styles.lessonSectionTitle}>פרטי השיעור</h3>
