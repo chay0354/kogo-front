@@ -372,7 +372,7 @@
   flex-wrap: wrap;
   align-items: center;
   gap: 0.75rem;
-  justify-content: flex-end;
+  justify-content: flex-start;
 }
 
 /* Payments table — inherits all invoiceTable rules via shared class in JSX */
