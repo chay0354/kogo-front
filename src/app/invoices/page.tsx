@@ -7,88 +7,19 @@ import { fetchInvoices } from '@/lib/storeApi';
 import api from '@/lib/api';
 import type { StoreInvoice } from '@/types/store';
 import type { Branch } from '@/types/branch';
+import type { ActiveTab, PaymentRecord } from './types';
+import { PAYMENT_SUBCATEGORIES } from './constants';
+import {
+  getDocType,
+  getStatusLabel,
+  getStatusClass,
+  getPaymentStatusLabel,
+  getPaymentStatusClass,
+  formatAmount,
+  formatDate,
+  getCurrentMonthTotal,
+} from './utils';
 import styles from './invoices.module.css';
-
-type DocType = 'חשבונית מס/קבלה' | 'חשבונית עסקה' | 'טיוטה';
-type ActiveTab = 'מסמכים' | 'תשלומים';
-
-interface PaymentRecord {
-  id: number | string;
-  created_at: string;
-  customer_name: string;
-  invoice_number: string;
-  amount: number;
-  payment_method: string;
-  transaction_reference: string;
-  status: string;
-}
-
-function getDocType(inv: StoreInvoice): DocType {
-  if (inv.invoice_number.startsWith('DRAFT')) return 'טיוטה';
-  if (inv.payment_method === 'monthly_billing') return 'חשבונית עסקה';
-  return 'חשבונית מס/קבלה';
-}
-
-function getStatusLabel(status: string): string {
-  const labels: Record<string, string> = {
-    completed: 'שולם',
-    pending: 'פתוח',
-    failed: 'נכשל',
-    refunded: 'זוכה',
-  };
-  return labels[status] ?? status;
-}
-
-function getStatusClass(status: string): string {
-  const classes: Record<string, string> = {
-    completed: styles.statusCompleted,
-    pending: styles.statusPending,
-    failed: styles.statusFailed,
-    refunded: styles.statusRefunded,
-  };
-  return classes[status] ?? '';
-}
-
-function getPaymentStatusLabel(status: string): string {
-  const labels: Record<string, string> = {
-    approved: 'אושר',
-    completed: 'אושר',
-    pending: 'ממתין',
-    failed: 'נכשל',
-    refunded: 'זוכה',
-  };
-  return labels[status] ?? status;
-}
-
-function getPaymentStatusClass(status: string): string {
-  const classes: Record<string, string> = {
-    approved: styles.statusCompleted,
-    completed: styles.statusCompleted,
-    pending: styles.statusPending,
-    failed: styles.statusFailed,
-    refunded: styles.statusRefunded,
-  };
-  return classes[status] ?? '';
-}
-
-function formatAmount(n: number | undefined | null): string {
-  return `₪${(n ?? 0).toLocaleString('he-IL')}`;
-}
-
-function formatDate(iso: string): string {
-  const d = new Date(iso);
-  return `${d.getDate()}.${d.getMonth() + 1}.${d.getFullYear()}`;
-}
-
-function getCurrentMonthTotal(payments: PaymentRecord[]): number {
-  const now = new Date();
-  return payments
-    .filter(p => {
-      const d = new Date(p.created_at);
-      return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
-    })
-    .reduce((sum, p) => sum + (p.amount ?? 0), 0);
-}
 
 export default function InvoicesPage() {
   const [activeTab, setActiveTab] = useState<ActiveTab>('מסמכים');
@@ -395,7 +326,7 @@ export default function InvoicesPage() {
               >
                 <option value="">כל הסוגים</option>
                 <option value="לקוחות">לקוחות</option>
-                <option value="סוחרים">סוחרים</option>
+                <option value="שוכרים">שוכרים</option>
                 <option value="ספקים">ספקים</option>
                 <option value="חוגים">חוגים</option>
                 <option value="מותג קוגומלו">מותג קוגומלו</option>
@@ -409,6 +340,9 @@ export default function InvoicesPage() {
                   aria-label="סינון לפי קטגוריה"
                 >
                   <option value="">כל הקטגוריות</option>
+                  {PAYMENT_SUBCATEGORIES[paymentBranchFilter]?.map(cat => (
+                    <option key={cat} value={cat}>{cat}</option>
+                  ))}
                 </select>
               )}
             </div>
