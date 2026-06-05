@@ -289,6 +289,115 @@
   font-size: 0.875rem;
 }
 
+/* Stats row */
+.statsRow {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1rem;
+}
+
+.statCard {
+  background: hsl(var(--card));
+  border: 1px solid;
+  border-radius: var(--radius);
+  padding: 1.5rem;
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+}
+
+.statCardIcon {
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: calc(var(--radius) - 4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.statCardBody {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.statCardValue {
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: hsl(var(--foreground));
+  line-height: 1;
+}
+
+.statCardLabel {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: hsl(var(--muted-foreground));
+}
+
+/* Stat card colour variants */
+.statCardBlue {
+  background-color: #eff6ff;
+  border-color: #bfdbfe;
+}
+
+.statCardBlue .statCardIcon {
+  background: #dbeafe;
+  color: #2563eb;
+}
+
+.statCardOrange {
+  background-color: #fff7ed;
+  border-color: #fed7aa;
+}
+
+.statCardOrange .statCardIcon {
+  background: #ffedd5;
+  color: #ea580c;
+}
+
+.statCardGreen {
+  background-color: #f0fdf4;
+  border-color: #bbf7d0;
+}
+
+.statCardGreen .statCardIcon {
+  background: #dcfce7;
+  color: #16a34a;
+}
+
+/* Payments filter bar */
+.paymentsFilterBar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+  justify-content: flex-end;
+}
+
+/* Payments table — inherits all invoiceTable rules via shared class in JSX */
+.paymentsTable {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+/* Payments table specific cells */
+.referenceCell {
+  font-family: monospace;
+  font-size: 0.8125rem;
+  color: hsl(var(--muted-foreground));
+}
+
+.methodBadge {
+  display: inline-block;
+  background: #f3f4f6;
+  color: #374151;
+  font-size: 0.75rem;
+  border-radius: 0.375rem;
+  padding: 0.125rem 0.5rem;
+  white-space: nowrap;
+}
+
 /* Mobile */
 @media (max-width: 767px) {
   .filterBar {
@@ -305,6 +414,15 @@
   }
 
   .pageHeader {
+    flex-direction: column;
+  }
+
+  .statsRow {
+    grid-template-columns: 1fr;
+  }
+
+  .paymentsFilterBar {
+    justify-content: stretch;
     flex-direction: column;
   }
 }
