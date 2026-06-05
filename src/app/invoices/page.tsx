@@ -114,42 +114,22 @@ export default function InvoicesPage() {
           </div>
 
           <div className={styles.subTabs} role="tablist">
-            <button
-              role="tab"
-              aria-selected
-              className={`${styles.tabBtn} ${styles.tabBtnActive}`}
-            >
-              מסמכים
-            </button>
-            <button role="tab" aria-selected={false} className={styles.tabBtn} disabled>
-              תשלומים
-            </button>
-            <button role="tab" aria-selected={false} className={styles.tabBtn} disabled>
-              גבייה
-            </button>
+            <button role="tab" aria-selected className={`${styles.tabBtn} ${styles.tabBtnActive}`}>מסמכים</button>
+            <button role="tab" aria-selected={false} className={styles.tabBtn} disabled>תשלומים</button>
+            <button role="tab" aria-selected={false} className={styles.tabBtn} disabled>גבייה</button>
           </div>
         </div>
 
         {/* Filter bar */}
         <div className={styles.filterBar}>
-          <select
-            className={styles.filterSelect}
-            value={docTypeFilter}
-            onChange={e => setDocTypeFilter(e.target.value)}
-            aria-label="סינון לפי סוג מסמך"
-          >
+          <select className={styles.filterSelect} value={docTypeFilter} onChange={e => setDocTypeFilter(e.target.value)} aria-label="סינון לפי סוג מסמך">
             <option value="">כל הסוגים</option>
             <option value="חשבונית מס/קבלה">חשבונית מס/קבלה</option>
             <option value="חשבונית עסקה">חשבונית עסקה</option>
             <option value="טיוטה">טיוטה</option>
           </select>
 
-          <select
-            className={styles.filterSelect}
-            value={statusFilter}
-            onChange={e => setStatusFilter(e.target.value)}
-            aria-label="סינון לפי סטטוס"
-          >
+          <select className={styles.filterSelect} value={statusFilter} onChange={e => setStatusFilter(e.target.value)} aria-label="סינון לפי סטטוס">
             <option value="">הכל</option>
             <option value="completed">שולם</option>
             <option value="pending">פתוח</option>
@@ -157,46 +137,19 @@ export default function InvoicesPage() {
             <option value="refunded">זוכה</option>
           </select>
 
-          <select
-            className={styles.filterSelect}
-            value={branchFilter}
-            onChange={e => setBranchFilter(e.target.value)}
-            aria-label="סינון לפי סניף"
-          >
+          <select className={styles.filterSelect} value={branchFilter} onChange={e => setBranchFilter(e.target.value)} aria-label="סינון לפי סניף">
             <option value="">כל הסניפים</option>
             {branches.map(b => (
-              <option key={b.id} value={b.id}>
-                {b.name}
-              </option>
+              <option key={b.id} value={b.id}>{b.name}</option>
             ))}
           </select>
 
-          <input
-            type="date"
-            className={styles.dateInput}
-            value={dateFrom}
-            onChange={e => setDateFrom(e.target.value)}
-            aria-label="מתאריך"
-          />
-
-          <input
-            type="date"
-            className={styles.dateInput}
-            value={dateTo}
-            onChange={e => setDateTo(e.target.value)}
-            aria-label="עד תאריך"
-          />
+          <input type="date" className={styles.dateInput} value={dateFrom} onChange={e => setDateFrom(e.target.value)} aria-label="מתאריך" />
+          <input type="date" className={styles.dateInput} value={dateTo} onChange={e => setDateTo(e.target.value)} aria-label="עד תאריך" />
 
           <div className={styles.searchWrapper}>
             <Search className={styles.searchIcon} aria-hidden="true" />
-            <input
-              type="text"
-              className={styles.searchInput}
-              placeholder="חיפוש לפי שם, מספר מסמך..."
-              value={searchQuery}
-              onChange={e => setSearchQuery(e.target.value)}
-              aria-label="חיפוש חשבוניות"
-            />
+            <input type="text" className={styles.searchInput} placeholder="חיפוש לפי שם, מספר מסמך..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} aria-label="חיפוש חשבוניות" />
           </div>
         </div>
 
@@ -231,26 +184,11 @@ export default function InvoicesPage() {
                       <td className={styles.invoiceNumber}>{inv.invoice_number}</td>
                       <td>{formatDate(inv.issue_date)}</td>
                       <td className={styles.customerName}>{customerDisplay}</td>
-                      <td>
-                        <span className={styles.docTypeChip}>{getDocType(inv)}</span>
-                      </td>
+                      <td><span className={styles.docTypeChip}>{getDocType(inv)}</span></td>
                       <td className={styles.amount}>{formatAmount(inv.total_amount)}</td>
                       <td>{formatAmount(paidSoFar)}</td>
-                      <td
-                        className={
-                          openBalance > 0 ? styles.openBalance : styles.openBalanceZero
-                        }
-                      >
-                        {formatAmount(openBalance)}
-                      </td>
-                      <td>
-                        <span
-                          className={`${styles.statusBadge} ${getStatusClass(inv.payment_status)}`}
-                          aria-label={getStatusLabel(inv.payment_status)}
-                        >
-                          {getStatusLabel(inv.payment_status)}
-                        </span>
-                      </td>
+                      <td className={openBalance > 0 ? styles.openBalance : styles.openBalanceZero}>{formatAmount(openBalance)}</td>
+                      <td><span className={`${styles.statusBadge} ${getStatusClass(inv.payment_status)}`} aria-label={getStatusLabel(inv.payment_status)}>{getStatusLabel(inv.payment_status)}</span></td>
                     </tr>
                   );
                 })}
