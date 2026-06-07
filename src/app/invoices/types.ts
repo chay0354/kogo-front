@@ -1,5 +1,12 @@
 export type DocType = 'חשבונית מס/קבלה' | 'חשבונית עסקה' | 'טיוטה';
-export type ActiveTab = 'מסמכים' | 'תשלומים';
+export type ActiveTab = 'מסמכים' | 'תשלומים' | 'גבייה';
+
+export interface AgingBucket {
+  key: 'current' | 'd31_60' | 'd61_90' | 'd90_plus';
+  label: string;
+  total: number;
+  count: number;
+}
 
 export interface PaymentRecord {
   id: number | string;

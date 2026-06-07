@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { FileText, Search, DollarSign, Clock, TrendingUp, Wallet } from 'lucide-react';
+import { FileText, Search, DollarSign, Clock, TrendingUp, Wallet, AlertCircle, Plus, Bell } from 'lucide-react';
 import AppLayout from '@/components/AppLayout';
 import { fetchInvoices } from '@/lib/storeApi';
 import api from '@/lib/api';
@@ -18,6 +18,11 @@ import {
   formatAmount,
   formatDate,
   getCurrentMonthTotal,
+  getOpenInvoices,
+  getOpenBalance,
+  getDaysOverdue,
+  getOverdueLabel,
+  getAgingBuckets,
 } from './utils';
 import styles from './invoices.module.css';
 
@@ -41,6 +46,9 @@ export default function InvoicesPage() {
   const [paymentsLoaded, setPaymentsLoaded] = useState(false);
   const [paymentBranchFilter, setPaymentBranchFilter] = useState('');
   const [paymentCategoryFilter, setPaymentCategoryFilter] = useState('');
+
+  // Collection tab state
+  const [collectionCustomerFilter, setCollectionCustomerFilter] = useState('');
 
   useEffect(() => {
     loadInvoiceData();
@@ -113,6 +121,20 @@ export default function InvoicesPage() {
     return true;
   });
 
+  // Collection tab derived data
+  const openInvoices = getOpenInvoices(invoices);
+  const collectionCustomers = Array.from(
+    new Set(openInvoices.map(inv => inv.child_name ?? inv.customer_name)),
+  ).sort((a, b) => a.localeCompare(b, 'he'));
+  const collectionFiltered = collectionCustomerFilter
+    ? openInvoices.filter(inv => (inv.child_name ?? inv.customer_name) === collectionCustomerFilter)
+    : openInvoices;
+  const agingBuckets = getAgingBuckets(collectionFiltered);
+  const collectionTotalDebt = collectionFiltered.reduce((sum, inv) => sum + getOpenBalance(inv), 0);
+  const sortedCollectionInvoices = [...collectionFiltered].sort(
+    (a, b) => getDaysOverdue(b.issue_date) - getDaysOverdue(a.issue_date),
+  );
+
   return (
     <AppLayout>
       <div className={styles.page}>
@@ -122,14 +144,18 @@ export default function InvoicesPage() {
             <h2 className={styles.pageTitle}>
               {activeTab === 'תשלומים' ? (
                 <Wallet className={styles.titleIcon} />
+              ) : activeTab === 'גבייה' ? (
+                <AlertCircle className={styles.titleIcon} />
               ) : (
                 <FileText className={styles.titleIcon} />
               )}
-              {activeTab === 'תשלומים' ? 'תשלומים' : 'מסמכים'}
+              {activeTab}
             </h2>
             <p className={styles.subtitle}>
               {activeTab === 'תשלומים'
                 ? 'עוקב כל התשלומים שהתקבלו, אישור וניהול אסמכתאות'
+                : activeTab === 'גבייה'
+                ? 'מסמכים עם יתרה פתוחה, מעקב Aging ופעולות גבייה'
                 : 'כל החשבוניות, קבלות וזיכויים במקום אחד'}
             </p>
           </div>
@@ -151,7 +177,12 @@ export default function InvoicesPage() {
             >
               תשלומים
             </button>
-            <button role="tab" aria-selected={false} className={styles.tabBtn} disabled>
+            <button
+              role="tab"
+              aria-selected={activeTab === 'גבייה'}
+              className={`${styles.tabBtn} ${activeTab === 'גבייה' ? styles.tabBtnActive : ''}`}
+              onClick={() => handleTabChange('גבייה')}
+            >
               גבייה
             </button>
           </div>
@@ -384,6 +415,129 @@ export default function InvoicesPage() {
                             >
                               {statusLabel}
                             </span>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </>
+        )}
+
+        {activeTab === 'גבייה' && (
+          <>
+            {/* Aging buckets */}
+            <div className={styles.agingRow}>
+              {agingBuckets.map(bucket => (
+                <div
+                  key={bucket.key}
+                  className={styles.agingCard}
+                  aria-label={`${bucket.label}: ${formatAmount(bucket.total)}, ${bucket.count} מסמכים`}
+                >
+                  <span className={styles.agingLabel}>{bucket.label}</span>
+                  <span className={bucket.total > 0 ? styles.agingAmount : styles.agingAmountZero}>
+                    {formatAmount(bucket.total)}
+                  </span>
+                  <span className={styles.agingCount}>{bucket.count} מסמכים</span>
+                </div>
+              ))}
+            </div>
+
+            {/* Customer filter */}
+            <div className={styles.collectionFilterBar}>
+              <select
+                className={styles.filterSelect}
+                value={collectionCustomerFilter}
+                onChange={e => setCollectionCustomerFilter(e.target.value)}
+                aria-label="סינון לפי לקוח"
+              >
+                <option value="">כל הלקוחות</option>
+                {collectionCustomers.map(name => (
+                  <option key={name} value={name}>{name}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Totals strip */}
+            <div className={styles.collectionTotals}>
+              <span className={styles.countPill}>{collectionFiltered.length} מסמכים</span>
+              <span className={styles.totalsHeading}>סה&quot;כ חובות: {formatAmount(collectionTotalDebt)}</span>
+            </div>
+
+            {/* Collection table */}
+            <div className={styles.tableCard}>
+              {isLoading ? (
+                <div className={styles.loadingWrapper}>טוען...</div>
+              ) : sortedCollectionInvoices.length === 0 ? (
+                <div className={styles.emptyState}>לא נמצאו חובות פתוחים</div>
+              ) : (
+                <table className={`${styles.invoiceTable} ${styles.collectionTable}`}>
+                  <thead>
+                    <tr>
+                      <th scope="col">לקוח</th>
+                      <th scope="col">מס&apos; מסמך</th>
+                      <th scope="col">תאריך הנפקה</th>
+                      <th scope="col">תאריך פירעון</th>
+                      <th scope="col">סכום מסמך</th>
+                      <th scope="col">שולם</th>
+                      <th scope="col">יתרה פתוחה</th>
+                      <th scope="col">ימי איחור</th>
+                      <th scope="col">סטטוס</th>
+                      <th scope="col">פעולות</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {sortedCollectionInvoices.map(inv => {
+                      const customerDisplay = inv.child_name ?? inv.customer_name;
+                      const openBalance = getOpenBalance(inv);
+                      const daysOverdue = getDaysOverdue(inv.issue_date);
+                      const overdueLabel = getOverdueLabel(daysOverdue);
+                      const statusLabel = getStatusLabel(inv.payment_status);
+
+                      return (
+                        <tr key={inv.id}>
+                          <td className={styles.customerName}>{customerDisplay}</td>
+                          <td className={styles.invoiceNumber}>{inv.invoice_number}</td>
+                          <td>{formatDate(inv.issue_date)}</td>
+                          <td>{formatDate(inv.issue_date)}</td>
+                          <td className={styles.amount}>{formatAmount(inv.total_amount)}</td>
+                          <td>{formatAmount(inv.amount_paid)}</td>
+                          <td className={openBalance > 0 ? styles.openBalance : styles.openBalanceZero}>
+                            {formatAmount(openBalance)}
+                          </td>
+                          <td className={daysOverdue > 0 ? styles.overdueLabel : styles.overdueLabelMuted}>
+                            {overdueLabel}
+                          </td>
+                          <td>
+                            <span
+                              className={`${styles.statusBadge} ${getStatusClass(inv.payment_status)}`}
+                              aria-label={statusLabel}
+                            >
+                              {statusLabel}
+                            </span>
+                          </td>
+                          <td>
+                            <div className={styles.collectionActions}>
+                              <button
+                                type="button"
+                                className={styles.recordPaymentBtn}
+                                aria-label={`רשום תשלום עבור ${inv.invoice_number}`}
+                                onClick={() => {}}
+                              >
+                                <Plus size={14} />
+                                תשלום
+                              </button>
+                              <button
+                                type="button"
+                                className={styles.reminderBtn}
+                                aria-label={`שלח תזכורת תשלום ל${customerDisplay}`}
+                                onClick={() => {}}
+                              >
+                                <Bell size={16} />
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       );
