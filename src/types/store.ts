@@ -60,8 +60,9 @@ export interface StoreInvoice {
   customer_name: string;
   customer_phone: string;
   total_amount: number;
+  amount_paid: number;
   payment_method: 'credit_card' | 'cash' | 'monthly_billing';
-  payment_status: 'pending' | 'completed' | 'failed';
+  payment_status: 'pending' | 'completed' | 'partially_paid' | 'failed' | 'refunded';
   tranzila_transaction_id: string;
   tranzila_confirmation_code: string;
   charged_with_token: boolean;
