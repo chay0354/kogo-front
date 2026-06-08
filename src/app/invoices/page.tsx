@@ -1,12 +1,15 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { FileText, Search, DollarSign, Clock, TrendingUp, Wallet, AlertCircle, Plus, Bell } from 'lucide-react';
 import AppLayout from '@/components/AppLayout';
+import NewDocumentDialog from '@/components/dialogs/NewDocumentDialog';
 import { fetchInvoices } from '@/lib/storeApi';
 import api from '@/lib/api';
 import type { StoreInvoice } from '@/types/store';
 import type { Branch } from '@/types/branch';
+import type { ChildWithDetails } from '@/types/customer';
 import type { ActiveTab, PaymentRecord } from './types';
 import { PAYMENT_SUBCATEGORIES } from './constants';
 import {
@@ -28,6 +31,7 @@ import styles from './invoices.module.css';
 
 export default function InvoicesPage() {
   const [activeTab, setActiveTab] = useState<ActiveTab>('מסמכים');
+  const [isNewDocOpen, setIsNewDocOpen] = useState(false);
 
   // Documents tab state
   const [invoices, setInvoices] = useState<StoreInvoice[]>([]);
@@ -49,6 +53,12 @@ export default function InvoicesPage() {
 
   // Collection tab state
   const [collectionCustomerFilter, setCollectionCustomerFilter] = useState('');
+
+  const { data: childrenData } = useQuery({
+    queryKey: ['children'],
+    queryFn: () => api.get('/customers/children/').then(r => r.data?.results ?? r.data),
+    staleTime: 5 * 60 * 1000,
+  });
 
   useEffect(() => {
     loadInvoiceData();
@@ -123,8 +133,9 @@ export default function InvoicesPage() {
 
   // Collection tab derived data
   const openInvoices = getOpenInvoices(invoices);
+  const children: ChildWithDetails[] = Array.isArray(childrenData) ? childrenData : [];
   const collectionCustomers = Array.from(
-    new Set(openInvoices.map(inv => inv.child_name ?? inv.customer_name)),
+    new Set(children.map(child => child.full_name)),
   ).sort((a, b) => a.localeCompare(b, 'he'));
   const collectionFiltered = collectionCustomerFilter
     ? openInvoices.filter(inv => (inv.child_name ?? inv.customer_name) === collectionCustomerFilter)
@@ -160,31 +171,40 @@ export default function InvoicesPage() {
             </p>
           </div>
 
-          <div className={styles.subTabs} role="tablist">
-            <button
-              role="tab"
-              aria-selected={activeTab === 'מסמכים'}
-              className={`${styles.tabBtn} ${activeTab === 'מסמכים' ? styles.tabBtnActive : ''}`}
-              onClick={() => handleTabChange('מסמכים')}
-            >
-              מסמכים
-            </button>
-            <button
-              role="tab"
-              aria-selected={activeTab === 'תשלומים'}
-              className={`${styles.tabBtn} ${activeTab === 'תשלומים' ? styles.tabBtnActive : ''}`}
-              onClick={() => handleTabChange('תשלומים')}
-            >
-              תשלומים
-            </button>
-            <button
-              role="tab"
-              aria-selected={activeTab === 'גבייה'}
-              className={`${styles.tabBtn} ${activeTab === 'גבייה' ? styles.tabBtnActive : ''}`}
-              onClick={() => handleTabChange('גבייה')}
-            >
-              גבייה
-            </button>
+          <div className={styles.headerActions}>
+            <div className={styles.subTabs} role="tablist">
+              <button
+                role="tab"
+                aria-selected={activeTab === 'מסמכים'}
+                className={`${styles.tabBtn} ${activeTab === 'מסמכים' ? styles.tabBtnActive : ''}`}
+                onClick={() => handleTabChange('מסמכים')}
+              >
+                מסמכים
+              </button>
+              <button
+                role="tab"
+                aria-selected={activeTab === 'תשלומים'}
+                className={`${styles.tabBtn} ${activeTab === 'תשלומים' ? styles.tabBtnActive : ''}`}
+                onClick={() => handleTabChange('תשלומים')}
+              >
+                תשלומים
+              </button>
+              <button
+                role="tab"
+                aria-selected={activeTab === 'גבייה'}
+                className={`${styles.tabBtn} ${activeTab === 'גבייה' ? styles.tabBtnActive : ''}`}
+                onClick={() => handleTabChange('גבייה')}
+              >
+                גבייה
+              </button>
+            </div>
+
+            {activeTab === 'מסמכים' && (
+              <button type="button" className={styles.newDocBtn} onClick={() => setIsNewDocOpen(true)}>
+                <Plus size={16} />
+                מסמך חדש
+              </button>
+            )}
           </div>
         </div>
 
@@ -549,6 +569,8 @@ export default function InvoicesPage() {
           </>
         )}
       </div>
+
+      <NewDocumentDialog open={isNewDocOpen} onClose={() => setIsNewDocOpen(false)} />
     </AppLayout>
   );
 }
