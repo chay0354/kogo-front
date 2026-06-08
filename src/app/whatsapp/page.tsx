@@ -262,7 +262,7 @@ export default function WhatsAppPage() {
                   className="pr-9"
                 />
               </div>
-              <Button type="button" variant="outline" size="icon" onClick={() => loadContacts()}>
+              <Button type="button" variant="outline" size="sm" className="h-9 w-9 px-0" onClick={() => loadContacts()} aria-label="רענן">
                 <RefreshCw className={`h-4 w-4 ${loadingContacts ? 'animate-spin' : ''}`} />
               </Button>
             </div>
