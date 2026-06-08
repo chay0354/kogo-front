@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import api from '@/lib/api';
+import api, { fetchInstructorsDropdown } from '@/lib/api';
 import { CourseFormData, Course, CourseWithLessons, LessonPriceTier } from '@/types/course';
 import {
   FIRST_PRICE_TIER_INDEX,
@@ -16,6 +16,7 @@ import { formatAge } from '@/lib/courseUtils';
 interface InstructorOption {
   id: string;
   full_name: string;
+  fixed_salary_per_lesson?: string | number;
 }
 
 interface EditCourseDialogProps {
@@ -59,6 +60,7 @@ export default function EditCourseDialog({
   const [instructorId, setInstructorId] = useState('');
   const [instructorSalaryOverride, setInstructorSalaryOverride] = useState<number | undefined>();
   const [instructors, setInstructors] = useState<InstructorOption[]>([]);
+  const [loadingInstructors, setLoadingInstructors] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -85,13 +87,11 @@ export default function EditCourseDialog({
     );
     setError('');
 
-    api.get('/instructors/').then((res) => {
-      const data = res.data;
-      const list = Array.isArray(data)
-        ? data
-        : data?.instructors || data?.results || [];
-      setInstructors(list);
-    }).catch(() => setInstructors([]));
+    setLoadingInstructors(true);
+    fetchInstructorsDropdown()
+      .then((list) => setInstructors(Array.isArray(list) ? list : []))
+      .catch(() => setInstructors([]))
+      .finally(() => setLoadingInstructors(false));
   }, [open, course]);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -259,10 +259,13 @@ export default function EditCourseDialog({
                   id="instructor"
                   value={instructorId}
                   onChange={(e) => setInstructorId(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 disabled:bg-gray-100"
                   required
+                  disabled={loadingInstructors}
                 >
-                  <option value="">בחר מדריך</option>
+                  <option value="">
+                    {loadingInstructors ? 'טוען מדריכים...' : 'בחר מדריך'}
+                  </option>
                   {instructors.map((instructor) => (
                     <option key={instructor.id} value={instructor.id}>
                       {instructor.full_name}
@@ -272,7 +275,7 @@ export default function EditCourseDialog({
               </div>
               <div>
                 <label htmlFor="instructor_salary_override" className="block text-sm font-medium text-gray-700 mb-1">
-                  שכר חריג (₪)
+                  שכר מדריך לקבוצה (₪ לחודש)
                 </label>
                 <input
                   type="number"
@@ -282,10 +285,13 @@ export default function EditCourseDialog({
                     setInstructorSalaryOverride(e.target.value ? Number(e.target.value) : undefined)
                   }
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500"
-                  placeholder="השאר ריק לשכר רגיל"
+                  placeholder="סכום חודשי למדריך עבור הקבוצה"
                   min="0"
                   step="0.01"
                 />
+                <p className="text-xs text-gray-500 mt-1">
+                  תשלום חודשי קבוע למדריך עבור הקבוצה. ריק = ללא שכר בקבוצה (0 בהוצאות).
+                </p>
               </div>
             </div>
 

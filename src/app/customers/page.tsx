@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { Users, MoreHorizontal, Eye, Edit, UserPlus, Trash2, UserCheck } from 'lucide-react';
 import AppLayout from '@/components/AppLayout';
 import PageHeader from '@/components/PageHeader';
-import api from '@/lib/api';
+import api, { fetchInstructorsDropdown } from '@/lib/api';
 import { ChildWithDetails, CustomerFilters, Branch, Course, Instructor } from '@/types/customer';
 import { 
   getChildStatus, 
@@ -60,16 +60,16 @@ export default function CustomersPage() {
   useEffect(() => {
     const loadFilterOptions = async () => {
       try {
-        const [branchesRes, coursesRes, instructorsRes] = await Promise.all([
+        const [branchesRes, coursesRes, instructorsList] = await Promise.all([
           api.get('/core/branches/'),
           api.get('/courses/courses/'),
-          api.get('/instructors/'),
+          fetchInstructorsDropdown(),
         ]);
         
         // Extract results from paginated response
         setBranches(branchesRes.data.results || branchesRes.data || []);
         setCourses(coursesRes.data.results || coursesRes.data || []);
-        setInstructors(instructorsRes.data.instructors || instructorsRes.data.results || instructorsRes.data || []);
+        setInstructors(Array.isArray(instructorsList) ? instructorsList : []);
       } catch (error) {
         console.error('Error loading filter options:', error);
       }

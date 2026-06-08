@@ -11,7 +11,7 @@ import { fetchLessons, getWeekDates, formatDateISO, groupLessonsByDate, formatTi
 import { fetchEvents } from '@/lib/eventUtils';
 import { useAuth } from '@/components/AuthProvider';
 import { RefreshCw, Plus, ChevronRight, ChevronLeft, Calendar as CalendarIcon, LogOut } from 'lucide-react';
-import api from '@/lib/api';
+import api, { fetchInstructorsDropdown } from '@/lib/api';
 
 type Branch = {
   id: string;
@@ -105,15 +105,7 @@ export default function SchedulePage() {
       setCities(cityList);
 
       // Load instructors
-      const instructorRes = await api.get('/instructors/');
-      const instructorData = instructorRes.data;
-      const instructorList: Instructor[] = Array.isArray(instructorData)
-        ? instructorData
-        : Array.isArray(instructorData?.instructors)
-          ? instructorData.instructors
-          : Array.isArray(instructorData?.results)
-            ? instructorData.results
-            : [];
+      const instructorList = await fetchInstructorsDropdown();
       setInstructors(instructorList);
     } catch (err) {
       console.error('Error loading filters:', err);

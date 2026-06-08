@@ -11,7 +11,24 @@ import {
 export const LESSONS_PER_MONTH = 4;
 
 /**
+ * Monthly instructor pay configured on the team (עריכת קבוצה). When unset, team salary expense is 0.
+ */
+export function getTeamInstructorMonthlySalary(course: CourseWithLessons): number {
+  if (
+    course.instructor_salary_override !== null &&
+    course.instructor_salary_override !== undefined
+  ) {
+    return Number(course.instructor_salary_override) || 0;
+  }
+  return 0;
+}
+
+/** @deprecated Use getTeamInstructorMonthlySalary */
+export const getTeamInstructorSalaryPerLesson = getTeamInstructorMonthlySalary;
+
+/**
  * Calculate instructor salary for a lesson based on their salary model
+ * @deprecated For team profitability use getTeamInstructorMonthlySalary — team expense comes from settings only.
  */
 export function calculateInstructorSalary(
   lesson: Lesson,
@@ -62,7 +79,6 @@ export function calculateLessonFinancials(
   // Revenue: (course monthly price / lessons per month) * enrolled students
   const revenue = (price / LESSONS_PER_MONTH) * enrolledCount;
   
-  // Salary: based on instructor's salary model
   const salary = calculateInstructorSalary(lesson, lesson.instructor, enrolledCount);
   
   // Profit: revenue - salary
@@ -80,16 +96,15 @@ export function calculateLessonFinancials(
  */
 export function calculateCourseFinancials(course: CourseWithLessons): CourseFinancials {
   let monthlyRevenue = 0;
-  let monthlySalary = 0;
   
   const coursePrice = Number(course.price) || 0;
-
   course.lessons.forEach((lesson) => {
     const lessonFinancials = calculateLessonFinancials(lesson, coursePrice);
-    // Multiply by LESSONS_PER_MONTH to get monthly totals
     monthlyRevenue += lessonFinancials.revenue * LESSONS_PER_MONTH;
-    monthlySalary += lessonFinancials.salary * LESSONS_PER_MONTH;
   });
+
+  // Team expense = monthly instructor pay from team settings (not per lesson)
+  const monthlySalary = getTeamInstructorMonthlySalary(course);
 
   const monthlyProfit = monthlyRevenue - monthlySalary;
 

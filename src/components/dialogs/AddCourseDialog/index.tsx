@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import api from '@/lib/api';
+import api, { fetchInstructorsDropdown } from '@/lib/api';
 import { CourseFormData, LessonFormData } from '@/types/course';
 import { formatAge } from '@/lib/courseUtils';
 import styles from './index.module.css';
@@ -66,19 +66,14 @@ export default function AddCourseDialog({
   const fetchReferenceData = async () => {
     setLoadingData(true);
     try {
-      const [branchesRes, roomsRes, instructorsRes] = await Promise.all([
+      const [branchesRes, roomsRes, instructorsList] = await Promise.all([
         api.get('/core/branches/?simple=true'),
         api.get('/core/rooms/'),
-        api.get('/instructors/'),
+        fetchInstructorsDropdown(),
       ]);
       setBranches(Array.isArray(branchesRes.data) ? branchesRes.data : branchesRes.data?.results || []);
       setRooms(Array.isArray(roomsRes.data) ? roomsRes.data : roomsRes.data?.results || []);
-      const instructorsRaw = instructorsRes.data;
-      setInstructors(
-        Array.isArray(instructorsRaw)
-          ? instructorsRaw
-          : instructorsRaw?.instructors || instructorsRaw?.results || []
-      );
+      setInstructors(Array.isArray(instructorsList) ? instructorsList : []);
     } catch {
       setError('שגיאה בטעינת נתונים');
     } finally {
@@ -282,7 +277,7 @@ export default function AddCourseDialog({
               </div>
               <div>
                 <label htmlFor="course_salary_override" className={styles.label}>
-                  שכר חריג (₪)
+                  שכר מדריך לקבוצה (₪ לחודש)
                 </label>
                 <input
                   type="number"
@@ -295,7 +290,7 @@ export default function AddCourseDialog({
                     })
                   }
                   className={styles.input}
-                  placeholder="השאר ריק לשכר רגיל"
+                  placeholder="סכום חודשי למדריך עבור הקבוצה"
                   min="0"
                   step="0.01"
                 />

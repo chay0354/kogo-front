@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { 
-  ArrowRight, Phone, Mail, MapPin, Edit, Gift, Award, Building2, BookOpen
+  ArrowRight, Phone, Mail, MapPin, Edit, Gift, Award, Building2, BookOpen, Calendar, List
 } from 'lucide-react';
 import AppLayout from '@/components/AppLayout';
 import api from '@/lib/api';
@@ -19,8 +19,10 @@ import {
 } from '@/lib/instructorUtils';
 import EditInstructorDialog from '@/components/dialogs/EditInstructorDialog';
 import AddInstructorBonusDialog from '@/components/dialogs/AddInstructorBonusDialog';
+import InstructorWeeklySchedule from '@/components/instructors/InstructorWeeklySchedule';
 
 type LessonFilter = 'all' | 'profitable' | 'loss';
+type LessonsView = 'table' | 'schedule';
 
 export default function InstructorDetailPage() {
   const router = useRouter();
@@ -31,6 +33,7 @@ export default function InstructorDetailPage() {
   const [loading, setLoading] = useState(true);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [lessonFilter, setLessonFilter] = useState<LessonFilter>('all');
+  const [lessonsView, setLessonsView] = useState<LessonsView>('table');
   const [addBonusDialogOpen, setAddBonusDialogOpen] = useState(false);
   
   const fetchInstructor = async () => {
@@ -326,18 +329,45 @@ export default function InstructorDetailPage() {
       
       {/* Lessons & Profitability Section */}
       <div className="card mb-4">
-        <div className="flex items-center justify-between mb-4">
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
           <h3 className="text-lg font-semibold">שיעורים ורווחיות ({instructor.lessons.length})</h3>
-          
-          <select
-            value={lessonFilter}
-            onChange={(e) => setLessonFilter(e.target.value as LessonFilter)}
-            className="input w-48"
-          >
-            <option value="all">הכל ({instructor.lessons.length})</option>
-            <option value="profitable">רווחי ({profitableLessonsCount})</option>
-            <option value="loss">הפסדי ({lossLessonsCount})</option>
-          </select>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="inline-flex rounded-lg border overflow-hidden">
+              <button
+                type="button"
+                onClick={() => setLessonsView('table')}
+                className={`px-3 py-2 text-sm inline-flex items-center gap-1.5 ${
+                  lessonsView === 'table' ? 'bg-primary text-primary-foreground' : 'bg-white hover:bg-gray-50'
+                }`}
+              >
+                <List className="w-4 h-4" />
+                טבלה
+              </button>
+              <button
+                type="button"
+                onClick={() => setLessonsView('schedule')}
+                className={`px-3 py-2 text-sm inline-flex items-center gap-1.5 border-r ${
+                  lessonsView === 'schedule' ? 'bg-primary text-primary-foreground' : 'bg-white hover:bg-gray-50'
+                }`}
+              >
+                <Calendar className="w-4 h-4" />
+                לוח שבועי
+              </button>
+            </div>
+
+            {lessonsView === 'table' && (
+              <select
+                value={lessonFilter}
+                onChange={(e) => setLessonFilter(e.target.value as LessonFilter)}
+                className="input w-48"
+              >
+                <option value="all">הכל ({instructor.lessons.length})</option>
+                <option value="profitable">רווחי ({profitableLessonsCount})</option>
+                <option value="loss">הפסדי ({lossLessonsCount})</option>
+              </select>
+            )}
+          </div>
         </div>
 
         {/* Weekly Summary */}
@@ -362,7 +392,9 @@ export default function InstructorDetailPage() {
           </div>
         </div>
         
-        {filteredLessons.length === 0 ? (
+        {lessonsView === 'schedule' ? (
+          <InstructorWeeklySchedule instructorId={instructor.id} />
+        ) : filteredLessons.length === 0 ? (
           <p className="text-muted-foreground text-center py-8">לא נמצאו שיעורים</p>
         ) : (
           <div className="overflow-x-auto">

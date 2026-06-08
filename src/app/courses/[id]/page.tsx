@@ -318,6 +318,11 @@ export default function CourseTypeDetailsPage() {
                       {course.instructor?.full_name && (
                         <span className={styles.courseMeta}>מדריך: {course.instructor.full_name}</span>
                       )}
+                      {course.instructor_salary_override != null && (
+                        <span className={styles.courseMeta}>
+                          שכר מדריך: {formatCurrency(Number(course.instructor_salary_override))}/חודש
+                        </span>
+                      )}
                       <span className={styles.courseMeta}>
                         <span className={styles.courseMetaNumber}>{totalStudents}</span> תלמידים
                       </span>

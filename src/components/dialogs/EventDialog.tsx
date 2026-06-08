@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { ScheduleEvent, DAY_NAMES, type WeekDay } from '@/types/schedule';
 import { createEvent, updateEvent } from '@/lib/eventUtils';
 import { initialWeeklyRepeatDays, lessonDayOfWeekFromISODate } from '@/lib/scheduleUtils';
-import api from '@/lib/api';
+import api, { fetchInstructorsDropdown } from '@/lib/api';
 
 type Branch = {
   id: string;
@@ -146,15 +146,7 @@ export default function EventDialog({ event, onClose, onSuccess, initialDate }: 
 
   const loadInstructors = async () => {
     try {
-      const response = await api.get('/instructors/');
-      const data = response.data;
-      const instructorList: Instructor[] = Array.isArray(data)
-        ? data
-        : Array.isArray(data?.instructors)
-          ? data.instructors
-          : Array.isArray(data?.results)
-            ? data.results
-            : [];
+      const instructorList = await fetchInstructorsDropdown();
       setInstructors(instructorList);
     } catch (err) {
       console.error('Error loading instructors:', err);

@@ -85,7 +85,7 @@ export interface Lesson {
   branch?: { id: string; name: string } | null;
   room?: Room | null;
   instructor: Instructor | null;
-  enrolled_count: number; // Active students only (for income calculation)
+  enrolled_count: number; // Paying active students (trial signups excluded)
   total_students_count?: number; // All students regardless of status (for display)
   price?: number | null;
   lesson_price_override?: number | null;

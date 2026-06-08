@@ -295,10 +295,20 @@ export const fetchCourseTypesList = async () => {
 };
 
 /**
+ * Fetch active instructors for dropdowns (fast — no salary metrics).
+ */
+export const fetchInstructorsDropdown = async () => {
+  const response = await api.get('/instructors/', { params: { dropdown: 'true' } });
+  const data = response.data;
+  if (Array.isArray(data)) return data;
+  return data?.instructors || data?.results || [];
+};
+
+/**
  * Fetch all active instructors for dropdowns
+ * @deprecated Prefer fetchInstructorsDropdown for pickers.
  */
 export const fetchInstructorsList = async () => {
-  const response = await api.get('/instructors/');
-  return response.data;
+  return fetchInstructorsDropdown();
 };
 

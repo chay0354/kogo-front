@@ -94,20 +94,31 @@ describe('courseUtils - salary + financials', () => {
     expect(out.profit).toBe(100);
   });
 
-  test('calculateCourseFinancials: multiplies per-lesson values by 4 for monthly totals', () => {
+  test('calculateCourseFinancials: uses team salary setting only, not instructor profile', () => {
     const course = makeCourse({
       price: 400,
+      instructor_salary_override: 200,
       lessons: [
-        makeLesson({ id: 'l1', enrolled_count: 3 }), // profit per lesson 100
-        makeLesson({ id: 'l2', enrolled_count: 1 }), // profit per lesson -100
+        makeLesson({ id: 'l1', enrolled_count: 3 }),
+        makeLesson({ id: 'l2', enrolled_count: 1 }),
       ],
     });
     const fin = calculateCourseFinancials(course as any);
-    // revenue per lesson: 300 + 100 = 400; monthly = 400 * 4 = 1600
+    // revenue: (400/4)*3*4 + (400/4)*1*4 = 1200 + 400 = 1600
     expect(fin.monthlyRevenue).toBe(1600);
-    // salary per lesson: 200 + 200 = 400; monthly = 400 * 4 = 1600
-    expect(fin.monthlySalary).toBe(1600);
-    expect(fin.monthlyProfit).toBe(0);
+    // salary: monthly team pay from settings
+    expect(fin.monthlySalary).toBe(200);
+    expect(fin.monthlyProfit).toBe(1400);
+  });
+
+  test('calculateCourseFinancials: no team salary setting means zero expense', () => {
+    const course = makeCourse({
+      price: 400,
+      lessons: [makeLesson({ enrolled_count: 3 })],
+    });
+    const fin = calculateCourseFinancials(course as any);
+    expect(fin.monthlySalary).toBe(0);
+    expect(fin.monthlyProfit).toBe(fin.monthlyRevenue);
   });
 
   test('LESSONS_PER_MONTH is 4', () => {
@@ -117,12 +128,13 @@ describe('courseUtils - salary + financials', () => {
 
 describe('courseUtils - filtering, profitability, and enrollment changes', () => {
   test('filterCourses: profitability reacts to enrolled_count changes', () => {
-    // Course profitable when enrolled_count >= 3 (price=400, salary=200):
-    // monthlyProfit = price*enrolled - salary*4
-    // enrolled=2 => 800 - 800 = 0 (not >0)
-    // enrolled=3 => 1200 - 800 = 400 (>0)
+    // Course profitable when enrolled_count >= 3 (price=400, monthly salary=1000):
+    // monthlyProfit = price*enrolled - monthlySalary
+    // enrolled=2 => 800 - 1000 = -200 (not >0)
+    // enrolled=3 => 1200 - 1000 = 200 (>0)
     const baseCourse = makeCourse({
       price: 400,
+      instructor_salary_override: 1000,
       lessons: [makeLesson({ enrolled_count: 2 })],
     });
 
