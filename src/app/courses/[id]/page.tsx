@@ -11,7 +11,6 @@ import {
   AgeFilter,
 } from '@/types/course';
 import {
-  calculateLessonFinancials,
   calculateCourseFinancials,
   calculateCourseTypeFinancials,
   filterCourses,
@@ -38,7 +37,6 @@ export default function CourseTypeDetailsPage() {
   const [showAddCourseDialog, setShowAddCourseDialog] = useState(false);
   const [showAddLessonDialog, setShowAddLessonDialog] = useState(false);
   const [selectedCourseId, setSelectedCourseId] = useState<string>('');
-  const [selectedCoursePrice, setSelectedCoursePrice] = useState<number | null>(null);
 
   // Edit/Delete states
   const [showEditCourseDialog, setShowEditCourseDialog] = useState(false);
@@ -79,12 +77,8 @@ export default function CourseTypeDetailsPage() {
     setExpandedCourses(newExpanded);
   };
 
-  const handleAddLesson = (courseId: string, coursePrice?: number | string | null) => {
+  const handleAddLesson = (courseId: string) => {
     setSelectedCourseId(courseId);
-    const parsed = coursePrice === null || coursePrice === undefined || coursePrice === ''
-      ? null
-      : Number(coursePrice);
-    setSelectedCoursePrice(Number.isFinite(parsed as number) ? (parsed as number) : null);
     setShowAddLessonDialog(true);
   };
 
@@ -123,18 +117,10 @@ export default function CourseTypeDetailsPage() {
     }
   };
 
-  const handleEditLesson = (
-    lesson: Lesson,
-    courseId: string,
-    coursePrice?: number | string | null
-  ) => {
+  const handleEditLesson = (lesson: Lesson, courseId: string) => {
     // Attach course ID to lesson since nested lessons don't include it
     const lessonWithCourse = { ...lesson, course: courseId };
     setSelectedLesson(lessonWithCourse);
-    const parsed = coursePrice === null || coursePrice === undefined || coursePrice === ''
-      ? null
-      : Number(coursePrice);
-    setSelectedCoursePrice(Number.isFinite(parsed as number) ? (parsed as number) : null);
     setShowEditLessonDialog(true);
   };
 
@@ -329,6 +315,9 @@ export default function CourseTypeDetailsPage() {
                       )}
                       <span className={styles.courseMeta}>{formatAgeRange(course.min_age, course.max_age)}</span>
                       <span className={styles.courseMeta}>{formatCurrency(course.price)}/חודש</span>
+                      {course.instructor?.full_name && (
+                        <span className={styles.courseMeta}>מדריך: {course.instructor.full_name}</span>
+                      )}
                       <span className={styles.courseMeta}>
                         <span className={styles.courseMetaNumber}>{totalStudents}</span> תלמידים
                       </span>
@@ -343,7 +332,7 @@ export default function CourseTypeDetailsPage() {
                         <button
                           onClick={() => handleEditCourse(course)}
                           className={`${styles.actionButton} ${styles.editButton}`}
-                          title="עריכת חוג"
+                          title="עריכת קבוצה"
                         >
                           <svg className={styles.editIcon} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
@@ -371,33 +360,21 @@ export default function CourseTypeDetailsPage() {
                             <thead>
                               <tr className={styles.tableHeadRow}>
                                 <th className={styles.th}>יום ושעה</th>
-                                <th className={styles.th}>מדריך</th>
                                 <th className={styles.th}>נרשמים</th>
-                                <th className={styles.th}>הכנסה/מפגש</th>
-                                <th className={styles.th}>שכר/מפגש</th>
-                                <th className={styles.th}>רווח/מפגש</th>
                                 <th className={`${styles.th} ${styles.thCenter}`}>פעולות</th>
                               </tr>
                             </thead>
                             <tbody>
-                              {course.lessons.map((lesson: any) => {
-                                const lessonFinancials = calculateLessonFinancials(lesson, course.price);
-                                return (
+                              {course.lessons.map((lesson: any) => (
                                   <tr key={lesson.id} className={styles.tableRow}>
                                     <td className={`${styles.td} ${styles.tdBold}`}>
                                       {getDayName(lesson.day_of_week)} {formatTimeRange(lesson.start_time, lesson.end_time)}
                                     </td>
-                                    <td className={styles.td}>{lesson.instructor?.full_name || '—'}</td>
                                     <td className={styles.td}>{lesson.total_students_count || lesson.enrolled_count}</td>
-                                    <td className={`${styles.td} ${styles.tdRevenue}`}>{lessonFinancials.revenue.toFixed(0)}₪</td>
-                                    <td className={`${styles.td} ${styles.tdSalary}`}>{lessonFinancials.salary.toFixed(0)}₪</td>
-                                    <td className={`${styles.td} ${styles.tdBold} ${lessonFinancials.profit >= 0 ? styles.profit : styles.loss}`}>
-                                      {lessonFinancials.profit >= 0 ? '' : '-'}{Math.abs(lessonFinancials.profit).toFixed(0)}₪
-                                    </td>
                                     <td className={`${styles.td} ${styles.tdCenter}`}>
                                       <div className={styles.lessonActionButtons}>
                                         <button
-                                          onClick={() => handleEditLesson(lesson, course.id, course.price)}
+                                          onClick={() => handleEditLesson(lesson, course.id)}
                                           className={`${styles.lessonActionButton} ${styles.editButton}`}
                                           title="עריכת שיעור"
                                         >
@@ -417,8 +394,7 @@ export default function CourseTypeDetailsPage() {
                                       </div>
                                     </td>
                                   </tr>
-                                );
-                              })}
+                              ))}
                             </tbody>
                           </table>
                         )}
@@ -428,7 +404,7 @@ export default function CourseTypeDetailsPage() {
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
-                              handleAddLesson(course.id, course.price);
+                              handleAddLesson(course.id);
                             }}
                             className={`btn-secondary ${styles.addLessonButton}`}
                           >
@@ -454,9 +430,16 @@ export default function CourseTypeDetailsPage() {
 
       {/* Dialogs */}
       {showAddCourseDialog && <AddCourseDialog courseTypeId={courseTypeId} open onClose={() => setShowAddCourseDialog(false)} onSuccess={handleCourseAdded} />}
-      {showAddLessonDialog && <AddLessonDialog courseId={selectedCourseId} coursePrice={selectedCoursePrice} open onClose={() => setShowAddLessonDialog(false)} onSuccess={handleLessonAdded} />}
+      {showAddLessonDialog && <AddLessonDialog courseId={selectedCourseId} open onClose={() => setShowAddLessonDialog(false)} onSuccess={handleLessonAdded} />}
       {showEditCourseDialog && selectedCourse && <EditCourseDialog course={selectedCourse} open onClose={() => { setShowEditCourseDialog(false); setSelectedCourse(null); }} onSuccess={handleCourseUpdated} />}
-      {showEditLessonDialog && selectedLesson && <EditLessonDialog lesson={selectedLesson} coursePrice={selectedCoursePrice} open onClose={() => { setShowEditLessonDialog(false); setSelectedLesson(null); }} onSuccess={handleLessonUpdated} />}
+      {showEditLessonDialog && selectedLesson && (
+        <EditLessonDialog
+          lesson={selectedLesson}
+          open
+          onClose={() => { setShowEditLessonDialog(false); setSelectedLesson(null); }}
+          onSuccess={handleLessonUpdated}
+        />
+      )}
     </AppLayout>
   );
 }

@@ -154,7 +154,7 @@ export default function SchedulePage() {
       ]);
 
       setLessons(lessonsData);
-      setEvents(eventsData);
+      setEvents(isWorker ? eventsData.filter((e) => !e.is_studio_rental) : eventsData);
     } catch (err) {
       setError('שגיאה בטעינת השיעורים והאירועים');
       console.error(err);
@@ -189,6 +189,7 @@ export default function SchedulePage() {
   };
 
   const handleViewEventDetails = (event: ScheduleEvent) => {
+    if (isWorker && event.is_studio_rental) return;
     setSelectedEvent(event);
   };
 

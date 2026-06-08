@@ -3,13 +3,12 @@
 import { useState, useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import api from '@/lib/api';
-import { CourseFormData, LessonFormData, LessonPriceTier } from '@/types/course';
+import { CourseFormData, LessonFormData } from '@/types/course';
 import { formatAge } from '@/lib/courseUtils';
 import styles from './index.module.css';
 import { Branch, Room, Instructor, AddCourseDialogProps } from './types';
-import { FIRST_PRICE_TIER_INDEX, AGE_OPTIONS, DAYS_OF_WEEK } from './constants';
-import { toPositiveNumber, calcEndTime, addExtraTier, removeExtraTier, updateExtraTierPrice } from './utils';
-import ManagerMultiSelect from '../ManagerMultiSelect';
+import { AGE_OPTIONS, DAYS_OF_WEEK } from './constants';
+import { calcEndTime } from './utils';
 
 export default function AddCourseDialog({
   courseTypeId,
@@ -26,23 +25,21 @@ export default function AddCourseDialog({
     branch: '',
     min_age: 6,
     max_age: 18,
+    instructor: '',
+    instructor_salary_override: undefined,
   });
 
   const [lessonData, setLessonData] = useState<LessonFormData>({
     course: '',
     room: '',
-    instructor: '',
     day_of_week: 0,
     start_time: '16:00',
     end_time: '16:45',
     price: undefined,
     lesson_price_override: undefined,
-    instructor_salary_override: undefined,
     max_students: undefined,
     notes: '',
   });
-  const [extraTiers, setExtraTiers] = useState<LessonPriceTier[]>([]);
-  const [managerIds, setManagerIds] = useState<string[]>([]);
 
   const queryClient = useQueryClient();
   const [branches, setBranches] = useState<Branch[]>([]);
@@ -89,10 +86,6 @@ export default function AddCourseDialog({
     }
   };
 
-  const handleAddExtraTier = () => setExtraTiers((prev) => addExtraTier(prev));
-  const handleRemoveExtraTier = (idx: number) => setExtraTiers((prev) => removeExtraTier(prev, idx));
-  const handleUpdateExtraTierPrice = (idx: number, raw: string) => setExtraTiers((prev) => updateExtraTierPrice(prev, idx, raw));
-
   const filteredRooms = courseData.branch
     ? rooms.filter((room) => {
         const branchId =
@@ -128,11 +121,14 @@ export default function AddCourseDialog({
       setError('גיל מקסימום חייב להיות גדול או שווה לגיל מינימום');
       return;
     }
+    if (!courseData.instructor) {
+      setError('יש לבחור מדריך');
+      return;
+    }
 
     // Lesson validation
     if (!courseData.branch) { setError('יש לבחור סניף'); return; }
     if (!lessonData.room) { setError('יש לבחור סטודיו'); return; }
-    if (!lessonData.instructor) { setError('יש לבחור מדריך'); return; }
     if (lessonData.end_time <= lessonData.start_time) {
       setError('שעת סיום חייבת להיות אחרי שעת התחלה');
       return;
@@ -143,27 +139,19 @@ export default function AddCourseDialog({
       // Step 1: create the course
       const courseRes = await api.post('/courses/courses/', {
         ...courseData,
-        managers: managerIds,
+        instructor_salary_override: courseData.instructor_salary_override ?? null,
       });
       const newCourseId = courseRes.data.id;
 
       // Step 2: create the lesson assigned to the new course
       setCourseCreated(true);
       try {
-        const cleanedExtraTiers = extraTiers
-          .filter((t) => Number.isFinite(t.price) && t.price > 0)
-          .map((t, i) => ({ course_index: FIRST_PRICE_TIER_INDEX + i, price: Number(t.price) }));
-        const secondLessonTier = cleanedExtraTiers.find(
-          (t) => t.course_index === FIRST_PRICE_TIER_INDEX
-        );
-
         const lessonSubmitData = {
           ...lessonData,
           course: newCourseId,
           price: null,
-          lesson_price_override: secondLessonTier?.price || null,
-          additional_course_prices: cleanedExtraTiers,
-          instructor_salary_override: lessonData.instructor_salary_override || null,
+          lesson_price_override: null,
+          additional_course_prices: [],
           max_students: lessonData.max_students || null,
           is_recurring: true,
           status: 'scheduled',
@@ -272,6 +260,48 @@ export default function AddCourseDialog({
               )}
             </div>
 
+            <div className={styles.grid2}>
+              <div>
+                <label htmlFor="instructor" className={styles.label}>
+                  מדריך <span className={styles.required}>*</span>
+                </label>
+                <select
+                  id="instructor"
+                  value={courseData.instructor || ''}
+                  onChange={(e) => setCourseData({ ...courseData, instructor: e.target.value })}
+                  className={styles.select}
+                  required
+                >
+                  <option value="">בחר מדריך</option>
+                  {instructors.map((instructor) => (
+                    <option key={instructor.id} value={instructor.id}>
+                      {instructor.full_name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label htmlFor="course_salary_override" className={styles.label}>
+                  שכר חריג (₪)
+                </label>
+                <input
+                  type="number"
+                  id="course_salary_override"
+                  value={courseData.instructor_salary_override ?? ''}
+                  onChange={(e) =>
+                    setCourseData({
+                      ...courseData,
+                      instructor_salary_override: e.target.value ? Number(e.target.value) : undefined,
+                    })
+                  }
+                  className={styles.input}
+                  placeholder="השאר ריק לשכר רגיל"
+                  min="0"
+                  step="0.01"
+                />
+              </div>
+            </div>
+
             {/* Description */}
             <div>
               <label htmlFor="description" className={styles.label}>
@@ -280,8 +310,10 @@ export default function AddCourseDialog({
               <textarea id="description" value={courseData.description} onChange={(e) => setCourseData({ ...courseData, description: e.target.value })} rows={3} className={styles.input} placeholder="תיאור אופציונלי של החוג" />
             </div>
 
-            {/* Authorized managers */}
-            <ManagerMultiSelect value={managerIds} onChange={setManagerIds} />
+            <p className={styles.helperText}>
+              מחירים מוזלים — ניתן לערוך אחרי היצירה ב&quot;עריכת קבוצה&quot;.
+            </p>
+
             {/* Lesson fields */}
             <div className={styles.lessonSection}>
                 <h3 className={styles.lessonSectionTitle}>פרטי השיעור</h3>
@@ -335,63 +367,12 @@ export default function AddCourseDialog({
                       )}
                     </div>
 
-                    {/* Instructor */}
-                    <div>
-                      <label htmlFor="lesson_instructor" className={styles.label}>
-                        מדריך <span className={styles.required}>*</span>
-                      </label>
-                      <select id="lesson_instructor" value={lessonData.instructor} onChange={(e) => setLessonData({ ...lessonData, instructor: e.target.value })} className={styles.select} required>
-                        <option value="">בחר מדריך</option>
-                        {instructors.map((instructor) => (
-                          <option key={instructor.id} value={instructor.id}>
-                            {instructor.full_name}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-
                     {/* Max Students */}
                     <div>
                       <label htmlFor="lesson_max_students" className={styles.label}>
                         מקסימום תלמידים
                       </label>
                       <input type="number" id="lesson_max_students" value={lessonData.max_students ?? ''} onChange={(e) => setLessonData({ ...lessonData, max_students: e.target.value ? Number(e.target.value) : undefined })} className={styles.input} placeholder="השאר ריק לשימוש בקיבולת החדר" min="1" step="1" />
-                    </div>
-
-                    {/* Extra price tiers (monthly, parallel enrollment) */}
-                    <div className={styles.tiersContainer}>
-                      {extraTiers.length > 0 && (
-                        <div className={styles.tiersRows}>
-                          {extraTiers.map((tier, idx) => (
-                            <div key={idx} className={styles.tierRow}>
-                              <span className={styles.tierLabel}>
-                                מחיר חודשי — חוג מקביל #{tier.course_index} לתלמיד
-                              </span>
-                              <input type="number" value={tier.price ? tier.price : ''} onChange={(e) => handleUpdateExtraTierPrice(idx, e.target.value)} className={styles.tierInput} placeholder="₪" min="0" step="0.01" />
-                              <button type="button" onClick={() => handleRemoveExtraTier(idx)} aria-label="הסר מדרגה" className={styles.removeTierButton}>
-                                <svg className={styles.iconSm} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                                </svg>
-                              </button>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                      <button type="button" onClick={handleAddExtraTier} className={styles.addTierButton}>
-                        <span className={styles.addTierIcon}>+</span>
-                        הוסף מחיר חודשי לחוג מקביל #{FIRST_PRICE_TIER_INDEX + extraTiers.length}
-                      </button>
-                    </div>
-
-                    {/* Salary Override */}
-                    <div>
-                      <label htmlFor="lesson_salary_override" className={styles.label}>
-                        שכר חריג (₪)
-                      </label>
-                      <input type="number" id="lesson_salary_override" value={lessonData.instructor_salary_override ?? ''} onChange={(e) => setLessonData({ ...lessonData, instructor_salary_override: e.target.value ? Number(e.target.value) : undefined })} className={styles.input} placeholder="השאר ריק לשכר רגיל" min="0" step="0.01" />
-                      <p className={styles.helperText}>
-                        אופציונלי - עדיפות על פני מודל השכר הרגיל של המדריך
-                      </p>
                     </div>
                   </>
                 )}

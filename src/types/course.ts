@@ -108,6 +108,8 @@ export interface CourseWithLessons {
   max_age?: number | null;
   branch?: string;
   branch_name?: string;
+  instructor?: Instructor | null;
+  instructor_salary_override?: number | null;
   lessons: Lesson[];
   is_active: boolean;
 }
@@ -173,13 +175,15 @@ export interface CourseFormData {
   branch?: string;
   min_age: number;
   max_age: number;
+  instructor?: string;
+  instructor_salary_override?: number | null;
 }
 
 export interface LessonFormData {
   course: string;
   branch?: string;
   room: string;
-  instructor: string;
+  instructor?: string;
   day_of_week: number;
   start_time: string;
   end_time: string;

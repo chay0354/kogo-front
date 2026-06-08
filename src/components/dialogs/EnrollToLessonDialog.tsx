@@ -48,42 +48,6 @@ const BILLING_ENROLLMENT_STATUSES = new Set(['active', 'payments_problem']);
 
 const DAY_NAMES = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שבת'];
 
-const toNumberOrNull = (value: number | string | null | undefined) => {
-  if (value === null || value === undefined || value === '') return null;
-  const n = Number(value);
-  return Number.isFinite(n) ? n : null;
-};
-
-const getChildLessonIndexForBilling = (child: ChildWithDetails, lessonId: string) => {
-  const signedLessons = child.enrollments.filter(
-    (enrollment) =>
-      BILLING_ENROLLMENT_STATUSES.has(enrollment.status) &&
-      enrollment.lesson_id !== lessonId
-  );
-  return signedLessons.length + 1;
-};
-
-const getEffectiveLessonPrice = (
-  child: ChildWithDetails,
-  lesson: Lesson,
-  coursePrice: string | null | undefined
-) => {
-  const basePrice = toNumberOrNull(coursePrice);
-  const lessonIndex = getChildLessonIndexForBilling(child, lesson.id);
-
-  if (lessonIndex <= 1) return basePrice;
-
-  const tier = [...(lesson.additional_course_prices || [])]
-    .map((entry) => ({
-      course_index: Number(entry.course_index),
-      price: toNumberOrNull(entry.price),
-    }))
-    .filter((entry) => Number.isFinite(entry.course_index) && entry.course_index <= lessonIndex && entry.price !== null)
-    .sort((a, b) => b.course_index - a.course_index)[0];
-
-  return tier?.price ?? toNumberOrNull(lesson.lesson_price_override) ?? basePrice;
-};
-
 const computeSeatsLeft = (capacity: number | null | undefined, enrolled: number | null | undefined) => {
   if (capacity == null) return null;
   const used = typeof enrolled === 'number' ? enrolled : 0;
@@ -93,8 +57,13 @@ const computeSeatsLeft = (capacity: number | null | undefined, enrolled: number 
 const courseSeatsLeft = (course: Course) =>
   computeSeatsLeft(course.capacity, course.enrolled_students_count);
 
+const formatSeatsSuffix = (seats: number | null) => {
+  if (seats == null) return '';
+  if (seats <= 0) return ' — מלא';
+  return ` — נותרו ${seats} מקומות`;
+};
+
 const lessonSeatsLeft = (lesson: Lesson) => {
-  // Effective capacity: smaller of explicit lesson cap and the room capacity, when both exist.
   const caps = [lesson.max_students, lesson.room_capacity].filter(
     (v): v is number => typeof v === 'number'
   );
@@ -102,21 +71,19 @@ const lessonSeatsLeft = (lesson: Lesson) => {
   return computeSeatsLeft(capacity, lesson.enrolled_students_count);
 };
 
-const formatSeatsSuffix = (seats: number | null) => {
-  if (seats == null) return '';
-  if (seats <= 0) return ' — מלא';
-  return ` — נותרו ${seats} מקומות`;
-};
+const formatLessonSchedule = (lesson: Lesson) =>
+  `${DAY_NAMES[lesson.day_of_week]} ${lesson.start_time.slice(0, 5)} - ${lesson.end_time.slice(0, 5)}`;
 
 export default function EnrollToLessonDialog({ child, isOpen, onClose, onEnroll }: EnrollToLessonDialogProps) {
   const [courseTypes, setCourseTypes] = useState<CourseType[]>([]);
   const [courses, setCourses] = useState<Course[]>([]);
   const [lessons, setLessons] = useState<Lesson[]>([]);
-  
+
   const [selectedCourseType, setSelectedCourseType] = useState('');
   const [selectedCourse, setSelectedCourse] = useState('');
-  const [selectedLesson, setSelectedLesson] = useState('');
-  
+  const [selectedTrialLesson, setSelectedTrialLesson] = useState('');
+  const [trialPickerOpen, setTrialPickerOpen] = useState(false);
+
   const [loading, setLoading] = useState(false);
   const [loadingCourseTypes, setLoadingCourseTypes] = useState(false);
   const [loadingCourses, setLoadingCourses] = useState(false);
@@ -126,6 +93,8 @@ export default function EnrollToLessonDialog({ child, isOpen, onClose, onEnroll 
   useEffect(() => {
     if (isOpen) {
       loadCourseTypes();
+      setTrialPickerOpen(false);
+      setSelectedTrialLesson('');
     }
   }, [isOpen]);
 
@@ -133,14 +102,19 @@ export default function EnrollToLessonDialog({ child, isOpen, onClose, onEnroll 
     if (selectedCourseType) {
       loadCourses(selectedCourseType);
       setSelectedCourse('');
-      setSelectedLesson('');
+      setLessons([]);
+      setTrialPickerOpen(false);
+      setSelectedTrialLesson('');
     }
   }, [selectedCourseType]);
 
   useEffect(() => {
     if (selectedCourse) {
       loadLessons(selectedCourse);
-      setSelectedLesson('');
+      setTrialPickerOpen(false);
+      setSelectedTrialLesson('');
+    } else {
+      setLessons([]);
     }
   }, [selectedCourse]);
 
@@ -164,7 +138,7 @@ export default function EnrollToLessonDialog({ child, isOpen, onClose, onEnroll 
       setCourses(response.data.results || response.data || []);
     } catch (error) {
       console.error('Error loading courses:', error);
-      alert('שגיאה בטעינת החוגים');
+      alert('שגיאה בטעינת הקבוצות');
     } finally {
       setLoadingCourses(false);
     }
@@ -177,29 +151,84 @@ export default function EnrollToLessonDialog({ child, isOpen, onClose, onEnroll 
       setLessons(response.data.results || response.data || []);
     } catch (error) {
       console.error('Error loading lessons:', error);
-      alert('שגיאה בטעינת השיעורים');
+      setLessons([]);
     } finally {
       setLoadingLessons(false);
     }
   };
 
+  const enrollInAllTeamLessons = async (options?: { trial?: boolean; skipLessonIds?: string[] }) => {
+    const targetLessons = lessons.filter(
+      (lesson) => !options?.skipLessonIds?.includes(lesson.id)
+    );
+
+    if (targetLessons.length === 0 && lessons.length === 0) {
+      throw new Error('לקבוצה זו אין שיעורים — הוסף שיעור לפני רישום');
+    }
+
+    let firstResponse = null;
+    for (let index = 0; index < targetLessons.length; index += 1) {
+      const lesson = targetLessons[index];
+      try {
+        const res = await api.post('/enrollments/lesson-enrollments/', {
+          lesson: lesson.id,
+          child: child.id,
+          status: 'active',
+          ...(options?.trial && index === 0 ? { trial_registration: true } : {}),
+        });
+        if (index === 0) firstResponse = res;
+      } catch (error: any) {
+        const msg = error.response?.data?.lesson || error.response?.data?.detail;
+        if (msg?.includes('כבר רשום') || error.response?.status === 400) {
+          continue;
+        }
+        throw error;
+      }
+    }
+
+    if (!firstResponse && lessons.length > 0) {
+      throw new Error('הילד כבר רשום לקבוצה זו');
+    }
+
+    return firstResponse;
+  };
+
   const handleTrialRegistration = async () => {
-    if (!selectedLesson) {
-      alert('נא לבחור שיעור');
+    if (!selectedCourse) {
+      alert('נא לבחור קבוצה');
+      return;
+    }
+    if (lessons.length === 0) {
+      alert('לקבוצה זו אין שיעורים — הוסף שיעור לפני רישום');
+      return;
+    }
+
+    if (!trialPickerOpen) {
+      setTrialPickerOpen(true);
+      return;
+    }
+
+    if (!selectedTrialLesson) {
+      alert('נא לבחור שיעור לניסיון');
       return;
     }
 
     setLoading(true);
     try {
       const enrollRes = await api.post('/enrollments/lesson-enrollments/', {
-        lesson: selectedLesson,
+        lesson: selectedTrialLesson,
         child: child.id,
         status: 'active',
         trial_registration: true,
       });
 
+      if (!enrollRes.data?.trial_applied) {
+        alert('הרישום נשמר אך לא סומן כניסיון — נסה שוב או פנה למנהל מערכת.');
+        return;
+      }
+
       const whatsapp = enrollRes.data?.whatsapp;
-      if (whatsapp && !whatsapp.sent) {
+      if (whatsapp && whatsapp.sent === false) {
         console.warn('Trial enrollment saved but WhatsApp failed:', whatsapp);
         alert(
           'הילד נרשם לניסיון במערכת, אך הודעת WhatsApp לא נשלחה. ' +
@@ -214,15 +243,17 @@ export default function EnrollToLessonDialog({ child, isOpen, onClose, onEnroll 
       console.error('Error enrolling for trial:', error);
       const errorData = error.response?.data;
       let errorMessage = 'שגיאה ברישום לניסיון';
-      
+
       if (errorData?.lesson) {
-        errorMessage = errorData.lesson;  // Show capacity error
+        errorMessage = errorData.lesson;
       } else if (errorData?.detail) {
         errorMessage = errorData.detail;
       } else if (errorData?.error) {
         errorMessage = errorData.error;
+      } else if (error.message) {
+        errorMessage = error.message;
       }
-      
+
       alert(errorMessage);
     } finally {
       setLoading(false);
@@ -230,16 +261,26 @@ export default function EnrollToLessonDialog({ child, isOpen, onClose, onEnroll 
   };
 
   const handleSubscriptionRegistration = () => {
-    if (!selectedLesson) {
-      alert('נא לבחור שיעור');
+    if (!selectedCourse) {
+      alert('נא לבחור קבוצה');
       return;
     }
-    // Open payment dialog with selected lesson
+    if (lessons.length === 0) {
+      alert('לקבוצה זו אין שיעורים — הוסף שיעור לפני רישום');
+      return;
+    }
     setPaymentModalOpen(true);
   };
 
-  const handlePaymentSuccess = () => {
-    // Payment successful - refresh and close
+  const handlePaymentSuccess = async () => {
+    const paidLessonId = lessons[0]?.id;
+    try {
+      await enrollInAllTeamLessons({
+        skipLessonIds: paidLessonId ? [paidLessonId] : [],
+      });
+    } catch (error) {
+      console.warn('Some team lesson enrollments may already exist after payment:', error);
+    }
     onEnroll();
     setPaymentModalOpen(false);
     onClose();
@@ -247,41 +288,41 @@ export default function EnrollToLessonDialog({ child, isOpen, onClose, onEnroll 
 
   if (!isOpen) return null;
 
-  const selectedLessonDetails = lessons.find(l => l.id === selectedLesson);
-  const selectedCourseDetails = courses.find(c => c.id === selectedCourse);
-  const lessonIndex = selectedLessonDetails
-    ? getChildLessonIndexForBilling(child, selectedLessonDetails.id)
-    : 1;
-  const displayPrice = selectedLessonDetails
-    ? getEffectiveLessonPrice(child, selectedLessonDetails, selectedCourseDetails?.price)
-    : null;
+  const selectedCourseDetails = courses.find((c) => c.id === selectedCourse);
+  const billingLesson = lessons[0];
+  const courseSeats = selectedCourseDetails ? courseSeatsLeft(selectedCourseDetails) : null;
+  const canEnroll = Boolean(selectedCourse && lessons.length > 0 && courseSeats !== 0);
 
-  const dayNames = DAY_NAMES;
+  const existingCourseIds = new Set(
+    child.enrollments
+      .filter((e) => BILLING_ENROLLMENT_STATUSES.has(e.status))
+      .map((e) => e.course_id)
+  );
 
   return (
     <>
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 animate-fade-in" onClick={onClose}>
-        <div 
+        <div
           className="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto animate-scale-in"
           onClick={(e) => e.stopPropagation()}
         >
-          {/* Header */}
           <div className="flex items-center justify-between px-6 py-4 border-b sticky top-0 bg-white z-10">
-            <h2 className="text-xl font-bold">רישום לחוג - {child.full_name}<span style={{ fontSize: '10px', color: 'white', userSelect: 'none' }}> #23</span></h2>
+            <h2 className="text-xl font-bold">רישום לקבוצה - {child.full_name}</h2>
             <button onClick={onClose} className="p-2 hover:bg-muted rounded-lg transition-colors">
               <X className="w-5 h-5" />
             </button>
           </div>
 
-          {/* Form */}
           <div className="p-6">
-            {/* Current Enrollments */}
             {child.enrollments.length > 0 && (
               <div className="mb-6">
                 <h3 className="text-sm font-medium mb-2">רישומים קיימים:</h3>
                 <div className="space-y-2">
-                  {child.enrollments.map((enrollment) => (
-                    <div key={enrollment.enrollment_id} className="text-sm p-3 bg-green-50 border border-green-200 rounded-lg">
+                  {[...new Map(child.enrollments.map((e) => [e.course_id, e])).values()].map((enrollment) => (
+                    <div
+                      key={enrollment.course_id}
+                      className="text-sm p-3 bg-green-50 border border-green-200 rounded-lg"
+                    >
                       <div className="font-medium">{enrollment.course_name}</div>
                       {enrollment.instructor_name && (
                         <div className="text-xs text-muted-foreground mt-1">
@@ -295,7 +336,6 @@ export default function EnrollToLessonDialog({ child, isOpen, onClose, onEnroll 
             )}
 
             <div className="space-y-4">
-              {/* Course Type Selection */}
               <div>
                 <label className="block text-sm font-medium mb-2">
                   בחר תחום <span className="text-red-500">*</span>
@@ -318,29 +358,34 @@ export default function EnrollToLessonDialog({ child, isOpen, onClose, onEnroll 
                 )}
               </div>
 
-              {/* Course Selection */}
               {selectedCourseType && (
                 <div>
                   <label className="block text-sm font-medium mb-2">
-                    בחר חוג <span className="text-red-500">*</span>
+                    בחר קבוצה <span className="text-red-500">*</span>
                   </label>
                   {loadingCourses ? (
-                    <div className="text-sm text-muted-foreground">טוען חוגים...</div>
+                    <div className="text-sm text-muted-foreground">טוען קבוצות...</div>
                   ) : courses.length === 0 ? (
-                    <div className="text-sm text-muted-foreground">אין חוגים זמינים בתחום זה</div>
+                    <div className="text-sm text-muted-foreground">אין קבוצות זמינות בתחום זה</div>
                   ) : (
                     <select
                       value={selectedCourse}
                       onChange={(e) => setSelectedCourse(e.target.value)}
                       className="input w-full"
                     >
-                      <option value="">-- בחר חוג --</option>
+                      <option value="">-- בחר קבוצה --</option>
                       {courses.map((course) => {
                         const seats = courseSeatsLeft(course);
                         const isFull = seats === 0;
+                        const alreadyEnrolled = existingCourseIds.has(course.id);
                         return (
-                          <option key={course.id} value={course.id} disabled={isFull}>
-                            {course.name} - {course.branch_name}{formatSeatsSuffix(seats)}
+                          <option
+                            key={course.id}
+                            value={course.id}
+                            disabled={isFull || alreadyEnrolled}
+                          >
+                            {course.name} - {course.branch_name}
+                            {alreadyEnrolled ? ' — כבר רשום' : formatSeatsSuffix(seats)}
                           </option>
                         );
                       })}
@@ -349,92 +394,81 @@ export default function EnrollToLessonDialog({ child, isOpen, onClose, onEnroll 
                 </div>
               )}
 
-              {/* Lesson Selection */}
-              {selectedCourse && (
+              {selectedCourse && trialPickerOpen && (
                 <div>
                   <label className="block text-sm font-medium mb-2">
-                    בחר שיעור <span className="text-red-500">*</span>
+                    בחר שיעור לניסיון <span className="text-red-500">*</span>
                   </label>
                   {loadingLessons ? (
                     <div className="text-sm text-muted-foreground">טוען שיעורים...</div>
-                  ) : lessons.length === 0 ? (
-                    <div className="text-sm text-muted-foreground">אין שיעורים זמינים בחוג זה</div>
                   ) : (
                     <select
-                      value={selectedLesson}
-                      onChange={(e) => setSelectedLesson(e.target.value)}
+                      value={selectedTrialLesson}
+                      onChange={(e) => setSelectedTrialLesson(e.target.value)}
                       className="input w-full"
                     >
-                      <option value="">-- בחר שיעור --</option>
+                      <option value="">-- בחר שיעור לניסיון --</option>
                       {lessons.map((lesson) => {
                         const seats = lessonSeatsLeft(lesson);
                         const isFull = seats === 0;
                         return (
                           <option key={lesson.id} value={lesson.id} disabled={isFull}>
-                            {dayNames[lesson.day_of_week]} {lesson.start_time} - {lesson.end_time}
-                            {lesson.instructor_name && ` (${lesson.instructor_name})`}
+                            {formatLessonSchedule(lesson)}
+                            {lesson.instructor_name ? ` (${lesson.instructor_name})` : ''}
                             {formatSeatsSuffix(seats)}
                           </option>
                         );
                       })}
                     </select>
                   )}
+                  <p className="text-xs text-muted-foreground mt-1">
+                    רישום לניסיון הוא לשיעור אחד בלבד. מנוי מלא כולל את כל מועדי הקבוצה.
+                  </p>
                 </div>
               )}
 
-              {/* Lesson Details */}
-              {selectedLessonDetails && (
-                <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                  <div className="text-sm">
-                    <div className="font-medium text-lg mb-2">פרטי שיעור</div>
-                    <div className="space-y-1 text-muted-foreground">
-                      <div>חוג: {selectedCourseDetails?.name}</div>
-                      <div>יום: {dayNames[selectedLessonDetails.day_of_week]}</div>
-                      <div>שעה: {selectedLessonDetails.start_time} - {selectedLessonDetails.end_time}</div>
-                      <div>סניף: {selectedLessonDetails.branch_name}</div>
-                      {selectedLessonDetails.instructor_name && (
-                        <div>מדריך: {selectedLessonDetails.instructor_name}</div>
-                      )}
-                      {(() => {
-                        const seats = lessonSeatsLeft(selectedLessonDetails);
-                        if (seats == null) return null;
-                        if (seats <= 0) return <div className="text-red-600 font-medium">השיעור מלא</div>;
-                        return <div>מקומות פנויים: {seats}</div>;
-                      })()}
-                      {displayPrice !== null && (
-                        <div className="text-lg font-bold text-green-600 mt-2">
-                          מחיר לשיעור ה-{lessonIndex}: ₪{displayPrice}
-                        </div>
-                      )}
-                    </div>
-                  </div>
+              {selectedCourse && !trialPickerOpen && (
+                <div className="text-sm text-muted-foreground">
+                  {loadingLessons ? (
+                    <div>טוען מועדים...</div>
+                  ) : lessons.length > 0 ? (
+                    <ul className="space-y-1">
+                      {lessons.map((lesson) => (
+                        <li key={lesson.id}>{formatLessonSchedule(lesson)}</li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <div className="text-red-600">לקבוצה זו אין שיעורים — יש להוסיף שיעור לפני רישום</div>
+                  )}
                 </div>
               )}
             </div>
 
-            {/* Footer */}
             <div className="flex flex-wrap items-center justify-end gap-2 pt-6 mt-6 border-t">
-              <button 
-                type="button" 
-                onClick={onClose} 
-                className="btn-secondary" 
-                disabled={loading}
-              >
+              <button type="button" onClick={onClose} className="btn-secondary" disabled={loading}>
                 ביטול
               </button>
-              <button 
+              <button
                 type="button"
-                onClick={handleTrialRegistration} 
-                className="btn-secondary bg-orange-500 text-white hover:bg-orange-600" 
-                disabled={loading || !selectedLesson}
+                onClick={handleTrialRegistration}
+                className="btn-secondary bg-orange-500 text-white hover:bg-orange-600"
+                disabled={
+                  loading ||
+                  !canEnroll ||
+                  (trialPickerOpen && !selectedTrialLesson)
+                }
               >
-                {loading ? 'מבצע רישום...' : 'הרשם לניסיון'}
+                {loading
+                  ? 'מבצע רישום...'
+                  : trialPickerOpen
+                    ? 'אשר רישום לניסיון'
+                    : 'הרשם לניסיון'}
               </button>
-              <button 
+              <button
                 type="button"
-                onClick={handleSubscriptionRegistration} 
-                className="btn-primary" 
-                disabled={loading || !selectedLesson}
+                onClick={handleSubscriptionRegistration}
+                className="btn-primary"
+                disabled={loading || !canEnroll}
               >
                 הרשם כמנוי
               </button>
@@ -443,16 +477,15 @@ export default function EnrollToLessonDialog({ child, isOpen, onClose, onEnroll 
         </div>
       </div>
 
-      {/* Payment Dialog */}
-      {paymentModalOpen && selectedLessonDetails && (
+      {paymentModalOpen && billingLesson && selectedCourseDetails && (
         <SubscriptionPaymentDialog
           child={child}
           lesson={{
-            id: selectedLessonDetails.id,
-            name: courses.find(c => c.id === selectedCourse)?.name || '',
-            day_of_week: ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שבת'][selectedLessonDetails.day_of_week],
-            time: selectedLessonDetails.start_time,
-            price: selectedLessonDetails.price
+            id: billingLesson.id,
+            name: selectedCourseDetails.name,
+            day_of_week: DAY_NAMES[billingLesson.day_of_week],
+            time: billingLesson.start_time,
+            price: selectedCourseDetails.price,
           }}
           isOpen={paymentModalOpen}
           onClose={() => setPaymentModalOpen(false)}

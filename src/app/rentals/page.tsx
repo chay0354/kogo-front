@@ -1,9 +1,11 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import AppLayout from '@/components/AppLayout';
 import PageHeader from '@/components/PageHeader';
 import RentalDialog from '@/components/dialogs/RentalDialog';
+import { useAuth } from '@/components/AuthProvider';
 import { ScheduleEvent, DAY_NAMES, type WeekDay } from '@/types/schedule';
 import { deleteEvent, fetchEvents } from '@/lib/eventUtils';
 import { formatWeeklyRepeatDaysHebrew, lessonDayOfWeekFromISODate } from '@/lib/scheduleUtils';
@@ -21,6 +23,8 @@ function rentalWeekdaysLabel(ev: ScheduleEvent): string {
 }
 
 export default function RentalsPage() {
+  const { user } = useAuth();
+  const router = useRouter();
   const [items, setItems] = useState<ScheduleEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -28,6 +32,7 @@ export default function RentalsPage() {
   const [editing, setEditing] = useState<ScheduleEvent | null>(null);
 
   const load = useCallback(async () => {
+    if (user?.role === 'worker') return;
     setLoading(true);
     setError('');
     try {
@@ -39,11 +44,15 @@ export default function RentalsPage() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [user?.role]);
 
   useEffect(() => {
+    if (user?.role === 'worker') {
+      router.replace('/schedule');
+      return;
+    }
     load();
-  }, [load]);
+  }, [user?.role, load, router]);
 
   const handleDelete = async (ev: ScheduleEvent) => {
     if (!confirm(`למחוק את השכירות "${ev.name}"?`)) return;
