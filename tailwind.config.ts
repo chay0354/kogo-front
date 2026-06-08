@@ -42,12 +42,12 @@ const config: Config = {
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",
         ring: "hsl(var(--ring))",
-        // Sidebar (Dark mode colors)
+        // Sidebar (Dark mode colors) — also used for dark dialog header bands
         sidebar: {
-          background: "hsl(222 47% 11%)",
-          accent: "hsl(222 40% 18%)",
-          primary: "hsl(173 58% 50%)",
-          foreground: "hsl(0 0% 100%)",
+          background: "hsl(var(--sidebar-background))",
+          accent: "hsl(var(--sidebar-accent))",
+          primary: "hsl(var(--sidebar-primary))",
+          foreground: "hsl(var(--sidebar-foreground))",
         },
       },
       borderRadius: {

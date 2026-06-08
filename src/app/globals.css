@@ -28,6 +28,12 @@
     --input: 210 20% 90%;
     --ring: 173 58% 39%;
     --radius: 0.75rem;
+
+    /* Sidebar / dark-surface palette (also used for dark dialog header bands) */
+    --sidebar-background: 222 47% 11%;
+    --sidebar-accent: 222 40% 18%;
+    --sidebar-primary: 173 58% 50%;
+    --sidebar-foreground: 0 0% 100%;
   }
 
   * {
