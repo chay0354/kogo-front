@@ -32,12 +32,7 @@ interface EditLessonDialogProps {
   open: boolean;
   onClose: () => void;
   onSuccess: () => void;
-  /**
-   * Price of the course this lesson belongs to, used as the fallback default
-   * for the lesson price input when `lesson.price` is null. Saving the form
-   * will then persist this value as `lesson.price`; clearing the field falls
-   * back to the course price as before.
-   */
+  /** Monthly course price (display only; pricing is at course level). */
   coursePrice?: number | string | null;
 }
 
@@ -72,23 +67,6 @@ export default function EditLessonDialog({
     return '';
   };
 
-  // Effective lesson price = explicit lesson.price OR the parent course price
-  // (when null/undefined). Returning undefined leaves the input empty.
-  const resolveInitialPrice = (
-    lessonPrice: number | string | null | undefined,
-    fallback: number | string | null | undefined
-  ): number | undefined => {
-    if (lessonPrice !== null && lessonPrice !== undefined && lessonPrice !== '') {
-      const n = Number(lessonPrice);
-      if (Number.isFinite(n)) return n;
-    }
-    if (fallback !== null && fallback !== undefined && fallback !== '') {
-      const n = Number(fallback);
-      if (Number.isFinite(n)) return n;
-    }
-    return undefined;
-  };
-
   const [formData, setFormData] = useState<LessonFormData>({
     course: getCourseId(lesson.course),
     branch: lesson.branch?.id || '',
@@ -97,7 +75,6 @@ export default function EditLessonDialog({
     day_of_week: lesson.day_of_week,
     start_time: lesson.start_time,
     end_time: lesson.end_time,
-    price: resolveInitialPrice(lesson.price, coursePrice),
     lesson_price_override: lesson.lesson_price_override !== null && lesson.lesson_price_override !== undefined ? Number(lesson.lesson_price_override) : undefined,
     instructor_salary_override: lesson.instructor_salary_override !== null && lesson.instructor_salary_override !== undefined ? Number(lesson.instructor_salary_override) : undefined,
     max_students: lesson.max_students !== null && lesson.max_students !== undefined ? Number(lesson.max_students) : undefined,
@@ -142,7 +119,6 @@ export default function EditLessonDialog({
         day_of_week: lesson.day_of_week,
         start_time: lesson.start_time,
         end_time: lesson.end_time,
-        price: resolveInitialPrice(lesson.price, coursePrice),
         lesson_price_override: lesson.lesson_price_override !== null && lesson.lesson_price_override !== undefined ? Number(lesson.lesson_price_override) : undefined,
         instructor_salary_override: lesson.instructor_salary_override !== null && lesson.instructor_salary_override !== undefined ? Number(lesson.instructor_salary_override) : undefined,
         max_students: lesson.max_students !== null && lesson.max_students !== undefined ? Number(lesson.max_students) : undefined,
@@ -251,7 +227,7 @@ export default function EditLessonDialog({
 
       const submitData = {
         ...formData,
-        price: formData.price || null,
+        price: null,
         lesson_price_override: secondLessonTier?.price || null,
         additional_course_prices: cleanedExtraTiers,
         instructor_salary_override: formData.instructor_salary_override || null,
@@ -455,32 +431,16 @@ export default function EditLessonDialog({
                 </p>
               </div>
 
-              {/* Price */}
-              <div>
-                <label htmlFor="price" className="block text-sm font-medium text-gray-700 mb-1">
-                  מחיר שיעור (₪)
-                </label>
-                <input
-                  type="number"
-                  id="price"
-                  value={formData.price || ''}
-                  onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      price: e.target.value ? Number(e.target.value) : undefined,
-                    })
-                  }
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500"
-                  placeholder="השאר ריק לשימוש במחיר החוג"
-                  min="0"
-                  step="0.01"
-                />
-                <p className="text-xs text-gray-500 mt-1">
-                  אופציונלי - אם ריק, ישתמש במחיר החוג
+              {coursePrice != null && coursePrice !== '' && (
+                <p className="text-sm text-gray-600 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">
+                  מחיר חודשי לקבוצה: <strong>{Number(coursePrice).toLocaleString('he-IL')}₪</strong> (נערך בעריכת החוג)
                 </p>
-              </div>
+              )}
 
               <div className="rounded-lg border border-dashed border-gray-300 bg-gray-50 p-4 space-y-3">
+                <p className="text-xs text-gray-600">
+                  מחירים מוזלים לרישום מקביל (חוג שני ומעלה לתלמיד), חודשי.
+                </p>
                 {extraTiers.length > 0 && (
                   <div className="space-y-2">
                     {extraTiers.map((tier, idx) => (
@@ -489,7 +449,7 @@ export default function EditLessonDialog({
                         className="flex items-center gap-2 bg-white border border-gray-200 rounded-md px-3 py-2"
                       >
                         <span className="flex-1 text-sm text-gray-700">
-                          מחיר עבור השיעור ה-{tier.course_index}
+                          מחיר חודשי — חוג מקביל #{tier.course_index}
                         </span>
                         <div className="relative">
                           <input
@@ -523,7 +483,7 @@ export default function EditLessonDialog({
                   className="inline-flex items-center gap-1 text-sm font-medium text-teal-600 hover:text-teal-700"
                 >
                   <span className="text-lg leading-none">+</span>
-                  הוסף מחיר עבור השיעור ה-{FIRST_PRICE_TIER_INDEX + extraTiers.length}
+                  הוסף מחיר חודשי לחוג מקביל #{FIRST_PRICE_TIER_INDEX + extraTiers.length}
                 </button>
               </div>
 

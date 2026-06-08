@@ -6,37 +6,65 @@ import PageHeader from '@/components/PageHeader';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
-  bulkSendWhatsAppMessage,
+  bulkSendWhatsAppAutomation,
+  fetchWhatsAppAutomations,
   fetchWhatsAppContacts,
   fetchWhatsAppStatus,
-  loadTalkedContactKeys,
   whatsappContactKey,
-  type BulkSendResult,
+  type BulkFlowResult,
+  type WhatsAppAutomation,
   type WhatsAppContact,
 } from '@/lib/whatsappApi';
-import { Megaphone, MessageCircle, RefreshCw, Search, Send } from 'lucide-react';
+import { MessageCircle, RefreshCw, Search, Send, Zap } from 'lucide-react';
 import { toast } from 'sonner';
 
-type BulkAudience = 'all' | 'talked' | 'selected';
+function automationOptionValue(a: WhatsAppAutomation) {
+  return `${a.automation_type}:${a.automation_id}`;
+}
+
+function parseAutomationValue(value: string): WhatsAppAutomation | null {
+  const idx = value.indexOf(':');
+  if (idx < 0) return null;
+  const automation_type = value.slice(0, idx) as 'kind' | 'flow';
+  const automation_id = value.slice(idx + 1);
+  if (automation_type !== 'kind' && automation_type !== 'flow') return null;
+  return { automation_type, automation_id, flow_ns: automation_id, label: '' };
+}
 
 export default function WhatsAppPage() {
   const [configured, setConfigured] = useState<boolean | null>(null);
   const [pageName, setPageName] = useState<string | null>(null);
+  const [apiError, setApiError] = useState('');
+
+  const [automations, setAutomations] = useState<WhatsAppAutomation[]>([]);
+  const [loadingAutomations, setLoadingAutomations] = useState(true);
+  const [selectedAutomationValue, setSelectedAutomationValue] = useState('');
+
   const [contacts, setContacts] = useState<WhatsAppContact[]>([]);
   const [search, setSearch] = useState('');
   const [loadingContacts, setLoadingContacts] = useState(true);
-  const [apiError, setApiError] = useState('');
-
-  const [talkedKeys, setTalkedKeys] = useState<Set<string>>(() => new Set());
   const [selectedKeys, setSelectedKeys] = useState<Set<string>>(() => new Set());
-  const [bulkText, setBulkText] = useState('');
-  const [bulkAudience, setBulkAudience] = useState<BulkAudience>('selected');
-  const [bulkPreview, setBulkPreview] = useState<BulkSendResult | null>(null);
-  const [bulkLoading, setBulkLoading] = useState(false);
 
-  useEffect(() => {
-    setTalkedKeys(loadTalkedContactKeys());
-  }, []);
+  const [result, setResult] = useState<BulkFlowResult | null>(null);
+  const [sending, setSending] = useState(false);
+
+  const selectedAutomation = useMemo(() => {
+    if (!selectedAutomationValue) return null;
+    const parsed = parseAutomationValue(selectedAutomationValue);
+    if (!parsed) return null;
+    return (
+      automations.find(
+        (a) =>
+          a.automation_type === parsed.automation_type &&
+          a.automation_id === parsed.automation_id
+      ) ?? null
+    );
+  }, [selectedAutomationValue, automations]);
+
+  const recipients = useMemo(
+    () => contacts.filter((c) => selectedKeys.has(whatsappContactKey(c))),
+    [contacts, selectedKeys]
+  );
 
   const loadStatus = useCallback(async () => {
     try {
@@ -54,13 +82,29 @@ export default function WhatsAppPage() {
     }
   }, []);
 
+  const loadAutomations = useCallback(async () => {
+    setLoadingAutomations(true);
+    try {
+      const data = await fetchWhatsAppAutomations();
+      const list = data.automations || [];
+      setAutomations(list);
+      setSelectedAutomationValue((prev) =>
+        prev || (list[0] ? automationOptionValue(list[0]) : '')
+      );
+    } catch {
+      toast.error('שגיאה בטעינת אוטומציות');
+      setAutomations([]);
+    } finally {
+      setLoadingAutomations(false);
+    }
+  }, []);
+
   const loadContacts = useCallback(async () => {
     setLoadingContacts(true);
     try {
       const list = await fetchWhatsAppContacts(search.trim() || undefined);
       setContacts(list);
-    } catch (e: unknown) {
-      console.error(e);
+    } catch {
       toast.error('שגיאה בטעינת אנשי קשר');
     } finally {
       setLoadingContacts(false);
@@ -72,20 +116,15 @@ export default function WhatsAppPage() {
   }, [loadStatus]);
 
   useEffect(() => {
+    if (configured) {
+      loadAutomations();
+    }
+  }, [configured, loadAutomations]);
+
+  useEffect(() => {
     const t = setTimeout(() => loadContacts(), 300);
     return () => clearTimeout(t);
   }, [loadContacts]);
-
-  const talkedContacts = useMemo(
-    () => contacts.filter((c) => talkedKeys.has(whatsappContactKey(c))),
-    [contacts, talkedKeys]
-  );
-
-  const bulkRecipients = useMemo(() => {
-    if (bulkAudience === 'all') return contacts;
-    if (bulkAudience === 'talked') return talkedContacts;
-    return contacts.filter((c) => selectedKeys.has(whatsappContactKey(c)));
-  }, [bulkAudience, contacts, talkedContacts, selectedKeys]);
 
   const toggleSelected = (contact: WhatsAppContact) => {
     const key = whatsappContactKey(contact);
@@ -103,47 +142,53 @@ export default function WhatsAppPage() {
 
   const clearSelection = () => setSelectedKeys(new Set());
 
-  const runBulkSend = async (forceDryRun: boolean) => {
-    if (!bulkText.trim()) {
-      toast.error('כתוב הודעה לשליחה');
+  const runBroadcast = async (dryRun: boolean) => {
+    if (!selectedAutomation) {
+      toast.error('בחר אוטומציה לשליחה');
       return;
     }
-    if (bulkRecipients.length === 0) {
-      toast.error('אין נמענים ברשימה');
+    if (recipients.length === 0) {
+      toast.error('בחר לפחות נמען אחד');
       return;
     }
-    setBulkLoading(true);
-    setBulkPreview(null);
+
+    setSending(true);
+    setResult(null);
     try {
-      const result = await bulkSendWhatsAppMessage({
-        text: bulkText.trim(),
-        contacts: bulkRecipients.map((c) => ({ phone: c.phone, name: c.name })),
-        dry_run: forceDryRun,
+      const data = await bulkSendWhatsAppAutomation({
+        automation_type: selectedAutomation.automation_type,
+        automation_id: selectedAutomation.automation_id,
+        contacts: recipients.map((c) => ({
+          phone: c.phone,
+          name: c.name,
+          ...(c.branch_name ? { branch_name: c.branch_name } : {}),
+        })),
+        dry_run: dryRun,
       });
-      setBulkPreview(result);
-      if (result.dry_run) {
-        toast.info(`תצוגה מקדימה: ${result.preview_count} נמענים — לא נשלחה הודעה`);
+      setResult(data);
+      if (dryRun) {
+        toast.info(`תצוגה מקדימה: ${data.preview_count ?? data.total} נמענים`);
       } else {
-        toast.success(`נשלחו ${result.sent} הודעות, ${result.failed} נכשלו`);
+        toast.success(`נשלחו ${data.sent} אוטומציות, ${data.failed} נכשלו`);
       }
     } catch (err: unknown) {
       const msg =
         (err as { response?: { data?: { error?: string } } })?.response?.data?.error ||
-        'שגיאה בשליחה לקבוצה';
+        'שגיאה בשליחה';
       toast.error(msg);
     } finally {
-      setBulkLoading(false);
+      setSending(false);
     }
   };
 
   return (
     <AppLayout>
-      <div dir="rtl" className="space-y-4">
+      <div dir="rtl" className="space-y-4 max-w-5xl mx-auto">
         <PageHeader
           title="WhatsApp"
           description={
             configured
-              ? `חיבור ManyChat פעיל${pageName ? ` — ${pageName}` : ''}. בחר נמענים ושלח הודעת תפוצה.`
+              ? `שליחת אוטומציית ManyChat לכמה נמענים${pageName ? ` · ${pageName}` : ''}`
               : 'ממתין להגדרת ManyChat בשרת'
           }
         />
@@ -154,197 +199,180 @@ export default function WhatsAppPage() {
           </div>
         )}
 
-        <div className="flex h-[calc(100vh-220px)] min-h-[480px] rounded-xl border border-border/60 bg-card overflow-hidden shadow-sm">
-          {/* Contact list */}
-          <div className="w-full max-w-sm border-l border-border/60 flex flex-col bg-muted/20 shrink-0">
-            <div className="p-3 border-b border-border/60 space-y-2">
-              <div className="flex items-center justify-between gap-2">
-                <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
-                  <MessageCircle className="h-4 w-4" />
-                  אנשי קשר
-                </div>
-                <div className="flex gap-1">
-                  <Button type="button" variant="ghost" size="sm" className="h-7 text-xs px-2" onClick={selectAllVisible}>
-                    הכל
-                  </Button>
-                  <Button type="button" variant="ghost" size="sm" className="h-7 text-xs px-2" onClick={clearSelection}>
-                    נקה
-                  </Button>
-                </div>
-              </div>
-              <div className="flex gap-2">
-                <div className="relative flex-1">
-                  <Search className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                    placeholder="חיפוש שם או טלפון..."
-                    className="pr-9"
-                  />
-                </div>
-                <Button type="button" variant="outline" size="sm" onClick={() => loadContacts()} aria-label="רענן">
-                  <RefreshCw className={`h-4 w-4 ${loadingContacts ? 'animate-spin' : ''}`} />
-                </Button>
-              </div>
-            </div>
-            <div className="flex-1 overflow-y-auto">
-              {loadingContacts ? (
-                <p className="p-4 text-sm text-muted-foreground">טוען...</p>
-              ) : contacts.length === 0 ? (
-                <p className="p-4 text-sm text-muted-foreground">לא נמצאו אנשי קשר עם טלפון</p>
-              ) : (
-                contacts.map((c) => {
-                  const key = whatsappContactKey(c);
-                  const isChecked = selectedKeys.has(key);
-                  return (
-                    <label
-                      key={key}
-                      className={`flex items-start gap-2 border-b border-border/30 hover:bg-muted/50 cursor-pointer px-2 py-3 ${
-                        isChecked ? 'bg-primary/10' : ''
-                      }`}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={isChecked}
-                        onChange={() => toggleSelected(c)}
-                        className="mt-1 shrink-0 accent-primary"
-                      />
-                      <div className="flex-1 min-w-0 text-right">
-                        <div className="font-medium text-sm truncate">{c.name}</div>
-                        <div className="text-xs text-muted-foreground">{c.phone}</div>
-                        {c.branch_name && (
-                          <div className="text-xs text-muted-foreground/80">{c.branch_name}</div>
-                        )}
-                      </div>
-                    </label>
-                  );
-                })
-              )}
-            </div>
+        {/* Step 1: automation */}
+        <section className="rounded-xl border bg-card p-5 shadow-sm space-y-3">
+          <div className="flex items-center gap-2 text-foreground">
+            <Zap className="h-5 w-5 text-primary" />
+            <h2 className="text-lg font-semibold">1. בחר אוטומציה</h2>
           </div>
+          {loadingAutomations ? (
+            <p className="text-sm text-muted-foreground">טוען אוטומציות...</p>
+          ) : automations.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              לא נמצאו אוטומציות פעילות ב-ManyChat. ודא שהן מוגדרות ב-.env או שמותיהן תואמים.
+            </p>
+          ) : (
+            <>
+              <p className="text-xs text-muted-foreground">
+                {automations.length} אוטומציות מ-ManyChat (כולל כל מה שמופיע בחשבון)
+              </p>
+              <select
+                value={selectedAutomationValue}
+                onChange={(e) => setSelectedAutomationValue(e.target.value)}
+                disabled={!configured}
+                className="w-full rounded-md border border-input bg-background px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50"
+              >
+                {automations.map((a) => (
+                  <option key={automationOptionValue(a)} value={automationOptionValue(a)}>
+                    {a.kogo_label && a.kogo_label !== a.label
+                      ? `${a.label} · ${a.kogo_label}`
+                      : a.label}
+                  </option>
+                ))}
+              </select>
+              {selectedAutomation?.needs_enrollment_context && (
+                <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-3 py-2">
+                  אוטומציה זו משתמשת בשדות חוג/ילד. בשליחה ידנית יישלחו שמות ההורים מהרשימה; פרטי
+                  החוג יסומנו כלליים — לשליחה מדויקת השתמשו בזרימת המערכת הרגילה.
+                </p>
+              )}
+            </>
+          )}
+        </section>
 
-          {/* Broadcast panel (inline) */}
-          <div className="flex-1 flex flex-col min-w-0 overflow-y-auto bg-background">
-            <div className="px-6 py-4 border-b border-border/60 bg-muted/10">
+        {/* Step 2: recipients */}
+        <section className="rounded-xl border bg-card overflow-hidden shadow-sm">
+          <div className="p-4 border-b bg-muted/20 space-y-3">
+            <div className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-2">
-                <Megaphone className="h-5 w-5 text-primary" />
-                <div>
-                  <h2 className="text-lg font-semibold">הודעת תפוצה</h2>
-                  <p className="text-sm text-muted-foreground">
-                    שליחת אותה הודעה למספר נמענים. סמן אנשי קשר ברשימה או בחר קהל יעד.
-                  </p>
-                </div>
+                <MessageCircle className="h-5 w-5 text-primary" />
+                <h2 className="text-lg font-semibold">2. בחר נמענים</h2>
               </div>
+              <span className="text-sm text-muted-foreground">
+                נבחרו: <strong>{recipients.length}</strong>
+              </span>
             </div>
-
-            <div className="flex-1 p-6 space-y-5 max-w-2xl">
-              <div>
-                <label className="block text-sm font-medium mb-1.5">תוכן ההודעה</label>
-                <textarea
-                  value={bulkText}
-                  onChange={(e) => setBulkText(e.target.value)}
-                  placeholder="כתוב הודעה לכל הנמענים..."
-                  rows={6}
-                  disabled={!configured}
-                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50"
+            <div className="flex gap-2">
+              <div className="relative flex-1">
+                <Search className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="חיפוש שם או טלפון..."
+                  className="pr-9"
                 />
               </div>
-
-              <div>
-                <label className="block text-sm font-medium mb-2">קהל יעד</label>
-                <div className="flex flex-wrap gap-2">
-                  {(
-                    [
-                      ['selected', `נבחרים (${selectedKeys.size})`],
-                      ['all', `כל הרשימה (${contacts.length})`],
-                      ['talked', `דיברתי איתם (${talkedContacts.length})`],
-                    ] as const
-                  ).map(([value, label]) => (
-                    <button
-                      key={value}
-                      type="button"
-                      onClick={() => setBulkAudience(value)}
-                      className={`text-sm px-3 py-1.5 rounded-full border transition-colors ${
-                        bulkAudience === value
-                          ? 'bg-primary text-primary-foreground border-primary'
-                          : 'bg-background border-border hover:bg-muted'
-                      }`}
-                    >
-                      {label}
-                    </button>
-                  ))}
-                </div>
-                <p className="text-xs text-muted-foreground mt-2">
-                  נמענים: <strong>{bulkRecipients.length}</strong>
-                  {bulkAudience === 'selected' && selectedKeys.size === 0 && (
-                    <span> — סמן אנשי קשר ברשימה משמאל</span>
-                  )}
-                </p>
-              </div>
-
-              {bulkRecipients.length > 0 && (
-                <div>
-                  <label className="block text-sm font-medium mb-1.5">רשימת נמענים</label>
-                  <div className="rounded-md border bg-muted/20 max-h-48 overflow-y-auto">
-                    <ul className="text-sm divide-y">
-                      {bulkRecipients.map((c) => (
-                        <li key={whatsappContactKey(c)} className="px-3 py-2 flex justify-between gap-2">
-                          <span className="font-medium truncate">{c.name}</span>
-                          <span className="text-muted-foreground shrink-0 text-xs">{c.phone}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                </div>
-              )}
-
-              {bulkPreview && (
-                <div className="text-sm rounded-md border bg-muted/30 p-3 space-y-1">
-                  {bulkPreview.message && (
-                    <p className="text-amber-800 font-medium text-xs">{bulkPreview.message}</p>
-                  )}
-                  <p>
-                    {bulkPreview.dry_run ? 'תצוגה מקדימה' : 'נשלח'}:{' '}
-                    {bulkPreview.preview_count || bulkPreview.sent} / {bulkPreview.total}
-                    {!bulkPreview.dry_run && bulkPreview.failed > 0 && (
-                      <span className="text-destructive"> · {bulkPreview.failed} נכשלו</span>
-                    )}
-                  </p>
-                </div>
-              )}
-
-              <div className="flex gap-2 pt-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="flex-1"
-                  disabled={!configured || bulkLoading || !bulkText.trim() || bulkRecipients.length === 0}
-                  onClick={() => runBulkSend(true)}
-                >
-                  תצוגה מקדימה
-                </Button>
-                <Button
-                  type="button"
-                  className="flex-1 gap-1"
-                  disabled={!configured || bulkLoading || !bulkText.trim() || bulkRecipients.length === 0}
-                  onClick={() => {
-                    if (
-                      !window.confirm(
-                        `לשלוח ל-${bulkRecipients.length} נמענים? פעולה זו לא ניתנת לביטול.`
-                      )
-                    ) {
-                      return;
-                    }
-                    runBulkSend(false);
-                  }}
-                >
-                  <Send className="h-4 w-4" />
-                  שלח תפוצה
-                </Button>
-              </div>
+              <Button type="button" variant="outline" size="icon" onClick={() => loadContacts()}>
+                <RefreshCw className={`h-4 w-4 ${loadingContacts ? 'animate-spin' : ''}`} />
+              </Button>
+            </div>
+            <div className="flex gap-2">
+              <Button type="button" variant="outline" size="sm" onClick={selectAllVisible}>
+                סמן הכל
+              </Button>
+              <Button type="button" variant="ghost" size="sm" onClick={clearSelection}>
+                נקה בחירה
+              </Button>
             </div>
           </div>
-        </div>
+
+          <div className="max-h-[320px] overflow-y-auto divide-y">
+            {loadingContacts ? (
+              <p className="p-4 text-sm text-muted-foreground">טוען...</p>
+            ) : contacts.length === 0 ? (
+              <p className="p-4 text-sm text-muted-foreground">לא נמצאו אנשי קשר עם טלפון</p>
+            ) : (
+              contacts.map((c) => {
+                const key = whatsappContactKey(c);
+                const checked = selectedKeys.has(key);
+                return (
+                  <label
+                    key={key}
+                    className={`flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-muted/40 ${
+                      checked ? 'bg-primary/5' : ''
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={() => toggleSelected(c)}
+                      className="h-4 w-4 accent-primary shrink-0"
+                    />
+                    <div className="flex-1 min-w-0 text-right">
+                      <div className="font-medium text-sm truncate">{c.name}</div>
+                      <div className="text-xs text-muted-foreground">{c.phone}</div>
+                    </div>
+                  </label>
+                );
+              })
+            )}
+          </div>
+        </section>
+
+        {/* Step 3: send */}
+        <section className="rounded-xl border bg-card p-5 shadow-sm space-y-4">
+          <h2 className="text-lg font-semibold">3. שלח תפוצה</h2>
+          <p className="text-sm text-muted-foreground">
+            {selectedAutomation ? (
+              <>
+                אוטומציה: <strong>{selectedAutomation.label}</strong> · נמענים:{' '}
+                <strong>{recipients.length}</strong>
+              </>
+            ) : (
+              'בחר אוטומציה ונמענים לפני השליחה'
+            )}
+          </p>
+
+          {result && (
+            <div className="text-sm rounded-md border bg-muted/30 p-3">
+              {result.dry_run ? 'תצוגה מקדימה' : 'נשלח'}:{' '}
+              {result.preview_count ?? result.sent} / {result.total}
+              {!result.dry_run && result.failed > 0 && (
+                <span className="text-destructive"> · {result.failed} נכשלו</span>
+              )}
+            </div>
+          )}
+
+          <div className="flex flex-col sm:flex-row gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              className="flex-1"
+              disabled={
+                !configured ||
+                sending ||
+                !selectedAutomation ||
+                recipients.length === 0
+              }
+              onClick={() => runBroadcast(true)}
+            >
+              תצוגה מקדימה
+            </Button>
+            <Button
+              type="button"
+              className="flex-1 gap-2"
+              disabled={
+                !configured ||
+                sending ||
+                !selectedAutomation ||
+                recipients.length === 0
+              }
+              onClick={() => {
+                if (
+                  !window.confirm(
+                    `לשלוח את "${selectedAutomation?.label}" ל-${recipients.length} נמענים?`
+                  )
+                ) {
+                  return;
+                }
+                runBroadcast(false);
+              }}
+            >
+              <Send className="h-4 w-4" />
+              שלח אוטומציה
+            </Button>
+          </div>
+        </section>
       </div>
     </AppLayout>
   );

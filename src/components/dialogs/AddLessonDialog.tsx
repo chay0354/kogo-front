@@ -54,21 +54,11 @@ export default function AddLessonDialog({
     day_of_week: 0,
     start_time: '16:00',
     end_time: '16:45',
-    price: toPositiveNumber(coursePrice),
     lesson_price_override: undefined,
     instructor_salary_override: undefined,
     max_students: undefined,
     notes: '',
   });
-
-  // Keep the price input in sync if the course context changes while the dialog
-  // is mounted (e.g. user reopens for a different course). We only seed when
-  // the user hasn't yet typed anything custom into the price field.
-  useEffect(() => {
-    setFormData((prev) =>
-      prev.price === undefined ? { ...prev, price: toPositiveNumber(coursePrice) } : prev
-    );
-  }, [coursePrice]);
 
   const [extraTiers, setExtraTiers] = useState<LessonPriceTier[]>([]);
 
@@ -194,7 +184,7 @@ export default function AddLessonDialog({
 
       const submitData = {
         ...formData,
-        price: formData.price || null,
+        price: null,
         lesson_price_override: secondLessonTier?.price || null,
         additional_course_prices: cleanedExtraTiers,
         instructor_salary_override: formData.instructor_salary_override || null,
@@ -398,32 +388,10 @@ export default function AddLessonDialog({
                 </p>
               </div>
 
-              {/* Price */}
-              <div>
-                <label htmlFor="price" className="block text-sm font-medium text-gray-700 mb-1">
-                  מחיר שיעור (₪)
-                </label>
-                <input
-                  type="number"
-                  id="price"
-                  value={formData.price || ''}
-                  onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      price: e.target.value ? Number(e.target.value) : undefined,
-                    })
-                  }
-                  className="w-full px-2 py-1 border border-gray-300 rounded-[3px] focus:outline-none focus:ring-2 focus:ring-teal-500"
-                  placeholder="השאר ריק לשימוש במחיר החוג"
-                  min="0"
-                  step="0.01"
-                />
-                <p className="text-xs text-gray-500 mt-1">
-                  אופציונלי - אם ריק, ישתמש במחיר החוג
-                </p>
-              </div>
-
               <div className="rounded-lg border border-dashed border-gray-300 bg-gray-50 p-4 space-y-3">
+                <p className="text-xs text-gray-600">
+                  מחיר חודשי לקבוצה מוגדר בחוג. כאן ניתן להגדיר מחיר חודשי מוזל לרישום מקביל (חוג שני ומעלה לתלמיד).
+                </p>
                 {extraTiers.length > 0 && (
                   <div className="space-y-2">
                     {extraTiers.map((tier, idx) => (
@@ -432,7 +400,7 @@ export default function AddLessonDialog({
                         className="flex items-center gap-2 bg-white border border-gray-200 rounded-md px-3 py-2"
                       >
                         <span className="flex-1 text-sm text-gray-700">
-                          מחיר עבור השיעור ה-{tier.course_index}
+                          מחיר חודשי — חוג מקביל #{tier.course_index}
                         </span>
                         <input
                           type="number"
@@ -464,7 +432,7 @@ export default function AddLessonDialog({
                   className="inline-flex items-center gap-1 text-sm font-medium text-teal-600 hover:text-teal-700"
                 >
                   <span className="text-lg leading-none">+</span>
-                  הוסף מחיר עבור השיעור ה-{FIRST_PRICE_TIER_INDEX + extraTiers.length}
+                  הוסף מחיר חודשי לחוג מקביל #{FIRST_PRICE_TIER_INDEX + extraTiers.length}
                 </button>
               </div>
 

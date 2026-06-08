@@ -59,15 +59,6 @@ export default function AddCourseDialog({
     }
   }, [open]);
 
-  // Seed lesson price from course price when lesson price hasn't been customised
-  useEffect(() => {
-    if (courseData.price > 0) {
-      setLessonData((prev) =>
-        prev.price === undefined ? { ...prev, price: toPositiveNumber(courseData.price) } : prev
-      );
-    }
-  }, [courseData.price]);
-
   // Auto-calculate end time (+45 min) on start time change
   useEffect(() => {
     if (lessonData.start_time) {
@@ -169,7 +160,7 @@ export default function AddCourseDialog({
         const lessonSubmitData = {
           ...lessonData,
           course: newCourseId,
-          price: lessonData.price || null,
+          price: null,
           lesson_price_override: secondLessonTier?.price || null,
           additional_course_prices: cleanedExtraTiers,
           instructor_salary_override: lessonData.instructor_salary_override || null,
@@ -367,25 +358,14 @@ export default function AddCourseDialog({
                       <input type="number" id="lesson_max_students" value={lessonData.max_students ?? ''} onChange={(e) => setLessonData({ ...lessonData, max_students: e.target.value ? Number(e.target.value) : undefined })} className={styles.input} placeholder="השאר ריק לשימוש בקיבולת החדר" min="1" step="1" />
                     </div>
 
-                    {/* Lesson Price */}
-                    <div>
-                      <label htmlFor="lesson_price" className={styles.label}>
-                        מחיר שיעור (₪)
-                      </label>
-                      <input type="number" id="lesson_price" value={lessonData.price ?? ''} onChange={(e) => setLessonData({ ...lessonData, price: e.target.value ? Number(e.target.value) : undefined })} className={styles.input} placeholder="השאר ריק לשימוש במחיר החוג" min="0" step="0.01" />
-                      <p className={styles.helperText}>
-                        אופציונלי - אם ריק, ישתמש במחיר החוג
-                      </p>
-                    </div>
-
-                    {/* Extra price tiers */}
+                    {/* Extra price tiers (monthly, parallel enrollment) */}
                     <div className={styles.tiersContainer}>
                       {extraTiers.length > 0 && (
                         <div className={styles.tiersRows}>
                           {extraTiers.map((tier, idx) => (
                             <div key={idx} className={styles.tierRow}>
                               <span className={styles.tierLabel}>
-                                מחיר עבור השיעור ה-{tier.course_index}
+                                מחיר חודשי — חוג מקביל #{tier.course_index} לתלמיד
                               </span>
                               <input type="number" value={tier.price ? tier.price : ''} onChange={(e) => handleUpdateExtraTierPrice(idx, e.target.value)} className={styles.tierInput} placeholder="₪" min="0" step="0.01" />
                               <button type="button" onClick={() => handleRemoveExtraTier(idx)} aria-label="הסר מדרגה" className={styles.removeTierButton}>
@@ -399,7 +379,7 @@ export default function AddCourseDialog({
                       )}
                       <button type="button" onClick={handleAddExtraTier} className={styles.addTierButton}>
                         <span className={styles.addTierIcon}>+</span>
-                        הוסף מחיר עבור השיעור ה-{FIRST_PRICE_TIER_INDEX + extraTiers.length}
+                        הוסף מחיר חודשי לחוג מקביל #{FIRST_PRICE_TIER_INDEX + extraTiers.length}
                       </button>
                     </div>
 

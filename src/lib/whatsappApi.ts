@@ -64,7 +64,7 @@ export async function sendWhatsAppMessage(payload: {
   return res.data;
 }
 
-export type BulkSendContact = { phone: string; name: string };
+export type BulkSendContact = { phone: string; name: string; branch_name?: string };
 
 export type BulkSendResult = {
   dry_run: boolean;
@@ -84,6 +84,50 @@ export type BulkSendResult = {
 };
 
 /** Preview (dry_run) or send to many contacts via ManyChat. */
+export type WhatsAppAutomation = {
+  automation_type: 'kind' | 'flow';
+  automation_id: string;
+  flow_ns: string;
+  label: string;
+  manychat_name?: string | null;
+  kogo_label?: string;
+  needs_enrollment_context?: boolean;
+};
+
+export async function fetchWhatsAppAutomations() {
+  const res = await api.get('/core/whatsapp/automations/');
+  return res.data as { configured: boolean; automations: WhatsAppAutomation[] };
+}
+
+export type BulkFlowResult = BulkSendResult & {
+  automation_type?: string;
+  automation_id?: string;
+  automation_label?: string;
+};
+
+export async function bulkSendWhatsAppAutomation(payload: {
+  automation_type: 'kind' | 'flow';
+  automation_id: string;
+  contacts: BulkSendContact[];
+  dry_run?: boolean;
+}) {
+  const body: {
+    automation_type: string;
+    automation_id: string;
+    contacts: BulkSendContact[];
+    dry_run?: boolean;
+  } = {
+    automation_type: payload.automation_type,
+    automation_id: payload.automation_id,
+    contacts: payload.contacts,
+  };
+  if (payload.dry_run !== undefined) {
+    body.dry_run = payload.dry_run;
+  }
+  const res = await api.post('/core/whatsapp/bulk-flow/', body);
+  return res.data as BulkFlowResult;
+}
+
 export async function bulkSendWhatsAppMessage(payload: {
   text: string;
   contacts: BulkSendContact[];
