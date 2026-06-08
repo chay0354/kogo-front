@@ -1,12 +1,14 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { FileText, Search, DollarSign, Clock, TrendingUp, Wallet, AlertCircle, Plus, Bell } from 'lucide-react';
 import AppLayout from '@/components/AppLayout';
 import { fetchInvoices } from '@/lib/storeApi';
 import api from '@/lib/api';
 import type { StoreInvoice } from '@/types/store';
 import type { Branch } from '@/types/branch';
+import type { ChildWithDetails } from '@/types/customer';
 import type { ActiveTab, PaymentRecord } from './types';
 import { PAYMENT_SUBCATEGORIES } from './constants';
 import {
@@ -49,6 +51,12 @@ export default function InvoicesPage() {
 
   // Collection tab state
   const [collectionCustomerFilter, setCollectionCustomerFilter] = useState('');
+
+  const { data: childrenData } = useQuery({
+    queryKey: ['children'],
+    queryFn: () => api.get('/customers/children/').then(r => r.data?.results ?? r.data),
+    staleTime: 5 * 60 * 1000,
+  });
 
   useEffect(() => {
     loadInvoiceData();
@@ -123,8 +131,9 @@ export default function InvoicesPage() {
 
   // Collection tab derived data
   const openInvoices = getOpenInvoices(invoices);
+  const children: ChildWithDetails[] = Array.isArray(childrenData) ? childrenData : [];
   const collectionCustomers = Array.from(
-    new Set(openInvoices.map(inv => inv.child_name ?? inv.customer_name)),
+    new Set(children.map(child => child.full_name)),
   ).sort((a, b) => a.localeCompare(b, 'he'));
   const collectionFiltered = collectionCustomerFilter
     ? openInvoices.filter(inv => (inv.child_name ?? inv.customer_name) === collectionCustomerFilter)
