@@ -3,16 +3,17 @@
 import { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
-import { fetchStudentsData, fetchCoursesList, fetchBranchesList } from '@/lib/api';
+import { fetchStudentsData, fetchCoursesList, fetchBranchesList, fetchCourseTypesList } from '@/lib/api';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Users, UserPlus, Ghost, ClipboardCheck, CheckCircle, Download, AlertTriangle, Loader2 } from 'lucide-react';
-import { BarChart, Bar, PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip, XAxis, YAxis, CartesianGrid, Cell as BarCell } from 'recharts';
+import { BarChart, Bar, PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip, XAxis, YAxis, CartesianGrid, LineChart, Line } from 'recharts';
 import { format, subDays } from 'date-fns';
 import { toast } from 'sonner';
 import type { DateRange } from './GlobalDateFilter';
+import { MONTHS } from './filters/monthYearUtils';
 
 // Lighter colors for quit percentage pie chart
 const QUIT_COLORS = ['hsl(var(--primary))', 'hsl(var(--success))', 'hsl(var(--warning))', 'hsl(var(--destructive))', 'hsl(var(--info))'];
@@ -40,6 +41,14 @@ interface LocalFilters {
 }
 
 type QuitPeriodPreset = 'global' | '7' | '30' | '90' | '365';
+type QuitChartBreakdown = 'course_type' | 'course';
+
+function formatMonthLabel(monthStr: string): string {
+  const [yearStr, monthStrNum] = monthStr.split('-');
+  const monthNum = Number(monthStrNum);
+  const monthLabel = MONTHS.find((m) => m.value === monthNum)?.label || monthStr;
+  return `${monthLabel} ${yearStr}`;
+}
 
 export default function StudentsSection({ globalDateRange }: Props) {
   const router = useRouter();
@@ -49,6 +58,8 @@ export default function StudentsSection({ globalDateRange }: Props) {
     branch_id: 'all',
   });
   const [quitPeriodPreset, setQuitPeriodPreset] = useState<QuitPeriodPreset>('global');
+  const [quitChartBreakdown, setQuitChartBreakdown] = useState<QuitChartBreakdown>('course_type');
+  const [quitChartFilterId, setQuitChartFilterId] = useState('all');
   const [selectedQuitStatus, setSelectedQuitStatus] = useState<any>(null);
   const [isQuitModalOpen, setIsQuitModalOpen] = useState(false);
 
@@ -63,6 +74,11 @@ export default function StudentsSection({ globalDateRange }: Props) {
     queryFn: fetchBranchesList,
   });
 
+  const { data: courseTypesData } = useQuery({
+    queryKey: ['course-types-list'],
+    queryFn: fetchCourseTypesList,
+  });
+
   const courses = useMemo(() => {
     if (!coursesData) return [];
     const data = Array.isArray(coursesData) ? coursesData : (coursesData.results || []);
@@ -75,6 +91,12 @@ export default function StudentsSection({ globalDateRange }: Props) {
     return data.map((b: any) => ({ id: b.id, name: b.name }));
   }, [branchesData]);
 
+  const courseTypes = useMemo(() => {
+    if (!courseTypesData) return [];
+    const data = Array.isArray(courseTypesData) ? courseTypesData : (courseTypesData.results || []);
+    return data.map((ct: any) => ({ id: ct.id, name: ct.name }));
+  }, [courseTypesData]);
+
   const apiFilters = useMemo(() => {
     const base: Record<string, string> = {
       search_query: filters.search_query,
@@ -83,15 +105,22 @@ export default function StudentsSection({ globalDateRange }: Props) {
       date_from: format(globalDateRange.date_from, 'yyyy-MM-dd'),
       date_to: format(globalDateRange.date_to, 'yyyy-MM-dd'),
     };
-    if (quitPeriodPreset !== 'global') {
+    if (quitPeriodPreset === 'global') {
+      base.quit_date_from = '2020-01-01';
+      base.quit_date_to = format(new Date(), 'yyyy-MM-dd');
+    } else {
       const days = parseInt(quitPeriodPreset, 10);
       const end = new Date();
       const start = subDays(end, Math.max(0, days - 1));
       base.quit_date_from = format(start, 'yyyy-MM-dd');
       base.quit_date_to = format(end, 'yyyy-MM-dd');
     }
+    base.quit_chart_breakdown = quitChartBreakdown;
+    if (quitChartFilterId !== 'all') {
+      base.quit_chart_filter_id = quitChartFilterId;
+    }
     return base;
-  }, [filters, globalDateRange, quitPeriodPreset]);
+  }, [filters, globalDateRange, quitPeriodPreset, quitChartBreakdown, quitChartFilterId]);
 
   const { data, isLoading } = useQuery({
     queryKey: ['dashboard-students', apiFilters],
@@ -114,10 +143,19 @@ export default function StudentsSection({ globalDateRange }: Props) {
   }
 
   const kpis = data?.kpis || {};
-  const studentList = data?.student_list || [];
   const abnormalByBranch = data?.abnormal_attendance_by_branch || [];
-  const quitData = data?.quit_percentage || { total_quit: 0, by_status: [], by_course_type: [] };
-  const quitByCourseType = quitData.by_course_type || [];
+  const quitData = data?.quit_percentage || { total_quit: 0, by_status: [], by_course_type: [], by_course: [] };
+  const quitBreakdownData =
+    quitChartBreakdown === 'course_type'
+      ? quitData.by_course_type || []
+      : quitData.by_course || [];
+  const quitBreakdownNameKey = quitChartBreakdown === 'course_type' ? 'course_type_name' : 'course_name';
+  const quitBreakdownTitle = quitChartBreakdown === 'course_type' ? 'נושרים לפי תחום' : 'נושרים לפי חוג';
+  const attendanceByMonth = (data?.attendance_by_month || []).map((row: any) => ({
+    ...row,
+    month_label: formatMonthLabel(row.month),
+  }));
+  const currentYear = new Date().getFullYear();
 
   const handleAbnormalClick = () => {
     router.push('/customers?abnormal_attendance=true');
@@ -353,19 +391,67 @@ export default function StudentsSection({ globalDateRange }: Props) {
         </Card>
 
         <Card className="rounded-xl bg-card shadow-md border border-border/50">
-          <CardHeader>
-            <CardTitle>נושרים לפי תחום</CardTitle>
+          <CardHeader className="space-y-3">
+            <div className="flex flex-col gap-3">
+              <CardTitle className="text-base sm:text-lg leading-snug">{quitBreakdownTitle}</CardTitle>
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+                <div className="flex flex-col gap-1 flex-1 min-w-0">
+                  <label htmlFor="quit-chart-breakdown" className="text-xs text-muted-foreground">
+                    הצג לפי
+                  </label>
+                  <select
+                    id="quit-chart-breakdown"
+                    value={quitChartBreakdown}
+                    onChange={(e) => {
+                      setQuitChartBreakdown(e.target.value as QuitChartBreakdown);
+                      setQuitChartFilterId('all');
+                    }}
+                    className="w-full h-9 px-2 py-1.5 text-sm rounded-md border border-input bg-background"
+                  >
+                    <option value="course_type">תחום</option>
+                    <option value="course">חוג</option>
+                  </select>
+                </div>
+                <div className="flex flex-col gap-1 flex-1 min-w-0">
+                  <label htmlFor="quit-chart-filter" className="text-xs text-muted-foreground">
+                    {quitChartBreakdown === 'course_type' ? 'סינון תחום' : 'סינון חוג'}
+                  </label>
+                  <select
+                    id="quit-chart-filter"
+                    value={quitChartFilterId}
+                    onChange={(e) => setQuitChartFilterId(e.target.value)}
+                    className="w-full h-9 px-2 py-1.5 text-sm rounded-md border border-input bg-background"
+                  >
+                    <option value="all">
+                      {quitChartBreakdown === 'course_type' ? 'כל התחומים' : 'כל החוגים'}
+                    </option>
+                    {quitChartBreakdown === 'course_type'
+                      ? courseTypes.map((courseType: { id: string; name: string }) => (
+                          <option key={courseType.id} value={courseType.id}>
+                            {courseType.name}
+                          </option>
+                        ))
+                      : courses.map((course: { id: string; name: string }) => (
+                          <option key={course.id} value={course.id}>
+                            {course.name}
+                          </option>
+                        ))}
+                  </select>
+                </div>
+              </div>
+            </div>
           </CardHeader>
           <CardContent>
             <div className="h-64">
-              {quitByCourseType.length > 0 ? (
+              {quitBreakdownData.length > 0 ? (
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={quitByCourseType} margin={{ top: 8, right: 16, left: 8, bottom: 8 }}>
+                  <BarChart data={quitBreakdownData} margin={{ top: 8, right: 16, left: 8, bottom: 8 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                     <XAxis
-                      dataKey="course_type_name"
+                      dataKey={quitBreakdownNameKey}
                       stroke="hsl(var(--muted-foreground))"
                       interval={0}
+                      tick={{ fontSize: 11 }}
                     />
                     <YAxis stroke="hsl(var(--muted-foreground))" allowDecimals={false} />
                     <Tooltip
@@ -377,7 +463,7 @@ export default function StudentsSection({ globalDateRange }: Props) {
                       }}
                     />
                     <Bar dataKey="count" name="נושרים">
-                      {quitByCourseType.map((_entry: any, index: number) => (
+                      {quitBreakdownData.map((_entry: any, index: number) => (
                         <Cell key={`ct-cell-${index}`} fill={BRANCH_COLORS[index % BRANCH_COLORS.length]} />
                       ))}
                     </Bar>
@@ -393,49 +479,66 @@ export default function StudentsSection({ globalDateRange }: Props) {
         </Card>
       </div>
 
-      {/* Student List */}
+      {/* Monthly attendance trend (year to date) */}
       <Card className="rounded-xl bg-card shadow-md border border-border/50">
         <CardHeader>
-          <CardTitle>תלמידים מובילים</CardTitle>
+          <CardTitle>מגמת נוכחות — {currentYear}</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="overflow-auto max-h-96">
-            <table className="w-full">
-              <thead className="bg-muted/50">
-                <tr>
-                  <th className="text-right p-3 text-sm font-medium">שם</th>
-                  <th className="text-right p-3 text-sm font-medium">סניף</th>
-                  <th className="text-right p-3 text-sm font-medium">חוג</th>
-                  <th className="text-right p-3 text-sm font-medium">נוכחות</th>
-                  <th className="text-right p-3 text-sm font-medium">ניסיון</th>
-                </tr>
-              </thead>
-              <tbody>
-                {studentList.map((student: any) => (
-                  <tr key={student.id} className="border-b border-border">
-                    <td className="p-3">{student.name}</td>
-                    <td className="p-3">{student.branch}</td>
-                    <td className="p-3">{student.course}</td>
-                    <td className="p-3">
-                      <span className={`font-medium ${
-                        student.attendance >= 75 ? 'text-success' :
-                        student.attendance >= 50 ? 'text-warning' :
-                        'text-destructive'
-                      }`}>
-                        {student.attendance}%
-                      </span>
-                    </td>
-                    <td className="p-3">
-                      {student.is_trial ? (
-                        <span className="px-2 py-1 bg-warning/10 text-warning rounded text-sm">כן</span>
-                      ) : (
-                        <span className="px-2 py-1 bg-muted text-muted-foreground rounded text-sm">לא</span>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div className="h-80">
+            {attendanceByMonth.length > 0 ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart
+                  data={attendanceByMonth}
+                  margin={{ top: 8, right: 16, left: 8, bottom: 8 }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                  <XAxis
+                    dataKey="month_label"
+                    stroke="hsl(var(--muted-foreground))"
+                    tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }}
+                    interval={0}
+                  />
+                  <YAxis
+                    stroke="hsl(var(--muted-foreground))"
+                    tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }}
+                    domain={[0, 100]}
+                    tickFormatter={(value: number) => `${value}%`}
+                    width={48}
+                  />
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: 'hsl(var(--card))',
+                      border: '1px solid hsl(var(--border))',
+                      borderRadius: '8px',
+                      direction: 'rtl',
+                      color: 'hsl(var(--foreground))',
+                    }}
+                    formatter={(value, _name, props: any) => {
+                      const payload = props?.payload;
+                      const records = payload?.total_records ?? 0;
+                      const present = payload?.present_count ?? 0;
+                      return [`${value}% (${present}/${records})`, 'נוכחות'];
+                    }}
+                    labelFormatter={(label) => String(label)}
+                  />
+                  <Legend wrapperStyle={{ direction: 'rtl', paddingTop: '10px' }} />
+                  <Line
+                    type="monotone"
+                    dataKey="attendance_rate"
+                    name="אחוז נוכחות"
+                    stroke="hsl(var(--primary))"
+                    strokeWidth={2}
+                    dot={{ fill: 'hsl(var(--primary))' }}
+                    activeDot={{ r: 6 }}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="flex items-center justify-center h-full text-muted-foreground">
+                אין נתוני נוכחות להצגה
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>

@@ -8,6 +8,8 @@ export type Lesson = {
   instructor_name: string;
   branch_id: string;
   branch_name: string;
+  city_id?: string;
+  city_name?: string;
   room_name?: string;
   room_capacity?: number;
   day_of_week: number;

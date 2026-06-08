@@ -6,6 +6,7 @@ import { ScheduleEvent, DAY_NAMES, type WeekDay } from '@/types/schedule';
 import { createEvent, updateEvent } from '@/lib/eventUtils';
 import { initialWeeklyRepeatDays, lessonDayOfWeekFromISODate } from '@/lib/scheduleUtils';
 import api from '@/lib/api';
+import { TimeField } from '@/components/ui/time-picker';
 
 type Branch = {
   id: string;
@@ -334,30 +335,24 @@ export default function RentalDialog({ event, onClose, onSuccess }: RentalDialog
           )}
 
           <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium mb-1">
-                משעה <span className="text-red-500">*</span>
-              </label>
-              <input
-                type="time"
-                value={startTime}
-                onChange={(e) => setStartTime(e.target.value)}
-                className="w-full px-3 py-2 border rounded-lg"
-                required
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium mb-1">
-                עד שעה <span className="text-red-500">*</span>
-              </label>
-              <input
-                type="time"
-                value={endTime}
-                onChange={(e) => setEndTime(e.target.value)}
-                className="w-full px-3 py-2 border rounded-lg"
-                required
-              />
-            </div>
+            <TimeField
+              label="משעה"
+              required
+              value={startTime}
+              onChange={setStartTime}
+              minuteStep={5}
+              minHour={6}
+              maxHour={23}
+            />
+            <TimeField
+              label="עד שעה"
+              required
+              value={endTime}
+              onChange={setEndTime}
+              minuteStep={5}
+              minHour={6}
+              maxHour={23}
+            />
           </div>
 
           <div>

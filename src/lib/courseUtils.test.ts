@@ -111,14 +111,33 @@ describe('courseUtils - salary + financials', () => {
     expect(fin.monthlyProfit).toBe(1400);
   });
 
-  test('calculateCourseFinancials: no team salary setting means zero expense', () => {
+  test('calculateCourseFinancials: without team override uses instructor profile pay', () => {
+    const instructor = makeInstructor({ fixed_salary_per_lesson: '200.00' });
     const course = makeCourse({
       price: 400,
-      lessons: [makeLesson({ enrolled_count: 3 })],
+      instructor,
+      lessons: [
+        makeLesson({ id: 'l1', instructor, enrolled_count: 3 }),
+        makeLesson({ id: 'l2', instructor, enrolled_count: 1 }),
+      ],
     });
     const fin = calculateCourseFinancials(course as any);
-    expect(fin.monthlySalary).toBe(0);
-    expect(fin.monthlyProfit).toBe(fin.monthlyRevenue);
+    // 200 per lesson × 2 slots × 4 weeks = 1600
+    expect(fin.monthlySalary).toBe(1600);
+    expect(fin.monthlyRevenue).toBe(1600);
+    expect(fin.monthlyProfit).toBe(0);
+  });
+
+  test('calculateCourseFinancials: team override takes precedence over instructor profile', () => {
+    const instructor = makeInstructor({ fixed_salary_per_lesson: '200.00' });
+    const course = makeCourse({
+      price: 400,
+      instructor_salary_override: 500,
+      instructor,
+      lessons: [makeLesson({ instructor, enrolled_count: 3 })],
+    });
+    const fin = calculateCourseFinancials(course as any);
+    expect(fin.monthlySalary).toBe(500);
   });
 
   test('LESSONS_PER_MONTH is 4', () => {

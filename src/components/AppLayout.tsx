@@ -26,6 +26,14 @@ export default function AppLayout({ children }: AppLayoutProps) {
 
     if (user.role === 'worker' && pathname !== '/schedule') {
       router.replace('/schedule');
+      return;
+    }
+
+    if (user.role === 'partner') {
+      const blocked = ['/settings', '/partners', '/whatsapp', '/discounts', '/credit-charge'];
+      if (blocked.some((path) => pathname === path || pathname.startsWith(`${path}/`))) {
+        router.replace('/');
+      }
     }
   }, [loading, user, router, pathname]);
 
@@ -43,15 +51,14 @@ export default function AppLayout({ children }: AppLayoutProps) {
   if (!user) return null;
   if (user.role === 'worker' && pathname !== '/schedule') return null;
 
-  const isWorker = user.role === 'worker';
+  const showSidebar = user.role !== 'worker';
 
   return (
     <div className="min-h-screen bg-background">
       {/* Hide sidebar for worker users */}
-      {!isWorker && <Sidebar />}
+      {showSidebar && <Sidebar />}
       
-      {/* Main Content Area - full width for workers, with sidebar margin for managers */}
-      <main className={`min-h-screen ${!isWorker ? 'mr-64' : ''}`}>
+      <main className={`min-h-screen ${showSidebar ? 'mr-64' : ''}`}>
         <div className="container mx-auto px-6 py-8">
           {children}
         </div>

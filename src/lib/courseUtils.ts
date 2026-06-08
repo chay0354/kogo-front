@@ -11,8 +11,30 @@ import {
 export const LESSONS_PER_MONTH = 4;
 
 /**
- * Monthly instructor pay configured on the team (עריכת קבוצה). When unset, team salary expense is 0.
+ * Monthly instructor pay configured on the team (עריכת קבוצה).
+ * When unset, falls back to the instructor profile pay from מדריכים (per-lesson × 4 × slots).
  */
+export function getInstructorMonthlySalaryFromProfile(course: CourseWithLessons): number {
+  if (!course.lessons?.length) {
+    return 0;
+  }
+
+  let monthly = 0;
+  for (const lesson of course.lessons) {
+    const instructor = course.instructor ?? lesson.instructor;
+    if (!instructor) {
+      continue;
+    }
+    const perLesson = calculateInstructorSalary(
+      lesson,
+      instructor,
+      Number(lesson.enrolled_count) || 0
+    );
+    monthly += perLesson * LESSONS_PER_MONTH;
+  }
+  return monthly;
+}
+
 export function getTeamInstructorMonthlySalary(course: CourseWithLessons): number {
   if (
     course.instructor_salary_override !== null &&
@@ -20,15 +42,14 @@ export function getTeamInstructorMonthlySalary(course: CourseWithLessons): numbe
   ) {
     return Number(course.instructor_salary_override) || 0;
   }
-  return 0;
+  return getInstructorMonthlySalaryFromProfile(course);
 }
 
 /** @deprecated Use getTeamInstructorMonthlySalary */
 export const getTeamInstructorSalaryPerLesson = getTeamInstructorMonthlySalary;
 
 /**
- * Calculate instructor salary for a lesson based on their salary model
- * @deprecated For team profitability use getTeamInstructorMonthlySalary — team expense comes from settings only.
+ * Calculate instructor salary for a lesson based on their salary model (from מדריכים settings).
  */
 export function calculateInstructorSalary(
   lesson: Lesson,

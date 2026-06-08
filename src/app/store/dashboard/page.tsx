@@ -1,33 +1,84 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import { ArrowLeft, TrendingUp, DollarSign, ShoppingBag, AlertTriangle, Package, Trophy } from 'lucide-react';
 import AppLayout from '@/components/AppLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Select } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogCloseButton } from '@/components/ui/dialog';
 import { fetchAnalytics } from '@/lib/storeApi';
 import { getProductStockLocationLabels } from '@/lib/storeProductDisplay';
+import api from '@/lib/api';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import type { StoreAnalytics } from '@/types/store';
+import type { Branch } from '@/types/branch';
 
 export default function StoreDashboard() {
   const [analytics, setAnalytics] = useState<StoreAnalytics | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [days, setDays] = useState(30);
+  const [selectedCity, setSelectedCity] = useState('all');
+  const [selectedBranch, setSelectedBranch] = useState('all');
+  const [branches, setBranches] = useState<Branch[]>([]);
   const [isLowStockDialogOpen, setIsLowStockDialogOpen] = useState(false);
 
   useEffect(() => {
+    loadBranches();
+  }, []);
+
+  useEffect(() => {
     loadAnalytics();
-  }, [days]);
+  }, [days, selectedCity, selectedBranch]);
+
+  useEffect(() => {
+    if (selectedBranch === 'all' || selectedBranch === 'delivery') return;
+    if (selectedCity === 'all') return;
+    const branch = branches.find((b) => b.id === selectedBranch);
+    if (branch && branch.city !== selectedCity) {
+      setSelectedBranch('all');
+    }
+  }, [selectedCity, selectedBranch, branches]);
+
+  const cities = useMemo(() => {
+    const map = new Map<string, string>();
+    branches.forEach((b) => {
+      if (b.city && b.city_name) {
+        map.set(b.city, b.city_name);
+      }
+    });
+    return Array.from(map.entries())
+      .map(([id, name]) => ({ id, name }))
+      .sort((a, b) => a.name.localeCompare(b.name, 'he'));
+  }, [branches]);
+
+  const branchesForFilter = useMemo(() => {
+    if (selectedCity === 'all') return branches;
+    return branches.filter((b) => b.city === selectedCity);
+  }, [branches, selectedCity]);
+
+  async function loadBranches() {
+    try {
+      const branchesResponse = await api.get('/core/branches/');
+      const branchList = branchesResponse.data?.results || branchesResponse.data;
+      setBranches(Array.isArray(branchList) ? branchList : []);
+    } catch (error) {
+      console.error('Error loading branches:', error);
+      setBranches([]);
+    }
+  }
 
   async function loadAnalytics() {
     setIsLoading(true);
     try {
-      const data = await fetchAnalytics(days);
+      const data = await fetchAnalytics({
+        days,
+        branch: selectedBranch,
+        city: selectedBranch === 'all' || selectedBranch === 'delivery' ? selectedCity : undefined,
+      });
       console.log('Analytics data loaded:', data); // Debug log
       setAnalytics(data);
     } catch (error) {
@@ -73,11 +124,36 @@ export default function StoreDashboard() {
           <h1 className="text-3xl font-bold">דוחות תנועה</h1>
           <p className="text-gray-600">סטטיסטיקות מכירות ומלאי</p>
         </div>
-        <div className="flex gap-3">
+        <div className="flex flex-wrap gap-3 items-center justify-end">
+          <Select
+            value={selectedCity}
+            onChange={(e) => setSelectedCity(e.target.value)}
+            className="w-36 h-9 text-sm"
+          >
+            <option value="all">כל הערים</option>
+            {cities.map((city) => (
+              <option key={city.id} value={city.id}>
+                {city.name}
+              </option>
+            ))}
+          </Select>
+          <Select
+            value={selectedBranch}
+            onChange={(e) => setSelectedBranch(e.target.value)}
+            className="w-40 h-9 text-sm"
+          >
+            <option value="all">כל הסניפים</option>
+            <option value="delivery">משלוח</option>
+            {branchesForFilter.map((branch) => (
+              <option key={branch.id} value={branch.id}>
+                {branch.name}
+              </option>
+            ))}
+          </Select>
           <select 
             value={days} 
             onChange={(e) => setDays(parseInt(e.target.value))}
-            className="border rounded-md px-3 py-2"
+            className="border rounded-md px-3 py-2 h-9 text-sm"
           >
             <option value="7">7 ימים אחרונים</option>
             <option value="30">30 ימים אחרונים</option>

@@ -160,7 +160,7 @@
 .courseList {
   display: flex;
   flex-direction: column;
-  gap: 0.25rem;
+  gap: 0.5rem;
 }
 
 /* ── Course row ── */
@@ -171,16 +171,25 @@
 }
 
 .courseHeader {
-  padding: 0.5rem 0.75rem;
+  padding: 0.625rem 0.75rem;
   background-color: #f9fafb;
   cursor: pointer;
   display: flex;
-  align-items: center;
-  gap: 0.75rem;
+  align-items: flex-start;
+  gap: 0.625rem;
   transition: background-color 150ms;
 }
 .courseHeader:hover {
   background-color: #f3f4f6;
+}
+
+.courseHeaderInfo {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.125rem;
 }
 
 .chevron {
@@ -188,6 +197,7 @@
   height: 1rem;
   color: #9ca3af;
   flex-shrink: 0;
+  margin-top: 0.125rem;
   transition: transform 150ms;
 }
 .chevronExpanded {
@@ -198,17 +208,14 @@
   font-weight: 500;
   font-size: 0.875rem;
   color: #111827;
-  width: 10rem;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  flex-shrink: 0;
+  width: 100%;
+  line-height: 1.25;
 }
 
 .courseMeta {
   font-size: 0.75rem;
   color: #6b7280;
-  flex-shrink: 0;
+  line-height: 1.25;
 }
 
 .courseMetaNumber {
@@ -219,14 +226,15 @@
 .courseProfit {
   font-size: 0.75rem;
   font-weight: 600;
-  flex-shrink: 0;
+  line-height: 1.25;
 }
 
 .courseActions {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 0.25rem;
-  margin-inline-start: auto;
+  flex-shrink: 0;
+  padding-top: 0.125rem;
 }
 
 .actionButton {
@@ -239,12 +247,19 @@
 }
 
 .editButton:hover   { background-color: #eff6ff; }
+.duplicateButton:hover { background-color: #f0fdf4; }
 .deleteButton:hover { background-color: #fef2f2; }
 
 .editIcon {
   width: 0.875rem;
   height: 0.875rem;
   color: #2563eb;
+  display: block;
+}
+.duplicateIcon {
+  width: 0.875rem;
+  height: 0.875rem;
+  color: #16a34a;
   display: block;
 }
 .deleteIcon {

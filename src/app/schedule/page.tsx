@@ -8,6 +8,7 @@ import EventDialog from '@/components/dialogs/EventDialog';
 import EventDetailsDialog from '@/components/dialogs/EventDetailsDialog';
 import { Lesson, LessonFilters, ScheduleEvent } from '@/types/schedule';
 import { fetchLessons, getWeekDates, formatDateISO, groupLessonsByDate, formatTime } from '@/lib/scheduleUtils';
+import ScheduleLessonCard from '@/components/schedule/ScheduleLessonCard';
 import { fetchEvents } from '@/lib/eventUtils';
 import { useAuth } from '@/components/AuthProvider';
 import { RefreshCw, Plus, ChevronRight, ChevronLeft, Calendar as CalendarIcon, LogOut } from 'lucide-react';
@@ -41,6 +42,8 @@ function shouldShowLessonOnDate(lesson: Lesson, date: Date): boolean {
   return start.getTime() <= d.getTime();
 }
 
+type ContentFilter = 'all' | 'lessons' | 'rentals';
+
 export default function SchedulePage() {
   const { user, logout } = useAuth();
   const router = useRouter();
@@ -60,6 +63,7 @@ export default function SchedulePage() {
   const [branchFilter, setBranchFilter] = useState<string>('all');
   const [cityFilter, setCityFilter] = useState<string>('all');
   const [instructorFilter, setInstructorFilter] = useState<string>('all');
+  const [contentFilter, setContentFilter] = useState<ContentFilter>('all');
   const [branches, setBranches] = useState<Branch[]>([]);
   const [cities, setCities] = useState<City[]>([]);
   const [instructors, setInstructors] = useState<Instructor[]>([]);
@@ -80,7 +84,7 @@ export default function SchedulePage() {
 
   useEffect(() => {
     loadLessons();
-  }, [currentDate, branchFilter, cityFilter, instructorFilter, activeTab]);
+  }, [currentDate, branchFilter, cityFilter, instructorFilter, contentFilter, activeTab]);
 
   const loadFilters = async () => {
     try {
@@ -117,36 +121,40 @@ export default function SchedulePage() {
     setError('');
 
     try {
-      const filters: LessonFilters = {
+      const dateRange = {
         start_date: activeTab === 'daily' ? formatDateISO(currentDate) : formatDateISO(start),
         end_date: activeTab === 'daily' ? formatDateISO(currentDate) : formatDateISO(end),
       };
 
-      if (branchFilter !== 'all') {
-        filters.branch_id = branchFilter;
+      const eventFilters = {
+        ...dateRange,
+        branch_id: branchFilter !== 'all' ? branchFilter : undefined,
+        city_id: cityFilter !== 'all' ? cityFilter : undefined,
+      };
+
+      let lessonsData: Lesson[] = [];
+      if (contentFilter === 'all' || contentFilter === 'lessons') {
+        const lessonFilters: LessonFilters = { ...dateRange };
+        if (branchFilter !== 'all') lessonFilters.branch_id = branchFilter;
+        if (cityFilter !== 'all') lessonFilters.city_id = cityFilter;
+        if (instructorFilter !== 'all') lessonFilters.instructor_id = instructorFilter;
+        lessonsData = await fetchLessons(lessonFilters);
       }
 
-      if (cityFilter !== 'all') {
-        filters.city_id = cityFilter;
+      let eventsData: ScheduleEvent[] = [];
+      if (contentFilter === 'rentals') {
+        if (!isWorker) {
+          eventsData = await fetchEvents({ ...eventFilters, studio_rental: true });
+        }
+      } else if (contentFilter === 'all') {
+        eventsData = await fetchEvents(eventFilters);
+        if (isWorker) {
+          eventsData = eventsData.filter((e) => !e.is_studio_rental);
+        }
       }
-
-      if (instructorFilter !== 'all') {
-        filters.instructor_id = instructorFilter;
-      }
-
-      // Fetch lessons and events in parallel
-      const [lessonsData, eventsData] = await Promise.all([
-        fetchLessons(filters),
-        fetchEvents({
-          start_date: filters.start_date,
-          end_date: filters.end_date,
-          branch_id: branchFilter !== 'all' ? branchFilter : undefined,
-          city_id: cityFilter !== 'all' ? cityFilter : undefined,
-        }),
-      ]);
 
       setLessons(lessonsData);
-      setEvents(isWorker ? eventsData.filter((e) => !e.is_studio_rental) : eventsData);
+      setEvents(eventsData);
     } catch (err) {
       setError('שגיאה בטעינת השיעורים והאירועים');
       console.error(err);
@@ -270,7 +278,7 @@ export default function SchedulePage() {
           )}
 
           {/* Navigation Bar */}
-          <div className="flex items-center gap-4">
+          <div className="flex flex-wrap items-center gap-4">
             <button
               onClick={handlePrevious}
               className="p-2 hover:bg-gray-100 rounded-lg"
@@ -298,6 +306,16 @@ export default function SchedulePage() {
             {/* Filters (Manager Only) */}
             {isManager && (
               <>
+                <select
+                  value={contentFilter}
+                  onChange={(e) => setContentFilter(e.target.value as ContentFilter)}
+                  className="w-36 px-3 py-2 border rounded-lg text-sm"
+                >
+                  <option value="all">הכל</option>
+                  <option value="lessons">שיעורים</option>
+                  <option value="rentals">שכירויות</option>
+                </select>
+
                 <select
                   value={branchFilter}
                   onChange={(e) => setBranchFilter(e.target.value)}
@@ -357,6 +375,7 @@ export default function SchedulePage() {
               weekDates={dates}
               lessonsByDay={lessonsByDay}
               events={events}
+              branchFilter={branchFilter}
               onViewDetails={handleViewDetails}
               onViewEventDetails={handleViewEventDetails}
             />
@@ -406,21 +425,94 @@ export default function SchedulePage() {
   );
 }
 
-// Weekly View Component with Hour Labels
+// Weekly View Component — each day split by studio
 function WeeklyView({
   weekDates,
   lessonsByDay,
   events,
+  branchFilter,
   onViewDetails,
   onViewEventDetails,
 }: {
   weekDates: Date[];
   lessonsByDay: Record<number, Lesson[]>;
   events: ScheduleEvent[];
+  branchFilter: string;
   onViewDetails: (lesson: Lesson) => void;
   onViewEventDetails: (event: ScheduleEvent) => void;
 }) {
   const workDays = weekDates.slice(0, 6); // Sunday to Friday
+
+  type DayScheduleItem =
+    | { kind: 'lesson'; start: string; id: string; lesson: Lesson; studioKey: string; studioLabel: string }
+    | { kind: 'event'; start: string; id: string; event: ScheduleEvent; studioKey: string; studioLabel: string };
+
+  const getLessonStudio = (lesson: Lesson): { key: string; label: string } => {
+    const room = lesson.room_name?.trim();
+    if (!room) {
+      return { key: '__none__', label: 'ללא סטודיו' };
+    }
+    if (branchFilter === 'all' && lesson.branch_name) {
+      return { key: `${lesson.branch_id}:${room}`, label: `${room} · ${lesson.branch_name}` };
+    }
+    return { key: room, label: room };
+  };
+
+  const getEventStudio = (event: ScheduleEvent): { key: string; label: string } => {
+    const studio = event.studio_name?.trim();
+    if (studio) {
+      if (branchFilter === 'all' && event.branch_name) {
+        return { key: `${event.branch || 'branch'}:${studio}`, label: `${studio} · ${event.branch_name}` };
+      }
+      return { key: studio, label: studio };
+    }
+    return { key: '__none__', label: 'ללא סטודיו' };
+  };
+
+  const groupDayByStudio = (
+    dayLessons: Lesson[],
+    timedEvents: ScheduleEvent[]
+  ): { studioKey: string; studioLabel: string; items: DayScheduleItem[] }[] => {
+    const byStudio = new Map<string, { studioLabel: string; items: DayScheduleItem[] }>();
+
+    const push = (studioKey: string, studioLabel: string, item: DayScheduleItem) => {
+      const entry = byStudio.get(studioKey) || { studioLabel, items: [] };
+      entry.items.push(item);
+      byStudio.set(studioKey, entry);
+    };
+
+    dayLessons.forEach((lesson) => {
+      const studio = getLessonStudio(lesson);
+      push(studio.key, studio.label, {
+        kind: 'lesson',
+        start: lesson.start_time || '00:00:00',
+        id: lesson.id,
+        lesson,
+        studioKey: studio.key,
+        studioLabel: studio.label,
+      });
+    });
+
+    timedEvents.forEach((event) => {
+      const studio = getEventStudio(event);
+      push(studio.key, studio.label, {
+        kind: 'event',
+        start: event.start_time || '00:00:00',
+        id: event.id,
+        event,
+        studioKey: studio.key,
+        studioLabel: studio.label,
+      });
+    });
+
+    return Array.from(byStudio.entries())
+      .map(([studioKey, { studioLabel, items }]) => ({
+        studioKey,
+        studioLabel,
+        items: items.sort((a, b) => a.start.localeCompare(b.start)),
+      }))
+      .sort((a, b) => a.studioLabel.localeCompare(b.studioLabel, 'he'));
+  };
 
   // Group events by day
   const eventsByDay: Record<number, { daily: ScheduleEvent[]; timed: ScheduleEvent[] }> = {};
@@ -440,11 +532,11 @@ function WeeklyView({
         {workDays.map((date, index) => {
           const dayLessons = (lessonsByDay[index] || []).filter((l) => shouldShowLessonOnDate(l, date));
           const dayEventData = eventsByDay[index] || { daily: [], timed: [] };
+          const studioGroups = groupDayByStudio(dayLessons, dayEventData.timed);
           const isToday = new Date().toDateString() === date.toDateString();
-          const hasContent = dayLessons.length > 0 || dayEventData.daily.length > 0 || dayEventData.timed.length > 0;
 
           return (
-            <div key={index} className="flex flex-col">
+            <div key={index} className="flex flex-col min-w-0">
               {/* Day Header */}
                <div
                  className={`font-bold p-2 rounded-t text-center h-12 flex items-center justify-center bg-gray-100 ${
@@ -463,40 +555,41 @@ function WeeklyView({
                 </div>
               )}
 
-              {/* Day Content (single stacked list, consistent gaps) */}
-              <div className="border rounded-b bg-white px-2 pb-2 pt-3 min-h-[400px]">
-                <div className="flex flex-col gap-2">
-                  {[
-                    ...dayLessons.map((lesson) => ({
-                      kind: 'lesson' as const,
-                      start: lesson.start_time || '00:00:00',
-                      id: lesson.id,
-                      lesson,
-                    })),
-                    ...dayEventData.timed.map((event) => ({
-                      kind: 'event' as const,
-                      start: event.start_time || '00:00:00',
-                      id: event.id,
-                      event,
-                    })),
-                  ]
-                    .sort((a, b) => a.start.localeCompare(b.start))
-                    .map((item) =>
-                      item.kind === 'lesson' ? (
-                        <LessonCardCompact
-                          key={`lesson-${item.id}`}
-                          lesson={item.lesson}
-                          onClick={() => onViewDetails(item.lesson)}
-                        />
-                      ) : (
-                        <EventCard
-                          key={`event-${item.id}`}
-                          event={item.event}
-                          onClick={() => onViewEventDetails(item.event)}
-                        />
-                      )
-                    )}
-                </div>
+              {/* Day Content — split by studio */}
+              <div className="border rounded-b bg-white px-1.5 pb-2 pt-2 min-h-[400px] flex-1">
+                {studioGroups.length === 0 ? (
+                  <div className="text-center text-xs text-gray-400 py-8">אין שיעורים</div>
+                ) : (
+                  <div className="flex flex-col gap-2 h-full">
+                    {studioGroups.map(({ studioKey, studioLabel, items }) => (
+                      <div
+                        key={studioKey}
+                        className="rounded-md border border-gray-200 bg-gray-50/80 overflow-hidden"
+                      >
+                        <div className="px-2 py-1 text-[10px] font-semibold text-gray-600 bg-gray-100 border-b border-gray-200 truncate text-center">
+                          {studioLabel}
+                        </div>
+                        <div className="flex flex-col gap-1.5 p-1.5">
+                          {items.map((item) =>
+                            item.kind === 'lesson' ? (
+                              <ScheduleLessonCard
+                                key={`lesson-${item.id}`}
+                                lesson={item.lesson}
+                                onClick={() => onViewDetails(item.lesson)}
+                              />
+                            ) : (
+                              <EventCard
+                                key={`event-${item.id}`}
+                                event={item.event}
+                                onClick={() => onViewEventDetails(item.event)}
+                              />
+                            )
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           );
@@ -635,7 +728,7 @@ function DailyView({
                       >
                         <div className="flex flex-wrap gap-2">
                           {studioLessons.map((lesson) => (
-                            <LessonCardCompact
+                            <ScheduleLessonCard
                               key={lesson.id}
                               lesson={lesson}
                               onClick={() => onViewDetails(lesson)}
@@ -672,7 +765,7 @@ function DailyView({
                 <div className="flex-1 p-2 min-h-[80px] bg-white">
                   <div className="flex flex-wrap gap-2">
                     {allHourLessons.map((lesson) => (
-                      <LessonCardCompact
+                      <ScheduleLessonCard
                         key={lesson.id}
                         lesson={lesson}
                         onClick={() => onViewDetails(lesson)}
@@ -687,30 +780,6 @@ function DailyView({
             );
           })
         )}
-      </div>
-    </div>
-  );
-}
-
-// Compact Lesson Card for Weekly and Daily Views
-function LessonCardCompact({ lesson, onClick }: { lesson: Lesson; onClick: () => void }) {
-  const isCancelled = lesson.status === 'cancelled';
-
-  return (
-    <div
-      onClick={onClick}
-      className={`px-2 py-2 rounded-md border border-primary/30 cursor-pointer transition-all hover:shadow-md bg-primary/10 ${
-        isCancelled ? 'opacity-50 line-through' : ''
-      }`}
-    >
-      <div className="font-medium text-xs truncate">{lesson.course_type_name}</div>
-      <div className="text-xs text-gray-600">{formatTime(lesson.start_time)}-{formatTime(lesson.end_time)}</div>
-      <div className="text-xs truncate">{lesson.instructor_name}</div>
-      <div className="text-xs text-gray-500 truncate">סניף: {lesson.branch_name}</div>
-      <div>
-        <span className="inline-block px-1.5 py-0.5 bg-gray-200 rounded text-xs">
-          {lesson.enrollment_count}/{lesson.room_capacity || 20}
-        </span>
       </div>
     </div>
   );

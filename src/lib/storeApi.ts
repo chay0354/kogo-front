@@ -109,10 +109,16 @@ export async function fetchSales(params?: {
   return data;
 }
 
-export async function fetchAnalytics(days?: number, branch?: string): Promise<StoreAnalytics> {
-  const { data } = await api.get('/store/sales/analytics/', {
-    params: { days: days || 30, ...(branch && branch !== 'all' ? { branch } : {}) }
-  });
+export async function fetchAnalytics(params?: {
+  days?: number;
+  branch?: string;
+  city?: string;
+}): Promise<StoreAnalytics> {
+  const { days = 30, branch, city } = params || {};
+  const queryParams: Record<string, string | number> = { days };
+  if (branch && branch !== 'all') queryParams.branch = branch;
+  if (city && city !== 'all') queryParams.city = city;
+  const { data } = await api.get('/store/sales/analytics/', { params: queryParams });
   return data;
 }
 

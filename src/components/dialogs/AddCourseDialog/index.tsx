@@ -8,38 +8,26 @@ import { formatAge } from '@/lib/courseUtils';
 import styles from './index.module.css';
 import { Branch, Room, Instructor, AddCourseDialogProps } from './types';
 import { AGE_OPTIONS, DAYS_OF_WEEK } from './constants';
-import { calcEndTime } from './utils';
+import { calcEndTime, buildDefaultCourseData, buildDefaultLessonTemplate, buildDuplicateFormState } from './utils';
+import { TimePicker } from '@/components/ui/time-picker';
 
 export default function AddCourseDialog({
   courseTypeId,
   open,
   onClose,
   onSuccess,
+  duplicateFrom = null,
 }: AddCourseDialogProps) {
-  const [courseData, setCourseData] = useState<CourseFormData>({
-    course_type: courseTypeId,
-    name: '',
-    description: '',
-    price: 0,
-    capacity: 20,
-    branch: '',
-    min_age: 6,
-    max_age: 18,
-    instructor: '',
-    instructor_salary_override: undefined,
-  });
+  const isDuplicateMode = Boolean(duplicateFrom);
 
-  const [lessonData, setLessonData] = useState<LessonFormData>({
-    course: '',
-    room: '',
-    day_of_week: 0,
-    start_time: '16:00',
-    end_time: '16:45',
-    price: undefined,
-    lesson_price_override: undefined,
-    max_students: undefined,
-    notes: '',
-  });
+  const [courseData, setCourseData] = useState<CourseFormData>(() =>
+    buildDefaultCourseData(courseTypeId)
+  );
+
+  const [lessonTemplates, setLessonTemplates] = useState<LessonFormData[]>(() => [
+    buildDefaultLessonTemplate(),
+  ]);
+  const [copyCount, setCopyCount] = useState(1);
 
   const queryClient = useQueryClient();
   const [branches, setBranches] = useState<Branch[]>([]);
@@ -51,17 +39,31 @@ export default function AddCourseDialog({
   const [courseCreated, setCourseCreated] = useState(false);
 
   useEffect(() => {
-    if (open && branches.length === 0) {
+    if (!open) return;
+
+    if (duplicateFrom) {
+      const built = buildDuplicateFormState(duplicateFrom, courseTypeId);
+      setCourseData(built.course);
+      setLessonTemplates(built.lessons);
+      setCopyCount(1);
+    } else {
+      setCourseData(buildDefaultCourseData(courseTypeId));
+      setLessonTemplates([buildDefaultLessonTemplate()]);
+      setCopyCount(1);
+    }
+    setCourseCreated(false);
+    setError('');
+
+    if (branches.length === 0) {
       fetchReferenceData();
     }
-  }, [open]);
+  }, [open, duplicateFrom, courseTypeId]);
 
-  // Auto-calculate end time (+45 min) on start time change
-  useEffect(() => {
-    if (lessonData.start_time) {
-      setLessonData((prev) => ({ ...prev, end_time: calcEndTime(prev.start_time) }));
-    }
-  }, [lessonData.start_time]);
+  const updateLessonTemplate = (index: number, patch: Partial<LessonFormData>) => {
+    setLessonTemplates((prev) =>
+      prev.map((lesson, i) => (i === index ? { ...lesson, ...patch } : lesson))
+    );
+  };
 
   const fetchReferenceData = async () => {
     setLoadingData(true);
@@ -123,52 +125,74 @@ export default function AddCourseDialog({
 
     // Lesson validation
     if (!courseData.branch) { setError('יש לבחור סניף'); return; }
-    if (!lessonData.room) { setError('יש לבחור סטודיו'); return; }
-    if (lessonData.end_time <= lessonData.start_time) {
-      setError('שעת סיום חייבת להיות אחרי שעת התחלה');
+    for (let i = 0; i < lessonTemplates.length; i += 1) {
+      const lesson = lessonTemplates[i];
+      if (!lesson.room) {
+        setError(`יש לבחור סטודיו לשיעור ${i + 1}`);
+        return;
+      }
+      if (lesson.end_time <= lesson.start_time) {
+        setError(`שעת סיום חייבת להיות אחרי שעת התחלה (שיעור ${i + 1})`);
+        return;
+      }
+    }
+    if (isDuplicateMode && (copyCount < 1 || copyCount > 20)) {
+      setError('מספר העותקים חייב להיות בין 1 ל-20');
       return;
     }
 
     setLoading(true);
+    let createdCount = 0;
     try {
-      // Step 1: create the course
-      const courseRes = await api.post('/courses/courses/', {
-        ...courseData,
-        instructor_salary_override: courseData.instructor_salary_override ?? null,
-      });
-      const newCourseId = courseRes.data.id;
+      const baseName = courseData.name.trim();
 
-      // Step 2: create the lesson assigned to the new course
-      setCourseCreated(true);
-      try {
-        const lessonSubmitData = {
-          ...lessonData,
-          course: newCourseId,
-          price: null,
-          lesson_price_override: null,
-          additional_course_prices: [],
-          max_students: lessonData.max_students || null,
-          is_recurring: true,
-          status: 'scheduled',
-        };
+      for (let copyIndex = 0; copyIndex < (isDuplicateMode ? copyCount : 1); copyIndex += 1) {
+        const copyName =
+          isDuplicateMode && copyCount > 1 && copyIndex > 0
+            ? `${baseName} (${copyIndex + 1})`
+            : baseName;
 
-        await api.post('/courses/lessons/', lessonSubmitData);
-        await queryClient.invalidateQueries({ queryKey: ['courses'] });
-        onSuccess();
-      } catch (lessonErr: any) {
-        const errorData = lessonErr.response?.data;
-        const lessonErrMsg =
-          errorData?.room ||
-          errorData?.instructor ||
-          errorData?.detail ||
-          errorData?.message ||
-          'שגיאה ביצירת שיעור';
-        setError(
-          `החוג נוצר בהצלחה. השיעור לא נוצר: ${lessonErrMsg}. ניתן לסגור ולהוסיף שיעור ידנית.`
-        );
+        const courseRes = await api.post('/courses/courses/', {
+          ...courseData,
+          name: copyName,
+          instructor_salary_override: courseData.instructor_salary_override ?? null,
+        });
+        const newCourseId = courseRes.data.id;
+        createdCount += 1;
+
+        for (const lessonTemplate of lessonTemplates) {
+          const lessonSubmitData = {
+            ...lessonTemplate,
+            course: newCourseId,
+            price: null,
+            lesson_price_override: null,
+            additional_course_prices: [],
+            is_recurring: true,
+            status: 'scheduled',
+          };
+          await api.post('/courses/lessons/', lessonSubmitData);
+        }
       }
+
+      setCourseCreated(true);
+      await queryClient.invalidateQueries({ queryKey: ['courses'] });
+      onSuccess();
     } catch (err: any) {
-      setError(err.response?.data?.message || 'שגיאה ביצירת חוג');
+      const errorData = err.response?.data;
+      const errMsg =
+        errorData?.room ||
+        errorData?.instructor ||
+        errorData?.detail ||
+        errorData?.message ||
+        (isDuplicateMode ? 'שגיאה בשכפול קבוצה' : 'שגיאה ביצירת חוג');
+      if (createdCount > 0) {
+        setError(
+          `${createdCount} קבוצות נוצרו. השגיאה: ${errMsg}. ניתן לסגור ולבדוק את הרשימה.`
+        );
+        setCourseCreated(true);
+      } else {
+        setError(typeof errMsg === 'string' ? errMsg : 'שגיאה ביצירת חוג');
+      }
     } finally {
       setLoading(false);
     }
@@ -181,7 +205,9 @@ export default function AddCourseDialog({
       <div className={styles.dialog}>
         <div className={styles.dialogBody}>
           <div className={styles.header}>
-            <h2 className={styles.title}>הוספת חוג חדש<span style={{ fontSize: '10px', color: 'white', userSelect: 'none' }}> #3</span></h2>
+            <h2 className={styles.title}>
+              {isDuplicateMode ? 'שכפול קבוצה' : 'הוספת חוג חדש'}
+            </h2>
             <button onClick={handleClose} className={styles.closeButton}>
               <svg className={styles.iconLg} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -190,6 +216,26 @@ export default function AddCourseDialog({
           </div>
 
           <form onSubmit={handleSubmit} className={styles.form}>
+            {isDuplicateMode && (
+              <div>
+                <label htmlFor="copy_count" className={styles.label}>
+                  מספר עותקים
+                </label>
+                <input
+                  type="number"
+                  id="copy_count"
+                  value={copyCount}
+                  onChange={(e) => setCopyCount(Math.max(1, Math.min(20, Number(e.target.value) || 1)))}
+                  className={styles.input}
+                  min={1}
+                  max={20}
+                />
+                <p className={styles.helperText}>
+                  ניתן ליצור עד 20 קבוצות זהות. עותקים נוספים יקבלו סיומת (2), (3) וכו&apos; לשם.
+                </p>
+              </div>
+            )}
+
             {/* Name */}
             <div>
               <label htmlFor="name" className={styles.label}>
@@ -238,20 +284,44 @@ export default function AddCourseDialog({
               </div>
             </div>
 
-            {/* Branch */}
-            <div>
-              <label htmlFor="course_branch" className={styles.label}>
-                סניף <span className={styles.required}>*</span>
-              </label>
-              {loadingData ? (
-                <div className={styles.loadingText}>טוען נתונים...</div>
-              ) : (
-                <select id="course_branch" value={courseData.branch} onChange={(e) => { setCourseData({ ...courseData, branch: e.target.value }); setLessonData((prev) => ({ ...prev, room: '' })); }} className={styles.select} required>
-                  <option value="">בחר סניף</option>
-                  {branches.map((branch) => (
-                    <option key={branch.id} value={branch.id}>{branch.name}</option>
-                  ))}
-                </select>
+            {/* Branch & Studio */}
+            <div className={lessonTemplates.length > 1 ? undefined : styles.grid2}>
+              <div>
+                <label htmlFor="course_branch" className={styles.label}>
+                  סניף <span className={styles.required}>*</span>
+                </label>
+                {loadingData ? (
+                  <div className={styles.loadingText}>טוען נתונים...</div>
+                ) : (
+                  <select id="course_branch" value={courseData.branch} onChange={(e) => { setCourseData({ ...courseData, branch: e.target.value }); setLessonTemplates((prev) => prev.map((lesson) => ({ ...lesson, room: '' }))); }} className={styles.select} required>
+                    <option value="">בחר סניף</option>
+                    {branches.map((branch) => (
+                      <option key={branch.id} value={branch.id}>{branch.name}</option>
+                    ))}
+                  </select>
+                )}
+              </div>
+              {lessonTemplates.length === 1 && (
+              <div>
+                <label htmlFor="course_room" className={styles.label}>
+                  סטודיו / חדר <span className={styles.required}>*</span>
+                </label>
+                {loadingData ? (
+                  <div className={styles.loadingText}>טוען נתונים...</div>
+                ) : (
+                  <>
+                    <select id="course_room" value={lessonTemplates[0]?.room || ''} onChange={(e) => updateLessonTemplate(0, { room: e.target.value })} className={styles.select} disabled={!courseData.branch} required>
+                      <option value="">בחר סטודיו</option>
+                      {filteredRooms.map((room) => (
+                        <option key={room.id} value={room.id}>{room.name}</option>
+                      ))}
+                    </select>
+                    {!courseData.branch && (
+                      <p className={styles.helperText}>יש לבחור סניף קודם</p>
+                    )}
+                  </>
+                )}
+              </div>
               )}
             </div>
 
@@ -311,64 +381,89 @@ export default function AddCourseDialog({
 
             {/* Lesson fields */}
             <div className={styles.lessonSection}>
-                <h3 className={styles.lessonSectionTitle}>פרטי השיעור</h3>
+                <h3 className={styles.lessonSectionTitle}>
+                  {lessonTemplates.length > 1 ? `שיעורים (${lessonTemplates.length})` : 'פרטי השיעור'}
+                </h3>
 
                 {loadingData ? (
                   <div className={styles.loadingText}>טוען נתונים...</div>
                 ) : (
                   <>
-                    {/* Day of Week */}
-                    <div>
-                      <label htmlFor="day_of_week" className={styles.label}>
-                        יום בשבוע <span className={styles.required}>*</span>
-                      </label>
-                      <select id="day_of_week" value={lessonData.day_of_week} onChange={(e) => setLessonData({ ...lessonData, day_of_week: Number(e.target.value) })} className={styles.select}>
-                        {DAYS_OF_WEEK.map((day) => (
-                          <option key={day.value} value={day.value}>{day.label}</option>
-                        ))}
-                      </select>
-                    </div>
+                    {lessonTemplates.map((lessonTemplate, lessonIndex) => (
+                      <div key={lessonIndex} className={lessonIndex > 0 ? styles.lessonBlock : undefined}>
+                        {lessonTemplates.length > 1 && (
+                          <p className={styles.lessonBlockTitle}>שיעור {lessonIndex + 1}</p>
+                        )}
 
-                    {/* Time Range */}
-                    <div className={styles.grid2}>
-                      <div>
-                        <label htmlFor="start_time" className={styles.label}>
-                          שעת התחלה <span className={styles.required}>*</span>
-                        </label>
-                        <input type="time" id="start_time" value={lessonData.start_time} onChange={(e) => setLessonData({ ...lessonData, start_time: e.target.value })} className={styles.input} required />
+                        {lessonTemplates.length > 1 && (
+                          <div>
+                            <label className={styles.label}>
+                              סטודיו / חדר <span className={styles.required}>*</span>
+                            </label>
+                            <select
+                              value={lessonTemplate.room}
+                              onChange={(e) => updateLessonTemplate(lessonIndex, { room: e.target.value })}
+                              className={styles.select}
+                              disabled={!courseData.branch}
+                              required
+                            >
+                              <option value="">בחר סטודיו</option>
+                              {filteredRooms.map((room) => (
+                                <option key={room.id} value={room.id}>{room.name}</option>
+                              ))}
+                            </select>
+                          </div>
+                        )}
+
+                        <div>
+                          <label className={styles.label}>
+                            יום בשבוע <span className={styles.required}>*</span>
+                          </label>
+                          <select
+                            value={lessonTemplate.day_of_week}
+                            onChange={(e) => updateLessonTemplate(lessonIndex, { day_of_week: Number(e.target.value) })}
+                            className={styles.select}
+                          >
+                            {DAYS_OF_WEEK.map((day) => (
+                              <option key={day.value} value={day.value}>{day.label}</option>
+                            ))}
+                          </select>
+                        </div>
+
+                        <div className={styles.grid2}>
+                          <div>
+                            <label className={styles.label}>
+                              שעת התחלה <span className={styles.required}>*</span>
+                            </label>
+                            <TimePicker
+                              value={lessonTemplate.start_time}
+                              onChange={(start_time) =>
+                                updateLessonTemplate(lessonIndex, {
+                                  start_time,
+                                  end_time: calcEndTime(start_time),
+                                })
+                              }
+                              minuteStep={5}
+                              selectClassName={styles.timeSelect}
+                            />
+                          </div>
+                          <div>
+                            <label className={styles.label}>
+                              שעת סיום <span className={styles.required}>*</span>
+                            </label>
+                            <TimePicker
+                              value={lessonTemplate.end_time}
+                              onChange={(end_time) => updateLessonTemplate(lessonIndex, { end_time })}
+                              minuteStep={5}
+                              selectClassName={styles.timeSelect}
+                            />
+                            {lessonIndex === 0 && lessonTemplates.length === 1 && (
+                              <p className={styles.helperText}>מתעדכן אוטומטית (+45 דקות)</p>
+                            )}
+                          </div>
+                        </div>
                       </div>
-                      <div>
-                        <label htmlFor="end_time" className={styles.label}>
-                          שעת סיום <span className={styles.required}>*</span>
-                        </label>
-                        <input type="time" id="end_time" value={lessonData.end_time} onChange={(e) => setLessonData({ ...lessonData, end_time: e.target.value })} className={styles.input} required />
-                        <p className={styles.helperText}>מתעדכן אוטומטית (+45 דקות)</p>
-                      </div>
-                    </div>
-
-                    {/* Room */}
-                    <div>
-                      <label htmlFor="lesson_room" className={styles.label}>
-                        סטודיו / חדר <span className={styles.required}>*</span>
-                      </label>
-                      <select id="lesson_room" value={lessonData.room} onChange={(e) => setLessonData({ ...lessonData, room: e.target.value })} className={styles.select} disabled={!courseData.branch} required>
-                        <option value="">בחר סטודיו</option>
-                        {filteredRooms.map((room) => (
-                          <option key={room.id} value={room.id}>{room.name}</option>
-                        ))}
-                      </select>
-                      {!courseData.branch && (
-                        <p className={styles.helperText}>יש לבחור סניף קודם</p>
-                      )}
-                    </div>
-
-                    {/* Max Students */}
-                    <div>
-                      <label htmlFor="lesson_max_students" className={styles.label}>
-                        מקסימום תלמידים
-                      </label>
-                      <input type="number" id="lesson_max_students" value={lessonData.max_students ?? ''} onChange={(e) => setLessonData({ ...lessonData, max_students: e.target.value ? Number(e.target.value) : undefined })} className={styles.input} placeholder="השאר ריק לשימוש בקיבולת החדר" min="1" step="1" />
-                    </div>
+                    ))}
                   </>
                 )}
               </div>
@@ -387,7 +482,13 @@ export default function AddCourseDialog({
               </button>
               {!courseCreated && (
                 <button type="submit" className={styles.submitButton} disabled={loading}>
-                  {loading ? 'שומר...' : 'הוסף קבוצה ושיעור'}
+                  {loading
+                    ? 'שומר...'
+                    : isDuplicateMode
+                      ? copyCount > 1
+                        ? `שכפל ${copyCount} קבוצות`
+                        : 'שכפל קבוצה'
+                      : 'הוסף קבוצה ושיעור'}
                 </button>
               )}
             </div>

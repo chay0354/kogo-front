@@ -196,6 +196,10 @@ export interface StudentsFilters extends DashboardFilters {
   /** When set with quit_date_to, churn stats use this window instead of date_from/date_to */
   quit_date_from?: string;
   quit_date_to?: string;
+  /** Bar chart grouping: course_type (תחום) or course (חוג) */
+  quit_chart_breakdown?: 'course_type' | 'course';
+  /** Optional filter for the quit bar chart only */
+  quit_chart_filter_id?: string;
 }
 
 export interface CoursesFilters extends DashboardFilters {

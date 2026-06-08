@@ -2,6 +2,8 @@
 
 import { useEffect, useMemo, useState } from 'react';
 
+import Link from 'next/link';
+
 import AppLayout from '@/components/AppLayout';
 import PageHeader from '@/components/PageHeader';
 import api from '@/lib/api';
@@ -16,7 +18,7 @@ import {
 } from '@/components/ui/dialog';
 import { useAuth } from '@/components/AuthProvider';
 
-type UserRole = 'manager' | 'worker';
+type UserRole = 'manager' | 'worker' | 'partner';
 
 type ManagedUser = {
   id: string;
@@ -135,9 +137,19 @@ export default function SettingsPage() {
         title={title}
         description="ניהול משתמשים והרשאות (Manager בלבד)"
         actions={
-          <Button variant="gradient" onClick={openCreate}>
-            משתמש חדש
-          </Button>
+          isManager ? (
+            <>
+              <Link href="/discounts">
+                <Button variant="outline">הנחות</Button>
+              </Link>
+              <Link href="/credit-charge">
+                <Button variant="outline">סליקת אשראי</Button>
+              </Link>
+              <Button variant="gradient" onClick={openCreate}>
+                משתמש חדש
+              </Button>
+            </>
+          ) : undefined
         }
       />
 

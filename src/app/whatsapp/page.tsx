@@ -15,6 +15,7 @@ import {
   type WhatsAppAutomation,
   type WhatsAppContact,
 } from '@/lib/whatsappApi';
+import api, { fetchCourseTypesList } from '@/lib/api';
 import { MessageCircle, RefreshCw, Search, Send, Zap } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -42,6 +43,10 @@ export default function WhatsAppPage() {
 
   const [contacts, setContacts] = useState<WhatsAppContact[]>([]);
   const [search, setSearch] = useState('');
+  const [branchFilter, setBranchFilter] = useState('all');
+  const [courseTypeFilter, setCourseTypeFilter] = useState('all');
+  const [branches, setBranches] = useState<{ id: string; name: string }[]>([]);
+  const [courseTypes, setCourseTypes] = useState<{ id: string; name: string }[]>([]);
   const [loadingContacts, setLoadingContacts] = useState(true);
   const [selectedKeys, setSelectedKeys] = useState<Set<string>>(() => new Set());
 
@@ -102,18 +107,46 @@ export default function WhatsAppPage() {
   const loadContacts = useCallback(async () => {
     setLoadingContacts(true);
     try {
-      const list = await fetchWhatsAppContacts(search.trim() || undefined);
+      const list = await fetchWhatsAppContacts({
+        q: search.trim() || undefined,
+        branch_id: branchFilter !== 'all' ? branchFilter : undefined,
+        course_type_id: courseTypeFilter !== 'all' ? courseTypeFilter : undefined,
+      });
       setContacts(list);
     } catch {
       toast.error('שגיאה בטעינת אנשי קשר');
     } finally {
       setLoadingContacts(false);
     }
-  }, [search]);
+  }, [search, branchFilter, courseTypeFilter]);
+
+  const loadFilterOptions = useCallback(async () => {
+    try {
+      const [branchRes, courseTypesData] = await Promise.all([
+        api.get('/core/branches/?simple=true'),
+        fetchCourseTypesList(),
+      ]);
+      const branchData = branchRes.data;
+      const branchList = Array.isArray(branchData)
+        ? branchData
+        : Array.isArray(branchData?.results)
+          ? branchData.results
+          : [];
+      setBranches(branchList.map((b: { id: string; name: string }) => ({ id: b.id, name: b.name })));
+
+      const ctData = Array.isArray(courseTypesData)
+        ? courseTypesData
+        : courseTypesData?.results || [];
+      setCourseTypes(ctData.map((ct: { id: string; name: string }) => ({ id: ct.id, name: ct.name })));
+    } catch {
+      toast.error('שגיאה בטעינת מסננים');
+    }
+  }, []);
 
   useEffect(() => {
     loadStatus();
-  }, [loadStatus]);
+    loadFilterOptions();
+  }, [loadStatus, loadFilterOptions]);
 
   useEffect(() => {
     if (configured) {
@@ -266,6 +299,32 @@ export default function WhatsAppPage() {
                 <RefreshCw className={`h-4 w-4 ${loadingContacts ? 'animate-spin' : ''}`} />
               </Button>
             </div>
+            <div className="flex flex-col sm:flex-row gap-2">
+              <select
+                value={branchFilter}
+                onChange={(e) => setBranchFilter(e.target.value)}
+                className="flex-1 rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+              >
+                <option value="all">כל הסניפים</option>
+                {branches.map((branch) => (
+                  <option key={branch.id} value={branch.id}>
+                    {branch.name}
+                  </option>
+                ))}
+              </select>
+              <select
+                value={courseTypeFilter}
+                onChange={(e) => setCourseTypeFilter(e.target.value)}
+                className="flex-1 rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+              >
+                <option value="all">כל התחומים</option>
+                {courseTypes.map((courseType) => (
+                  <option key={courseType.id} value={courseType.id}>
+                    {courseType.name}
+                  </option>
+                ))}
+              </select>
+            </div>
             <div className="flex gap-2">
               <Button type="button" variant="outline" size="sm" onClick={selectAllVisible}>
                 סמן הכל
@@ -301,6 +360,9 @@ export default function WhatsAppPage() {
                     <div className="flex-1 min-w-0 text-right">
                       <div className="font-medium text-sm truncate">{c.name}</div>
                       <div className="text-xs text-muted-foreground">{c.phone}</div>
+                      {c.branch_name && (
+                        <div className="text-xs text-muted-foreground truncate">{c.branch_name}</div>
+                      )}
                     </div>
                   </label>
                 );

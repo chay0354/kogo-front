@@ -10,41 +10,44 @@ import {
   GraduationCap,
   LayoutDashboard,
   Settings,
-  Tag,
   ShoppingBag,
   KeyRound,
-  CreditCard,
   MessageCircle,
   FileText,
+  Users2,
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/components/AuthProvider';
+import type { UserRole } from '@/lib/auth';
 
-function getMenuItems(role: string | null | undefined) {
-  // Worker: schedule-only
+const MANAGER_MENU = [
+  { name: 'דף הבית', href: '/', icon: LayoutDashboard },
+  { name: 'לקוחות', href: '/customers', icon: Users },
+  { name: 'קטלוג חוגים', href: '/courses', icon: BookOpen },
+  { name: 'לוח זמנים', href: '/schedule', icon: Calendar },
+  { name: 'שכירויות', href: '/rentals', icon: KeyRound },
+  { name: 'סניפים', href: '/branches', icon: MapPin },
+  { name: 'מדריכים', href: '/instructors', icon: GraduationCap },
+  { name: 'חנות', href: '/store', icon: ShoppingBag },
+  { name: 'חשבוניות', href: '/invoices', icon: FileText },
+  { name: 'שותפים', href: '/partners', icon: Users2 },
+  { name: 'WhatsApp', href: '/whatsapp', icon: MessageCircle },
+  { name: 'הגדרות', href: '/settings', icon: Settings },
+];
+
+const PARTNER_MENU = MANAGER_MENU.filter(
+  (item) => !['/partners', '/settings', '/whatsapp'].includes(item.href)
+);
+
+function getMenuItems(role: UserRole | null | undefined) {
   if (role === 'worker') {
-    return [
-      { name: 'לוח זמנים', href: '/schedule', icon: Calendar },
-    ];
+    return [{ name: 'לוח זמנים', href: '/schedule', icon: Calendar }];
   }
-
-  // Manager (or unknown): full access
-  return [
-    { name: 'דף הבית', href: '/', icon: LayoutDashboard },
-    { name: 'לקוחות', href: '/customers', icon: Users },
-    { name: 'קטלוג חוגים', href: '/courses', icon: BookOpen },
-    { name: 'לוח זמנים', href: '/schedule', icon: Calendar },
-    { name: 'שכירויות', href: '/rentals', icon: KeyRound },
-    { name: 'סניפים', href: '/branches', icon: MapPin },
-    { name: 'מדריכים', href: '/instructors', icon: GraduationCap },
-    { name: 'חנות', href: '/store', icon: ShoppingBag },
-    { name: 'חשבוניות', href: '/invoices', icon: FileText },
-    { name: 'הנחות', href: '/discounts', icon: Tag },
-    { name: 'סליקת אשראי', href: '/credit-charge', icon: CreditCard },
-    { name: 'WhatsApp', href: '/whatsapp', icon: MessageCircle },
-    { name: 'הגדרות', href: '/settings', icon: Settings },
-  ];
+  if (role === 'partner') {
+    return PARTNER_MENU;
+  }
+  return MANAGER_MENU;
 }
 
 export default function Sidebar() {
@@ -55,18 +58,16 @@ export default function Sidebar() {
 
   return (
     <aside className="fixed right-0 top-0 h-screen w-64 bg-sidebar-background text-sidebar-foreground shadow-xl z-50 flex flex-col">
-      {/* Logo/Brand */}
       <div className="flex items-center justify-center h-20 border-b border-sidebar-accent">
         <h1 className="text-2xl font-bold text-sidebar-primary">קוגומלו</h1>
       </div>
 
-      {/* Navigation Menu */}
       <nav className="flex-1 min-h-0 py-6 px-3 overflow-y-auto">
         <ul className="space-y-2">
           {menuItems.map((item) => {
             const Icon = item.icon;
             const isActive = pathname === item.href;
-            
+
             return (
               <li key={item.href}>
                 <Link
@@ -90,7 +91,6 @@ export default function Sidebar() {
         </ul>
       </nav>
 
-      {/* Footer */}
       <div className="h-16 border-t border-sidebar-accent flex items-center justify-center px-4">
         {user ? (
           <Button
@@ -110,4 +110,3 @@ export default function Sidebar() {
     </aside>
   );
 }
-

@@ -38,10 +38,12 @@ export default function CourseTypeDetailsPage() {
   const [showAddLessonDialog, setShowAddLessonDialog] = useState(false);
   const [selectedCourseId, setSelectedCourseId] = useState<string>('');
 
-  // Edit/Delete states
+  // Edit/Delete/Duplicate states
   const [showEditCourseDialog, setShowEditCourseDialog] = useState(false);
+  const [showDuplicateCourseDialog, setShowDuplicateCourseDialog] = useState(false);
   const [showEditLessonDialog, setShowEditLessonDialog] = useState(false);
   const [selectedCourse, setSelectedCourse] = useState<CourseWithLessons | null>(null);
+  const [courseToDuplicate, setCourseToDuplicate] = useState<CourseWithLessons | null>(null);
   const [selectedLesson, setSelectedLesson] = useState<Lesson | null>(null);
 
   // Filters
@@ -89,7 +91,14 @@ export default function CourseTypeDetailsPage() {
 
   const handleCourseAdded = () => {
     setShowAddCourseDialog(false);
+    setShowDuplicateCourseDialog(false);
+    setCourseToDuplicate(null);
     fetchCourseTypeDetails();
+  };
+
+  const handleDuplicateCourse = (course: CourseWithLessons) => {
+    setCourseToDuplicate(course);
+    setShowDuplicateCourseDialog(true);
   };
 
   const handleEditCourse = (course: CourseWithLessons) => {
@@ -309,29 +318,31 @@ export default function CourseTypeDetailsPage() {
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                       </svg>
 
-                      <span className={styles.courseName}>{course.name}</span>
-                      {course.branch_name && (
-                        <span className={styles.courseMeta}>{course.branch_name}</span>
-                      )}
-                      <span className={styles.courseMeta}>{formatAgeRange(course.min_age, course.max_age)}</span>
-                      <span className={styles.courseMeta}>{formatCurrency(course.price)}/חודש</span>
-                      {course.instructor?.full_name && (
-                        <span className={styles.courseMeta}>מדריך: {course.instructor.full_name}</span>
-                      )}
-                      {course.instructor_salary_override != null && (
+                      <div className={styles.courseHeaderInfo}>
+                        <span className={styles.courseName}>{course.name}</span>
+                        {course.branch_name && (
+                          <span className={styles.courseMeta}>{course.branch_name}</span>
+                        )}
+                        <span className={styles.courseMeta}>{formatAgeRange(course.min_age, course.max_age)}</span>
+                        <span className={styles.courseMeta}>{formatCurrency(course.price)}/חודש</span>
+                        {course.instructor?.full_name && (
+                          <span className={styles.courseMeta}>מדריך: {course.instructor.full_name}</span>
+                        )}
+                        {course.instructor_salary_override != null && (
+                          <span className={styles.courseMeta}>
+                            שכר מדריך: {formatCurrency(Number(course.instructor_salary_override))}/חודש
+                          </span>
+                        )}
                         <span className={styles.courseMeta}>
-                          שכר מדריך: {formatCurrency(Number(course.instructor_salary_override))}/חודש
+                          <span className={styles.courseMetaNumber}>{totalStudents}</span> תלמידים
                         </span>
-                      )}
-                      <span className={styles.courseMeta}>
-                        <span className={styles.courseMetaNumber}>{totalStudents}</span> תלמידים
-                      </span>
-                      <span className={styles.courseMeta}>
-                        <span className={styles.courseMetaNumber}>{course.lessons.length}</span> שיעורים
-                      </span>
-                      <span className={`${styles.courseProfit} ${courseFinancials.monthlyProfit >= 0 ? styles.profit : styles.loss}`}>
-                        רווח: {formatCurrency(courseFinancials.monthlyProfit)}
-                      </span>
+                        <span className={styles.courseMeta}>
+                          <span className={styles.courseMetaNumber}>{course.lessons.length}</span> שיעורים
+                        </span>
+                        <span className={`${styles.courseProfit} ${courseFinancials.monthlyProfit >= 0 ? styles.profit : styles.loss}`}>
+                          רווח: {formatCurrency(courseFinancials.monthlyProfit)}
+                        </span>
+                      </div>
 
                       <div className={styles.courseActions} onClick={(e) => e.stopPropagation()}>
                         <button
@@ -341,6 +352,15 @@ export default function CourseTypeDetailsPage() {
                         >
                           <svg className={styles.editIcon} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                          </svg>
+                        </button>
+                        <button
+                          onClick={() => handleDuplicateCourse(course)}
+                          className={`${styles.actionButton} ${styles.duplicateButton}`}
+                          title="שכפול קבוצה"
+                        >
+                          <svg className={styles.duplicateIcon} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
                           </svg>
                         </button>
                         <button
@@ -435,7 +455,29 @@ export default function CourseTypeDetailsPage() {
 
       {/* Dialogs */}
       {showAddCourseDialog && <AddCourseDialog courseTypeId={courseTypeId} open onClose={() => setShowAddCourseDialog(false)} onSuccess={handleCourseAdded} />}
-      {showAddLessonDialog && <AddLessonDialog courseId={selectedCourseId} open onClose={() => setShowAddLessonDialog(false)} onSuccess={handleLessonAdded} />}
+      {showDuplicateCourseDialog && courseToDuplicate && (
+        <AddCourseDialog
+          courseTypeId={courseTypeId}
+          duplicateFrom={courseToDuplicate}
+          open
+          onClose={() => {
+            setShowDuplicateCourseDialog(false);
+            setCourseToDuplicate(null);
+          }}
+          onSuccess={handleCourseAdded}
+        />
+      )}
+      {showAddLessonDialog && (
+        <AddLessonDialog
+          courseId={selectedCourseId}
+          teamRoomId={
+            courseTypeDetails?.courses.find((c) => c.id === selectedCourseId)?.lessons?.[0]?.room?.id
+          }
+          open
+          onClose={() => setShowAddLessonDialog(false)}
+          onSuccess={handleLessonAdded}
+        />
+      )}
       {showEditCourseDialog && selectedCourse && <EditCourseDialog course={selectedCourse} open onClose={() => { setShowEditCourseDialog(false); setSelectedCourse(null); }} onSuccess={handleCourseUpdated} />}
       {showEditLessonDialog && selectedLesson && (
         <EditLessonDialog

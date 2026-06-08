@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Package, ShoppingCart, TrendingUp, AlertTriangle, Plus, Search, Edit, RefreshCw, X, ArrowUpDown, ArrowLeftRight } from 'lucide-react';
@@ -17,6 +17,23 @@ import AdjustStockDialog from '@/components/store/AdjustStockDialog';
 import TransferStockDialog from '@/components/store/TransferStockDialog';
 import PurchaseDialog from '@/components/store/PurchaseDialog';
 
+function productMatchesCity(product: StoreProduct, cityId: string, branches: Branch[]): boolean {
+  if (cityId === 'all') return true;
+
+  const branchIdsInCity = new Set(
+    branches.filter((b) => b.city === cityId).map((b) => b.id)
+  );
+
+  if (product.branch && branchIdsInCity.has(product.branch)) {
+    return true;
+  }
+
+  return (product.size_stocks ?? []).some((row) => {
+    const branchId = row.branch ?? null;
+    return branchId != null && branchIdsInCity.has(branchId);
+  });
+}
+
 export default function StorePage() {
   const router = useRouter();
   const [products, setProducts] = useState<StoreProduct[]>([]);
@@ -25,6 +42,7 @@ export default function StorePage() {
 
   // Filter states
   const [searchQuery, setSearchQuery] = useState('');
+  const [selectedCity, setSelectedCity] = useState('all');
   const [selectedBranch, setSelectedBranch] = useState('all');
   const [stockFilter, setStockFilter] = useState('all');
   const [sortField, setSortField] = useState<'name' | 'sale_price' | 'stock_quantity'>('name');
@@ -65,17 +83,44 @@ export default function StorePage() {
     }
   }
 
+  useEffect(() => {
+    if (selectedBranch === 'all' || selectedBranch === 'delivery') return;
+    if (selectedCity === 'all') return;
+    const branch = branches.find((b) => b.id === selectedBranch);
+    if (branch && branch.city !== selectedCity) {
+      setSelectedBranch('all');
+    }
+  }, [selectedCity, selectedBranch, branches]);
+
+  const cities = useMemo(() => {
+    const map = new Map<string, string>();
+    branches.forEach((b) => {
+      if (b.city && b.city_name) {
+        map.set(b.city, b.city_name);
+      }
+    });
+    return Array.from(map.entries())
+      .map(([id, name]) => ({ id, name }))
+      .sort((a, b) => a.name.localeCompare(b.name, 'he'));
+  }, [branches]);
+
+  const branchesForFilter = useMemo(() => {
+    if (selectedCity === 'all') return branches;
+    return branches.filter((b) => b.city === selectedCity);
+  }, [branches, selectedCity]);
+
   // Filter and sort products
   const filteredAndSortedProducts = products
     .filter(product => {
       const matchesSearch = product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
                            product.category.toLowerCase().includes(searchQuery.toLowerCase());
+      const matchesCity = productMatchesCity(product, selectedCity, branches);
       const matchesBranch = selectedBranch === 'all' ||
                            (selectedBranch === 'delivery' ? !product.branch : product.branch === selectedBranch);
       const matchesStock = stockFilter === 'all' ||
                           (stockFilter === 'low' && product.is_low_stock) ||
                           (stockFilter === 'normal' && !product.is_low_stock);
-      return matchesSearch && matchesBranch && matchesStock;
+      return matchesSearch && matchesCity && matchesBranch && matchesStock;
     })
     .sort((a, b) => {
       const modifier = sortOrder === 'asc' ? 1 : -1;
@@ -85,13 +130,19 @@ export default function StorePage() {
       return 0;
     });
 
-  // KPIs use branch-filtered products so numbers match the active location filter
-  const kpiBase = selectedBranch === 'all'
-    ? products
-    : filteredAndSortedProducts;
+  // KPIs use location filters so numbers match the active city/branch filter
+  const locationFilteredProducts = products.filter((product) => {
+    const matchesCity = productMatchesCity(product, selectedCity, branches);
+    const matchesBranch =
+      selectedBranch === 'all' ||
+      (selectedBranch === 'delivery' ? !product.branch : product.branch === selectedBranch);
+    return matchesCity && matchesBranch;
+  });
+  const kpiBase =
+    selectedCity === 'all' && selectedBranch === 'all' ? products : locationFilteredProducts;
   const totalProducts = kpiBase.length;
   const totalStock = kpiBase.reduce((sum, p) => sum + p.stock_quantity, 0);
-  const inventoryValue = kpiBase.reduce((sum, p) => sum + (p.stock_quantity * p.sale_price), 0);
+  const inventoryValue = kpiBase.reduce((sum, p) => sum + (p.stock_quantity * p.cost_price), 0);
   const lowStockProducts = kpiBase.filter(p => p.is_low_stock);
 
   function handleSort(field: typeof sortField) {
@@ -105,11 +156,12 @@ export default function StorePage() {
 
   function clearFilters() {
     setSearchQuery('');
+    setSelectedCity('all');
     setSelectedBranch('all');
     setStockFilter('all');
   }
 
-  const hasFilters = searchQuery || selectedBranch !== 'all' || stockFilter !== 'all';
+  const hasFilters = searchQuery || selectedCity !== 'all' || selectedBranch !== 'all' || stockFilter !== 'all';
 
   if (isLoading) {
     return (
@@ -228,15 +280,27 @@ export default function StorePage() {
             </div>
             
             {/* Filter Options */}
-            <div className="flex gap-2 items-center">
+            <div className="flex flex-wrap gap-2 items-center">
+              <Select
+                value={selectedCity}
+                onChange={(e) => setSelectedCity(e.target.value)}
+                className="w-36 h-9 text-sm"
+              >
+                <option value="all">כל הערים</option>
+                {cities.map((city) => (
+                  <option key={city.id} value={city.id}>
+                    {city.name}
+                  </option>
+                ))}
+              </Select>
               <Select 
                 value={selectedBranch} 
                 onChange={(e) => setSelectedBranch(e.target.value)}
-                className="w-32 h-9 text-sm"
+                className="w-40 h-9 text-sm"
               >
-                <option value="all">כל המיקומים</option>
+                <option value="all">כל הסניפים</option>
                 <option value="delivery">משלוח</option>
-                {Array.isArray(branches) && branches.map((branch: any) => (
+                {Array.isArray(branchesForFilter) && branchesForFilter.map((branch: Branch) => (
                   <option key={branch.id} value={branch.id}>{branch.name}</option>
                 ))}
               </Select>

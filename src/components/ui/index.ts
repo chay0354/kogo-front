@@ -20,3 +20,6 @@ export { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '.
 export { Tabs, TabsList, TabsTrigger, TabsContent } from './tabs';
 
 export { useToast, ToastProvider } from './toast';
+
+export { TimePicker, TimeField } from './time-picker';
+export type { TimePickerProps, TimeFieldProps } from './time-picker';

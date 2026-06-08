@@ -14,9 +14,13 @@ export interface Instructor {
   full_name: string;
 }
 
+import type { CourseWithLessons } from '@/types/course';
+
 export interface AddCourseDialogProps {
   courseTypeId: string;
   open: boolean;
   onClose: () => void;
   onSuccess: () => void;
+  /** When set, pre-fills the form from an existing team for duplication. */
+  duplicateFrom?: CourseWithLessons | null;
 }

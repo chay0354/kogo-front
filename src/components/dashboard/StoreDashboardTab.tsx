@@ -35,7 +35,7 @@ export default function StoreDashboardTab() {
   useEffect(() => {
     let cancelled = false;
     setIsLoading(true);
-    fetchAnalytics(days)
+    fetchAnalytics({ days })
       .then((data) => { if (!cancelled) setAnalytics(data); })
       .catch(() => { if (!cancelled) setAnalytics(EMPTY); })
       .finally(() => { if (!cancelled) setIsLoading(false); });

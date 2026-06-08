@@ -8,9 +8,10 @@ import { Download } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Wallet, TrendingUp, TrendingDown, Loader2 } from 'lucide-react';
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
-import { format } from 'date-fns';
+import { format, startOfMonth, endOfMonth, subMonths } from 'date-fns';
 import { toast } from 'sonner';
 import type { DateRange } from './GlobalDateFilter';
+import { MONTHS, YEARS } from './filters/monthYearUtils';
 
 interface Props {
   globalDateRange: DateRange;
@@ -35,10 +36,60 @@ const INSTRUCTOR_METRIC_OPTIONS: { key: InstructorMetric; label: string; color: 
   { key: 'profit', label: 'רווח', color: 'hsl(var(--primary))' },
 ];
 
+type TrendsMonthRange = {
+  startMonth: number;
+  startYear: number;
+  endMonth: number;
+  endYear: number;
+};
+
+const TRENDS_MONTH_PRESETS = [
+  { value: 3, label: '3 חודשים' },
+  { value: 6, label: '6 חודשים' },
+  { value: 12, label: '12 חודשים' },
+  { value: 24, label: '24 חודשים' },
+] as const;
+
+function getDefaultTrendsMonthRange(): TrendsMonthRange {
+  const now = new Date();
+  const endMonth = now.getMonth() + 1;
+  const endYear = now.getFullYear();
+  const start = subMonths(new Date(endYear, endMonth - 1, 1), 5);
+  return {
+    startMonth: start.getMonth() + 1,
+    startYear: start.getFullYear(),
+    endMonth,
+    endYear,
+  };
+}
+
+function trendsRangeToDates(range: TrendsMonthRange) {
+  const startDate = new Date(range.startYear, range.startMonth - 1, 1);
+  const endDate = new Date(range.endYear, range.endMonth - 1, 1);
+  return {
+    date_from: startOfMonth(startDate),
+    date_to: endOfMonth(endDate),
+  };
+}
+
+function applyTrendsPreset(months: number): TrendsMonthRange {
+  const now = new Date();
+  const endMonth = now.getMonth() + 1;
+  const endYear = now.getFullYear();
+  const start = subMonths(new Date(endYear, endMonth - 1, 1), months - 1);
+  return {
+    startMonth: start.getMonth() + 1,
+    startYear: start.getFullYear(),
+    endMonth,
+    endYear,
+  };
+}
+
 export default function FinancialSection({ globalDateRange }: Props) {
   const [filters, setFilters] = useState<LocalFilters>({ branch_id: 'all' });
-  const [branchMetric, setBranchMetric] = useState<BranchMetric>('revenue');
   const [instructorMetric, setInstructorMetric] = useState<InstructorMetric>('revenue');
+  const [trendsMonthRange, setTrendsMonthRange] = useState<TrendsMonthRange>(getDefaultTrendsMonthRange);
+  const [trendsPreset, setTrendsPreset] = useState<number | 'custom'>(6);
 
   // Fetch branches list for dropdown
   const { data: branchesData } = useQuery({
@@ -63,6 +114,20 @@ export default function FinancialSection({ globalDateRange }: Props) {
   const { data, isLoading, error } = useQuery({
     queryKey: ['dashboard-financial', apiFilters],
     queryFn: () => fetchFinancialData(apiFilters),
+  });
+
+  const trendsApiFilters = useMemo(() => {
+    const { date_from, date_to } = trendsRangeToDates(trendsMonthRange);
+    return {
+      branch_id: filters.branch_id,
+      date_from: format(date_from, 'yyyy-MM-dd'),
+      date_to: format(date_to, 'yyyy-MM-dd'),
+    };
+  }, [filters.branch_id, trendsMonthRange]);
+
+  const { data: trendsData, isLoading: trendsLoading } = useQuery({
+    queryKey: ['dashboard-financial-trends', trendsApiFilters],
+    queryFn: () => fetchFinancialData(trendsApiFilters),
   });
 
   const handleExport = () => {
@@ -90,9 +155,27 @@ export default function FinancialSection({ globalDateRange }: Props) {
   }
 
   const kpis = data?.kpis || {};
-  const revenueByBranch = data?.revenue_by_branch || [];
-  const monthlyTrends = data?.monthly_trends || [];
+  const monthlyTrendsGlobal = data?.monthly_trends || [];
+  const monthlyTrends = trendsData?.monthly_trends || [];
   const revenueByInstructor = data?.revenue_by_instructor || [];
+
+  // Scope label + whole-system (or single-branch) metric series by month.
+  // "כל הסניפים" => aggregate of the entire system, not split per branch.
+  const isAllBranches = filters.branch_id === 'all';
+  const scopeLabel = isAllBranches
+    ? 'כלל המערכת'
+    : branches.find((b: any) => b.id === filters.branch_id)?.name || 'הסניף הנבחר';
+
+  const systemMetricData = monthlyTrendsGlobal.map((m: any) => {
+    const revenue = Number(m.revenue || 0);
+    const expenses = Number(m.expenses || 0);
+    return {
+      month: m.month,
+      revenue,
+      expenses,
+      profit: revenue - expenses,
+    };
+  });
 
   return (
     <div className="space-y-6">
@@ -169,51 +252,25 @@ export default function FinancialSection({ globalDateRange }: Props) {
         </Card>
       </div>
 
-      {/* Charts */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Revenue / Expenses / Profit by Branch */}
+      {/* Charts (stacked full-width) */}
+      <div className="space-y-6">
+        {/* Whole-system (or selected branch) Revenue / Expenses / Profit by month */}
         <Card className="rounded-xl bg-card shadow-md border border-border/50">
-          <CardHeader className="flex flex-row items-center justify-between gap-3 space-y-0">
-            <CardTitle>
-              {BRANCH_METRIC_OPTIONS.find((o) => o.key === branchMetric)?.label} לפי סניף
-            </CardTitle>
-            <div
-              role="tablist"
-              aria-label="בחר מדד"
-              className="inline-flex items-center rounded-lg bg-muted/60 p-1"
-            >
-              {BRANCH_METRIC_OPTIONS.map((opt) => {
-                const active = branchMetric === opt.key;
-                return (
-                  <button
-                    key={opt.key}
-                    type="button"
-                    role="tab"
-                    aria-selected={active}
-                    onClick={() => setBranchMetric(opt.key)}
-                    className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
-                      active
-                        ? 'bg-card text-foreground shadow-sm'
-                        : 'text-muted-foreground hover:text-foreground'
-                    }`}
-                  >
-                    {opt.label}
-                  </button>
-                );
-              })}
-            </div>
+          <CardHeader>
+            <CardTitle>הכנסות, הוצאות ורווח — {scopeLabel}</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="h-72">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart
-                  data={revenueByBranch}
+                  data={systemMetricData}
                   margin={{ top: 8, right: 16, left: 8, bottom: 8 }}
-                  barCategoryGap="28%"
+                  barCategoryGap="20%"
+                  barGap={4}
                 >
                   <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
                   <XAxis
-                    dataKey="branch_name"
+                    dataKey="month"
                     stroke="hsl(var(--muted-foreground))"
                     tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }}
                     interval={0}
@@ -244,13 +301,19 @@ export default function FinancialSection({ globalDateRange }: Props) {
                       String(name),
                     ]}
                   />
-                  <Bar
-                    dataKey={branchMetric}
-                    name={BRANCH_METRIC_OPTIONS.find((o) => o.key === branchMetric)?.label}
-                    fill={BRANCH_METRIC_OPTIONS.find((o) => o.key === branchMetric)?.color}
-                    radius={[6, 6, 0, 0]}
-                    maxBarSize={56}
+                  <Legend
+                    wrapperStyle={{ direction: 'rtl', paddingTop: '10px' }}
                   />
+                  {BRANCH_METRIC_OPTIONS.map((opt) => (
+                    <Bar
+                      key={opt.key}
+                      dataKey={opt.key}
+                      name={opt.label}
+                      fill={opt.color}
+                      radius={[6, 6, 0, 0]}
+                      maxBarSize={40}
+                    />
+                  ))}
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -259,10 +322,120 @@ export default function FinancialSection({ globalDateRange }: Props) {
 
         {/* Monthly Trends */}
         <Card className="rounded-xl bg-card shadow-md border border-border/50">
-          <CardHeader>
-            <CardTitle>מגמות חודשיות</CardTitle>
+          <CardHeader className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between space-y-0">
+            <CardTitle>מגמות חודשיות — {scopeLabel}</CardTitle>
+            <div className="flex flex-wrap items-end gap-3">
+              <div>
+                <label className="text-xs text-muted-foreground mb-1 block">טווח מהיר</label>
+                <select
+                  value={trendsPreset}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    if (val === 'custom') {
+                      setTrendsPreset('custom');
+                      return;
+                    }
+                    const months = Number(val);
+                    setTrendsPreset(months);
+                    setTrendsMonthRange(applyTrendsPreset(months));
+                  }}
+                  className="h-9 min-w-[120px] px-3 text-sm rounded-md border border-input bg-background"
+                >
+                  {TRENDS_MONTH_PRESETS.map((p) => (
+                    <option key={p.value} value={p.value}>
+                      {p.label}
+                    </option>
+                  ))}
+                  <option value="custom">מותאם</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground mb-1 block">מחודש</label>
+                <div className="flex gap-1">
+                  <select
+                    value={trendsMonthRange.startMonth}
+                    onChange={(e) => {
+                      setTrendsPreset('custom');
+                      setTrendsMonthRange((prev) => ({
+                        ...prev,
+                        startMonth: Number(e.target.value),
+                      }));
+                    }}
+                    className="h-9 px-2 text-sm rounded-md border border-input bg-background"
+                  >
+                    {MONTHS.map((m) => (
+                      <option key={m.value} value={m.value}>
+                        {m.label}
+                      </option>
+                    ))}
+                  </select>
+                  <select
+                    value={trendsMonthRange.startYear}
+                    onChange={(e) => {
+                      setTrendsPreset('custom');
+                      setTrendsMonthRange((prev) => ({
+                        ...prev,
+                        startYear: Number(e.target.value),
+                      }));
+                    }}
+                    className="h-9 px-2 text-sm rounded-md border border-input bg-background"
+                  >
+                    {YEARS.map((y) => (
+                      <option key={y} value={y}>
+                        {y}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground mb-1 block">עד חודש</label>
+                <div className="flex gap-1">
+                  <select
+                    value={trendsMonthRange.endMonth}
+                    onChange={(e) => {
+                      setTrendsPreset('custom');
+                      setTrendsMonthRange((prev) => ({
+                        ...prev,
+                        endMonth: Number(e.target.value),
+                      }));
+                    }}
+                    className="h-9 px-2 text-sm rounded-md border border-input bg-background"
+                  >
+                    {MONTHS.map((m) => (
+                      <option key={m.value} value={m.value}>
+                        {m.label}
+                      </option>
+                    ))}
+                  </select>
+                  <select
+                    value={trendsMonthRange.endYear}
+                    onChange={(e) => {
+                      setTrendsPreset('custom');
+                      setTrendsMonthRange((prev) => ({
+                        ...prev,
+                        endYear: Number(e.target.value),
+                      }));
+                    }}
+                    className="h-9 px-2 text-sm rounded-md border border-input bg-background"
+                  >
+                    {YEARS.map((y) => (
+                      <option key={y} value={y}>
+                        {y}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            </div>
           </CardHeader>
           <CardContent>
+            {trendsLoading ? (
+              <div className="flex items-center justify-center h-64 text-muted-foreground gap-2">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                <span>טוען מגמות...</span>
+              </div>
+            ) : (
             <div className="h-64">
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart 
@@ -314,6 +487,7 @@ export default function FinancialSection({ globalDateRange }: Props) {
                 </LineChart>
               </ResponsiveContainer>
             </div>
+            )}
           </CardContent>
         </Card>
       </div>

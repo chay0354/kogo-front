@@ -32,9 +32,17 @@ export async function fetchWhatsAppStatus() {
   return res.data as { configured: boolean; page_name?: string; error?: string };
 }
 
-export async function fetchWhatsAppContacts(q?: string) {
+export async function fetchWhatsAppContacts(filters?: {
+  q?: string;
+  branch_id?: string;
+  course_type_id?: string;
+}) {
+  const params: Record<string, string> = {};
+  if (filters?.q) params.q = filters.q;
+  if (filters?.branch_id) params.branch_id = filters.branch_id;
+  if (filters?.course_type_id) params.course_type_id = filters.course_type_id;
   const res = await api.get('/core/whatsapp/contacts/', {
-    params: q ? { q } : undefined,
+    params: Object.keys(params).length ? params : undefined,
   });
   return (res.data?.contacts || []) as WhatsAppContact[];
 }

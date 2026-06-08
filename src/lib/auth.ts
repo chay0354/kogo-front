@@ -1,6 +1,6 @@
 import api, { AUTH_TOKEN_STORAGE_KEY } from '@/lib/api';
 
-export type UserRole = 'manager' | 'worker';
+export type UserRole = 'manager' | 'worker' | 'partner';
 
 export type CurrentUser = {
   id: string;
@@ -9,6 +9,7 @@ export type CurrentUser = {
   last_name: string;
   is_active: boolean;
   role: UserRole | null;
+  branch_ids?: string[];
 };
 
 export async function login(email: string, password: string): Promise<CurrentUser> {

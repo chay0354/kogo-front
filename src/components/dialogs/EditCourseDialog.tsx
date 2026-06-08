@@ -11,7 +11,23 @@ import {
   tiersFromCourseLessons,
   updateExtraTierPrice,
 } from '@/lib/coursePriceTiers';
-import { formatAge } from '@/lib/courseUtils';
+import {
+  formatAge,
+  formatCurrency,
+  getInstructorMonthlySalaryFromProfile,
+  LESSONS_PER_MONTH,
+} from '@/lib/courseUtils';
+
+interface Branch {
+  id: string;
+  name: string;
+}
+
+interface Room {
+  id: string;
+  name: string;
+  branch: string;
+}
 
 interface InstructorOption {
   id: string;
@@ -59,6 +75,11 @@ export default function EditCourseDialog({
   );
   const [instructorId, setInstructorId] = useState('');
   const [instructorSalaryOverride, setInstructorSalaryOverride] = useState<number | undefined>();
+  const [branchId, setBranchId] = useState('');
+  const [roomId, setRoomId] = useState('');
+  const [branches, setBranches] = useState<Branch[]>([]);
+  const [rooms, setRooms] = useState<Room[]>([]);
+  const [loadingReferenceData, setLoadingReferenceData] = useState(false);
   const [instructors, setInstructors] = useState<InstructorOption[]>([]);
   const [loadingInstructors, setLoadingInstructors] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -85,7 +106,35 @@ export default function EditCourseDialog({
         ? Number(courseWithLessons.instructor_salary_override)
         : undefined
     );
+    setBranchId(
+      typeof courseWithLessons.branch === 'string' ? courseWithLessons.branch : ''
+    );
+    setRoomId(courseWithLessons.lessons?.[0]?.room?.id || '');
     setError('');
+
+    setLoadingReferenceData(true);
+    Promise.all([
+      api.get('/core/branches/?simple=true'),
+      api.get('/core/rooms/'),
+    ])
+      .then(([branchesRes, roomsRes]) => {
+        const branchList = Array.isArray(branchesRes.data)
+          ? branchesRes.data
+          : branchesRes.data?.results || [];
+        setBranches(branchList);
+        setRooms(Array.isArray(roomsRes.data) ? roomsRes.data : roomsRes.data?.results || []);
+        if (!courseWithLessons.branch && courseWithLessons.branch_name) {
+          const match = branchList.find(
+            (branch: Branch) => branch.name === courseWithLessons.branch_name
+          );
+          if (match) setBranchId(match.id);
+        }
+      })
+      .catch(() => {
+        setBranches([]);
+        setRooms([]);
+      })
+      .finally(() => setLoadingReferenceData(false));
 
     setLoadingInstructors(true);
     fetchInstructorsDropdown()
@@ -118,10 +167,21 @@ export default function EditCourseDialog({
       return;
     }
 
+    if (!branchId) {
+      setError('יש לבחור סניף');
+      return;
+    }
+
+    if (!roomId) {
+      setError('יש לבחור סטודיו');
+      return;
+    }
+
     setLoading(true);
     try {
       await api.patch(`/courses/courses/${course.id}/`, {
         ...formData,
+        branch: branchId,
         instructor: instructorId,
         instructor_salary_override: instructorSalaryOverride ?? null,
       });
@@ -133,6 +193,7 @@ export default function EditCourseDialog({
         await Promise.all(
           lessons.map((lesson) =>
             api.patch(`/courses/lessons/${lesson.id}/`, {
+              room: roomId,
               price: null,
               ...tierPayload,
             })
@@ -151,6 +212,27 @@ export default function EditCourseDialog({
   };
 
   if (!open) return null;
+
+  const filteredRooms = branchId
+    ? rooms.filter((room) => {
+        const roomBranchId =
+          typeof room.branch === 'string' ? room.branch : (room as Room & { branch?: { id: string } }).branch?.id;
+        return roomBranchId === branchId;
+      })
+    : [];
+
+  // Default monthly pay derived from the instructor's salary model (מסך מדריכים).
+  const slotCount = courseWithLessons.lessons?.length || 0;
+  const selectedInstructor = instructors.find((i) => i.id === instructorId);
+  let defaultMonthlySalary = 0;
+  if (instructorId && instructorId === courseWithLessons.instructor?.id) {
+    // Course's current instructor has full salary info (tiers/fixed) for an accurate calc.
+    defaultMonthlySalary = getInstructorMonthlySalaryFromProfile(courseWithLessons);
+  } else if (selectedInstructor?.fixed_salary_per_lesson != null) {
+    defaultMonthlySalary =
+      Number(selectedInstructor.fixed_salary_per_lesson) * LESSONS_PER_MONTH * slotCount;
+  }
+  const hasDefaultMonthlySalary = defaultMonthlySalary > 0;
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" dir="rtl">
@@ -252,6 +334,52 @@ export default function EditCourseDialog({
 
             <div className="grid grid-cols-2 gap-4">
               <div>
+                <label htmlFor="branch" className="block text-sm font-medium text-gray-700 mb-1">
+                  סניף <span className="text-red-500">*</span>
+                </label>
+                <select
+                  id="branch"
+                  value={branchId}
+                  onChange={(e) => {
+                    setBranchId(e.target.value);
+                    setRoomId('');
+                  }}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500"
+                  required
+                  disabled={loadingReferenceData}
+                >
+                  <option value="">{loadingReferenceData ? 'טוען...' : 'בחר סניף'}</option>
+                  {branches.map((branch) => (
+                    <option key={branch.id} value={branch.id}>
+                      {branch.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label htmlFor="room" className="block text-sm font-medium text-gray-700 mb-1">
+                  סטודיו / חדר <span className="text-red-500">*</span>
+                </label>
+                <select
+                  id="room"
+                  value={roomId}
+                  onChange={(e) => setRoomId(e.target.value)}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500"
+                  required
+                  disabled={!branchId || loadingReferenceData}
+                >
+                  <option value="">בחר סטודיו</option>
+                  {filteredRooms.map((room) => (
+                    <option key={room.id} value={room.id}>
+                      {room.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
                 <label htmlFor="instructor" className="block text-sm font-medium text-gray-700 mb-1">
                   מדריך <span className="text-red-500">*</span>
                 </label>
@@ -285,13 +413,24 @@ export default function EditCourseDialog({
                     setInstructorSalaryOverride(e.target.value ? Number(e.target.value) : undefined)
                   }
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500"
-                  placeholder="סכום חודשי למדריך עבור הקבוצה"
+                  placeholder={
+                    hasDefaultMonthlySalary
+                      ? `ברירת מחדל: ${formatCurrency(defaultMonthlySalary)}`
+                      : 'סכום חודשי למדריך עבור הקבוצה'
+                  }
                   min="0"
                   step="0.01"
                 />
-                <p className="text-xs text-gray-500 mt-1">
-                  תשלום חודשי קבוע למדריך עבור הקבוצה. ריק = ללא שכר בקבוצה (0 בהוצאות).
-                </p>
+                {hasDefaultMonthlySalary ? (
+                  <p className="text-xs text-gray-500 mt-1">
+                    שכר לפי הגדרות המדריך: {formatCurrency(defaultMonthlySalary)} לחודש. השאר ריק כדי
+                    להשתמש בערך זה, או הזן סכום חודשי כדי לדרוס אותו.
+                  </p>
+                ) : (
+                  <p className="text-xs text-gray-500 mt-1">
+                    תשלום חודשי קבוע למדריך עבור הקבוצה. ריק = שכר לפי הגדרות המדריך במסך מדריכים.
+                  </p>
+                )}
               </div>
             </div>
 
