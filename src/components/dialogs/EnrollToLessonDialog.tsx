@@ -68,7 +68,7 @@ const getEffectiveLessonPrice = (
   lesson: Lesson,
   coursePrice: string | null | undefined
 ) => {
-  const basePrice = toNumberOrNull(lesson.price) ?? toNumberOrNull(coursePrice);
+  const basePrice = toNumberOrNull(coursePrice);
   const lessonIndex = getChildLessonIndexForBilling(child, lesson.id);
 
   if (lessonIndex <= 1) return basePrice;

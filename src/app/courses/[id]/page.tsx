@@ -372,18 +372,16 @@ export default function CourseTypeDetailsPage() {
                               <tr className={styles.tableHeadRow}>
                                 <th className={styles.th}>יום ושעה</th>
                                 <th className={styles.th}>מדריך</th>
-                                <th className={styles.th}>תלמידים</th>
-                                <th className={styles.th}>מחיר</th>
-                                <th className={styles.th}>הכנסה</th>
-                                <th className={styles.th}>שכר</th>
-                                <th className={styles.th}>רווח/הפסד</th>
+                                <th className={styles.th}>נרשמים</th>
+                                <th className={styles.th}>הכנסה/מפגש</th>
+                                <th className={styles.th}>שכר/מפגש</th>
+                                <th className={styles.th}>רווח/מפגש</th>
                                 <th className={`${styles.th} ${styles.thCenter}`}>פעולות</th>
                               </tr>
                             </thead>
                             <tbody>
                               {course.lessons.map((lesson: any) => {
                                 const lessonFinancials = calculateLessonFinancials(lesson, course.price);
-                                const displayPrice = lesson.price !== null && lesson.price !== undefined ? Number(lesson.price) : Number(course.price);
                                 return (
                                   <tr key={lesson.id} className={styles.tableRow}>
                                     <td className={`${styles.td} ${styles.tdBold}`}>
@@ -391,7 +389,6 @@ export default function CourseTypeDetailsPage() {
                                     </td>
                                     <td className={styles.td}>{lesson.instructor?.full_name || '—'}</td>
                                     <td className={styles.td}>{lesson.total_students_count || lesson.enrolled_count}</td>
-                                    <td className={`${styles.td} ${styles.tdBold}`}>{displayPrice.toFixed(0)}₪</td>
                                     <td className={`${styles.td} ${styles.tdRevenue}`}>{lessonFinancials.revenue.toFixed(0)}₪</td>
                                     <td className={`${styles.td} ${styles.tdSalary}`}>{lessonFinancials.salary.toFixed(0)}₪</td>
                                     <td className={`${styles.td} ${styles.tdBold} ${lessonFinancials.profit >= 0 ? styles.profit : styles.loss}`}>
@@ -438,6 +435,7 @@ export default function CourseTypeDetailsPage() {
                             + הוסף שיעור
                           </button>
                           <div className={styles.courseFooterStats}>
+                            <span>מחיר חודשי: <span className={styles.statValue}>{formatCurrency(Number(course.price))}</span></span>
                             <span>הכנסות: <span className={styles.statRevenue}>{formatCurrency(courseFinancials.monthlyRevenue)}</span></span>
                             <span>שכר: <span className={styles.statSalary}>{formatCurrency(courseFinancials.monthlySalary)}</span></span>
                             <span>רווח: <span className={`${styles.statValue} ${courseFinancials.monthlyProfit >= 0 ? styles.profit : styles.loss}`}>{formatCurrency(courseFinancials.monthlyProfit)}</span></span>
