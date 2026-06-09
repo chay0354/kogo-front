@@ -283,6 +283,7 @@ export default function NewDocumentDialog({ open, onClose }: NewDocumentDialogPr
               customer={selectedCustomer}
               businessFormData={businessFormData}
               businessCustomerId={businessCustomerId}
+              invoiceDetails={invoiceDetails}
             />
           )}
         </div>
@@ -1052,6 +1053,7 @@ interface SummaryStepProps {
   customer: ChildWithDetails | null;
   businessFormData: BusinessCustomerFormData;
   businessCustomerId: string | null;
+  invoiceDetails: InvoiceDetailsData;
 }
 
 function SummaryStep({
@@ -1060,42 +1062,76 @@ function SummaryStep({
   customer,
   businessFormData,
   businessCustomerId,
+  invoiceDetails,
 }: SummaryStepProps) {
-  const clientLabel =
-    CLIENT_TYPE_OPTIONS.find((option) => option.type === clientType)?.title ?? '—';
-
-  const businessCustomerName =
-    businessCustomerId !== null
+  const customerName =
+    clientType === 'business'
       ? `${businessFormData.first_name} ${businessFormData.last_name}`.trim() || '—'
-      : null;
+      : clientType === 'existing' && customer
+      ? getCustomerLabel(customer)
+      : '—';
+
+  const isInvoice = docType === 'חשבונית מס';
+
+  const subtotal = invoiceDetails.lineItems.reduce(
+    (s, i) => s + i.quantity * i.price,
+    0
+  );
+  const vatAmount = invoiceDetails.vatExempt
+    ? 0
+    : (subtotal - invoiceDetails.discountAmount) * 0.18;
+  const totalBeforeRounding = subtotal - invoiceDetails.discountAmount + vatAmount;
+  const finalTotal = invoiceDetails.roundTotal
+    ? Math.round(totalBeforeRounding)
+    : totalBeforeRounding;
 
   return (
-    <div>
-      <p className={styles.stepSubtitle}>סקור את פרטי המסמך לפני ההפקה</p>
-      <dl className={styles.summaryList}>
-        <div className={styles.summaryRow}>
-          <dt className={styles.summaryLabel}>סוג לקוח</dt>
-          <dd className={styles.summaryValue}>{clientLabel}</dd>
-        </div>
-        {clientType === 'business' && businessCustomerName && (
-          <div className={styles.summaryRow}>
-            <dt className={styles.summaryLabel}>לקוח עסקי</dt>
-            <dd className={styles.summaryValue}>{businessCustomerName}</dd>
+    <div className={styles.summaryCards}>
+      {/* Card 1 — פרטי מנפיק */}
+      <div className={`${styles.summaryCard} ${styles.summaryCardMuted}`}>
+        <p className={styles.summaryCardTitle}>פרטי מנפיק</p>
+        <p className={styles.issuerLine}>קוגומלו בע&quot;מ | ח.פ 515123456</p>
+        <p className={styles.issuerLine}>רחוב הברזל 30, תל אביב | עוסק מורשה</p>
+      </div>
+
+      {/* Card 2 — סיכום מסמך */}
+      <div className={`${styles.summaryCard} ${styles.summaryCardWhite}`}>
+        <p className={styles.summaryCardTitle}>סיכום מסמך</p>
+        <dl className={styles.summaryCardBody}>
+          <div className={styles.summaryDetailRow}>
+            <dt className={styles.summaryRowLabel}>סוג מסמך:</dt>
+            <dd className={styles.summaryRowValue}>{docType ?? '—'}</dd>
           </div>
-        )}
-        {clientType === 'existing' && (
-          <div className={styles.summaryRow}>
-            <dt className={styles.summaryLabel}>לקוח</dt>
-            <dd className={styles.summaryValue}>
-              {customer ? getCustomerLabel(customer) : '—'}
-            </dd>
+          <div className={styles.summaryDetailRow}>
+            <dt className={styles.summaryRowLabel}>לקוח:</dt>
+            <dd className={styles.summaryRowValue}>{customerName}</dd>
           </div>
-        )}
-        <div className={styles.summaryRow}>
-          <dt className={styles.summaryLabel}>סוג מסמך</dt>
-          <dd className={styles.summaryValue}>{docType ?? '—'}</dd>
-        </div>
-      </dl>
+          {isInvoice && (
+            <div className={styles.summaryDetailRow}>
+              <dt className={styles.summaryRowLabel}>מספר מסמך:</dt>
+              <dd className={styles.summaryRowValue}>{invoiceDetails.documentNumber}</dd>
+            </div>
+          )}
+          {isInvoice && (
+            <>
+              <div className={styles.summaryDetailRow}>
+                <dt className={styles.summaryRowLabel}>סה&quot;כ לפני מע&quot;מ:</dt>
+                <dd className={styles.summaryRowValue}>₪{subtotal.toFixed(2)}</dd>
+              </div>
+              <div className={styles.summaryDetailRow}>
+                <dt className={styles.summaryRowLabel}>מע&quot;מ:</dt>
+                <dd className={styles.summaryRowValue}>₪{vatAmount.toFixed(2)}</dd>
+              </div>
+              <div className={styles.summaryTotalRow}>
+                <dt className={styles.summaryTotalLabel}>סה&quot;כ:</dt>
+                <dd className={styles.summaryTotalValue}>
+                  ₪{finalTotal.toFixed(2)}
+                </dd>
+              </div>
+            </>
+          )}
+        </dl>
+      </div>
     </div>
   );
 }

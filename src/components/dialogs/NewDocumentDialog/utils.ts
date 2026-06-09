@@ -81,5 +81,5 @@ export function canAdvanceFromStep(
 
 export function getNextButtonLabel(stepId: WizardStepId, steps: StepDefinition[]): string {
   const isLastStep = steps[steps.length - 1]?.id === stepId;
-  return isLastStep ? 'צור מסמך' : 'הבא';
+  return isLastStep ? 'הפק' : 'הבא';
 }
