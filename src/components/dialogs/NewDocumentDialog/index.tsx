@@ -1,12 +1,20 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { Building2, Check, ChevronLeft, ChevronRight, FileEdit, FileText, Receipt, User, X } from 'lucide-react';
+import api from '@/lib/api';
+import { Select } from '@/components/ui/select';
+import type { ChildWithDetails } from '@/types/customer';
 import styles from './index.module.css';
-import { CLIENT_TYPE_OPTIONS, DOCUMENT_TYPE_OPTIONS, WIZARD_STEPS } from './constants';
+import { CLIENT_TYPE_OPTIONS, DOCUMENT_TYPE_OPTIONS } from './constants';
 import { canAdvanceFromStep, getNextButtonLabel, getStepStatus } from './utils';
 import { useNewDocumentWizard } from './useNewDocumentWizard';
 import type { ClientType, NewDocumentDialogProps } from './types';
+
+function getCustomerLabel(customer: ChildWithDetails): string {
+  return customer.branch_name ? `${customer.full_name} — ${customer.branch_name}` : customer.full_name;
+}
 
 type IconComponent = typeof Building2;
 
@@ -23,7 +31,37 @@ const DOCUMENT_TYPE_ICONS: Record<string, IconComponent> = {
 
 export default function NewDocumentDialog({ open, onClose }: NewDocumentDialogProps) {
   const wizard = useNewDocumentWizard(onClose);
-  const { currentStep, clientType, docType, setClientType, setDocType, goToStep, goNext, goBack, close } = wizard;
+  const {
+    currentStep,
+    steps,
+    clientType,
+    selectedCustomerId,
+    docType,
+    setClientType,
+    setSelectedCustomerId,
+    setDocType,
+    goToStep,
+    goNext,
+    goBack,
+    close,
+  } = wizard;
+
+  const { data: childrenData } = useQuery({
+    queryKey: ['children'],
+    queryFn: () => api.get('/customers/children/').then((r) => r.data?.results ?? r.data),
+    staleTime: 5 * 60 * 1000,
+    enabled: open && clientType === 'existing',
+  });
+
+  const customers: ChildWithDetails[] = useMemo(
+    () => (Array.isArray(childrenData) ? childrenData : []),
+    [childrenData]
+  );
+
+  const selectedCustomer = useMemo(
+    () => customers.find((customer) => customer.id === selectedCustomerId) ?? null,
+    [customers, selectedCustomerId]
+  );
 
   useEffect(() => {
     if (!open) return;
@@ -36,7 +74,9 @@ export default function NewDocumentDialog({ open, onClose }: NewDocumentDialogPr
 
   if (!open) return null;
 
-  const canAdvance = canAdvanceFromStep(currentStep, clientType, docType);
+  const canAdvance = canAdvanceFromStep(currentStep, clientType, selectedCustomerId, docType);
+  const isFirstStep = steps[0]?.id === currentStep;
+  const isLastStep = steps[steps.length - 1]?.id === currentStep;
 
   return (
     <div
@@ -56,27 +96,27 @@ export default function NewDocumentDialog({ open, onClose }: NewDocumentDialogPr
           </div>
 
           <ol className={styles.stepper}>
-            {WIZARD_STEPS.map(({ step, label }, idx) => {
-              const status = getStepStatus(step, currentStep);
-              const nextStep = WIZARD_STEPS[idx + 1];
-              const lineActive = nextStep ? getStepStatus(nextStep.step, currentStep) !== 'pending' : false;
-              const isLast = idx === WIZARD_STEPS.length - 1;
+            {steps.map(({ id, label }, idx) => {
+              const status = getStepStatus(id, currentStep, steps);
+              const nextStep = steps[idx + 1];
+              const lineActive = nextStep ? getStepStatus(nextStep.id, currentStep, steps) !== 'pending' : false;
+              const isLast = idx === steps.length - 1;
 
               return (
-                <li key={step} className={styles.stepperItem} aria-current={status === 'active' ? 'step' : undefined}>
+                <li key={id} className={styles.stepperItem} aria-current={status === 'active' ? 'step' : undefined}>
                   <div className={styles.stepperNode}>
                     {status === 'completed' ? (
                       <button
                         type="button"
                         className={`${styles.stepCircle} ${styles.stepCircleCompleted}`}
-                        onClick={() => goToStep(step)}
+                        onClick={() => goToStep(id)}
                         aria-label={`חזור לשלב: ${label}`}
                       >
                         <Check size={14} />
                       </button>
                     ) : (
                       <span className={`${styles.stepCircle} ${status === 'active' ? styles.stepCircleActive : styles.stepCirclePending}`}>
-                        {step}
+                        {idx + 1}
                       </span>
                     )}
                     <span className={`${styles.stepLabel} ${status === 'active' ? styles.stepLabelActive : ''}`}>
@@ -93,14 +133,23 @@ export default function NewDocumentDialog({ open, onClose }: NewDocumentDialogPr
         </div>
 
         <div className={styles.body}>
-          {currentStep === 1 && <ClientTypeStep clientType={clientType} onSelect={setClientType} />}
-          {currentStep === 2 && <DocTypeStep docType={docType} onSelect={setDocType} />}
-          {currentStep === 3 && <DocumentDetailsStep />}
-          {currentStep === 4 && <SummaryStep clientType={clientType} docType={docType} />}
+          {currentStep === 'clientType' && <ClientTypeStep clientType={clientType} onSelect={setClientType} />}
+          {currentStep === 'selectCustomer' && (
+            <ExistingCustomerStep
+              customers={customers}
+              selectedCustomerId={selectedCustomerId}
+              onSelect={setSelectedCustomerId}
+            />
+          )}
+          {currentStep === 'docType' && <DocTypeStep docType={docType} onSelect={setDocType} />}
+          {currentStep === 'documentDetails' && <DocumentDetailsStep />}
+          {currentStep === 'summary' && (
+            <SummaryStep clientType={clientType} docType={docType} customer={selectedCustomer} />
+          )}
         </div>
 
         <div className={styles.footer}>
-          {currentStep > 1 ? (
+          {!isFirstStep ? (
             <button type="button" className={`${styles.navButton} ${styles.navButtonSecondary}`} onClick={goBack}>
               <ChevronRight size={16} />
               חזור
@@ -114,8 +163,8 @@ export default function NewDocumentDialog({ open, onClose }: NewDocumentDialogPr
             onClick={() => goNext(canAdvance)}
             disabled={!canAdvance}
           >
-            {getNextButtonLabel(currentStep)}
-            {currentStep < 4 && <ChevronLeft size={16} />}
+            {getNextButtonLabel(currentStep, steps)}
+            {!isLastStep && <ChevronLeft size={16} />}
           </button>
         </div>
       </div>
@@ -174,6 +223,36 @@ function ClientTypeStep({ clientType, onSelect }: ClientTypeStepProps) {
   );
 }
 
+interface ExistingCustomerStepProps {
+  customers: ChildWithDetails[];
+  selectedCustomerId: string | null;
+  onSelect: (id: string) => void;
+}
+
+function ExistingCustomerStep({ customers, selectedCustomerId, onSelect }: ExistingCustomerStepProps) {
+  return (
+    <div>
+      <p className={styles.stepSubtitle}>בחר לקוח קיים מתוך הרשימה</p>
+      <div className={styles.fieldGroup}>
+        <label htmlFor="existing-customer" className={styles.fieldLabel}>לקוח קיים</label>
+        <Select
+          id="existing-customer"
+          className={styles.fieldSelect}
+          value={selectedCustomerId ?? ''}
+          onChange={(e) => onSelect(e.target.value)}
+        >
+          <option value="" disabled>בחר לקוח קיים</option>
+          {customers.map((customer) => (
+            <option key={customer.id} value={customer.id}>
+              {getCustomerLabel(customer)}
+            </option>
+          ))}
+        </Select>
+      </div>
+    </div>
+  );
+}
+
 interface DocTypeStepProps {
   docType: string | null;
   onSelect: (type: string) => void;
@@ -214,9 +293,10 @@ function DocumentDetailsStep() {
 interface SummaryStepProps {
   clientType: ClientType | null;
   docType: string | null;
+  customer: ChildWithDetails | null;
 }
 
-function SummaryStep({ clientType, docType }: SummaryStepProps) {
+function SummaryStep({ clientType, docType, customer }: SummaryStepProps) {
   const clientLabel = CLIENT_TYPE_OPTIONS.find((option) => option.type === clientType)?.title ?? '—';
 
   return (
@@ -227,6 +307,12 @@ function SummaryStep({ clientType, docType }: SummaryStepProps) {
           <dt className={styles.summaryLabel}>סוג לקוח</dt>
           <dd className={styles.summaryValue}>{clientLabel}</dd>
         </div>
+        {clientType === 'existing' && (
+          <div className={styles.summaryRow}>
+            <dt className={styles.summaryLabel}>לקוח</dt>
+            <dd className={styles.summaryValue}>{customer ? getCustomerLabel(customer) : '—'}</dd>
+          </div>
+        )}
         <div className={styles.summaryRow}>
           <dt className={styles.summaryLabel}>סוג מסמך</dt>
           <dd className={styles.summaryValue}>{docType ?? '—'}</dd>

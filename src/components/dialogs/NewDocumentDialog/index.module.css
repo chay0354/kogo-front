@@ -259,6 +259,26 @@
   color: hsl(var(--muted-foreground));
 }
 
+/* Existing customer select (step 2, existing-client flow) */
+.fieldGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  max-width: 28rem;
+}
+
+.fieldLabel {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: hsl(var(--foreground));
+}
+
+.fieldSelect {
+  height: 2.75rem;
+  border-radius: calc(var(--radius) - 4px);
+  border-color: hsl(var(--border));
+}
+
 /* Placeholder content (steps 3) */
 .placeholderBox {
   display: flex;
