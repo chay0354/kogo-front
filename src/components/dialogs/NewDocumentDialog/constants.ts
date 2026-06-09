@@ -2,6 +2,7 @@ import type { ClientTypeOption, DocumentTypeOption, StepDefinition } from './typ
 
 export const ALL_WIZARD_STEPS: StepDefinition[] = [
   { id: 'clientType', label: 'סוג לקוח' },
+  { id: 'businessClientDetails', label: 'פרטי לקוח' },
   { id: 'selectCustomer', label: 'בחירת לקוח' },
   { id: 'docType', label: 'סוג מסמך' },
   { id: 'documentDetails', label: 'פרטי מסמך' },
@@ -14,7 +15,17 @@ export const CLIENT_TYPE_OPTIONS: ClientTypeOption[] = [
 ];
 
 export const DOCUMENT_TYPE_OPTIONS: DocumentTypeOption[] = [
+  { type: 'חשבונית מס', description: 'חשבונית מס ללא אישור תשלום' },
   { type: 'חשבונית מס/קבלה', description: 'מסמך חיוב וקבלת תשלום במסמך אחד' },
   { type: 'חשבונית עסקה', description: 'מסמך עסקה ללא אישור תשלום' },
   { type: 'טיוטה', description: 'מסמך לעריכה ובדיקה לפני הפקה סופית' },
 ];
+
+export const BUSINESS_TYPE_OPTIONS = [
+  'לקוחות',
+  'סוחרים',
+  'ספקים',
+  'חוגים',
+  'מותג קוגומלו',
+  'מותג געגע',
+] as const;

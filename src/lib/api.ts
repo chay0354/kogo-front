@@ -1,7 +1,7 @@
 import axios from 'axios';
-import type { 
-  EarlySignupDiscount, 
-  SecondChildDiscount, 
+import type {
+  EarlySignupDiscount,
+  SecondChildDiscount,
   AdditionalLessonDiscount,
   EarlySignupDiscountFormData,
   SecondChildDiscountFormData,
@@ -9,6 +9,7 @@ import type {
   DiscountEvaluation,
   DiscountEvaluationRequest
 } from '@/types/discount';
+import type { BusinessCustomer, BusinessCustomerFormData } from '@/components/dialogs/NewDocumentDialog/types';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1';
 
@@ -314,5 +315,15 @@ export const fetchInstructorsDropdown = async () => {
  */
 export const fetchInstructorsList = async () => {
   return fetchInstructorsDropdown();
+};
+
+export const searchBusinessCustomers = async (query: string): Promise<BusinessCustomer[]> => {
+  const res = await api.get('/customers/business-customers/', { params: { search: query } });
+  return res.data?.results ?? res.data ?? [];
+};
+
+export const createBusinessCustomer = async (data: BusinessCustomerFormData): Promise<BusinessCustomer> => {
+  const res = await api.post('/customers/business-customers/', data);
+  return res.data;
 };
 
