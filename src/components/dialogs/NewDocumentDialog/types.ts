@@ -1,6 +1,6 @@
 export type ClientType = 'business' | 'existing';
 
-export type WizardStep = 1 | 2 | 3 | 4;
+export type WizardStepId = 'clientType' | 'selectCustomer' | 'docType' | 'documentDetails' | 'summary';
 
 export interface NewDocumentDialogProps {
   open: boolean;
@@ -8,7 +8,7 @@ export interface NewDocumentDialogProps {
 }
 
 export interface StepDefinition {
-  step: WizardStep;
+  id: WizardStepId;
   label: string;
 }
 

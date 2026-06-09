@@ -1,10 +1,11 @@
 import type { ClientTypeOption, DocumentTypeOption, StepDefinition } from './types';
 
-export const WIZARD_STEPS: StepDefinition[] = [
-  { step: 1, label: 'סוג לקוח' },
-  { step: 2, label: 'סוג מסמך' },
-  { step: 3, label: 'פרטי מסמך' },
-  { step: 4, label: 'סיכום' },
+export const ALL_WIZARD_STEPS: StepDefinition[] = [
+  { id: 'clientType', label: 'סוג לקוח' },
+  { id: 'selectCustomer', label: 'בחירת לקוח' },
+  { id: 'docType', label: 'סוג מסמך' },
+  { id: 'documentDetails', label: 'פרטי מסמך' },
+  { id: 'summary', label: 'סיכום' },
 ];
 
 export const CLIENT_TYPE_OPTIONS: ClientTypeOption[] = [
