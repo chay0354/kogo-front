@@ -184,15 +184,12 @@
 /* Selectable cards */
 .cardGrid {
   display: grid;
-  grid-template-columns: 1fr;
+  grid-template-columns: repeat(3, 1fr);
   gap: 0.75rem;
 }
 
-@media (min-width: 768px) {
-  .cardGrid {
-    grid-template-columns: 1fr 1fr;
-    gap: 1rem;
-  }
+.cardGridTwoCol {
+  grid-template-columns: repeat(2, 1fr);
 }
 
 .selectableCard {
@@ -248,6 +245,14 @@
   color: hsl(var(--primary));
 }
 
+.cardIconWrapDanger {
+  background: hsl(0 80% 95%);
+}
+
+.cardIconDanger {
+  color: hsl(0 72% 51%);
+}
+
 .cardTitle {
   font-size: 0.9375rem;
   font-weight: 600;
@@ -277,6 +282,84 @@
   height: 2.75rem;
   border-radius: calc(var(--radius) - 4px);
   border-color: hsl(var(--border));
+}
+
+/* Notes two-column grid */
+.notesGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+/* Payment terms two-column row */
+.paymentTermsRow {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+/* Section divider with label */
+.sectionDivider {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.sectionDivider::before,
+.sectionDivider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: hsl(var(--border));
+}
+
+.sectionDividerLabel {
+  font-size: 0.75rem;
+  color: hsl(var(--muted-foreground));
+  white-space: nowrap;
+}
+
+/* Payment methods row */
+.paymentMethodsGrid {
+  display: flex;
+  gap: 0.625rem;
+}
+
+.paymentMethodBtn {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.75rem 0.5rem;
+  border: 1px solid hsl(var(--border));
+  border-radius: calc(var(--radius) - 4px);
+  background: hsl(var(--card));
+  color: hsl(var(--muted-foreground));
+  font-size: 0.75rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: border-color 150ms, background-color 150ms, color 150ms;
+}
+
+.paymentMethodBtn:hover {
+  border-color: hsl(var(--primary) / 0.4);
+  color: hsl(var(--foreground));
+}
+
+.paymentMethodBtnActive {
+  border-color: hsl(var(--primary));
+  background: hsl(var(--primary) / 0.06);
+  color: hsl(var(--primary));
+}
+
+.optionalLabel {
+  font-weight: 400;
+  color: hsl(var(--muted-foreground));
+  font-size: 0.8125rem;
 }
 
 /* Placeholder content (steps 3) */

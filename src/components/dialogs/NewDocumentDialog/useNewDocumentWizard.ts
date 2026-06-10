@@ -43,6 +43,13 @@ function createInitialInvoiceDetails(): InvoiceDetailsData {
     vatExempt: false,
     roundTotal: false,
     closeInvoice: false,
+    customerNotes: '',
+    internalNotes: '',
+    paymentTerms: 'שוטף + 30',
+    dueDate: '',
+    paymentMethods: [],
+    linkedInvoiceId: '',
+    receiptNotes: '',
   };
 }
 

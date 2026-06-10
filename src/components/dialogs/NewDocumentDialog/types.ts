@@ -75,4 +75,11 @@ export interface InvoiceDetailsData {
   vatExempt: boolean;
   roundTotal: boolean;
   closeInvoice: boolean;
+  customerNotes: string;
+  internalNotes: string;
+  paymentTerms: string;
+  dueDate: string;
+  paymentMethods: string[];
+  linkedInvoiceId: string;
+  receiptNotes: string;
 }

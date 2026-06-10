@@ -3,13 +3,18 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
+  ArrowLeftRight,
+  Banknote,
   Building2,
   Check,
   ChevronLeft,
   ChevronRight,
+  CreditCard,
   FileEdit,
+  FileMinus,
   FileText,
   Loader2,
+  PenLine,
   Receipt,
   Search,
   User,
@@ -44,9 +49,20 @@ const CLIENT_TYPE_ICONS: Record<ClientType, IconComponent> = {
 
 const DOCUMENT_TYPE_ICONS: Record<string, IconComponent> = {
   'חשבונית מס/קבלה': Receipt,
+  'קבלה': Receipt,
   'חשבונית עסקה': FileText,
+  'חשבונית מס זיכוי': FileMinus,
   'טיוטה': FileEdit,
 };
+
+const DOCUMENT_TYPE_DANGER = new Set(['חשבונית מס זיכוי']);
+
+const PAYMENT_METHODS = [
+  { id: 'מזומן', label: 'מזומן', icon: Banknote },
+  { id: 'צ\'ק', label: 'צ\'ק', icon: PenLine },
+  { id: 'אשראי', label: 'אשראי', icon: CreditCard },
+  { id: 'העברה בנקאית', label: 'העברה בנקאית', icon: ArrowLeftRight },
+] as const;
 
 export default function NewDocumentDialog({ open, onClose }: NewDocumentDialogProps) {
   const wizard = useNewDocumentWizard(onClose);
@@ -268,14 +284,19 @@ export default function NewDocumentDialog({ open, onClose }: NewDocumentDialogPr
             />
           )}
           {currentStep === 'docType' && (
-            <DocTypeStep docType={docType} onSelect={setDocType} />
+            <DocTypeStep docType={docType} clientType={clientType} onSelect={setDocType} />
           )}
-          {currentStep === 'documentDetails' && docType === 'חשבונית מס' && (
-            <InvoiceDetailsStep data={invoiceDetails} onChange={setInvoiceDetails} />
-          )}
-          {currentStep === 'documentDetails' && docType !== 'חשבונית מס' && (
-            <DocumentDetailsStep />
-          )}
+          {currentStep === 'documentDetails' &&
+            (docType === 'חשבונית מס' || docType === 'חשבונית מס/קבלה') && (
+              <InvoiceDetailsStep
+                data={invoiceDetails}
+                onChange={setInvoiceDetails}
+                docType={docType}
+              />
+            )}
+          {currentStep === 'documentDetails' &&
+            docType !== 'חשבונית מס' &&
+            docType !== 'חשבונית מס/קבלה' && <DocumentDetailsStep />}
           {currentStep === 'summary' && (
             <SummaryStep
               clientType={clientType}
@@ -330,6 +351,7 @@ interface SelectableCardProps {
   title: string;
   description: string;
   selected: boolean;
+  iconDanger?: boolean;
   onSelect: () => void;
 }
 
@@ -338,6 +360,7 @@ function SelectableCard({
   title,
   description,
   selected,
+  iconDanger,
   onSelect,
 }: SelectableCardProps) {
   return (
@@ -349,11 +372,11 @@ function SelectableCard({
       onClick={onSelect}
     >
       <span
-        className={`${styles.cardIconWrap} ${selected ? styles.cardIconWrapSelected : ''}`}
+        className={`${styles.cardIconWrap} ${selected ? styles.cardIconWrapSelected : iconDanger ? styles.cardIconWrapDanger : ''}`}
       >
         <Icon
           size={24}
-          className={selected ? styles.cardIconSelected : styles.cardIcon}
+          className={selected ? styles.cardIconSelected : iconDanger ? styles.cardIconDanger : styles.cardIcon}
         />
       </span>
       <span className={styles.cardTitle}>{title}</span>
@@ -371,7 +394,7 @@ function ClientTypeStep({ clientType, onSelect }: ClientTypeStepProps) {
   return (
     <div>
       <p className={styles.stepSubtitle}>בחר סוג לקוח להתחלת תהליך הפקת מסמך</p>
-      <div className={styles.cardGrid} role="radiogroup" aria-label="סוג לקוח">
+      <div className={`${styles.cardGrid} ${styles.cardGridTwoCol}`} role="radiogroup" aria-label="סוג לקוח">
         {CLIENT_TYPE_OPTIONS.map((option) => (
           <SelectableCard
             key={option.type}
@@ -753,21 +776,26 @@ function ExistingCustomerStep({
 
 interface DocTypeStepProps {
   docType: string | null;
+  clientType: ClientType | null;
   onSelect: (type: string) => void;
 }
 
-function DocTypeStep({ docType, onSelect }: DocTypeStepProps) {
+function DocTypeStep({ docType, clientType, onSelect }: DocTypeStepProps) {
+  const options = clientType === 'existing'
+    ? DOCUMENT_TYPE_OPTIONS.filter(o => o.type !== 'טיוטה')
+    : DOCUMENT_TYPE_OPTIONS;
   return (
     <div>
       <p className={styles.stepSubtitle}>בחר את סוג המסמך שברצונך להפיק</p>
       <div className={styles.cardGrid} role="radiogroup" aria-label="סוג מסמך">
-        {DOCUMENT_TYPE_OPTIONS.map((option) => (
+        {options.map((option) => (
           <SelectableCard
             key={option.type}
             icon={DOCUMENT_TYPE_ICONS[option.type] ?? FileText}
             title={option.type}
             description={option.description}
             selected={docType === option.type}
+            iconDanger={DOCUMENT_TYPE_DANGER.has(option.type)}
             onSelect={() => onSelect(option.type)}
           />
         ))}
@@ -797,9 +825,18 @@ function DocumentDetailsStep() {
 interface InvoiceDetailsStepProps {
   data: InvoiceDetailsData;
   onChange: (data: InvoiceDetailsData) => void;
+  docType: string;
 }
 
-function InvoiceDetailsStep({ data, onChange }: InvoiceDetailsStepProps) {
+function InvoiceDetailsStep({ data, onChange, docType }: InvoiceDetailsStepProps) {
+  const isReceipt = docType === 'חשבונית מס/קבלה';
+
+  function togglePaymentMethod(method: string) {
+    const methods = data.paymentMethods.includes(method)
+      ? data.paymentMethods.filter((m) => m !== method)
+      : [...data.paymentMethods, method];
+    onChange({ ...data, paymentMethods: methods });
+  }
   function updateLineItem(idx: number, field: keyof LineItem, value: string | number) {
     const updated = data.lineItems.map((item, i) =>
       i === idx ? { ...item, [field]: value } : item
@@ -967,7 +1004,7 @@ function InvoiceDetailsStep({ data, onChange }: InvoiceDetailsStepProps) {
             })
           }
         >
-          + הוסף שורה
+          + אשר שורה
         </button>
       </div>
 
@@ -1041,6 +1078,118 @@ function InvoiceDetailsStep({ data, onChange }: InvoiceDetailsStepProps) {
           <span className={styles.totalsCheckboxLabel}>לסגור חשבונית</span>
         </label>
       </div>
+
+      {/* Notes — two columns */}
+      <div className={styles.notesGrid}>
+        <div className={styles.formRow}>
+          <label htmlFor="inv-customer-notes" className={styles.sectionHeading}>הערות</label>
+          <textarea
+            id="inv-customer-notes"
+            className={styles.formTextarea}
+            placeholder="הערות ללקוח..."
+            value={data.customerNotes}
+            onChange={(e) => onChange({ ...data, customerNotes: e.target.value })}
+          />
+        </div>
+        <div className={styles.formRow}>
+          <label htmlFor="inv-internal-notes" className={styles.sectionHeading}>הערה פנימית</label>
+          <textarea
+            id="inv-internal-notes"
+            className={styles.formTextarea}
+            placeholder="הערה פנימית (לא מופיעה במסמך)..."
+            value={data.internalNotes}
+            onChange={(e) => onChange({ ...data, internalNotes: e.target.value })}
+          />
+        </div>
+      </div>
+
+      {/* Payment terms */}
+      <div className={styles.paymentTermsRow}>
+        <div className={styles.formRow}>
+          <label htmlFor="inv-payment-terms" className={styles.sectionHeading}>לתשלום עד</label>
+          <Select
+            id="inv-payment-terms"
+            className={styles.formSelect}
+            value={data.paymentTerms}
+            onChange={(e) => onChange({ ...data, paymentTerms: e.target.value })}
+          >
+            <option value="מיידי">מיידי</option>
+            <option value="שוטף">שוטף</option>
+            <option value="שוטף + 15">שוטף + 15</option>
+            <option value="שוטף + 30">שוטף + 30</option>
+            <option value="שוטף + 45">שוטף + 45</option>
+            <option value="שוטף + 60">שוטף + 60</option>
+            <option value="שוטף + 90">שוטף + 90</option>
+          </Select>
+        </div>
+        <div className={styles.formRow}>
+          <label htmlFor="inv-due-date" className={styles.sectionHeading}>תאריך פירעון</label>
+          <input
+            id="inv-due-date"
+            type="date"
+            className={styles.formInput}
+            value={data.dueDate}
+            onChange={(e) => onChange({ ...data, dueDate: e.target.value })}
+          />
+        </div>
+      </div>
+
+      {/* Payment methods */}
+      {isReceipt && (
+        <div className={styles.detailsSection}>
+          <div className={styles.sectionDivider}>
+            <span className={styles.sectionDividerLabel}>אמצעי תשלום</span>
+          </div>
+          <div className={styles.paymentMethodsGrid}>
+            {PAYMENT_METHODS.map(({ id, label, icon: Icon }) => {
+              const active = data.paymentMethods.includes(id);
+              return (
+                <button
+                  key={id}
+                  type="button"
+                  className={`${styles.paymentMethodBtn} ${active ? styles.paymentMethodBtnActive : ''}`}
+                  onClick={() => togglePaymentMethod(id)}
+                  aria-pressed={active}
+                >
+                  <Icon size={20} />
+                  <span>{label}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Link to existing invoice */}
+      {isReceipt && (
+        <div className={styles.detailsSection}>
+          <label htmlFor="inv-linked" className={styles.sectionHeading}>
+            שיוך לחשבונית קיימת <span className={styles.optionalLabel}>(אופציונלי)</span>
+          </label>
+          <Select
+            id="inv-linked"
+            className={styles.formSelect}
+            value={data.linkedInvoiceId}
+            onChange={(e) => onChange({ ...data, linkedInvoiceId: e.target.value })}
+          >
+            <option value="">ללא שיוך</option>
+          </Select>
+        </div>
+      )}
+
+      {/* Receipt notes */}
+      {isReceipt && (
+        <div className={styles.detailsSection}>
+          <label htmlFor="inv-receipt-notes" className={styles.sectionHeading}>הערות לקבלה</label>
+          <textarea
+            id="inv-receipt-notes"
+            className={styles.formTextarea}
+            placeholder="הערות נוספות..."
+            value={data.receiptNotes}
+            onChange={(e) => onChange({ ...data, receiptNotes: e.target.value })}
+          />
+        </div>
+      )}
     </div>
   );
 }

@@ -199,12 +199,10 @@ export default function InvoicesPage() {
               </button>
             </div>
 
-            {activeTab === 'מסמכים' && (
-              <button type="button" className={styles.newDocBtn} onClick={() => setIsNewDocOpen(true)}>
-                <Plus size={16} />
-                מסמך חדש
-              </button>
-            )}
+            <button type="button" className={styles.newDocBtn} onClick={() => setIsNewDocOpen(true)}>
+              <Plus size={16} />
+              מסמך חדש
+            </button>
           </div>
         </div>
 
