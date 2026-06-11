@@ -30,10 +30,12 @@ import { useNewDocumentWizard } from './useNewDocumentWizard';
 import type {
   BusinessCustomer,
   BusinessCustomerFormData,
+  CheckRow,
   ClientType,
   InvoiceDetailsData,
   LineItem,
   NewDocumentDialogProps,
+  ReceiptDetailsData,
 } from './types';
 
 function getCustomerLabel(customer: ChildWithDetails): string {
@@ -75,12 +77,14 @@ export default function NewDocumentDialog({ open, onClose }: NewDocumentDialogPr
     businessFormData,
     docType,
     invoiceDetails,
+    receiptDetails,
     setClientType,
     setSelectedCustomerId,
     setBusinessCustomerId,
     setBusinessFormData,
     setDocType,
     setInvoiceDetails,
+    setReceiptDetails,
     goToStep,
     goNext,
     goBack,
@@ -176,7 +180,7 @@ export default function NewDocumentDialog({ open, onClose }: NewDocumentDialogPr
               <X size={20} />
             </button>
             <h2 id="new-document-dialog-title" className={styles.title}>
-              מסמך חדש
+              {docType ?? 'מסמך חדש'}
             </h2>
           </div>
 
@@ -294,9 +298,13 @@ export default function NewDocumentDialog({ open, onClose }: NewDocumentDialogPr
                 docType={docType}
               />
             )}
+          {currentStep === 'documentDetails' && docType === 'קבלה' && (
+            <ReceiptDetailsStep data={receiptDetails} onChange={setReceiptDetails} />
+          )}
           {currentStep === 'documentDetails' &&
             docType !== 'חשבונית מס' &&
-            docType !== 'חשבונית מס/קבלה' && <DocumentDetailsStep />}
+            docType !== 'חשבונית מס/קבלה' &&
+            docType !== 'קבלה' && <DocumentDetailsStep />}
           {currentStep === 'summary' && (
             <SummaryStep
               clientType={clientType}
@@ -1190,6 +1198,442 @@ function InvoiceDetailsStep({ data, onChange, docType }: InvoiceDetailsStepProps
           />
         </div>
       )}
+    </div>
+  );
+}
+
+/* ─── ReceiptDetailsStep ──────────────────────────────────────────── */
+
+interface ReceiptDetailsStepProps {
+  data: ReceiptDetailsData;
+  onChange: (data: ReceiptDetailsData) => void;
+}
+
+function ReceiptDetailsStep({ data, onChange }: ReceiptDetailsStepProps) {
+  return (
+    <div>
+      {/* Payment method tabs */}
+      <div className={styles.detailsSection}>
+        <p className={styles.sectionHeading}>אמצעי תשלום</p>
+        <div
+          className={styles.paymentMethodsGrid}
+          role="group"
+          aria-label="אמצעי תשלום"
+        >
+          {PAYMENT_METHODS.map(({ id, label, icon: Icon }) => (
+            <button
+              key={id}
+              type="button"
+              className={`${styles.paymentMethodBtn} ${
+                data.paymentMethod === id ? styles.paymentMethodBtnActive : ''
+              }`}
+              aria-pressed={data.paymentMethod === id}
+              onClick={() => onChange({ ...data, paymentMethod: id })}
+            >
+              <Icon size={20} />
+              <span>{label}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Shared: שיוך לחשבונית קיימת */}
+      <div className={styles.detailsSection}>
+        <label htmlFor="receipt-linked" className={styles.sectionHeading}>
+          שיוך לחשבונית קיימת{' '}
+          <span className={styles.optionalLabel}>(אופציונלי)</span>
+        </label>
+        <Select
+          id="receipt-linked"
+          className={styles.formSelect}
+          value={data.linkedInvoiceId}
+          onChange={(e) => onChange({ ...data, linkedInvoiceId: e.target.value })}
+        >
+          <option value="">ללא שיוך</option>
+        </Select>
+      </div>
+
+      {/* Tab body */}
+      {data.paymentMethod === 'מזומן' && (
+        <CashPanel data={data} onChange={onChange} />
+      )}
+      {data.paymentMethod === "צ'ק" && (
+        <CheckPanel data={data} onChange={onChange} />
+      )}
+      {data.paymentMethod === 'אשראי' && (
+        <CreditPanel data={data} onChange={onChange} />
+      )}
+      {data.paymentMethod === 'העברה בנקאית' && (
+        <BankPanel data={data} onChange={onChange} />
+      )}
+    </div>
+  );
+}
+
+function CashPanel({ data, onChange }: ReceiptDetailsStepProps) {
+  return (
+    <div className={styles.detailsSection}>
+      <p className={styles.sectionHeading}>מזומן</p>
+      <div className={styles.formRow}>
+        <label htmlFor="cash-amount" className={styles.sectionHeading}>
+          סכום
+        </label>
+        <div className={styles.amountInputWrap}>
+          <span className={styles.amountSymbol} aria-hidden="true">₪</span>
+          <input
+            id="cash-amount"
+            type="number"
+            min={0}
+            className={styles.formInput}
+            value={data.cashAmount}
+            aria-label="סכום במזומן בשקלים"
+            onChange={(e) => onChange({ ...data, cashAmount: Number(e.target.value) })}
+          />
+        </div>
+      </div>
+      <div className={styles.formRow}>
+        <label htmlFor="cash-notes" className={styles.sectionHeading}>
+          הערות
+        </label>
+        <textarea
+          id="cash-notes"
+          className={styles.formTextarea}
+          placeholder="הערות..."
+          value={data.cashNotes}
+          onChange={(e) => onChange({ ...data, cashNotes: e.target.value })}
+        />
+      </div>
+    </div>
+  );
+}
+
+function CheckPanel({ data, onChange }: ReceiptDetailsStepProps) {
+  const confirmedChecks = data.checks.filter((c) => c.confirmed);
+  const confirmedTotal = confirmedChecks.reduce((sum, c) => sum + c.amount, 0);
+
+  function updateCheck(id: string, field: keyof CheckRow, value: string | number | boolean) {
+    onChange({
+      ...data,
+      checks: data.checks.map((c) => (c.id === id ? { ...c, [field]: value } : c)),
+    });
+  }
+
+  function confirmCheck(id: string) {
+    updateCheck(id, 'confirmed', true);
+  }
+
+  function deleteCheck(id: string) {
+    const remaining = data.checks.filter((c) => c.id !== id);
+    const today = new Date().toISOString().split('T')[0];
+    const next =
+      remaining.length > 0
+        ? remaining
+        : [
+            {
+              id: String(Date.now()),
+              date: today,
+              bank: '',
+              branch: '',
+              accountNumber: '',
+              checkNumber: '',
+              amount: 0,
+              confirmed: false,
+            },
+          ];
+    onChange({ ...data, checks: next });
+  }
+
+  return (
+    <div className={styles.detailsSection}>
+      <p className={styles.sectionHeading}>צ&apos;קים</p>
+      <div className={styles.lineItemsTableWrap}>
+        <div
+          className={styles.checkTable}
+          role="table"
+          aria-label="צ'קים"
+        >
+          <div className={styles.checkHeaderRow} role="row">
+            <div className={styles.checkHeaderCell} role="columnheader" />
+            <div className={styles.checkHeaderCell} role="columnheader">תאריך</div>
+            <div className={styles.checkHeaderCell} role="columnheader">בנק</div>
+            <div className={styles.checkHeaderCell} role="columnheader">סניף</div>
+            <div className={styles.checkHeaderCell} role="columnheader">מס&apos; חשבון</div>
+            <div className={styles.checkHeaderCell} role="columnheader">מס&apos; צ&apos;ק</div>
+            <div className={styles.checkHeaderCell} role="columnheader">סכום (₪)</div>
+          </div>
+          {data.checks.map((check) => (
+            <div key={check.id} className={styles.checkRow} role="row">
+              <div className={styles.checkActionCell} role="cell">
+                <button
+                  type="button"
+                  className={styles.checkConfirmBtn}
+                  onClick={() => confirmCheck(check.id)}
+                  disabled={check.confirmed}
+                  aria-label="אשר צ'ק"
+                >
+                  <Check size={13} />
+                </button>
+                <button
+                  type="button"
+                  className={styles.checkDeleteBtn}
+                  onClick={() => deleteCheck(check.id)}
+                  aria-label="מחק צ'ק"
+                >
+                  <X size={13} />
+                </button>
+              </div>
+              <div role="cell">
+                <input
+                  type="date"
+                  className={check.confirmed ? styles.readOnlyInput : styles.lineItemInput}
+                  value={check.date}
+                  readOnly={check.confirmed}
+                  onChange={(e) => updateCheck(check.id, 'date', e.target.value)}
+                />
+              </div>
+              <div role="cell">
+                <input
+                  type="text"
+                  className={check.confirmed ? styles.readOnlyInput : styles.lineItemInput}
+                  value={check.bank}
+                  placeholder="בנק"
+                  readOnly={check.confirmed}
+                  onChange={(e) => updateCheck(check.id, 'bank', e.target.value)}
+                />
+              </div>
+              <div role="cell">
+                <input
+                  type="text"
+                  className={check.confirmed ? styles.readOnlyInput : styles.lineItemInput}
+                  value={check.branch}
+                  placeholder="סניף"
+                  readOnly={check.confirmed}
+                  onChange={(e) => updateCheck(check.id, 'branch', e.target.value)}
+                />
+              </div>
+              <div role="cell">
+                <input
+                  type="text"
+                  className={check.confirmed ? styles.readOnlyInput : styles.lineItemInput}
+                  value={check.accountNumber}
+                  placeholder="חשבון"
+                  readOnly={check.confirmed}
+                  onChange={(e) => updateCheck(check.id, 'accountNumber', e.target.value)}
+                />
+              </div>
+              <div role="cell">
+                <input
+                  type="text"
+                  className={check.confirmed ? styles.readOnlyInput : styles.lineItemInput}
+                  value={check.checkNumber}
+                  placeholder="מס' צ'ק"
+                  readOnly={check.confirmed}
+                  onChange={(e) => updateCheck(check.id, 'checkNumber', e.target.value)}
+                />
+              </div>
+              <div role="cell">
+                <input
+                  type="number"
+                  className={check.confirmed ? styles.readOnlyInput : styles.lineItemInput}
+                  value={check.amount}
+                  min={0}
+                  readOnly={check.confirmed}
+                  onChange={(e) => updateCheck(check.id, 'amount', Number(e.target.value))}
+                />
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* ניכוי במקור */}
+      <div className={styles.witholdingRow}>
+        <span className={styles.witholdingLabel}>ניכוי במקור</span>
+        <div className={styles.witholdingInputWrap}>
+          <input
+            type="number"
+            min={0}
+            className={styles.formInput}
+            value={data.withholding}
+            aria-label="ניכוי במקור בשקלים"
+            onChange={(e) => onChange({ ...data, withholding: Number(e.target.value) })}
+          />
+          <span className={styles.witholdingSymbol} aria-hidden="true">₪</span>
+        </div>
+      </div>
+
+      {/* Summary bar */}
+      <div className={styles.checkSummaryBar}>
+        <span className={styles.checkSummaryLabel}>
+          סה&quot;כ צ&apos;קים ({confirmedChecks.length})
+        </span>
+        <span className={styles.checkSummaryAmount}>₪{confirmedTotal}ש</span>
+      </div>
+
+      {/* Info note */}
+      <p className={styles.checkInfoNote}>
+        כל צ&apos;ק ייצור טיוט חשבונית מס — הטיוטה תהפוך אוטומטית לחשבונית מס בתאריך הפירעון
+      </p>
+
+      <div className={styles.formRow}>
+        <label htmlFor="check-notes" className={styles.sectionHeading}>
+          הערות
+        </label>
+        <textarea
+          id="check-notes"
+          className={styles.formTextarea}
+          placeholder="הערות..."
+          value={data.checkNotes}
+          onChange={(e) => onChange({ ...data, checkNotes: e.target.value })}
+        />
+      </div>
+    </div>
+  );
+}
+
+function CreditPanel({ data, onChange }: ReceiptDetailsStepProps) {
+  return (
+    <div className={styles.detailsSection}>
+      <p className={styles.sectionHeading}>אשראי</p>
+      <div className={styles.receiptTwoCol}>
+        <div className={styles.formRow}>
+          <label htmlFor="card-last-four" className={styles.sectionHeading}>
+            4 ספרות אחרונות
+          </label>
+          <input
+            id="card-last-four"
+            type="text"
+            placeholder="1234"
+            maxLength={4}
+            className={styles.formInput}
+            value={data.cardLastFour}
+            onChange={(e) => onChange({ ...data, cardLastFour: e.target.value })}
+          />
+        </div>
+        <div className={styles.formRow}>
+          <label htmlFor="card-expiry" className={styles.sectionHeading}>
+            תוקף
+          </label>
+          <input
+            id="card-expiry"
+            type="text"
+            placeholder="MM/YY"
+            className={styles.formInput}
+            value={data.cardExpiry}
+            onChange={(e) => onChange({ ...data, cardExpiry: e.target.value })}
+          />
+        </div>
+      </div>
+      <div className={styles.receiptTwoCol}>
+        <div className={styles.formRow}>
+          <label htmlFor="card-amount" className={styles.sectionHeading}>
+            סכום
+          </label>
+          <div className={styles.amountInputWrap}>
+            <span className={styles.amountSymbol} aria-hidden="true">₪</span>
+            <input
+              id="card-amount"
+              type="number"
+              min={0}
+              className={styles.formInput}
+              value={data.cardAmount}
+              aria-label="סכום אשראי בשקלים"
+              onChange={(e) => onChange({ ...data, cardAmount: Number(e.target.value) })}
+            />
+          </div>
+        </div>
+        <div className={styles.formRow}>
+          <label htmlFor="card-installments" className={styles.sectionHeading}>
+            מספר תשלומים
+          </label>
+          <input
+            id="card-installments"
+            type="number"
+            min={1}
+            className={styles.formInput}
+            value={data.cardInstallments}
+            onChange={(e) =>
+              onChange({ ...data, cardInstallments: Math.max(1, Number(e.target.value)) })
+            }
+          />
+        </div>
+      </div>
+      <div className={styles.formRow}>
+        <label htmlFor="card-notes" className={styles.sectionHeading}>
+          הערות
+        </label>
+        <textarea
+          id="card-notes"
+          className={styles.formTextarea}
+          placeholder="הערות..."
+          value={data.cardNotes}
+          onChange={(e) => onChange({ ...data, cardNotes: e.target.value })}
+        />
+      </div>
+    </div>
+  );
+}
+
+function BankPanel({ data, onChange }: ReceiptDetailsStepProps) {
+  return (
+    <div className={styles.detailsSection}>
+      <p className={styles.sectionHeading}>העברה בנקאית</p>
+      <div className={styles.receiptThreeCol}>
+        <div className={styles.formRow}>
+          <label htmlFor="bank-date" className={styles.sectionHeading}>
+            תאריך
+          </label>
+          <input
+            id="bank-date"
+            type="date"
+            className={styles.formInput}
+            value={data.bankDate}
+            onChange={(e) => onChange({ ...data, bankDate: e.target.value })}
+          />
+        </div>
+        <div className={styles.formRow}>
+          <label htmlFor="bank-reference" className={styles.sectionHeading}>
+            אסמכתא
+          </label>
+          <input
+            id="bank-reference"
+            type="text"
+            placeholder="מס' אסמכתא"
+            className={styles.formInput}
+            value={data.bankReference}
+            onChange={(e) => onChange({ ...data, bankReference: e.target.value })}
+          />
+        </div>
+        <div className={styles.formRow}>
+          <label htmlFor="bank-amount" className={styles.sectionHeading}>
+            סכום
+          </label>
+          <div className={styles.amountInputWrap}>
+            <span className={styles.amountSymbol} aria-hidden="true">₪</span>
+            <input
+              id="bank-amount"
+              type="number"
+              min={0}
+              className={styles.formInput}
+              value={data.bankAmount}
+              aria-label="סכום העברה בנקאית בשקלים"
+              onChange={(e) => onChange({ ...data, bankAmount: Number(e.target.value) })}
+            />
+          </div>
+        </div>
+      </div>
+      <div className={styles.formRow}>
+        <label htmlFor="bank-notes" className={styles.sectionHeading}>
+          הערות
+        </label>
+        <textarea
+          id="bank-notes"
+          className={styles.formTextarea}
+          placeholder="הערות..."
+          value={data.bankNotes}
+          onChange={(e) => onChange({ ...data, bankNotes: e.target.value })}
+        />
+      </div>
     </div>
   );
 }

@@ -16,6 +16,7 @@ export function generateDocumentNumber(): string {
 export function getDocumentDetailsLabel(docType: string | null): string {
   if (docType === 'חשבונית מס') return 'פרטי חשבונית מס';
   if (docType === 'חשבונית מס/קבלה') return 'פרטי חשבונית מס/קבלה';
+  if (docType === 'קבלה') return 'פרטי קבלה';
   if (docType === 'חשבונית עסקה') return 'פרטי חשבונית עסקה';
   if (docType === 'טיוטה') return 'פרטי טיוטה';
   return 'פרטי מסמך';
@@ -69,6 +70,7 @@ export function canAdvanceFromStep(
   }
   if (stepId === 'docType') return docType !== null;
   if (stepId === 'documentDetails') {
+    if (docType === 'קבלה') return true;
     if (docType !== 'חשבונית מס' && docType !== 'חשבונית מס/קבלה') return true;
     if (!invoiceDetails) return false;
     return (

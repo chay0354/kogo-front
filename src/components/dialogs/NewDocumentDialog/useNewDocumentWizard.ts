@@ -2,9 +2,11 @@ import { useCallback, useMemo, useState } from 'react';
 import { generateDocumentNumber, getWizardSteps } from './utils';
 import type {
   BusinessCustomerFormData,
+  CheckRow,
   ClientType,
   InvoiceDetailsData,
   LineItem,
+  ReceiptDetailsData,
   WizardStepId,
 } from './types';
 
@@ -29,6 +31,38 @@ const INITIAL_LINE_ITEM: LineItem = {
   quantity: 1,
   price: 0,
 };
+
+function createInitialReceiptDetails(): ReceiptDetailsData {
+  const today = new Date().toISOString().split('T')[0];
+  const initialCheck: CheckRow = {
+    id: '1',
+    date: today,
+    bank: '',
+    branch: '',
+    accountNumber: '',
+    checkNumber: '',
+    amount: 0,
+    confirmed: false,
+  };
+  return {
+    paymentMethod: 'מזומן',
+    linkedInvoiceId: '',
+    cashAmount: 0,
+    cashNotes: '',
+    checks: [initialCheck],
+    withholding: 0,
+    checkNotes: '',
+    cardLastFour: '',
+    cardExpiry: '',
+    cardAmount: 0,
+    cardInstallments: 1,
+    cardNotes: '',
+    bankDate: today,
+    bankReference: '',
+    bankAmount: 0,
+    bankNotes: '',
+  };
+}
 
 function createInitialInvoiceDetails(): InvoiceDetailsData {
   return {
@@ -64,6 +98,9 @@ export function useNewDocumentWizard(onClose: () => void) {
   const [invoiceDetails, setInvoiceDetails] = useState<InvoiceDetailsData>(
     createInitialInvoiceDetails
   );
+  const [receiptDetails, setReceiptDetails] = useState<ReceiptDetailsData>(
+    createInitialReceiptDetails
+  );
 
   const steps = useMemo(() => getWizardSteps(clientType, docType), [clientType, docType]);
   const stepIds = useMemo(() => steps.map((step) => step.id), [steps]);
@@ -76,6 +113,7 @@ export function useNewDocumentWizard(onClose: () => void) {
     setBusinessFormData(EMPTY_BUSINESS_FORM);
     setDocType(null);
     setInvoiceDetails(createInitialInvoiceDetails());
+    setReceiptDetails(createInitialReceiptDetails());
   }, []);
 
   const close = useCallback(() => {
@@ -134,12 +172,14 @@ export function useNewDocumentWizard(onClose: () => void) {
     businessFormData,
     docType,
     invoiceDetails,
+    receiptDetails,
     setClientType,
     setSelectedCustomerId,
     setBusinessCustomerId,
     setBusinessFormData,
     setDocType,
     setInvoiceDetails,
+    setReceiptDetails,
     goToStep,
     goNext,
     goBack,

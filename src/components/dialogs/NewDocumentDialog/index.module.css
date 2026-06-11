@@ -1077,6 +1077,189 @@
   color: hsl(var(--foreground));
 }
 
+/* ─── Receipt details step ─────────────────────────────────────── */
+
+.amountInputWrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.amountInputWrap .formInput {
+  padding-inline-start: 2rem;
+}
+
+.amountSymbol {
+  position: absolute;
+  inset-inline-start: 0.625rem;
+  font-size: 0.875rem;
+  color: hsl(var(--muted-foreground));
+  pointer-events: none;
+  z-index: 1;
+}
+
+.receiptTwoCol {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.receiptThreeCol {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+/* Check table */
+.checkTable {
+  display: grid;
+  grid-template-columns: 3rem 6.5rem 5.5rem 4.5rem 5rem 5rem 5.5rem;
+  width: 100%;
+  min-width: 30rem;
+}
+
+.checkHeaderRow,
+.checkRow {
+  display: contents;
+}
+
+.checkHeaderCell {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: hsl(var(--muted-foreground));
+  background: hsl(var(--muted));
+  padding: 0.375rem;
+  text-align: right;
+  border-bottom: 1px solid hsl(var(--border));
+}
+
+.checkRow > * {
+  padding: 0.25rem;
+  border-bottom: 1px solid hsl(var(--border));
+  display: flex;
+  align-items: center;
+}
+
+.checkActionCell {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.checkConfirmBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  background: none;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  color: #16a34a;
+  padding: 0;
+  transition: background-color 150ms;
+  flex-shrink: 0;
+}
+
+.checkConfirmBtn:hover:not(:disabled) {
+  background: #f0fdf4;
+}
+
+.checkConfirmBtn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.checkDeleteBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  background: none;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  color: #ef4444;
+  padding: 0;
+  transition: background-color 150ms;
+  flex-shrink: 0;
+}
+
+.checkDeleteBtn:hover {
+  background: #fef2f2;
+}
+
+/* ניכוי במקור */
+.witholdingRow {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.witholdingLabel {
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: hsl(var(--foreground));
+}
+
+.witholdingInputWrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 8rem;
+}
+
+.witholdingInputWrap .formInput {
+  padding-inline-end: 2rem;
+  text-align: left;
+}
+
+.witholdingSymbol {
+  position: absolute;
+  inset-inline-end: 0.625rem;
+  font-size: 0.875rem;
+  color: hsl(var(--muted-foreground));
+  pointer-events: none;
+}
+
+/* Check summary bar */
+.checkSummaryBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.5rem 0.75rem;
+  background: hsl(var(--muted));
+  border-radius: calc(var(--radius) - 4px);
+  margin-bottom: 0.375rem;
+}
+
+.checkSummaryLabel {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: hsl(var(--foreground));
+}
+
+.checkSummaryAmount {
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: hsl(var(--foreground));
+}
+
+.checkInfoNote {
+  font-size: 0.75rem;
+  color: hsl(var(--muted-foreground));
+  line-height: 1.5;
+  margin-bottom: 0.75rem;
+  text-align: center;
+}
+
 /* Mobile: bottom sheet */
 @media (max-width: 640px) {
   .overlay {
@@ -1100,6 +1283,14 @@
   }
 
   .businessFormGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .receiptTwoCol {
+    grid-template-columns: 1fr;
+  }
+
+  .receiptThreeCol {
     grid-template-columns: 1fr;
   }
 }
