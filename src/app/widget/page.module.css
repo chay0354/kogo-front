@@ -1,3 +1,18 @@
+@keyframes widgetFadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes widgetSlideUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes widgetSlideInFromRight {
+  from { opacity: 0; transform: translateX(100%); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
 /* FilterSelect */
 
 .filterWrapper {
@@ -72,6 +87,7 @@
   @apply flex flex-col items-stretch px-4 py-4;
   gap: 12px;
   background-color: #2B3090;
+  border-radius: var(--widget-radius);
 }
 
 @media (min-width: 768px) {
@@ -220,6 +236,12 @@
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
 }
 
+@media (prefers-reduced-motion: no-preference) {
+  .detailPanel {
+    animation: widgetFadeIn 150ms ease-out;
+  }
+}
+
 @media (max-width: 640px) {
   .detailPanel {
     top: auto;
@@ -230,6 +252,12 @@
     max-width: 100%;
     border-radius: 16px 16px 0 0;
     max-height: 85vh;
+  }
+}
+
+@media (max-width: 640px) and (prefers-reduced-motion: no-preference) {
+  .detailPanel {
+    animation: widgetSlideUp 150ms ease-out;
   }
 }
 
@@ -245,4 +273,15 @@
   @apply fixed top-0 right-0 h-full w-full bg-white shadow-2xl overflow-y-auto p-6;
   max-width: 28rem;
   z-index: 1001;
+  border-radius: var(--widget-radius) 0 0 var(--widget-radius);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .drawerOverlay {
+    animation: widgetFadeIn 200ms ease-out;
+  }
+
+  .drawerPanel {
+    animation: widgetSlideInFromRight 200ms ease-out;
+  }
 }

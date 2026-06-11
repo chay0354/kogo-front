@@ -14,7 +14,11 @@
   @apply flex items-center gap-3 mb-4;
 }
 .backLink {
-  @apply text-sm text-teal-600 underline hover:text-teal-800;
+  @apply text-sm underline;
+  color: #2B3090;
+}
+.backLink:hover {
+  color: #1e2570;
 }
 .title {
   @apply text-base font-semibold;
@@ -40,16 +44,28 @@
 
 /* Buttons */
 .submitButton {
-  @apply w-full rounded-md bg-teal-600 px-4 py-2 text-sm font-medium text-white hover:bg-teal-700 disabled:opacity-50;
+  @apply w-full rounded-md px-4 py-2 text-sm font-medium text-white disabled:opacity-50;
+  background-color: #2B3090;
+}
+.submitButton:hover:not(:disabled) {
+  background-color: #1e2570;
 }
 .primaryButton {
-  @apply flex-1 rounded-md bg-teal-600 px-4 py-2 text-sm font-medium text-white hover:bg-teal-700;
+  @apply flex-1 rounded-md px-4 py-2 text-sm font-medium text-white;
+  background-color: #2B3090;
+}
+.primaryButton:hover {
+  background-color: #1e2570;
 }
 .secondaryButton {
   @apply flex-1 rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50;
 }
 .closeButton {
-  @apply rounded-md bg-teal-600 px-6 py-2 text-sm font-medium text-white hover:bg-teal-700;
+  @apply rounded-md px-6 py-2 text-sm font-medium text-white;
+  background-color: #2B3090;
+}
+.closeButton:hover {
+  background-color: #1e2570;
 }
 .outlineButton {
   @apply rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50;
@@ -63,7 +79,8 @@
   @apply flex items-start gap-3 text-sm cursor-pointer;
 }
 .checkbox {
-  @apply mt-0.5 accent-teal-600;
+  @apply mt-0.5;
+  accent-color: #2B3090;
 }
 .signatureWrapper {
   @apply w-1/2;
@@ -71,7 +88,9 @@
 
 /* Discount step */
 .discountBox {
-  @apply rounded-lg border border-teal-200 bg-teal-50 p-5 text-sm leading-relaxed text-gray-700;
+  @apply rounded-lg p-5 text-sm leading-relaxed text-gray-700;
+  border: 1px solid #DDE0F5;
+  background-color: #f0f1fa;
 }
 
 /* Payment step */
@@ -79,7 +98,9 @@
   @apply space-y-4;
 }
 .paymentSummary {
-  @apply rounded-lg border border-teal-200 bg-teal-50 p-4 text-sm space-y-2;
+  @apply rounded-lg p-4 text-sm space-y-2;
+  border: 1px solid #DDE0F5;
+  background-color: #f0f1fa;
 }
 .summaryTitle {
   @apply font-semibold text-gray-800 mb-1;
@@ -91,10 +112,11 @@
   @apply flex justify-between text-green-700;
 }
 .totalRow {
-  @apply flex justify-between font-bold border-t border-teal-300 pt-2 text-gray-900;
+  @apply flex justify-between font-bold pt-2 text-gray-900;
+  border-top: 1px solid #DDE0F5;
 }
 .totalAmount {
-  @apply text-teal-700;
+  color: #2B3090;
 }
 .cardFields {
   @apply space-y-3;
