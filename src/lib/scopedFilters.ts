@@ -3,8 +3,8 @@ import type { CurrentUser } from '@/lib/auth';
 export type BranchOption = {
   id: string;
   name: string;
-  city?: string;
-  city_name?: string;
+  city?: string | null;
+  city_name?: string | null;
 };
 
 export function unwrapApiList<T>(data: unknown): T[] {
@@ -16,10 +16,10 @@ export function unwrapApiList<T>(data: unknown): T[] {
 }
 
 /** Extra safety: limit branch pickers to the partner's assigned branches. */
-export function filterBranchesForUser(
-  branches: BranchOption[],
+export function filterBranchesForUser<T extends BranchOption>(
+  branches: T[],
   user: CurrentUser | null | undefined,
-): BranchOption[] {
+): T[] {
   if (!user || user.role !== 'partner' || !user.branch_ids?.length) {
     return branches;
   }
@@ -39,7 +39,7 @@ export function citiesFromBranches(branches: BranchOption[]) {
     .sort((a, b) => a.name.localeCompare(b.name, 'he'));
 }
 
-export function filterBranchesByCity(branches: BranchOption[], cityId: string) {
+export function filterBranchesByCity<T extends BranchOption>(branches: T[], cityId: string): T[] {
   if (cityId === 'all') return branches;
   return branches.filter((b) => b.city === cityId);
 }

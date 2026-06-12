@@ -64,8 +64,14 @@ export function DialogContent({
   );
 }
 
-export function DialogHeader({ children }: { children: React.ReactNode }) {
-  return <div className="px-6 pt-6">{children}</div>;
+export function DialogHeader({
+  className,
+  children,
+}: {
+  className?: string;
+  children: React.ReactNode;
+}) {
+  return <div className={className ?? 'px-6 pt-6'}>{children}</div>;
 }
 
 export function DialogTitle({
