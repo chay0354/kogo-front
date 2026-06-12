@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import AppLayout from '@/components/AppLayout';
 import LessonDetailsDialog from '@/components/dialogs/LessonDetailsDialog';
@@ -13,10 +13,13 @@ import { fetchEvents } from '@/lib/eventUtils';
 import { useAuth } from '@/components/AuthProvider';
 import { RefreshCw, Plus, ChevronRight, ChevronLeft, Calendar as CalendarIcon, LogOut } from 'lucide-react';
 import api, { fetchInstructorsDropdown } from '@/lib/api';
+import { citiesFromBranches, filterBranchesByCity, filterBranchesForUser, unwrapApiList } from '@/lib/scopedFilters';
 
 type Branch = {
   id: string;
   name: string;
+  city?: string;
+  city_name?: string;
 };
 
 type City = {
@@ -54,7 +57,9 @@ export default function SchedulePage() {
   const [error, setError] = useState('');
   
   const isManager = user?.role === 'manager';
+  const isPartner = user?.role === 'partner';
   const isWorker = user?.role === 'worker';
+  const canUseStaffFilters = isManager || isPartner;
   
   // Workers are forced to daily view
   const [activeTab, setActiveTab] = useState<'daily' | 'weekly'>(isWorker ? 'daily' : 'weekly');
@@ -77,10 +82,10 @@ export default function SchedulePage() {
   const { start, end, dates } = getWeekDates(currentDate);
 
   useEffect(() => {
-    if (isManager) {
+    if (canUseStaffFilters) {
       loadFilters();
     }
-  }, [isManager]);
+  }, [canUseStaffFilters, user?.id]);
 
   useEffect(() => {
     loadLessons();
@@ -88,33 +93,23 @@ export default function SchedulePage() {
 
   const loadFilters = async () => {
     try {
-      // Load branches
       const branchRes = await api.get('/core/branches/?simple=true');
-      const branchData = branchRes.data;
-      const branchList: Branch[] = Array.isArray(branchData)
-        ? branchData
-        : Array.isArray(branchData?.results)
-          ? branchData.results
-          : [];
+      const branchList = filterBranchesForUser(
+        unwrapApiList<Branch>(branchRes.data),
+        user,
+      );
       setBranches(branchList);
+      setCities(citiesFromBranches(branchList));
 
-      // Load cities
-      const cityRes = await api.get('/core/cities/');
-      const cityData = cityRes.data;
-      const cityList: City[] = Array.isArray(cityData)
-        ? cityData
-        : Array.isArray(cityData?.results)
-          ? cityData.results
-          : [];
-      setCities(cityList);
-
-      // Load instructors
       const instructorList = await fetchInstructorsDropdown();
       setInstructors(instructorList);
     } catch (err) {
       console.error('Error loading filters:', err);
     }
   };
+
+  const branchesForFilter =
+    cityFilter === 'all' ? branches : filterBranchesByCity(branches, cityFilter);
 
   const loadLessons = async () => {
     setIsLoading(true);
@@ -303,8 +298,8 @@ export default function SchedulePage() {
               היום
             </button>
 
-            {/* Filters (Manager Only) */}
-            {isManager && (
+            {/* Filters (manager + partner) */}
+            {canUseStaffFilters && (
               <>
                 <select
                   value={contentFilter}
@@ -322,7 +317,7 @@ export default function SchedulePage() {
                   className="w-48 px-3 py-2 border rounded-lg text-sm"
                 >
                   <option value="all">כל הסניפים</option>
-                  {branches.map((branch: any) => (
+                  {branchesForFilter.map((branch) => (
                     <option key={branch.id} value={branch.id}>
                       {branch.name}
                     </option>
@@ -425,7 +420,15 @@ export default function SchedulePage() {
   );
 }
 
-// Weekly View Component — each day split by studio
+// Weekly View Component — scrollable day columns, time groups, compact cards
+function gridSlotSize(height: number): 'xs' | 'sm' | 'md' | 'lg' {
+  const h = height - 4;
+  if (h < 40) return 'xs';
+  if (h < 64) return 'sm';
+  if (h < 110) return 'md';
+  return 'lg';
+}
+
 function WeeklyView({
   weekDates,
   lessonsByDay,
@@ -444,8 +447,8 @@ function WeeklyView({
   const workDays = weekDates.slice(0, 6); // Sunday to Friday
 
   type DayScheduleItem =
-    | { kind: 'lesson'; start: string; id: string; lesson: Lesson; studioKey: string; studioLabel: string }
-    | { kind: 'event'; start: string; id: string; event: ScheduleEvent; studioKey: string; studioLabel: string };
+    | { kind: 'lesson'; start: string; end: string; id: string; lesson: Lesson; studioKey: string; studioLabel: string }
+    | { kind: 'event'; start: string; end: string; id: string; event: ScheduleEvent; studioKey: string; studioLabel: string };
 
   const getLessonStudio = (lesson: Lesson): { key: string; label: string } => {
     const room = lesson.room_name?.trim();
@@ -469,23 +472,27 @@ function WeeklyView({
     return { key: '__none__', label: 'ללא סטודיו' };
   };
 
-  const groupDayByStudio = (
+  type StudioColumn = { key: string; label: string; items: DayScheduleItem[] };
+
+  const buildDayStudioColumns = (
     dayLessons: Lesson[],
     timedEvents: ScheduleEvent[]
-  ): { studioKey: string; studioLabel: string; items: DayScheduleItem[] }[] => {
-    const byStudio = new Map<string, { studioLabel: string; items: DayScheduleItem[] }>();
+  ): StudioColumn[] => {
+    const byStudio = new Map<string, StudioColumn>();
 
-    const push = (studioKey: string, studioLabel: string, item: DayScheduleItem) => {
-      const entry = byStudio.get(studioKey) || { studioLabel, items: [] };
-      entry.items.push(item);
-      byStudio.set(studioKey, entry);
+    const pushItem = (studio: { key: string; label: string }, item: DayScheduleItem) => {
+      if (!byStudio.has(studio.key)) {
+        byStudio.set(studio.key, { key: studio.key, label: studio.label, items: [] });
+      }
+      byStudio.get(studio.key)!.items.push(item);
     };
 
     dayLessons.forEach((lesson) => {
       const studio = getLessonStudio(lesson);
-      push(studio.key, studio.label, {
+      pushItem(studio, {
         kind: 'lesson',
         start: lesson.start_time || '00:00:00',
+        end: lesson.end_time || lesson.start_time || '00:00:00',
         id: lesson.id,
         lesson,
         studioKey: studio.key,
@@ -495,9 +502,10 @@ function WeeklyView({
 
     timedEvents.forEach((event) => {
       const studio = getEventStudio(event);
-      push(studio.key, studio.label, {
+      pushItem(studio, {
         kind: 'event',
         start: event.start_time || '00:00:00',
+        end: event.end_time || event.start_time || '00:00:00',
         id: event.id,
         event,
         studioKey: studio.key,
@@ -505,13 +513,16 @@ function WeeklyView({
       });
     });
 
-    return Array.from(byStudio.entries())
-      .map(([studioKey, { studioLabel, items }]) => ({
-        studioKey,
-        studioLabel,
-        items: items.sort((a, b) => a.start.localeCompare(b.start)),
+    return Array.from(byStudio.values())
+      .map((col) => ({
+        ...col,
+        items: col.items.sort((a, b) => a.start.localeCompare(b.start)),
       }))
-      .sort((a, b) => a.studioLabel.localeCompare(b.studioLabel, 'he'));
+      .sort(
+        (a, b) =>
+          (a.key === '__none__' ? 1 : 0) - (b.key === '__none__' ? 1 : 0) ||
+          a.label.localeCompare(b.label, 'he')
+      );
   };
 
   // Group events by day
@@ -525,75 +536,277 @@ function WeeklyView({
     };
   });
 
+  // --- Time-grid (Apple Calendar style) ---
+  // 96px per hour so a bubble's height visibly matches its duration
+  // (45-min lesson ≈ 72px — enough to show its content)
+  const HOUR_PX = 96;
+  const STUDIO_HEADER_PX = 40;
+  const MIN_ITEM_MINUTES = 20;
+
+  const timeToMinutes = (t: string) => {
+    const [h = 0, m = 0] = t.split(':').map((n) => parseInt(n, 10) || 0);
+    return h * 60 + m;
+  };
+
+  const daysData = workDays.map((date, index) => {
+    const dayLessons = (lessonsByDay[index] || []).filter((l) => shouldShowLessonOnDate(l, date));
+    const dayEventData = eventsByDay[index] || { daily: [], timed: [] };
+    const studioColumns = buildDayStudioColumns(dayLessons, dayEventData.timed);
+    const totalItems = studioColumns.reduce((n, col) => n + col.items.length, 0);
+    return { date, dayEventData, studioColumns, totalItems };
+  });
+
+  // One shared hour range for the whole week so all day grids align
+  let earliestMin = Infinity;
+  let latestMin = -Infinity;
+  daysData.forEach(({ studioColumns }) =>
+    studioColumns.forEach((col) =>
+      col.items.forEach((item) => {
+        const start = timeToMinutes(item.start);
+        const end = Math.max(timeToMinutes(item.end), start + MIN_ITEM_MINUTES);
+        earliestMin = Math.min(earliestMin, start);
+        latestMin = Math.max(latestMin, end);
+      })
+    )
+  );
+  if (!Number.isFinite(earliestMin)) {
+    earliestMin = 8 * 60;
+    latestMin = 20 * 60;
+  }
+  const startHour = Math.max(0, Math.floor(earliestMin / 60));
+  const endHour = Math.min(24, Math.max(startHour + 1, Math.ceil(latestMin / 60)));
+  const hourMarks = Array.from({ length: endHour - startHour + 1 }, (_, i) => startHour + i);
+  const gridHeight = (endHour - startHour) * HOUR_PX;
+
+  // Assign overlapping items within a studio to side-by-side lanes
+  const layoutColumnItems = (items: DayScheduleItem[]) => {
+    const laneEnds: number[] = [];
+    const placed = items.map((item) => {
+      const startMin = timeToMinutes(item.start);
+      const endMin = Math.max(timeToMinutes(item.end), startMin + MIN_ITEM_MINUTES);
+      let lane = laneEnds.findIndex((end) => end <= startMin);
+      if (lane === -1) {
+        lane = laneEnds.length;
+        laneEnds.push(endMin);
+      } else {
+        laneEnds[lane] = endMin;
+      }
+      return { item, startMin, endMin, lane };
+    });
+    return { placed, laneCount: Math.max(1, laneEnds.length) };
+  };
+
+  const mainScrollRef = useRef<HTMLDivElement>(null);
+  const topScrollRef = useRef<HTMLDivElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
+  const [contentWidth, setContentWidth] = useState(0);
+
+  useEffect(() => {
+    const el = contentRef.current;
+    if (!el) return;
+    const updateWidth = () => setContentWidth(el.scrollWidth);
+    updateWidth();
+    const ro = new ResizeObserver(updateWidth);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [daysData, gridHeight]);
+
+  useEffect(() => {
+    const main = mainScrollRef.current;
+    const top = topScrollRef.current;
+    if (!main || !top) return;
+
+    let syncing = false;
+    const syncMainToTop = () => {
+      if (syncing) return;
+      syncing = true;
+      top.scrollLeft = main.scrollLeft;
+      syncing = false;
+    };
+    const syncTopToMain = () => {
+      if (syncing) return;
+      syncing = true;
+      main.scrollLeft = top.scrollLeft;
+      syncing = false;
+    };
+
+    main.addEventListener('scroll', syncMainToTop, { passive: true });
+    top.addEventListener('scroll', syncTopToMain, { passive: true });
+    return () => {
+      main.removeEventListener('scroll', syncMainToTop);
+      top.removeEventListener('scroll', syncTopToMain);
+    };
+  }, [contentWidth]);
+
   return (
-    <div className="flex gap-2">
-      {/* Days Grid */}
-      <div className="grid grid-cols-6 gap-2 flex-1">
-        {workDays.map((date, index) => {
-          const dayLessons = (lessonsByDay[index] || []).filter((l) => shouldShowLessonOnDate(l, date));
-          const dayEventData = eventsByDay[index] || { daily: [], timed: [] };
-          const studioGroups = groupDayByStudio(dayLessons, dayEventData.timed);
+    <div className="space-y-1">
+      {/* Horizontal scroll — synced strip at top so users don't scroll down to pan days */}
+      <div
+        ref={topScrollRef}
+        className="overflow-x-auto overflow-y-hidden -mx-1 px-1 h-3 shrink-0"
+        aria-label="גלילה אופקית — ימים"
+      >
+        <div style={{ width: contentWidth || 1, height: 1 }} />
+      </div>
+
+      <div
+        ref={mainScrollRef}
+        className="overflow-x-auto overflow-y-auto max-h-[calc(100vh-260px)] pb-1 -mx-1 px-1"
+      >
+        <div ref={contentRef} className="flex gap-3 min-w-max">
+        {daysData.map(({ date, dayEventData, studioColumns, totalItems }, index) => {
           const isToday = new Date().toDateString() === date.toDateString();
+          const columns: StudioColumn[] =
+            studioColumns.length > 0
+              ? studioColumns
+              : [{ key: '__empty__', label: '', items: [] }];
+          // Hour gutter (2.5rem) + one column per studio
+          const dayWidthRem = 2.5 + Math.min(columns.length, 4) * 12;
 
           return (
-            <div key={index} className="flex flex-col min-w-0">
-              {/* Day Header */}
-               <div
-                 className={`font-bold p-2 rounded-t text-center h-12 flex items-center justify-center bg-gray-100 ${
-                   isToday ? 'bg-gray-300/70 ring-1 ring-gray-300 ring-inset' : ''
-                 }`}
-               >
-                {date.toLocaleDateString('he-IL', { weekday: 'long', day: 'numeric', month: 'numeric' })}
+            <div
+              key={index}
+              style={{ width: `${dayWidthRem}rem` }}
+              className={`flex shrink-0 flex-col rounded-lg border bg-white shadow-sm overflow-hidden ${
+                isToday ? 'ring-2 ring-teal-500/40 border-teal-200' : 'border-gray-200'
+              }`}
+            >
+              <div
+                className={`px-3 py-2.5 text-center border-b ${
+                  isToday ? 'bg-teal-50 text-teal-900' : 'bg-gray-50 text-gray-900'
+                }`}
+              >
+                <div className="text-sm font-bold leading-tight">
+                  {date.toLocaleDateString('he-IL', { weekday: 'long' })}
+                </div>
+                <div className="text-xs text-gray-600 mt-0.5">
+                  {date.toLocaleDateString('he-IL', { day: 'numeric', month: 'numeric' })}
+                </div>
               </div>
 
-              {/* Daily Events (at top) */}
               {dayEventData.daily.length > 0 && (
-                <div className="bg-purple-50 border-x border-t p-2 space-y-1">
-                  {dayEventData.daily.map(event => (
-                    <EventCard key={event.id} event={event} onClick={() => onViewEventDetails(event)} />
+                <div className="bg-purple-50 border-b border-purple-100 p-2 space-y-1.5">
+                  {dayEventData.daily.map((event) => (
+                    <EventCard
+                      key={event.id}
+                      event={event}
+                      compact
+                      onClick={() => onViewEventDetails(event)}
+                    />
                   ))}
                 </div>
               )}
 
-              {/* Day Content — split by studio */}
-              <div className="border rounded-b bg-white px-1.5 pb-2 pt-2 min-h-[400px] flex-1">
-                {studioGroups.length === 0 ? (
-                  <div className="text-center text-xs text-gray-400 py-8">אין שיעורים</div>
-                ) : (
-                  <div className="flex flex-col gap-2 h-full">
-                    {studioGroups.map(({ studioKey, studioLabel, items }) => (
-                      <div
-                        key={studioKey}
-                        className="rounded-md border border-gray-200 bg-gray-50/80 overflow-hidden"
-                      >
-                        <div className="px-2 py-1 text-[10px] font-semibold text-gray-600 bg-gray-100 border-b border-gray-200 truncate text-center">
-                          {studioLabel}
+              <div className="flex-1 bg-white">
+                <div className="flex">
+                  {/* Hour gutter (appears on the right in RTL) */}
+                  <div className="w-10 shrink-0 bg-gray-50/60 border-l border-gray-100">
+                    <div
+                      style={{ height: STUDIO_HEADER_PX }}
+                      className="border-b border-gray-200"
+                    />
+                    <div className="relative" style={{ height: gridHeight }}>
+                      {hourMarks.map((h) => (
+                        <div
+                          key={h}
+                          className="absolute inset-x-0 -translate-y-1/2 text-center text-[10px] text-gray-400 tabular-nums"
+                          style={{ top: (h - startHour) * HOUR_PX }}
+                        >
+                          {String(h).padStart(2, '0')}:00
                         </div>
-                        <div className="flex flex-col gap-1.5 p-1.5">
-                          {items.map((item) =>
-                            item.kind === 'lesson' ? (
-                              <ScheduleLessonCard
-                                key={`lesson-${item.id}`}
-                                lesson={item.lesson}
-                                onClick={() => onViewDetails(item.lesson)}
-                              />
-                            ) : (
-                              <EventCard
-                                key={`event-${item.id}`}
-                                event={item.event}
-                                onClick={() => onViewEventDetails(item.event)}
-                              />
-                            )
-                          )}
-                        </div>
-                      </div>
-                    ))}
+                      ))}
+                    </div>
                   </div>
-                )}
+
+                  {/* Studio columns over a shared hour grid */}
+                  <div className="flex flex-1 min-w-0 divide-x divide-x-reverse divide-gray-200">
+                    {columns.map((col) => {
+                      const { placed, laneCount } = layoutColumnItems(col.items);
+                      return (
+                        <div key={col.key} className="flex-1 min-w-0">
+                          <div
+                            style={{ height: STUDIO_HEADER_PX }}
+                            className="px-2 flex flex-col items-center justify-center border-b border-gray-200 bg-gray-50/90"
+                          >
+                            <div
+                              className="w-full text-[11px] font-semibold text-gray-600 truncate text-center"
+                              title={col.label}
+                            >
+                              {col.label || '—'}
+                            </div>
+                            {col.items.length > 0 ? (
+                              <div className="text-[10px] text-gray-400 leading-tight">
+                                {col.items.length} פעילויות
+                              </div>
+                            ) : null}
+                          </div>
+
+                          <div className="relative" style={{ height: gridHeight }}>
+                            {hourMarks.slice(1, -1).map((h) => (
+                              <div
+                                key={h}
+                                className="absolute inset-x-0 border-t border-gray-100"
+                                style={{ top: (h - startHour) * HOUR_PX }}
+                              />
+                            ))}
+
+                            {totalItems === 0 ? (
+                              <div className="absolute inset-x-0 top-8 text-center text-xs text-gray-400">
+                                אין שיעורים
+                              </div>
+                            ) : null}
+
+                            {placed.map(({ item, startMin, endMin, lane }) => {
+                              const top = ((startMin - startHour * 60) / 60) * HOUR_PX;
+                              const height = Math.max(
+                                26,
+                                ((endMin - startMin) / 60) * HOUR_PX - 2
+                              );
+                              const widthPct = 100 / laneCount;
+                              const slotSize = gridSlotSize(height);
+                              return (
+                                <div
+                                  key={`${item.kind}-${item.id}`}
+                                  className="absolute p-0.5 z-[1] hover:z-10"
+                                  style={{
+                                    top,
+                                    height,
+                                    right: `${lane * widthPct}%`,
+                                    width: `${widthPct}%`,
+                                  }}
+                                >
+                                  {item.kind === 'lesson' ? (
+                                    <ScheduleLessonCard
+                                      lesson={item.lesson}
+                                      compact
+                                      gridSize={slotSize}
+                                      showLocation
+                                      className="h-full min-h-0"
+                                      onClick={() => onViewDetails(item.lesson)}
+                                    />
+                                  ) : (
+                                    <EventCard
+                                      event={item.event}
+                                      compact
+                                      gridSize={slotSize}
+                                      onClick={() => onViewEventDetails(item.event)}
+                                      className="h-full min-h-0"
+                                    />
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
               </div>
             </div>
           );
         })}
+        </div>
       </div>
     </div>
   );
@@ -786,9 +999,145 @@ function DailyView({
 }
 
 // Event Card for Schedule Views
-function EventCard({ event, onClick }: { event: ScheduleEvent; onClick?: () => void }) {
+function EventCard({
+  event,
+  onClick,
+  compact = false,
+  gridSize,
+  studioLabel,
+  className = '',
+}: {
+  event: ScheduleEvent;
+  onClick?: () => void;
+  compact?: boolean;
+  gridSize?: 'xs' | 'sm' | 'md' | 'lg';
+  studioLabel?: string;
+  className?: string;
+}) {
   const bgColor = event.color || '#9333ea';
-  
+  const timeLabel =
+    !event.is_daily_event && event.start_time && event.end_time
+      ? `${formatTime(event.start_time)}–${formatTime(event.end_time)}`
+      : '';
+  const titleLabel = [event.name, timeLabel, event.branch_name].filter(Boolean).join(' · ');
+
+  if (compact) {
+    if (gridSize === 'xs') {
+      return (
+        <div
+          onClick={onClick}
+          title={titleLabel}
+          className={`rounded-md border-2 px-1.5 py-1 h-full min-h-0 flex items-center transition-all ${
+            onClick ? 'cursor-pointer hover:shadow-md' : ''
+          } ${className}`}
+          style={{ backgroundColor: `${bgColor}18`, borderColor: bgColor }}
+        >
+          <div className="min-w-0 flex-1 text-[10px] font-semibold truncate leading-tight" style={{ color: bgColor }}>
+            {event.name}
+          </div>
+          {event.is_studio_rental ? (
+            <span className="shrink-0 mr-1 text-[8px] font-semibold bg-amber-100 text-amber-900 px-1 rounded">
+              שכ׳
+            </span>
+          ) : null}
+        </div>
+      );
+    }
+
+    if (gridSize === 'sm') {
+      return (
+        <div
+          onClick={onClick}
+          title={titleLabel}
+          className={`rounded-md border-2 px-2 py-1 h-full min-h-0 flex flex-col justify-center gap-0.5 transition-all ${
+            onClick ? 'cursor-pointer hover:shadow-md' : ''
+          } ${className}`}
+          style={{ backgroundColor: `${bgColor}18`, borderColor: bgColor }}
+        >
+          <div className="text-[10px] font-semibold truncate leading-tight" style={{ color: bgColor }}>
+            {event.name}
+          </div>
+          {timeLabel ? (
+            <div className="text-[9px] text-gray-500 tabular-nums truncate">{timeLabel}</div>
+          ) : null}
+        </div>
+      );
+    }
+
+    if (gridSize === 'md') {
+      return (
+        <div
+          onClick={onClick}
+          title={titleLabel}
+          className={`rounded-md border-2 px-2 py-1.5 h-full min-h-0 flex flex-col transition-all ${
+            onClick ? 'cursor-pointer hover:shadow-md' : ''
+          } ${className}`}
+          style={{ backgroundColor: `${bgColor}18`, borderColor: bgColor }}
+        >
+          <div className="flex items-start justify-between gap-1 min-w-0">
+            <div className="text-[10px] font-semibold truncate leading-tight" style={{ color: bgColor }}>
+              {event.name}
+            </div>
+            {event.is_studio_rental ? (
+              <span className="shrink-0 text-[8px] font-semibold bg-amber-100 text-amber-900 px-1 rounded">
+                שכירות
+              </span>
+            ) : null}
+          </div>
+          {timeLabel ? (
+            <div className="mt-auto text-[9px] text-gray-500 tabular-nums">{timeLabel}</div>
+          ) : null}
+        </div>
+      );
+    }
+
+    return (
+      <div
+        onClick={onClick}
+        title={titleLabel}
+        className={`rounded-md border-2 px-2.5 py-2 h-full min-h-0 flex flex-col transition-all ${
+          onClick ? 'cursor-pointer hover:shadow-md' : ''
+        } ${className}`}
+        style={{
+          backgroundColor: `${bgColor}18`,
+          borderColor: bgColor,
+        }}
+      >
+        {studioLabel || event.is_studio_rental ? (
+          <div className="flex items-center justify-between gap-1.5 mb-1 min-w-0">
+            {studioLabel ? (
+              <div className="text-[10px] font-medium truncate min-w-0" style={{ color: bgColor }}>
+                {studioLabel}
+              </div>
+            ) : (
+              <span />
+            )}
+            {event.is_studio_rental ? (
+              <span className="shrink-0 text-[9px] font-semibold uppercase tracking-wide bg-amber-100 text-amber-900 px-1 py-0.5 rounded">
+                שכירות
+              </span>
+            ) : null}
+          </div>
+        ) : null}
+        <div
+          className="font-semibold text-xs leading-snug line-clamp-2 min-w-0"
+          style={{ color: bgColor }}
+          title={event.name}
+        >
+          {event.name}
+        </div>
+        {!event.is_daily_event && event.start_time && event.end_time ? (
+          <div className="mt-auto text-[10px] text-gray-600 tabular-nums">
+            {timeLabel}
+          </div>
+        ) : null}
+        {event.branch_name && !studioLabel ? (
+          <div className="text-[10px] text-gray-500 truncate mt-0.5">{event.branch_name}</div>
+        ) : null}
+      </div>
+    );
+  }
+
   return (
     <div
       onClick={onClick}

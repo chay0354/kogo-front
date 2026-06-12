@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import api, { fetchInstructorsDropdown } from '@/lib/api';
 import { CourseFormData, LessonFormData } from '@/types/course';
-import { formatAge } from '@/lib/courseUtils';
+import { formatAge, formatCurrency, LESSONS_PER_MONTH } from '@/lib/courseUtils';
 import styles from './index.module.css';
 import { Branch, Room, Instructor, AddCourseDialogProps } from './types';
 import { AGE_OPTIONS, DAYS_OF_WEEK } from './constants';
@@ -27,7 +27,6 @@ export default function AddCourseDialog({
   const [lessonTemplates, setLessonTemplates] = useState<LessonFormData[]>(() => [
     buildDefaultLessonTemplate(),
   ]);
-  const [copyCount, setCopyCount] = useState(1);
 
   const queryClient = useQueryClient();
   const [branches, setBranches] = useState<Branch[]>([]);
@@ -45,11 +44,9 @@ export default function AddCourseDialog({
       const built = buildDuplicateFormState(duplicateFrom, courseTypeId);
       setCourseData(built.course);
       setLessonTemplates(built.lessons);
-      setCopyCount(1);
     } else {
       setCourseData(buildDefaultCourseData(courseTypeId));
       setLessonTemplates([buildDefaultLessonTemplate()]);
-      setCopyCount(1);
     }
     setCourseCreated(false);
     setError('');
@@ -63,6 +60,20 @@ export default function AddCourseDialog({
     setLessonTemplates((prev) =>
       prev.map((lesson, i) => (i === index ? { ...lesson, ...patch } : lesson))
     );
+  };
+
+  const addLessonTemplate = () => {
+    setLessonTemplates((prev) => {
+      const sharedRoom = prev[0]?.room || '';
+      return [...prev, { ...buildDefaultLessonTemplate(), room: sharedRoom }];
+    });
+  };
+
+  const removeLessonTemplate = (index: number) => {
+    setLessonTemplates((prev) => {
+      if (prev.length <= 1) return prev;
+      return prev.filter((_, i) => i !== index);
+    });
   };
 
   const fetchReferenceData = async () => {
@@ -92,6 +103,13 @@ export default function AddCourseDialog({
         return branchId === courseData.branch;
       })
     : [];
+
+  const selectedInstructor = instructors.find((i) => i.id === courseData.instructor);
+  const defaultMonthlySalary =
+    selectedInstructor?.fixed_salary_per_lesson != null
+      ? Number(selectedInstructor.fixed_salary_per_lesson) * LESSONS_PER_MONTH * lessonTemplates.length
+      : 0;
+  const hasDefaultMonthlySalary = defaultMonthlySalary > 0;
 
   const handleClose = () => {
     if (courseCreated) {
@@ -136,42 +154,28 @@ export default function AddCourseDialog({
         return;
       }
     }
-    if (isDuplicateMode && (copyCount < 1 || copyCount > 20)) {
-      setError('מספר העותקים חייב להיות בין 1 ל-20');
-      return;
-    }
-
     setLoading(true);
     let createdCount = 0;
     try {
-      const baseName = courseData.name.trim();
+      const courseRes = await api.post('/courses/courses/', {
+        ...courseData,
+        name: courseData.name.trim(),
+        instructor_salary_override: courseData.instructor_salary_override ?? null,
+      });
+      const newCourseId = courseRes.data.id;
+      createdCount = 1;
 
-      for (let copyIndex = 0; copyIndex < (isDuplicateMode ? copyCount : 1); copyIndex += 1) {
-        const copyName =
-          isDuplicateMode && copyCount > 1 && copyIndex > 0
-            ? `${baseName} (${copyIndex + 1})`
-            : baseName;
-
-        const courseRes = await api.post('/courses/courses/', {
-          ...courseData,
-          name: copyName,
-          instructor_salary_override: courseData.instructor_salary_override ?? null,
-        });
-        const newCourseId = courseRes.data.id;
-        createdCount += 1;
-
-        for (const lessonTemplate of lessonTemplates) {
-          const lessonSubmitData = {
-            ...lessonTemplate,
-            course: newCourseId,
-            price: null,
-            lesson_price_override: null,
-            additional_course_prices: [],
-            is_recurring: true,
-            status: 'scheduled',
-          };
-          await api.post('/courses/lessons/', lessonSubmitData);
-        }
+      for (const lessonTemplate of lessonTemplates) {
+        const lessonSubmitData = {
+          ...lessonTemplate,
+          course: newCourseId,
+          price: null,
+          lesson_price_override: null,
+          additional_course_prices: [],
+          is_recurring: true,
+          status: 'scheduled',
+        };
+        await api.post('/courses/lessons/', lessonSubmitData);
       }
 
       setCourseCreated(true);
@@ -216,26 +220,6 @@ export default function AddCourseDialog({
           </div>
 
           <form onSubmit={handleSubmit} className={styles.form}>
-            {isDuplicateMode && (
-              <div>
-                <label htmlFor="copy_count" className={styles.label}>
-                  מספר עותקים
-                </label>
-                <input
-                  type="number"
-                  id="copy_count"
-                  value={copyCount}
-                  onChange={(e) => setCopyCount(Math.max(1, Math.min(20, Number(e.target.value) || 1)))}
-                  className={styles.input}
-                  min={1}
-                  max={20}
-                />
-                <p className={styles.helperText}>
-                  ניתן ליצור עד 20 קבוצות זהות. עותקים נוספים יקבלו סיומת (2), (3) וכו&apos; לשם.
-                </p>
-              </div>
-            )}
-
             {/* Name */}
             <div>
               <label htmlFor="name" className={styles.label}>
@@ -360,10 +344,24 @@ export default function AddCourseDialog({
                     })
                   }
                   className={styles.input}
-                  placeholder="סכום חודשי למדריך עבור הקבוצה"
+                  placeholder={
+                    hasDefaultMonthlySalary
+                      ? `ברירת מחדל: ${formatCurrency(defaultMonthlySalary)}`
+                      : 'סכום חודשי למדריך עבור הקבוצה'
+                  }
                   min="0"
                   step="0.01"
                 />
+                {hasDefaultMonthlySalary ? (
+                  <p className={styles.helperText}>
+                    שכר לפי הגדרות המדריך: {formatCurrency(defaultMonthlySalary)} לחודש. השאר ריק כדי
+                    להשתמש בערך זה, או הזן סכום חודשי כדי לדרוס אותו.
+                  </p>
+                ) : (
+                  <p className={styles.helperText}>
+                    תשלום חודשי קבוע למדריך עבור הקבוצה. ריק = שכר לפי הגדרות המדריך במסך מדריכים.
+                  </p>
+                )}
               </div>
             </div>
 
@@ -381,9 +379,26 @@ export default function AddCourseDialog({
 
             {/* Lesson fields */}
             <div className={styles.lessonSection}>
-                <h3 className={styles.lessonSectionTitle}>
-                  {lessonTemplates.length > 1 ? `שיעורים (${lessonTemplates.length})` : 'פרטי השיעור'}
-                </h3>
+                <div className={styles.lessonSectionHeader}>
+                  <h3 className={styles.lessonSectionTitle}>
+                    {lessonTemplates.length > 1 ? `שיעורים (${lessonTemplates.length})` : 'פרטי השיעור'}
+                  </h3>
+                  <button
+                    type="button"
+                    onClick={addLessonTemplate}
+                    className={styles.addLessonButton}
+                    disabled={loadingData}
+                  >
+                    <span className={styles.addLessonIcon}>+</span>
+                    הוסף שיעור בשבוע
+                  </button>
+                </div>
+
+                {lessonTemplates.length === 1 && (
+                  <p className={styles.helperText}>
+                    ניתן להוסיף מספר שיעורים בשבוע לאותה קבוצה (למשל שני ימים שונים).
+                  </p>
+                )}
 
                 {loadingData ? (
                   <div className={styles.loadingText}>טוען נתונים...</div>
@@ -392,7 +407,19 @@ export default function AddCourseDialog({
                     {lessonTemplates.map((lessonTemplate, lessonIndex) => (
                       <div key={lessonIndex} className={lessonIndex > 0 ? styles.lessonBlock : undefined}>
                         {lessonTemplates.length > 1 && (
-                          <p className={styles.lessonBlockTitle}>שיעור {lessonIndex + 1}</p>
+                          <div className={styles.lessonBlockHeader}>
+                            <p className={styles.lessonBlockTitle}>שיעור {lessonIndex + 1}</p>
+                            <button
+                              type="button"
+                              onClick={() => removeLessonTemplate(lessonIndex)}
+                              className={styles.removeLessonButton}
+                              title="הסר שיעור"
+                            >
+                              <svg className={styles.iconSm} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                              </svg>
+                            </button>
+                          </div>
                         )}
 
                         {lessonTemplates.length > 1 && (
@@ -485,10 +512,10 @@ export default function AddCourseDialog({
                   {loading
                     ? 'שומר...'
                     : isDuplicateMode
-                      ? copyCount > 1
-                        ? `שכפל ${copyCount} קבוצות`
-                        : 'שכפל קבוצה'
-                      : 'הוסף קבוצה ושיעור'}
+                      ? 'שכפל קבוצה'
+                      : lessonTemplates.length > 1
+                        ? 'הוסף קבוצה ושיעורים'
+                        : 'הוסף קבוצה ושיעור'}
                 </button>
               )}
             </div>

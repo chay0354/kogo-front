@@ -158,38 +158,80 @@
 }
 
 .courseList {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-
-/* ── Course row ── */
-.courseRow {
+  display: grid;
+  grid-template-columns:
+    1.25rem
+    minmax(7rem, 1.2fr)
+    minmax(6rem, 1fr)
+    minmax(5rem, 0.75fr)
+    minmax(5rem, 0.7fr)
+    minmax(6rem, 0.9fr)
+    minmax(5.5rem, 0.8fr)
+    4.5rem
+    4rem
+    5rem
+    4.75rem;
+  column-gap: 0.75rem;
+  row-gap: 0;
+  align-items: center;
   border: 1px solid #e5e7eb;
   border-radius: 3px;
   overflow: hidden;
 }
 
+.courseListHeader {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: subgrid;
+  align-items: center;
+  padding: 0.375rem 0.75rem;
+  background-color: #f3f4f6;
+  border-bottom: 1px solid #e5e7eb;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: #6b7280;
+}
+
+.courseListHeader span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: right;
+}
+
+.courseCell,
+.courseName,
+.courseMeta,
+.courseProfit {
+  text-align: right;
+}
+
+/* ── Course row ── */
+.courseRow {
+  display: contents;
+}
+
 .courseHeader {
-  padding: 0.625rem 0.75rem;
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: subgrid;
+  align-items: center;
+  padding: 0.5rem 0.75rem;
   background-color: #f9fafb;
+  border-bottom: 1px solid #e5e7eb;
   cursor: pointer;
-  display: flex;
-  align-items: flex-start;
-  gap: 0.625rem;
   transition: background-color 150ms;
 }
 .courseHeader:hover {
   background-color: #f3f4f6;
 }
 
-.courseHeaderInfo {
-  flex: 1;
+.courseCell {
   min-width: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 0.125rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .chevron {
@@ -197,7 +239,6 @@
   height: 1rem;
   color: #9ca3af;
   flex-shrink: 0;
-  margin-top: 0.125rem;
   transition: transform 150ms;
 }
 .chevronExpanded {
@@ -208,14 +249,11 @@
   font-weight: 500;
   font-size: 0.875rem;
   color: #111827;
-  width: 100%;
-  line-height: 1.25;
 }
 
 .courseMeta {
   font-size: 0.75rem;
   color: #6b7280;
-  line-height: 1.25;
 }
 
 .courseMetaNumber {
@@ -226,15 +264,13 @@
 .courseProfit {
   font-size: 0.75rem;
   font-weight: 600;
-  line-height: 1.25;
 }
 
 .courseActions {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: 0.25rem;
-  flex-shrink: 0;
-  padding-top: 0.125rem;
+  justify-self: end;
 }
 
 .actionButton {
@@ -271,7 +307,10 @@
 
 /* ── Lessons (expanded) ── */
 .lessonsBody {
+  grid-column: 1 / -1;
   padding: 0.5rem 0.75rem;
+  background-color: #fff;
+  border-bottom: 1px solid #e5e7eb;
 }
 
 .lessonsEmptyState {

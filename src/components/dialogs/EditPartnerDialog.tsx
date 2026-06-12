@@ -5,6 +5,7 @@ import { X } from 'lucide-react';
 import api from '@/lib/api';
 import { Branch } from '@/types/customer';
 import { PartnerFormData, PartnerListItem } from '@/types/partner';
+import { normalizePartnerErrors } from './AddPartnerDialog';
 
 interface EditPartnerDialogProps {
   isOpen: boolean;
@@ -71,8 +72,7 @@ export default function EditPartnerDialog({ isOpen, onClose, partner, onSave }: 
       onSave();
       onClose();
     } catch (error: any) {
-      const data = error?.response?.data;
-      setErrors(typeof data === 'object' ? data : { general: 'שגיאה בשמירה' });
+      setErrors(normalizePartnerErrors(error?.response?.data));
     } finally {
       setIsSubmitting(false);
     }
@@ -89,6 +89,11 @@ export default function EditPartnerDialog({ isOpen, onClose, partner, onSave }: 
         </div>
 
         <div className="p-6 space-y-4">
+          {errors.general && (
+            <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-600">
+              {errors.general}
+            </div>
+          )}
           <div>
             <label className="block text-sm font-medium mb-1">אימייל</label>
             <input
@@ -127,6 +132,11 @@ export default function EditPartnerDialog({ isOpen, onClose, partner, onSave }: 
               value={formData.password}
               onChange={(e) => setFormData({ ...formData, password: e.target.value })}
             />
+            {errors.password ? (
+              <p className="text-sm text-red-500 mt-1">{errors.password}</p>
+            ) : (
+              <p className="text-xs text-gray-400 mt-1">לפחות 8 תווים, לא רק ספרות</p>
+            )}
           </div>
 
           <div>

@@ -7,6 +7,8 @@ import AppLayout from '@/components/AppLayout';
 import NewDocumentDialog from '@/components/dialogs/NewDocumentDialog';
 import { fetchInvoices } from '@/lib/storeApi';
 import api from '@/lib/api';
+import { useAuth } from '@/components/AuthProvider';
+import { filterBranchesForUser, unwrapApiList } from '@/lib/scopedFilters';
 import type { StoreInvoice } from '@/types/store';
 import type { Branch } from '@/types/branch';
 import type { ChildWithDetails } from '@/types/customer';
@@ -30,6 +32,7 @@ import {
 import styles from './invoices.module.css';
 
 export default function InvoicesPage() {
+  const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<ActiveTab>('מסמכים');
   const [isNewDocOpen, setIsNewDocOpen] = useState(false);
 
@@ -74,7 +77,12 @@ export default function InvoicesPage() {
       const invoiceList = (invoicesData as any)?.results ?? invoicesData;
       const branchList = branchesResponse.data?.results ?? branchesResponse.data;
       setInvoices(Array.isArray(invoiceList) ? invoiceList : []);
-      setBranches(Array.isArray(branchList) ? branchList : []);
+      setBranches(
+        filterBranchesForUser(
+          unwrapApiList<Branch>(branchList),
+          user,
+        ),
+      );
     } catch (error) {
       console.error('Error loading invoices:', error);
       setInvoices([]);

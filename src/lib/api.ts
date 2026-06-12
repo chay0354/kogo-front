@@ -295,7 +295,7 @@ export const fetchCoursesList = async () => {
  * Fetch all course types for dropdowns
  */
 export const fetchCourseTypesList = async () => {
-  const response = await api.get('/courses/course-types/');
+  const response = await api.get('/courses/types/');
   return response.data;
 };
 

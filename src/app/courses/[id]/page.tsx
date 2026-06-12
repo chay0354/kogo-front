@@ -299,6 +299,19 @@ export default function CourseTypeDetailsPage() {
             <p className={`text-muted-foreground ${styles.emptyState}`}>אין חוגים התואמים לסינון</p>
           ) : (
             <div className={styles.courseList}>
+              <div className={styles.courseListHeader}>
+                <span aria-hidden="true" />
+                <span>שם קבוצה</span>
+                <span>סניף</span>
+                <span>גילאים</span>
+                <span>מחיר</span>
+                <span>מדריך</span>
+                <span>שכר מדריך</span>
+                <span>תלמידים</span>
+                <span>שיעורים</span>
+                <span>רווח</span>
+                <span>פעולות</span>
+              </div>
               {filteredCourses.map((course) => {
                 const isExpanded = expandedCourses.has(course.id);
                 const courseFinancials = calculateCourseFinancials(course);
@@ -318,31 +331,33 @@ export default function CourseTypeDetailsPage() {
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                       </svg>
 
-                      <div className={styles.courseHeaderInfo}>
-                        <span className={styles.courseName}>{course.name}</span>
-                        {course.branch_name && (
-                          <span className={styles.courseMeta}>{course.branch_name}</span>
-                        )}
-                        <span className={styles.courseMeta}>{formatAgeRange(course.min_age, course.max_age)}</span>
-                        <span className={styles.courseMeta}>{formatCurrency(course.price)}/חודש</span>
-                        {course.instructor?.full_name && (
-                          <span className={styles.courseMeta}>מדריך: {course.instructor.full_name}</span>
-                        )}
-                        {course.instructor_salary_override != null && (
-                          <span className={styles.courseMeta}>
-                            שכר מדריך: {formatCurrency(Number(course.instructor_salary_override))}/חודש
-                          </span>
-                        )}
-                        <span className={styles.courseMeta}>
-                          <span className={styles.courseMetaNumber}>{totalStudents}</span> תלמידים
-                        </span>
-                        <span className={styles.courseMeta}>
-                          <span className={styles.courseMetaNumber}>{course.lessons.length}</span> שיעורים
-                        </span>
-                        <span className={`${styles.courseProfit} ${courseFinancials.monthlyProfit >= 0 ? styles.profit : styles.loss}`}>
-                          רווח: {formatCurrency(courseFinancials.monthlyProfit)}
-                        </span>
-                      </div>
+                      <span className={`${styles.courseName} ${styles.courseCell}`}>{course.name}</span>
+                      <span className={`${styles.courseMeta} ${styles.courseCell}`}>
+                        {course.branch_name || '—'}
+                      </span>
+                      <span className={`${styles.courseMeta} ${styles.courseCell}`}>
+                        {formatAgeRange(course.min_age, course.max_age)}
+                      </span>
+                      <span className={`${styles.courseMeta} ${styles.courseCell}`}>
+                        {formatCurrency(course.price)}/חודש
+                      </span>
+                      <span className={`${styles.courseMeta} ${styles.courseCell}`}>
+                        {course.instructor?.full_name ? `מדריך: ${course.instructor.full_name}` : '—'}
+                      </span>
+                      <span className={`${styles.courseMeta} ${styles.courseCell}`}>
+                        {course.instructor_salary_override != null
+                          ? `${formatCurrency(Number(course.instructor_salary_override))}/חודש`
+                          : '—'}
+                      </span>
+                      <span className={`${styles.courseMeta} ${styles.courseCell}`}>
+                        <span className={styles.courseMetaNumber}>{totalStudents}</span> תלמידים
+                      </span>
+                      <span className={`${styles.courseMeta} ${styles.courseCell}`}>
+                        <span className={styles.courseMetaNumber}>{course.lessons.length}</span> שיעורים
+                      </span>
+                      <span className={`${styles.courseProfit} ${styles.courseCell} ${courseFinancials.monthlyProfit >= 0 ? styles.profit : styles.loss}`}>
+                        {formatCurrency(courseFinancials.monthlyProfit)}
+                      </span>
 
                       <div className={styles.courseActions} onClick={(e) => e.stopPropagation()}>
                         <button

@@ -2,7 +2,8 @@
 
 import { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { fetchFinancialData, fetchBranchesList } from '@/lib/api';
+import { fetchFinancialData } from '@/lib/api';
+import { useScopedBranches } from '@/hooks/useScopedBranches';
 import { Button } from '@/components/ui/button';
 import { Download } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
@@ -92,17 +93,7 @@ export default function FinancialSection({ globalDateRange }: Props) {
   const [trendsPreset, setTrendsPreset] = useState<number | 'custom'>(6);
 
   // Fetch branches list for dropdown
-  const { data: branchesData } = useQuery({
-    queryKey: ['branches-list'],
-    queryFn: fetchBranchesList,
-  });
-
-  const branches = useMemo(() => {
-    if (!branchesData) return [];
-    // Handle both array and paginated response
-    const data = Array.isArray(branchesData) ? branchesData : (branchesData.results || []);
-    return data.map((b: any) => ({ id: b.id, name: b.name }));
-  }, [branchesData]);
+  const { branches } = useScopedBranches();
 
   // Convert dates to API format
   const apiFilters = useMemo(() => ({

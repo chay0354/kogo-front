@@ -13,11 +13,14 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogCloseButton } f
 import { fetchAnalytics } from '@/lib/storeApi';
 import { getProductStockLocationLabels } from '@/lib/storeProductDisplay';
 import api from '@/lib/api';
+import { useAuth } from '@/components/AuthProvider';
+import { filterBranchesForUser, unwrapApiList } from '@/lib/scopedFilters';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import type { StoreAnalytics } from '@/types/store';
 import type { Branch } from '@/types/branch';
 
 export default function StoreDashboard() {
+  const { user } = useAuth();
   const [analytics, setAnalytics] = useState<StoreAnalytics | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [days, setDays] = useState(30);
@@ -27,8 +30,8 @@ export default function StoreDashboard() {
   const [isLowStockDialogOpen, setIsLowStockDialogOpen] = useState(false);
 
   useEffect(() => {
-    loadBranches();
-  }, []);
+    if (user) loadBranches();
+  }, [user?.id]);
 
   useEffect(() => {
     loadAnalytics();
@@ -64,7 +67,12 @@ export default function StoreDashboard() {
     try {
       const branchesResponse = await api.get('/core/branches/');
       const branchList = branchesResponse.data?.results || branchesResponse.data;
-      setBranches(Array.isArray(branchList) ? branchList : []);
+      setBranches(
+        filterBranchesForUser(
+          unwrapApiList<Branch>(branchList),
+          user,
+        ),
+      );
     } catch (error) {
       console.error('Error loading branches:', error);
       setBranches([]);
@@ -119,54 +127,78 @@ export default function StoreDashboard() {
     <AppLayout>
       <div className="p-6 space-y-6">
       {/* Header */}
-      <div className="flex justify-between items-center">
+      <div className="flex justify-between items-start gap-4">
         <div>
           <h1 className="text-3xl font-bold">דוחות תנועה</h1>
-          <p className="text-gray-600">סטטיסטיקות מכירות ומלאי</p>
+          <p className="text-gray-600 mt-1">סטטיסטיקות מכירות ומלאי</p>
         </div>
-        <div className="flex flex-wrap gap-3 items-center justify-end">
-          <Select
-            value={selectedCity}
-            onChange={(e) => setSelectedCity(e.target.value)}
-            className="w-36 h-9 text-sm"
-          >
-            <option value="all">כל הערים</option>
-            {cities.map((city) => (
-              <option key={city.id} value={city.id}>
-                {city.name}
-              </option>
-            ))}
-          </Select>
-          <Select
-            value={selectedBranch}
-            onChange={(e) => setSelectedBranch(e.target.value)}
-            className="w-40 h-9 text-sm"
-          >
-            <option value="all">כל הסניפים</option>
-            <option value="delivery">משלוח</option>
-            {branchesForFilter.map((branch) => (
-              <option key={branch.id} value={branch.id}>
-                {branch.name}
-              </option>
-            ))}
-          </Select>
-          <select 
-            value={days} 
-            onChange={(e) => setDays(parseInt(e.target.value))}
-            className="border rounded-md px-3 py-2 h-9 text-sm"
-          >
-            <option value="7">7 ימים אחרונים</option>
-            <option value="30">30 ימים אחרונים</option>
-            <option value="90">90 ימים אחרונים</option>
-          </select>
-          <Link href="/store">
-            <Button variant="outline">
-              <ArrowLeft className="ml-2 h-4 w-4" />
-              חזרה לחנות
-            </Button>
-          </Link>
-        </div>
+        <Link href="/store">
+          <Button variant="outline">
+            <ArrowLeft className="ml-2 h-4 w-4" />
+            חזרה לחנות
+          </Button>
+        </Link>
       </div>
+
+      {/* Filters */}
+      <Card>
+        <CardContent className="p-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 lg:max-w-2xl">
+            <div>
+              <label htmlFor="dashboard-city" className="block text-xs font-medium text-gray-500 mb-1">
+                עיר
+              </label>
+              <Select
+                id="dashboard-city"
+                value={selectedCity}
+                onChange={(e) => setSelectedCity(e.target.value)}
+                className="w-full h-10 text-sm"
+              >
+                <option value="all">כל הערים</option>
+                {cities.map((city) => (
+                  <option key={city.id} value={city.id}>
+                    {city.name}
+                  </option>
+                ))}
+              </Select>
+            </div>
+            <div>
+              <label htmlFor="dashboard-branch" className="block text-xs font-medium text-gray-500 mb-1">
+                סניף
+              </label>
+              <Select
+                id="dashboard-branch"
+                value={selectedBranch}
+                onChange={(e) => setSelectedBranch(e.target.value)}
+                className="w-full h-10 text-sm"
+              >
+                <option value="all">כל הסניפים</option>
+                <option value="delivery">משלוח</option>
+                {branchesForFilter.map((branch) => (
+                  <option key={branch.id} value={branch.id}>
+                    {branch.name}
+                  </option>
+                ))}
+              </Select>
+            </div>
+            <div>
+              <label htmlFor="dashboard-days" className="block text-xs font-medium text-gray-500 mb-1">
+                תקופה
+              </label>
+              <Select
+                id="dashboard-days"
+                value={String(days)}
+                onChange={(e) => setDays(parseInt(e.target.value))}
+                className="w-full h-10 text-sm"
+              >
+                <option value="7">7 ימים אחרונים</option>
+                <option value="30">30 ימים אחרונים</option>
+                <option value="90">90 ימים אחרונים</option>
+              </Select>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* KPI Cards — row 1: revenue, profit, sales, low stock */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">

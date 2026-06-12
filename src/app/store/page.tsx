@@ -5,17 +5,20 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Package, ShoppingCart, TrendingUp, AlertTriangle, Plus, Search, Edit, RefreshCw, X, ArrowUpDown, ArrowLeftRight } from 'lucide-react';
 import AppLayout from '@/components/AppLayout';
+import { useAuth } from '@/components/AuthProvider';
 import { Card, CardContent, CardHeader, CardTitle, Button, Input, Select, Badge, Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui';
 import { fetchProducts } from '@/lib/storeApi';
 import { getProductStockLocationLabels } from '@/lib/storeProductDisplay';
 import api from '@/lib/api';
-import type { StoreProduct } from '@/types/store';
+import { filterBranchesForUser, unwrapApiList } from '@/lib/scopedFilters';
+import type { StoreProduct, StoreCartLine } from '@/types/store';
 import type { Branch } from '@/types/branch';
 import AddProductDialog from '@/components/store/AddProductDialog';
 import EditProductDialog from '@/components/store/EditProductDialog';
 import AdjustStockDialog from '@/components/store/AdjustStockDialog';
 import TransferStockDialog from '@/components/store/TransferStockDialog';
-import PurchaseDialog from '@/components/store/PurchaseDialog';
+import AddToCartDialog from '@/components/store/AddToCartDialog';
+import CartCheckoutDialog from '@/components/store/CartCheckoutDialog';
 
 function productMatchesCity(product: StoreProduct, cityId: string, branches: Branch[]): boolean {
   if (cityId === 'all') return true;
@@ -36,6 +39,7 @@ function productMatchesCity(product: StoreProduct, cityId: string, branches: Bra
 
 export default function StorePage() {
   const router = useRouter();
+  const { user } = useAuth();
   const [products, setProducts] = useState<StoreProduct[]>([]);
   const [branches, setBranches] = useState<Branch[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -53,12 +57,41 @@ export default function StorePage() {
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isAdjustDialogOpen, setIsAdjustDialogOpen] = useState(false);
   const [isTransferDialogOpen, setIsTransferDialogOpen] = useState(false);
-  const [isPurchaseDialogOpen, setIsPurchaseDialogOpen] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<StoreProduct | null>(null);
 
+  // Cart
+  const [cart, setCart] = useState<StoreCartLine[]>([]);
+  const [isAddToCartOpen, setIsAddToCartOpen] = useState(false);
+  const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
+
+  const cartCount = cart.reduce((n, l) => n + l.quantity, 0);
+  const cartTotal = cart.reduce((sum, l) => sum + l.sale_price * l.quantity, 0);
+
+  function addToCart(line: StoreCartLine) {
+    setCart((prev) => {
+      const existing = prev.find((l) => l.key === line.key);
+      if (existing) {
+        return prev.map((l) =>
+          l.key === line.key
+            ? { ...l, quantity: Math.min(l.max_stock, l.quantity + line.quantity) }
+            : l
+        );
+      }
+      return [...prev, line];
+    });
+  }
+
+  function updateCartQuantity(key: string, quantity: number) {
+    setCart((prev) => prev.map((l) => (l.key === key ? { ...l, quantity } : l)));
+  }
+
+  function removeCartLine(key: string) {
+    setCart((prev) => prev.filter((l) => l.key !== key));
+  }
+
   useEffect(() => {
-    loadData();
-  }, []);
+    if (user) loadData();
+  }, [user?.id]);
 
   async function loadData() {
     setIsLoading(true);
@@ -73,7 +106,12 @@ export default function StorePage() {
       const branches = branchesResponse.data?.results || branchesResponse.data;
       
       setProducts(Array.isArray(products) ? products : []);
-      setBranches(Array.isArray(branches) ? branches : []);
+      setBranches(
+        filterBranchesForUser(
+          unwrapApiList<Branch>(branches),
+          user,
+        ),
+      );
     } catch (error) {
       console.error('Error loading data:', error);
       setProducts([]);
@@ -267,60 +305,97 @@ export default function StorePage() {
       {/* Filters */}
       <Card>
         <CardContent className="p-4">
-          <div className="space-y-3">
-            {/* Search Bar */}
-            <div className="relative">
-              <Search className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-              <Input
-                placeholder="חיפוש מוצר..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pr-10 h-9"
-              />
+          <div className="flex flex-col lg:flex-row lg:items-end gap-3">
+            {/* Search */}
+            <div className="flex-1 min-w-0">
+              <label htmlFor="store-search" className="block text-xs font-medium text-gray-500 mb-1">
+                חיפוש
+              </label>
+              <div className="relative">
+                <Search className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <Input
+                  id="store-search"
+                  placeholder="חיפוש לפי שם מוצר או קטגוריה..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pr-10 h-10"
+                />
+              </div>
             </div>
-            
-            {/* Filter Options */}
-            <div className="flex flex-wrap gap-2 items-center">
-              <Select
-                value={selectedCity}
-                onChange={(e) => setSelectedCity(e.target.value)}
-                className="w-36 h-9 text-sm"
-              >
-                <option value="all">כל הערים</option>
-                {cities.map((city) => (
-                  <option key={city.id} value={city.id}>
-                    {city.name}
-                  </option>
-                ))}
-              </Select>
-              <Select 
-                value={selectedBranch} 
-                onChange={(e) => setSelectedBranch(e.target.value)}
-                className="w-40 h-9 text-sm"
-              >
-                <option value="all">כל הסניפים</option>
-                <option value="delivery">משלוח</option>
-                {Array.isArray(branchesForFilter) && branchesForFilter.map((branch: Branch) => (
-                  <option key={branch.id} value={branch.id}>{branch.name}</option>
-                ))}
-              </Select>
-              <Select 
-                value={stockFilter} 
-                onChange={(e) => setStockFilter(e.target.value)}
-                className="w-32 h-9 text-sm"
-              >
-                <option value="all">כל המלאי</option>
-                <option value="low">מלאי נמוך</option>
-                <option value="normal">מלאי תקין</option>
-              </Select>
-              {hasFilters && (
-                <Button variant="outline" size="sm" onClick={clearFilters} className="h-9 px-3">
-                  <X className="h-4 w-4 ml-1" />
-                  נקה
-                </Button>
-              )}
+
+            {/* Filter selects */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 lg:w-auto">
+              <div className="sm:w-40">
+                <label htmlFor="store-city" className="block text-xs font-medium text-gray-500 mb-1">
+                  עיר
+                </label>
+                <Select
+                  id="store-city"
+                  value={selectedCity}
+                  onChange={(e) => setSelectedCity(e.target.value)}
+                  className="w-full h-10 text-sm"
+                >
+                  <option value="all">כל הערים</option>
+                  {cities.map((city) => (
+                    <option key={city.id} value={city.id}>
+                      {city.name}
+                    </option>
+                  ))}
+                </Select>
+              </div>
+              <div className="sm:w-48">
+                <label htmlFor="store-branch" className="block text-xs font-medium text-gray-500 mb-1">
+                  סניף
+                </label>
+                <Select
+                  id="store-branch"
+                  value={selectedBranch}
+                  onChange={(e) => setSelectedBranch(e.target.value)}
+                  className="w-full h-10 text-sm"
+                >
+                  <option value="all">כל הסניפים</option>
+                  <option value="delivery">משלוח</option>
+                  {Array.isArray(branchesForFilter) && branchesForFilter.map((branch: Branch) => (
+                    <option key={branch.id} value={branch.id}>{branch.name}</option>
+                  ))}
+                </Select>
+              </div>
+              <div className="sm:w-36">
+                <label htmlFor="store-stock" className="block text-xs font-medium text-gray-500 mb-1">
+                  מלאי
+                </label>
+                <Select
+                  id="store-stock"
+                  value={stockFilter}
+                  onChange={(e) => setStockFilter(e.target.value)}
+                  className="w-full h-10 text-sm"
+                >
+                  <option value="all">כל המלאי</option>
+                  <option value="low">מלאי נמוך</option>
+                  <option value="normal">מלאי תקין</option>
+                </Select>
+              </div>
             </div>
+
+            {hasFilters && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={clearFilters}
+                className="h-10 px-3 shrink-0 text-gray-600"
+              >
+                <X className="h-4 w-4 ml-1" />
+                נקה סינון
+              </Button>
+            )}
           </div>
+
+          {hasFilters && (
+            <p className="mt-3 pt-3 border-t text-xs text-gray-500">
+              מציג <span className="font-semibold text-gray-700">{filteredAndSortedProducts.length}</span> מתוך{' '}
+              <span className="font-semibold text-gray-700">{products.length}</span> מוצרים
+            </p>
+          )}
         </CardContent>
       </Card>
 
@@ -408,12 +483,12 @@ export default function StorePage() {
                         size="sm" 
                         onClick={() => {
                           setSelectedProduct(product);
-                          setIsPurchaseDialogOpen(true);
+                          setIsAddToCartOpen(true);
                         }}
                         disabled={product.stock_quantity === 0}
                       >
                         <ShoppingCart className="h-4 w-4 ml-1" />
-                        מכירה
+                        הוסף לסל
                       </Button>
                     </div>
                   </TableCell>
@@ -458,15 +533,58 @@ export default function StorePage() {
         onSuccess={loadData}
       />
       {selectedProduct && (
-        <PurchaseDialog
-          isOpen={isPurchaseDialogOpen}
+        <AddToCartDialog
+          isOpen={isAddToCartOpen}
           onClose={() => {
-            setIsPurchaseDialogOpen(false);
+            setIsAddToCartOpen(false);
             setSelectedProduct(null);
           }}
           product={selectedProduct}
-          onSuccess={loadData}
+          onAdd={addToCart}
         />
+      )}
+      <CartCheckoutDialog
+        isOpen={isCheckoutOpen}
+        onClose={() => setIsCheckoutOpen(false)}
+        lines={cart}
+        onUpdateQuantity={updateCartQuantity}
+        onRemoveLine={removeCartLine}
+        onSuccess={() => {
+          setCart([]);
+          setIsCheckoutOpen(false);
+          loadData();
+        }}
+      />
+
+      {/* Floating cart bar */}
+      {cart.length > 0 && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40">
+          <div className="flex items-center gap-4 rounded-full bg-gray-900 text-white shadow-xl px-5 py-3" dir="rtl">
+            <div className="flex items-center gap-2">
+              <div className="relative">
+                <ShoppingCart className="h-5 w-5" />
+                <span className="absolute -top-2 -right-2.5 h-5 min-w-5 px-1 rounded-full bg-teal-500 text-[11px] font-bold flex items-center justify-center">
+                  {cartCount}
+                </span>
+              </div>
+              <span className="text-sm font-semibold tabular-nums">₪{cartTotal.toFixed(2)}</span>
+            </div>
+            <Button
+              size="sm"
+              className="rounded-full bg-teal-500 hover:bg-teal-600 text-white border-0"
+              onClick={() => setIsCheckoutOpen(true)}
+            >
+              לתשלום
+            </Button>
+            <button
+              type="button"
+              className="text-xs text-gray-300 hover:text-white transition-colors"
+              onClick={() => setCart([])}
+            >
+              רוקן סל
+            </button>
+          </div>
+        </div>
       )}
       </div>
     </AppLayout>

@@ -6,6 +6,8 @@ import { Users, TrendingUp, DollarSign, BarChart3, Plus, Gift, Edit, ChevronUp, 
 import AppLayout from '@/components/AppLayout';
 import PageHeader from '@/components/PageHeader';
 import api from '@/lib/api';
+import { useAuth } from '@/components/AuthProvider';
+import { filterBranchesForUser, unwrapApiList } from '@/lib/scopedFilters';
 import {
   InstructorListItem,
   InstructorsListResponse,
@@ -27,6 +29,7 @@ type SortDirection = 'asc' | 'desc';
 
 export default function InstructorsPage() {
   const router = useRouter();
+  const { user } = useAuth();
   const [instructors, setInstructors] = useState<InstructorListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -66,14 +69,19 @@ export default function InstructorsPage() {
     const loadBranches = async () => {
       try {
         const response = await api.get('/core/branches/');
-        setBranches(response.data.results || response.data || []);
+        setBranches(
+          filterBranchesForUser(
+            unwrapApiList<Branch>(response.data),
+            user,
+          ),
+        );
       } catch (error) {
         console.error('Error loading branches:', error);
       }
     };
     
     loadBranches();
-  }, []);
+  }, [user?.id, user?.role, user?.branch_ids?.join(',')]);
   
   // Load instructors
   useEffect(() => {

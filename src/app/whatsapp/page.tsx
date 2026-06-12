@@ -15,7 +15,7 @@ import {
   type WhatsAppAutomation,
   type WhatsAppContact,
 } from '@/lib/whatsappApi';
-import api, { fetchCourseTypesList } from '@/lib/api';
+import api, { fetchCourseTypesList, fetchInstructorsDropdown } from '@/lib/api';
 import { MessageCircle, RefreshCw, Search, Send, Zap } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -45,8 +45,12 @@ export default function WhatsAppPage() {
   const [search, setSearch] = useState('');
   const [branchFilter, setBranchFilter] = useState('all');
   const [courseTypeFilter, setCourseTypeFilter] = useState('all');
+  const [courseFilter, setCourseFilter] = useState('all');
+  const [instructorFilter, setInstructorFilter] = useState('all');
   const [branches, setBranches] = useState<{ id: string; name: string }[]>([]);
   const [courseTypes, setCourseTypes] = useState<{ id: string; name: string }[]>([]);
+  const [courses, setCourses] = useState<{ id: string; name: string; branch_name?: string }[]>([]);
+  const [instructors, setInstructors] = useState<{ id: string; first_name: string; last_name: string }[]>([]);
   const [loadingContacts, setLoadingContacts] = useState(true);
   const [selectedKeys, setSelectedKeys] = useState<Set<string>>(() => new Set());
 
@@ -111,6 +115,8 @@ export default function WhatsAppPage() {
         q: search.trim() || undefined,
         branch_id: branchFilter !== 'all' ? branchFilter : undefined,
         course_type_id: courseTypeFilter !== 'all' ? courseTypeFilter : undefined,
+        course_id: courseFilter !== 'all' ? courseFilter : undefined,
+        instructor_id: instructorFilter !== 'all' ? instructorFilter : undefined,
       });
       setContacts(list);
     } catch {
@@ -118,30 +124,86 @@ export default function WhatsAppPage() {
     } finally {
       setLoadingContacts(false);
     }
-  }, [search, branchFilter, courseTypeFilter]);
+  }, [search, branchFilter, courseTypeFilter, courseFilter, instructorFilter]);
 
   const loadFilterOptions = useCallback(async () => {
-    try {
-      const [branchRes, courseTypesData] = await Promise.all([
-        api.get('/core/branches/?simple=true'),
-        fetchCourseTypesList(),
-      ]);
-      const branchData = branchRes.data;
+    const [branchResult, courseTypesResult, instructorsResult] = await Promise.allSettled([
+      api.get('/core/branches/?simple=true'),
+      fetchCourseTypesList(),
+      fetchInstructorsDropdown(),
+    ]);
+
+    let failed = false;
+
+    if (branchResult.status === 'fulfilled') {
+      const branchData = branchResult.value.data;
       const branchList = Array.isArray(branchData)
         ? branchData
         : Array.isArray(branchData?.results)
           ? branchData.results
           : [];
       setBranches(branchList.map((b: { id: string; name: string }) => ({ id: b.id, name: b.name })));
+    } else {
+      failed = true;
+    }
 
-      const ctData = Array.isArray(courseTypesData)
-        ? courseTypesData
-        : courseTypesData?.results || [];
+    if (courseTypesResult.status === 'fulfilled') {
+      const ctData = Array.isArray(courseTypesResult.value)
+        ? courseTypesResult.value
+        : courseTypesResult.value?.results || [];
       setCourseTypes(ctData.map((ct: { id: string; name: string }) => ({ id: ct.id, name: ct.name })));
-    } catch {
+    } else {
+      failed = true;
+    }
+
+    if (instructorsResult.status === 'fulfilled') {
+      const list = Array.isArray(instructorsResult.value) ? instructorsResult.value : [];
+      setInstructors(
+        list.map((i: { id: string; first_name?: string; last_name?: string }) => ({
+          id: i.id,
+          first_name: i.first_name || '',
+          last_name: i.last_name || '',
+        }))
+      );
+    } else {
+      failed = true;
+    }
+
+    if (failed) {
       toast.error('שגיאה בטעינת מסננים');
     }
   }, []);
+
+  // Group (course) list, narrowed by the selected branch / course type filters
+  const loadCourses = useCallback(async () => {
+    try {
+      const res = await api.get('/courses/courses/', {
+        params: {
+          ...(branchFilter !== 'all' ? { branch_id: branchFilter } : {}),
+          ...(courseTypeFilter !== 'all' ? { course_type: courseTypeFilter } : {}),
+        },
+      });
+      const data = Array.isArray(res.data) ? res.data : res.data?.results || [];
+      setCourses(
+        data.map((c: { id: string; name: string; branch_name?: string }) => ({
+          id: c.id,
+          name: c.name,
+          branch_name: c.branch_name,
+        }))
+      );
+    } catch {
+      setCourses([]);
+    }
+  }, [branchFilter, courseTypeFilter]);
+
+  useEffect(() => {
+    loadCourses();
+  }, [loadCourses]);
+
+  // Reset group selection when its parent filters change
+  useEffect(() => {
+    setCourseFilter('all');
+  }, [branchFilter, courseTypeFilter]);
 
   useEffect(() => {
     loadStatus();
@@ -321,6 +383,32 @@ export default function WhatsAppPage() {
                 {courseTypes.map((courseType) => (
                   <option key={courseType.id} value={courseType.id}>
                     {courseType.name}
+                  </option>
+                ))}
+              </select>
+              <select
+                value={courseFilter}
+                onChange={(e) => setCourseFilter(e.target.value)}
+                className="flex-1 rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+              >
+                <option value="all">כל הקבוצות</option>
+                {courses.map((course) => (
+                  <option key={course.id} value={course.id}>
+                    {course.branch_name && branchFilter === 'all'
+                      ? `${course.name} · ${course.branch_name}`
+                      : course.name}
+                  </option>
+                ))}
+              </select>
+              <select
+                value={instructorFilter}
+                onChange={(e) => setInstructorFilter(e.target.value)}
+                className="flex-1 rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+              >
+                <option value="all">כל המדריכים</option>
+                {instructors.map((instructor) => (
+                  <option key={instructor.id} value={instructor.id}>
+                    {`${instructor.first_name} ${instructor.last_name}`.trim()}
                   </option>
                 ))}
               </select>

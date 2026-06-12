@@ -84,6 +84,22 @@ export interface CartItem {
   size_stock_id?: string | null;
 }
 
+/** A line in the store-page shopping cart (UI state, pre-checkout) */
+export interface StoreCartLine {
+  /** Unique per product + stock row, used for merging/removing */
+  key: string;
+  product_id: string;
+  product_name: string;
+  sale_price: number;
+  quantity: number;
+  size?: string;
+  branch?: string | null;
+  branch_name?: string | null;
+  size_stock_id?: string | null;
+  /** Available stock for this line, caps the quantity */
+  max_stock: number;
+}
+
 export interface PaymentInitiationResponse {
   requires_iframe: boolean;
   iframe_url?: string;

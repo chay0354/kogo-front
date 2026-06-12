@@ -2,7 +2,8 @@
 
 import { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { fetchInstructorsData, fetchInstructorsList, fetchBranchesList } from '@/lib/api';
+import { fetchInstructorsData, fetchInstructorsList } from '@/lib/api';
+import { useScopedBranches } from '@/hooks/useScopedBranches';
 import { Button } from '@/components/ui/button';
 import { Download } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
@@ -34,10 +35,7 @@ export default function InstructorsSection({ globalDateRange }: Props) {
     queryFn: fetchInstructorsList,
   });
 
-  const { data: branchesData } = useQuery({
-    queryKey: ['branches-list'],
-    queryFn: fetchBranchesList,
-  });
+  const { branches: branchOptions } = useScopedBranches();
 
   const instructors = useMemo(() => {
     if (!instructorsData) return [];
@@ -47,12 +45,6 @@ export default function InstructorsSection({ globalDateRange }: Props) {
       name: `${i.first_name} ${i.last_name}` 
     }));
   }, [instructorsData]);
-
-  const branches = useMemo(() => {
-    if (!branchesData) return [];
-    const data = Array.isArray(branchesData) ? branchesData : (branchesData.results || []);
-    return data.map((b: any) => ({ id: b.id, name: b.name }));
-  }, [branchesData]);
 
   const apiFilters = useMemo(() => ({
     instructor_id: filters.instructor_id,
@@ -115,7 +107,7 @@ export default function InstructorsSection({ globalDateRange }: Props) {
               className="w-full h-10 px-3 py-2 text-sm rounded-md border border-input bg-background"
             >
               <option value="all">כל הסניפים</option>
-              {branches.map((branch: any) => (
+              {branchOptions.map((branch) => (
                 <option key={branch.id} value={branch.id}>
                   {branch.name}
                 </option>

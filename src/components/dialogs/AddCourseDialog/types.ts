@@ -12,6 +12,7 @@ export interface Room {
 export interface Instructor {
   id: string;
   full_name: string;
+  fixed_salary_per_lesson?: string | number;
 }
 
 import type { CourseWithLessons } from '@/types/course';

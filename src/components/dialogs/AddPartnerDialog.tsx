@@ -21,6 +21,20 @@ const emptyForm: PartnerFormData = {
   password: '',
 };
 
+export function normalizePartnerErrors(data: unknown): Record<string, string> {
+  if (!data || typeof data !== 'object') return { general: 'שגיאה בשמירה' };
+  const result: Record<string, string> = {};
+  for (const [key, value] of Object.entries(data as Record<string, unknown>)) {
+    const text = Array.isArray(value) ? value.join(' · ') : String(value);
+    if (key === 'non_field_errors' || key === 'detail') {
+      result.general = text;
+    } else {
+      result[key] = text;
+    }
+  }
+  return Object.keys(result).length ? result : { general: 'שגיאה בשמירה' };
+}
+
 export default function AddPartnerDialog({ isOpen, onClose, onSave }: AddPartnerDialogProps) {
   const [branches, setBranches] = useState<Branch[]>([]);
   const [formData, setFormData] = useState<PartnerFormData>(emptyForm);
@@ -64,8 +78,7 @@ export default function AddPartnerDialog({ isOpen, onClose, onSave }: AddPartner
       onSave();
       onClose();
     } catch (error: any) {
-      const data = error?.response?.data;
-      setErrors(typeof data === 'object' ? data : { general: 'שגיאה בשמירה' });
+      setErrors(normalizePartnerErrors(error?.response?.data));
     } finally {
       setIsSubmitting(false);
     }
@@ -82,6 +95,11 @@ export default function AddPartnerDialog({ isOpen, onClose, onSave }: AddPartner
         </div>
 
         <div className="p-6 space-y-4">
+          {errors.general && (
+            <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-600">
+              {errors.general}
+            </div>
+          )}
           <div>
             <label className="block text-sm font-medium mb-1">אימייל</label>
             <input
@@ -120,7 +138,11 @@ export default function AddPartnerDialog({ isOpen, onClose, onSave }: AddPartner
               value={formData.password}
               onChange={(e) => setFormData({ ...formData, password: e.target.value })}
             />
-            {errors.password && <p className="text-sm text-red-500 mt-1">{errors.password}</p>}
+            {errors.password ? (
+              <p className="text-sm text-red-500 mt-1">{errors.password}</p>
+            ) : (
+              <p className="text-xs text-gray-400 mt-1">לפחות 8 תווים, לא רק ספרות</p>
+            )}
           </div>
 
           <div>

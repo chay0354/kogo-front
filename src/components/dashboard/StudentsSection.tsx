@@ -3,7 +3,8 @@
 import { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
-import { fetchStudentsData, fetchCoursesList, fetchBranchesList, fetchCourseTypesList } from '@/lib/api';
+import { fetchStudentsData, fetchCoursesList, fetchCourseTypesList } from '@/lib/api';
+import { useScopedBranches } from '@/hooks/useScopedBranches';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -69,10 +70,7 @@ export default function StudentsSection({ globalDateRange }: Props) {
     queryFn: fetchCoursesList,
   });
 
-  const { data: branchesData } = useQuery({
-    queryKey: ['branches-list'],
-    queryFn: fetchBranchesList,
-  });
+  const { branches: branchOptions } = useScopedBranches();
 
   const { data: courseTypesData } = useQuery({
     queryKey: ['course-types-list'],
@@ -84,12 +82,6 @@ export default function StudentsSection({ globalDateRange }: Props) {
     const data = Array.isArray(coursesData) ? coursesData : (coursesData.results || []);
     return data.map((c: any) => ({ id: c.id, name: c.name }));
   }, [coursesData]);
-
-  const branches = useMemo(() => {
-    if (!branchesData) return [];
-    const data = Array.isArray(branchesData) ? branchesData : (branchesData.results || []);
-    return data.map((b: any) => ({ id: b.id, name: b.name }));
-  }, [branchesData]);
 
   const courseTypes = useMemo(() => {
     if (!courseTypesData) return [];
@@ -206,7 +198,7 @@ export default function StudentsSection({ globalDateRange }: Props) {
               className="w-full h-10 px-3 py-2 text-sm rounded-md border border-input bg-background"
             >
               <option value="all">כל הסניפים</option>
-              {branches.map((branch: any) => (
+              {branchOptions.map((branch) => (
                 <option key={branch.id} value={branch.id}>
                   {branch.name}
                 </option>

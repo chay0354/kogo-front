@@ -1,8 +1,10 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { fetchCoursesData, fetchCoursesList, fetchBranchesList, fetchCitiesList } from '@/lib/api';
+import { fetchCoursesData, fetchCoursesList } from '@/lib/api';
+import { useScopedBranches } from '@/hooks/useScopedBranches';
+import { filterBranchesByCity } from '@/lib/scopedFilters';
 import { Button } from '@/components/ui/button';
 import { Download } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
@@ -35,33 +37,25 @@ export default function CoursesSection({ globalDateRange }: Props) {
     queryFn: fetchCoursesList,
   });
 
-  const { data: branchesData } = useQuery({
-    queryKey: ['branches-list'],
-    queryFn: fetchBranchesList,
-  });
+  const { branches: branchOptions, cities } = useScopedBranches();
 
-  const { data: citiesData } = useQuery({
-    queryKey: ['cities-list'],
-    queryFn: fetchCitiesList,
-  });
+  const branchesForFilter = useMemo(
+    () => filterBranchesByCity(branchOptions, filters.city_id),
+    [branchOptions, filters.city_id],
+  );
+
+  useEffect(() => {
+    if (filters.branch_id === 'all') return;
+    if (!branchesForFilter.some((b) => b.id === filters.branch_id)) {
+      setFilters((prev) => ({ ...prev, branch_id: 'all' }));
+    }
+  }, [filters.branch_id, branchesForFilter]);
 
   const courses = useMemo(() => {
     if (!coursesData) return [];
     const data = Array.isArray(coursesData) ? coursesData : (coursesData.results || []);
     return data.map((c: any) => ({ id: c.id, name: c.name }));
   }, [coursesData]);
-
-  const branches = useMemo(() => {
-    if (!branchesData) return [];
-    const data = Array.isArray(branchesData) ? branchesData : (branchesData.results || []);
-    return data.map((b: any) => ({ id: b.id, name: b.name }));
-  }, [branchesData]);
-
-  const cities = useMemo(() => {
-    if (!citiesData) return [];
-    const data = Array.isArray(citiesData) ? citiesData : (citiesData.results || []);
-    return data.map((c: any) => ({ id: c.id, name: c.name }));
-  }, [citiesData]);
 
   const apiFilters = useMemo(() => ({
     course_id: filters.course_id,
@@ -141,7 +135,7 @@ export default function CoursesSection({ globalDateRange }: Props) {
               className="w-full h-10 px-3 py-2 text-sm rounded-md border border-input bg-background"
             >
               <option value="all">כל הסניפים</option>
-              {branches.map((branch: any) => (
+              {branchesForFilter.map((branch) => (
                 <option key={branch.id} value={branch.id}>
                   {branch.name}
                 </option>

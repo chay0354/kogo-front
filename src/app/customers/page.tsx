@@ -5,6 +5,8 @@ import { Users, MoreHorizontal, Eye, Edit, UserPlus, Trash2, UserCheck } from 'l
 import AppLayout from '@/components/AppLayout';
 import PageHeader from '@/components/PageHeader';
 import api, { fetchInstructorsDropdown } from '@/lib/api';
+import { useAuth } from '@/components/AuthProvider';
+import { filterBranchesForUser, unwrapApiList } from '@/lib/scopedFilters';
 import { ChildWithDetails, CustomerFilters, Branch, Course, Instructor } from '@/types/customer';
 import { 
   getChildStatus, 
@@ -19,6 +21,7 @@ import DeleteChildDialog from '@/components/dialogs/DeleteChildDialog';
 import EnrollToLessonDialog from '@/components/dialogs/EnrollToLessonDialog';
 
 export default function CustomersPage() {
+  const { user } = useAuth();
   const [children, setChildren] = useState<ChildWithDetails[]>([]);
   const [loading, setLoading] = useState(true);
   const [childrenTotalCount, setChildrenTotalCount] = useState<number>(0);
@@ -67,7 +70,12 @@ export default function CustomersPage() {
         ]);
         
         // Extract results from paginated response
-        setBranches(branchesRes.data.results || branchesRes.data || []);
+        setBranches(
+          filterBranchesForUser(
+            unwrapApiList<Branch>(branchesRes.data),
+            user,
+          ),
+        );
         setCourses(coursesRes.data.results || coursesRes.data || []);
         setInstructors(Array.isArray(instructorsList) ? instructorsList : []);
       } catch (error) {
@@ -76,10 +84,12 @@ export default function CustomersPage() {
     };
     
     loadFilterOptions();
-  }, []);
+  }, [user?.id, user?.role, user?.branch_ids?.join(',')]);
 
   // Load children data
   useEffect(() => {
+    if (!user) return;
+
     const fetchChildren = async () => {
       setLoading(true);
       try {
@@ -114,7 +124,7 @@ export default function CustomersPage() {
     };
     
     fetchChildren();
-  }, [filters, childrenPage]);
+  }, [user?.id, user?.role, user?.branch_ids?.join(','), filters, childrenPage]);
 
 
   const updateFilter = (key: keyof CustomerFilters, value: string) => {
@@ -920,6 +930,7 @@ function AddChildToExistingFamilyForm({ onSuccess, onCancel }: { onSuccess: () =
 
 // Component for adding new family
 function AddNewFamilyForm({ onSuccess, onCancel }: { onSuccess: () => void; onCancel: () => void }) {
+  const { user } = useAuth();
   const [loading, setLoading] = useState(false);
   const [branches, setBranches] = useState<Branch[]>([]);
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -948,13 +959,18 @@ function AddNewFamilyForm({ onSuccess, onCancel }: { onSuccess: () => void; onCa
     const loadBranches = async () => {
       try {
         const response = await api.get('/core/branches/');
-        setBranches(response.data.results || response.data || []);
+        setBranches(
+          filterBranchesForUser(
+            unwrapApiList<Branch>(response.data),
+            user,
+          ),
+        );
       } catch (error) {
         console.error('Error loading branches:', error);
       }
     };
     loadBranches();
-  }, []);
+  }, [user?.id, user?.role, user?.branch_ids?.join(',')]);
 
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
