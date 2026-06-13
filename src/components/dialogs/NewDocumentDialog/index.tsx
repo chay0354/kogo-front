@@ -301,10 +301,14 @@ export default function NewDocumentDialog({ open, onClose }: NewDocumentDialogPr
           {currentStep === 'documentDetails' && docType === 'קבלה' && (
             <ReceiptDetailsStep data={receiptDetails} onChange={setReceiptDetails} />
           )}
+          {currentStep === 'documentDetails' && docType === 'חשבונית עסקה' && (
+            <TransactionInvoiceStep data={invoiceDetails} onChange={setInvoiceDetails} />
+          )}
           {currentStep === 'documentDetails' &&
             docType !== 'חשבונית מס' &&
             docType !== 'חשבונית מס/קבלה' &&
-            docType !== 'קבלה' && <DocumentDetailsStep />}
+            docType !== 'קבלה' &&
+            docType !== 'חשבונית עסקה' && <DocumentDetailsStep />}
           {currentStep === 'summary' && (
             <SummaryStep
               clientType={clientType}
@@ -807,6 +811,310 @@ function DocTypeStep({ docType, clientType, onSelect }: DocTypeStepProps) {
             onSelect={() => onSelect(option.type)}
           />
         ))}
+      </div>
+    </div>
+  );
+}
+
+/* ─── TransactionInvoiceStep ──────────────────────────────────────── */
+
+interface TransactionInvoiceStepProps {
+  data: InvoiceDetailsData;
+  onChange: (data: InvoiceDetailsData) => void;
+}
+
+function TransactionInvoiceStep({ data, onChange }: TransactionInvoiceStepProps) {
+  function updateLineItem(idx: number, field: keyof LineItem, value: string | number) {
+    const updated = data.lineItems.map((item, i) =>
+      i === idx ? { ...item, [field]: value } : item
+    );
+    onChange({ ...data, lineItems: updated });
+  }
+
+  const subtotal = data.lineItems.reduce((sum, item) => sum + item.quantity * item.price, 0);
+  const vatAmount = data.vatExempt ? 0 : (subtotal - data.discountAmount) * 0.18;
+  const totalBeforeRounding = subtotal - data.discountAmount + vatAmount;
+  const finalTotal = data.roundTotal ? Math.round(totalBeforeRounding) : totalBeforeRounding;
+
+  return (
+    <div>
+      {/* Header row — doc number + date */}
+      <div className={styles.detailsHeaderRow}>
+        <div className={styles.detailsCol}>
+          <label className={styles.fieldLabel}>מספר למסמך</label>
+          <input
+            type="text"
+            className={styles.readOnlyInput}
+            value={data.documentNumber}
+            readOnly
+            aria-readonly="true"
+            aria-label="מספר מסמך"
+          />
+        </div>
+        <div className={styles.detailsCol}>
+          <label htmlFor="txn-date" className={styles.fieldLabel}>
+            תאריך למסמך
+          </label>
+          <input
+            id="txn-date"
+            type="date"
+            className={styles.formInput}
+            value={data.documentDate}
+            onChange={(e) => onChange({ ...data, documentDate: e.target.value })}
+          />
+        </div>
+      </div>
+
+      {/* פרטים */}
+      <div className={styles.detailsSection}>
+        <label htmlFor="txn-description" className={styles.sectionHeading}>
+          פרטים <span className={styles.requiredMark}>*</span>
+        </label>
+        <textarea
+          id="txn-description"
+          className={styles.formTextarea}
+          placeholder="תיאור העסקה / השירותות..."
+          value={data.description}
+          onChange={(e) => onChange({ ...data, description: e.target.value })}
+          aria-required="true"
+        />
+      </div>
+
+      {/* מטבע */}
+      <div className={styles.detailsSection}>
+        <span className={styles.sectionHeading}>מטבע</span>
+        <div className={styles.currencyRow}>
+          <Select
+            value={data.currency}
+            onChange={(e) => onChange({ ...data, currency: e.target.value })}
+            className={styles.currencySelect}
+          >
+            <option value="ILS">שקל ₪</option>
+            <option value="USD">דולר $</option>
+            <option value="EUR">אירו €</option>
+          </Select>
+          <label className={styles.checkboxLabel}>
+            <input
+              type="checkbox"
+              checked={data.pricesIncludeVat}
+              onChange={(e) => onChange({ ...data, pricesIncludeVat: e.target.checked })}
+            />
+            הזנת מחירים כוללים מע&quot;מ
+          </label>
+        </div>
+      </div>
+
+      {/* שורות פריטים */}
+      <div className={styles.detailsSection}>
+        <span className={styles.sectionHeading}>שורות פריטים</span>
+        <div className={styles.lineItemsTableWrap}>
+          <div className={styles.lineItemsTable} role="table">
+            <div className={styles.lineItemsHeaderRow} role="row">
+              <div className={styles.lineItemHeaderCell} role="columnheader" />
+              <div className={styles.lineItemHeaderCell} role="columnheader">מק&quot;ט</div>
+              <div className={styles.lineItemHeaderCell} role="columnheader">תיאור</div>
+              <div className={styles.lineItemHeaderCell} role="columnheader">כמות</div>
+              <div className={styles.lineItemHeaderCell} role="columnheader">מחיר</div>
+              <div className={styles.lineItemHeaderCell} role="columnheader">סה&quot;כ</div>
+            </div>
+            {data.lineItems.map((item, idx) => (
+              <div key={item.id} className={styles.lineItemRow} role="row">
+                <button
+                  type="button"
+                  className={styles.lineItemDeleteBtn}
+                  onClick={() =>
+                    onChange({ ...data, lineItems: data.lineItems.filter((_, i) => i !== idx) })
+                  }
+                  aria-label="מחק שורה"
+                >
+                  <X size={14} />
+                </button>
+                <input
+                  type="text"
+                  className={styles.lineItemInput}
+                  value={item.sku}
+                  placeholder='מק"ט'
+                  onChange={(e) => updateLineItem(idx, 'sku', e.target.value)}
+                />
+                <input
+                  type="text"
+                  className={`${styles.lineItemInput} ${styles.lineItemDescInput}`}
+                  value={item.description}
+                  placeholder="תיאור"
+                  onChange={(e) => updateLineItem(idx, 'description', e.target.value)}
+                />
+                <input
+                  type="number"
+                  className={styles.lineItemInput}
+                  value={item.quantity}
+                  min={1}
+                  onChange={(e) => updateLineItem(idx, 'quantity', Number(e.target.value))}
+                />
+                <input
+                  type="number"
+                  className={styles.lineItemInput}
+                  value={item.price}
+                  min={0}
+                  step={0.01}
+                  onChange={(e) => updateLineItem(idx, 'price', Number(e.target.value))}
+                />
+                <div className={styles.lineItemTotal} role="cell">
+                  ₪{(item.quantity * item.price).toFixed(2)}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+        <button
+          type="button"
+          className={styles.addRowBtn}
+          onClick={() =>
+            onChange({
+              ...data,
+              lineItems: [
+                ...data.lineItems,
+                { id: String(Date.now()), sku: '', description: '', quantity: 1, price: 0 },
+              ],
+            })
+          }
+        >
+          + אשר שורה
+        </button>
+      </div>
+
+      {/* Totals */}
+      <div className={styles.totalsSection}>
+        <div className={styles.totalsRow}>
+          <span className={styles.totalsLabel}>סה&quot;כ</span>
+          <span className={styles.totalsValue}>₪{subtotal.toFixed(2)}</span>
+        </div>
+
+        <div className={`${styles.totalsRow} ${styles.discountRow}`}>
+          <span className={styles.totalsLabel}>הנחה לפני מע&quot;מ</span>
+          <div className={styles.discountInputRow}>
+            <input
+              type="number"
+              className={styles.discountInput}
+              value={data.discountAmount}
+              min={0}
+              onChange={(e) => onChange({ ...data, discountAmount: Number(e.target.value) })}
+              aria-label="סכום הנחה בשקלים"
+            />
+            <span className={styles.discountLabel}>₪</span>
+            <input
+              type="number"
+              className={styles.discountInput}
+              value={data.discountPercent}
+              min={0}
+              max={100}
+              onChange={(e) => onChange({ ...data, discountPercent: Number(e.target.value) })}
+              aria-label="אחוז הנחה"
+            />
+            <span className={styles.discountLabel}>%</span>
+          </div>
+        </div>
+
+        <div className={styles.vatRow}>
+          <span className={styles.totalsLabel}>מע&quot;מ 18%</span>
+          <div className={styles.vatRowContent}>
+            <label className={styles.vatRadioLabel}>
+              <input
+                type="checkbox"
+                checked={data.vatExempt}
+                onChange={(e) => onChange({ ...data, vatExempt: e.target.checked })}
+              />
+              ללא מע&quot;מ (אילת / חו&quot;ל)
+            </label>
+            <span className={styles.vatAmount}>₪{vatAmount.toFixed(2)}</span>
+          </div>
+        </div>
+
+        <div className={`${styles.totalsRow} ${styles.totalsRowBold}`}>
+          <span className={styles.totalsLabel}>סה&quot;כ בח&quot;ן</span>
+          <span className={styles.totalsValue}>₪{finalTotal.toFixed(2)}</span>
+        </div>
+
+        <label className={styles.totalsCheckboxRow}>
+          <input
+            type="checkbox"
+            checked={data.roundTotal}
+            onChange={(e) => onChange({ ...data, roundTotal: e.target.checked })}
+          />
+          <span className={styles.totalsCheckboxLabel}>עגל סכום - ללא אגורות</span>
+        </label>
+      </div>
+
+      {/* Info banner */}
+      <div className={styles.infoBanner}>
+        <FileText size={16} className={styles.infoBannerIcon} />
+        <span className={styles.infoBannerText}>
+          חשבונית עסקה – דרישת תשלום. אינה כוללת תשלום בפועל.
+        </span>
+      </div>
+
+      {/* לסגור חשבונית */}
+      <label className={`${styles.totalsCheckboxRow} ${styles.closeInvoiceRow}`}>
+        <input
+          type="checkbox"
+          checked={data.closeInvoice}
+          onChange={(e) => onChange({ ...data, closeInvoice: e.target.checked })}
+        />
+        <span className={styles.totalsCheckboxLabel}>לסגור חשבונית</span>
+      </label>
+
+      {/* Notes — two columns */}
+      <div className={styles.notesGrid}>
+        <div className={styles.formRow}>
+          <label htmlFor="txn-customer-notes" className={styles.sectionHeading}>הערות</label>
+          <textarea
+            id="txn-customer-notes"
+            className={styles.formTextarea}
+            placeholder="הערות ללקוח..."
+            value={data.customerNotes}
+            onChange={(e) => onChange({ ...data, customerNotes: e.target.value })}
+          />
+        </div>
+        <div className={styles.formRow}>
+          <label htmlFor="txn-internal-notes" className={styles.sectionHeading}>הערה פנימית</label>
+          <textarea
+            id="txn-internal-notes"
+            className={styles.formTextarea}
+            placeholder="הערה פנימית (לא מופיעה במסמך)..."
+            value={data.internalNotes}
+            onChange={(e) => onChange({ ...data, internalNotes: e.target.value })}
+          />
+        </div>
+      </div>
+
+      {/* Payment terms */}
+      <div className={styles.paymentTermsRow}>
+        <div className={styles.formRow}>
+          <label htmlFor="txn-payment-terms" className={styles.sectionHeading}>לתשלום עד</label>
+          <Select
+            id="txn-payment-terms"
+            className={styles.formSelect}
+            value={data.paymentTerms}
+            onChange={(e) => onChange({ ...data, paymentTerms: e.target.value })}
+          >
+            <option value="מיידי">מיידי</option>
+            <option value="שוטף">שוטף</option>
+            <option value="שוטף + 15">שוטף + 15</option>
+            <option value="שוטף + 30">שוטף + 30</option>
+            <option value="שוטף + 45">שוטף + 45</option>
+            <option value="שוטף + 60">שוטף + 60</option>
+            <option value="שוטף + 90">שוטף + 90</option>
+          </Select>
+        </div>
+        <div className={styles.formRow}>
+          <label htmlFor="txn-due-date" className={styles.sectionHeading}>תאריך פירעון</label>
+          <input
+            id="txn-due-date"
+            type="date"
+            className={styles.formInput}
+            value={data.dueDate}
+            onChange={(e) => onChange({ ...data, dueDate: e.target.value })}
+          />
+        </div>
       </div>
     </div>
   );

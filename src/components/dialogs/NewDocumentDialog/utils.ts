@@ -71,12 +71,14 @@ export function canAdvanceFromStep(
   if (stepId === 'docType') return docType !== null;
   if (stepId === 'documentDetails') {
     if (docType === 'קבלה') return true;
-    if (docType !== 'חשבונית מס' && docType !== 'חשבונית מס/קבלה') return true;
-    if (!invoiceDetails) return false;
-    return (
-      invoiceDetails.description.trim() !== '' &&
-      invoiceDetails.lineItems.some((item) => item.price > 0)
-    );
+    if (docType === 'חשבונית מס' || docType === 'חשבונית מס/קבלה' || docType === 'חשבונית עסקה') {
+      if (!invoiceDetails) return false;
+      return (
+        invoiceDetails.description.trim() !== '' &&
+        invoiceDetails.lineItems.some((item) => item.price > 0)
+      );
+    }
+    return true;
   }
   return true;
 }
