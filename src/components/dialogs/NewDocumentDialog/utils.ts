@@ -16,6 +16,7 @@ export function generateDocumentNumber(): string {
 export function getDocumentDetailsLabel(docType: string | null): string {
   if (docType === 'חשבונית מס') return 'פרטי חשבונית מס';
   if (docType === 'חשבונית מס/קבלה') return 'פרטי חשבונית מס/קבלה';
+  if (docType === 'קבלה') return 'פרטי קבלה';
   if (docType === 'חשבונית עסקה') return 'פרטי חשבונית עסקה';
   if (docType === 'טיוטה') return 'פרטי טיוטה';
   return 'פרטי מסמך';
@@ -55,7 +56,8 @@ export function canAdvanceFromStep(
   businessCustomerId: string | null,
   businessFormData: BusinessCustomerFormData | null,
   docType: string | null,
-  invoiceDetails: InvoiceDetailsData | null
+  invoiceDetails: InvoiceDetailsData | null,
+  creditInvoiceDetails?: { linkedInvoiceId: string; creditReason: string; creditAmountBeforeVat: number } | null
 ): boolean {
   if (stepId === 'clientType') return clientType !== null;
   if (stepId === 'selectCustomer') return selectedCustomerId !== null;
@@ -69,12 +71,23 @@ export function canAdvanceFromStep(
   }
   if (stepId === 'docType') return docType !== null;
   if (stepId === 'documentDetails') {
-    if (docType !== 'חשבונית מס' && docType !== 'חשבונית מס/קבלה') return true;
-    if (!invoiceDetails) return false;
-    return (
-      invoiceDetails.description.trim() !== '' &&
-      invoiceDetails.lineItems.some((item) => item.price > 0)
-    );
+    if (docType === 'קבלה') return true;
+    if (docType === 'חשבונית מס' || docType === 'חשבונית מס/קבלה' || docType === 'חשבונית עסקה') {
+      if (!invoiceDetails) return false;
+      return (
+        invoiceDetails.description.trim() !== '' &&
+        invoiceDetails.lineItems.some((item) => item.price > 0)
+      );
+    }
+    if (docType === 'חשבונית מס זיכוי') {
+      if (!creditInvoiceDetails) return false;
+      return (
+        creditInvoiceDetails.linkedInvoiceId.trim() !== '' &&
+        creditInvoiceDetails.creditReason.trim() !== '' &&
+        creditInvoiceDetails.creditAmountBeforeVat > 0
+      );
+    }
+    return true;
   }
   return true;
 }

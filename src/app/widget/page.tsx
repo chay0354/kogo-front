@@ -90,6 +90,14 @@ export default function WidgetPage() {
   }, []);
 
   useEffect(() => {
+    if (!selectedCity) return;
+    const cityBranches = allBranches.filter((b) => b.city === selectedCity);
+    if (cityBranches.length === 1) {
+      setSelectedBranch(cityBranches[0].id);
+    }
+  }, [selectedCity, allBranches]);
+
+  useEffect(() => {
     if (!selectedBranch) { setBranchCourses([]); return; }
     setLoadingCourses(true);
     api.get(`/customers/widget/courses/?branch_id=${selectedBranch}`)

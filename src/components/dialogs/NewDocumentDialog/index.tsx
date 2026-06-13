@@ -30,10 +30,13 @@ import { useNewDocumentWizard } from './useNewDocumentWizard';
 import type {
   BusinessCustomer,
   BusinessCustomerFormData,
+  CheckRow,
   ClientType,
+  CreditInvoiceData,
   InvoiceDetailsData,
   LineItem,
   NewDocumentDialogProps,
+  ReceiptDetailsData,
 } from './types';
 
 function getCustomerLabel(customer: ChildWithDetails): string {
@@ -75,12 +78,16 @@ export default function NewDocumentDialog({ open, onClose }: NewDocumentDialogPr
     businessFormData,
     docType,
     invoiceDetails,
+    receiptDetails,
+    creditInvoiceDetails,
     setClientType,
     setSelectedCustomerId,
     setBusinessCustomerId,
     setBusinessFormData,
     setDocType,
     setInvoiceDetails,
+    setReceiptDetails,
+    setCreditInvoiceDetails,
     goToStep,
     goNext,
     goBack,
@@ -124,7 +131,8 @@ export default function NewDocumentDialog({ open, onClose }: NewDocumentDialogPr
     businessCustomerId,
     businessFormData,
     docType,
-    invoiceDetails
+    invoiceDetails,
+    creditInvoiceDetails
   );
   const isFirstStep = steps[0]?.id === currentStep;
   const isLastStep = steps[steps.length - 1]?.id === currentStep;
@@ -176,7 +184,7 @@ export default function NewDocumentDialog({ open, onClose }: NewDocumentDialogPr
               <X size={20} />
             </button>
             <h2 id="new-document-dialog-title" className={styles.title}>
-              מסמך חדש
+              {docType ?? 'מסמך חדש'}
             </h2>
           </div>
 
@@ -294,9 +302,21 @@ export default function NewDocumentDialog({ open, onClose }: NewDocumentDialogPr
                 docType={docType}
               />
             )}
+          {currentStep === 'documentDetails' && docType === 'קבלה' && (
+            <ReceiptDetailsStep data={receiptDetails} onChange={setReceiptDetails} />
+          )}
+          {currentStep === 'documentDetails' && docType === 'חשבונית עסקה' && (
+            <TransactionInvoiceStep data={invoiceDetails} onChange={setInvoiceDetails} />
+          )}
+          {currentStep === 'documentDetails' && docType === 'חשבונית מס זיכוי' && (
+            <CreditInvoiceStep data={creditInvoiceDetails} onChange={setCreditInvoiceDetails} />
+          )}
           {currentStep === 'documentDetails' &&
             docType !== 'חשבונית מס' &&
-            docType !== 'חשבונית מס/קבלה' && <DocumentDetailsStep />}
+            docType !== 'חשבונית מס/קבלה' &&
+            docType !== 'קבלה' &&
+            docType !== 'חשבונית עסקה' &&
+            docType !== 'חשבונית מס זיכוי' && <DocumentDetailsStep />}
           {currentStep === 'summary' && (
             <SummaryStep
               clientType={clientType}
@@ -804,6 +824,441 @@ function DocTypeStep({ docType, clientType, onSelect }: DocTypeStepProps) {
   );
 }
 
+/* ─── TransactionInvoiceStep ──────────────────────────────────────── */
+
+interface TransactionInvoiceStepProps {
+  data: InvoiceDetailsData;
+  onChange: (data: InvoiceDetailsData) => void;
+}
+
+function TransactionInvoiceStep({ data, onChange }: TransactionInvoiceStepProps) {
+  function updateLineItem(idx: number, field: keyof LineItem, value: string | number) {
+    const updated = data.lineItems.map((item, i) =>
+      i === idx ? { ...item, [field]: value } : item
+    );
+    onChange({ ...data, lineItems: updated });
+  }
+
+  const subtotal = data.lineItems.reduce((sum, item) => sum + item.quantity * item.price, 0);
+  const vatAmount = data.vatExempt ? 0 : (subtotal - data.discountAmount) * 0.18;
+  const totalBeforeRounding = subtotal - data.discountAmount + vatAmount;
+  const finalTotal = data.roundTotal ? Math.round(totalBeforeRounding) : totalBeforeRounding;
+
+  return (
+    <div>
+      {/* Header row — doc number + date */}
+      <div className={styles.detailsHeaderRow}>
+        <div className={styles.detailsCol}>
+          <label className={styles.fieldLabel}>מספר למסמך</label>
+          <input
+            type="text"
+            className={styles.readOnlyInput}
+            value={data.documentNumber}
+            readOnly
+            aria-readonly="true"
+            aria-label="מספר מסמך"
+          />
+        </div>
+        <div className={styles.detailsCol}>
+          <label htmlFor="txn-date" className={styles.fieldLabel}>
+            תאריך למסמך
+          </label>
+          <input
+            id="txn-date"
+            type="date"
+            className={styles.formInput}
+            value={data.documentDate}
+            onChange={(e) => onChange({ ...data, documentDate: e.target.value })}
+          />
+        </div>
+      </div>
+
+      {/* פרטים */}
+      <div className={styles.detailsSection}>
+        <label htmlFor="txn-description" className={styles.sectionHeading}>
+          פרטים <span className={styles.requiredMark}>*</span>
+        </label>
+        <textarea
+          id="txn-description"
+          className={styles.formTextarea}
+          placeholder="תיאור העסקה / השירותות..."
+          value={data.description}
+          onChange={(e) => onChange({ ...data, description: e.target.value })}
+          aria-required="true"
+        />
+      </div>
+
+      {/* מטבע */}
+      <div className={styles.detailsSection}>
+        <span className={styles.sectionHeading}>מטבע</span>
+        <div className={styles.currencyRow}>
+          <Select
+            value={data.currency}
+            onChange={(e) => onChange({ ...data, currency: e.target.value })}
+            className={styles.currencySelect}
+          >
+            <option value="ILS">שקל ₪</option>
+            <option value="USD">דולר $</option>
+            <option value="EUR">אירו €</option>
+          </Select>
+          <label className={styles.checkboxLabel}>
+            <input
+              type="checkbox"
+              checked={data.pricesIncludeVat}
+              onChange={(e) => onChange({ ...data, pricesIncludeVat: e.target.checked })}
+            />
+            הזנת מחירים כוללים מע&quot;מ
+          </label>
+        </div>
+      </div>
+
+      {/* שורות פריטים */}
+      <div className={styles.detailsSection}>
+        <span className={styles.sectionHeading}>שורות פריטים</span>
+        <div className={styles.lineItemsTableWrap}>
+          <div className={styles.lineItemsTable} role="table">
+            <div className={styles.lineItemsHeaderRow} role="row">
+              <div className={styles.lineItemHeaderCell} role="columnheader" />
+              <div className={styles.lineItemHeaderCell} role="columnheader">מק&quot;ט</div>
+              <div className={styles.lineItemHeaderCell} role="columnheader">תיאור</div>
+              <div className={styles.lineItemHeaderCell} role="columnheader">כמות</div>
+              <div className={styles.lineItemHeaderCell} role="columnheader">מחיר</div>
+              <div className={styles.lineItemHeaderCell} role="columnheader">סה&quot;כ</div>
+            </div>
+            {data.lineItems.map((item, idx) => (
+              <div key={item.id} className={styles.lineItemRow} role="row">
+                <button
+                  type="button"
+                  className={styles.lineItemDeleteBtn}
+                  onClick={() =>
+                    onChange({ ...data, lineItems: data.lineItems.filter((_, i) => i !== idx) })
+                  }
+                  aria-label="מחק שורה"
+                >
+                  <X size={14} />
+                </button>
+                <input
+                  type="text"
+                  className={styles.lineItemInput}
+                  value={item.sku}
+                  placeholder='מק"ט'
+                  onChange={(e) => updateLineItem(idx, 'sku', e.target.value)}
+                />
+                <input
+                  type="text"
+                  className={`${styles.lineItemInput} ${styles.lineItemDescInput}`}
+                  value={item.description}
+                  placeholder="תיאור"
+                  onChange={(e) => updateLineItem(idx, 'description', e.target.value)}
+                />
+                <input
+                  type="number"
+                  className={styles.lineItemInput}
+                  value={item.quantity}
+                  min={1}
+                  onChange={(e) => updateLineItem(idx, 'quantity', Number(e.target.value))}
+                />
+                <input
+                  type="number"
+                  className={styles.lineItemInput}
+                  value={item.price}
+                  min={0}
+                  step={0.01}
+                  onChange={(e) => updateLineItem(idx, 'price', Number(e.target.value))}
+                />
+                <div className={styles.lineItemTotal} role="cell">
+                  ₪{(item.quantity * item.price).toFixed(2)}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+        <button
+          type="button"
+          className={styles.addRowBtn}
+          onClick={() =>
+            onChange({
+              ...data,
+              lineItems: [
+                ...data.lineItems,
+                { id: String(Date.now()), sku: '', description: '', quantity: 1, price: 0 },
+              ],
+            })
+          }
+        >
+          + אשר שורה
+        </button>
+      </div>
+
+      {/* Totals */}
+      <div className={styles.totalsSection}>
+        <div className={styles.totalsRow}>
+          <span className={styles.totalsLabel}>סה&quot;כ</span>
+          <span className={styles.totalsValue}>₪{subtotal.toFixed(2)}</span>
+        </div>
+
+        <div className={`${styles.totalsRow} ${styles.discountRow}`}>
+          <span className={styles.totalsLabel}>הנחה לפני מע&quot;מ</span>
+          <div className={styles.discountInputRow}>
+            <input
+              type="number"
+              className={styles.discountInput}
+              value={data.discountAmount}
+              min={0}
+              onChange={(e) => onChange({ ...data, discountAmount: Number(e.target.value) })}
+              aria-label="סכום הנחה בשקלים"
+            />
+            <span className={styles.discountLabel}>₪</span>
+            <input
+              type="number"
+              className={styles.discountInput}
+              value={data.discountPercent}
+              min={0}
+              max={100}
+              onChange={(e) => onChange({ ...data, discountPercent: Number(e.target.value) })}
+              aria-label="אחוז הנחה"
+            />
+            <span className={styles.discountLabel}>%</span>
+          </div>
+        </div>
+
+        <div className={styles.vatRow}>
+          <span className={styles.totalsLabel}>מע&quot;מ 18%</span>
+          <div className={styles.vatRowContent}>
+            <label className={styles.vatRadioLabel}>
+              <input
+                type="checkbox"
+                checked={data.vatExempt}
+                onChange={(e) => onChange({ ...data, vatExempt: e.target.checked })}
+              />
+              ללא מע&quot;מ (אילת / חו&quot;ל)
+            </label>
+            <span className={styles.vatAmount}>₪{vatAmount.toFixed(2)}</span>
+          </div>
+        </div>
+
+        <div className={`${styles.totalsRow} ${styles.totalsRowBold}`}>
+          <span className={styles.totalsLabel}>סה&quot;כ בח&quot;ן</span>
+          <span className={styles.totalsValue}>₪{finalTotal.toFixed(2)}</span>
+        </div>
+
+        <label className={styles.totalsCheckboxRow}>
+          <input
+            type="checkbox"
+            checked={data.roundTotal}
+            onChange={(e) => onChange({ ...data, roundTotal: e.target.checked })}
+          />
+          <span className={styles.totalsCheckboxLabel}>עגל סכום - ללא אגורות</span>
+        </label>
+      </div>
+
+      {/* Info banner */}
+      <div className={styles.infoBanner}>
+        <FileText size={16} className={styles.infoBannerIcon} />
+        <span className={styles.infoBannerText}>
+          חשבונית עסקה – דרישת תשלום. אינה כוללת תשלום בפועל.
+        </span>
+      </div>
+
+      {/* לסגור חשבונית */}
+      <label className={`${styles.totalsCheckboxRow} ${styles.closeInvoiceRow}`}>
+        <input
+          type="checkbox"
+          checked={data.closeInvoice}
+          onChange={(e) => onChange({ ...data, closeInvoice: e.target.checked })}
+        />
+        <span className={styles.totalsCheckboxLabel}>לסגור חשבונית</span>
+      </label>
+
+      {/* Notes — two columns */}
+      <div className={styles.notesGrid}>
+        <div className={styles.formRow}>
+          <label htmlFor="txn-customer-notes" className={styles.sectionHeading}>הערות</label>
+          <textarea
+            id="txn-customer-notes"
+            className={styles.formTextarea}
+            placeholder="הערות ללקוח..."
+            value={data.customerNotes}
+            onChange={(e) => onChange({ ...data, customerNotes: e.target.value })}
+          />
+        </div>
+        <div className={styles.formRow}>
+          <label htmlFor="txn-internal-notes" className={styles.sectionHeading}>הערה פנימית</label>
+          <textarea
+            id="txn-internal-notes"
+            className={styles.formTextarea}
+            placeholder="הערה פנימית (לא מופיעה במסמך)..."
+            value={data.internalNotes}
+            onChange={(e) => onChange({ ...data, internalNotes: e.target.value })}
+          />
+        </div>
+      </div>
+
+      {/* Payment terms */}
+      <div className={styles.paymentTermsRow}>
+        <div className={styles.formRow}>
+          <label htmlFor="txn-payment-terms" className={styles.sectionHeading}>לתשלום עד</label>
+          <Select
+            id="txn-payment-terms"
+            className={styles.formSelect}
+            value={data.paymentTerms}
+            onChange={(e) => onChange({ ...data, paymentTerms: e.target.value })}
+          >
+            <option value="מיידי">מיידי</option>
+            <option value="שוטף">שוטף</option>
+            <option value="שוטף + 15">שוטף + 15</option>
+            <option value="שוטף + 30">שוטף + 30</option>
+            <option value="שוטף + 45">שוטף + 45</option>
+            <option value="שוטף + 60">שוטף + 60</option>
+            <option value="שוטף + 90">שוטף + 90</option>
+          </Select>
+        </div>
+        <div className={styles.formRow}>
+          <label htmlFor="txn-due-date" className={styles.sectionHeading}>תאריך פירעון</label>
+          <input
+            id="txn-due-date"
+            type="date"
+            className={styles.formInput}
+            value={data.dueDate}
+            onChange={(e) => onChange({ ...data, dueDate: e.target.value })}
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ─── CreditInvoiceStep ───────────────────────────────────────────── */
+
+interface CreditInvoiceStepProps {
+  data: CreditInvoiceData;
+  onChange: (data: CreditInvoiceData) => void;
+}
+
+function CreditInvoiceStep({ data, onChange }: CreditInvoiceStepProps) {
+  const vatAmount = data.vatExempt ? 0 : data.creditAmountBeforeVat * 0.18;
+  const totalCredit = data.creditAmountBeforeVat + vatAmount;
+
+  return (
+    <div>
+      {/* Header row — doc number + date */}
+      <div className={styles.detailsHeaderRow}>
+        <div className={styles.detailsCol}>
+          <label className={styles.fieldLabel}>מספר למסמך</label>
+          <input
+            type="text"
+            className={styles.readOnlyInput}
+            value={data.documentNumber}
+            readOnly
+            aria-readonly="true"
+            aria-label="מספר מסמך"
+          />
+        </div>
+        <div className={styles.detailsCol}>
+          <label htmlFor="credit-date" className={styles.fieldLabel}>
+            תאריך למסמך
+          </label>
+          <input
+            id="credit-date"
+            type="date"
+            className={styles.formInput}
+            value={data.documentDate}
+            onChange={(e) => onChange({ ...data, documentDate: e.target.value })}
+          />
+        </div>
+      </div>
+
+      {/* בחר חשבונית לזיכוי */}
+      <div className={styles.detailsSection}>
+        <label htmlFor="credit-linked-invoice" className={styles.sectionHeading}>
+          בחר חשבונית לזיכוי <span className={styles.requiredMark}>*</span>
+        </label>
+        <Select
+          id="credit-linked-invoice"
+          className={styles.formSelect}
+          value={data.linkedInvoiceId}
+          onChange={(e) => onChange({ ...data, linkedInvoiceId: e.target.value })}
+          aria-required="true"
+        >
+          <option value="" disabled>חפש חשבונית לפי מספר מסמך...</option>
+        </Select>
+      </div>
+
+      {/* סיבת הזיכוי */}
+      <div className={styles.detailsSection}>
+        <label htmlFor="credit-reason" className={styles.sectionHeading}>
+          סיבת הזיכוי <span className={styles.requiredMark}>*</span>
+        </label>
+        <textarea
+          id="credit-reason"
+          className={styles.formTextarea}
+          placeholder="תאר את סיבת הזיכוי..."
+          value={data.creditReason}
+          onChange={(e) => onChange({ ...data, creditReason: e.target.value })}
+          aria-required="true"
+        />
+      </div>
+
+      {/* סה"כ זיכוי לפני מע"מ */}
+      <div className={styles.detailsSection}>
+        <label htmlFor="credit-amount" className={styles.sectionHeading}>
+          סה&quot;כ זיכוי (לפני מע&quot;מ)
+        </label>
+        <input
+          id="credit-amount"
+          type="number"
+          min={0}
+          step={0.01}
+          className={`${styles.formInput} ${styles.creditAmountInput}`}
+          value={data.creditAmountBeforeVat}
+          onChange={(e) => onChange({ ...data, creditAmountBeforeVat: Number(e.target.value) })}
+          aria-label="סכום זיכוי לפני מע״מ"
+        />
+      </div>
+
+      {/* Totals */}
+      <div className={styles.totalsSection}>
+        <div className={styles.totalsRow}>
+          <span className={styles.totalsLabel}>סה&quot;כ זיכוי לפני מע&quot;מ</span>
+          <span className={styles.totalsValue}>₪{data.creditAmountBeforeVat.toFixed(2)}</span>
+        </div>
+        <div className={styles.totalsRow}>
+          <span className={styles.totalsLabel}>מע&quot;מ 18%</span>
+          <span className={styles.totalsValue}>₪{vatAmount.toFixed(2)}</span>
+        </div>
+        <div className={`${styles.totalsRow} ${styles.totalsRowBold}`}>
+          <span className={styles.totalsLabel}>סה&quot;כ זיכוי</span>
+          <span className={styles.creditTotalValue}>₪{totalCredit.toFixed(2)}-</span>
+        </div>
+      </div>
+
+      {/* Notes — two columns */}
+      <div className={styles.notesGrid}>
+        <div className={styles.formRow}>
+          <label htmlFor="credit-customer-notes" className={styles.sectionHeading}>הערות</label>
+          <textarea
+            id="credit-customer-notes"
+            className={styles.formTextarea}
+            placeholder="הערות ללקוח..."
+            value={data.customerNotes}
+            onChange={(e) => onChange({ ...data, customerNotes: e.target.value })}
+          />
+        </div>
+        <div className={styles.formRow}>
+          <label htmlFor="credit-internal-notes" className={styles.sectionHeading}>הערה פנימית</label>
+          <textarea
+            id="credit-internal-notes"
+            className={styles.formTextarea}
+            placeholder="הערה פנימית (לא מופיעה במסמך)..."
+            value={data.internalNotes}
+            onChange={(e) => onChange({ ...data, internalNotes: e.target.value })}
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ─── DocumentDetailsStep ─────────────────────────────────────────── */
 
 function DocumentDetailsStep() {
@@ -1190,6 +1645,442 @@ function InvoiceDetailsStep({ data, onChange, docType }: InvoiceDetailsStepProps
           />
         </div>
       )}
+    </div>
+  );
+}
+
+/* ─── ReceiptDetailsStep ──────────────────────────────────────────── */
+
+interface ReceiptDetailsStepProps {
+  data: ReceiptDetailsData;
+  onChange: (data: ReceiptDetailsData) => void;
+}
+
+function ReceiptDetailsStep({ data, onChange }: ReceiptDetailsStepProps) {
+  return (
+    <div>
+      {/* Payment method tabs */}
+      <div className={styles.detailsSection}>
+        <p className={styles.sectionHeading}>אמצעי תשלום</p>
+        <div
+          className={styles.paymentMethodsGrid}
+          role="group"
+          aria-label="אמצעי תשלום"
+        >
+          {PAYMENT_METHODS.map(({ id, label, icon: Icon }) => (
+            <button
+              key={id}
+              type="button"
+              className={`${styles.paymentMethodBtn} ${
+                data.paymentMethod === id ? styles.paymentMethodBtnActive : ''
+              }`}
+              aria-pressed={data.paymentMethod === id}
+              onClick={() => onChange({ ...data, paymentMethod: id })}
+            >
+              <Icon size={20} />
+              <span>{label}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Shared: שיוך לחשבונית קיימת */}
+      <div className={styles.detailsSection}>
+        <label htmlFor="receipt-linked" className={styles.sectionHeading}>
+          שיוך לחשבונית קיימת{' '}
+          <span className={styles.optionalLabel}>(אופציונלי)</span>
+        </label>
+        <Select
+          id="receipt-linked"
+          className={styles.formSelect}
+          value={data.linkedInvoiceId}
+          onChange={(e) => onChange({ ...data, linkedInvoiceId: e.target.value })}
+        >
+          <option value="">ללא שיוך</option>
+        </Select>
+      </div>
+
+      {/* Tab body */}
+      {data.paymentMethod === 'מזומן' && (
+        <CashPanel data={data} onChange={onChange} />
+      )}
+      {data.paymentMethod === "צ'ק" && (
+        <CheckPanel data={data} onChange={onChange} />
+      )}
+      {data.paymentMethod === 'אשראי' && (
+        <CreditPanel data={data} onChange={onChange} />
+      )}
+      {data.paymentMethod === 'העברה בנקאית' && (
+        <BankPanel data={data} onChange={onChange} />
+      )}
+    </div>
+  );
+}
+
+function CashPanel({ data, onChange }: ReceiptDetailsStepProps) {
+  return (
+    <div className={styles.detailsSection}>
+      <p className={styles.sectionHeading}>מזומן</p>
+      <div className={styles.formRow}>
+        <label htmlFor="cash-amount" className={styles.sectionHeading}>
+          סכום
+        </label>
+        <div className={styles.amountInputWrap}>
+          <span className={styles.amountSymbol} aria-hidden="true">₪</span>
+          <input
+            id="cash-amount"
+            type="number"
+            min={0}
+            className={styles.formInput}
+            value={data.cashAmount}
+            aria-label="סכום במזומן בשקלים"
+            onChange={(e) => onChange({ ...data, cashAmount: Number(e.target.value) })}
+          />
+        </div>
+      </div>
+      <div className={styles.formRow}>
+        <label htmlFor="cash-notes" className={styles.sectionHeading}>
+          הערות
+        </label>
+        <textarea
+          id="cash-notes"
+          className={styles.formTextarea}
+          placeholder="הערות..."
+          value={data.cashNotes}
+          onChange={(e) => onChange({ ...data, cashNotes: e.target.value })}
+        />
+      </div>
+    </div>
+  );
+}
+
+function CheckPanel({ data, onChange }: ReceiptDetailsStepProps) {
+  const confirmedChecks = data.checks.filter((c) => c.confirmed);
+  const confirmedTotal = confirmedChecks.reduce((sum, c) => sum + c.amount, 0);
+
+  function updateCheck(id: string, field: keyof CheckRow, value: string | number | boolean) {
+    onChange({
+      ...data,
+      checks: data.checks.map((c) => (c.id === id ? { ...c, [field]: value } : c)),
+    });
+  }
+
+  function confirmCheck(id: string) {
+    updateCheck(id, 'confirmed', true);
+  }
+
+  function deleteCheck(id: string) {
+    const remaining = data.checks.filter((c) => c.id !== id);
+    const today = new Date().toISOString().split('T')[0];
+    const next =
+      remaining.length > 0
+        ? remaining
+        : [
+            {
+              id: String(Date.now()),
+              date: today,
+              bank: '',
+              branch: '',
+              accountNumber: '',
+              checkNumber: '',
+              amount: 0,
+              confirmed: false,
+            },
+          ];
+    onChange({ ...data, checks: next });
+  }
+
+  return (
+    <div className={styles.detailsSection}>
+      <p className={styles.sectionHeading}>צ&apos;קים</p>
+      <div className={styles.lineItemsTableWrap}>
+        <div
+          className={styles.checkTable}
+          role="table"
+          aria-label="צ'קים"
+        >
+          <div className={styles.checkHeaderRow} role="row">
+            <div className={styles.checkHeaderCell} role="columnheader" />
+            <div className={styles.checkHeaderCell} role="columnheader">תאריך</div>
+            <div className={styles.checkHeaderCell} role="columnheader">בנק</div>
+            <div className={styles.checkHeaderCell} role="columnheader">סניף</div>
+            <div className={styles.checkHeaderCell} role="columnheader">מס&apos; חשבון</div>
+            <div className={styles.checkHeaderCell} role="columnheader">מס&apos; צ&apos;ק</div>
+            <div className={styles.checkHeaderCell} role="columnheader">סכום (₪)</div>
+          </div>
+          {data.checks.map((check) => (
+            <div key={check.id} className={styles.checkRow} role="row">
+              <div className={styles.checkActionCell} role="cell">
+                <button
+                  type="button"
+                  className={styles.checkConfirmBtn}
+                  onClick={() => confirmCheck(check.id)}
+                  disabled={check.confirmed}
+                  aria-label="אשר צ'ק"
+                >
+                  <Check size={13} />
+                </button>
+                <button
+                  type="button"
+                  className={styles.checkDeleteBtn}
+                  onClick={() => deleteCheck(check.id)}
+                  aria-label="מחק צ'ק"
+                >
+                  <X size={13} />
+                </button>
+              </div>
+              <div role="cell">
+                <input
+                  type="date"
+                  className={check.confirmed ? styles.readOnlyInput : styles.lineItemInput}
+                  value={check.date}
+                  readOnly={check.confirmed}
+                  onChange={(e) => updateCheck(check.id, 'date', e.target.value)}
+                />
+              </div>
+              <div role="cell">
+                <input
+                  type="text"
+                  className={check.confirmed ? styles.readOnlyInput : styles.lineItemInput}
+                  value={check.bank}
+                  placeholder="בנק"
+                  readOnly={check.confirmed}
+                  onChange={(e) => updateCheck(check.id, 'bank', e.target.value)}
+                />
+              </div>
+              <div role="cell">
+                <input
+                  type="text"
+                  className={check.confirmed ? styles.readOnlyInput : styles.lineItemInput}
+                  value={check.branch}
+                  placeholder="סניף"
+                  readOnly={check.confirmed}
+                  onChange={(e) => updateCheck(check.id, 'branch', e.target.value)}
+                />
+              </div>
+              <div role="cell">
+                <input
+                  type="text"
+                  className={check.confirmed ? styles.readOnlyInput : styles.lineItemInput}
+                  value={check.accountNumber}
+                  placeholder="חשבון"
+                  readOnly={check.confirmed}
+                  onChange={(e) => updateCheck(check.id, 'accountNumber', e.target.value)}
+                />
+              </div>
+              <div role="cell">
+                <input
+                  type="text"
+                  className={check.confirmed ? styles.readOnlyInput : styles.lineItemInput}
+                  value={check.checkNumber}
+                  placeholder="מס' צ'ק"
+                  readOnly={check.confirmed}
+                  onChange={(e) => updateCheck(check.id, 'checkNumber', e.target.value)}
+                />
+              </div>
+              <div role="cell">
+                <input
+                  type="number"
+                  className={check.confirmed ? styles.readOnlyInput : styles.lineItemInput}
+                  value={check.amount}
+                  min={0}
+                  readOnly={check.confirmed}
+                  onChange={(e) => updateCheck(check.id, 'amount', Number(e.target.value))}
+                />
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* ניכוי במקור */}
+      <div className={styles.witholdingRow}>
+        <span className={styles.witholdingLabel}>ניכוי במקור</span>
+        <div className={styles.witholdingInputWrap}>
+          <input
+            type="number"
+            min={0}
+            className={styles.formInput}
+            value={data.withholding}
+            aria-label="ניכוי במקור בשקלים"
+            onChange={(e) => onChange({ ...data, withholding: Number(e.target.value) })}
+          />
+          <span className={styles.witholdingSymbol} aria-hidden="true">₪</span>
+        </div>
+      </div>
+
+      {/* Summary bar */}
+      <div className={styles.checkSummaryBar}>
+        <span className={styles.checkSummaryLabel}>
+          סה&quot;כ צ&apos;קים ({confirmedChecks.length})
+        </span>
+        <span className={styles.checkSummaryAmount}>₪{confirmedTotal}ש</span>
+      </div>
+
+      {/* Info note */}
+      <p className={styles.checkInfoNote}>
+        כל צ&apos;ק ייצור טיוט חשבונית מס — הטיוטה תהפוך אוטומטית לחשבונית מס בתאריך הפירעון
+      </p>
+
+      <div className={styles.formRow}>
+        <label htmlFor="check-notes" className={styles.sectionHeading}>
+          הערות
+        </label>
+        <textarea
+          id="check-notes"
+          className={styles.formTextarea}
+          placeholder="הערות..."
+          value={data.checkNotes}
+          onChange={(e) => onChange({ ...data, checkNotes: e.target.value })}
+        />
+      </div>
+    </div>
+  );
+}
+
+function CreditPanel({ data, onChange }: ReceiptDetailsStepProps) {
+  return (
+    <div className={styles.detailsSection}>
+      <p className={styles.sectionHeading}>אשראי</p>
+      <div className={styles.receiptTwoCol}>
+        <div className={styles.formRow}>
+          <label htmlFor="card-last-four" className={styles.sectionHeading}>
+            4 ספרות אחרונות
+          </label>
+          <input
+            id="card-last-four"
+            type="text"
+            placeholder="1234"
+            maxLength={4}
+            className={styles.formInput}
+            value={data.cardLastFour}
+            onChange={(e) => onChange({ ...data, cardLastFour: e.target.value })}
+          />
+        </div>
+        <div className={styles.formRow}>
+          <label htmlFor="card-expiry" className={styles.sectionHeading}>
+            תוקף
+          </label>
+          <input
+            id="card-expiry"
+            type="text"
+            placeholder="MM/YY"
+            className={styles.formInput}
+            value={data.cardExpiry}
+            onChange={(e) => onChange({ ...data, cardExpiry: e.target.value })}
+          />
+        </div>
+      </div>
+      <div className={styles.receiptTwoCol}>
+        <div className={styles.formRow}>
+          <label htmlFor="card-amount" className={styles.sectionHeading}>
+            סכום
+          </label>
+          <div className={styles.amountInputWrap}>
+            <span className={styles.amountSymbol} aria-hidden="true">₪</span>
+            <input
+              id="card-amount"
+              type="number"
+              min={0}
+              className={styles.formInput}
+              value={data.cardAmount}
+              aria-label="סכום אשראי בשקלים"
+              onChange={(e) => onChange({ ...data, cardAmount: Number(e.target.value) })}
+            />
+          </div>
+        </div>
+        <div className={styles.formRow}>
+          <label htmlFor="card-installments" className={styles.sectionHeading}>
+            מספר תשלומים
+          </label>
+          <input
+            id="card-installments"
+            type="number"
+            min={1}
+            className={styles.formInput}
+            value={data.cardInstallments}
+            onChange={(e) =>
+              onChange({ ...data, cardInstallments: Math.max(1, Number(e.target.value)) })
+            }
+          />
+        </div>
+      </div>
+      <div className={styles.formRow}>
+        <label htmlFor="card-notes" className={styles.sectionHeading}>
+          הערות
+        </label>
+        <textarea
+          id="card-notes"
+          className={styles.formTextarea}
+          placeholder="הערות..."
+          value={data.cardNotes}
+          onChange={(e) => onChange({ ...data, cardNotes: e.target.value })}
+        />
+      </div>
+    </div>
+  );
+}
+
+function BankPanel({ data, onChange }: ReceiptDetailsStepProps) {
+  return (
+    <div className={styles.detailsSection}>
+      <p className={styles.sectionHeading}>העברה בנקאית</p>
+      <div className={styles.receiptThreeCol}>
+        <div className={styles.formRow}>
+          <label htmlFor="bank-date" className={styles.sectionHeading}>
+            תאריך
+          </label>
+          <input
+            id="bank-date"
+            type="date"
+            className={styles.formInput}
+            value={data.bankDate}
+            onChange={(e) => onChange({ ...data, bankDate: e.target.value })}
+          />
+        </div>
+        <div className={styles.formRow}>
+          <label htmlFor="bank-reference" className={styles.sectionHeading}>
+            אסמכתא
+          </label>
+          <input
+            id="bank-reference"
+            type="text"
+            placeholder="מס' אסמכתא"
+            className={styles.formInput}
+            value={data.bankReference}
+            onChange={(e) => onChange({ ...data, bankReference: e.target.value })}
+          />
+        </div>
+        <div className={styles.formRow}>
+          <label htmlFor="bank-amount" className={styles.sectionHeading}>
+            סכום
+          </label>
+          <div className={styles.amountInputWrap}>
+            <span className={styles.amountSymbol} aria-hidden="true">₪</span>
+            <input
+              id="bank-amount"
+              type="number"
+              min={0}
+              className={styles.formInput}
+              value={data.bankAmount}
+              aria-label="סכום העברה בנקאית בשקלים"
+              onChange={(e) => onChange({ ...data, bankAmount: Number(e.target.value) })}
+            />
+          </div>
+        </div>
+      </div>
+      <div className={styles.formRow}>
+        <label htmlFor="bank-notes" className={styles.sectionHeading}>
+          הערות
+        </label>
+        <textarea
+          id="bank-notes"
+          className={styles.formTextarea}
+          placeholder="הערות..."
+          value={data.bankNotes}
+          onChange={(e) => onChange({ ...data, bankNotes: e.target.value })}
+        />
+      </div>
     </div>
   );
 }

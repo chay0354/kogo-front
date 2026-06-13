@@ -2,9 +2,12 @@ import { useCallback, useMemo, useState } from 'react';
 import { generateDocumentNumber, getWizardSteps } from './utils';
 import type {
   BusinessCustomerFormData,
+  CheckRow,
   ClientType,
+  CreditInvoiceData,
   InvoiceDetailsData,
   LineItem,
+  ReceiptDetailsData,
   WizardStepId,
 } from './types';
 
@@ -29,6 +32,51 @@ const INITIAL_LINE_ITEM: LineItem = {
   quantity: 1,
   price: 0,
 };
+
+function createInitialReceiptDetails(): ReceiptDetailsData {
+  const today = new Date().toISOString().split('T')[0];
+  const initialCheck: CheckRow = {
+    id: '1',
+    date: today,
+    bank: '',
+    branch: '',
+    accountNumber: '',
+    checkNumber: '',
+    amount: 0,
+    confirmed: false,
+  };
+  return {
+    paymentMethod: 'מזומן',
+    linkedInvoiceId: '',
+    cashAmount: 0,
+    cashNotes: '',
+    checks: [initialCheck],
+    withholding: 0,
+    checkNotes: '',
+    cardLastFour: '',
+    cardExpiry: '',
+    cardAmount: 0,
+    cardInstallments: 1,
+    cardNotes: '',
+    bankDate: today,
+    bankReference: '',
+    bankAmount: 0,
+    bankNotes: '',
+  };
+}
+
+function createInitialCreditInvoiceDetails(): CreditInvoiceData {
+  return {
+    documentNumber: generateDocumentNumber(),
+    documentDate: new Date().toISOString().split('T')[0],
+    linkedInvoiceId: '',
+    creditReason: '',
+    creditAmountBeforeVat: 0,
+    vatExempt: false,
+    customerNotes: '',
+    internalNotes: '',
+  };
+}
 
 function createInitialInvoiceDetails(): InvoiceDetailsData {
   return {
@@ -64,6 +112,12 @@ export function useNewDocumentWizard(onClose: () => void) {
   const [invoiceDetails, setInvoiceDetails] = useState<InvoiceDetailsData>(
     createInitialInvoiceDetails
   );
+  const [receiptDetails, setReceiptDetails] = useState<ReceiptDetailsData>(
+    createInitialReceiptDetails
+  );
+  const [creditInvoiceDetails, setCreditInvoiceDetails] = useState<CreditInvoiceData>(
+    createInitialCreditInvoiceDetails
+  );
 
   const steps = useMemo(() => getWizardSteps(clientType, docType), [clientType, docType]);
   const stepIds = useMemo(() => steps.map((step) => step.id), [steps]);
@@ -76,6 +130,8 @@ export function useNewDocumentWizard(onClose: () => void) {
     setBusinessFormData(EMPTY_BUSINESS_FORM);
     setDocType(null);
     setInvoiceDetails(createInitialInvoiceDetails());
+    setReceiptDetails(createInitialReceiptDetails());
+    setCreditInvoiceDetails(createInitialCreditInvoiceDetails());
   }, []);
 
   const close = useCallback(() => {
@@ -134,12 +190,16 @@ export function useNewDocumentWizard(onClose: () => void) {
     businessFormData,
     docType,
     invoiceDetails,
+    receiptDetails,
+    creditInvoiceDetails,
     setClientType,
     setSelectedCustomerId,
     setBusinessCustomerId,
     setBusinessFormData,
     setDocType,
     setInvoiceDetails,
+    setReceiptDetails,
+    setCreditInvoiceDetails,
     goToStep,
     goNext,
     goBack,

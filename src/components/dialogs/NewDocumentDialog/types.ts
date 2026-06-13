@@ -63,6 +63,47 @@ export interface LineItem {
   price: number;
 }
 
+export interface CheckRow {
+  id: string;
+  date: string;
+  bank: string;
+  branch: string;
+  accountNumber: string;
+  checkNumber: string;
+  amount: number;
+  confirmed: boolean;
+}
+
+export interface ReceiptDetailsData {
+  paymentMethod: 'מזומן' | "צ'ק" | 'אשראי' | 'העברה בנקאית';
+  linkedInvoiceId: string;
+  cashAmount: number;
+  cashNotes: string;
+  checks: CheckRow[];
+  withholding: number;
+  checkNotes: string;
+  cardLastFour: string;
+  cardExpiry: string;
+  cardAmount: number;
+  cardInstallments: number;
+  cardNotes: string;
+  bankDate: string;
+  bankReference: string;
+  bankAmount: number;
+  bankNotes: string;
+}
+
+export interface CreditInvoiceData {
+  documentNumber: string;
+  documentDate: string;
+  linkedInvoiceId: string;
+  creditReason: string;
+  creditAmountBeforeVat: number;
+  vatExempt: boolean;
+  customerNotes: string;
+  internalNotes: string;
+}
+
 export interface InvoiceDetailsData {
   documentNumber: string;
   documentDate: string;
