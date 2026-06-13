@@ -284,6 +284,17 @@
   border-color: hsl(var(--border));
 }
 
+/* Credit invoice */
+.creditTotalValue {
+  font-size: 0.9375rem;
+  font-weight: 700;
+  color: #dc2626;
+}
+
+.creditAmountInput {
+  max-width: 14rem;
+}
+
 /* Transaction invoice info banner */
 .infoBanner {
   display: flex;

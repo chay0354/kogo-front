@@ -4,6 +4,7 @@ import type {
   BusinessCustomerFormData,
   CheckRow,
   ClientType,
+  CreditInvoiceData,
   InvoiceDetailsData,
   LineItem,
   ReceiptDetailsData,
@@ -64,6 +65,19 @@ function createInitialReceiptDetails(): ReceiptDetailsData {
   };
 }
 
+function createInitialCreditInvoiceDetails(): CreditInvoiceData {
+  return {
+    documentNumber: generateDocumentNumber(),
+    documentDate: new Date().toISOString().split('T')[0],
+    linkedInvoiceId: '',
+    creditReason: '',
+    creditAmountBeforeVat: 0,
+    vatExempt: false,
+    customerNotes: '',
+    internalNotes: '',
+  };
+}
+
 function createInitialInvoiceDetails(): InvoiceDetailsData {
   return {
     documentNumber: generateDocumentNumber(),
@@ -101,6 +115,9 @@ export function useNewDocumentWizard(onClose: () => void) {
   const [receiptDetails, setReceiptDetails] = useState<ReceiptDetailsData>(
     createInitialReceiptDetails
   );
+  const [creditInvoiceDetails, setCreditInvoiceDetails] = useState<CreditInvoiceData>(
+    createInitialCreditInvoiceDetails
+  );
 
   const steps = useMemo(() => getWizardSteps(clientType, docType), [clientType, docType]);
   const stepIds = useMemo(() => steps.map((step) => step.id), [steps]);
@@ -114,6 +131,7 @@ export function useNewDocumentWizard(onClose: () => void) {
     setDocType(null);
     setInvoiceDetails(createInitialInvoiceDetails());
     setReceiptDetails(createInitialReceiptDetails());
+    setCreditInvoiceDetails(createInitialCreditInvoiceDetails());
   }, []);
 
   const close = useCallback(() => {
@@ -173,6 +191,7 @@ export function useNewDocumentWizard(onClose: () => void) {
     docType,
     invoiceDetails,
     receiptDetails,
+    creditInvoiceDetails,
     setClientType,
     setSelectedCustomerId,
     setBusinessCustomerId,
@@ -180,6 +199,7 @@ export function useNewDocumentWizard(onClose: () => void) {
     setDocType,
     setInvoiceDetails,
     setReceiptDetails,
+    setCreditInvoiceDetails,
     goToStep,
     goNext,
     goBack,

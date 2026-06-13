@@ -32,6 +32,7 @@ import type {
   BusinessCustomerFormData,
   CheckRow,
   ClientType,
+  CreditInvoiceData,
   InvoiceDetailsData,
   LineItem,
   NewDocumentDialogProps,
@@ -78,6 +79,7 @@ export default function NewDocumentDialog({ open, onClose }: NewDocumentDialogPr
     docType,
     invoiceDetails,
     receiptDetails,
+    creditInvoiceDetails,
     setClientType,
     setSelectedCustomerId,
     setBusinessCustomerId,
@@ -85,6 +87,7 @@ export default function NewDocumentDialog({ open, onClose }: NewDocumentDialogPr
     setDocType,
     setInvoiceDetails,
     setReceiptDetails,
+    setCreditInvoiceDetails,
     goToStep,
     goNext,
     goBack,
@@ -128,7 +131,8 @@ export default function NewDocumentDialog({ open, onClose }: NewDocumentDialogPr
     businessCustomerId,
     businessFormData,
     docType,
-    invoiceDetails
+    invoiceDetails,
+    creditInvoiceDetails
   );
   const isFirstStep = steps[0]?.id === currentStep;
   const isLastStep = steps[steps.length - 1]?.id === currentStep;
@@ -304,11 +308,15 @@ export default function NewDocumentDialog({ open, onClose }: NewDocumentDialogPr
           {currentStep === 'documentDetails' && docType === 'חשבונית עסקה' && (
             <TransactionInvoiceStep data={invoiceDetails} onChange={setInvoiceDetails} />
           )}
+          {currentStep === 'documentDetails' && docType === 'חשבונית מס זיכוי' && (
+            <CreditInvoiceStep data={creditInvoiceDetails} onChange={setCreditInvoiceDetails} />
+          )}
           {currentStep === 'documentDetails' &&
             docType !== 'חשבונית מס' &&
             docType !== 'חשבונית מס/קבלה' &&
             docType !== 'קבלה' &&
-            docType !== 'חשבונית עסקה' && <DocumentDetailsStep />}
+            docType !== 'חשבונית עסקה' &&
+            docType !== 'חשבונית מס זיכוי' && <DocumentDetailsStep />}
           {currentStep === 'summary' && (
             <SummaryStep
               clientType={clientType}
@@ -1113,6 +1121,137 @@ function TransactionInvoiceStep({ data, onChange }: TransactionInvoiceStepProps)
             className={styles.formInput}
             value={data.dueDate}
             onChange={(e) => onChange({ ...data, dueDate: e.target.value })}
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ─── CreditInvoiceStep ───────────────────────────────────────────── */
+
+interface CreditInvoiceStepProps {
+  data: CreditInvoiceData;
+  onChange: (data: CreditInvoiceData) => void;
+}
+
+function CreditInvoiceStep({ data, onChange }: CreditInvoiceStepProps) {
+  const vatAmount = data.vatExempt ? 0 : data.creditAmountBeforeVat * 0.18;
+  const totalCredit = data.creditAmountBeforeVat + vatAmount;
+
+  return (
+    <div>
+      {/* Header row — doc number + date */}
+      <div className={styles.detailsHeaderRow}>
+        <div className={styles.detailsCol}>
+          <label className={styles.fieldLabel}>מספר למסמך</label>
+          <input
+            type="text"
+            className={styles.readOnlyInput}
+            value={data.documentNumber}
+            readOnly
+            aria-readonly="true"
+            aria-label="מספר מסמך"
+          />
+        </div>
+        <div className={styles.detailsCol}>
+          <label htmlFor="credit-date" className={styles.fieldLabel}>
+            תאריך למסמך
+          </label>
+          <input
+            id="credit-date"
+            type="date"
+            className={styles.formInput}
+            value={data.documentDate}
+            onChange={(e) => onChange({ ...data, documentDate: e.target.value })}
+          />
+        </div>
+      </div>
+
+      {/* בחר חשבונית לזיכוי */}
+      <div className={styles.detailsSection}>
+        <label htmlFor="credit-linked-invoice" className={styles.sectionHeading}>
+          בחר חשבונית לזיכוי <span className={styles.requiredMark}>*</span>
+        </label>
+        <Select
+          id="credit-linked-invoice"
+          className={styles.formSelect}
+          value={data.linkedInvoiceId}
+          onChange={(e) => onChange({ ...data, linkedInvoiceId: e.target.value })}
+          aria-required="true"
+        >
+          <option value="" disabled>חפש חשבונית לפי מספר מסמך...</option>
+        </Select>
+      </div>
+
+      {/* סיבת הזיכוי */}
+      <div className={styles.detailsSection}>
+        <label htmlFor="credit-reason" className={styles.sectionHeading}>
+          סיבת הזיכוי <span className={styles.requiredMark}>*</span>
+        </label>
+        <textarea
+          id="credit-reason"
+          className={styles.formTextarea}
+          placeholder="תאר את סיבת הזיכוי..."
+          value={data.creditReason}
+          onChange={(e) => onChange({ ...data, creditReason: e.target.value })}
+          aria-required="true"
+        />
+      </div>
+
+      {/* סה"כ זיכוי לפני מע"מ */}
+      <div className={styles.detailsSection}>
+        <label htmlFor="credit-amount" className={styles.sectionHeading}>
+          סה&quot;כ זיכוי (לפני מע&quot;מ)
+        </label>
+        <input
+          id="credit-amount"
+          type="number"
+          min={0}
+          step={0.01}
+          className={`${styles.formInput} ${styles.creditAmountInput}`}
+          value={data.creditAmountBeforeVat}
+          onChange={(e) => onChange({ ...data, creditAmountBeforeVat: Number(e.target.value) })}
+          aria-label="סכום זיכוי לפני מע״מ"
+        />
+      </div>
+
+      {/* Totals */}
+      <div className={styles.totalsSection}>
+        <div className={styles.totalsRow}>
+          <span className={styles.totalsLabel}>סה&quot;כ זיכוי לפני מע&quot;מ</span>
+          <span className={styles.totalsValue}>₪{data.creditAmountBeforeVat.toFixed(2)}</span>
+        </div>
+        <div className={styles.totalsRow}>
+          <span className={styles.totalsLabel}>מע&quot;מ 18%</span>
+          <span className={styles.totalsValue}>₪{vatAmount.toFixed(2)}</span>
+        </div>
+        <div className={`${styles.totalsRow} ${styles.totalsRowBold}`}>
+          <span className={styles.totalsLabel}>סה&quot;כ זיכוי</span>
+          <span className={styles.creditTotalValue}>₪{totalCredit.toFixed(2)}-</span>
+        </div>
+      </div>
+
+      {/* Notes — two columns */}
+      <div className={styles.notesGrid}>
+        <div className={styles.formRow}>
+          <label htmlFor="credit-customer-notes" className={styles.sectionHeading}>הערות</label>
+          <textarea
+            id="credit-customer-notes"
+            className={styles.formTextarea}
+            placeholder="הערות ללקוח..."
+            value={data.customerNotes}
+            onChange={(e) => onChange({ ...data, customerNotes: e.target.value })}
+          />
+        </div>
+        <div className={styles.formRow}>
+          <label htmlFor="credit-internal-notes" className={styles.sectionHeading}>הערה פנימית</label>
+          <textarea
+            id="credit-internal-notes"
+            className={styles.formTextarea}
+            placeholder="הערה פנימית (לא מופיעה במסמך)..."
+            value={data.internalNotes}
+            onChange={(e) => onChange({ ...data, internalNotes: e.target.value })}
           />
         </div>
       </div>

@@ -56,7 +56,8 @@ export function canAdvanceFromStep(
   businessCustomerId: string | null,
   businessFormData: BusinessCustomerFormData | null,
   docType: string | null,
-  invoiceDetails: InvoiceDetailsData | null
+  invoiceDetails: InvoiceDetailsData | null,
+  creditInvoiceDetails?: { linkedInvoiceId: string; creditReason: string; creditAmountBeforeVat: number } | null
 ): boolean {
   if (stepId === 'clientType') return clientType !== null;
   if (stepId === 'selectCustomer') return selectedCustomerId !== null;
@@ -76,6 +77,14 @@ export function canAdvanceFromStep(
       return (
         invoiceDetails.description.trim() !== '' &&
         invoiceDetails.lineItems.some((item) => item.price > 0)
+      );
+    }
+    if (docType === 'חשבונית מס זיכוי') {
+      if (!creditInvoiceDetails) return false;
+      return (
+        creditInvoiceDetails.linkedInvoiceId.trim() !== '' &&
+        creditInvoiceDetails.creditReason.trim() !== '' &&
+        creditInvoiceDetails.creditAmountBeforeVat > 0
       );
     }
     return true;

@@ -93,6 +93,17 @@ export interface ReceiptDetailsData {
   bankNotes: string;
 }
 
+export interface CreditInvoiceData {
+  documentNumber: string;
+  documentDate: string;
+  linkedInvoiceId: string;
+  creditReason: string;
+  creditAmountBeforeVat: number;
+  vatExempt: boolean;
+  customerNotes: string;
+  internalNotes: string;
+}
+
 export interface InvoiceDetailsData {
   documentNumber: string;
   documentDate: string;
