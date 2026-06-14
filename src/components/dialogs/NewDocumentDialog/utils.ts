@@ -3,6 +3,7 @@ import type {
   BusinessCustomerFormData,
   ClientType,
   InvoiceDetailsData,
+  ReceiptDetailsData,
   StepDefinition,
   WizardStepId,
 } from './types';
@@ -57,7 +58,8 @@ export function canAdvanceFromStep(
   businessFormData: BusinessCustomerFormData | null,
   docType: string | null,
   invoiceDetails: InvoiceDetailsData | null,
-  creditInvoiceDetails?: { linkedInvoiceId: string; creditReason: string; creditAmountBeforeVat: number } | null
+  creditInvoiceDetails?: { linkedInvoiceId: string; creditReason: string; creditAmountBeforeVat: number } | null,
+  receiptDetails?: ReceiptDetailsData | null
 ): boolean {
   if (stepId === 'clientType') return clientType !== null;
   if (stepId === 'selectCustomer') return selectedCustomerId !== null;
@@ -71,13 +73,25 @@ export function canAdvanceFromStep(
   }
   if (stepId === 'docType') return docType !== null;
   if (stepId === 'documentDetails') {
-    if (docType === 'קבלה') return true;
+    if (docType === 'קבלה') {
+      if (!receiptDetails) return false;
+      const { paymentMethod } = receiptDetails;
+      if (paymentMethod === 'מזומן') return receiptDetails.cashAmount > 0;
+      if (paymentMethod === "צ'ק") return receiptDetails.checks.some((c) => c.confirmed && c.amount > 0);
+      if (paymentMethod === 'אשראי') return receiptDetails.cardAmount > 0;
+      if (paymentMethod === 'העברה בנקאית') return receiptDetails.bankAmount > 0;
+      return false;
+    }
     if (docType === 'חשבונית מס' || docType === 'חשבונית מס/קבלה' || docType === 'חשבונית עסקה') {
       if (!invoiceDetails) return false;
-      return (
+      const baseValid =
         invoiceDetails.description.trim() !== '' &&
-        invoiceDetails.lineItems.some((item) => item.price > 0)
-      );
+        invoiceDetails.lineItems.some((item) => item.price > 0);
+      if (!baseValid) return false;
+      if (invoiceDetails.dueDate && invoiceDetails.documentDate) {
+        if (invoiceDetails.dueDate < invoiceDetails.documentDate) return false;
+      }
+      return true;
     }
     if (docType === 'חשבונית מס זיכוי') {
       if (!creditInvoiceDetails) return false;

@@ -861,6 +861,24 @@
   margin-inline-start: 0.125rem;
 }
 
+.fieldError {
+  color: #ef4444;
+  font-size: 0.75rem;
+  margin-top: 0.25rem;
+}
+
+.submitError {
+  color: #ef4444;
+  font-size: 0.8125rem;
+  padding: 0.5rem 0.75rem;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 6px;
+  width: 100%;
+  text-align: center;
+  margin-bottom: 0.5rem;
+}
+
 .readOnlyInput {
   height: 2.75rem;
   width: 100%;
