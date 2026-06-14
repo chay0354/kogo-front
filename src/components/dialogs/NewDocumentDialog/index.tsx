@@ -20,7 +20,10 @@ import {
   User,
   X,
 } from 'lucide-react';
+import { useQueryClient } from '@tanstack/react-query';
 import api, { createBusinessCustomer, searchBusinessCustomers } from '@/lib/api';
+import { createDocument, fetchDocuments } from '@/lib/documentsApi';
+import type { CreateDocumentPayload } from '@/types/document';
 import { Select } from '@/components/ui/select';
 import type { ChildWithDetails } from '@/types/customer';
 import styles from './index.module.css';
@@ -95,6 +98,8 @@ export default function NewDocumentDialog({ open, onClose }: NewDocumentDialogPr
   } = wizard;
 
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const queryClient = useQueryClient();
 
   const { data: childrenData } = useQuery({
     queryKey: ['children'],
@@ -132,12 +137,16 @@ export default function NewDocumentDialog({ open, onClose }: NewDocumentDialogPr
     businessFormData,
     docType,
     invoiceDetails,
-    creditInvoiceDetails
+    creditInvoiceDetails,
+    receiptDetails
   );
   const isFirstStep = steps[0]?.id === currentStep;
   const isLastStep = steps[steps.length - 1]?.id === currentStep;
 
   async function handleNext() {
+    setSubmitError(null);
+
+    // Create new business customer before advancing
     if (currentStep === 'businessClientDetails' && businessCustomerId === null) {
       if (
         businessFormData.first_name.trim() !== '' &&
@@ -156,7 +165,86 @@ export default function NewDocumentDialog({ open, onClose }: NewDocumentDialogPr
         return;
       }
     }
+
+    // Submit document on the last step
+    if (isLastStep && canAdvance) {
+      setIsSubmitting(true);
+      try {
+        const payload = buildDocumentPayload();
+        await createDocument(payload);
+        queryClient.invalidateQueries({ queryKey: ['formal-documents'] });
+        close();
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : 'שגיאה ביצירת המסמך';
+        setSubmitError(msg);
+      } finally {
+        setIsSubmitting(false);
+      }
+      return;
+    }
+
     goNext(canAdvance);
+  }
+
+  function buildDocumentPayload(): CreateDocumentPayload {
+    const docTypeMap: Record<string, CreateDocumentPayload['document_type']> = {
+      'חשבונית מס': 'tax_invoice',
+      'חשבונית מס/קבלה': 'combined',
+      'קבלה': 'receipt',
+      'חשבונית עסקה': 'transaction_invoice',
+      'חשבונית מס זיכוי': 'credit_invoice',
+    };
+    const mappedType = docTypeMap[docType ?? ''] ?? 'tax_invoice';
+
+    const base: CreateDocumentPayload = {
+      document_type: mappedType,
+      client_type: clientType ?? 'existing',
+      child_id: clientType === 'existing' ? selectedCustomerId : null,
+      business_customer_id: clientType === 'business' ? businessCustomerId : null,
+    };
+
+    if (mappedType === 'receipt') {
+      return { ...base, receipt_details: receiptDetails as unknown as CreateDocumentPayload['receipt_details'] };
+    }
+    if (mappedType === 'credit_invoice') {
+      return {
+        ...base,
+        credit_invoice_details: {
+          document_date: creditInvoiceDetails.documentDate,
+          linked_invoice_id: creditInvoiceDetails.linkedInvoiceId,
+          credit_reason: creditInvoiceDetails.creditReason,
+          credit_amount_before_vat: creditInvoiceDetails.creditAmountBeforeVat,
+          vat_exempt: creditInvoiceDetails.vatExempt,
+          customer_notes: creditInvoiceDetails.customerNotes,
+          internal_notes: creditInvoiceDetails.internalNotes,
+        },
+      };
+    }
+    return {
+      ...base,
+      invoice_details: {
+        document_date: invoiceDetails.documentDate,
+        due_date: invoiceDetails.dueDate || null,
+        description: invoiceDetails.description,
+        currency: invoiceDetails.currency as 'ILS' | 'USD' | 'EUR',
+        prices_include_vat: invoiceDetails.pricesIncludeVat,
+        line_items: invoiceDetails.lineItems.map((i) => ({
+          sku: i.sku,
+          description: i.description,
+          quantity: i.quantity,
+          price: i.price,
+        })),
+        discount_amount: invoiceDetails.discountAmount,
+        discount_percent: invoiceDetails.discountPercent,
+        // transaction_invoice has no VAT by Israeli accounting law
+        vat_exempt: mappedType === 'transaction_invoice' ? true : invoiceDetails.vatExempt,
+        round_total: invoiceDetails.roundTotal,
+        payment_terms: invoiceDetails.paymentTerms,
+        customer_notes: invoiceDetails.customerNotes,
+        internal_notes: invoiceDetails.internalNotes,
+        payment_methods: invoiceDetails.paymentMethods,
+      },
+    };
   }
 
   return (
@@ -303,13 +391,23 @@ export default function NewDocumentDialog({ open, onClose }: NewDocumentDialogPr
               />
             )}
           {currentStep === 'documentDetails' && docType === 'קבלה' && (
-            <ReceiptDetailsStep data={receiptDetails} onChange={setReceiptDetails} />
+            <ReceiptDetailsStep
+              data={receiptDetails}
+              onChange={setReceiptDetails}
+              childId={clientType === 'existing' ? selectedCustomerId : null}
+              businessCustomerId={clientType === 'business' ? businessCustomerId : null}
+            />
           )}
           {currentStep === 'documentDetails' && docType === 'חשבונית עסקה' && (
             <TransactionInvoiceStep data={invoiceDetails} onChange={setInvoiceDetails} />
           )}
           {currentStep === 'documentDetails' && docType === 'חשבונית מס זיכוי' && (
-            <CreditInvoiceStep data={creditInvoiceDetails} onChange={setCreditInvoiceDetails} />
+            <CreditInvoiceStep
+              data={creditInvoiceDetails}
+              onChange={setCreditInvoiceDetails}
+              childId={clientType === 'existing' ? selectedCustomerId : null}
+              businessCustomerId={clientType === 'business' ? businessCustomerId : null}
+            />
           )}
           {currentStep === 'documentDetails' &&
             docType !== 'חשבונית מס' &&
@@ -330,6 +428,9 @@ export default function NewDocumentDialog({ open, onClose }: NewDocumentDialogPr
         </div>
 
         <div className={styles.footer}>
+          {submitError && (
+            <p className={styles.submitError}>{submitError}</p>
+          )}
           {!isFirstStep ? (
             <button
               type="button"
@@ -800,10 +901,8 @@ interface DocTypeStepProps {
   onSelect: (type: string) => void;
 }
 
-function DocTypeStep({ docType, clientType, onSelect }: DocTypeStepProps) {
-  const options = clientType === 'existing'
-    ? DOCUMENT_TYPE_OPTIONS.filter(o => o.type !== 'טיוטה')
-    : DOCUMENT_TYPE_OPTIONS;
+function DocTypeStep({ docType, clientType: _clientType, onSelect }: DocTypeStepProps) {
+  const options = DOCUMENT_TYPE_OPTIONS.filter(o => o.type !== 'טיוטה');
   return (
     <div>
       <p className={styles.stepSubtitle}>בחר את סוג המסמך שברצונך להפיק</p>
@@ -840,8 +939,8 @@ function TransactionInvoiceStep({ data, onChange }: TransactionInvoiceStepProps)
   }
 
   const subtotal = data.lineItems.reduce((sum, item) => sum + item.quantity * item.price, 0);
-  const vatAmount = data.vatExempt ? 0 : (subtotal - data.discountAmount) * 0.18;
-  const totalBeforeRounding = subtotal - data.discountAmount + vatAmount;
+  // חשבונית עסקה is a non-VAT document by Israeli accounting law
+  const totalBeforeRounding = subtotal - data.discountAmount;
   const finalTotal = data.roundTotal ? Math.round(totalBeforeRounding) : totalBeforeRounding;
 
   return (
@@ -986,7 +1085,7 @@ function TransactionInvoiceStep({ data, onChange }: TransactionInvoiceStepProps)
             })
           }
         >
-          + אשר שורה
+          + הוסף שורה
         </button>
       </div>
 
@@ -1005,7 +1104,10 @@ function TransactionInvoiceStep({ data, onChange }: TransactionInvoiceStepProps)
               className={styles.discountInput}
               value={data.discountAmount}
               min={0}
-              onChange={(e) => onChange({ ...data, discountAmount: Number(e.target.value) })}
+              onChange={(e) => {
+                const val = Number(e.target.value);
+                onChange({ ...data, discountAmount: val, discountPercent: val > 0 ? 0 : data.discountPercent });
+              }}
               aria-label="סכום הנחה בשקלים"
             />
             <span className={styles.discountLabel}>₪</span>
@@ -1015,25 +1117,13 @@ function TransactionInvoiceStep({ data, onChange }: TransactionInvoiceStepProps)
               value={data.discountPercent}
               min={0}
               max={100}
-              onChange={(e) => onChange({ ...data, discountPercent: Number(e.target.value) })}
+              onChange={(e) => {
+                const val = Number(e.target.value);
+                onChange({ ...data, discountPercent: val, discountAmount: val > 0 ? 0 : data.discountAmount });
+              }}
               aria-label="אחוז הנחה"
             />
             <span className={styles.discountLabel}>%</span>
-          </div>
-        </div>
-
-        <div className={styles.vatRow}>
-          <span className={styles.totalsLabel}>מע&quot;מ 18%</span>
-          <div className={styles.vatRowContent}>
-            <label className={styles.vatRadioLabel}>
-              <input
-                type="checkbox"
-                checked={data.vatExempt}
-                onChange={(e) => onChange({ ...data, vatExempt: e.target.checked })}
-              />
-              ללא מע&quot;מ (אילת / חו&quot;ל)
-            </label>
-            <span className={styles.vatAmount}>₪{vatAmount.toFixed(2)}</span>
           </div>
         </div>
 
@@ -1056,7 +1146,7 @@ function TransactionInvoiceStep({ data, onChange }: TransactionInvoiceStepProps)
       <div className={styles.infoBanner}>
         <FileText size={16} className={styles.infoBannerIcon} />
         <span className={styles.infoBannerText}>
-          חשבונית עסקה – דרישת תשלום. אינה כוללת תשלום בפועל.
+          חשבונית עסקה – דרישת תשלום. אינה כוללת תשלום בפועל. אינה כוללת מע&quot;מ.
         </span>
       </div>
 
@@ -1120,8 +1210,12 @@ function TransactionInvoiceStep({ data, onChange }: TransactionInvoiceStepProps)
             type="date"
             className={styles.formInput}
             value={data.dueDate}
+            min={data.documentDate || undefined}
             onChange={(e) => onChange({ ...data, dueDate: e.target.value })}
           />
+          {data.dueDate && data.documentDate && data.dueDate < data.documentDate && (
+            <p className={styles.fieldError}>תאריך הפירעון חייב להיות שווה או מאוחר מתאריך המסמך</p>
+          )}
         </div>
       </div>
     </div>
@@ -1133,11 +1227,23 @@ function TransactionInvoiceStep({ data, onChange }: TransactionInvoiceStepProps)
 interface CreditInvoiceStepProps {
   data: CreditInvoiceData;
   onChange: (data: CreditInvoiceData) => void;
+  childId?: string | null;
+  businessCustomerId?: string | null;
 }
 
-function CreditInvoiceStep({ data, onChange }: CreditInvoiceStepProps) {
+function CreditInvoiceStep({ data, onChange, childId, businessCustomerId }: CreditInvoiceStepProps) {
   const vatAmount = data.vatExempt ? 0 : data.creditAmountBeforeVat * 0.18;
   const totalCredit = data.creditAmountBeforeVat + vatAmount;
+
+  const { data: openInvoices = [] } = useQuery({
+    queryKey: ['formal-documents', 'open', childId, businessCustomerId],
+    queryFn: () => fetchDocuments({
+      exclude_credits: true,
+      ...(childId ? { child_id: childId } : {}),
+      ...(businessCustomerId ? { business_customer_id: businessCustomerId } : {}),
+    }),
+    staleTime: 60_000,
+  });
 
   return (
     <div>
@@ -1171,17 +1277,34 @@ function CreditInvoiceStep({ data, onChange }: CreditInvoiceStepProps) {
       {/* בחר חשבונית לזיכוי */}
       <div className={styles.detailsSection}>
         <label htmlFor="credit-linked-invoice" className={styles.sectionHeading}>
-          בחר חשבונית לזיכוי <span className={styles.requiredMark}>*</span>
+          מספר חשבונית לזיכוי <span className={styles.requiredMark}>*</span>
         </label>
-        <Select
-          id="credit-linked-invoice"
-          className={styles.formSelect}
-          value={data.linkedInvoiceId}
-          onChange={(e) => onChange({ ...data, linkedInvoiceId: e.target.value })}
-          aria-required="true"
-        >
-          <option value="" disabled>חפש חשבונית לפי מספר מסמך...</option>
-        </Select>
+        {openInvoices.length > 0 ? (
+          <Select
+            id="credit-linked-invoice"
+            className={styles.formSelect}
+            value={data.linkedInvoiceId}
+            onChange={(e) => onChange({ ...data, linkedInvoiceId: e.target.value })}
+            aria-required="true"
+          >
+            <option value="">בחר חשבונית לזיכוי</option>
+            {openInvoices.map((inv) => (
+              <option key={inv.id} value={inv.document_number}>
+                {inv.document_number} — ₪{inv.total_amount} ({inv.document_date})
+              </option>
+            ))}
+          </Select>
+        ) : (
+          <input
+            id="credit-linked-invoice"
+            type="text"
+            className={styles.formInput}
+            placeholder="הזן מספר חשבונית (לדוגמה: INV-2025-1234)"
+            value={data.linkedInvoiceId}
+            onChange={(e) => onChange({ ...data, linkedInvoiceId: e.target.value })}
+            aria-required="true"
+          />
+        )}
       </div>
 
       {/* סיבת הזיכוי */}
@@ -1222,9 +1345,19 @@ function CreditInvoiceStep({ data, onChange }: CreditInvoiceStepProps) {
           <span className={styles.totalsLabel}>סה&quot;כ זיכוי לפני מע&quot;מ</span>
           <span className={styles.totalsValue}>₪{data.creditAmountBeforeVat.toFixed(2)}</span>
         </div>
-        <div className={styles.totalsRow}>
+        <div className={styles.vatRow}>
           <span className={styles.totalsLabel}>מע&quot;מ 18%</span>
-          <span className={styles.totalsValue}>₪{vatAmount.toFixed(2)}</span>
+          <div className={styles.vatRowContent}>
+            <label className={styles.vatRadioLabel}>
+              <input
+                type="checkbox"
+                checked={data.vatExempt}
+                onChange={(e) => onChange({ ...data, vatExempt: e.target.checked })}
+              />
+              ללא מע&quot;מ (אילת / חו&quot;ל)
+            </label>
+            <span className={styles.vatAmount}>₪{vatAmount.toFixed(2)}</span>
+          </div>
         </div>
         <div className={`${styles.totalsRow} ${styles.totalsRowBold}`}>
           <span className={styles.totalsLabel}>סה&quot;כ זיכוי</span>
@@ -1459,7 +1592,7 @@ function InvoiceDetailsStep({ data, onChange, docType }: InvoiceDetailsStepProps
             })
           }
         >
-          + אשר שורה
+          + הוסף שורה
         </button>
       </div>
 
@@ -1478,7 +1611,10 @@ function InvoiceDetailsStep({ data, onChange, docType }: InvoiceDetailsStepProps
               className={styles.discountInput}
               value={data.discountAmount}
               min={0}
-              onChange={(e) => onChange({ ...data, discountAmount: Number(e.target.value) })}
+              onChange={(e) => {
+                const val = Number(e.target.value);
+                onChange({ ...data, discountAmount: val, discountPercent: val > 0 ? 0 : data.discountPercent });
+              }}
               aria-label="סכום הנחה בשקלים"
             />
             <span className={styles.discountLabel}>₪</span>
@@ -1488,7 +1624,10 @@ function InvoiceDetailsStep({ data, onChange, docType }: InvoiceDetailsStepProps
               value={data.discountPercent}
               min={0}
               max={100}
-              onChange={(e) => onChange({ ...data, discountPercent: Number(e.target.value) })}
+              onChange={(e) => {
+                const val = Number(e.target.value);
+                onChange({ ...data, discountPercent: val, discountAmount: val > 0 ? 0 : data.discountAmount });
+              }}
               aria-label="אחוז הנחה"
             />
             <span className={styles.discountLabel}>%</span>
@@ -1584,8 +1723,12 @@ function InvoiceDetailsStep({ data, onChange, docType }: InvoiceDetailsStepProps
             type="date"
             className={styles.formInput}
             value={data.dueDate}
+            min={data.documentDate || undefined}
             onChange={(e) => onChange({ ...data, dueDate: e.target.value })}
           />
+          {data.dueDate && data.documentDate && data.dueDate < data.documentDate && (
+            <p className={styles.fieldError}>תאריך הפירעון חייב להיות שווה או מאוחר מתאריך המסמך</p>
+          )}
         </div>
       </div>
 
@@ -1654,9 +1797,21 @@ function InvoiceDetailsStep({ data, onChange, docType }: InvoiceDetailsStepProps
 interface ReceiptDetailsStepProps {
   data: ReceiptDetailsData;
   onChange: (data: ReceiptDetailsData) => void;
+  childId?: string | null;
+  businessCustomerId?: string | null;
 }
 
-function ReceiptDetailsStep({ data, onChange }: ReceiptDetailsStepProps) {
+function ReceiptDetailsStep({ data, onChange, childId, businessCustomerId }: ReceiptDetailsStepProps) {
+  const { data: openInvoices = [] } = useQuery({
+    queryKey: ['formal-documents', 'open', childId, businessCustomerId],
+    queryFn: () => fetchDocuments({
+      exclude_credits: true,
+      ...(childId ? { child_id: childId } : {}),
+      ...(businessCustomerId ? { business_customer_id: businessCustomerId } : {}),
+    }),
+    staleTime: 60_000,
+  });
+
   return (
     <div>
       {/* Payment method tabs */}
@@ -1697,6 +1852,11 @@ function ReceiptDetailsStep({ data, onChange }: ReceiptDetailsStepProps) {
           onChange={(e) => onChange({ ...data, linkedInvoiceId: e.target.value })}
         >
           <option value="">ללא שיוך</option>
+          {openInvoices.map((inv) => (
+            <option key={inv.id} value={inv.document_number}>
+              {inv.document_number} — ₪{inv.total_amount} ({inv.document_date})
+            </option>
+          ))}
         </Select>
       </div>
 
@@ -1914,7 +2074,7 @@ function CheckPanel({ data, onChange }: ReceiptDetailsStepProps) {
         <span className={styles.checkSummaryLabel}>
           סה&quot;כ צ&apos;קים ({confirmedChecks.length})
         </span>
-        <span className={styles.checkSummaryAmount}>₪{confirmedTotal}ש</span>
+        <span className={styles.checkSummaryAmount}>₪{confirmedTotal.toFixed(2)}</span>
       </div>
 
       {/* Info note */}
