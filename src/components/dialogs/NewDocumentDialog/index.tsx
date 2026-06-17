@@ -25,6 +25,7 @@ import api, { createBusinessCustomer, fetchBranchesList, searchBusinessCustomers
 import { createDocument, fetchDocuments } from '@/lib/documentsApi';
 import type { CreateDocumentPayload } from '@/types/document';
 import { Select } from '@/components/ui/select';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import type { ChildWithDetails } from '@/types/customer';
 import styles from './index.module.css';
 import { BUSINESS_TYPE_OPTIONS, CLIENT_TYPE_OPTIONS, DOCUMENT_TYPE_OPTIONS } from './constants';
@@ -101,6 +102,8 @@ export default function NewDocumentDialog({ open, onClose }: NewDocumentDialogPr
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [showCloseConfirm, setShowCloseConfirm] = useState(false);
+  const [showSuccess, setShowSuccess] = useState(false);
   const queryClient = useQueryClient();
 
   const { data: childrenData } = useQuery({
@@ -130,11 +133,11 @@ export default function NewDocumentDialog({ open, onClose }: NewDocumentDialogPr
   useEffect(() => {
     if (!open) return;
     function handleKeyDown(e: KeyboardEvent) {
-      if (e.key === 'Escape') close();
+      if (e.key === 'Escape') setShowCloseConfirm(true);
     }
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [open, close]);
+  }, [open]);
 
   if (!open) return null;
 
@@ -147,7 +150,8 @@ export default function NewDocumentDialog({ open, onClose }: NewDocumentDialogPr
     docType,
     invoiceDetails,
     creditInvoiceDetails,
-    receiptDetails
+    receiptDetails,
+    selectedBranchId
   );
   const isFirstStep = steps[0]?.id === currentStep;
   const isLastStep = steps[steps.length - 1]?.id === currentStep;
@@ -182,7 +186,11 @@ export default function NewDocumentDialog({ open, onClose }: NewDocumentDialogPr
         const payload = buildDocumentPayload();
         await createDocument(payload);
         queryClient.invalidateQueries({ queryKey: ['formal-documents'] });
-        close();
+        setShowSuccess(true);
+        setTimeout(() => {
+          setShowSuccess(false);
+          close();
+        }, 1500);
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : 'שגיאה ביצירת המסמך';
         setSubmitError(msg);
@@ -258,11 +266,25 @@ export default function NewDocumentDialog({ open, onClose }: NewDocumentDialogPr
   }
 
   return (
+    <>
+    <ConfirmDialog
+      isOpen={showCloseConfirm}
+      onClose={() => setShowCloseConfirm(false)}
+      onConfirm={(confirmed) => {
+        setShowCloseConfirm(false);
+        if (confirmed) close();
+      }}
+      title="סגירת המסמך"
+      message="האם למחוק את המסמך? הנתונים שהזנת לא יישמרו."
+      confirmText="מחק"
+      cancelText="המשך עריכה"
+      type="warning"
+    />
     <div
       className={styles.overlay}
       dir="rtl"
       onMouseDown={(e) => {
-        if (e.target === e.currentTarget) close();
+        if (e.target === e.currentTarget) setShowCloseConfirm(true);
       }}
     >
       <div
@@ -359,8 +381,9 @@ export default function NewDocumentDialog({ open, onClose }: NewDocumentDialogPr
                   last_name: customer.last_name,
                   email: customer.email,
                   phone: customer.phone,
-                  id_number: customer.id_number,
+                  id_number: customer.id_number || customer.company_number,
                   company_number: customer.company_number,
+                  address: customer.address ?? '',
                   business_type: customer.business_type,
                   category: customer.category,
                   notes: customer.notes,
@@ -375,6 +398,7 @@ export default function NewDocumentDialog({ open, onClose }: NewDocumentDialogPr
                   phone: '',
                   id_number: '',
                   company_number: '',
+                  address: '',
                   business_type: '',
                   category: '',
                   notes: '',
@@ -473,7 +497,13 @@ export default function NewDocumentDialog({ open, onClose }: NewDocumentDialogPr
           </button>
         </div>
       </div>
+      {showSuccess && (
+        <div className={styles.successOverlay} role="status" aria-live="polite">
+          <span className={styles.successMessage}>בוצע בהצלחה ✓</span>
+        </div>
+      )}
     </div>
+    </>
   );
 }
 
@@ -787,7 +817,7 @@ function BusinessClientStep({
 
         <div className={styles.formRow}>
           <label htmlFor="biz-id-number" className={styles.fieldLabel}>
-            ת.ז
+            ת.ז/ח.פ
           </label>
           <input
             id="biz-id-number"
@@ -799,15 +829,15 @@ function BusinessClientStep({
         </div>
 
         <div className={styles.formRow}>
-          <label htmlFor="biz-company-number" className={styles.fieldLabel}>
-            ח.פ
+          <label htmlFor="biz-address" className={styles.fieldLabel}>
+            כתובת
           </label>
           <input
-            id="biz-company-number"
+            id="biz-address"
             type="text"
             className={styles.formInput}
-            value={formData.company_number}
-            onChange={(e) => updateField('company_number', e.target.value)}
+            value={formData.address}
+            onChange={(e) => updateField('address', e.target.value)}
           />
         </div>
 
@@ -878,29 +908,119 @@ function ExistingCustomerStep({
   selectedCustomerId,
   onSelect,
 }: ExistingCustomerStepProps) {
+  const [query, setQuery] = useState('');
+  const [showDropdown, setShowDropdown] = useState(false);
+  const wrapperRef = useRef<HTMLDivElement>(null);
+
+  const selectedCustomer = customers.find((c) => c.id === selectedCustomerId) ?? null;
+
+  const filtered = useMemo(() => {
+    if (!query.trim()) return customers.slice(0, 8);
+    const q = query.toLowerCase();
+    return customers.filter(
+      (c) =>
+        c.full_name.toLowerCase().includes(q) ||
+        (c.family_phone && c.family_phone.includes(q)) ||
+        (c.parent_phone && c.parent_phone.includes(q))
+    ).slice(0, 8);
+  }, [query, customers]);
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (wrapperRef.current && !wrapperRef.current.contains(e.target as Node)) {
+        setShowDropdown(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  function handleSelect(customer: ChildWithDetails) {
+    onSelect(customer.id);
+    setQuery(getCustomerLabel(customer));
+    setShowDropdown(false);
+  }
+
+  function handleClear() {
+    onSelect('');
+    setQuery('');
+    setShowDropdown(false);
+  }
+
   return (
     <div>
-      <p className={styles.stepSubtitle}>בחר לקוח קיים מתוך הרשימה</p>
-      <div className={styles.fieldGroup}>
-        <label htmlFor="existing-customer" className={styles.fieldLabel}>
+      <p className={styles.stepSubtitle}>חפש לקוח לפי שם או טלפון</p>
+      <div className={styles.searchSection}>
+        <label htmlFor="existing-customer-search" className={styles.fieldLabel}>
           לקוח קיים
         </label>
-        <Select
-          id="existing-customer"
-          className={styles.fieldSelect}
-          value={selectedCustomerId ?? ''}
-          onChange={(e) => onSelect(e.target.value)}
-        >
-          <option value="" disabled>
-            בחר לקוח קיים
-          </option>
-          {customers.map((customer) => (
-            <option key={customer.id} value={customer.id}>
-              {getCustomerLabel(customer)}
-            </option>
-          ))}
-        </Select>
+        <div className={styles.searchWrapper} ref={wrapperRef}>
+          <input
+            id="existing-customer-search"
+            type="text"
+            role="combobox"
+            aria-expanded={showDropdown}
+            aria-haspopup="listbox"
+            aria-controls="existing-customer-listbox"
+            aria-autocomplete="list"
+            className={`${styles.searchInput} ${selectedCustomerId ? styles.searchInputSelected : ''}`}
+            placeholder="חיפוש לפי שם או טלפון..."
+            value={query}
+            onChange={(e) => {
+              setQuery(e.target.value);
+              setShowDropdown(true);
+            }}
+            onFocus={() => setShowDropdown(true)}
+            autoComplete="off"
+          />
+          <span className={styles.searchIcon} aria-hidden="true">
+            <Search size={16} />
+          </span>
+          {selectedCustomerId && (
+            <button
+              type="button"
+              className={styles.searchClearBtn}
+              onClick={handleClear}
+              aria-label="נקה בחירה"
+            >
+              <X size={14} />
+            </button>
+          )}
+          {showDropdown && (
+            <ul id="existing-customer-listbox" role="listbox" className={styles.searchDropdown}>
+              {filtered.length === 0 ? (
+                <li className={styles.searchDropdownEmpty} role="option" aria-selected={false}>
+                  לא נמצאו לקוחות
+                </li>
+              ) : (
+                filtered.map((customer) => (
+                  <li
+                    key={customer.id}
+                    role="option"
+                    aria-selected={customer.id === selectedCustomerId}
+                    className={styles.searchDropdownItem}
+                    onMouseDown={() => handleSelect(customer)}
+                  >
+                    <span className={styles.searchDropdownItemName}>{customer.full_name}</span>
+                    {(customer.family_phone || customer.parent_phone) && (
+                      <span className={styles.searchDropdownItemMeta}>
+                        {customer.family_phone || customer.parent_phone}
+                      </span>
+                    )}
+                  </li>
+                ))
+              )}
+            </ul>
+          )}
+        </div>
       </div>
+      {selectedCustomer && (
+        <div className={styles.selectedCustomerBadge}>
+          <span className={styles.selectedCustomerBadgeText}>
+            לקוח נבחר: {getCustomerLabel(selectedCustomer)}
+          </span>
+        </div>
+      )}
     </div>
   );
 }
@@ -946,7 +1066,7 @@ interface SelectBranchStepProps {
 function SelectBranchStep({ branches, selectedBranchId, onSelect }: SelectBranchStepProps) {
   return (
     <div>
-      <p className={styles.stepSubtitle}>בחר את הסניף המשויך למסמך (אפשרי לדלג)</p>
+      <p className={styles.stepSubtitle}>בחר את הסניף המשויך למסמך (שדה חובה)</p>
       <div className={styles.cardGrid} role="radiogroup" aria-label="בחירת סניף">
         {branches.map((branch) => (
           <SelectableCard
@@ -955,7 +1075,7 @@ function SelectBranchStep({ branches, selectedBranchId, onSelect }: SelectBranch
             title={branch.name}
             description=""
             selected={selectedBranchId === branch.id}
-            onSelect={() => onSelect(selectedBranchId === branch.id ? null : branch.id)}
+            onSelect={() => onSelect(branch.id)}
           />
         ))}
       </div>
@@ -2078,6 +2198,24 @@ function CheckPanel({ data, onChange }: ReceiptDetailsStepProps) {
         </div>
       </div>
 
+      {/* הוסף צ'ק */}
+      <button
+        type="button"
+        className={styles.addCheckBtn}
+        onClick={() => {
+          const today = new Date().toISOString().split('T')[0];
+          onChange({
+            ...data,
+            checks: [
+              ...data.checks,
+              { id: String(Date.now()), date: today, bank: '', branch: '', accountNumber: '', checkNumber: '', amount: 0, confirmed: false },
+            ],
+          });
+        }}
+      >
+        + הוסף צ&apos;ק
+      </button>
+
       {/* ניכוי במקור */}
       <div className={styles.witholdingRow}>
         <span className={styles.witholdingLabel}>ניכוי במקור</span>
@@ -2286,7 +2424,7 @@ function SummaryStep({
   docType,
   customer,
   businessFormData,
-  businessCustomerId,
+  businessCustomerId: _businessCustomerId,
   invoiceDetails,
 }: SummaryStepProps) {
   const customerName =

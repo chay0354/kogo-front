@@ -39,6 +39,7 @@ export interface BusinessCustomer {
   phone: string;
   id_number: string;
   company_number: string;
+  address: string;
   business_type: string;
   category: string;
   notes: string;
@@ -51,6 +52,7 @@ export interface BusinessCustomerFormData {
   phone: string;
   id_number: string;
   company_number: string;
+  address: string;
   business_type: string;
   category: string;
   notes: string;

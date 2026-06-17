@@ -20,6 +20,7 @@ const EMPTY_BUSINESS_FORM: BusinessCustomerFormData = {
   phone: '',
   id_number: '',
   company_number: '',
+  address: '',
   business_type: '',
   category: '',
   notes: '',

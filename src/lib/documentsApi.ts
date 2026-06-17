@@ -25,3 +25,8 @@ export async function fetchDocument(id: string): Promise<FormalDocument> {
   const res = await api.get(`/documents/documents/${id}/`);
   return res.data;
 }
+
+export async function sendDocumentReminder(id: string): Promise<{ sent: boolean }> {
+  const res = await api.post(`/documents/documents/${id}/send-reminder/`);
+  return res.data;
+}

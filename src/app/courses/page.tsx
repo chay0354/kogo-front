@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import AppLayout from '@/components/AppLayout';
 import PageHeader from '@/components/PageHeader';
+import PageFilters from '@/components/PageFilters';
 import api from '@/lib/api';
 import { CourseTypeWithStats } from '@/types/course';
 import AddCourseTypeDialog from '@/components/dialogs/AddCourseTypeDialog';
@@ -16,6 +17,10 @@ export default function CoursesPage() {
   const [filteredCourseTypes, setFilteredCourseTypes] = useState<CourseTypeWithStats[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
+  const [primaryFilter, setPrimaryFilter] = useState('');
+  const [secondaryFilter, setSecondaryFilter] = useState('');
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
   const [editTarget, setEditTarget] = useState<CourseTypeWithStats | null>(null);
@@ -107,7 +112,22 @@ export default function CoursesPage() {
             onChange={(e) => setSearchQuery(e.target.value)}
             className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500"
           />
+          <div className="flex flex-wrap items-center gap-3 mt-3" dir="rtl">
+            <span className="text-sm text-muted-foreground">מ:</span>
+            <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="h-9 rounded-md border border-input bg-background px-2 text-sm" />
+            <span className="text-sm text-muted-foreground">עד:</span>
+            <input type="date" value={dateTo} min={dateFrom || undefined} onChange={(e) => setDateTo(e.target.value)} className="h-9 rounded-md border border-input bg-background px-2 text-sm" />
+          </div>
         </div>
+        <PageFilters
+          primaryLabel="עסק / סניף"
+          primaryValue={primaryFilter}
+          primaryOptions={[]}
+          onPrimaryChange={setPrimaryFilter}
+          secondaryValue={secondaryFilter}
+          secondaryOptions={[]}
+          onSecondaryChange={setSecondaryFilter}
+        />
 
         {/* Course Types Grid */}
         {loading ? (

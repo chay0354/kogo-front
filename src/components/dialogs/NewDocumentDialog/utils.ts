@@ -59,18 +59,21 @@ export function canAdvanceFromStep(
   docType: string | null,
   invoiceDetails: InvoiceDetailsData | null,
   creditInvoiceDetails?: { linkedInvoiceId: string; creditReason: string; creditAmountBeforeVat: number } | null,
-  receiptDetails?: ReceiptDetailsData | null
+  receiptDetails?: ReceiptDetailsData | null,
+  selectedBranchId?: string | null
 ): boolean {
   if (stepId === 'clientType') return clientType !== null;
-  if (stepId === 'selectBranch') return true;
+  if (stepId === 'selectBranch') return selectedBranchId !== null;
   if (stepId === 'selectCustomer') return selectedCustomerId !== null;
   if (stepId === 'businessClientDetails') {
-    return (
+    const hasId =
       businessCustomerId !== null ||
       (businessFormData !== null &&
         businessFormData.first_name.trim() !== '' &&
-        businessFormData.last_name.trim() !== '')
-    );
+        businessFormData.last_name.trim() !== '');
+    const hasType = businessFormData?.business_type?.trim() !== '';
+    const hasCategory = businessFormData?.category?.trim() !== '';
+    return hasId && hasType && hasCategory;
   }
   if (stepId === 'docType') return docType !== null;
   if (stepId === 'documentDetails') {

@@ -3,6 +3,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import AppLayout from '@/components/AppLayout';
+import PageSearchBar from '@/components/PageSearchBar';
+import PageFilters from '@/components/PageFilters';
 import LessonDetailsDialog from '@/components/dialogs/LessonDetailsDialog';
 import EventDialog from '@/components/dialogs/EventDialog';
 import EventDetailsDialog from '@/components/dialogs/EventDetailsDialog';
@@ -72,7 +74,12 @@ export default function SchedulePage() {
   const [branches, setBranches] = useState<Branch[]>([]);
   const [cities, setCities] = useState<City[]>([]);
   const [instructors, setInstructors] = useState<Instructor[]>([]);
-  
+  const [pageSearch, setPageSearch] = useState('');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
+  const [primaryFilter, setPrimaryFilter] = useState('');
+  const [secondaryFilter, setSecondaryFilter] = useState('');
+
   // Dialog
   const [detailsDialogLessonId, setDetailsDialogLessonId] = useState<string | null>(null);
   const [detailsDialogOccurrenceDate, setDetailsDialogOccurrenceDate] = useState<string | null>(null);
@@ -352,6 +359,25 @@ export default function SchedulePage() {
               </>
             )}
           </div>
+
+          <PageSearchBar
+            search={pageSearch}
+            onSearchChange={setPageSearch}
+            dateFrom={dateFrom}
+            dateTo={dateTo}
+            onDateFromChange={setDateFrom}
+            onDateToChange={setDateTo}
+            searchPlaceholder="חיפוש שיעור..."
+          />
+          <PageFilters
+            primaryLabel="עסק / סניף"
+            primaryValue={primaryFilter}
+            primaryOptions={branches.map((b) => ({ value: b.id, label: b.name }))}
+            onPrimaryChange={setPrimaryFilter}
+            secondaryValue={secondaryFilter}
+            secondaryOptions={[]}
+            onSecondaryChange={setSecondaryFilter}
+          />
 
           {/* Error Message */}
           {error && (
