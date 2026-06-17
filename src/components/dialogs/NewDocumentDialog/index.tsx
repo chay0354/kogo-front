@@ -58,7 +58,7 @@ const DOCUMENT_TYPE_ICONS: Record<string, IconComponent> = {
   'קבלה': Receipt,
   'חשבונית עסקה': FileText,
   'חשבונית מס זיכוי': FileMinus,
-  'טיוטה': FileEdit,
+
 };
 
 const DOCUMENT_TYPE_DANGER = new Set(['חשבונית מס זיכוי']);
@@ -409,12 +409,7 @@ export default function NewDocumentDialog({ open, onClose }: NewDocumentDialogPr
               businessCustomerId={clientType === 'business' ? businessCustomerId : null}
             />
           )}
-          {currentStep === 'documentDetails' &&
-            docType !== 'חשבונית מס' &&
-            docType !== 'חשבונית מס/קבלה' &&
-            docType !== 'קבלה' &&
-            docType !== 'חשבונית עסקה' &&
-            docType !== 'חשבונית מס זיכוי' && <DocumentDetailsStep />}
+
           {currentStep === 'summary' && (
             <SummaryStep
               clientType={clientType}
@@ -902,7 +897,7 @@ interface DocTypeStepProps {
 }
 
 function DocTypeStep({ docType, clientType: _clientType, onSelect }: DocTypeStepProps) {
-  const options = DOCUMENT_TYPE_OPTIONS.filter(o => o.type !== 'טיוטה');
+  const options = DOCUMENT_TYPE_OPTIONS;
   return (
     <div>
       <p className={styles.stepSubtitle}>בחר את סוג המסמך שברצונך להפיק</p>
@@ -1392,21 +1387,6 @@ function CreditInvoiceStep({ data, onChange, childId, businessCustomerId }: Cred
   );
 }
 
-/* ─── DocumentDetailsStep ─────────────────────────────────────────── */
-
-function DocumentDetailsStep() {
-  return (
-    <div>
-      <p className={styles.stepSubtitle}>הזן את פרטי המסמך</p>
-      <div className={styles.placeholderBox}>
-        <FileText size={28} className={styles.placeholderIcon} />
-        <p className={styles.placeholderText}>
-          טופס פרטי המסמך יתווסף כאן בהמשך הפיתוח
-        </p>
-      </div>
-    </div>
-  );
-}
 
 /* ─── InvoiceDetailsStep ──────────────────────────────────────────── */
 

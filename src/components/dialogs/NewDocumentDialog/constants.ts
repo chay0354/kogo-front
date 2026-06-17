@@ -20,7 +20,6 @@ export const DOCUMENT_TYPE_OPTIONS: DocumentTypeOption[] = [
   { type: 'קבלה', description: 'אמצעי תשלום' },
   { type: 'חשבונית עסקה', description: 'מסמך עסקה ללא אישור תשלום' },
   { type: 'חשבונית מס זיכוי', description: 'זיכוי על חשבונית' },
-  { type: 'טיוטה', description: 'מסמך לעריכה ובדיקה לפני הפקה סופית' },
 ];
 
 export const BUSINESS_TYPE_OPTIONS = [
