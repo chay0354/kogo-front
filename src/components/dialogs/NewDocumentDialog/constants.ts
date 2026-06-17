@@ -5,6 +5,7 @@ export const ALL_WIZARD_STEPS: StepDefinition[] = [
   { id: 'businessClientDetails', label: 'פרטי לקוח' },
   { id: 'selectCustomer', label: 'בחירת לקוח' },
   { id: 'docType', label: 'סוג מסמך' },
+  { id: 'selectBranch', label: 'בחירת סניף' },
   { id: 'documentDetails', label: 'פרטי מסמך' },
   { id: 'summary', label: 'סיכום' },
 ];

@@ -11,7 +11,7 @@ import type {
 export function generateDocumentNumber(): string {
   const year = new Date().getFullYear();
   const seq = String(Math.floor(Math.random() * 9000) + 1000);
-  return `INV-${year}-${seq}`;
+  return `${year}-${seq}`;
 }
 
 export function getDocumentDetailsLabel(docType: string | null): string {
@@ -62,6 +62,7 @@ export function canAdvanceFromStep(
   receiptDetails?: ReceiptDetailsData | null
 ): boolean {
   if (stepId === 'clientType') return clientType !== null;
+  if (stepId === 'selectBranch') return true;
   if (stepId === 'selectCustomer') return selectedCustomerId !== null;
   if (stepId === 'businessClientDetails') {
     return (

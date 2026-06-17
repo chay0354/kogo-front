@@ -109,6 +109,7 @@ export function useNewDocumentWizard(onClose: () => void) {
   const [businessFormData, setBusinessFormData] =
     useState<BusinessCustomerFormData>(EMPTY_BUSINESS_FORM);
   const [docType, setDocType] = useState<string | null>(null);
+  const [selectedBranchId, setSelectedBranchId] = useState<string | null>(null);
   const [invoiceDetails, setInvoiceDetails] = useState<InvoiceDetailsData>(
     createInitialInvoiceDetails
   );
@@ -129,6 +130,7 @@ export function useNewDocumentWizard(onClose: () => void) {
     setBusinessCustomerId(null);
     setBusinessFormData(EMPTY_BUSINESS_FORM);
     setDocType(null);
+    setSelectedBranchId(null);
     setInvoiceDetails(createInitialInvoiceDetails());
     setReceiptDetails(createInitialReceiptDetails());
     setCreditInvoiceDetails(createInitialCreditInvoiceDetails());
@@ -189,6 +191,7 @@ export function useNewDocumentWizard(onClose: () => void) {
     businessCustomerId,
     businessFormData,
     docType,
+    selectedBranchId,
     invoiceDetails,
     receiptDetails,
     creditInvoiceDetails,
@@ -197,6 +200,7 @@ export function useNewDocumentWizard(onClose: () => void) {
     setBusinessCustomerId,
     setBusinessFormData,
     setDocType,
+    setSelectedBranchId,
     setInvoiceDetails,
     setReceiptDetails,
     setCreditInvoiceDetails,

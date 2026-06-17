@@ -21,7 +21,7 @@ import {
   X,
 } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
-import api, { createBusinessCustomer, searchBusinessCustomers } from '@/lib/api';
+import api, { createBusinessCustomer, fetchBranchesList, searchBusinessCustomers } from '@/lib/api';
 import { createDocument, fetchDocuments } from '@/lib/documentsApi';
 import type { CreateDocumentPayload } from '@/types/document';
 import { Select } from '@/components/ui/select';
@@ -80,6 +80,7 @@ export default function NewDocumentDialog({ open, onClose }: NewDocumentDialogPr
     businessCustomerId,
     businessFormData,
     docType,
+    selectedBranchId,
     invoiceDetails,
     receiptDetails,
     creditInvoiceDetails,
@@ -88,6 +89,7 @@ export default function NewDocumentDialog({ open, onClose }: NewDocumentDialogPr
     setBusinessCustomerId,
     setBusinessFormData,
     setDocType,
+    setSelectedBranchId,
     setInvoiceDetails,
     setReceiptDetails,
     setCreditInvoiceDetails,
@@ -106,6 +108,13 @@ export default function NewDocumentDialog({ open, onClose }: NewDocumentDialogPr
     queryFn: () => api.get('/customers/children/').then((r) => r.data?.results ?? r.data),
     staleTime: 5 * 60 * 1000,
     enabled: open && clientType === 'existing',
+  });
+
+  const { data: branchesData } = useQuery({
+    queryKey: ['branches-list'],
+    queryFn: fetchBranchesList,
+    staleTime: 10 * 60 * 1000,
+    enabled: open,
   });
 
   const customers: ChildWithDetails[] = useMemo(
@@ -201,6 +210,7 @@ export default function NewDocumentDialog({ open, onClose }: NewDocumentDialogPr
       client_type: clientType ?? 'existing',
       child_id: clientType === 'existing' ? selectedCustomerId : null,
       business_customer_id: clientType === 'business' ? businessCustomerId : null,
+      branch_id: selectedBranchId,
     };
 
     if (mappedType === 'receipt') {
@@ -381,6 +391,13 @@ export default function NewDocumentDialog({ open, onClose }: NewDocumentDialogPr
           )}
           {currentStep === 'docType' && (
             <DocTypeStep docType={docType} clientType={clientType} onSelect={setDocType} />
+          )}
+          {currentStep === 'selectBranch' && (
+            <SelectBranchStep
+              branches={Array.isArray(branchesData) ? branchesData : []}
+              selectedBranchId={selectedBranchId}
+              onSelect={setSelectedBranchId}
+            />
           )}
           {currentStep === 'documentDetails' &&
             (docType === 'חשבונית מס' || docType === 'חשבונית מס/קבלה') && (
@@ -911,6 +928,34 @@ function DocTypeStep({ docType, clientType: _clientType, onSelect }: DocTypeStep
             selected={docType === option.type}
             iconDanger={DOCUMENT_TYPE_DANGER.has(option.type)}
             onSelect={() => onSelect(option.type)}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* ─── SelectBranchStep ───────────────────────────────────────────── */
+
+interface SelectBranchStepProps {
+  branches: { id: string; name: string }[];
+  selectedBranchId: string | null;
+  onSelect: (id: string | null) => void;
+}
+
+function SelectBranchStep({ branches, selectedBranchId, onSelect }: SelectBranchStepProps) {
+  return (
+    <div>
+      <p className={styles.stepSubtitle}>בחר את הסניף המשויך למסמך (אפשרי לדלג)</p>
+      <div className={styles.cardGrid} role="radiogroup" aria-label="בחירת סניף">
+        {branches.map((branch) => (
+          <SelectableCard
+            key={branch.id}
+            icon={Building2}
+            title={branch.name}
+            description=""
+            selected={selectedBranchId === branch.id}
+            onSelect={() => onSelect(selectedBranchId === branch.id ? null : branch.id)}
           />
         ))}
       </div>
@@ -2270,8 +2315,8 @@ function SummaryStep({
       {/* Card 1 — פרטי מנפיק */}
       <div className={`${styles.summaryCard} ${styles.summaryCardMuted}`}>
         <p className={styles.summaryCardTitle}>פרטי מנפיק</p>
-        <p className={styles.issuerLine}>קוגומלו בע&quot;מ | ח.פ 515123456</p>
-        <p className={styles.issuerLine}>רחוב הברזל 30, תל אביב | עוסק מורשה</p>
+        <p className={styles.issuerLine}>קוגומלו גרופ בע&quot;מ | ח.פ 516504412</p>
+        <p className={styles.issuerLine}>רפאל איתן 5, פתח תקווה | חברה בע&quot;מ</p>
       </div>
 
       {/* Card 2 — סיכום מסמך */}

@@ -5,6 +5,7 @@ export type WizardStepId =
   | 'businessClientDetails'
   | 'selectCustomer'
   | 'docType'
+  | 'selectBranch'
   | 'documentDetails'
   | 'summary';
 

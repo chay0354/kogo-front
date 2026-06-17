@@ -147,6 +147,7 @@ export interface CreateDocumentPayload {
   client_type: DocumentClientType;
   child_id?: string | null;
   business_customer_id?: string | null;
+  branch_id?: string | null;
   document_date?: string;
   invoice_details?: InvoiceDetailsInput;
   receipt_details?: ReceiptDetailsInput;
