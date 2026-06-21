@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useEffect, useState, Fragment } from 'react';
+import React, { useEffect, useRef, useState, Fragment } from 'react';
+import ReactDOM from 'react-dom';
 import { ChevronDown, ChevronUp } from 'lucide-react';
 import api from '@/lib/api';
 import { getDayName, formatTimeRange } from '@/lib/courseUtils';
@@ -10,26 +11,102 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import type { City, Branch, Course } from './types';
 import styles from './page.module.css';
 
+type PanelPos = { top: number; left: number; width: number };
+
 function FilterSelect({ value, onChange, disabled, loading, placeholder, selectedLabel, children, active }: { value: string; onChange: (v: string) => void; disabled?: boolean; loading?: boolean; placeholder: string; selectedLabel?: string; children: React.ReactNode; active?: boolean }) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [panelPos, setPanelPos] = useState<PanelPos | null>(null);
+  const wrapperRef = useRef<HTMLDivElement>(null);
+
+  const options = React.Children.toArray(children)
+    .filter(React.isValidElement)
+    .map((child) => {
+      const el = child as React.ReactElement<{ value: string | number; children: React.ReactNode }>;
+      return { value: String(el.props.value), label: String(el.props.children) };
+    });
+
+  const openPanel = () => {
+    if (disabled || loading || typeof window === 'undefined' || window.innerWidth >= 768) return;
+    const rect = wrapperRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    setPanelPos({ top: rect.bottom + 6, left: rect.left, width: rect.width });
+    setIsOpen(true);
+  };
+
+  const closePanel = () => setIsOpen(false);
+
+  const handleSelect = (optValue: string) => {
+    onChange(optValue);
+    setIsOpen(false);
+  };
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const onResize = () => { if (window.innerWidth >= 768) setIsOpen(false); };
+    const onScroll = () => setIsOpen(false);
+    window.addEventListener('resize', onResize);
+    window.addEventListener('scroll', onScroll, true);
+    return () => {
+      window.removeEventListener('resize', onResize);
+      window.removeEventListener('scroll', onScroll, true);
+    };
+  }, [isOpen]);
+
+  const chevronIcon = loading ? (
+    <svg className={styles.filterSpinner} width="16" height="16" viewBox="0 0 24 24" fill="none">
+      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
+    </svg>
+  ) : isOpen ? (
+    <ChevronUp size={16} className={styles.filterChevron} />
+  ) : (
+    <ChevronDown size={16} className={styles.filterChevron} />
+  );
+
+  const panel = isOpen && panelPos ? (
+    <>
+      <div className={styles.dropdownBackdrop} onClick={closePanel} />
+      <ul
+        role="listbox"
+        aria-label={placeholder}
+        className={styles.dropdownPanel}
+        style={{ '--dp-top': `${panelPos.top}px`, '--dp-left': `${panelPos.left}px`, '--dp-width': `${panelPos.width}px` } as React.CSSProperties}
+      >
+        {options.length === 0 ? (
+          <li className={styles.dropdownEmpty}>אין אפשרויות</li>
+        ) : options.map((opt) => (
+          <li
+            key={opt.value}
+            role="option"
+            aria-selected={opt.value === value}
+            className={`${styles.dropdownOption} ${opt.value === value ? styles.dropdownOptionSelected : ''}`}
+            onClick={() => handleSelect(opt.value)}
+          >
+            {opt.label}
+          </li>
+        ))}
+      </ul>
+    </>
+  ) : null;
+
   return (
-    <div className={`${styles.filterWrapper} ${active ? styles.filterWrapperActive : ''}`}>
-      {/* Invisible select covers entire wrapper so tapping the yellow box opens the picker on mobile */}
-      <select value={value} onChange={(e) => onChange(e.target.value)} disabled={disabled || loading} className={styles.filterSelect}>
-        <option value="">{placeholder}</option>
-        {children}
-      </select>
-      <span className={styles.filterDisplayText}>{value ? selectedLabel : placeholder}</span>
-      <div className={styles.filterIconBox}>
-        {loading ? (
-          <svg className={styles.filterSpinner} width="16" height="16" viewBox="0 0 24 24" fill="none">
-            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
-          </svg>
-        ) : (
-          <ChevronDown size={16} className={styles.filterChevron} />
-        )}
+    <>
+      <div
+        ref={wrapperRef}
+        className={`${styles.filterWrapper} ${active ? styles.filterWrapperActive : ''}`}
+        onClick={openPanel}
+        aria-haspopup="listbox"
+        aria-expanded={isOpen}
+      >
+        <select value={value} onChange={(e) => onChange(e.target.value)} disabled={disabled || loading} className={styles.filterSelect}>
+          <option value="">{placeholder}</option>
+          {children}
+        </select>
+        <span className={styles.filterDisplayText}>{value ? selectedLabel : placeholder}</span>
+        <div className={styles.filterIconBox}>{chevronIcon}</div>
       </div>
-    </div>
+      {typeof document !== 'undefined' && panel ? ReactDOM.createPortal(panel, document.body) : null}
+    </>
   );
 }
 
