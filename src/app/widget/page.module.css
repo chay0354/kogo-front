@@ -70,6 +70,17 @@
   color: #1a1a5e;
 }
 
+@media (max-width: 767px) {
+  .filterDisplayText {
+    height: 42px;
+  }
+
+  .filterIconBox {
+    height: 42px;
+    width: 42px;
+  }
+}
+
 /* Page layout */
 
 .page {
@@ -85,7 +96,7 @@
 
 .filterStrip {
   @apply flex flex-col items-stretch px-4 py-4;
-  gap: 12px;
+  gap: 14px;
   background-color: #2B3090;
   border-radius: var(--widget-radius);
 }
