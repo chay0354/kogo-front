@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react';
 import { Users, MoreHorizontal, Eye, Edit, UserPlus, Trash2, UserCheck } from 'lucide-react';
 import AppLayout from '@/components/AppLayout';
 import PageHeader from '@/components/PageHeader';
+import PageSearchBar from '@/components/PageSearchBar';
+import PageFilters from '@/components/PageFilters';
 import api, { fetchInstructorsDropdown } from '@/lib/api';
 import { useAuth } from '@/components/AuthProvider';
 import { filterBranchesForUser, unwrapApiList } from '@/lib/scopedFilters';
@@ -33,6 +35,10 @@ export default function CustomersPage() {
   const [branches, setBranches] = useState<Branch[]>([]);
   const [courses, setCourses] = useState<Course[]>([]);
   const [instructors, setInstructors] = useState<Instructor[]>([]);
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
+  const [primaryFilter, setPrimaryFilter] = useState('');
+  const [secondaryFilter, setSecondaryFilter] = useState('');
   
   // Active filters - default to all statuses so newly added children
   // (created with status='pending') are visible immediately.
@@ -353,6 +359,25 @@ export default function CustomersPage() {
           </div>
         </div>
       </div>
+
+      <PageSearchBar
+        search=""
+        onSearchChange={() => {}}
+        dateFrom={dateFrom}
+        dateTo={dateTo}
+        onDateFromChange={setDateFrom}
+        onDateToChange={setDateTo}
+        searchPlaceholder="חיפוש לפי תאריך..."
+      />
+      <PageFilters
+        primaryLabel="עסק / סניף"
+        primaryValue={primaryFilter}
+        primaryOptions={branches.map((b) => ({ value: b.id, label: b.name }))}
+        onPrimaryChange={setPrimaryFilter}
+        secondaryValue={secondaryFilter}
+        secondaryOptions={[]}
+        onSecondaryChange={setSecondaryFilter}
+      />
 
       {/* Children Table */}
       <div className="mb-6 animate-slide-up">

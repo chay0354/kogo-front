@@ -4,8 +4,10 @@ import { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { FileText, Search, DollarSign, Clock, TrendingUp, Wallet, AlertCircle, Plus, Bell } from 'lucide-react';
 import AppLayout from '@/components/AppLayout';
+import PageFilters from '@/components/PageFilters';
 import NewDocumentDialog from '@/components/dialogs/NewDocumentDialog';
 import { fetchInvoices } from '@/lib/storeApi';
+import { sendDocumentReminder } from '@/lib/documentsApi';
 import api from '@/lib/api';
 import { useAuth } from '@/components/AuthProvider';
 import { filterBranchesForUser, unwrapApiList } from '@/lib/scopedFilters';
@@ -35,6 +37,9 @@ export default function InvoicesPage() {
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<ActiveTab>('מסמכים');
   const [isNewDocOpen, setIsNewDocOpen] = useState(false);
+  const [reminderStatus, setReminderStatus] = useState<Record<string, 'sending' | 'sent' | 'error'>>({});
+  const [primaryFilter, setPrimaryFilter] = useState('');
+  const [secondaryFilter, setSecondaryFilter] = useState('');
 
   // Documents tab state
   const [invoices, setInvoices] = useState<StoreInvoice[]>([]);
@@ -213,6 +218,16 @@ export default function InvoicesPage() {
             </button>
           </div>
         </div>
+
+        <PageFilters
+          primaryLabel="עסק / סניף"
+          primaryValue={primaryFilter}
+          primaryOptions={branches.map((b) => ({ value: b.id, label: b.name }))}
+          onPrimaryChange={setPrimaryFilter}
+          secondaryValue={secondaryFilter}
+          secondaryOptions={[]}
+          onSecondaryChange={setSecondaryFilter}
+        />
 
         {activeTab === 'מסמכים' && (
           <>
@@ -548,18 +563,20 @@ export default function InvoicesPage() {
                             <div className={styles.collectionActions}>
                               <button
                                 type="button"
-                                className={styles.recordPaymentBtn}
-                                aria-label={`רשום תשלום עבור ${inv.invoice_number}`}
-                                onClick={() => {}}
-                              >
-                                <Plus size={14} />
-                                תשלום
-                              </button>
-                              <button
-                                type="button"
-                                className={styles.reminderBtn}
+                                className={`${styles.reminderBtn} ${reminderStatus[inv.id] === 'sent' ? styles.reminderBtnSent : reminderStatus[inv.id] === 'error' ? styles.reminderBtnError : ''}`}
                                 aria-label={`שלח תזכורת תשלום ל${customerDisplay}`}
-                                onClick={() => {}}
+                                disabled={reminderStatus[inv.id] === 'sending'}
+                                onClick={async () => {
+                                  setReminderStatus((prev) => ({ ...prev, [inv.id]: 'sending' }));
+                                  try {
+                                    await sendDocumentReminder(inv.id);
+                                    setReminderStatus((prev) => ({ ...prev, [inv.id]: 'sent' }));
+                                    setTimeout(() => setReminderStatus((prev) => { const next = { ...prev }; delete next[inv.id]; return next; }), 3000);
+                                  } catch {
+                                    setReminderStatus((prev) => ({ ...prev, [inv.id]: 'error' }));
+                                    setTimeout(() => setReminderStatus((prev) => { const next = { ...prev }; delete next[inv.id]; return next; }), 3000);
+                                  }
+                                }}
                               >
                                 <Bell size={16} />
                               </button>

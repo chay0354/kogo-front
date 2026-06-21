@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import AppLayout from '@/components/AppLayout';
 import PageHeader from '@/components/PageHeader';
+import PageSearchBar from '@/components/PageSearchBar';
+import PageFilters from '@/components/PageFilters';
 import AddBranchDialog from '@/components/dialogs/AddBranchDialog';
 import api from '@/lib/api';
 import { BranchListItem } from '@/types/branch';
@@ -16,6 +18,11 @@ export default function BranchesPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showAddDialog, setShowAddDialog] = useState(false);
+  const [pageSearch, setPageSearch] = useState('');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
+  const [primaryFilter, setPrimaryFilter] = useState('');
+  const [secondaryFilter, setSecondaryFilter] = useState('');
 
   useEffect(() => {
     fetchBranches();
@@ -61,17 +68,34 @@ export default function BranchesPage() {
 
   return (
     <AppLayout>
-      <PageHeader 
-        title="ניהול סניפים" 
+      <PageHeader
+        title="ניהול סניפים"
         description="ניהול סניפים, צוות ומשאבים"
         actions={
-          <button 
+          <button
             className="btn-primary"
             onClick={() => setShowAddDialog(true)}
           >
             + הוספת סניף
           </button>
         }
+      />
+      <PageSearchBar
+        search={pageSearch}
+        onSearchChange={setPageSearch}
+        dateFrom={dateFrom}
+        dateTo={dateTo}
+        onDateFromChange={setDateFrom}
+        onDateToChange={setDateTo}
+        searchPlaceholder="חיפוש סניף..."
+      />
+      <PageFilters
+        primaryValue={primaryFilter}
+        primaryOptions={branches.map((b) => ({ value: b.id, label: b.name }))}
+        onPrimaryChange={setPrimaryFilter}
+        secondaryValue={secondaryFilter}
+        secondaryOptions={[]}
+        onSecondaryChange={setSecondaryFilter}
       />
 
       {error && (

@@ -597,6 +597,14 @@
   outline: none;
 }
 
+.reminderBtnSent {
+  color: #16a34a !important;
+}
+
+.reminderBtnError {
+  color: #ef4444 !important;
+}
+
 /* Mobile */
 @media (max-width: 767px) {
   .filterBar {
