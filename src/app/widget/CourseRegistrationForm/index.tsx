@@ -157,8 +157,12 @@ export default function CourseRegistrationForm({ courseId, courseName, onBack, o
       <form onSubmit={handleDetailsSubmit} className={styles.form} dir="rtl">
         {header}
 
-        <fieldset className={styles.fieldset}>
-          <legend className={styles.legend}>פרטי הורה</legend>
+        <div className={styles.section}>
+          <div className={styles.sectionTitle}>
+            <span className={styles.sectionTitleLine} />
+            <span className={styles.sectionTitleText}>פרטי הורה</span>
+            <span className={styles.sectionTitleLine} />
+          </div>
           <div className={styles.grid2}>
             <div>
               <label className={styles.label}>שם פרטי</label>
@@ -181,10 +185,14 @@ export default function CourseRegistrationForm({ courseId, courseName, onBack, o
                 onChange={(e) => setParentPhone(e.target.value)} className={styles.input} />
             </div>
           </div>
-        </fieldset>
+        </div>
 
-        <fieldset className={styles.fieldset}>
-          <legend className={styles.legend}>פרטי הילד</legend>
+        <div className={styles.section}>
+          <div className={styles.sectionTitle}>
+            <span className={styles.sectionTitleLine} />
+            <span className={styles.sectionTitleText}>פרטי הילד</span>
+            <span className={styles.sectionTitleLine} />
+          </div>
           <div className={styles.grid2}>
             <div>
               <label className={styles.label}>שם פרטי *</label>
@@ -206,21 +214,21 @@ export default function CourseRegistrationForm({ courseId, courseName, onBack, o
               <input required type="date" value={childBirthDate}
                 onChange={(e) => setChildBirthDate(e.target.value)} className={styles.input} />
             </div>
-            <div className="col-span-2">
+            <div style={{ gridColumn: '1 / -1' }}>
               <label className={styles.label}>מין *</label>
               <div className={styles.genderOptions}>
                 {(['male', 'female'] as const).map((g) => (
                   <label key={g} className={styles.radioLabel}>
                     <input type="radio" name="gender" value={g}
                       checked={childGender === g} onChange={() => setChildGender(g)}
-                      className="accent-teal-600" required />
+                      style={{ accentColor: '#2B3090' }} required />
                     {g === 'male' ? 'זכר' : 'נקבה'}
                   </label>
                 ))}
               </div>
             </div>
           </div>
-        </fieldset>
+        </div>
 
         {errorMsg && <p className={styles.errorText}>{errorMsg}</p>}
 
@@ -314,7 +322,7 @@ export default function CourseRegistrationForm({ courseId, courseName, onBack, o
         </div>
 
         <div className={styles.cardFields}>
-          <p className={styles.sectionTitle}>פרטי כרטיס אשראי</p>
+          <p className={styles.cardSectionTitle}>פרטי כרטיס אשראי</p>
           <div>
             <label className={styles.label}>מספר כרטיס</label>
             <input
