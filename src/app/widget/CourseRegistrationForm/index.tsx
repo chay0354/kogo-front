@@ -40,6 +40,8 @@ export default function CourseRegistrationForm({ courseId, courseName, onBack, o
   const [cvv, setCvv] = useState('');
   const [cardHolderId, setCardHolderId] = useState('');
   const [charging, setCharging] = useState(false);
+  const [lookingUp, setLookingUp] = useState(false);
+  const [showTerms, setShowTerms] = useState(false);
 
   const handleCardCharge = async () => {
     if (!paymentData || !cardNumber || !expiryMonth || !expiryYear || !cvv) return;
@@ -75,6 +77,7 @@ export default function CourseRegistrationForm({ courseId, courseName, onBack, o
   const handleDetailsSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg('');
+    setLookingUp(true);
     try {
       const res = await api.post('/customers/widget/lookup/', {
         parent_id_number: parentIdNumber,
@@ -90,6 +93,8 @@ export default function CourseRegistrationForm({ courseId, courseName, onBack, o
       }
     } catch {
       setStep('consents'); // proceed even if lookup fails
+    } finally {
+      setLookingUp(false);
     }
   };
 
@@ -104,7 +109,7 @@ export default function CourseRegistrationForm({ courseId, courseName, onBack, o
     setErrorMsg('');
 
     const discountConfirmed = (lookup as (LookupResult & { _confirmed?: boolean }) | null)?._confirmed ?? false;
-    const existingChildId   = discountConfirmed ? (lookup?.child_id ?? '') : '';
+    const existingChildId = discountConfirmed ? (lookup?.child_id ?? '') : '';
 
     try {
       const res = await api.post('/customers/widget/register/', {
@@ -232,8 +237,8 @@ export default function CourseRegistrationForm({ courseId, courseName, onBack, o
 
         {errorMsg && <p className={styles.errorText}>{errorMsg}</p>}
 
-        <button type="submit" className={styles.submitButton}>
-          המשך
+        <button type="submit" className={styles.submitButton} disabled={lookingUp}>
+          {lookingUp ? <span className={styles.spinner} /> : 'המשך'}
         </button>
       </form>
     );
@@ -287,7 +292,53 @@ export default function CourseRegistrationForm({ courseId, courseName, onBack, o
             onChange={(e) => setRulesConsent(e.target.checked)}
             className={styles.checkbox} required />
           מסכים עם התקנון
+          <button type="button" className={styles.termsLink} onClick={() => setShowTerms(true)}>
+            תקנון
+          </button>
         </label>
+
+        {showTerms && (
+          <div className={styles.termsOverlay} onClick={() => setShowTerms(false)}>
+            <div className={styles.termsModal} onClick={(e) => e.stopPropagation()}>
+              <div className={styles.termsHeader}>
+                <span className={styles.termsModalTitle}>תקנון</span>
+                <button type="button" className={styles.termsClose} onClick={() => setShowTerms(false)}>✕</button>
+              </div>
+              <div className={styles.termsBody}>
+                <p><strong>1. מחיר שנתי:</strong> המחיר הינו מחיר שנתי המתורגם לעלות חודשית.</p>
+                <p><strong>2. התניית פעילות:</strong> התחלת הפעילות מותנית בתשלום מלא, באמצעות הוראת קבע בכרטיס אשראי / צ&apos;יקים לכל חודשי הפעילות (מקסימום של 11 חודשים – מספטמבר עד יולי – התחייבות על 4 אימונים בחודש).</p>
+                <p><strong>3. דמי רישום:</strong> כל נרשם יחויב בעת הרישום בדמי רישום שנתיים בסך 120 שקלים עבור ניהול, תחזוקה וביטוח אחריות מקצועית. (בשום מקרה של ביטול לא יהיה החזר של דמי רישום).</p>
+                <p><strong>4. חופשות וזיכויים:</strong> בחישוב המחירון שוקללו ימי החופשות השנתיים כמופיע בלוח החופשות, לכן בימים אלה לא יתקיימו חוגים, לא יינתן זיכוי בגינם ולא תהיה בגינם השלמת שיעורים.</p>
+                <p><strong>5. שיבוץ והשלמות:</strong> כל תלמיד נרשם לקבוצה אחת אורגנית. במקרה של אי הגעה לשיעור מסיבות אישיות לא יהיה ניתן להשלים.</p>
+
+                <p><strong>נהלי ביטול השתתפות</strong></p>
+                <p><strong>1. אופן הביטול:</strong> על מנת לבטל השתתפות בפעילות במהלך שנת הלימודים יש למלא טופס ביטול (ניתן לקבל לינק בווטסאפ 0509474755 מהמזכירות או באתר סטודיו קוגומלו). לא יתקבל ביטול בשום צורה אחרת.</p>
+                <p><strong>2. מועד תחולת הביטול:</strong> הביטול יחול החל מהחודש העוקב לבקשת הביטול, כלומר המשתתף יחויב עבור החודש שבו הוא הודיע על ביטול השתתפותו בטופס. ניתן לשלוח בקשת ביטול עד 5 ימים לפני סוף החודש.</p>
+                <p><strong>3. ערוצי הודעה:</strong> לא תתקבל הודעת ביטול באמצעות המדריך או בכל דרך אחרת מאשר בסעיף הראשון.</p>
+                <p><strong>4. נרשמים מתחילת השנה ועד 1.1:</strong> יוכלו לבטל את המנוי עד תאריך ה-1.3, לא יתקבלו ביטולים לאחר תאריך זה.</p>
+                <p><strong>5. נרשמים מתאריך 1.1 ואילך:</strong> יוכלו לבטל עד ה-1.4, לא יתקבלו ביטולים לאחר תאריך זה.</p>
+                <p><strong>6. ביטול רטרואקטיבי:</strong> לא יתקבל ביטול רטרואקטיבית והחזר כספי בגינו.</p>
+                <p><strong>7. הקפאת חוגים:</strong> לא ניתן להקפיא חוגים.</p>
+                <p><strong>8. ניצול מנוי:</strong> אין החזר כספי על תקופת מנוי שלא נוצלה.</p>
+                <p><strong>9. כוח עליון / איסור פעילות:</strong> במידה ויחול איסור קיום פעילות מפיקוד העורף/משרד הבריאות (מגפה, מלחמה וכד&apos;) לא יינתן החזר כספי אם התקופה היא פחות מחודש, אלא שיעורי השלמה.</p>
+                <p><strong>10. פציעה רפואית:</strong> במידה ומשתתף נפצע פציעה שאינה מאפשרת השתתפות בשיעורים בהנחיית רופא, יש לשלוח ווטסאפ למשרד הראשי 050-9424755 עם אישור רפואי מתאים המעיד על הנחיית הרופא. במקרה זה המנוי יוקפא עד שהמשתתף יחזור להתאמן, והמשתתף יוכל להשתמש בזיכוי של זמן ההקפאה עבור רישום לשנת האימונים הבאה.</p>
+
+                <p><strong>לימודים וחופשות</strong></p>
+                <p><strong>1. תקופת הפעילות:</strong> החוגים יתקיימו במהלך השנה החל מה-1.9 עד ה-28.7, למעט שבתות, ערבי חג וחגים כמפורט בלוח החופשות השנתי.</p>
+                <p><strong>2. היעדרות מדריך:</strong> במקרים בהם המדריך לא יגיע מכל סיבה שהיא, השיעורים יועברו ע&quot;י מדריך מחליף או ידחו למועד אחר.</p>
+                <p><strong>3. עלויות נוספות:</strong> במהלך השנה מתקיימים אירועים אשר כרוכים בתשלום נוסף שאינו כלול במחיר המנוי השנתי. (למשל: שיעור חגורות גיל רך + א-ב: 60 שקלים; טקס חגורות מכיתה ג&apos; ומעלה: 100 שקל; מופע סיום שנה של תחום המחול: 120 שקל + שני כרטיסים מתנה, וכו&apos;).</p>
+                <p><strong>4. משמעת:</strong> הנהלת הסטודיו רשאית להרחיק מפעילות לקוח שיפר את כללי ההתנהגות ויתנהג שלא כמקובל.</p>
+                <p><strong>5. שינוי צוות:</strong> הנהלת הסטודיו רשאית להחליף מדריך מכל סיבה שהיא במהלך שנת הפעילות לפי שיקול דעתה במידת הצורך.</p>
+                <p><strong>6. ציוד אישי:</strong> הנהלה אינה אחראית על אובדן או גניבת ציוד אישי בשטח הסטודיו. על כל מתאמן/ת לשמור ולקחת אחריות על חפציו האישיים.</p>
+                <p><strong>7. אישור פרסום:</strong> הנני מאשר להנהלת הסטודיו להשתמש בתמונות בהן מופיע/ה בני/בתי לצורכי פרסום ולכל אמצעי המדיה השונים.</p>
+                <p><strong>8. תחולת התקנון:</strong> מדיניות התקנון חלה על כל לקוח בכל תקופת פעילותו במסגרת הסטודיו גם כלקוח חוזר.</p>
+                <div className={styles.centerChild} >
+                  <div className={styles.termsBadge}>לא ניתן לבטל את המנוי מחודש אפריל</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {errorMsg && <p className={styles.errorText}>{errorMsg}</p>}
 
