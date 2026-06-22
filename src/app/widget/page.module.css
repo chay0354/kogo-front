@@ -36,7 +36,15 @@
 }
 
 .filterWrapperActive {
-  @apply border-red-500;
+  border: 2px solid #1e9eff;
+}
+
+.filterWrapperActive .filterDisplayText {
+  background-color: #ffffff;
+}
+
+.filterWrapperActive .filterIconBox {
+  background-color: #F5C518;
 }
 
 .filterSelect {

@@ -113,7 +113,7 @@ function FilterSelect({ value, onChange, disabled, loading, placeholder, selecte
 export default function WidgetPage() {
   const [cities, setCities] = useState<City[]>([]);
   const [allBranches, setAllBranches] = useState<Branch[]>([]);
-  const [branchCourses, setBranchCourses] = useState<Course[]>([]);
+  const [allCoursesMap, setAllCoursesMap] = useState<Record<string, Course[]>>({});
 
   const [selectedCity, setSelectedCity] = useState('');
   const [selectedBranch, setSelectedBranch] = useState('');
@@ -121,12 +121,13 @@ export default function WidgetPage() {
   const [selectedAge, setSelectedAge] = useState('');
 
   const [loadingBranches, setLoadingBranches] = useState(true);
-  const [loadingCourses, setLoadingCourses] = useState(false);
   const [detailCourse, setDetailCourse] = useState<Course | null>(null);
   const [drawerCourse, setDrawerCourse] = useState<Course | null>(null);
 
   const toggleDetail = (course: Course) =>
     setDetailCourse((prev) => (prev?.id === course.id ? null : course));
+
+  const branchCourses = selectedBranch ? (allCoursesMap[selectedBranch] ?? []) : [];
 
   const filteredBranches = selectedCity ? allBranches.filter((b) => b.city === selectedCity) : [];
 
@@ -159,9 +160,20 @@ export default function WidgetPage() {
     Promise.all([api.get('/customers/widget/cities/'), api.get('/customers/widget/branches/')])
       .then(([citiesRes, branchesRes]) => {
         const citiesData = Array.isArray(citiesRes.data) ? citiesRes.data : citiesRes.data.results ?? [];
-        const branchesData = Array.isArray(branchesRes.data) ? branchesRes.data : branchesRes.data.results ?? [];
+        const branchesData: Branch[] = Array.isArray(branchesRes.data) ? branchesRes.data : branchesRes.data.results ?? [];
         setCities(citiesData);
         setAllBranches(branchesData);
+        return Promise.all(
+          branchesData.map((b) =>
+            api.get(`/customers/widget/courses/?branch_id=${b.id}`)
+              .then((res) => ({ branchId: b.id, courses: Array.isArray(res.data) ? res.data : (res.data.results ?? []) as Course[] }))
+          )
+        );
+      })
+      .then((results) => {
+        const map: Record<string, Course[]> = {};
+        for (const { branchId, courses } of results) map[branchId] = courses;
+        setAllCoursesMap(map);
       })
       .finally(() => setLoadingBranches(false));
   }, []);
@@ -174,13 +186,6 @@ export default function WidgetPage() {
     }
   }, [selectedCity, allBranches]);
 
-  useEffect(() => {
-    if (!selectedBranch) { setBranchCourses([]); return; }
-    setLoadingCourses(true);
-    api.get(`/customers/widget/courses/?branch_id=${selectedBranch}`)
-      .then((res) => { const data = Array.isArray(res.data) ? res.data : res.data.results ?? []; setBranchCourses(data); })
-      .finally(() => setLoadingCourses(false));
-  }, [selectedBranch]);
 
   useEffect(() => {
     const expanded = !!(detailCourse || drawerCourse);
@@ -190,7 +195,7 @@ export default function WidgetPage() {
     );
   }, [detailCourse, drawerCourse]);
 
-  const handleCityChange = (cityId: string) => { setSelectedCity(cityId); setSelectedBranch(''); setBranchCourses([]); setSelectedCourseType(''); setSelectedAge(''); };
+  const handleCityChange = (cityId: string) => { setSelectedCity(cityId); setSelectedBranch(''); setSelectedCourseType(''); setSelectedAge(''); };
   const handleBranchChange = (branchId: string) => { setSelectedBranch(branchId); setSelectedCourseType(''); setSelectedAge(''); };
   const handleCourseTypeChange = (typeId: string) => { setSelectedCourseType(typeId); setSelectedAge(''); };
 
@@ -198,6 +203,12 @@ export default function WidgetPage() {
   const ageLabel = (age: number) => `${age} שנים`;
   const filledDropdowns = [selectedCity, selectedBranch, selectedCourseType, selectedAge].filter(Boolean).length;
   const showTable = filledDropdowns >= 3;
+
+  const activeField = !selectedCity ? 'city'
+    : !selectedBranch ? 'branch'
+    : !selectedCourseType ? 'courseType'
+    : !selectedAge ? 'age'
+    : null;
 
   return (
     <div dir="rtl" className={styles.page}>
@@ -210,19 +221,19 @@ export default function WidgetPage() {
           <span className={styles.filterStripLine} />
         </div>
           
-        <FilterSelect value={selectedCity} onChange={handleCityChange} loading={loadingBranches} placeholder="בחרו עיר" selectedLabel={cities.find((c) => c.id === selectedCity)?.name}>
+        <FilterSelect value={selectedCity} onChange={handleCityChange} loading={loadingBranches} placeholder="בחרו עיר" selectedLabel={cities.find((c) => c.id === selectedCity)?.name} active={activeField === 'city'}>
           {cities.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
         </FilterSelect>
 
-        <FilterSelect value={selectedBranch} onChange={handleBranchChange} disabled={!selectedCity} loading={loadingBranches} placeholder="בחרו סניף" selectedLabel={filteredBranches.find((b) => b.id === selectedBranch)?.name}>
+        <FilterSelect value={selectedBranch} onChange={handleBranchChange} disabled={!selectedCity} loading={loadingBranches} placeholder="בחרו סניף" selectedLabel={filteredBranches.find((b) => b.id === selectedBranch)?.name} active={activeField === 'branch'}>
           {filteredBranches.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
         </FilterSelect>
 
-        <FilterSelect value={selectedCourseType} onChange={handleCourseTypeChange} disabled={!selectedBranch} loading={loadingCourses} placeholder="בחרו חוג" selectedLabel={courseTypes.find((t) => t.id === selectedCourseType)?.name}>
+        <FilterSelect value={selectedCourseType} onChange={handleCourseTypeChange} disabled={!selectedBranch} placeholder="בחרו חוג" selectedLabel={courseTypes.find((t) => t.id === selectedCourseType)?.name} active={activeField === 'courseType'}>
           {courseTypes.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
         </FilterSelect>
 
-        <FilterSelect value={selectedAge} onChange={setSelectedAge} disabled={!selectedCourseType} loading={Boolean(selectedCourseType && loadingCourses)} placeholder="בחרו גיל" selectedLabel={selectedAge ? ageLabel(parseInt(selectedAge)) : undefined}>
+        <FilterSelect value={selectedAge} onChange={setSelectedAge} disabled={!selectedCourseType} placeholder="בחרו גיל" selectedLabel={selectedAge ? ageLabel(parseInt(selectedAge)) : undefined} active={activeField === 'age'}>
           {ageOptions.map((age) => <option key={age} value={age}>{ageLabel(age)}</option>)}
         </FilterSelect>
       </div>
@@ -230,9 +241,7 @@ export default function WidgetPage() {
       {/* Results table */}
       {showTable && (
         <div className={`card ${styles.cardCompact}`}>
-          {loadingCourses ? (
-            <p className={styles.emptyMessage}>טוען חוגים...</p>
-          ) : filteredCourses.length === 0 ? (
+          {filteredCourses.length === 0 ? (
             <p className={styles.emptyMessage}>לא נמצאו חוגים</p>
           ) : (
             <Table className={styles.tableCompact}>
