@@ -209,6 +209,98 @@
   @apply flex gap-3 justify-center;
 }
 
+/* Terms link & modal */
+.termsLink {
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: 14px;
+  color: #2B3090;
+  text-decoration: underline;
+  cursor: pointer;
+  margin-right: 4px;
+}
+.termsOverlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+.termsModal {
+  background: #fff;
+  border-radius: 16px;
+  width: 90%;
+  max-width: 480px;
+  max-height: 70vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.termsHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid #DDE0F5;
+  direction: rtl;
+}
+.termsModalTitle {
+  font-size: 16px;
+  font-weight: 700;
+  color: #2B3090;
+}
+.termsClose {
+  background: none;
+  border: none;
+  font-size: 16px;
+  color: #2B3090;
+  cursor: pointer;
+  line-height: 1;
+}
+.termsBadge {
+  display: inline-block;
+  background: #7BBFEA;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  padding: 10px 24px;
+  border-radius: 999px;
+  margin-top: 12px;
+  text-align: center;
+}
+.termsBody {
+  padding: 20px;
+  overflow-y: auto;
+  flex: 1;
+  direction: rtl;
+  font-size: 14px;
+  color: #333;
+  line-height: 1.7;
+}
+
+.centerChild{
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Spinner */
+.spinner {
+  display: inline-block;
+  width: 20px;
+  height: 20px;
+  border: 2px solid rgba(255, 255, 255, 0.4);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
 /* Misc */
 .errorText {
   @apply text-sm text-red-600;
