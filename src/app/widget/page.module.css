@@ -166,17 +166,6 @@
   }
 }
 
-/* Override card padding on mobile */
-
-.cardCompact {
-  padding: 10px;
-}
-
-@media (min-width: 768px) {
-  .cardCompact {
-    padding: 1.5rem;
-  }
-}
 
 /* Reduce table cell padding on mobile */
 

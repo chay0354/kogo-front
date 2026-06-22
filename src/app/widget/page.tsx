@@ -1,13 +1,12 @@
 'use client';
 
-import React, { useEffect, useRef, useState, Fragment } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import ReactDOM from 'react-dom';
 import { ChevronDown, ChevronUp } from 'lucide-react';
 import api from '@/lib/api';
-import { getDayName, formatTimeRange } from '@/lib/courseUtils';
 import CourseRegistrationForm from './CourseRegistrationForm';
 import CourseExpandedDetail from './CourseExpandedDetail/index';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { CourseList } from './CourseList/CourseList';
 import type { City, Branch, Course } from './types';
 import styles from './page.module.css';
 
@@ -199,8 +198,7 @@ export default function WidgetPage() {
   const handleBranchChange = (branchId: string) => { setSelectedBranch(branchId); setSelectedCourseType(''); setSelectedAge(''); };
   const handleCourseTypeChange = (typeId: string) => { setSelectedCourseType(typeId); setSelectedAge(''); };
 
-  const selectedBranchName = allBranches.find((b) => b.id === selectedBranch)?.name ?? '—';
-  const ageLabel = (age: number) => `${age} שנים`;
+const ageLabel = (age: number) => `${age} שנים`;
   const filledDropdowns = [selectedCity, selectedBranch, selectedCourseType, selectedAge].filter(Boolean).length;
   const showTable = filledDropdowns >= 3;
 
@@ -238,51 +236,15 @@ export default function WidgetPage() {
         </FilterSelect>
       </div>
 
-      {/* Results table */}
+      {/* Course list */}
       {showTable && (
-        <div className={`card ${styles.cardCompact}`}>
+        <>
           {filteredCourses.length === 0 ? (
             <p className={styles.emptyMessage}>לא נמצאו חוגים</p>
           ) : (
-            <Table className={styles.tableCompact}>
-              <TableHeader>
-                <TableRow className={styles.headerRow}>
-                  <TableHead className={styles.headerCell}>שם החוג</TableHead>
-                  <TableHead className={`${styles.headerCell} ${styles.colHideMobile}`}>תחום</TableHead>
-                  <TableHead className={`${styles.headerCell} ${styles.colHideMobile}`}>סניף</TableHead>
-                  <TableHead className={`${styles.headerCell} ${styles.colHideMobile}`}>טווח גילאים</TableHead>
-                  <TableHead className={`${styles.headerCell} ${styles.colHideMobile}`}>מחיר חודשי</TableHead>
-                  <TableHead className={`${styles.headerCell} ${styles.colHideMobile}`}>שיעורים שבועיים</TableHead>
-                  <TableHead className={styles.headerCell}>ימים ושעות</TableHead>
-                  <TableHead className={styles.headerCell}>פרטים</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredCourses.map((course) => {
-                  const isExpanded = detailCourse?.id === course.id;
-                  return (
-                    <Fragment key={course.id}>
-                      <TableRow onClick={() => toggleDetail(course)} className={styles.clickableRow}>
-                        <TableCell className={styles.nameCell}>{course.name}</TableCell>
-                        <TableCell className={styles.colHideMobile}>{course.course_type_name || '—'}</TableCell>
-                        <TableCell className={styles.colHideMobile}>{course.branch_name || selectedBranchName}</TableCell>
-                        <TableCell className={styles.colHideMobile}>{course.min_age != null && course.max_age != null ? `${course.min_age}–${course.max_age}` : course.min_age != null ? `${course.min_age}+` : '—'}</TableCell>
-                        <TableCell className={styles.colHideMobile}>{course.price != null ? `₪${course.price}` : '—'}</TableCell>
-                        <TableCell className={styles.colHideMobile}>{course.lessons_count}</TableCell>
-                        <TableCell>{course.lessons?.length ? course.lessons.map((l) => `${getDayName(l.day_of_week)} ${formatTimeRange(l.start_time, l.end_time)}`).join(', ') : '—'}</TableCell>
-                        <TableCell>
-                          <button onClick={(e) => { e.stopPropagation(); toggleDetail(course); }} className={styles.expandButton}>
-                            {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-                          </button>
-                        </TableCell>
-                      </TableRow>
-                    </Fragment>
-                  );
-                })}
-              </TableBody>
-            </Table>
+            <CourseList filteredCourses={filteredCourses} onSelect={toggleDetail} />
           )}
-        </div>
+        </>
       )}
 
       {/* Course detail overlay */}

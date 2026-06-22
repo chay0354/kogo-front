@@ -1,0 +1,113 @@
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.row {
+  display: flex;
+  align-items: stretch;
+  direction: rtl;
+  cursor: pointer;
+  border-radius: 10px;
+  transition: background-color 150ms, box-shadow 150ms;
+  outline: none;
+  background-color: #ffffff;
+  box-shadow: 1px 3px 3px rgba(0, 0, 0, 0.07);
+  padding: 0;
+}
+
+.row:hover {
+  background-color: #DDE0F5;
+}
+
+.row:focus-visible {
+  outline: 2px solid #1e9eff;
+  outline-offset: -2px;
+}
+
+/* Right zone — course name (60%) */
+
+.nameZone {
+  flex: 6;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 14px;
+  /* border-inline-end: 1px solid #e5e7eb; */
+}
+
+.divider{
+  width: 1px;
+  height: 34px;
+  background-color: #e5e7eb;
+  margin-top: auto;
+  margin-bottom: auto;
+}
+
+.bullet {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background-color: #F5C518;
+  flex-shrink: 0;
+}
+
+.courseName {
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: #2B3090;
+  text-align: right;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Left zone — day/time + button (40%) */
+
+.slotZone {
+  flex: 4;
+  display: flex;
+  align-items: center;
+  padding: 9px 12px 9px 10px;
+  gap: 10px;
+}
+
+.lessonSlot {
+  flex: 1;
+  text-align: center;
+}
+
+.lessonDay {
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: #2B3090;
+  display: block;
+}
+
+.lessonTime {
+  font-size: 0.75rem;
+  font-weight: 400;
+  color: #6b7280;
+  display: block;
+  margin-top: 2px;
+  direction: ltr;
+}
+
+.expandBtn {
+  width: 38px;
+  height: 38px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: #f0f1f3;
+  border-radius: 10px;
+  border: none;
+  cursor: pointer;
+  transition: background-color 150ms;
+}
+
+.expandBtn:hover {
+  background-color: #e5e7eb;
+}
