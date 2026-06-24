@@ -119,6 +119,7 @@ export default function FinancialSection({ globalDateRange }: Props) {
   const { data: trendsData, isLoading: trendsLoading } = useQuery({
     queryKey: ['dashboard-financial-trends', trendsApiFilters],
     queryFn: () => fetchFinancialData(trendsApiFilters),
+    enabled: !isLoading && !error,
   });
 
   const handleExport = () => {

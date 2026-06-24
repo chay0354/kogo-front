@@ -7,7 +7,6 @@ import PageHeader from '@/components/PageHeader';
 import { useAuth } from '@/components/AuthProvider';
 import { InstructorSalary, SalaryHistory } from '@/types/schedule';
 import { fetchCurrentSalary, fetchSalaryHistory, getHebrewMonth } from '@/lib/scheduleUtils';
-import api from '@/lib/api';
 
 type Instructor = {
   id: string;
@@ -48,16 +47,21 @@ export default function InstructorSalaryPage() {
     setError('');
 
     try {
-      // Load instructor details
-      const instructorRes = await api.get(`/instructors/${instructorId}/`);
-      setInstructor(instructorRes.data);
-
-      // Load current salary
       const now = new Date();
       const current = await fetchCurrentSalary(instructorId, now.getFullYear(), now.getMonth() + 1);
       setCurrentSalary(current);
 
-      // Load salary history
+      if (current.instructor_name) {
+        const [firstName, ...rest] = current.instructor_name.split(' ');
+        setInstructor({
+          id: instructorId,
+          first_name: firstName || '',
+          last_name: rest.join(' '),
+          email: '',
+          fixed_salary_per_lesson: current.payment_per_lesson,
+        });
+      }
+
       const history = await fetchSalaryHistory(instructorId);
       setSalaryHistory(history);
     } catch (err) {
