@@ -22,6 +22,7 @@ const api = axios.create({
     'Content-Type': 'application/json',
   },
   withCredentials: true,
+  timeout: 10000,
 });
 
 // Request interceptor: Bearer-style Token header when stored (cross-site); cookies still used withCredentials.
