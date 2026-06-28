@@ -8,6 +8,16 @@ import api from '@/lib/api';
 import type { ChildWithDetails } from '@/types/customer';
 import type { PaymentInitiationResponse } from '@/types/payment';
 
+const HEBREW_MONTHS = [
+  'ינואר', 'פברואר', 'מרץ', 'אפריל', 'מאי', 'יוני',
+  'יולי', 'אוגוסט', 'ספטמבר', 'אוקטובר', 'נובמבר', 'דצמבר',
+];
+
+function formatHebrewNextBilling(isoDate: string): string {
+  const [, month] = isoDate.split('-').map(Number);
+  return `1 ב${HEBREW_MONTHS[month - 1]}`;
+}
+
 interface Lesson {
   id: string;
   name: string;
@@ -197,10 +207,24 @@ export default function SubscriptionPaymentDialog({
                       ))}
                     </div>
                   )}
+                  {paymentData.prorate_factor !== undefined && paymentData.prorate_factor < 1 && (
+                    <div className="border-t border-blue-300 pt-2 flex justify-between">
+                      <span className="text-gray-600">
+                        חיוב יחסי ({paymentData.prorate_days_remaining} ימים מתוך {paymentData.days_in_month})
+                      </span>
+                      <span className="text-amber-600">×{Number(paymentData.prorate_factor).toFixed(2)}</span>
+                    </div>
+                  )}
                   <div className="border-t border-blue-300 pt-2 flex justify-between font-bold text-base">
                     <span>סה"כ לתשלום:</span>
                     <span className="text-blue-600">₪{Number(paymentData.final_amount || 0).toFixed(2)}</span>
                   </div>
+                  {paymentData.next_billing_date && (
+                    <div className="flex justify-between text-xs text-gray-500 pt-1">
+                      <span>חיוב מלא הבא:</span>
+                      <span>{formatHebrewNextBilling(paymentData.next_billing_date)}</span>
+                    </div>
+                  )}
                 </div>
                 {paymentData.lesson && (
                   <p className="text-xs text-gray-500 mt-3 border-t border-blue-300 pt-2">
