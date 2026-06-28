@@ -152,14 +152,16 @@ export default function CoursesPage() {
             {filteredCourseTypes.map((courseType) => (
               <div
                 key={courseType.id}
-                onClick={() => handleCardClick(courseType.id)}
-                className="card hover:shadow-lg transition-shadow cursor-pointer overflow-hidden"
+                className="card hover:shadow-lg transition-shadow overflow-hidden flex flex-col"
               >
                 {/* Header with course type name */}
-                <div className="group/header relative bg-gradient-to-br from-teal-500 to-teal-600 p-8 text-center">
+                <div
+                  onClick={() => handleCardClick(courseType.id)}
+                  className="group/header relative bg-gradient-to-br from-teal-500 to-teal-600 p-8 text-center cursor-pointer"
+                >
                   <button
                     onClick={(e) => { e.stopPropagation(); setEditTarget(courseType); }}
-                    className="absolute top-2 right-2 p-1.5 text-white/70 hover:text-white hover:bg-white/20 rounded transition-colors opacity-0 group-hover/header:opacity-100"
+                    className="absolute top-2 right-2 p-1.5 text-white/90 hover:text-white hover:bg-white/20 rounded transition-colors"
                     title="עריכה"
                   >
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -170,7 +172,8 @@ export default function CoursesPage() {
                   {courseType.courses_count === 0 && (
                     <button
                       onClick={(e) => { e.stopPropagation(); setDeleteTargetId(courseType.id); }}
-                      className="absolute top-2 left-2 p-1.5 text-white/70 hover:text-white hover:bg-white/20 rounded transition-colors opacity-0 group-hover/header:opacity-100"
+                      className="absolute top-2 left-2 p-1.5 text-white/90 hover:text-white hover:bg-white/20 rounded transition-colors"
+                      title="מחיקה"
                     >
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
@@ -184,7 +187,10 @@ export default function CoursesPage() {
                 </div>
 
                 {/* Content */}
-                <div className="p-6 space-y-4">
+                <div
+                  onClick={() => handleCardClick(courseType.id)}
+                  className="p-6 space-y-4 flex-1 cursor-pointer"
+                >
                   <div>
                     <h4 className="text-xl font-semibold text-gray-900 mb-2">
                       {courseType.name}
@@ -295,6 +301,25 @@ export default function CoursesPage() {
                       </div>
                     </div>
                   )}
+                </div>
+
+                <div className="mx-6 mb-6 pt-4 flex items-center gap-2 border-t border-gray-100">
+                  <button
+                    onClick={() => handleCardClick(courseType.id)}
+                    className="btn-secondary flex-1 text-sm"
+                  >
+                    צפייה
+                  </button>
+                  <button
+                    onClick={() => setEditTarget(courseType)}
+                    className="btn-primary flex-1 text-sm flex items-center justify-center gap-1.5"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                        d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                    </svg>
+                    עריכה
+                  </button>
                 </div>
               </div>
             ))}
