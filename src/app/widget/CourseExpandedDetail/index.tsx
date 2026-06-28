@@ -93,7 +93,7 @@ export default function CourseExpandedDetail({ course, onEnroll, onClose }: Cour
             <span className={styles.priceLabel}>לחודש</span>
           </div>
         </div>
-        <p className={styles.priceNote}>תשלים חודשי, ניתן לבטל בכל עת</p>
+        <p className={styles.priceNote}>תשלום חודשי, ניתן לבטל בכל עת</p>
 
         {/* Buttons */}
         <button onClick={onEnroll} className={styles.enrollButton}>

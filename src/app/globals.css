@@ -28,7 +28,7 @@
     --input: 210 20% 90%;
     --ring: 173 58% 39%;
     --radius: 0.75rem;
-    --widget-radius: 5px;
+    --widget-radius: 14px;
 
     /* Sidebar / dark-surface palette (also used for dark dialog header bands) */
     --sidebar-background: 222 47% 11%;
