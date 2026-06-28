@@ -137,8 +137,8 @@ export interface PaymentInitiationResponse {
   discount_amount?: number;
   final_amount: number;
   prorate_factor?: number;
-  prorate_days_remaining?: number;
-  days_in_month?: number;
+  prorate_lessons_remaining?: number;
+  total_lessons_this_month?: number;
   next_billing_date?: string;
   discounts_applied?: AppliedDiscount[];
   lesson?: LessonInfo;

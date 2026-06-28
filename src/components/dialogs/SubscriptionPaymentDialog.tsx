@@ -210,7 +210,7 @@ export default function SubscriptionPaymentDialog({
                   {paymentData.prorate_factor !== undefined && paymentData.prorate_factor < 1 && (
                     <div className="border-t border-blue-300 pt-2 flex justify-between">
                       <span className="text-gray-600">
-                        חיוב יחסי ({paymentData.prorate_days_remaining} ימים מתוך {paymentData.days_in_month})
+                        חיוב יחסי ({paymentData.prorate_lessons_remaining} שיעורים מתוך {paymentData.total_lessons_this_month})
                       </span>
                       <span className="text-amber-600">×{Number(paymentData.prorate_factor).toFixed(2)}</span>
                     </div>
