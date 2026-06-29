@@ -140,9 +140,16 @@ export default function BranchesPage() {
                       <span>{branch.address || 'אין כתובת'}</span>
                     </div>
                   </div>
-                  <span className={`px-3 py-1 rounded-full text-xs font-medium border ${statusBadge.className}`}>
-                    {statusBadge.label}
-                  </span>
+                  <div className="flex items-center gap-2">
+                    {branch.is_external && (
+                      <span className="px-3 py-1 rounded-full text-xs font-medium border border-yellow-300 bg-yellow-50 text-yellow-700">
+                        חיצוני
+                      </span>
+                    )}
+                    <span className={`px-3 py-1 rounded-full text-xs font-medium border ${statusBadge.className}`}>
+                      {statusBadge.label}
+                    </span>
+                  </div>
                 </div>
 
                 {/* Statistics Grid */}

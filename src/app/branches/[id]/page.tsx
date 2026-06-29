@@ -30,6 +30,7 @@ export default function BranchDetailsPage() {
   const queryClient = useQueryClient();
 
   const [showEditDialog, setShowEditDialog] = useState(false);
+  const [savingExternal, setSavingExternal] = useState(false);
   const [selectedCourse, setSelectedCourse] = useState<any | null>(null);
   const [lessonFilters, setLessonFilters] = useState({ instructor_id: 'all', room_id: 'all' });
   const [studentFilters, setStudentFilters] = useState({ course_id: 'all', status: 'all' });
@@ -287,7 +288,36 @@ export default function BranchDetailsPage() {
 
       {/* Branch Details Card */}
       <div className="card mb-6 animate-slide-up" style={{ animationDelay: '100ms' }}>
-        <h2 className="text-xl font-bold mb-4">פרטי הסניף</h2>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-xl font-bold">פרטי הסניף</h2>
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-medium text-muted-foreground">סניף חיצוני</span>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={branch.is_external}
+              disabled={savingExternal}
+              onClick={async () => {
+                setSavingExternal(true);
+                try {
+                  await api.patch(`/core/branches/${branchId}/`, { is_external: !branch.is_external });
+                  queryClient.invalidateQueries({ queryKey: ['branch', branchId] });
+                } finally {
+                  setSavingExternal(false);
+                }
+              }}
+              className={`relative inline-flex w-10 h-6 rounded-full transition-colors border-0 ${savingExternal ? 'cursor-wait opacity-60' : 'cursor-pointer'} ${branch.is_external ? 'bg-yellow-400' : 'bg-muted'}`}
+            >
+              {savingExternal ? (
+                <span className="absolute inset-0 flex items-center justify-center">
+                  <span className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                </span>
+              ) : (
+                <span className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${branch.is_external ? 'right-1 -translate-x-4' : 'right-1'}`} />
+              )}
+            </button>
+          </div>
+        </div>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           {branch.branch_codes && branch.branch_codes.length > 0 && (
             <div>
