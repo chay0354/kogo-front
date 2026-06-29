@@ -33,6 +33,7 @@ export default function EditBranchDialog({ isOpen, onClose, onSuccess, branch }:
     bluetooth_codes: [''],
     custom_details: [] as CustomDetail[],
     is_external: false,
+    external_link: '',
     is_active: true,
   });
 
@@ -80,6 +81,7 @@ export default function EditBranchDialog({ isOpen, onClose, onSuccess, branch }:
         : [''],
       custom_details: branchData.custom_details || [],
       is_external: branchData.is_external ?? false,
+      external_link: branchData.external_link || '',
       is_active: branchData.is_active,
     });
   };
@@ -176,6 +178,7 @@ export default function EditBranchDialog({ isOpen, onClose, onSuccess, branch }:
         bluetooth_codes: formData.bluetooth_codes.filter(b => b.trim()),
         custom_details: formData.custom_details,
         is_external: formData.is_external,
+        external_link: formData.is_external ? formData.external_link : '',
         is_active: formData.is_active,
       };
 
@@ -317,6 +320,20 @@ export default function EditBranchDialog({ isOpen, onClose, onSuccess, branch }:
                 />
               </button>
             </div>
+
+            {/* External link — shown only when is_external is on */}
+            {formData.is_external && (
+              <div>
+                <label className="block text-sm font-medium mb-1">לינק לסניף</label>
+                <input
+                  type="url"
+                  value={formData.external_link}
+                  onChange={(e) => setFormData({ ...formData, external_link: e.target.value })}
+                  placeholder="https://..."
+                  className="input w-full"
+                />
+              </div>
+            )}
 
             {/* Branch Codes */}
             <div>

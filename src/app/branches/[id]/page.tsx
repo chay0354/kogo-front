@@ -31,6 +31,9 @@ export default function BranchDetailsPage() {
 
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [savingExternal, setSavingExternal] = useState(false);
+  const [editingLink, setEditingLink] = useState(false);
+  const [linkValue, setLinkValue] = useState('');
+  const [savingLink, setSavingLink] = useState(false);
   const [selectedCourse, setSelectedCourse] = useState<any | null>(null);
   const [lessonFilters, setLessonFilters] = useState({ instructor_id: 'all', room_id: 'all' });
   const [studentFilters, setStudentFilters] = useState({ course_id: 'all', status: 'all' });
@@ -302,6 +305,7 @@ export default function BranchDetailsPage() {
                 try {
                   await api.patch(`/core/branches/${branchId}/`, { is_external: !branch.is_external });
                   queryClient.invalidateQueries({ queryKey: ['branch', branchId] });
+                  setEditingLink(false);
                 } finally {
                   setSavingExternal(false);
                 }
@@ -318,6 +322,68 @@ export default function BranchDetailsPage() {
             </button>
           </div>
         </div>
+
+        {branch.is_external && (
+          <div className="mb-4 pb-4 border-b border-border">
+            <div className="text-sm text-muted-foreground mb-1">🔗 לינק לסניף</div>
+            {editingLink ? (
+              <div className="flex items-center gap-2">
+                <input
+                  type="url"
+                  value={linkValue}
+                  onChange={e => setLinkValue(e.target.value)}
+                  placeholder="https://..."
+                  className="input flex-1 text-sm"
+                  autoFocus
+                  onKeyDown={async e => {
+                    if (e.key === 'Escape') { setEditingLink(false); setLinkValue(branch.external_link || ''); }
+                    if (e.key === 'Enter') {
+                      setSavingLink(true);
+                      try {
+                        await api.patch(`/core/branches/${branchId}/`, { external_link: linkValue });
+                        queryClient.invalidateQueries({ queryKey: ['branch', branchId] });
+                        setEditingLink(false);
+                      } finally { setSavingLink(false); }
+                    }
+                  }}
+                />
+                <button
+                  disabled={savingLink}
+                  onClick={async () => {
+                    setSavingLink(true);
+                    try {
+                      await api.patch(`/core/branches/${branchId}/`, { external_link: linkValue });
+                      queryClient.invalidateQueries({ queryKey: ['branch', branchId] });
+                      setEditingLink(false);
+                    } finally { setSavingLink(false); }
+                  }}
+                  className="btn-primary text-sm px-3 py-1"
+                >
+                  {savingLink ? '...' : 'שמור'}
+                </button>
+                <button onClick={() => { setEditingLink(false); setLinkValue(branch.external_link || ''); }} className="btn-secondary text-sm px-3 py-1">
+                  ביטול
+                </button>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2">
+                {branch.external_link ? (
+                  <a href={branch.external_link} target="_blank" rel="noopener noreferrer" className="text-primary underline text-sm truncate max-w-xs">
+                    {branch.external_link}
+                  </a>
+                ) : (
+                  <span className="text-sm text-muted-foreground">לא הוזן לינק</span>
+                )}
+                <button
+                  onClick={() => { setEditingLink(true); setLinkValue(branch.external_link || ''); }}
+                  className="text-xs text-muted-foreground hover:text-foreground underline"
+                >
+                  עריכה
+                </button>
+              </div>
+            )}
+          </div>
+        )}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           {branch.branch_codes && branch.branch_codes.length > 0 && (
             <div>

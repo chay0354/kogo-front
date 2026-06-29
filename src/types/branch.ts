@@ -45,6 +45,7 @@ export interface Branch {
   bluetooth_codes: string[];
   custom_details: CustomDetail[];
   is_external: boolean;
+  external_link: string;
   is_active: boolean;
   created_at: string;
   updated_at: string;
@@ -115,6 +116,7 @@ export interface BranchFormData {
   bluetooth_codes: string[];
   custom_details: CustomDetail[];
   is_active: boolean;
+  external_link?: string;
   studios?: Array<{ name: string; notes: string }>;
 }
 
