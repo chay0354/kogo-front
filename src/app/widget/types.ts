@@ -8,6 +8,7 @@ export interface Branch {
   name: string;
   city: string;
   city_name: string;
+  is_external: boolean;
 }
 
 export interface CourseLesson {

@@ -416,3 +416,18 @@
   cursor: default;
   border-radius: 15px;
 }
+
+.externalBranchMessage {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  min-height: 12rem;
+}
+
+.externalBranchText {
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: #374151;
+  text-align: center;
+}
