@@ -32,6 +32,7 @@ export default function EditBranchDialog({ isOpen, onClose, onSuccess, branch }:
     wifi_code: '',
     bluetooth_codes: [''],
     custom_details: [] as CustomDetail[],
+    is_external: false,
     is_active: true,
   });
 
@@ -78,6 +79,7 @@ export default function EditBranchDialog({ isOpen, onClose, onSuccess, branch }:
         ? branchData.bluetooth_codes
         : [''],
       custom_details: branchData.custom_details || [],
+      is_external: branchData.is_external ?? false,
       is_active: branchData.is_active,
     });
   };
@@ -173,6 +175,7 @@ export default function EditBranchDialog({ isOpen, onClose, onSuccess, branch }:
         wifi_code: formData.wifi_code || '',
         bluetooth_codes: formData.bluetooth_codes.filter(b => b.trim()),
         custom_details: formData.custom_details,
+        is_external: formData.is_external,
         is_active: formData.is_active,
       };
 
@@ -294,6 +297,25 @@ export default function EditBranchDialog({ isOpen, onClose, onSuccess, branch }:
                 onChange={(e) => setFormData({ ...formData, address: e.target.value })}
                 className="input w-full"
               />
+            </div>
+
+            {/* External branch toggle */}
+            <div className="flex items-center justify-between">
+              <label className="text-sm font-medium" htmlFor="edit_is_external">
+                סניף חיצוני
+              </label>
+              <button
+                id="edit_is_external"
+                type="button"
+                role="switch"
+                aria-checked={formData.is_external}
+                onClick={() => setFormData({ ...formData, is_external: !formData.is_external })}
+                className={`relative inline-flex w-10 h-6 rounded-full transition-colors cursor-pointer border-0 ${formData.is_external ? 'bg-primary' : 'bg-muted'}`}
+              >
+                <span
+                  className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${formData.is_external ? 'right-1 -translate-x-4' : 'right-1'}`}
+                />
+              </button>
             </div>
 
             {/* Branch Codes */}

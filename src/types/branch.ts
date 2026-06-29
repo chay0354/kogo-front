@@ -44,6 +44,7 @@ export interface Branch {
   wifi_code: string;
   bluetooth_codes: string[];
   custom_details: CustomDetail[];
+  is_external: boolean;
   is_active: boolean;
   created_at: string;
   updated_at: string;
@@ -61,6 +62,7 @@ export interface BranchListItem {
   city_name: string | null;
   branch_codes: string[];
   monthly_cost: number | null;
+  is_external: boolean;
   is_active: boolean;
   families_count: number;
   courses_count: number;

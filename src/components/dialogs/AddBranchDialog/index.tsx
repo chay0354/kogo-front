@@ -26,6 +26,7 @@ export default function AddBranchDialog({ isOpen, onClose, onSuccess }: AddBranc
     wifi_code: '',
     bluetooth_codes: [''],
     notes: '',
+    is_external: false,
   });
 
   const [studios, setStudios] = useState([
@@ -125,6 +126,7 @@ export default function AddBranchDialog({ isOpen, onClose, onSuccess }: AddBranc
         wifi_code: formData.wifi_code || '',
         bluetooth_codes: formData.bluetooth_codes.filter(b => b.trim()),
         custom_details: [],
+        is_external: formData.is_external,
         is_active: true,
       };
 
@@ -166,6 +168,7 @@ export default function AddBranchDialog({ isOpen, onClose, onSuccess }: AddBranc
       wifi_code: '',
       bluetooth_codes: [''],
       notes: '',
+      is_external: false,
     });
     setStudios([
       { name: 'סטודיו 1', capacity: 20, notes: '' },
@@ -198,7 +201,24 @@ export default function AddBranchDialog({ isOpen, onClose, onSuccess }: AddBranc
 
           {/* Basic Info */}
           <div className={styles.section}>
-            <h3 className={styles.sectionTitle}>פרטים בסיסיים</h3>
+            <div className={styles.sectionHeader}>
+              <h3 className={styles.sectionTitle}>פרטים בסיסיים</h3>
+              <div className={styles.toggleRow}>
+                <label className={styles.toggleLabel} htmlFor="is_external">
+                  סניף חיצוני
+                </label>
+                <button
+                  id="is_external"
+                  type="button"
+                  role="switch"
+                  aria-checked={formData.is_external}
+                  onClick={() => setFormData({ ...formData, is_external: !formData.is_external })}
+                  className={formData.is_external ? styles.toggleOn : styles.toggleOff}
+                >
+                  <span className={formData.is_external ? styles.toggleThumbOn : styles.toggleThumbOff} />
+                </button>
+              </div>
+            </div>
 
             <div>
               <label className={styles.label}>
