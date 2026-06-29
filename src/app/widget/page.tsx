@@ -266,7 +266,13 @@ const ageLabel = (age: number) => `${age} שנים`;
         <>
           <div className={styles.drawerOverlay} onClick={() => setDrawerCourse(null)} />
           <div className={styles.drawerPanel}>
-            <CourseRegistrationForm courseId={drawerCourse.id} courseName={drawerCourse.name} onBack={() => setDrawerCourse(null)} onComplete={() => setDrawerCourse(null)} />
+            {allBranches.find((b) => b.id === selectedBranch)?.is_external ? (
+              <div className={styles.externalBranchMessage}>
+                <p className={styles.externalBranchText}>קישור לסניף חיצוני</p>
+              </div>
+            ) : (
+              <CourseRegistrationForm courseId={drawerCourse.id} courseName={drawerCourse.name} onBack={() => setDrawerCourse(null)} onComplete={() => setDrawerCourse(null)} />
+            )}
           </div>
         </>
       )}
