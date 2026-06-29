@@ -268,7 +268,16 @@ const ageLabel = (age: number) => `${age} שנים`;
           <div className={styles.drawerPanel}>
             {allBranches.find((b) => b.id === selectedBranch)?.is_external ? (
               <div className={styles.externalBranchMessage}>
-                <p className={styles.externalBranchText}>קישור לסניף חיצוני</p>
+                {(() => {
+                  const branch = allBranches.find((b) => b.id === selectedBranch);
+                  return branch?.external_link ? (
+                    <a href={/^https?:\/\//i.test(branch.external_link) ? branch.external_link : `https://${branch.external_link}`} target="_blank" rel="noopener noreferrer" className={styles.externalBranchText}>
+                      לחצו כאן להמשך רישום בסניף
+                    </a>
+                  ) : (
+                    <p className={styles.externalBranchText}>לחצו כאן להמשך רישום בסניף</p>
+                  );
+                })()}
               </div>
             ) : (
               <CourseRegistrationForm courseId={drawerCourse.id} courseName={drawerCourse.name} onBack={() => setDrawerCourse(null)} onComplete={() => setDrawerCourse(null)} />

@@ -207,14 +207,7 @@ export default function AddBranchDialog({ isOpen, onClose, onSuccess }: AddBranc
                 <label className={styles.toggleLabel} htmlFor="is_external">
                   סניף חיצוני
                 </label>
-                <button
-                  id="is_external"
-                  type="button"
-                  role="switch"
-                  aria-checked={formData.is_external}
-                  onClick={() => setFormData({ ...formData, is_external: !formData.is_external })}
-                  className={formData.is_external ? styles.toggleOn : styles.toggleOff}
-                >
+                <button id="is_external" type="button" role="switch" aria-checked={formData.is_external} onClick={() => setFormData({ ...formData, is_external: !formData.is_external })} className={formData.is_external ? styles.toggleOn : styles.toggleOff}>
                   <span className={formData.is_external ? styles.toggleThumbOn : styles.toggleThumbOff} />
                 </button>
               </div>
