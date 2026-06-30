@@ -304,6 +304,13 @@
   color: #dc2626;
   display: block;
 }
+.deleteIconSpinning {
+  composes: deleteIcon;
+  animation: spin 0.7s linear infinite;
+}
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
 
 /* ── Lessons (expanded) ── */
 .lessonsBody {

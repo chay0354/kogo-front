@@ -19,6 +19,7 @@ import {
   formatTimeRange,
   getDayName,
 } from '@/lib/courseUtils';
+import { Loader2 } from 'lucide-react';
 import AddCourseDialog from '@/components/dialogs/AddCourseDialog';
 import AddLessonDialog from '@/components/dialogs/AddLessonDialog';
 import EditCourseDialog from '@/components/dialogs/EditCourseDialog';
@@ -45,6 +46,8 @@ export default function CourseTypeDetailsPage() {
   const [selectedCourse, setSelectedCourse] = useState<CourseWithLessons | null>(null);
   const [courseToDuplicate, setCourseToDuplicate] = useState<CourseWithLessons | null>(null);
   const [selectedLesson, setSelectedLesson] = useState<Lesson | null>(null);
+  const [deletingCourseId, setDeletingCourseId] = useState<string | null>(null);
+  const [deletingLessonId, setDeletingLessonId] = useState<string | null>(null);
 
   // Filters
   const [ageFilter, setAgeFilter] = useState<AgeFilter>({ label: 'הכל' });
@@ -118,11 +121,14 @@ export default function CourseTypeDetailsPage() {
     if (!confirm('האם אתה בטוח שברצונך למחוק את החוג? פעולה זו אינה ניתנת לביטול.')) {
       return;
     }
+    setDeletingCourseId(course.id);
     try {
       await api.delete(`/courses/courses/${course.id}/`);
       fetchCourseTypeDetails();
     } catch (err: any) {
       alert(err.response?.data?.error || 'שגיאה במחיקת החוג');
+    } finally {
+      setDeletingCourseId(null);
     }
   };
 
@@ -143,11 +149,14 @@ export default function CourseTypeDetailsPage() {
     if (!confirm('האם אתה בטוח שברצונך למחוק את השיעור? פעולה זו אינה ניתנת לביטול.')) {
       return;
     }
+    setDeletingLessonId(lesson.id);
     try {
       await api.delete(`/courses/lessons/${lesson.id}/`);
       fetchCourseTypeDetails();
     } catch (err: any) {
       alert(err.response?.data?.error || 'שגיאה במחיקת השיעור');
+    } finally {
+      setDeletingLessonId(null);
     }
   };
 
@@ -382,10 +391,15 @@ export default function CourseTypeDetailsPage() {
                           onClick={() => handleDeleteCourse(course)}
                           className={`${styles.actionButton} ${styles.deleteButton}`}
                           title="מחיקת חוג"
+                          disabled={deletingCourseId === course.id}
                         >
-                          <svg className={styles.deleteIcon} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                          </svg>
+                          {deletingCourseId === course.id ? (
+                            <Loader2 className={styles.deleteIconSpinning} />
+                          ) : (
+                            <svg className={styles.deleteIcon} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                            </svg>
+                          )}
                         </button>
                       </div>
                     </div>
@@ -426,10 +440,15 @@ export default function CourseTypeDetailsPage() {
                                           onClick={() => handleDeleteLesson(lesson)}
                                           className={`${styles.lessonActionButton} ${styles.deleteButton}`}
                                           title="מחיקת שיעור"
+                                          disabled={deletingLessonId === lesson.id}
                                         >
-                                          <svg className={styles.deleteIcon} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                          </svg>
+                                          {deletingLessonId === lesson.id ? (
+                                            <Loader2 className={styles.deleteIconSpinning} />
+                                          ) : (
+                                            <svg className={styles.deleteIcon} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                            </svg>
+                                          )}
                                         </button>
                                       </div>
                                     </td>
