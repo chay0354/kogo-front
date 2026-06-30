@@ -22,6 +22,7 @@ export default function CourseRegistrationForm({ courseId, courseName, onBack, o
   const [childIdNumber, setChildIdNumber] = useState('');
   const [childBirthDate, setChildBirthDate] = useState('');
   const [childGender, setChildGender] = useState<'male' | 'female' | ''>('');
+  const [selfRegistering, setSelfRegistering] = useState(false);
 
   // Lookup result — used for discount step
   const [lookup, setLookup] = useState<LookupResult | null>(null);
@@ -78,11 +79,13 @@ export default function CourseRegistrationForm({ courseId, courseName, onBack, o
     e.preventDefault();
     setErrorMsg('');
     setLookingUp(true);
+    const lookupChildFirstName = selfRegistering ? parentFirstName : childFirstName;
+    const lookupChildLastName = selfRegistering ? parentLastName : childLastName;
     try {
       const res = await api.post('/customers/widget/lookup/', {
         parent_id_number: parentIdNumber,
-        child_first_name: childFirstName,
-        child_last_name: childLastName,
+        child_first_name: lookupChildFirstName,
+        child_last_name: lookupChildLastName,
       });
       const data: LookupResult = res.data;
       setLookup(data);
@@ -111,15 +114,19 @@ export default function CourseRegistrationForm({ courseId, courseName, onBack, o
     const discountConfirmed = (lookup as (LookupResult & { _confirmed?: boolean }) | null)?._confirmed ?? false;
     const existingChildId = discountConfirmed ? (lookup?.child_id ?? '') : '';
 
+    const registerChildFirstName = selfRegistering ? parentFirstName : childFirstName;
+    const registerChildLastName = selfRegistering ? parentLastName : childLastName;
+    const registerChildIdNumber = selfRegistering ? parentIdNumber : childIdNumber;
+
     try {
       const res = await api.post('/customers/widget/register/', {
         parent_id_number: parentIdNumber,
         parent_first_name: parentFirstName,
         parent_last_name: parentLastName,
         parent_phone: parentPhone,
-        child_first_name: childFirstName,
-        child_last_name: childLastName,
-        child_id_number: childIdNumber,
+        child_first_name: registerChildFirstName,
+        child_last_name: registerChildLastName,
+        child_id_number: registerChildIdNumber,
         child_birth_date: childBirthDate,
         child_gender: childGender,
         course_id: courseId,
@@ -162,6 +169,13 @@ export default function CourseRegistrationForm({ courseId, courseName, onBack, o
       <form onSubmit={handleDetailsSubmit} className={styles.form} dir="rtl">
         {header}
 
+        <label className={styles.selfRegToggle}>
+          <input type="checkbox" checked={selfRegistering}
+            onChange={(e) => setSelfRegistering(e.target.checked)}
+            className={styles.selfRegCheckbox} />
+          אני נרשם/ת עבור עצמי
+        </label>
+
         <div className={styles.section}>
           <div className={styles.sectionTitle}>
             <span className={styles.sectionTitleLine} />
@@ -189,51 +203,75 @@ export default function CourseRegistrationForm({ courseId, courseName, onBack, o
               <input required type="tel" value={parentPhone}
                 onChange={(e) => setParentPhone(e.target.value)} className={styles.input} />
             </div>
+            {selfRegistering && (
+              <>
+                <div className={styles.fadeIn}>
+                  <label className={styles.label}>תאריך לידה *</label>
+                  <input required type="date" value={childBirthDate}
+                    onChange={(e) => setChildBirthDate(e.target.value)} className={styles.input} />
+                </div>
+                <div className={`${styles.fadeIn} ${styles.gridFull}`}>
+                  <label className={styles.label}>מין *</label>
+                  <div className={styles.genderOptions}>
+                    {(['male', 'female'] as const).map((g) => (
+                      <label key={g} className={styles.radioLabel}>
+                        <input type="radio" name="gender" value={g}
+                          checked={childGender === g} onChange={() => setChildGender(g)}
+                          style={{ accentColor: '#2B3090' }} required />
+                        {g === 'male' ? 'זכר' : 'נקבה'}
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              </>
+            )}
           </div>
         </div>
 
-        <div className={styles.section}>
-          <div className={styles.sectionTitle}>
-            <span className={styles.sectionTitleLine} />
-            <span className={styles.sectionTitleText}>פרטי הילד</span>
-            <span className={styles.sectionTitleLine} />
-          </div>
-          <div className={styles.grid2}>
-            <div>
-              <label className={styles.label}>שם פרטי *</label>
-              <input required type="text" value={childFirstName}
-                onChange={(e) => setChildFirstName(e.target.value)} className={styles.input} />
+        {!selfRegistering && (
+          <div className={`${styles.section} ${styles.fadeIn}`}>
+            <div className={styles.sectionTitle}>
+              <span className={styles.sectionTitleLine} />
+              <span className={styles.sectionTitleText}>פרטי הילד</span>
+              <span className={styles.sectionTitleLine} />
             </div>
-            <div>
-              <label className={styles.label}>שם משפחה *</label>
-              <input required type="text" value={childLastName}
-                onChange={(e) => setChildLastName(e.target.value)} className={styles.input} />
-            </div>
-            <div>
-              <label className={styles.label}>ת.ז. ילד</label>
-              <input type="text" value={childIdNumber}
-                onChange={(e) => setChildIdNumber(e.target.value)} className={styles.input} />
-            </div>
-            <div>
-              <label className={styles.label}>תאריך לידה *</label>
-              <input required type="date" value={childBirthDate}
-                onChange={(e) => setChildBirthDate(e.target.value)} className={styles.input} />
-            </div>
-            <div style={{ gridColumn: '1 / -1' }}>
-              <label className={styles.label}>מין *</label>
-              <div className={styles.genderOptions}>
-                {(['male', 'female'] as const).map((g) => (
-                  <label key={g} className={styles.radioLabel}>
-                    <input type="radio" name="gender" value={g}
-                      checked={childGender === g} onChange={() => setChildGender(g)}
-                      style={{ accentColor: '#2B3090' }} required />
-                    {g === 'male' ? 'זכר' : 'נקבה'}
-                  </label>
-                ))}
+            <div className={styles.grid2}>
+              <div>
+                <label className={styles.label}>שם פרטי *</label>
+                <input required type="text" value={childFirstName}
+                  onChange={(e) => setChildFirstName(e.target.value)} className={styles.input} />
+              </div>
+              <div>
+                <label className={styles.label}>שם משפחה *</label>
+                <input required type="text" value={childLastName}
+                  onChange={(e) => setChildLastName(e.target.value)} className={styles.input} />
+              </div>
+              <div>
+                <label className={styles.label}>ת.ז. ילד</label>
+                <input type="text" value={childIdNumber}
+                  onChange={(e) => setChildIdNumber(e.target.value)} className={styles.input} />
+              </div>
+              <div>
+                <label className={styles.label}>תאריך לידה *</label>
+                <input required type="date" value={childBirthDate}
+                  onChange={(e) => setChildBirthDate(e.target.value)} className={styles.input} />
+              </div>
+              <div style={{ gridColumn: '1 / -1' }}>
+                <label className={styles.label}>מין *</label>
+                <div className={styles.genderOptions}>
+                  {(['male', 'female'] as const).map((g) => (
+                    <label key={g} className={styles.radioLabel}>
+                      <input type="radio" name="gender" value={g}
+                        checked={childGender === g} onChange={() => setChildGender(g)}
+                        style={{ accentColor: '#2B3090' }} required />
+                      {g === 'male' ? 'זכר' : 'נקבה'}
+                    </label>
+                  ))}
+                </div>
               </div>
             </div>
           </div>
-        </div>
+        )}
 
         {errorMsg && <p className={styles.errorText}>{errorMsg}</p>}
 
@@ -422,7 +460,7 @@ export default function CourseRegistrationForm({ courseId, courseName, onBack, o
       <div className={styles.resultContainer} dir="rtl">
         <div className={styles.successIcon}>✓</div>
         <p className={styles.resultTitle}>התשלום בוצע בהצלחה!</p>
-        <p className={styles.resultSubtext}>{childFirstName} נרשמ/ה לחוג {courseName}.</p>
+        <p className={styles.resultSubtext}>{selfRegistering ? parentFirstName : childFirstName} נרשמ/ה לחוג {courseName}.</p>
         <button type="button" onClick={onComplete} className={styles.closeButton}>
           סגור
         </button>

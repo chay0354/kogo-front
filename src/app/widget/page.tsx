@@ -12,6 +12,8 @@ import styles from './page.module.css';
 
 type PanelPos = { top: number; left: number; width: number };
 
+const normalizeExternalLink = (link: string) => (/^https?:\/\//i.test(link) ? link : `https://${link}`);
+
 function FilterSelect({ value, onChange, disabled, loading, placeholder, selectedLabel, children, active }: { value: string; onChange: (v: string) => void; disabled?: boolean; loading?: boolean; placeholder: string; selectedLabel?: string; children: React.ReactNode; active?: boolean }) {
   const [isOpen, setIsOpen] = useState(false);
   const [panelPos, setPanelPos] = useState<PanelPos | null>(null);
@@ -255,7 +257,16 @@ const ageLabel = (age: number) => `${age} שנים`;
             <CourseExpandedDetail
               course={detailCourse}
               onClose={() => setDetailCourse(null)}
-              onEnroll={() => { setDrawerCourse(detailCourse); setDetailCourse(null); }}
+              onEnroll={() => {
+                const branch = allBranches.find((b) => b.id === selectedBranch);
+                if (branch?.is_external && branch.external_link) {
+                  window.open(normalizeExternalLink(branch.external_link), '_blank', 'noopener,noreferrer');
+                  setDetailCourse(null);
+                  return;
+                }
+                setDrawerCourse(detailCourse);
+                setDetailCourse(null);
+              }}
             />
           </div>
         </>
@@ -271,7 +282,7 @@ const ageLabel = (age: number) => `${age} שנים`;
                 {(() => {
                   const branch = allBranches.find((b) => b.id === selectedBranch);
                   return branch?.external_link ? (
-                    <a href={/^https?:\/\//i.test(branch.external_link) ? branch.external_link : `https://${branch.external_link}`} target="_blank" rel="noopener noreferrer" className={styles.externalBranchText}>
+                    <a href={normalizeExternalLink(branch.external_link)} target="_blank" rel="noopener noreferrer" className={styles.externalBranchText}>
                       לחצו כאן להמשך רישום בסניף
                     </a>
                   ) : (
