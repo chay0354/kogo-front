@@ -9,6 +9,7 @@ import {
   ExternalLink,
   GraduationCap,
   HeadphonesIcon,
+  Loader2,
   Mail,
   MapPin,
   Plus,
@@ -542,7 +543,11 @@ export default function ChildProfileDialog({
                                               disabled={actionLoading === recurring.id}
                                               title="עדכן סכום מנוי"
                                             >
-                                              <RefreshCw className="h-3 w-3 ml-1" />
+                                              {actionLoading === recurring.id ? (
+                                                <Loader2 className="h-3 w-3 ml-1 animate-spin" />
+                                              ) : (
+                                                <RefreshCw className="h-3 w-3 ml-1" />
+                                              )}
                                               עדכן
                                             </Button>
                                             <Button
@@ -553,7 +558,11 @@ export default function ChildProfileDialog({
                                               disabled={actionLoading === recurring.id}
                                               title="בטל מנוי"
                                             >
-                                              <Trash2 className="h-3 w-3 ml-1" />
+                                              {actionLoading === recurring.id ? (
+                                                <Loader2 className="h-3 w-3 ml-1 animate-spin" />
+                                              ) : (
+                                                <Trash2 className="h-3 w-3 ml-1" />
+                                              )}
                                               ביטול
                                             </Button>
                                           </>

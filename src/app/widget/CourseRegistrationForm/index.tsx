@@ -492,6 +492,7 @@ export default function CourseRegistrationForm({ courseId, courseName, onBack, o
 
   return (
     <div className={styles.submittingContainer} dir="rtl">
+      <span className={styles.submittingSpinner} />
       שולח פרטים, אנא המתן...
     </div>
   );

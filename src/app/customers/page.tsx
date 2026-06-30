@@ -179,9 +179,10 @@ export default function CustomersPage() {
     } catch (error) {
       console.error('Error updating child:', error);
       alert('שגיאה בעדכון הפרופיל');
+      throw error;
     }
   };
-  
+
   const handleConfirmDelete = async () => {
     if (!selectedChild) return;
     

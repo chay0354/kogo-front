@@ -1,13 +1,14 @@
 'use client';
 
+import { useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { AlertCircle, HelpCircle, Info } from 'lucide-react';
+import { AlertCircle, HelpCircle, Info, Loader2 } from 'lucide-react';
 
 interface ConfirmDialogProps {
   isOpen: boolean;
   onClose: () => void;
-  onConfirm: (choice: boolean) => void;
+  onConfirm: (choice: boolean) => void | Promise<void>;
   title: string;
   message: string;
   confirmText?: string;
@@ -25,15 +26,22 @@ export function ConfirmDialog({
   cancelText = 'ביטול',
   type = 'question'
 }: ConfirmDialogProps) {
+  const [confirming, setConfirming] = useState(false);
+
   const icons = {
     warning: <AlertCircle className="h-12 w-12 text-orange-500" />,
     info: <Info className="h-12 w-12 text-blue-500" />,
     question: <HelpCircle className="h-12 w-12 text-teal-500" />
   };
 
-  const handleConfirm = () => {
-    onConfirm(true);
-    onClose();
+  const handleConfirm = async () => {
+    setConfirming(true);
+    try {
+      await onConfirm(true);
+      onClose();
+    } finally {
+      setConfirming(false);
+    }
   };
 
   const handleCancel = () => {
@@ -58,10 +66,11 @@ export function ConfirmDialog({
         </div>
 
         <div className="flex gap-3 justify-center pt-4 border-t">
-          <Button variant="outline" onClick={handleCancel} className="min-w-[120px]">
+          <Button variant="outline" onClick={handleCancel} className="min-w-[120px]" disabled={confirming}>
             {cancelText}
           </Button>
-          <Button onClick={handleConfirm} className="min-w-[120px]">
+          <Button onClick={handleConfirm} className="min-w-[120px] flex items-center justify-center gap-2" disabled={confirming}>
+            {confirming && <Loader2 className="h-4 w-4 animate-spin" />}
             {confirmText}
           </Button>
         </div>

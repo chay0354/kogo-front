@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Users2, Plus, Edit, Trash2 } from 'lucide-react';
+import { Users2, Plus, Edit, Trash2, Loader2 } from 'lucide-react';
 import AppLayout from '@/components/AppLayout';
 import PageHeader from '@/components/PageHeader';
 import { Button } from '@/components/ui/button';
@@ -24,6 +24,7 @@ export default function PartnersPage() {
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [selectedPartner, setSelectedPartner] = useState<PartnerListItem | null>(null);
+  const [deletingPartnerId, setDeletingPartnerId] = useState<string | null>(null);
 
   useEffect(() => {
     api.get('/core/branches/').then((response) => {
@@ -54,12 +55,15 @@ export default function PartnersPage() {
 
   const handleDelete = async (partner: PartnerListItem) => {
     if (!confirm(`להשבית את השותף "${partner.full_name || partner.email}"?`)) return;
+    setDeletingPartnerId(partner.id);
     try {
       await api.delete(`/core/partners/${partner.id}/`);
       setFilters((prev) => ({ ...prev }));
     } catch (error) {
       console.error('Error deleting partner:', error);
       alert('שגיאה בהשבתת השותף');
+    } finally {
+      setDeletingPartnerId(null);
     }
   };
 
@@ -154,8 +158,13 @@ export default function PartnersPage() {
                         variant="outline"
                         size="sm"
                         onClick={() => handleDelete(partner)}
+                        disabled={deletingPartnerId === partner.id}
                       >
-                        <Trash2 className="h-4 w-4 text-red-500" />
+                        {deletingPartnerId === partner.id ? (
+                          <Loader2 className="h-4 w-4 text-red-500 animate-spin" />
+                        ) : (
+                          <Trash2 className="h-4 w-4 text-red-500" />
+                        )}
                       </Button>
                     </div>
                   </td>
