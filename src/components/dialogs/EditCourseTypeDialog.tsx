@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { Loader2 } from 'lucide-react';
 import api from '@/lib/api';
 import { CourseTypeWithStats } from '@/types/course';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
@@ -123,10 +124,14 @@ export default function EditCourseTypeDialog({
                     className="flex items-center gap-1.5 text-sm text-red-600 hover:text-red-700 transition-colors disabled:opacity-50"
                     disabled={loading || deleting}
                   >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                        d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                    </svg>
+                    {deleting ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                          d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
+                    )}
                     {deleting ? 'מוחק...' : 'מחק תחום'}
                   </button>
                 ) : (
@@ -147,9 +152,10 @@ export default function EditCourseTypeDialog({
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors disabled:bg-gray-400"
+                  className="flex-1 px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors disabled:bg-gray-400 flex items-center justify-center gap-2"
                   disabled={loading || deleting}
                 >
+                  {loading && <Loader2 className="h-4 w-4 animate-spin" />}
                   {loading ? 'שומר...' : 'שמור שינויים'}
                 </button>
               </div>

@@ -2,13 +2,13 @@
 
 import { useState, useEffect } from 'react';
 import { ChildWithDetails } from '@/types/customer';
-import { X } from 'lucide-react';
+import { X, Loader2 } from 'lucide-react';
 
 interface EditChildDialogProps {
   child: ChildWithDetails;
   isOpen: boolean;
   onClose: () => void;
-  onSave: (data: any) => void;
+  onSave: (data: any) => Promise<void>;
 }
 
 export default function EditChildDialog({ child, isOpen, onClose, onSave }: EditChildDialogProps) {
@@ -33,12 +33,21 @@ export default function EditChildDialog({ child, isOpen, onClose, onSave }: Edit
     }
   }, [child, isOpen]);
 
+  const [saving, setSaving] = useState(false);
+
   if (!isOpen) return null;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    onSave(formData);
-    onClose();
+    setSaving(true);
+    try {
+      await onSave(formData);
+      onClose();
+    } catch {
+      // parent surfaces the error; keep the dialog open so the user can retry
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -116,10 +125,11 @@ export default function EditChildDialog({ child, isOpen, onClose, onSave }: Edit
 
           {/* Footer */}
           <div className="flex justify-end gap-2 pt-4">
-            <button type="button" onClick={onClose} className="btn-secondary">
+            <button type="button" onClick={onClose} className="btn-secondary" disabled={saving}>
               ביטול
             </button>
-            <button type="submit" className="btn-primary">
+            <button type="submit" className="btn-primary flex items-center justify-center gap-2" disabled={saving}>
+              {saving && <Loader2 className="h-4 w-4 animate-spin" />}
               שמור שינויים
             </button>
           </div>

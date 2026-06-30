@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { Loader2 } from 'lucide-react';
 import api from '@/lib/api';
 import { CourseTypeFormData } from '@/types/course';
 
@@ -111,9 +112,10 @@ export default function AddCourseTypeDialog({
               </button>
               <button
                 type="submit"
-                className="flex-1 px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors disabled:bg-gray-400"
+                className="flex-1 px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors disabled:bg-gray-400 flex items-center justify-center gap-2"
                 disabled={loading}
               >
+                {loading && <Loader2 className="h-4 w-4 animate-spin" />}
                 {loading ? 'שומר...' : 'הוסף תחום'}
               </button>
             </div>

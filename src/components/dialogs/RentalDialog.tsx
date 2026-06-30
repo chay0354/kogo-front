@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
+import { Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { ScheduleEvent, DAY_NAMES, type WeekDay } from '@/types/schedule';
 import { createEvent, updateEvent } from '@/lib/eventUtils';
@@ -477,9 +478,10 @@ export default function RentalDialog({ event, onClose, onSuccess }: RentalDialog
             </button>
             <button
               type="submit"
-              className="px-6 py-2 bg-teal-500 text-white rounded-lg hover:bg-teal-600 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="px-6 py-2 bg-teal-500 text-white rounded-lg hover:bg-teal-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               disabled={isLoading}
             >
+              {isLoading && <Loader2 className="h-4 w-4 animate-spin" />}
               {isLoading ? 'שומר...' : isEditMode ? 'עדכן' : 'שמור'}
             </button>
           </div>
