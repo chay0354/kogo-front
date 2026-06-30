@@ -41,6 +41,41 @@
   @apply text-base font-semibold;
 }
 
+/* Self-registration toggle */
+.selfRegToggle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: #DDE0F5;
+  border-radius: 12px;
+  padding: 14px 20px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #2B3090;
+  cursor: pointer;
+}
+.selfRegCheckbox {
+  accent-color: #2B3090;
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+}
+
+@keyframes widgetFadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .fadeIn {
+    animation: widgetFadeIn 150ms ease-out;
+  }
+}
+
 /* Section cards (replaces fieldset) */
 .section {
   background: #DDE0F5;
@@ -77,6 +112,9 @@
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 16px;
+}
+.gridFull {
+  grid-column: 1 / -1;
 }
 .grid3 {
   @apply grid grid-cols-3 gap-3;
