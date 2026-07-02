@@ -6,8 +6,15 @@ import { LessonFormData } from '@/types/course';
 import { addMinutesToTime } from '@/lib/timeUtils';
 import { TimeField } from '@/components/ui/time-picker';
 
+interface Room {
+  id: string;
+  name: string;
+  branch: string;
+}
+
 interface AddLessonDialogProps {
   courseId: string;
+  branchId?: string;
   teamRoomId?: string;
   open: boolean;
   onClose: () => void;
@@ -16,6 +23,7 @@ interface AddLessonDialogProps {
 
 export default function AddLessonDialog({
   courseId,
+  branchId,
   teamRoomId,
   open,
   onClose,
@@ -29,7 +37,8 @@ export default function AddLessonDialog({
     end_time: '16:45',
     notes: '',
   });
-
+  const [rooms, setRooms] = useState<Room[]>([]);
+  const [loadingRooms, setLoadingRooms] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -55,6 +64,19 @@ export default function AddLessonDialog({
   }, [open, courseId, teamRoomId]);
 
   useEffect(() => {
+    if (!open || !branchId) return;
+    setLoadingRooms(true);
+    api
+      .get('/core/rooms/')
+      .then((res) => {
+        const allRooms: Room[] = Array.isArray(res.data) ? res.data : res.data?.results || [];
+        setRooms(allRooms.filter((r) => r.branch === branchId));
+      })
+      .catch(() => setRooms([]))
+      .finally(() => setLoadingRooms(false));
+  }, [open, branchId]);
+
+  useEffect(() => {
     if (formData.start_time) {
       setFormData((prev) => ({ ...prev, end_time: addMinutesToTime(prev.start_time, 45) }));
     }
@@ -64,8 +86,8 @@ export default function AddLessonDialog({
     e.preventDefault();
     setError('');
 
-    if (!teamRoomId) {
-      setError('יש להגדיר סטודיו בעריכת הקבוצה לפני הוספת מועד שיעור');
+    if (!formData.room) {
+      setError('יש לבחור סטודיו');
       return;
     }
 
@@ -78,7 +100,7 @@ export default function AddLessonDialog({
     try {
       await api.post('/courses/lessons/', {
         course: courseId,
-        room: teamRoomId,
+        room: formData.room,
         day_of_week: formData.day_of_week,
         start_time: formData.start_time,
         end_time: formData.end_time,
@@ -124,8 +146,31 @@ export default function AddLessonDialog({
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <p className="text-sm text-gray-500">
-              סניף, סטודיו וקיבולת נקבעים ברמת הקבוצה — ערוך ב&quot;עריכת קבוצה&quot;.
+              סניף וקיבולת נקבעים ברמת הקבוצה.
             </p>
+
+            <div>
+              <label htmlFor="add-lesson-room" className="block text-sm font-medium text-gray-700 mb-1">
+                סטודיו / חדר <span className="text-red-500">*</span>
+              </label>
+              <select
+                id="add-lesson-room"
+                value={formData.room}
+                onChange={(e) => setFormData({ ...formData, room: e.target.value })}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500"
+                required
+                disabled={loadingRooms || !branchId}
+              >
+                <option value="">
+                  {loadingRooms ? 'טוען...' : !branchId ? 'סניף לא מוגדר לקבוצה' : 'בחר סטודיו'}
+                </option>
+                {rooms.map((room) => (
+                  <option key={room.id} value={room.id}>
+                    {room.name}
+                  </option>
+                ))}
+              </select>
+            </div>
 
             <div>
               <label htmlFor="day_of_week" className="block text-sm font-medium text-gray-700 mb-1">

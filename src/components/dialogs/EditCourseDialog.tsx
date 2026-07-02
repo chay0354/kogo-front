@@ -175,7 +175,8 @@ export default function EditCourseDialog({
       return;
     }
 
-    if (!roomId) {
+    const hasScheduledLessons = (courseWithLessons.lessons || []).some((l) => l.status === 'scheduled');
+    if (!roomId && hasScheduledLessons) {
       setError('יש לבחור סטודיו');
       return;
     }
@@ -190,7 +191,7 @@ export default function EditCourseDialog({
       });
 
       const tierPayload = cleanTiersForSubmit(extraTiers);
-      const lessons = courseWithLessons.lessons || [];
+      const lessons = (courseWithLessons.lessons || []).filter((l) => l.status === 'scheduled');
 
       if (lessons.length > 0) {
         await Promise.all(
@@ -206,9 +207,24 @@ export default function EditCourseDialog({
 
       onSuccess();
     } catch (err: unknown) {
-      const data = (err as { response?: { data?: { message?: string; error?: string } } })?.response
-        ?.data;
-      setError(data?.message || data?.error || 'שגיאה בעדכון קבוצה');
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const data = (err as any)?.response?.data;
+      let msg: string;
+      if (typeof data === 'string') {
+        msg = data;
+      } else if (data?.message) {
+        msg = data.message;
+      } else if (data?.error) {
+        msg = data.error;
+      } else if (data?.detail) {
+        msg = data.detail;
+      } else if (data && typeof data === 'object') {
+        const flat = Object.values(data).flat().filter((v): v is string => typeof v === 'string');
+        msg = flat.join(' | ') || 'שגיאה בעדכון קבוצה';
+      } else {
+        msg = 'שגיאה בעדכון קבוצה';
+      }
+      setError(msg);
     } finally {
       setLoading(false);
     }
@@ -375,7 +391,7 @@ export default function EditCourseDialog({
                   value={roomId}
                   onChange={(e) => setRoomId(e.target.value)}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500"
-                  required
+                  required={(courseWithLessons.lessons || []).some((l) => l.status === 'scheduled')}
                   disabled={!branchId || loadingReferenceData}
                 >
                   <option value="">בחר סטודיו</option>
@@ -385,6 +401,11 @@ export default function EditCourseDialog({
                     </option>
                   ))}
                 </select>
+                {courseWithLessons.lessons?.filter((l) => l.status === 'scheduled').length === 0 && (
+                  <p className="text-xs text-amber-600 mt-1">
+                    לקבוצה זו אין מועדי שיעור עדיין — הסטודיו ייבחר בעת הוספת המועד הראשון.
+                  </p>
+                )}
               </div>
             </div>
 
