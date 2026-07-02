@@ -34,6 +34,7 @@ export function buildDefaultCourseData(courseTypeId: string): CourseFormData {
     max_age: 18,
     instructor: '',
     instructor_salary_override: undefined,
+    is_adult: false,
   };
 }
 
@@ -71,6 +72,7 @@ export function buildDuplicateFormState(
         source.instructor_salary_override != null
           ? Number(source.instructor_salary_override)
           : undefined,
+      is_adult: source.is_adult ?? false,
     },
     lessons,
   };

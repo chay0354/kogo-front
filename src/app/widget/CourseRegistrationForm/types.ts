@@ -9,6 +9,7 @@ export interface CourseLesson {
 export interface Props {
   courseId: string;
   courseName: string;
+  isAdult?: boolean;
   onBack: () => void;
   onComplete: () => void;
 }

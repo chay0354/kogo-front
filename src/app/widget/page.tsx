@@ -67,22 +67,11 @@ function FilterSelect({ value, onChange, disabled, loading, placeholder, selecte
   const panel = isOpen && panelPos ? (
     <>
       <div className={styles.dropdownBackdrop} onClick={closePanel} />
-      <ul
-        role="listbox"
-        aria-label={placeholder}
-        className={styles.dropdownPanel}
-        style={{ '--dp-top': `${panelPos.top}px`, '--dp-left': `${panelPos.left}px`, '--dp-width': `${panelPos.width}px` } as React.CSSProperties}
-      >
+      <ul role="listbox" aria-label={placeholder} className={styles.dropdownPanel} style={{ '--dp-top': `${panelPos.top}px`, '--dp-left': `${panelPos.left}px`, '--dp-width': `${panelPos.width}px` } as React.CSSProperties}>
         {options.length === 0 ? (
           <li className={styles.dropdownEmpty}>אין אפשרויות</li>
         ) : options.map((opt) => (
-          <li
-            key={opt.value}
-            role="option"
-            aria-selected={opt.value === value}
-            className={`${styles.dropdownOption} ${opt.value === value ? styles.dropdownOptionSelected : ''}`}
-            onClick={() => handleSelect(opt.value)}
-          >
+          <li key={opt.value} role="option" aria-selected={opt.value === value} className={`${styles.dropdownOption} ${opt.value === value ? styles.dropdownOptionSelected : ''}`} onClick={() => handleSelect(opt.value)}>
             {opt.label}
           </li>
         ))}
@@ -92,13 +81,7 @@ function FilterSelect({ value, onChange, disabled, loading, placeholder, selecte
 
   return (
     <>
-      <div
-        ref={wrapperRef}
-        className={`${styles.filterWrapper} ${active ? styles.filterWrapperActive : ''}`}
-        onClick={openPanel}
-        aria-haspopup="listbox"
-        aria-expanded={isOpen}
-      >
+      <div ref={wrapperRef} className={`${styles.filterWrapper} ${active ? styles.filterWrapperActive : ''}`} onClick={openPanel} aria-haspopup="listbox" aria-expanded={isOpen}>
         <select value={value} onChange={(e) => onChange(e.target.value)} disabled={disabled || loading} className={styles.filterSelect}>
           <option value="">{placeholder}</option>
           {children}
@@ -196,6 +179,17 @@ export default function WidgetPage() {
     );
   }, [detailCourse, drawerCourse]);
 
+  const handleEnrollClick = () => {
+    const branch = allBranches.find((b) => b.id === selectedBranch);
+    if (branch?.is_external && branch.external_link) {
+      window.open(normalizeExternalLink(branch.external_link), '_blank', 'noopener,noreferrer');
+      setDetailCourse(null);
+      return;
+    }
+    setDrawerCourse(detailCourse);
+    setDetailCourse(null);
+  };
+
   const handleCityChange = (cityId: string) => { setSelectedCity(cityId); setSelectedBranch(''); setSelectedCourseType(''); setSelectedAge(''); };
   const handleBranchChange = (branchId: string) => { setSelectedBranch(branchId); setSelectedCourseType(''); setSelectedAge(''); };
   const handleCourseTypeChange = (typeId: string) => { setSelectedCourseType(typeId); setSelectedAge(''); };
@@ -254,20 +248,7 @@ const ageLabel = (age: number) => `${age} שנים`;
         <>
           <div className={styles.detailOverlay} onClick={() => setDetailCourse(null)} />
           <div className={styles.detailPanel}>
-            <CourseExpandedDetail
-              course={detailCourse}
-              onClose={() => setDetailCourse(null)}
-              onEnroll={() => {
-                const branch = allBranches.find((b) => b.id === selectedBranch);
-                if (branch?.is_external && branch.external_link) {
-                  window.open(normalizeExternalLink(branch.external_link), '_blank', 'noopener,noreferrer');
-                  setDetailCourse(null);
-                  return;
-                }
-                setDrawerCourse(detailCourse);
-                setDetailCourse(null);
-              }}
-            />
+            <CourseExpandedDetail course={detailCourse} onClose={() => setDetailCourse(null)} onEnroll={handleEnrollClick} />
           </div>
         </>
       )}
@@ -291,7 +272,7 @@ const ageLabel = (age: number) => `${age} שנים`;
                 })()}
               </div>
             ) : (
-              <CourseRegistrationForm courseId={drawerCourse.id} courseName={drawerCourse.name} onBack={() => setDrawerCourse(null)} onComplete={() => setDrawerCourse(null)} />
+              <CourseRegistrationForm courseId={drawerCourse.id} courseName={drawerCourse.name} isAdult={drawerCourse.is_adult ?? false} onBack={() => setDrawerCourse(null)} onComplete={() => setDrawerCourse(null)} />
             )}
           </div>
         </>
