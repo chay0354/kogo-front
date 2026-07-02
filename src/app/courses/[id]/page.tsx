@@ -491,6 +491,10 @@ export default function CourseTypeDetailsPage() {
       {showAddLessonDialog && (
         <AddLessonDialog
           courseId={selectedCourseId}
+          branchId={(() => {
+            const c = courseTypeDetails?.courses.find((c) => c.id === selectedCourseId);
+            return typeof c?.branch === 'string' ? c.branch : undefined;
+          })()}
           teamRoomId={
             courseTypeDetails?.courses.find((c) => c.id === selectedCourseId)?.lessons?.[0]?.room?.id
           }
