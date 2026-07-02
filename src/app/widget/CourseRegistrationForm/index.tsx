@@ -8,7 +8,7 @@ import type { Props, Step, LookupResult, PaymentResponse } from './types';
 
 export type { CourseLesson } from './types';
 
-export default function CourseRegistrationForm({ courseId, courseName, onBack, onComplete }: Props) {
+export default function CourseRegistrationForm({ courseId, courseName, isAdult = false, onBack, onComplete }: Props) {
   const [step, setStep] = useState<Step>('details');
   const [errorMsg, setErrorMsg] = useState('');
 
@@ -169,12 +169,14 @@ export default function CourseRegistrationForm({ courseId, courseName, onBack, o
       <form onSubmit={handleDetailsSubmit} className={styles.form} dir="rtl">
         {header}
 
-        <label className={styles.selfRegToggle}>
-          <input type="checkbox" checked={selfRegistering}
-            onChange={(e) => setSelfRegistering(e.target.checked)}
-            className={styles.selfRegCheckbox} />
-          אני נרשם/ת עבור עצמי
-        </label>
+        {isAdult && (
+          <label className={styles.selfRegToggle}>
+            <input type="checkbox" checked={selfRegistering}
+              onChange={(e) => setSelfRegistering(e.target.checked)}
+              className={styles.selfRegCheckbox} />
+            אני נרשם/ת עבור עצמי
+          </label>
+        )}
 
         <div className={styles.section}>
           <div className={styles.sectionTitle}>

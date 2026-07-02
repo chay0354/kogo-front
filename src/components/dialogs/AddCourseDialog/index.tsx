@@ -252,6 +252,14 @@ export default function AddCourseDialog({
               </div>
             </div>
 
+            {/* 18+ toggle */}
+            <div className={styles.adultToggleRow}>
+              <label htmlFor="is_adult" className={styles.adultToggleLabel}>
+                <input type="checkbox" id="is_adult" className={styles.adultCheckbox} checked={courseData.is_adult ?? false} onChange={(e) => setCourseData({ ...courseData, is_adult: e.target.checked })} />
+                18+
+              </label>
+            </div>
+
             {/* Price and Capacity */}
             <div className={styles.grid2}>
               <div>

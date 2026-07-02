@@ -30,6 +30,7 @@ export interface Course {
   min_age: number | null;
   max_age: number | null;
   price: number | null;
+  is_adult: boolean;
   lessons_count: number;
   lessons: CourseLesson[];
 }

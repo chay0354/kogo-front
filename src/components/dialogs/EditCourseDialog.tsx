@@ -17,6 +17,7 @@ import {
   getInstructorMonthlySalaryFromProfile,
   LESSONS_PER_MONTH,
 } from '@/lib/courseUtils';
+import styles from './EditCourseDialog.module.css';
 
 interface Branch {
   id: string;
@@ -69,6 +70,7 @@ export default function EditCourseDialog({
     capacity: course.capacity,
     min_age: course.min_age || 6,
     max_age: course.max_age || 18,
+    is_adult: course.is_adult ?? false,
   });
   const [extraTiers, setExtraTiers] = useState<LessonPriceTier[]>(() =>
     tiersFromCourseLessons(courseWithLessons.lessons)
@@ -98,6 +100,7 @@ export default function EditCourseDialog({
       capacity: course.capacity,
       min_age: course.min_age || 6,
       max_age: course.max_age || 18,
+      is_adult: course.is_adult ?? false,
     });
     setExtraTiers(tiersFromCourseLessons(courseWithLessons.lessons));
     setInstructorId(courseWithLessons.instructor?.id || '');
@@ -299,6 +302,13 @@ export default function EditCourseDialog({
                   ))}
                 </select>
               </div>
+            </div>
+
+            <div className={styles.adultToggleRow}>
+              <label htmlFor="is_adult_edit" className={styles.adultToggleLabel}>
+                <input type="checkbox" id="is_adult_edit" className={styles.adultCheckbox} checked={formData.is_adult ?? false} onChange={(e) => setFormData({ ...formData, is_adult: e.target.checked })} />
+                18+
+              </label>
             </div>
 
             <div className="grid grid-cols-2 gap-4">

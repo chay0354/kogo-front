@@ -272,7 +272,7 @@ const ageLabel = (age: number) => `${age} שנים`;
                 })()}
               </div>
             ) : (
-              <CourseRegistrationForm courseId={drawerCourse.id} courseName={drawerCourse.name} onBack={() => setDrawerCourse(null)} onComplete={() => setDrawerCourse(null)} />
+              <CourseRegistrationForm courseId={drawerCourse.id} courseName={drawerCourse.name} isAdult={drawerCourse.is_adult ?? false} onBack={() => setDrawerCourse(null)} onComplete={() => setDrawerCourse(null)} />
             )}
           </div>
         </>
