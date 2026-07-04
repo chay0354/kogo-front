@@ -47,12 +47,12 @@ export default function HomePage() {
   return (
     <AppLayout>
       <div dir="rtl" className="space-y-6">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <PageHeader 
             title="לוח בקרה" 
             description="סקירה כללית של הנתונים העסקיים"
           />
-          <div className="flex gap-3 items-center">
+          <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center shrink-0">
             <GlobalDateFilter 
               dateRange={globalDateRange} 
               onDateRangeChange={setGlobalDateRange}
@@ -70,7 +70,7 @@ export default function HomePage() {
         </div>
         
         <Tabs defaultValue="financial" value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="grid w-full grid-cols-6 h-auto">
+          <TabsList className="grid w-full grid-cols-3 sm:grid-cols-6 h-auto">
             <TabsTrigger value="financial" className="gap-2 py-3">
               <Wallet className="h-4 w-4" />
               <span className="hidden sm:inline">כספים</span>

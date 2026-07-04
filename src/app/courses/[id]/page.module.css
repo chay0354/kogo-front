@@ -8,8 +8,16 @@
 /* ── Header ── */
 .header {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.75rem;
+}
+@media (min-width: 640px) {
+  .header {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+  }
 }
 
 .headerLeft {
@@ -37,16 +45,28 @@
 }
 
 .pageTitle {
-  font-size: 1.875rem;
+  font-size: 1.5rem;
   font-weight: 700;
   color: #111827;
   margin: 0;
+}
+@media (min-width: 640px) {
+  .pageTitle {
+    font-size: 1.875rem;
+  }
 }
 
 .addCourseButton {
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 0.5rem;
+  width: 100%;
+}
+@media (min-width: 640px) {
+  .addCourseButton {
+    width: auto;
+  }
 }
 
 /* ── Financial summary cards ── */
@@ -114,8 +134,16 @@
 /* ── Filters ── */
 .filtersRow {
   display: flex;
-  align-items: center;
-  gap: 1rem;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.75rem;
+}
+@media (min-width: 640px) {
+  .filtersRow {
+    flex-direction: row;
+    align-items: center;
+    gap: 1rem;
+  }
 }
 
 .filtersLabel {
@@ -140,6 +168,12 @@
   font-size: 0.875rem;
   background: white;
   outline: none;
+  width: 100%;
+}
+@media (min-width: 640px) {
+  .filterSelect {
+    width: auto;
+  }
 }
 .filterSelect:focus {
   box-shadow: 0 0 0 2px #14b8a6;
@@ -158,80 +192,90 @@
 }
 
 .courseList {
-  display: grid;
-  grid-template-columns:
-    1.25rem
-    minmax(7rem, 1.2fr)
-    minmax(6rem, 1fr)
-    minmax(5rem, 0.75fr)
-    minmax(5rem, 0.7fr)
-    minmax(6rem, 0.9fr)
-    minmax(5.5rem, 0.8fr)
-    4.5rem
-    4rem
-    5rem
-    4.75rem;
-  column-gap: 0.75rem;
-  row-gap: 0;
-  align-items: center;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.courseCard {
   border: 1px solid #e5e7eb;
-  border-radius: 3px;
+  border-radius: 0.5rem;
   overflow: hidden;
+  background: #fff;
 }
 
-.courseListHeader {
-  grid-column: 1 / -1;
-  display: grid;
-  grid-template-columns: subgrid;
-  align-items: center;
-  padding: 0.375rem 0.75rem;
-  background-color: #f3f4f6;
-  border-bottom: 1px solid #e5e7eb;
-  font-size: 0.6875rem;
-  font-weight: 600;
-  color: #6b7280;
-}
-
-.courseListHeader span {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  text-align: right;
-}
-
-.courseCell,
-.courseName,
-.courseMeta,
-.courseProfit {
-  text-align: right;
-}
-
-/* ── Course row ── */
-.courseRow {
-  display: contents;
-}
-
-.courseHeader {
-  grid-column: 1 / -1;
-  display: grid;
-  grid-template-columns: subgrid;
-  align-items: center;
-  padding: 0.5rem 0.75rem;
+.courseCardHeader {
+  padding: 0.75rem;
   background-color: #f9fafb;
-  border-bottom: 1px solid #e5e7eb;
   cursor: pointer;
   transition: background-color 150ms;
 }
-.courseHeader:hover {
+.courseCardHeader:hover {
   background-color: #f3f4f6;
 }
 
-.courseCell {
+.courseTitleRow {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.courseStatsGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.5rem 0.75rem;
+}
+@media (min-width: 640px) {
+  .courseStatsGrid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+@media (min-width: 1024px) {
+  .courseStatsGrid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+.statItem {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
   min-width: 0;
+}
+
+.statLabel {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: #9ca3af;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.statText {
+  font-size: 0.8125rem;
+  color: #374151;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.courseName {
+  flex: 1;
+  min-width: 0;
+  font-weight: 600;
+  font-size: 0.9375rem;
+  color: #111827;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.courseActions {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  flex-shrink: 0;
 }
 
 .chevron {
@@ -243,34 +287,6 @@
 }
 .chevronExpanded {
   transform: rotate(90deg);
-}
-
-.courseName {
-  font-weight: 500;
-  font-size: 0.875rem;
-  color: #111827;
-}
-
-.courseMeta {
-  font-size: 0.75rem;
-  color: #6b7280;
-}
-
-.courseMetaNumber {
-  font-weight: 600;
-  color: #374151;
-}
-
-.courseProfit {
-  font-size: 0.75rem;
-  font-weight: 600;
-}
-
-.courseActions {
-  display: flex;
-  align-items: center;
-  gap: 0.25rem;
-  justify-self: end;
 }
 
 .actionButton {
@@ -314,10 +330,14 @@
 
 /* ── Lessons (expanded) ── */
 .lessonsBody {
-  grid-column: 1 / -1;
-  padding: 0.5rem 0.75rem;
+  padding: 0.75rem;
   background-color: #fff;
-  border-bottom: 1px solid #e5e7eb;
+  border-top: 1px solid #e5e7eb;
+}
+
+.lessonsTableWrap {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .lessonsEmptyState {
@@ -395,25 +415,47 @@
 
 /* ── Course financial footer ── */
 .courseFooter {
-  margin-top: 0.5rem;
-  padding-top: 0.5rem;
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
   border-top: 1px solid #e5e7eb;
   display: flex;
-  align-items: center;
-  justify-content: space-between;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.75rem;
+}
+@media (min-width: 768px) {
+  .courseFooter {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+  }
 }
 
 .addLessonButton {
   font-size: 0.75rem;
-  padding: 0.25rem 0.5rem;
+  padding: 0.375rem 0.75rem;
+  width: 100%;
+}
+@media (min-width: 768px) {
+  .addLessonButton {
+    width: auto;
+  }
 }
 
 .courseFooterStats {
   display: flex;
-  align-items: center;
-  gap: 1rem;
+  flex-direction: column;
+  gap: 0.375rem;
   font-size: 0.75rem;
   color: #6b7280;
+}
+@media (min-width: 640px) {
+  .courseFooterStats {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.75rem 1rem;
+  }
 }
 
 .statRevenue { font-weight: 600; color: #16a34a; }

@@ -207,37 +207,39 @@ export default function BranchDetailsPage() {
     <AppLayout>
       {/* Header */}
       <div className="mb-6 animate-fade-in">
-        <div className="flex items-center gap-4 mb-2">
-          <button
-            onClick={() => router.push('/branches')}
-            className="p-2 hover:bg-accent rounded-lg transition-colors"
-          >
-            <ArrowLeft className="w-5 h-5" />
-          </button>
-          <div className="flex-1">
-            <div className="flex items-center gap-3">
-              <h1 className="text-3xl font-bold">{branch.name}</h1>
-              <span className={`px-3 py-1 rounded-full text-xs font-medium border ${statusBadge.className}`}>
-                {statusBadge.label}
-              </span>
-            </div>
-            {branch.address && (
-              <div className="flex items-center gap-2 text-muted-foreground mt-1">
-                <MapPin className="w-4 h-4" />
-                <span>{branch.address}</span>
-              </div>
-            )}
-          </div>
-          <div className="flex items-center gap-2">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
+          <div className="flex items-start gap-3 sm:gap-4 flex-1 min-w-0">
             <button
-              className="btn-secondary flex items-center gap-2"
+              onClick={() => router.push('/branches')}
+              className="p-2 hover:bg-accent rounded-lg transition-colors shrink-0"
+            >
+              <ArrowLeft className="w-5 h-5" />
+            </button>
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+                <h1 className="text-2xl sm:text-3xl font-bold">{branch.name}</h1>
+                <span className={`px-3 py-1 rounded-full text-xs font-medium border ${statusBadge.className}`}>
+                  {statusBadge.label}
+                </span>
+              </div>
+              {branch.address && (
+                <div className="flex items-center gap-2 text-muted-foreground mt-1 text-sm sm:text-base">
+                  <MapPin className="w-4 h-4 shrink-0" />
+                  <span>{branch.address}</span>
+                </div>
+              )}
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2 shrink-0">
+            <button
+              className="btn-secondary flex items-center gap-2 flex-1 sm:flex-none justify-center"
               onClick={() => setShowEditDialog(true)}
             >
               <Edit className="w-4 h-4" />
               עריכת סניף
             </button>
             <button
-              className="px-4 py-2 border border-red-300 text-red-600 rounded-lg hover:bg-red-50 transition-colors flex items-center gap-2"
+              className="px-4 py-2 border border-red-300 text-red-600 rounded-lg hover:bg-red-50 transition-colors flex items-center gap-2 flex-1 sm:flex-none justify-center"
               onClick={handleDeleteBranch}
             >
               <Trash2 className="w-4 h-4" />

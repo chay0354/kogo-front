@@ -263,14 +263,14 @@ export default function CustomersPage() {
             <input
               type="text"
               placeholder="חיפוש..."
-              className="input w-64"
+              className="input w-full sm:w-64"
               value={filters.search}
               onChange={(e) => updateFilter('search', e.target.value)}
             />
             
             {/* Branch Filter */}
             <select
-              className="input w-32 text-sm"
+              className="input w-full sm:w-32 text-sm"
               value={filters.branch}
               onChange={(e) => updateFilter('branch', e.target.value)}
             >
@@ -282,7 +282,7 @@ export default function CustomersPage() {
             
             {/* Course Filter */}
             <select
-              className="input w-32 text-sm"
+              className="input w-full sm:w-32 text-sm"
               value={filters.course}
               onChange={(e) => updateFilter('course', e.target.value)}
             >
@@ -294,7 +294,7 @@ export default function CustomersPage() {
             
             {/* Instructor Filter */}
             <select
-              className="input w-32 text-sm"
+              className="input w-full sm:w-32 text-sm"
               value={filters.instructor}
               onChange={(e) => updateFilter('instructor', e.target.value)}
             >
@@ -424,13 +424,13 @@ export default function CustomersPage() {
                 </div>
               </div>
               
-              <div className="overflow-x-auto min-h-[600px] pb-48">
-                <table className="table">
+              <div className="table-scroll min-h-[400px] sm:min-h-[600px] pb-24 sm:pb-48">
+                <table className="table table-compact">
                 <thead>
                   <tr className="bg-muted/50">
                     <th>שם הילד</th>
-                    <th>טלפון</th>
-                    <th>סניף</th>
+                    <th className="col-hide-mobile">טלפון</th>
+                    <th className="col-hide-mobile">סניף</th>
                     <th>חוגים</th>
                     <th>סטטוס</th>
                     <th className="w-16 text-center"></th>
@@ -471,7 +471,7 @@ export default function CustomersPage() {
                         </td>
                         
                         {/* Phone */}
-                        <td>
+                        <td className="col-hide-mobile">
                           {(() => {
                             const displayPhone = child.phone_number || child.parent_phone;
                             const phoneLink = formatWhatsAppLink(displayPhone);
@@ -492,7 +492,7 @@ export default function CustomersPage() {
                         </td>
                         
                         {/* Branch */}
-                        <td>{child.branch_name || '-'}</td>
+                        <td className="col-hide-mobile">{child.branch_name || '-'}</td>
                         
                         {/* Courses */}
                         <td>
@@ -653,7 +653,7 @@ export default function CustomersPage() {
 
           <div className="px-6 pb-6 pt-4">
             {addCustomerStep === 'choice' && (
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <button
                   onClick={() => setAddCustomerStep('existing')}
                   className="p-8 border-2 border-gray-200 rounded-lg hover:border-primary hover:bg-primary/5 transition-all flex flex-col items-center gap-4 group"
@@ -866,7 +866,7 @@ function AddChildToExistingFamilyForm({ onSuccess, onCancel }: { onSuccess: () =
         </datalist>
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div>
           <label className="block text-sm font-medium mb-1">שם פרטי <span className="text-red-500">*</span></label>
           <input
@@ -916,7 +916,7 @@ function AddChildToExistingFamilyForm({ onSuccess, onCancel }: { onSuccess: () =
         {errors.phone_number && <p className="text-red-500 text-xs mt-1">{errors.phone_number}</p>}
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div>
           <label className="block text-sm font-medium mb-1">תאריך לידה <span className="text-red-500">*</span></label>
           <input
@@ -1138,7 +1138,7 @@ function AddNewFamilyForm({ onSuccess, onCancel }: { onSuccess: () => void; onCa
           {errors.parent_id_number && <p className="text-red-500 text-xs mt-1">{errors.parent_id_number}</p>}
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-medium mb-1">שם פרטי <span className="text-red-500">*</span></label>
             <input
@@ -1163,7 +1163,7 @@ function AddNewFamilyForm({ onSuccess, onCancel }: { onSuccess: () => void; onCa
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-medium mb-1">טלפון <span className="text-red-500">*</span></label>
             <input
@@ -1220,7 +1220,7 @@ function AddNewFamilyForm({ onSuccess, onCancel }: { onSuccess: () => void; onCa
           {errors.child_id_number && <p className="text-red-500 text-xs mt-1">{errors.child_id_number}</p>}
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-medium mb-1">שם פרטי <span className="text-red-500">*</span></label>
             <input
@@ -1257,7 +1257,7 @@ function AddNewFamilyForm({ onSuccess, onCancel }: { onSuccess: () => void; onCa
           {errors.child_phone_number && <p className="text-red-500 text-xs mt-1">{errors.child_phone_number}</p>}
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-medium mb-1">תאריך לידה <span className="text-red-500">*</span></label>
             <input

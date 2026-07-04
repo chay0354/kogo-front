@@ -50,12 +50,12 @@ export function DialogContent({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 animate-fade-in"
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 animate-fade-in p-0 sm:p-4"
       onMouseDown={() => ctx.onOpenChange(false)}
     >
       <div
         dir={dir}
-        className={`relative w-full bg-white rounded-lg shadow-xl animate-scale-in ${className}`}
+        className={`relative w-full sm:w-[calc(100%-2rem)] max-h-[92vh] sm:max-h-[90vh] overflow-y-auto bg-white rounded-t-2xl sm:rounded-lg shadow-xl animate-scale-in ${className}`}
         onMouseDown={(e) => e.stopPropagation()}
       >
         {children}
@@ -71,7 +71,7 @@ export function DialogHeader({
   className?: string;
   children: React.ReactNode;
 }) {
-  return <div className={className ?? 'px-6 pt-6'}>{children}</div>;
+  return <div className={className ?? 'px-4 pt-4 sm:px-6 sm:pt-6'}>{children}</div>;
 }
 
 export function DialogTitle({

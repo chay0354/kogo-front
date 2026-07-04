@@ -369,8 +369,8 @@ export default function InstructorsPage() {
             <p className="text-muted-foreground mb-4">לא נמצאו מדריכים</p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="table">
+          <div className="table-scroll">
+            <table className="table table-compact">
               <thead>
                 <tr>
                   <th 
@@ -379,8 +379,8 @@ export default function InstructorsPage() {
                   >
                     שם המדריך {renderSortIcon('full_name')}
                   </th>
-                  <th>סניפים</th>
-                  <th>התמחות</th>
+                  <th className="col-hide-mobile">סניפים</th>
+                  <th className="col-hide-mobile">התמחות</th>
                   <th 
                     className="cursor-pointer hover:bg-muted/50 transition-colors text-center"
                     onClick={() => handleSort('lessons_count')}
@@ -411,7 +411,7 @@ export default function InstructorsPage() {
                   >
                     רווח {renderSortIcon('profit')}
                   </th>
-                  <th className="text-left">בונוסים</th>
+                  <th className="text-left col-hide-mobile">בונוסים</th>
                   <th className="text-center">פעולות</th>
                 </tr>
               </thead>
@@ -428,7 +428,7 @@ export default function InstructorsPage() {
                         <p className="text-sm text-muted-foreground">{instructor.phone}</p>
                       </div>
                     </td>
-                    <td>
+                    <td className="col-hide-mobile">
                       <div className="flex flex-wrap gap-1">
                         {instructor.branches.length > 0 ? (
                           instructor.branches.map((branch: any) => (
@@ -441,7 +441,7 @@ export default function InstructorsPage() {
                         )}
                       </div>
                     </td>
-                    <td>
+                    <td className="col-hide-mobile">
                       <span className="text-sm">
                         {instructor.specialization || '-'}
                       </span>
@@ -473,7 +473,7 @@ export default function InstructorsPage() {
                         {formatCurrency(instructor.profit || 0)}
                       </span>
                     </td>
-                    <td className="text-left">
+                    <td className="text-left col-hide-mobile">
                       <span className="text-purple-600 font-medium">
                         {formatCurrency(instructor.bonuses_amount || 0)}
                       </span>

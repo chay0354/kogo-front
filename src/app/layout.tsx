@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 // @ts-ignore: CSS import type declarations are handled by Next.js
 import "./globals.css";
 import { Providers } from "@/components/Providers";
@@ -17,6 +17,11 @@ export const metadata: Metadata = {
       { rel: "manifest-icon-512", url: "/android-chrome-512x512.png" },
     ],
   },
+};
+
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
 };
 
 export default function RootLayout({

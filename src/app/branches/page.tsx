@@ -153,7 +153,7 @@ export default function BranchesPage() {
                 </div>
 
                 {/* Statistics Grid */}
-                <div className="grid grid-cols-4 gap-3 mb-4">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
                   <div className="text-center">
                     <Users className="w-5 h-5 mx-auto text-primary mb-1" />
                     <div className="text-2xl font-bold">{branch.families_count}</div>

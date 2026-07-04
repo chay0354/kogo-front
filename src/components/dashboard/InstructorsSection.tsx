@@ -184,7 +184,7 @@ export default function InstructorsSection({ globalDateRange }: Props) {
       </div>
 
       {/* Top Performers */}
-      <div className="grid grid-cols-3 gap-4 p-4 rounded-xl bg-muted/50 border border-border/50">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 p-4 rounded-xl bg-muted/50 border border-border/50">
         <div className="text-center">
           <p className="text-sm text-muted-foreground mb-1">רווח הגבוה ביותר</p>
           <p className="text-lg font-bold text-success">{topPerformers.highest_profit?.name || '-'}</p>

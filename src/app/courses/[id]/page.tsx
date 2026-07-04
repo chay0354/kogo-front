@@ -295,157 +295,160 @@ export default function CourseTypeDetailsPage() {
             <p className={`text-muted-foreground ${styles.emptyState}`}>אין חוגים התואמים לסינון</p>
           ) : (
             <div className={styles.courseList}>
-              <div className={styles.courseListHeader}>
-                <span aria-hidden="true" />
-                <span>שם קבוצה</span>
-                <span>סניף</span>
-                <span>גילאים</span>
-                <span>מחיר</span>
-                <span>מדריך</span>
-                <span>שכר מדריך</span>
-                <span>תלמידים</span>
-                <span>שיעורים</span>
-                <span>רווח</span>
-                <span>פעולות</span>
-              </div>
               {filteredCourses.map((course) => {
                 const isExpanded = expandedCourses.has(course.id);
                 const courseFinancials = calculateCourseFinancials(course);
                 const totalStudents = course.lessons.reduce((sum, l) => sum + (l.total_students_count || l.enrolled_count), 0);
 
                 return (
-                  <div key={course.id} className={styles.courseRow}>
-
-                    {/* Course Header */}
-                    <div onClick={() => toggleCourseExpanded(course.id)} className={styles.courseHeader}>
-                      <svg
-                        className={`${styles.chevron} ${isExpanded ? styles.chevronExpanded : ''}`}
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                      </svg>
-
-                      <span className={`${styles.courseName} ${styles.courseCell}`}>{course.name}</span>
-                      <span className={`${styles.courseMeta} ${styles.courseCell}`}>
-                        {course.branch_name || '—'}
-                      </span>
-                      <span className={`${styles.courseMeta} ${styles.courseCell}`}>
-                        {formatAgeRange(course.min_age, course.max_age)}
-                      </span>
-                      <span className={`${styles.courseMeta} ${styles.courseCell}`}>
-                        {formatCurrency(course.price)}/חודש
-                      </span>
-                      <span className={`${styles.courseMeta} ${styles.courseCell}`}>
-                        {course.instructor?.full_name ? `מדריך: ${course.instructor.full_name}` : '—'}
-                      </span>
-                      <span className={`${styles.courseMeta} ${styles.courseCell}`}>
-                        {course.instructor_salary_override != null
-                          ? `${formatCurrency(Number(course.instructor_salary_override))}/חודש`
-                          : '—'}
-                      </span>
-                      <span className={`${styles.courseMeta} ${styles.courseCell}`}>
-                        <span className={styles.courseMetaNumber}>{totalStudents}</span> תלמידים
-                      </span>
-                      <span className={`${styles.courseMeta} ${styles.courseCell}`}>
-                        <span className={styles.courseMetaNumber}>{course.lessons.length}</span> שיעורים
-                      </span>
-                      <span className={`${styles.courseProfit} ${styles.courseCell} ${courseFinancials.monthlyProfit >= 0 ? styles.profit : styles.loss}`}>
-                        {formatCurrency(courseFinancials.monthlyProfit)}
-                      </span>
-
-                      <div className={styles.courseActions} onClick={(e) => e.stopPropagation()}>
-                        <button
-                          onClick={() => handleEditCourse(course)}
-                          className={`${styles.actionButton} ${styles.editButton}`}
-                          title="עריכת קבוצה"
+                  <div key={course.id} className={styles.courseCard}>
+                    <div
+                      onClick={() => toggleCourseExpanded(course.id)}
+                      className={styles.courseCardHeader}
+                    >
+                      <div className={styles.courseTitleRow}>
+                        <svg
+                          className={`${styles.chevron} ${isExpanded ? styles.chevronExpanded : ''}`}
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
                         >
-                          <svg className={styles.editIcon} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                          </svg>
-                        </button>
-                        <button
-                          onClick={() => handleDuplicateCourse(course)}
-                          className={`${styles.actionButton} ${styles.duplicateButton}`}
-                          title="שכפול קבוצה"
-                        >
-                          <svg className={styles.duplicateIcon} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                          </svg>
-                        </button>
-                        <button
-                          onClick={() => handleDeleteCourse(course)}
-                          className={`${styles.actionButton} ${styles.deleteButton}`}
-                          title="מחיקת חוג"
-                          disabled={deletingCourseId === course.id}
-                        >
-                          {deletingCourseId === course.id ? (
-                            <Loader2 className={styles.deleteIconSpinning} />
-                          ) : (
-                            <svg className={styles.deleteIcon} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                        </svg>
+                        <span className={styles.courseName}>{course.name}</span>
+                        <div className={styles.courseActions} onClick={(e) => e.stopPropagation()}>
+                          <button
+                            onClick={() => handleEditCourse(course)}
+                            className={`${styles.actionButton} ${styles.editButton}`}
+                            title="עריכת קבוצה"
+                          >
+                            <svg className={styles.editIcon} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                             </svg>
-                          )}
-                        </button>
+                          </button>
+                          <button
+                            onClick={() => handleDuplicateCourse(course)}
+                            className={`${styles.actionButton} ${styles.duplicateButton}`}
+                            title="שכפול קבוצה"
+                          >
+                            <svg className={styles.duplicateIcon} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                            </svg>
+                          </button>
+                          <button
+                            onClick={() => handleDeleteCourse(course)}
+                            className={`${styles.actionButton} ${styles.deleteButton}`}
+                            title="מחיקת חוג"
+                            disabled={deletingCourseId === course.id}
+                          >
+                            {deletingCourseId === course.id ? (
+                              <Loader2 className={styles.deleteIconSpinning} />
+                            ) : (
+                              <svg className={styles.deleteIcon} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                              </svg>
+                            )}
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className={styles.courseStatsGrid}>
+                        <div className={styles.statItem}>
+                          <span className={styles.statLabel}>סניף</span>
+                          <span className={styles.statText}>{course.branch_name || '—'}</span>
+                        </div>
+                        <div className={styles.statItem}>
+                          <span className={styles.statLabel}>גילאים</span>
+                          <span className={styles.statText}>{formatAgeRange(course.min_age, course.max_age)}</span>
+                        </div>
+                        <div className={styles.statItem}>
+                          <span className={styles.statLabel}>מחיר</span>
+                          <span className={styles.statText}>{formatCurrency(course.price)}/חודש</span>
+                        </div>
+                        <div className={styles.statItem}>
+                          <span className={styles.statLabel}>מדריך</span>
+                          <span className={styles.statText}>{course.instructor?.full_name || '—'}</span>
+                        </div>
+                        <div className={styles.statItem}>
+                          <span className={styles.statLabel}>שכר מדריך</span>
+                          <span className={styles.statText}>
+                            {course.instructor_salary_override != null
+                              ? `${formatCurrency(Number(course.instructor_salary_override))}/חודש`
+                              : '—'}
+                          </span>
+                        </div>
+                        <div className={styles.statItem}>
+                          <span className={styles.statLabel}>תלמידים</span>
+                          <span className={styles.statText}>{totalStudents}</span>
+                        </div>
+                        <div className={styles.statItem}>
+                          <span className={styles.statLabel}>שיעורים</span>
+                          <span className={styles.statText}>{course.lessons.length}</span>
+                        </div>
+                        <div className={styles.statItem}>
+                          <span className={styles.statLabel}>רווח</span>
+                          <span className={`${styles.statText} ${courseFinancials.monthlyProfit >= 0 ? styles.profit : styles.loss}`}>
+                            {formatCurrency(courseFinancials.monthlyProfit)}
+                          </span>
+                        </div>
                       </div>
                     </div>
 
-                    {/* Lessons Table (when expanded) */}
                     {isExpanded && (
                       <div className={styles.lessonsBody}>
                         {course.lessons.length === 0 ? (
                           <p className={`text-muted-foreground ${styles.lessonsEmptyState}`}>אין שיעורים בחוג זה</p>
                         ) : (
-                          <table className={styles.lessonsTable}>
-                            <thead>
-                              <tr className={styles.tableHeadRow}>
-                                <th className={styles.th}>יום ושעה</th>
-                                <th className={styles.th}>נרשמים</th>
-                                <th className={`${styles.th} ${styles.thCenter}`}>פעולות</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {course.lessons.map((lesson: any) => (
-                                <tr key={lesson.id} className={styles.tableRow}>
-                                  <td className={`${styles.td} ${styles.tdBold}`}>
-                                    {getDayName(lesson.day_of_week)} {formatTimeRange(lesson.start_time, lesson.end_time)}
-                                  </td>
-                                  <td className={styles.td}>{lesson.total_students_count || lesson.enrolled_count}</td>
-                                  <td className={`${styles.td} ${styles.tdCenter}`}>
-                                    <div className={styles.lessonActionButtons}>
-                                      <button
-                                        onClick={() => handleEditLesson(lesson, course.id)}
-                                        className={`${styles.lessonActionButton} ${styles.editButton}`}
-                                        title="עריכת שיעור"
-                                      >
-                                        <svg className={styles.editIcon} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                                        </svg>
-                                      </button>
-                                      <button
-                                        onClick={() => handleDeleteLesson(lesson)}
-                                        className={`${styles.lessonActionButton} ${styles.deleteButton}`}
-                                        title="מחיקת שיעור"
-                                        disabled={deletingLessonId === lesson.id}
-                                      >
-                                        {deletingLessonId === lesson.id ? (
-                                          <Loader2 className={styles.deleteIconSpinning} />
-                                        ) : (
-                                          <svg className={styles.deleteIcon} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                          </svg>
-                                        )}
-                                      </button>
-                                    </div>
-                                  </td>
+                          <div className={styles.lessonsTableWrap}>
+                            <table className={styles.lessonsTable}>
+                              <thead>
+                                <tr className={styles.tableHeadRow}>
+                                  <th className={styles.th}>יום ושעה</th>
+                                  <th className={styles.th}>נרשמים</th>
+                                  <th className={`${styles.th} ${styles.thCenter}`}>פעולות</th>
                                 </tr>
-                              ))}
-                            </tbody>
-                          </table>
+                              </thead>
+                              <tbody>
+                                {course.lessons.map((lesson: any) => (
+                                  <tr key={lesson.id} className={styles.tableRow}>
+                                    <td className={`${styles.td} ${styles.tdBold}`}>
+                                      {getDayName(lesson.day_of_week)} {formatTimeRange(lesson.start_time, lesson.end_time)}
+                                    </td>
+                                    <td className={styles.td}>{lesson.total_students_count || lesson.enrolled_count}</td>
+                                    <td className={`${styles.td} ${styles.tdCenter}`}>
+                                      <div className={styles.lessonActionButtons}>
+                                        <button
+                                          onClick={() => handleEditLesson(lesson, course.id)}
+                                          className={`${styles.lessonActionButton} ${styles.editButton}`}
+                                          title="עריכת שיעור"
+                                        >
+                                          <svg className={styles.editIcon} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                          </svg>
+                                        </button>
+                                        <button
+                                          onClick={() => handleDeleteLesson(lesson)}
+                                          className={`${styles.lessonActionButton} ${styles.deleteButton}`}
+                                          title="מחיקת שיעור"
+                                          disabled={deletingLessonId === lesson.id}
+                                        >
+                                          {deletingLessonId === lesson.id ? (
+                                            <Loader2 className={styles.deleteIconSpinning} />
+                                          ) : (
+                                            <svg className={styles.deleteIcon} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                            </svg>
+                                          )}
+                                        </button>
+                                      </div>
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
                         )}
 
-                        {/* Course Financial Summary */}
                         <div className={styles.courseFooter}>
                           <button
                             onClick={(e) => {

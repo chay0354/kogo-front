@@ -54,7 +54,7 @@
 @layer components {
   /* Card styles */
   .card {
-    @apply bg-white rounded-lg shadow-sm border border-gray-100 p-6;
+    @apply bg-white rounded-lg shadow-sm border border-gray-100 p-4 sm:p-6;
   }
   
   /* Button styles */
@@ -119,6 +119,21 @@
   
   .table tbody tr {
     @apply border-b border-gray-100 hover:bg-secondary/50 transition-colors;
+  }
+
+  .table-scroll {
+    @apply overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0;
+  }
+
+  .table-compact th,
+  .table-compact td {
+    @apply px-2 py-2 text-xs sm:px-4 sm:py-3 sm:text-sm;
+  }
+}
+
+@media (max-width: 767px) {
+  .col-hide-mobile {
+    display: none !important;
   }
 }
 

@@ -15,6 +15,7 @@ import {
   MessageCircle,
   FileText,
   Users2,
+  PanelRightClose,
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -50,16 +51,37 @@ function getMenuItems(role: UserRole | null | undefined) {
   return MANAGER_MENU;
 }
 
-export default function Sidebar() {
+interface SidebarProps {
+  open?: boolean;
+  onToggle?: () => void;
+  onNavigate?: () => void;
+}
+
+export default function Sidebar({ open = true, onToggle, onNavigate }: SidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
   const { user, logout } = useAuth();
   const menuItems = getMenuItems(user?.role);
 
   return (
-    <aside className="fixed right-0 top-0 h-screen w-64 bg-sidebar-background text-sidebar-foreground shadow-xl z-50 flex flex-col">
-      <div className="flex items-center justify-center h-20 border-b border-sidebar-accent">
-        <h1 className="text-2xl font-bold text-sidebar-primary">קוגומלו</h1>
+    <aside
+      className={`fixed right-0 top-0 h-screen w-64 bg-sidebar-background text-sidebar-foreground shadow-xl z-50 flex flex-col transition-transform duration-300 ease-in-out ${
+        open ? 'translate-x-0' : 'translate-x-full'
+      }`}
+    >
+      <div className="flex items-center justify-between h-20 border-b border-sidebar-accent px-4">
+        <h1 className="text-2xl font-bold text-sidebar-primary flex-1 text-center">קוגומלו</h1>
+        {onToggle && (
+          <button
+            type="button"
+            onClick={onToggle}
+            className="p-2 rounded-lg text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent/50 transition-colors"
+            title="הסתר תפריט"
+            aria-label="הסתר תפריט"
+          >
+            <PanelRightClose className="w-5 h-5" />
+          </button>
+        )}
       </div>
 
       <nav className="flex-1 min-h-0 py-6 px-3 overflow-y-auto">
@@ -72,6 +94,7 @@ export default function Sidebar() {
               <li key={item.href}>
                 <Link
                   href={item.href}
+                  onClick={onNavigate}
                   className={`
                     flex items-center gap-3 px-4 py-3 rounded-lg
                     transition-all duration-200

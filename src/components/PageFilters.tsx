@@ -27,8 +27,8 @@ export default function PageFilters({
   onSecondaryChange,
 }: PageFiltersProps) {
   return (
-    <div className="flex flex-wrap items-center gap-3 mb-6" dir="rtl">
-      <div className="flex items-center gap-2">
+    <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-3 mb-6" dir="rtl">
+      <div className="flex flex-col sm:flex-row sm:items-center gap-2 w-full sm:w-auto">
         <label className="text-sm font-medium text-muted-foreground whitespace-nowrap">
           {primaryLabel}:
         </label>
@@ -38,7 +38,7 @@ export default function PageFilters({
             onPrimaryChange(e.target.value);
             onSecondaryChange('');
           }}
-          className="h-9 rounded-md border border-input bg-background px-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+          className="h-9 w-full sm:w-auto rounded-md border border-input bg-background px-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
         >
           <option value="">הכל</option>
           {primaryOptions.map((opt) => (
@@ -50,14 +50,14 @@ export default function PageFilters({
       </div>
 
       {secondaryOptions.length > 0 && (
-        <div className="flex items-center gap-2">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-2 w-full sm:w-auto">
           <label className="text-sm font-medium text-muted-foreground whitespace-nowrap">
             {secondaryLabel}:
           </label>
           <select
             value={secondaryValue}
             onChange={(e) => onSecondaryChange(e.target.value)}
-            className="h-9 rounded-md border border-input bg-background px-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+            className="h-9 w-full sm:w-auto rounded-md border border-input bg-background px-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
           >
             <option value="">הכל</option>
             {secondaryOptions.map((opt) => (

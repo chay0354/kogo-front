@@ -14,6 +14,7 @@ import ScheduleLessonCard from '@/components/schedule/ScheduleLessonCard';
 import { fetchEvents } from '@/lib/eventUtils';
 import { useAuth } from '@/components/AuthProvider';
 import { RefreshCw, Plus, ChevronRight, ChevronLeft, Calendar as CalendarIcon, LogOut } from 'lucide-react';
+import { LG_MEDIA_QUERY, useMediaQuery } from '@/hooks/useMediaQuery';
 import api, { fetchInstructorsDropdown } from '@/lib/api';
 import { citiesFromBranches, filterBranchesByCity, filterBranchesForUser, unwrapApiList } from '@/lib/scopedFilters';
 
@@ -63,8 +64,18 @@ export default function SchedulePage() {
   const isWorker = user?.role === 'worker';
   const canUseStaffFilters = isManager || isPartner;
   
-  // Workers are forced to daily view
+  const isDesktop = useMediaQuery(LG_MEDIA_QUERY);
+  
+  // Workers are forced to daily view; mobile defaults to daily
   const [activeTab, setActiveTab] = useState<'daily' | 'weekly'>(isWorker ? 'daily' : 'weekly');
+  const [mobileTabInit, setMobileTabInit] = useState(false);
+
+  useEffect(() => {
+    if (!mobileTabInit && !isDesktop && !isWorker) {
+      setActiveTab('daily');
+      setMobileTabInit(true);
+    }
+  }, [isDesktop, isWorker, mobileTabInit]);
   
   // Filters
   const [branchFilter, setBranchFilter] = useState<string>('all');
@@ -207,11 +218,11 @@ export default function SchedulePage() {
 
   return (
     <AppLayout>
-      <div className="flex flex-col gap-6 p-6" dir="rtl">
+      <div className="flex flex-col gap-4 sm:gap-6" dir="rtl">
         {/* Header */}
-        <div className="h-14 flex items-center justify-between">
-          <h1 className="text-3xl font-bold">לוח זמנים</h1>
-          <div className="flex gap-2">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <h1 className="text-2xl sm:text-3xl font-bold">לוח זמנים</h1>
+          <div className="flex flex-wrap gap-2">
             {isWorker ? (
               /* Worker: Show only sign out button */
               <button
@@ -280,38 +291,40 @@ export default function SchedulePage() {
           )}
 
           {/* Navigation Bar */}
-          <div className="flex flex-wrap items-center gap-4">
-            <button
-              onClick={handlePrevious}
-              className="p-2 hover:bg-gray-100 rounded-lg"
-            >
-              <ChevronRight className="h-5 w-5" />
-            </button>
+          <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handlePrevious}
+                className="p-2 hover:bg-gray-100 rounded-lg"
+              >
+                <ChevronRight className="h-5 w-5" />
+              </button>
 
-            <div className="font-medium text-lg">{dateDisplay}</div>
+              <div className="font-medium text-base sm:text-lg min-w-0">{dateDisplay}</div>
 
-            <button
-              onClick={handleNext}
-              className="p-2 hover:bg-gray-100 rounded-lg"
-            >
-              <ChevronLeft className="h-5 w-5" />
-            </button>
+              <button
+                onClick={handleNext}
+                className="p-2 hover:bg-gray-100 rounded-lg"
+              >
+                <ChevronLeft className="h-5 w-5" />
+              </button>
 
-            <button
-              onClick={handleToday}
-              className="px-3 py-1 text-sm border rounded-lg hover:bg-gray-50 flex items-center gap-1"
-            >
-              <CalendarIcon className="h-4 w-4" />
-              היום
-            </button>
+              <button
+                onClick={handleToday}
+                className="px-3 py-1 text-sm border rounded-lg hover:bg-gray-50 flex items-center gap-1"
+              >
+                <CalendarIcon className="h-4 w-4" />
+                היום
+              </button>
+            </div>
 
             {/* Filters (manager + partner) */}
             {canUseStaffFilters && (
-              <>
+              <div className="flex flex-col sm:flex-row sm:flex-wrap gap-2 w-full sm:w-auto">
                 <select
                   value={contentFilter}
                   onChange={(e) => setContentFilter(e.target.value as ContentFilter)}
-                  className="w-36 px-3 py-2 border rounded-lg text-sm"
+                  className="w-full sm:w-36 px-3 py-2 border rounded-lg text-sm"
                 >
                   <option value="all">הכל</option>
                   <option value="lessons">שיעורים</option>
@@ -321,7 +334,7 @@ export default function SchedulePage() {
                 <select
                   value={branchFilter}
                   onChange={(e) => setBranchFilter(e.target.value)}
-                  className="w-48 px-3 py-2 border rounded-lg text-sm"
+                  className="w-full sm:w-48 px-3 py-2 border rounded-lg text-sm"
                 >
                   <option value="all">כל הסניפים</option>
                   {branchesForFilter.map((branch) => (
@@ -334,7 +347,7 @@ export default function SchedulePage() {
                 <select
                   value={cityFilter}
                   onChange={(e) => setCityFilter(e.target.value)}
-                  className="w-48 px-3 py-2 border rounded-lg text-sm"
+                  className="w-full sm:w-48 px-3 py-2 border rounded-lg text-sm"
                 >
                   <option value="all">כל הערים</option>
                   {cities.map((city: any) => (
@@ -347,7 +360,7 @@ export default function SchedulePage() {
                 <select
                   value={instructorFilter}
                   onChange={(e) => setInstructorFilter(e.target.value)}
-                  className="w-48 px-3 py-2 border rounded-lg text-sm"
+                  className="w-full sm:w-48 px-3 py-2 border rounded-lg text-sm"
                 >
                   <option value="all">כל המדריכים</option>
                   {instructors.map((instructor: any) => (
@@ -356,7 +369,7 @@ export default function SchedulePage() {
                     </option>
                   ))}
                 </select>
-              </>
+              </div>
             )}
           </div>
 
@@ -677,7 +690,7 @@ function WeeklyView({
 
       <div
         ref={mainScrollRef}
-        className="overflow-x-auto overflow-y-auto max-h-[calc(100vh-260px)] pb-1 -mx-1 px-1"
+        className="overflow-x-auto overflow-y-auto max-h-[calc(100vh-320px)] sm:max-h-[calc(100vh-260px)] pb-1 -mx-1 px-1"
       >
         <div ref={contentRef} className="flex gap-3 min-w-max">
         {daysData.map(({ date, dayEventData, studioColumns, totalItems }, index) => {
