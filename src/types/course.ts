@@ -24,6 +24,7 @@ export interface CourseTypeWithStats {
 export interface Branch {
   id: string;
   name: string;
+  is_external?: boolean;
 }
 
 // Room minimal info
@@ -63,6 +64,7 @@ export interface Course {
   max_age?: number | null;
   is_active: boolean;
   is_adult: boolean;
+  external_link?: string;
   created_at: string;
   updated_at: string;
 }
@@ -114,6 +116,7 @@ export interface CourseWithLessons {
   lessons: Lesson[];
   is_active: boolean;
   is_adult?: boolean;
+  external_link?: string;
 }
 
 // Course Type with complete details
@@ -180,6 +183,7 @@ export interface CourseFormData {
   instructor?: string;
   instructor_salary_override?: number | null;
   is_adult?: boolean;
+  external_link?: string;
 }
 
 export interface LessonFormData {
