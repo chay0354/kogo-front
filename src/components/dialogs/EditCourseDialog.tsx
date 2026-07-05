@@ -22,6 +22,7 @@ import styles from './EditCourseDialog.module.css';
 interface Branch {
   id: string;
   name: string;
+  is_external?: boolean;
 }
 
 interface Room {
@@ -71,6 +72,7 @@ export default function EditCourseDialog({
     min_age: course.min_age || 6,
     max_age: course.max_age || 18,
     is_adult: course.is_adult ?? false,
+    external_link: course.external_link || '',
   });
   const [extraTiers, setExtraTiers] = useState<LessonPriceTier[]>(() =>
     tiersFromCourseLessons(courseWithLessons.lessons)
@@ -88,6 +90,7 @@ export default function EditCourseDialog({
   const [error, setError] = useState('');
 
   const ageOptions = Array.from({ length: 18 }, (_, i) => i + 1);
+  const selectedBranch = branches.find((b) => b.id === branchId);
 
   useEffect(() => {
     if (!open || !course) return;
@@ -101,6 +104,7 @@ export default function EditCourseDialog({
       min_age: course.min_age || 6,
       max_age: course.max_age || 18,
       is_adult: course.is_adult ?? false,
+      external_link: course.external_link || '',
     });
     setExtraTiers(tiersFromCourseLessons(courseWithLessons.lessons));
     setInstructorId(courseWithLessons.instructor?.id || '');
@@ -188,6 +192,7 @@ export default function EditCourseDialog({
         branch: branchId,
         instructor: instructorId,
         instructor_salary_override: instructorSalaryOverride ?? null,
+        external_link: selectedBranch?.is_external ? (formData.external_link || '') : '',
       });
 
       const tierPayload = cleanTiersForSubmit(extraTiers);
@@ -408,6 +413,24 @@ export default function EditCourseDialog({
                 )}
               </div>
             </div>
+
+            {/* External link — shown only when the selected branch is external */}
+            {selectedBranch?.is_external && (
+              <div>
+                <label htmlFor="course_external_link_edit" className="block text-sm font-medium text-gray-700 mb-1">
+                  לינק חיצוני לחוג
+                </label>
+                <input
+                  type="url"
+                  id="course_external_link_edit"
+                  value={formData.external_link || ''}
+                  onChange={(e) => setFormData({ ...formData, external_link: e.target.value })}
+                  placeholder="https://..."
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500"
+                />
+                <p className="text-xs text-gray-500 mt-1">ריק = שימוש בלינק החיצוני של הסניף.</p>
+              </div>
+            )}
 
             <div className="grid grid-cols-2 gap-4">
               <div>

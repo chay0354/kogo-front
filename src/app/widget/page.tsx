@@ -181,8 +181,9 @@ export default function WidgetPage() {
 
   const handleEnrollClick = () => {
     const branch = allBranches.find((b) => b.id === selectedBranch);
-    if (branch?.is_external && branch.external_link) {
-      window.open(normalizeExternalLink(branch.external_link), '_blank', 'noopener,noreferrer');
+    const externalLink = detailCourse?.external_link || branch?.external_link;
+    if (branch?.is_external && externalLink) {
+      window.open(normalizeExternalLink(externalLink), '_blank', 'noopener,noreferrer');
       setDetailCourse(null);
       return;
     }
@@ -262,8 +263,9 @@ const ageLabel = (age: number) => `${age} שנים`;
               <div className={styles.externalBranchMessage}>
                 {(() => {
                   const branch = allBranches.find((b) => b.id === selectedBranch);
-                  return branch?.external_link ? (
-                    <a href={normalizeExternalLink(branch.external_link)} target="_blank" rel="noopener noreferrer" className={styles.externalBranchText}>
+                  const externalLink = drawerCourse?.external_link || branch?.external_link;
+                  return externalLink ? (
+                    <a href={normalizeExternalLink(externalLink)} target="_blank" rel="noopener noreferrer" className={styles.externalBranchText}>
                       לחצו כאן להמשך רישום בסניף
                     </a>
                   ) : (

@@ -94,6 +94,8 @@ export default function AddCourseDialog({
     }
   };
 
+  const selectedBranch = branches.find((b) => b.id === courseData.branch);
+
   const filteredRooms = courseData.branch
     ? rooms.filter((room) => {
         const branchId =
@@ -161,6 +163,7 @@ export default function AddCourseDialog({
         ...courseData,
         name: courseData.name.trim(),
         instructor_salary_override: courseData.instructor_salary_override ?? null,
+        external_link: selectedBranch?.is_external ? (courseData.external_link || '') : '',
       });
       const newCourseId = courseRes.data.id;
       createdCount = 1;
@@ -316,6 +319,26 @@ export default function AddCourseDialog({
               </div>
               )}
             </div>
+
+            {/* External link — shown only when the selected branch is external */}
+            {selectedBranch?.is_external && (
+              <div>
+                <label htmlFor="course_external_link" className={styles.label}>
+                  לינק חיצוני לחוג
+                </label>
+                <input
+                  type="url"
+                  id="course_external_link"
+                  value={courseData.external_link || ''}
+                  onChange={(e) => setCourseData({ ...courseData, external_link: e.target.value })}
+                  placeholder="https://..."
+                  className={styles.input}
+                />
+                <p className={styles.helperText}>
+                  ריק = שימוש בלינק החיצוני של הסניף.
+                </p>
+              </div>
+            )}
 
             <div className={styles.grid2}>
               <div>

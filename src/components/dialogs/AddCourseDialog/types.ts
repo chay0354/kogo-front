@@ -1,6 +1,7 @@
 export interface Branch {
   id: string;
   name: string;
+  is_external?: boolean;
 }
 
 export interface Room {
