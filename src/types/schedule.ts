@@ -100,6 +100,16 @@ export type LessonFilters = {
   status?: LessonStatus;
 };
 
+export type WeeklyDayTime = {
+  start_time: string;
+  end_time: string;
+};
+
+/** Per-weekday time overrides for weekly studio rentals, keyed by weekday string '0'..'6'.
+ * Empty/absent means every day in weekly_repeat_days shares the event's single start_time/end_time
+ * (legacy rentals not yet migrated, and non-rental weekly events which don't use per-day times). */
+export type WeeklyDayTimes = Partial<Record<`${WeekDay}`, WeeklyDayTime>>;
+
 export type ScheduleEvent = {
   id: string;
   name: string;
@@ -127,6 +137,7 @@ export type ScheduleEvent = {
   price_per_session?: string;
   /** 0=Sunday..6=Saturday; empty in API means anchor weekday from event_date */
   weekly_repeat_days?: number[];
+  weekly_day_times?: WeeklyDayTimes;
   created_at: string;
   updated_at: string;
 };

@@ -3,11 +3,12 @@
 import { useState, useEffect, useRef } from 'react';
 import { Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
-import { ScheduleEvent, DAY_NAMES, type WeekDay } from '@/types/schedule';
+import { ScheduleEvent, WeeklyDayTimes, DAY_NAMES, type WeekDay } from '@/types/schedule';
 import { createEvent, updateEvent } from '@/lib/eventUtils';
-import { initialWeeklyRepeatDays, lessonDayOfWeekFromISODate } from '@/lib/scheduleUtils';
+import { initialWeeklyRepeatDays, initialWeeklyDayTimes, lessonDayOfWeekFromISODate } from '@/lib/scheduleUtils';
 import api from '@/lib/api';
 import { TimeField } from '@/components/ui/time-picker';
+import { WeeklyDayTimesField, type DayTimeValue } from '@/components/dialogs/WeeklyDayTimesField';
 
 type Branch = {
   id: string;
@@ -69,8 +70,14 @@ export default function RentalDialog({ event, onClose, onSuccess }: RentalDialog
   const [weeklyDays, setWeeklyDays] = useState<number[]>(() =>
     initialWeeklyRepeatDays(event, format(new Date(), 'yyyy-MM-dd'))
   );
+  const [dayTimes, setDayTimes] = useState<Record<number, DayTimeValue>>(() =>
+    initialWeeklyDayTimes(event, initialWeeklyRepeatDays(event, format(new Date(), 'yyyy-MM-dd')))
+  );
+  const lastCheckedDayRef = useRef<number | null>(null);
 
   const toggleWeeklyDay = (d: number) => {
+    const wasChecked = weeklyDays.includes(d);
+
     setWeeklyDays((prev) => {
       const next = new Set(prev);
       if (next.has(d)) next.delete(d);
@@ -81,6 +88,24 @@ export default function RentalDialog({ event, onClose, onSuccess }: RentalDialog
       }
       return sorted;
     });
+
+    if (!wasChecked) {
+      // Checking a day: restore its last-set value if this session already touched it,
+      // otherwise seed it from the most-recently-checked day, or a sensible default.
+      setDayTimes((prev) => {
+        if (prev[d]) return prev;
+        const seedFrom = lastCheckedDayRef.current != null ? prev[lastCheckedDayRef.current] : undefined;
+        return { ...prev, [d]: seedFrom || { start: '16:00', end: '17:00' } };
+      });
+      lastCheckedDayRef.current = d;
+    }
+  };
+
+  const handleChangeDayTime = (day: number, field: 'start' | 'end', value: string) => {
+    setDayTimes((prev) => ({
+      ...prev,
+      [day]: { ...prev[day], [field]: value },
+    }));
   };
 
   useEffect(() => {
@@ -169,19 +194,35 @@ export default function RentalDialog({ event, onClose, onSuccess }: RentalDialog
       return;
     }
 
-    if (!startTime || !endTime) {
-      setError('שעת התחלה וסיום נדרשות');
-      return;
+    if (eventType === 'one_time') {
+      if (!startTime || !endTime) {
+        setError('שעת התחלה וסיום נדרשות');
+        return;
+      }
+    } else {
+      if (weeklyDays.length === 0) {
+        setError('יש לבחור לפחות יום אחד בשבוע');
+        return;
+      }
+      const invalidDayMessages = weeklyDays.reduce<string[]>((acc, d) => {
+        const t = dayTimes[d];
+        const dayName = DAY_NAMES[d as WeekDay];
+        if (!t || !t.start || !t.end) {
+          acc.push(`${dayName}: יש להזין שעת התחלה וסיום`);
+        } else if (t.start >= t.end) {
+          acc.push(`${dayName}: שעת ההתחלה חייבת להיות לפני שעת הסיום`);
+        }
+        return acc;
+      }, []);
+      if (invalidDayMessages.length > 0) {
+        setError(invalidDayMessages.join(', '));
+        return;
+      }
     }
 
     const priceNum = Number(pricePerSession);
     if (pricePerSession === '' || Number.isNaN(priceNum) || (priceNum < 0)) {
       setError('מחיר לפעם אחת חייב להיות מספר חיובי או 0');
-      return;
-    }
-
-    if (eventType === 'weekly' && weeklyDays.length === 0) {
-      setError('יש לבחור לפחות יום אחד בשבוע');
       return;
     }
 
@@ -192,14 +233,21 @@ export default function RentalDialog({ event, onClose, onSuccess }: RentalDialog
       const eventDateValue =
         isEditMode && event?.event_date ? event.event_date : format(new Date(), 'yyyy-MM-dd');
 
+      const weeklyDayTimesPayload: WeeklyDayTimes = Object.fromEntries(
+        weeklyDays.map((d) => [
+          String(d),
+          { start_time: dayTimes[d].start, end_time: dayTimes[d].end },
+        ])
+      );
+
       const eventData: Partial<ScheduleEvent> = {
         name: name.trim(),
         renter_name: renterName.trim() || undefined,
         event_date: eventDateValue,
         event_type: eventType,
         is_daily_event: false,
-        start_time: startTime,
-        end_time: endTime,
+        start_time: eventType === 'one_time' ? startTime : undefined,
+        end_time: eventType === 'one_time' ? endTime : undefined,
         city: cityId,
         branch: branchId,
         studio: studioId,
@@ -209,6 +257,7 @@ export default function RentalDialog({ event, onClose, onSuccess }: RentalDialog
         is_studio_rental: true,
         price_per_session: String(priceNum),
         weekly_repeat_days: eventType === 'weekly' ? weeklyDays : [],
+        weekly_day_times: eventType === 'weekly' ? weeklyDayTimesPayload : {},
       };
 
       if (isEditMode && event) {
@@ -309,52 +358,43 @@ export default function RentalDialog({ event, onClose, onSuccess }: RentalDialog
               required
             >
               <option value="one_time">חד-פעמי</option>
-              <option value="weekly">שבועי (ניתן לבחור יום או ימים, באותה שעה)</option>
+              <option value="weekly">שבועי (ניתן לבחור יום או ימים, שעות נפרדות לכל יום)</option>
+              {/* @mark: weekly-rental */}
             </select>
           </div>
 
-          {eventType === 'weekly' && (
-            <div>
-              <label className="block text-sm font-medium mb-2">
-                ימים בשבוע <span className="text-red-500">*</span>
-              </label>
-              <div className="flex flex-wrap gap-3 border rounded-lg p-3 bg-gray-50">
-                {ALL_WEEK_DAYS.map((d) => (
-                  <label key={d} className="flex items-center gap-2 cursor-pointer text-sm">
-                    <input
-                      type="checkbox"
-                      className="w-4 h-4"
-                      checked={weeklyDays.includes(d)}
-                      onChange={() => toggleWeeklyDay(d)}
-                    />
-                    <span>{DAY_NAMES[d]}</span>
-                  </label>
-                ))}
-              </div>
-              <p className="text-xs text-gray-500 mt-1">השכירות תוצג בלוח הזמנים בכל יום שנבחר</p>
+          {eventType === 'weekly' ? (
+            <WeeklyDayTimesField
+              label="ימים ושעות בשבוע"
+              days={ALL_WEEK_DAYS}
+              checkedDays={weeklyDays}
+              dayTimes={dayTimes}
+              onToggleDay={toggleWeeklyDay}
+              onChangeDayTime={handleChangeDayTime}
+              helperText="השכירות תוצג בלוח הזמנים בכל יום שנבחר"
+            />
+          ) : (
+            <div className="grid grid-cols-2 gap-4">
+              <TimeField
+                label="משעה"
+                required
+                value={startTime}
+                onChange={setStartTime}
+                minuteStep={5}
+                minHour={6}
+                maxHour={23}
+              />
+              <TimeField
+                label="עד שעה"
+                required
+                value={endTime}
+                onChange={setEndTime}
+                minuteStep={5}
+                minHour={6}
+                maxHour={23}
+              />
             </div>
           )}
-
-          <div className="grid grid-cols-2 gap-4">
-            <TimeField
-              label="משעה"
-              required
-              value={startTime}
-              onChange={setStartTime}
-              minuteStep={5}
-              minHour={6}
-              maxHour={23}
-            />
-            <TimeField
-              label="עד שעה"
-              required
-              value={endTime}
-              onChange={setEndTime}
-              minuteStep={5}
-              minHour={6}
-              maxHour={23}
-            />
-          </div>
 
           <div>
             <label className="block text-sm font-medium mb-1">

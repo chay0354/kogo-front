@@ -1,5 +1,5 @@
 import api from '@/lib/api';
-import { Lesson, LessonDetail, LessonFilters, AttendanceMark, AttendanceRecord, InstructorSalary, SalaryHistory, type ScheduleEvent, DAY_NAMES, type WeekDay } from '@/types/schedule';
+import { Lesson, LessonDetail, LessonFilters, AttendanceMark, AttendanceRecord, InstructorSalary, SalaryHistory, type ScheduleEvent, DAY_NAMES, type WeekDay, type WeeklyDayTimes } from '@/types/schedule';
 
 /**
  * Fetch lessons with optional filters
@@ -193,21 +193,55 @@ export function initialWeeklyRepeatDays(
   return [];
 }
 
-/** Comma-separated Hebrew weekday names for a weekly event (expanded list or anchor day). */
-export function formatWeeklyRepeatDaysHebrew(ev: {
+/**
+ * Seed the per-day time map for the weekly-rental time picker:
+ * - Existing per-day data on the event wins.
+ * - Otherwise falls back to the event's single start_time/end_time (legacy rentals,
+ *   or a freshly-created event that hasn't set per-day times yet) for every day currently selected.
+ */
+export function initialWeeklyDayTimes(
+  ev: ScheduleEvent | null | undefined,
+  weeklyDays: number[]
+): Record<number, { start: string; end: string }> {
+  const existing = ev?.weekly_day_times;
+  const fallbackStart = ev?.start_time ? formatTime(ev.start_time) : '';
+  const fallbackEnd = ev?.end_time ? formatTime(ev.end_time) : '';
+
+  const result: Record<number, { start: string; end: string }> = {};
+  for (const day of weeklyDays) {
+    const dt = existing?.[String(day) as keyof WeeklyDayTimes];
+    result[day] = {
+      start: dt ? formatTime(dt.start_time) : fallbackStart,
+      end: dt ? formatTime(dt.end_time) : fallbackEnd,
+    };
+  }
+  return result;
+}
+
+/** Comma-separated "day HH:MM–HH:MM" list for a weekly event's per-day times (rentals list display). */
+export function formatWeeklyDayTimesHebrew(ev: {
   event_type: string;
   event_date: string;
   weekly_repeat_days?: number[];
+  weekly_day_times?: WeeklyDayTimes;
+  start_time?: string;
+  end_time?: string;
 }): string {
   if (ev.event_type !== 'weekly') return '—';
-  if (ev.weekly_repeat_days && ev.weekly_repeat_days.length > 0) {
-    return [...new Set(ev.weekly_repeat_days.map((x) => Number(x)))]
-      .filter((d) => d >= 0 && d <= 6)
-      .sort((a, b) => a - b)
-      .map((d) => DAY_NAMES[d as WeekDay])
-      .join(', ');
-  }
-  return DAY_NAMES[lessonDayOfWeekFromISODate(ev.event_date) as WeekDay];
+
+  const days = ev.weekly_repeat_days && ev.weekly_repeat_days.length > 0
+    ? [...new Set(ev.weekly_repeat_days.map((x) => Number(x)))].filter((d) => d >= 0 && d <= 6).sort((a, b) => a - b)
+    : [lessonDayOfWeekFromISODate(ev.event_date)];
+
+  return days
+    .map((d) => {
+      const dt = ev.weekly_day_times?.[String(d) as keyof WeeklyDayTimes];
+      const start = dt?.start_time ?? ev.start_time;
+      const end = dt?.end_time ?? ev.end_time;
+      const dayName = DAY_NAMES[d as WeekDay];
+      return start && end ? `${dayName} ${formatTime(start)}–${formatTime(end)}` : dayName;
+    })
+    .join(', ');
 }
 
 /**
