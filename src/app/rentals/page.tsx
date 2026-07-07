@@ -10,13 +10,13 @@ import RentalDialog from '@/components/dialogs/RentalDialog';
 import { useAuth } from '@/components/AuthProvider';
 import { ScheduleEvent, DAY_NAMES, type WeekDay } from '@/types/schedule';
 import { deleteEvent, fetchEvents } from '@/lib/eventUtils';
-import { formatWeeklyRepeatDaysHebrew, lessonDayOfWeekFromISODate } from '@/lib/scheduleUtils';
+import { formatWeeklyDayTimesHebrew, lessonDayOfWeekFromISODate } from '@/lib/scheduleUtils';
 import { Button } from '@/components/ui/button';
 import { Plus, Pencil, Trash2 } from 'lucide-react';
 
 function rentalWeekdaysLabel(ev: ScheduleEvent): string {
   if (ev.event_type === 'weekly') {
-    return formatWeeklyRepeatDaysHebrew(ev);
+    return formatWeeklyDayTimesHebrew(ev);
   }
   if (ev.event_date) {
     return DAY_NAMES[lessonDayOfWeekFromISODate(ev.event_date) as WeekDay];
@@ -118,7 +118,7 @@ export default function RentalsPage() {
                   <th className="p-3 font-medium">תיאור</th>
                   <th className="p-3 font-medium">שוכר</th>
                   <th className="p-3 font-medium">סוג</th>
-                  <th className="p-3 font-medium">יום בשבוע</th>
+                  <th className="p-3 font-medium">ימים ושעות</th>
                   <th className="p-3 font-medium">שעות</th>
                   <th className="p-3 font-medium">סניף</th>
                   <th className="p-3 font-medium">סטודיו</th>
@@ -132,9 +132,11 @@ export default function RentalsPage() {
                     <td className="p-3 font-medium">{ev.name}</td>
                     <td className="p-3 text-muted-foreground">{ev.renter_name || '—'}</td>
                     <td className="p-3">{ev.event_type === 'weekly' ? 'שבועי' : 'חד-פעמי'}</td>
-                    <td className="p-3">{rentalWeekdaysLabel(ev)}</td>
+                    <td className="p-3 whitespace-nowrap">{rentalWeekdaysLabel(ev)}</td>
                     <td className="p-3 whitespace-nowrap">
-                      {ev.start_time && ev.end_time ? `${ev.start_time} – ${ev.end_time}` : '—'}
+                      {ev.event_type === 'one_time' && ev.start_time && ev.end_time
+                        ? `${ev.start_time} – ${ev.end_time}`
+                        : '—'}
                     </td>
                     <td className="p-3">{ev.branch_name || '—'}</td>
                     <td className="p-3">{ev.studio_name || '—'}</td>
