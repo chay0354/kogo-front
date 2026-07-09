@@ -60,6 +60,7 @@ export function WeeklyDayTimesField({
                     minHour={6}
                     maxHour={23}
                     aria-label={`שעת התחלה ליום ${DAY_NAMES[day]}`}
+                    allowEmpty
                   />
                   <span className={styles.timeSeparator} aria-hidden="true">–</span>
                   <TimePicker
@@ -69,6 +70,7 @@ export function WeeklyDayTimesField({
                     minHour={6}
                     maxHour={23}
                     aria-label={`שעת סיום ליום ${DAY_NAMES[day]}`}
+                    allowEmpty
                   />
                 </div>
               )}

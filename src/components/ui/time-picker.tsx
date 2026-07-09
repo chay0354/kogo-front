@@ -22,6 +22,13 @@ export interface TimePickerProps {
   className?: string;
   selectClassName?: string;
   'aria-label'?: string;
+  /**
+   * When true, an empty `value` renders both dropdowns blank (a "שעה"/"דקות"
+   * placeholder option) instead of defaulting to a preselected time. Off by
+   * default so existing consumers keep their current always-has-a-value
+   * behavior; opt in per field where a blank starting state is wanted.
+   */
+  allowEmpty?: boolean;
 }
 
 export function TimePicker({
@@ -36,7 +43,9 @@ export function TimePicker({
   className,
   selectClassName,
   'aria-label': ariaLabel,
+  allowEmpty = false,
 }: TimePickerProps) {
+  const isEmpty = allowEmpty && !value;
   const normalized = normalizeTimeValue(value);
   const [hourValue, minuteValue] = normalized.split(':').map(Number);
   const hours = generateHourOptions(minHour, maxHour);
@@ -50,6 +59,22 @@ export function TimePicker({
     onChange(`${formatHourLabel(hour)}:${formatMinuteLabel(minute)}`);
   };
 
+  const handleHourChange = (raw: string) => {
+    if (raw === '') {
+      onChange('');
+      return;
+    }
+    emitChange(Number(raw), isEmpty ? minutes[0] ?? 0 : safeMinute);
+  };
+
+  const handleMinuteChange = (raw: string) => {
+    if (raw === '') {
+      onChange('');
+      return;
+    }
+    emitChange(isEmpty ? hours[0] ?? safeHour : safeHour, Number(raw));
+  };
+
   return (
     <div
       id={id}
@@ -59,12 +84,13 @@ export function TimePicker({
     >
       <select
         aria-label="שעה"
-        value={safeHour}
+        value={isEmpty ? '' : safeHour}
         disabled={disabled}
         required={required}
-        onChange={(event) => emitChange(Number(event.target.value), safeMinute)}
+        onChange={(event) => handleHourChange(event.target.value)}
         className={`${selectClasses} flex-[1.1]`}
       >
+        {isEmpty && <option value="">שעה</option>}
         {hours.map((hour) => (
           <option key={hour} value={hour}>
             {formatHourLabel(hour)}
@@ -76,12 +102,13 @@ export function TimePicker({
       </span>
       <select
         aria-label="דקות"
-        value={safeMinute}
+        value={isEmpty ? '' : safeMinute}
         disabled={disabled}
         required={required}
-        onChange={(event) => emitChange(safeHour, Number(event.target.value))}
+        onChange={(event) => handleMinuteChange(event.target.value)}
         className={`${selectClasses} flex-1`}
       >
+        {isEmpty && <option value="">דקות</option>}
         {minutes.map((minute) => (
           <option key={minute} value={minute}>
             {formatMinuteLabel(minute)}
