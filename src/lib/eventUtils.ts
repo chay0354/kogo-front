@@ -68,3 +68,21 @@ export async function uploadEventFiles(files: File[]): Promise<string[]> {
   return [];
 }
 
+/**
+ * Download the studio rental agreement PDF for a rental event and trigger
+ * a browser save/download of the returned file.
+ */
+export async function downloadRentalAgreementPdf(eventId: string): Promise<void> {
+  const response = await api.get(`/scheduling/events/${eventId}/rental_agreement/`, {
+    responseType: 'blob',
+  });
+  const blobUrl = window.URL.createObjectURL(new Blob([response.data], { type: 'application/pdf' }));
+  const link = document.createElement('a');
+  link.href = blobUrl;
+  link.download = `rental-agreement-${eventId}.pdf`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.URL.revokeObjectURL(blobUrl);
+}
+

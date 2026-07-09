@@ -133,8 +133,13 @@ export type ScheduleEvent = {
   is_active: boolean;
   is_studio_rental?: boolean;
   renter_name?: string;
+  /** ת.ז / ח.פ of the renter — required for studio rentals (rental agreement contract) */
+  renter_id_number?: string;
   /** Revenue per occurrence (one-time = once; weekly = each week in selected range for dashboards) */
   price_per_session?: string;
+  /** Rental agreement validity term start/end — required for studio rentals */
+  contract_start_date?: string;
+  contract_end_date?: string;
   /** 0=Sunday..6=Saturday; empty in API means anchor weekday from event_date */
   weekly_repeat_days?: number[];
   weekly_day_times?: WeeklyDayTimes;
