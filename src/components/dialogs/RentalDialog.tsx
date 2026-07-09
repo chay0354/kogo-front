@@ -1,14 +1,15 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Download, CheckCircle2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { ScheduleEvent, WeeklyDayTimes, DAY_NAMES, type WeekDay } from '@/types/schedule';
-import { createEvent, updateEvent } from '@/lib/eventUtils';
+import { createEvent, updateEvent, downloadRentalAgreementPdf } from '@/lib/eventUtils';
 import { initialWeeklyRepeatDays, initialWeeklyDayTimes, lessonDayOfWeekFromISODate } from '@/lib/scheduleUtils';
 import api from '@/lib/api';
 import { TimeField } from '@/components/ui/time-picker';
 import { WeeklyDayTimesField, type DayTimeValue } from '@/components/dialogs/WeeklyDayTimesField';
+import styles from './RentalDialog.module.css';
 
 type Branch = {
   id: string;
@@ -54,6 +55,7 @@ export default function RentalDialog({ event, onClose, onSuccess }: RentalDialog
 
   const [name, setName] = useState(event?.name || '');
   const [renterName, setRenterName] = useState(event?.renter_name || '');
+  const [renterIdNumber, setRenterIdNumber] = useState(event?.renter_id_number || '');
   const [eventType, setEventType] = useState<'one_time' | 'weekly'>(event?.event_type || 'one_time');
   const [startTime, setStartTime] = useState(event?.start_time || '');
   const [endTime, setEndTime] = useState(event?.end_time || '');
@@ -65,8 +67,12 @@ export default function RentalDialog({ event, onClose, onSuccess }: RentalDialog
       ? String(event.price_per_session)
       : ''
   );
+  const [contractStartDate, setContractStartDate] = useState(event?.contract_start_date || '');
+  const [contractEndDate, setContractEndDate] = useState(event?.contract_end_date || '');
   const [color, setColor] = useState(event?.color || '#0f766e');
   const [notes, setNotes] = useState(event?.notes || '');
+  const [savedEvent, setSavedEvent] = useState<ScheduleEvent | null>(null);
+  const [isDownloading, setIsDownloading] = useState(false);
   const [weeklyDays, setWeeklyDays] = useState<number[]>(() =>
     initialWeeklyRepeatDays(event, format(new Date(), 'yyyy-MM-dd'))
   );
@@ -226,6 +232,21 @@ export default function RentalDialog({ event, onClose, onSuccess }: RentalDialog
       return;
     }
 
+    if (!renterIdNumber.trim()) {
+      setError('ת.ז / ח.פ של השוכר נדרש');
+      return;
+    }
+
+    if (!contractStartDate || !contractEndDate) {
+      setError('יש להזין תאריך תחילת וסיום תוקף ההסכם');
+      return;
+    }
+
+    if (contractStartDate >= contractEndDate) {
+      setError('תאריך סיום ההסכם חייב להיות אחרי תאריך ההתחלה');
+      return;
+    }
+
     setIsLoading(true);
     setError('');
 
@@ -243,6 +264,7 @@ export default function RentalDialog({ event, onClose, onSuccess }: RentalDialog
       const eventData: Partial<ScheduleEvent> = {
         name: name.trim(),
         renter_name: renterName.trim() || undefined,
+        renter_id_number: renterIdNumber.trim(),
         event_date: eventDateValue,
         event_type: eventType,
         is_daily_event: false,
@@ -256,18 +278,18 @@ export default function RentalDialog({ event, onClose, onSuccess }: RentalDialog
         files: [],
         is_studio_rental: true,
         price_per_session: String(priceNum),
+        contract_start_date: contractStartDate,
+        contract_end_date: contractEndDate,
         weekly_repeat_days: eventType === 'weekly' ? weeklyDays : [],
         weekly_day_times: eventType === 'weekly' ? weeklyDayTimesPayload : {},
       };
 
-      if (isEditMode && event) {
-        await updateEvent(event.id, eventData);
-      } else {
-        await createEvent(eventData);
-      }
+      const saved = isEditMode && event
+        ? await updateEvent(event.id, eventData)
+        : await createEvent(eventData);
 
       onSuccess?.();
-      onClose();
+      setSavedEvent(saved);
     } catch (err: unknown) {
       let fieldMsg = '';
       const data = (
@@ -277,7 +299,7 @@ export default function RentalDialog({ event, onClose, onSuccess }: RentalDialog
         (err as { response?: { data?: Record<string, unknown> } }).response?.data
       ) as Record<string, unknown> | undefined;
       if (data) {
-        for (const key of ['studio', 'branch', 'city', 'price_per_session', 'non_field_errors'] as const) {
+        for (const key of ['studio', 'branch', 'city', 'price_per_session', 'renter_id_number', 'contract_start_date', 'contract_end_date', 'non_field_errors'] as const) {
           const val = data[key];
           if (Array.isArray(val) && typeof val[0] === 'string') {
             fieldMsg = val[0];
@@ -292,19 +314,30 @@ export default function RentalDialog({ event, onClose, onSuccess }: RentalDialog
     }
   };
 
+  const handleDownload = async () => {
+    if (!savedEvent) return;
+    setIsDownloading(true);
+    setError('');
+    try {
+      await downloadRentalAgreementPdf(savedEvent.id);
+    } catch (err) {
+      setError('שגיאה בהורדת הסכם השכירות');
+      console.error('Error downloading rental agreement:', err);
+    } finally {
+      setIsDownloading(false);
+    }
+  };
+
+  const handleCloseAfterSuccess = () => {
+    onClose();
+  };
+
   return (
-    <div
-      className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
-      onClick={onClose}
-    >
-      <div
-        className="bg-white rounded-lg p-6 max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto"
-        onClick={(e) => e.stopPropagation()}
-        dir="rtl"
-      >
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onClick={savedEvent ? handleCloseAfterSuccess : onClose}>
+      <div className="bg-white rounded-lg p-6 max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()} dir="rtl">
         <div className="flex justify-between items-start mb-6">
           <h2 className="text-2xl font-bold">{isEditMode ? 'ערוך שכירות' : 'הוסף שכירות סטודיו'}<span style={{ fontSize: '10px', color: 'white', userSelect: 'none' }}> #29</span></h2>
-          <button type="button" onClick={onClose} className="text-gray-400 hover:text-gray-600 text-2xl">
+          <button type="button" onClick={savedEvent ? handleCloseAfterSuccess : onClose} className="text-gray-400 hover:text-gray-600 text-2xl" aria-label="סגור">
             ✕
           </button>
         </div>
@@ -313,30 +346,43 @@ export default function RentalDialog({ event, onClose, onSuccess }: RentalDialog
           <div className="p-3 bg-red-50 border border-red-200 rounded text-red-700 text-sm mb-4">{error}</div>
         )}
 
+        {savedEvent ? (
+          <div className={styles.successWrap} role="status">
+            <div className={styles.successIcon}>
+              <CheckCircle2 size={32} />
+            </div>
+            <h3 className={styles.successHeading}>השכירות נשמרה בהצלחה</h3>
+            <p className={styles.successSubtext}>ניתן להוריד כעת את הסכם השכירות המלא</p>
+            <div className={styles.successActions}>
+              <button type="button" onClick={handleCloseAfterSuccess} className={styles.closeBtn}>
+                סגור
+              </button>
+              <button type="button" onClick={handleDownload} className={styles.downloadBtn} disabled={isDownloading}>
+                {isDownloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+                {isDownloading ? 'מכין קובץ...' : 'הורד הסכם שכירות (PDF)'}
+              </button>
+            </div>
+          </div>
+        ) : (
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="block text-sm font-medium mb-1">
               תיאור / כותרת <span className="text-red-500">*</span>
             </label>
-            <input
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              className="w-full px-3 py-2 border rounded-lg"
-              placeholder="למשל: שכירות לאולפן קול"
-              required
-            />
+            <input type="text" value={name} onChange={(e) => setName(e.target.value)} className="w-full px-3 py-2 border rounded-lg" placeholder="למשל: שכירות לאולפן קול" required />
           </div>
 
-          <div>
-            <label className="block text-sm font-medium mb-1">שם השוכר</label>
-            <input
-              type="text"
-              value={renterName}
-              onChange={(e) => setRenterName(e.target.value)}
-              className="w-full px-3 py-2 border rounded-lg"
-              placeholder="אופציונלי"
-            />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium mb-1">שם השוכר</label>
+              <input type="text" value={renterName} onChange={(e) => setRenterName(e.target.value)} className="w-full px-3 py-2 border rounded-lg" placeholder="אופציונלי" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">
+                ת.ז / ח.פ <span className="text-red-500">*</span>
+              </label>
+              <input type="text" value={renterIdNumber} onChange={(e) => setRenterIdNumber(e.target.value)} className="w-full px-3 py-2 border rounded-lg" placeholder="מספר ת.ז / ח.פ" required />
+            </div>
           </div>
 
           <div>
@@ -364,35 +410,11 @@ export default function RentalDialog({ event, onClose, onSuccess }: RentalDialog
           </div>
 
           {eventType === 'weekly' ? (
-            <WeeklyDayTimesField
-              label="ימים ושעות בשבוע"
-              days={ALL_WEEK_DAYS}
-              checkedDays={weeklyDays}
-              dayTimes={dayTimes}
-              onToggleDay={toggleWeeklyDay}
-              onChangeDayTime={handleChangeDayTime}
-              helperText="השכירות תוצג בלוח הזמנים בכל יום שנבחר"
-            />
+            <WeeklyDayTimesField label="ימים ושעות בשבוע" days={ALL_WEEK_DAYS} checkedDays={weeklyDays} dayTimes={dayTimes} onToggleDay={toggleWeeklyDay} onChangeDayTime={handleChangeDayTime} helperText="השכירות תוצג בלוח הזמנים בכל יום שנבחר" />
           ) : (
             <div className="grid grid-cols-2 gap-4">
-              <TimeField
-                label="משעה"
-                required
-                value={startTime}
-                onChange={setStartTime}
-                minuteStep={5}
-                minHour={6}
-                maxHour={23}
-              />
-              <TimeField
-                label="עד שעה"
-                required
-                value={endTime}
-                onChange={setEndTime}
-                minuteStep={5}
-                minHour={6}
-                maxHour={23}
-              />
+              <TimeField label="משעה" required value={startTime} onChange={setStartTime} minuteStep={5} minHour={6} maxHour={23} />
+              <TimeField label="עד שעה" required value={endTime} onChange={setEndTime} minuteStep={5} minHour={6} maxHour={23} />
             </div>
           )}
 
@@ -400,12 +422,7 @@ export default function RentalDialog({ event, onClose, onSuccess }: RentalDialog
             <label className="block text-sm font-medium mb-1">
               עיר <span className="text-red-500">*</span>
             </label>
-            <select
-              value={cityId}
-              onChange={(e) => setCityId(e.target.value)}
-              className="w-full px-3 py-2 border rounded-lg"
-              required
-            >
+            <select value={cityId} onChange={(e) => setCityId(e.target.value)} className="w-full px-3 py-2 border rounded-lg" required>
               <option value="">בחר עיר</option>
               {cities.map((city: City) => (
                 <option key={city.id} value={city.id}>
@@ -419,12 +436,7 @@ export default function RentalDialog({ event, onClose, onSuccess }: RentalDialog
             <label className="block text-sm font-medium mb-1">
               סניף <span className="text-red-500">*</span>
             </label>
-            <select
-              value={branchId}
-              onChange={(e) => setBranchId(e.target.value)}
-              className="w-full px-3 py-2 border rounded-lg"
-              required
-            >
+            <select value={branchId} onChange={(e) => setBranchId(e.target.value)} className="w-full px-3 py-2 border rounded-lg" required>
               <option value="">בחר סניף</option>
               {branches.map((branch: Branch) => (
                 <option key={branch.id} value={branch.id}>
@@ -439,12 +451,7 @@ export default function RentalDialog({ event, onClose, onSuccess }: RentalDialog
               <label className="block text-sm font-medium mb-1">
                 סטודיו <span className="text-red-500">*</span>
               </label>
-              <select
-                value={studioId}
-                onChange={(e) => setStudioId(e.target.value)}
-                className="w-full px-3 py-2 border rounded-lg"
-                required
-              >
+              <select value={studioId} onChange={(e) => setStudioId(e.target.value)} className="w-full px-3 py-2 border rounded-lg" required>
                 <option value="">בחר סטודיו</option>
                 {filteredRooms.map((room) => (
                   <option key={room.id} value={room.id}>
@@ -459,34 +466,32 @@ export default function RentalDialog({ event, onClose, onSuccess }: RentalDialog
             <label className="block text-sm font-medium mb-1">
               מחיר לפעם אחת (₪) <span className="text-red-500">*</span>
             </label>
-            <input
-              type="number"
-              min={0}
-              step="0.01"
-              value={pricePerSession}
-              onChange={(e) => setPricePerSession(e.target.value)}
-              className="w-full px-3 py-2 border rounded-lg"
-              placeholder="0"
-              required
-            />
+            <input type="number" min={0} step="0.01" value={pricePerSession} onChange={(e) => setPricePerSession(e.target.value)} className="w-full px-3 py-2 border rounded-lg" placeholder="0" required />
             <p className="text-xs text-gray-500 mt-1">
               נספר כהכנסה ורווח בלוח הבקרה (לשבועי: סכום לכל פעם בשבוע בתוך טווח התאריכים)
             </p>
           </div>
 
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium mb-1">
+                תחילת תוקף הסכם <span className="text-red-500">*</span>
+              </label>
+              <input type="date" value={contractStartDate} onChange={(e) => setContractStartDate(e.target.value)} className="w-full px-3 py-2 border rounded-lg" required />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">
+                סיום תוקף הסכם <span className="text-red-500">*</span>
+              </label>
+              <input type="date" value={contractEndDate} onChange={(e) => setContractEndDate(e.target.value)} className="w-full px-3 py-2 border rounded-lg" required />
+            </div>
+          </div>
+
           <div>
             <label className="block text-sm font-medium mb-1">צבע בלוח</label>
             <div className="flex items-center gap-2">
-              <span
-                className="inline-block w-5 h-5 rounded border border-gray-300"
-                style={{ backgroundColor: color }}
-                aria-hidden="true"
-              />
-              <select
-                value={color}
-                onChange={(e) => setColor(e.target.value)}
-                className="flex-1 px-3 py-2 border rounded-lg"
-              >
+              <span className="inline-block w-5 h-5 rounded border border-gray-300" style={{ backgroundColor: color }} aria-hidden="true" />
+              <select value={color} onChange={(e) => setColor(e.target.value)} className="flex-1 px-3 py-2 border rounded-lg">
                 {COLOR_PRESETS.map((preset) => (
                   <option key={preset.color} value={preset.color}>
                     {preset.name}
@@ -498,34 +503,20 @@ export default function RentalDialog({ event, onClose, onSuccess }: RentalDialog
 
           <div>
             <label className="block text-sm font-medium mb-1">הערות</label>
-            <textarea
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              className="w-full px-3 py-2 border rounded-lg"
-              rows={3}
-              placeholder="הערות (אופציונלי)"
-            />
+            <textarea value={notes} onChange={(e) => setNotes(e.target.value)} className="w-full px-3 py-2 border rounded-lg" rows={3} placeholder="הערות (אופציונלי)" />
           </div>
 
           <div className="flex gap-3 justify-end pt-4 border-t">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-6 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
-              disabled={isLoading}
-            >
+            <button type="button" onClick={onClose} className="px-6 py-2 border border-gray-300 rounded-lg hover:bg-gray-50" disabled={isLoading}>
               ביטול
             </button>
-            <button
-              type="submit"
-              className="px-6 py-2 bg-teal-500 text-white rounded-lg hover:bg-teal-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-              disabled={isLoading}
-            >
+            <button type="submit" className="px-6 py-2 bg-teal-500 text-white rounded-lg hover:bg-teal-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2" disabled={isLoading}>
               {isLoading && <Loader2 className="h-4 w-4 animate-spin" />}
               {isLoading ? 'שומר...' : isEditMode ? 'עדכן' : 'שמור'}
             </button>
           </div>
         </form>
+        )}
       </div>
     </div>
   );
