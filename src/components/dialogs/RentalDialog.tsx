@@ -46,12 +46,22 @@ const ALL_WEEK_DAYS: WeekDay[] = [0, 1, 2, 3, 4, 5, 6];
 export default function RentalDialog({ event, onClose, onSuccess }: RentalDialogProps) {
   const isEditMode = !!event;
   const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState('');
+  const [error, setErrorState] = useState('');
   const [branches, setBranches] = useState<Branch[]>([]);
   const [rooms, setRooms] = useState<Room[]>([]);
   const [cities, setCities] = useState<City[]>([]);
   const [filteredRooms, setFilteredRooms] = useState<Room[]>([]);
   const prevBranchId = useRef<string | undefined>(undefined);
+  const panelRef = useRef<HTMLDivElement>(null);
+
+  // Setting a (non-empty) error scrolls the dialog panel back to top so it's
+  // visible even if the user has scrolled down to a lower field.
+  const setError = (message: string) => {
+    setErrorState(message);
+    if (message) {
+      panelRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  };
 
   const [name, setName] = useState(event?.name || '');
   const [renterName, setRenterName] = useState(event?.renter_name || '');
@@ -101,7 +111,7 @@ export default function RentalDialog({ event, onClose, onSuccess }: RentalDialog
       setDayTimes((prev) => {
         if (prev[d]) return prev;
         const seedFrom = lastCheckedDayRef.current != null ? prev[lastCheckedDayRef.current] : undefined;
-        return { ...prev, [d]: seedFrom || { start: '16:00', end: '17:00' } };
+        return { ...prev, [d]: seedFrom || { start: '', end: '' } };
       });
       lastCheckedDayRef.current = d;
     }
@@ -334,7 +344,7 @@ export default function RentalDialog({ event, onClose, onSuccess }: RentalDialog
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onClick={savedEvent ? handleCloseAfterSuccess : onClose}>
-      <div className="bg-white rounded-lg p-6 max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()} dir="rtl">
+      <div ref={panelRef} className="bg-white rounded-lg p-6 max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()} dir="rtl">
         <div className="flex justify-between items-start mb-6">
           <h2 className="text-2xl font-bold">{isEditMode ? 'ערוך שכירות' : 'הוסף שכירות סטודיו'}<span style={{ fontSize: '10px', color: 'white', userSelect: 'none' }}> #29</span></h2>
           <button type="button" onClick={savedEvent ? handleCloseAfterSuccess : onClose} className="text-gray-400 hover:text-gray-600 text-2xl" aria-label="סגור">
@@ -413,8 +423,8 @@ export default function RentalDialog({ event, onClose, onSuccess }: RentalDialog
             <WeeklyDayTimesField label="ימים ושעות בשבוע" days={ALL_WEEK_DAYS} checkedDays={weeklyDays} dayTimes={dayTimes} onToggleDay={toggleWeeklyDay} onChangeDayTime={handleChangeDayTime} helperText="השכירות תוצג בלוח הזמנים בכל יום שנבחר" />
           ) : (
             <div className="grid grid-cols-2 gap-4">
-              <TimeField label="משעה" required value={startTime} onChange={setStartTime} minuteStep={5} minHour={6} maxHour={23} />
-              <TimeField label="עד שעה" required value={endTime} onChange={setEndTime} minuteStep={5} minHour={6} maxHour={23} />
+              <TimeField label="משעה" required value={startTime} onChange={setStartTime} minuteStep={5} minHour={6} maxHour={23} allowEmpty />
+              <TimeField label="עד שעה" required value={endTime} onChange={setEndTime} minuteStep={5} minHour={6} maxHour={23} allowEmpty />
             </div>
           )}
 
