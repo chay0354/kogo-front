@@ -1,18 +1,15 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { X, Plus, Trash2 } from 'lucide-react';
 import api from '@/lib/api';
-import { City } from '@/types/branch';
 import { AddBranchDialogProps } from './types';
 import styles from './index.module.css';
+import CitySelectField from '@/components/dialogs/CitySelectField';
 
 export default function AddBranchDialog({ isOpen, onClose, onSuccess }: AddBranchDialogProps) {
-  const [cities, setCities] = useState<City[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [showAddCity, setShowAddCity] = useState(false);
-  const [newCityName, setNewCityName] = useState('');
 
   const [formData, setFormData] = useState({
     name: '',
@@ -33,38 +30,6 @@ export default function AddBranchDialog({ isOpen, onClose, onSuccess }: AddBranc
     { name: 'סטודיו 1', capacity: 20, notes: '' },
     { name: 'סטודיו 2', capacity: 20, notes: '' },
   ]);
-
-  useEffect(() => {
-    if (isOpen) {
-      fetchCities();
-    }
-  }, [isOpen]);
-
-  const fetchCities = async () => {
-    try {
-      const response = await api.get('/core/cities/');
-      const data = response.data.results || response.data;
-      setCities(Array.isArray(data) ? data : []);
-    } catch (error) {
-      console.error('Error fetching cities:', error);
-      setCities([]);
-    }
-  };
-
-  const handleAddCity = async () => {
-    if (!newCityName.trim()) return;
-
-    try {
-      const response = await api.post('/core/cities/', { name: newCityName });
-      setCities([...cities, response.data]);
-      setFormData({ ...formData, city: response.data.id });
-      setNewCityName('');
-      setShowAddCity(false);
-    } catch (error) {
-      console.error('Error adding city:', error);
-      setError('שגיאה בהוספת עיר');
-    }
-  };
 
   const handleArrayFieldChange = (field: keyof typeof formData, index: number, value: string) => {
     const array = formData[field] as string[];
@@ -175,8 +140,6 @@ export default function AddBranchDialog({ isOpen, onClose, onSuccess }: AddBranc
       { name: 'סטודיו 2', capacity: 20, notes: '' },
     ]);
     setError(null);
-    setShowAddCity(false);
-    setNewCityName('');
     onClose();
   };
 
@@ -227,51 +190,12 @@ export default function AddBranchDialog({ isOpen, onClose, onSuccess }: AddBranc
               />
             </div>
 
-            <div>
-              <label className={styles.label}>
-                עיר <span className="text-destructive">*</span>
-              </label>
-              {!showAddCity ? (
-                <div className={styles.cityRow}>
-                  <select
-                    value={formData.city}
-                    onChange={(e) => setFormData({ ...formData, city: e.target.value })}
-                    className="input flex-1"
-                    required
-                  >
-                    <option value="">בחר עיר</option>
-                    {cities.map((city: any) => (
-                      <option key={city.id} value={city.id}>
-                        {city.name}
-                      </option>
-                    ))}
-                  </select>
-                  <button
-                    type="button"
-                    onClick={() => setShowAddCity(true)}
-                    className="btn-secondary whitespace-nowrap"
-                  >
-                    + עיר חדשה
-                  </button>
-                </div>
-              ) : (
-                <div className={styles.cityRow}>
-                  <input
-                    type="text"
-                    value={newCityName}
-                    onChange={(e) => setNewCityName(e.target.value)}
-                    className="input flex-1"
-                    placeholder="שם העיר"
-                  />
-                  <button type="button" onClick={handleAddCity} className="btn-primary">
-                    הוסף
-                  </button>
-                  <button type="button" onClick={() => setShowAddCity(false)} className="btn-secondary">
-                    ביטול
-                  </button>
-                </div>
-              )}
-            </div>
+            <CitySelectField
+              value={formData.city}
+              onChange={(cityId) => setFormData({ ...formData, city: cityId })}
+              onError={setError}
+              required
+            />
 
             <div>
               <label className={styles.label}>כתובת</label>

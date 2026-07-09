@@ -3,7 +3,8 @@
 import { useState, useEffect } from 'react';
 import { X, Plus, Trash2 } from 'lucide-react';
 import api from '@/lib/api';
-import { City, Branch, CustomDetail, BranchDetail, Room } from '@/types/branch';
+import { Branch, CustomDetail, BranchDetail, Room } from '@/types/branch';
+import CitySelectField from '@/components/dialogs/CitySelectField';
 
 interface EditBranchDialogProps {
   isOpen: boolean;
@@ -13,11 +14,8 @@ interface EditBranchDialogProps {
 }
 
 export default function EditBranchDialog({ isOpen, onClose, onSuccess, branch }: EditBranchDialogProps) {
-  const [cities, setCities] = useState<City[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [showAddCity, setShowAddCity] = useState(false);
-  const [newCityName, setNewCityName] = useState('');
 
   // Form state
   const [formData, setFormData] = useState({
@@ -41,25 +39,11 @@ export default function EditBranchDialog({ isOpen, onClose, onSuccess, branch }:
   const [rooms, setRooms] = useState<Room[]>([]);
 
   useEffect(() => {
-    if (isOpen) {
-      fetchCities();
-      if (branch) {
-        populateForm(branch);
-        setRooms(branch.rooms || []);
-      }
+    if (isOpen && branch) {
+      populateForm(branch);
+      setRooms(branch.rooms || []);
     }
   }, [isOpen, branch]);
-
-  const fetchCities = async () => {
-    try {
-      const response = await api.get('/core/cities/');
-      const data = response.data.results || response.data;
-      setCities(Array.isArray(data) ? data : []);
-    } catch (error) {
-      console.error('Error fetching cities:', error);
-      setCities([]);
-    }
-  };
 
   const populateForm = (branchData: Branch) => {
     setFormData({
@@ -84,21 +68,6 @@ export default function EditBranchDialog({ isOpen, onClose, onSuccess, branch }:
       external_link: branchData.external_link || '',
       is_active: branchData.is_active,
     });
-  };
-
-  const handleAddCity = async () => {
-    if (!newCityName.trim()) return;
-
-    try {
-      const response = await api.post('/core/cities/', { name: newCityName });
-      setCities([...cities, response.data]);
-      setFormData({ ...formData, city: response.data.id });
-      setNewCityName('');
-      setShowAddCity(false);
-    } catch (error) {
-      console.error('Error adding city:', error);
-      setError('שגיאה בהוספת עיר');
-    }
   };
 
   const handleArrayFieldChange = (field: keyof typeof formData, index: number, value: string) => {
@@ -205,8 +174,6 @@ export default function EditBranchDialog({ isOpen, onClose, onSuccess, branch }:
 
   const handleClose = () => {
     setError(null);
-    setShowAddCity(false);
-    setNewCityName('');
     setNewCustomDetail({ label: '', value: '' });
     onClose();
   };
@@ -249,48 +216,11 @@ export default function EditBranchDialog({ isOpen, onClose, onSuccess, branch }:
               />
             </div>
 
-            <div>
-              <label className="block text-sm font-medium mb-2">עיר</label>
-              {!showAddCity ? (
-                <div className="flex gap-2">
-                  <select
-                    value={formData.city}
-                    onChange={(e) => setFormData({ ...formData, city: e.target.value })}
-                    className="input flex-1"
-                  >
-                    <option value="">בחר עיר</option>
-                    {cities.map((city: any) => (
-                      <option key={city.id} value={city.id}>
-                        {city.name}
-                      </option>
-                    ))}
-                  </select>
-                  <button
-                    type="button"
-                    onClick={() => setShowAddCity(true)}
-                    className="btn-secondary whitespace-nowrap"
-                  >
-                    + עיר חדשה
-                  </button>
-                </div>
-              ) : (
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    value={newCityName}
-                    onChange={(e) => setNewCityName(e.target.value)}
-                    className="input flex-1"
-                    placeholder="שם העיר"
-                  />
-                  <button type="button" onClick={handleAddCity} className="btn-primary">
-                    הוסף
-                  </button>
-                  <button type="button" onClick={() => setShowAddCity(false)} className="btn-secondary">
-                    ביטול
-                  </button>
-                </div>
-              )}
-            </div>
+            <CitySelectField
+              value={formData.city}
+              onChange={(cityId) => setFormData({ ...formData, city: cityId })}
+              onError={setError}
+            />
 
             <div>
               <label className="block text-sm font-medium mb-2">כתובת</label>

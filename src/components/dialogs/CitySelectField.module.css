@@ -1,0 +1,7 @@
+.label {
+  @apply block text-sm font-medium mb-2;
+}
+
+.cityRow {
+  @apply flex flex-wrap gap-2;
+}

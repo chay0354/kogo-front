@@ -42,10 +42,6 @@
   @apply block text-sm font-medium mb-1;
 }
 
-.cityRow {
-  @apply flex gap-2;
-}
-
 .arrayFieldRow {
   @apply flex gap-2 mb-2;
 }

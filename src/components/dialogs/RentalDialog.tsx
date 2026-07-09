@@ -9,6 +9,7 @@ import { initialWeeklyRepeatDays, initialWeeklyDayTimes, lessonDayOfWeekFromISOD
 import api from '@/lib/api';
 import { TimeField } from '@/components/ui/time-picker';
 import { WeeklyDayTimesField, type DayTimeValue } from '@/components/dialogs/WeeklyDayTimesField';
+import CitySelectField from '@/components/dialogs/CitySelectField';
 import styles from './RentalDialog.module.css';
 
 type Branch = {
@@ -20,11 +21,6 @@ type Room = {
   id: string;
   name: string;
   branch: string;
-};
-
-type City = {
-  id: string;
-  name: string;
 };
 
 type RentalDialogProps = {
@@ -49,7 +45,6 @@ export default function RentalDialog({ event, onClose, onSuccess }: RentalDialog
   const [error, setErrorState] = useState('');
   const [branches, setBranches] = useState<Branch[]>([]);
   const [rooms, setRooms] = useState<Room[]>([]);
-  const [cities, setCities] = useState<City[]>([]);
   const [filteredRooms, setFilteredRooms] = useState<Room[]>([]);
   const prevBranchId = useRef<string | undefined>(undefined);
   const panelRef = useRef<HTMLDivElement>(null);
@@ -127,7 +122,6 @@ export default function RentalDialog({ event, onClose, onSuccess }: RentalDialog
   useEffect(() => {
     loadBranches();
     loadRooms();
-    loadCities();
   }, []);
 
   useEffect(() => {
@@ -169,21 +163,6 @@ export default function RentalDialog({ event, onClose, onSuccess }: RentalDialog
       setRooms(roomList);
     } catch (err) {
       console.error('Error loading rooms:', err);
-    }
-  };
-
-  const loadCities = async () => {
-    try {
-      const response = await api.get('/core/cities/');
-      const data = response.data;
-      const cityList: City[] = Array.isArray(data)
-        ? data
-        : Array.isArray(data?.results)
-          ? data.results
-          : [];
-      setCities(cityList);
-    } catch (err) {
-      console.error('Error loading cities:', err);
     }
   };
 
@@ -428,19 +407,12 @@ export default function RentalDialog({ event, onClose, onSuccess }: RentalDialog
             </div>
           )}
 
-          <div>
-            <label className="block text-sm font-medium mb-1">
-              עיר <span className="text-red-500">*</span>
-            </label>
-            <select value={cityId} onChange={(e) => setCityId(e.target.value)} className="w-full px-3 py-2 border rounded-lg" required>
-              <option value="">בחר עיר</option>
-              {cities.map((city: City) => (
-                <option key={city.id} value={city.id}>
-                  {city.name}
-                </option>
-              ))}
-            </select>
-          </div>
+          <CitySelectField
+            value={cityId}
+            onChange={setCityId}
+            onError={(message) => message && setError(message)}
+            required
+          />
 
           <div>
             <label className="block text-sm font-medium mb-1">

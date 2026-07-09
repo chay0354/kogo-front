@@ -4,6 +4,7 @@ import { createEvent, updateEvent } from '@/lib/eventUtils';
 import { initialWeeklyRepeatDays, lessonDayOfWeekFromISODate } from '@/lib/scheduleUtils';
 import api, { fetchInstructorsDropdown } from '@/lib/api';
 import { TimeField } from '@/components/ui/time-picker';
+import CitySelectField from '@/components/dialogs/CitySelectField';
 
 type Branch = {
   id: string;
@@ -14,11 +15,6 @@ type Room = {
   id: string;
   name: string;
   branch: string;
-};
-
-type City = {
-  id: string;
-  name: string;
 };
 
 type Instructor = {
@@ -51,7 +47,6 @@ export default function EventDialog({ event, onClose, onSuccess, initialDate }: 
   const [error, setError] = useState('');
   const [branches, setBranches] = useState<Branch[]>([]);
   const [rooms, setRooms] = useState<Room[]>([]);
-  const [cities, setCities] = useState<City[]>([]);
   const [instructors, setInstructors] = useState<Instructor[]>([]);
   const [filteredRooms, setFilteredRooms] = useState<Room[]>([]);
   
@@ -85,7 +80,6 @@ export default function EventDialog({ event, onClose, onSuccess, initialDate }: 
   useEffect(() => {
     loadBranches();
     loadRooms();
-    loadCities();
     loadInstructors();
   }, []);
 
@@ -127,21 +121,6 @@ export default function EventDialog({ event, onClose, onSuccess, initialDate }: 
       setRooms(roomList);
     } catch (err) {
       console.error('Error loading rooms:', err);
-    }
-  };
-
-  const loadCities = async () => {
-    try {
-      const response = await api.get('/core/cities/');
-      const data = response.data;
-      const cityList: City[] = Array.isArray(data)
-        ? data
-        : Array.isArray(data?.results)
-          ? data.results
-          : [];
-      setCities(cityList);
-    } catch (err) {
-      console.error('Error loading cities:', err);
     }
   };
 
@@ -359,25 +338,12 @@ export default function EventDialog({ event, onClose, onSuccess, initialDate }: 
             </div>
           )}
 
-          {/* עיר */}
-          <div>
-            <label className="block text-sm font-medium mb-1">
-              עיר <span className="text-red-500">*</span>
-            </label>
-            <select
-              value={cityId}
-              onChange={(e) => setCityId(e.target.value)}
-              className="w-full px-3 py-2 border rounded-lg"
-              required
-            >
-              <option value="">בחר עיר</option>
-              {cities.map((city: any) => (
-                <option key={city.id} value={city.id}>
-                  {city.name}
-                </option>
-              ))}
-            </select>
-          </div>
+          <CitySelectField
+            value={cityId}
+            onChange={setCityId}
+            onError={(message) => setError(message || '')}
+            required
+          />
 
           {/* סניף */}
           <div>

@@ -10,6 +10,8 @@ import type {
   DiscountEvaluationRequest
 } from '@/types/discount';
 import type { BusinessCustomer, BusinessCustomerFormData } from '@/components/dialogs/NewDocumentDialog/types';
+import { dedupeCitiesByName } from '@/lib/cityUtils';
+import type { City } from '@/types/branch';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1';
 
@@ -281,7 +283,9 @@ export const fetchBranchesList = async () => {
  */
 export const fetchCitiesList = async () => {
   const response = await api.get('/core/cities/');
-  return response.data;
+  const data = response.data.results || response.data;
+  const list = Array.isArray(data) ? data : [];
+  return dedupeCitiesByName(list as City[]);
 };
 
 /**
