@@ -1,0 +1,123 @@
+.bar {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1.5rem;
+  margin-top: 1.5rem;
+}
+
+@media (min-width: 768px) {
+  .bar {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0;
+  }
+}
+
+.tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  padding-top: 1rem;
+}
+
+@media (min-width: 768px) {
+  .tile {
+    padding-top: 0;
+    border-top: none;
+  }
+
+  .tile + .tile {
+    border-inline-start: 1px solid hsl(var(--border));
+  }
+}
+
+.tile:first-child {
+  padding-top: 0;
+}
+
+@media (max-width: 767px) {
+  .tile + .tile {
+    border-top: 1px solid hsl(var(--border));
+  }
+}
+
+.iconCircle {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.iconProfit {
+  background: hsla(217, 91%, 60%, 0.1);
+  color: hsl(217, 91%, 60%);
+}
+
+.iconExpenses {
+  background: hsla(25, 95%, 53%, 0.1);
+  color: hsl(25, 95%, 53%);
+}
+
+.iconIncome {
+  background: hsla(142, 76%, 36%, 0.1);
+  color: hsl(142, 76%, 36%);
+}
+
+.value {
+  font-size: 1.5rem;
+  font-weight: 700;
+}
+
+.valueProfit {
+  color: hsl(217, 91%, 60%);
+}
+
+.valueExpenses {
+  color: hsl(25, 95%, 53%);
+}
+
+.valueIncome {
+  color: hsl(142, 76%, 36%);
+}
+
+.label {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: hsl(var(--muted-foreground));
+}
+
+.skeletonIcon {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: hsl(var(--muted));
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+.skeletonValue {
+  width: 6rem;
+  height: 1.5rem;
+  border-radius: 0.25rem;
+  background: hsl(var(--muted));
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+.skeletonLabel {
+  width: 4rem;
+  height: 0.875rem;
+  border-radius: 0.25rem;
+  background: hsl(var(--muted));
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
