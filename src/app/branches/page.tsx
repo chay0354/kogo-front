@@ -10,6 +10,8 @@ import PageSearchBar from '@/components/PageSearchBar';
 import PageFilters from '@/components/PageFilters';
 import AddBranchDialog from '@/components/dialogs/AddBranchDialog';
 import { BranchFinancialDonut } from '@/components/branches/BranchFinancialDonut/BranchFinancialDonut';
+import { BranchesSummaryBar } from '@/components/branches/BranchesSummaryBar/BranchesSummaryBar';
+import { sumTotalIncome, sumTotalExpenses } from '@/components/branches/BranchesSummaryBar/BranchesSummaryBar.utils';
 import GlobalDateFilter, { getDefaultDateRange, DateRange } from '@/components/dashboard/GlobalDateFilter';
 import api, { fetchBranchesData } from '@/lib/api';
 import { BranchListItem } from '@/types/branch';
@@ -47,6 +49,11 @@ export default function BranchesPage() {
       { revenue: row.revenue || 0, spending: row.spending || 0, profit: row.profit || 0 },
     ])
   );
+
+  const branchListRows = financialData?.branch_list || [];
+  const totalProfit = financialData?.kpis?.total_profit || 0;
+  const totalIncome = sumTotalIncome(branchListRows);
+  const totalExpenses = sumTotalExpenses(branchListRows);
 
   const fetchBranches = async () => {
     try {
@@ -192,6 +199,15 @@ export default function BranchesPage() {
             );
           })}
         </div>
+      )}
+
+      {branches.length > 0 && (
+        <BranchesSummaryBar
+          totalProfit={totalProfit}
+          totalExpenses={totalExpenses}
+          totalIncome={totalIncome}
+          isLoading={financialLoading}
+        />
       )}
 
       {/* Add Branch Dialog */}
