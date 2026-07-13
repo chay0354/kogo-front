@@ -9,10 +9,14 @@ import PageFilters from '@/components/PageFilters';
 import RentalDialog from '@/components/dialogs/RentalDialog';
 import { useAuth } from '@/components/AuthProvider';
 import { ScheduleEvent, DAY_NAMES, type WeekDay } from '@/types/schedule';
-import { deleteEvent, fetchEvents } from '@/lib/eventUtils';
+import { deleteEvent, downloadRentalAgreementPdf, fetchEvents } from '@/lib/eventUtils';
 import { formatWeeklyDayTimesHebrew, lessonDayOfWeekFromISODate } from '@/lib/scheduleUtils';
 import { Button } from '@/components/ui/button';
-import { Plus, Pencil, Trash2 } from 'lucide-react';
+import { Plus, Pencil, Trash2, Download } from 'lucide-react';
+
+function hasRentalAgreementData(ev: ScheduleEvent): boolean {
+  return Boolean(ev.renter_id_number && ev.contract_start_date && ev.contract_end_date);
+}
 
 function rentalWeekdaysLabel(ev: ScheduleEvent): string {
   if (ev.event_type === 'weekly') {
@@ -69,6 +73,15 @@ export default function RentalsPage() {
     } catch (e) {
       console.error(e);
       alert('מחיקה נכשלה');
+    }
+  };
+
+  const handleDownloadAgreement = async (ev: ScheduleEvent) => {
+    try {
+      await downloadRentalAgreementPdf(ev.id);
+    } catch (e) {
+      console.error(e);
+      alert('הורדת הסכם השכירות נכשלה');
     }
   };
 
@@ -143,6 +156,18 @@ export default function RentalsPage() {
                     <td className="p-3">₪{ev.price_per_session != null ? Number(ev.price_per_session).toLocaleString('he-IL') : '0'}</td>
                     <td className="p-3">
                       <div className="flex gap-1 justify-end">
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 w-8 p-0"
+                          aria-label="הורד הסכם שכירות"
+                          title={hasRentalAgreementData(ev) ? undefined : 'יש להשלים ת.ז/ח.פ ותאריכי הסכם בעריכת השכירות כדי להוריד הסכם'}
+                          disabled={!hasRentalAgreementData(ev)}
+                          onClick={() => handleDownloadAgreement(ev)}
+                        >
+                          <Download className="h-4 w-4" />
+                        </Button>
                         <Button
                           type="button"
                           variant="ghost"
