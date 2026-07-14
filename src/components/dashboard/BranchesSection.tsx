@@ -183,11 +183,11 @@ export default function BranchesSection({ globalDateRange }: Props) {
           );
         })}
       </div>
-
+      
       <BranchesSummaryBar
-        totalIncome={sumTotalIncome(branchList)}
-        totalExpenses={sumTotalExpenses(branchList)}
         totalProfit={kpis.total_profit || 0}
+        totalExpenses={sumTotalExpenses(branchList)}
+        totalIncome={sumTotalIncome(branchList)}
         isLoading={isLoading}
       />
 
