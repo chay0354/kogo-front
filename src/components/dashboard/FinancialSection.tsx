@@ -277,7 +277,7 @@ export default function FinancialSection({ globalDateRange }: Props) {
                       }
                       return `₪${value}`;
                     }}
-                    width={70}
+                    width={45}
                   />
                   <Tooltip
                     contentStyle={{
@@ -430,9 +430,9 @@ export default function FinancialSection({ globalDateRange }: Props) {
             ) : (
             <div className="h-64">
               <ResponsiveContainer width="100%" height="100%">
-                <LineChart 
+                <LineChart
                   data={monthlyTrends}
-                  margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
+                  margin={{ top: 5, right: 30, left: 0, bottom: 5 }}
                 >
                   <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                   <XAxis 
@@ -541,7 +541,7 @@ export default function FinancialSection({ globalDateRange }: Props) {
                     }
                     return `₪${value}`;
                   }}
-                  width={70}
+                  width={45}
                 />
                 <Tooltip
                   contentStyle={{
