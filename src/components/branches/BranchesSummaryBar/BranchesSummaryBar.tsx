@@ -30,12 +30,13 @@ export function BranchesSummaryBar({
   return (
     <div className="card">
       <div className={styles.bar}>
+
         <div className={styles.tile}>
-          <div className={`${styles.iconCircle} ${styles.iconProfit}`}>
+          <div className={`${styles.iconCircle} ${styles.iconIncome}`}>
             <TrendingUp className="w-5 h-5" />
           </div>
-          <span className={`${styles.value} ${styles.valueProfit}`}>{formatCurrency(totalProfit)}</span>
-          <span className={styles.label}>רווח כולל</span>
+          <span className={`${styles.value} ${styles.valueIncome}`}>{formatCurrency(totalIncome)}</span>
+          <span className={styles.label}>הכנסות כוללות</span>
         </div>
 
         <div className={styles.tile}>
@@ -47,12 +48,14 @@ export function BranchesSummaryBar({
         </div>
 
         <div className={styles.tile}>
-          <div className={`${styles.iconCircle} ${styles.iconIncome}`}>
+          <div className={`${styles.iconCircle} ${styles.iconProfit}`}>
             <TrendingUp className="w-5 h-5" />
           </div>
-          <span className={`${styles.value} ${styles.valueIncome}`}>{formatCurrency(totalIncome)}</span>
-          <span className={styles.label}>הכנסות כוללות</span>
+          <span className={`${styles.value} ${styles.valueProfit}`}>{formatCurrency(totalProfit)}</span>
+          <span className={styles.label}>רווח כולל</span>
         </div>
+
+
       </div>
     </div>
   );
