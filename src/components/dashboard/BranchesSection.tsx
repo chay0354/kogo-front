@@ -1,16 +1,20 @@
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import { fetchBranchesData, fetchCoursesList } from '@/lib/api';
 import { useScopedBranches } from '@/hooks/useScopedBranches';
 import { filterBranchesByCity } from '@/lib/scopedFilters';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Users, TrendingUp, Download, Tags, Loader2 } from 'lucide-react';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
+import { Users, Download, Tags } from 'lucide-react';
+import { Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
+import { BranchFinancialDonut } from '@/components/branches/BranchFinancialDonut/BranchFinancialDonut';
+import { BranchesSummaryBar } from '@/components/branches/BranchesSummaryBar/BranchesSummaryBar';
+import { sumTotalIncome, sumTotalExpenses } from '@/components/branches/BranchesSummaryBar/BranchesSummaryBar.utils';
 import type { DateRange } from './GlobalDateFilter';
 
 interface Props {
@@ -54,31 +58,29 @@ export default function BranchesSection({ globalDateRange }: Props) {
     queryFn: () => fetchBranchesData(apiFilters),
   });
 
+  const router = useRouter();
+
   const handleExport = () => {
     toast.success('מייצא נתונים...');
   };
 
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="flex items-center gap-2 text-muted-foreground">
-          <Loader2 className="h-4 w-4 animate-spin" />
-          <span>טוען נתוני סניפים...</span>
-        </div>
-      </div>
-    );
-  }
-
   const kpis = data?.kpis || {};
-  const branchComparison = data?.branch_comparison || [];
   const branchList = data?.branch_list || [];
   const discountBreakdown = data?.discount_breakdown || [];
 
-  // Enhanced colors for better distinction
-  const BRANCH_COLORS = {
-    revenue: 'hsl(142, 76%, 36%)',  // Strong green
-    profit: 'hsl(217, 91%, 60%)',    // Strong blue
-    spending: 'hsl(25, 95%, 53%)',   // Strong orange
+  const gridBranches = filters.branch_id === 'all'
+    ? branchesForFilter
+    : branchesForFilter.filter((b) => b.id === filters.branch_id);
+
+  const branchFinancials = new Map<string, { revenue: number; spending: number; profit: number }>(
+    branchList.map((row: any) => [
+      row.branch_id,
+      { revenue: row.revenue || 0, spending: row.spending || 0, profit: row.profit || 0 },
+    ])
+  );
+
+  const handleCardClick = (branchId: string) => {
+    router.push(`/branches/${branchId}`);
   };
 
   // Discount type colors
@@ -133,7 +135,7 @@ export default function BranchesSection({ globalDateRange }: Props) {
         </div>
       </div>
 
-      {/* KPI Cards - Only 2 KPIs */}
+      {/* KPI Cards - Only 1 KPI (profit total now lives in BranchesSummaryBar below) */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <Card className="rounded-xl bg-card shadow-md border border-border/50">
           <CardContent className="p-5">
@@ -148,94 +150,46 @@ export default function BranchesSection({ globalDateRange }: Props) {
             </div>
           </CardContent>
         </Card>
-
-        <Card className="rounded-xl bg-card shadow-md border border-border/50">
-          <CardContent className="p-5">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">רווח כולל</p>
-                <p className={`text-2xl font-bold ${kpis.total_profit >= 0 ? 'text-success' : 'text-destructive'}`}>
-                  ₪{kpis.total_profit?.toLocaleString() || 0}
-                </p>
-              </div>
-              <div className="h-10 w-10 rounded-full bg-success/10 flex items-center justify-center">
-                <TrendingUp className="h-5 w-5 text-success" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
       </div>
 
-      {/* Branch Comparison - Wide Graph with 3 values including Spending */}
-      <Card className="rounded-xl bg-card shadow-md border border-border/50">
-        <CardHeader>
-          <CardTitle>השוואת סניפים</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="h-96">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart 
-                data={branchComparison}
-                margin={{ top: 20, right: 30, left: 20, bottom: 60 }}
-              >
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" strokeWidth={1.5} />
-                <XAxis 
-                  dataKey="branch" 
-                  stroke="hsl(var(--foreground))" 
-                  fontSize={13}
-                  fontWeight={500}
-                  angle={-20}
-                  textAnchor="end"
-                  height={80}
-                />
-                <YAxis 
-                  stroke="hsl(var(--foreground))" 
-                  fontSize={13}
-                  fontWeight={500}
-                  tickFormatter={(value) => `₪${(value / 1000).toFixed(0)}K`}
-                />
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: "hsl(var(--card))",
-                    border: "2px solid hsl(var(--border))",
-                    borderRadius: "12px",
-                    direction: "rtl",
-                    boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
-                  }}
-                  formatter={(value: any) => `₪${value.toLocaleString()}`}
-                  labelStyle={{ fontWeight: 600, marginBottom: 8 }}
-                />
-                <Legend 
-                  wrapperStyle={{ paddingTop: '20px' }}
-                  iconType="square"
-                  iconSize={14}
-                />
-                <Bar 
-                  dataKey="revenue" 
-                  name="הכנסות" 
-                  fill={BRANCH_COLORS.revenue}
-                  radius={[8, 8, 0, 0]}
-                  maxBarSize={60}
-                />
-                <Bar 
-                  dataKey="spending" 
-                  name="הוצאות" 
-                  fill={BRANCH_COLORS.spending}
-                  radius={[8, 8, 0, 0]}
-                  maxBarSize={60}
-                />
-                <Bar 
-                  dataKey="profit" 
-                  name="רווח" 
-                  fill={BRANCH_COLORS.profit}
-                  radius={[8, 8, 0, 0]}
-                  maxBarSize={60}
-                />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </CardContent>
-      </Card>
+      {/* Branch Cards - same grid/card pattern as the Branches page */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {gridBranches.map((branch) => {
+          const financials = branchFinancials.get(branch.id);
+
+          return (
+            <div
+              key={branch.id}
+              className="card hover:shadow-lg transition-all duration-300 cursor-pointer border border-border/50"
+              onClick={() => handleCardClick(branch.id)}
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  handleCardClick(branch.id);
+                }
+              }}
+            >
+              <h3 className="text-xl font-bold mb-4">{branch.name}</h3>
+              <BranchFinancialDonut
+                branchName={branch.name}
+                revenue={financials?.revenue || 0}
+                spending={financials?.spending || 0}
+                profit={financials?.profit || 0}
+                isLoading={isLoading}
+              />
+            </div>
+          );
+        })}
+      </div>
+
+      <BranchesSummaryBar
+        totalIncome={sumTotalIncome(branchList)}
+        totalExpenses={sumTotalExpenses(branchList)}
+        totalProfit={kpis.total_profit || 0}
+        isLoading={isLoading}
+      />
 
       {/* Discount Breakdown Chart */}
       {discountBreakdown.length > 0 && (
@@ -316,42 +270,6 @@ export default function BranchesSection({ globalDateRange }: Props) {
         </Card>
       )}
 
-      {/* Branch Details Table - Removed מרווח and סטודיו columns */}
-      <Card className="rounded-xl bg-card shadow-md border border-border/50">
-        <CardHeader>
-          <CardTitle>פרטי סניפים</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="overflow-auto max-h-96">
-            <table className="w-full">
-              <thead className="bg-muted/50 sticky top-0">
-                <tr>
-                  <th className="text-right p-3 text-sm font-medium">סניף</th>
-                  <th className="text-right p-3 text-sm font-medium">תלמידים</th>
-                  <th className="text-right p-3 text-sm font-medium">שיעורים</th>
-                  <th className="text-right p-3 text-sm font-medium">הכנסות</th>
-                  <th className="text-right p-3 text-sm font-medium">הוצאות</th>
-                  <th className="text-right p-3 text-sm font-medium">רווח</th>
-                </tr>
-              </thead>
-              <tbody>
-                {branchList.map((branch: any) => (
-                  <tr key={branch.branch_id} className="border-b border-border hover:bg-muted/30 transition-colors">
-                    <td className="p-3 font-medium">{branch.name}</td>
-                    <td className="p-3">{branch.students}</td>
-                    <td className="p-3">{branch.lessons}</td>
-                    <td className="p-3 text-success font-medium">₪{branch.revenue?.toLocaleString()}</td>
-                    <td className="p-3 text-orange-600 font-medium">₪{branch.spending?.toLocaleString()}</td>
-                    <td className={`p-3 font-medium ${branch.profit >= 0 ? 'text-success' : 'text-destructive'}`}>
-                      ₪{branch.profit?.toLocaleString()}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </CardContent>
-      </Card>
     </div>
   );
 }
