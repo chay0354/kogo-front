@@ -8,6 +8,7 @@ import CourseRegistrationForm from './CourseRegistrationForm';
 import CourseExpandedDetail from './CourseExpandedDetail/index';
 import { CourseList } from './CourseList/CourseList';
 import type { City, Branch, Course } from './types';
+import { sortCitiesByFixedOrder } from './page.utils';
 import styles from './page.module.css';
 
 type PanelPos = { top: number; left: number; width: number };
@@ -145,7 +146,7 @@ export default function WidgetPage() {
       .then(([citiesRes, branchesRes]) => {
         const citiesData = Array.isArray(citiesRes.data) ? citiesRes.data : citiesRes.data.results ?? [];
         const branchesData: Branch[] = Array.isArray(branchesRes.data) ? branchesRes.data : branchesRes.data.results ?? [];
-        setCities(citiesData);
+        setCities(sortCitiesByFixedOrder(citiesData));
         setAllBranches(branchesData);
         return Promise.all(
           branchesData.map((b) =>
