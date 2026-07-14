@@ -66,24 +66,29 @@ export function BranchFinancialDonut({
       </div>
 
       <div className={styles.statRow}>
-        <div className={styles.statColumn}>
-          <span className={styles.statLabel}>רווח</span>
-          <span className={`${styles.statValue} ${zeroData ? styles.colorMuted : styles.colorProfit}`}>
-            {formatCurrency(profit)}
-          </span>
-        </div>
-        <div className={styles.statColumn}>
-          <span className={styles.statLabel}>הוצאות</span>
-          <span className={`${styles.statValue} ${zeroData ? styles.colorMuted : styles.colorSpending}`}>
-            {formatCurrency(spending)}
-          </span>
-        </div>
+
         <div className={styles.statColumn}>
           <span className={styles.statLabel}>הכנסות</span>
           <span className={`${styles.statValue} ${zeroData ? styles.colorMuted : styles.colorIncome}`}>
             {formatCurrency(revenue)}
           </span>
         </div>
+
+        <div className={styles.statColumn}>
+          <span className={styles.statLabel}>הוצאות</span>
+          <span className={`${styles.statValue} ${zeroData ? styles.colorMuted : styles.colorSpending}`}>
+            {formatCurrency(spending)}
+          </span>
+        </div>
+
+
+        <div className={styles.statColumn}>
+          <span className={styles.statLabel}>רווח</span>
+          <span className={`${styles.statValue} ${zeroData ? styles.colorMuted : styles.colorProfit}`}>
+            {formatCurrency(profit)}
+          </span>
+        </div>
+
       </div>
     </div>
   );

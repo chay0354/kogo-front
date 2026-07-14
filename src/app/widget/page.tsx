@@ -2,7 +2,7 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import ReactDOM from 'react-dom';
-import { ChevronDown, ChevronUp } from 'lucide-react';
+import { ChevronDown, ChevronUp, Check } from 'lucide-react';
 import api from '@/lib/api';
 import CourseRegistrationForm from './CourseRegistrationForm';
 import CourseExpandedDetail from './CourseExpandedDetail/index';
@@ -61,6 +61,10 @@ function FilterSelect({ value, onChange, disabled, loading, placeholder, selecte
     </svg>
   ) : isOpen ? (
     <ChevronUp size={16} className={styles.filterChevron} />
+  ) : value ? (
+    <span className={styles.filterCheckBadge}>
+      <Check size={13} className={styles.filterCheckIcon} />
+    </span>
   ) : (
     <ChevronDown size={16} className={styles.filterChevron} />
   );
