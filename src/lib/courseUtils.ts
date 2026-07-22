@@ -168,6 +168,23 @@ export function formatCurrency(amount: number): string {
 }
 
 /**
+ * Fixed age-group scale used everywhere a course age range is picked or displayed:
+ * two preschool bands followed by grades א-י״ב. Position in this array (1-indexed)
+ * is the value stored on Course.min_age / Course.max_age.
+ */
+export const AGE_GROUP_LABELS = [
+  '3-4.5', '4.5-6',
+  'כיתה א', 'כיתה ב', 'כיתה ג', 'כיתה ד', 'כיתה ה', 'כיתה ו',
+  'כיתה ז', 'כיתה ח', 'כיתה ט', 'כיתה י', 'כיתה י״א', 'כיתה י״ב',
+];
+
+/**
+ * Ordinal age-group values (1-14) matching AGE_GROUP_LABELS, for populating
+ * min/max age dropdowns.
+ */
+export const AGE_OPTIONS = AGE_GROUP_LABELS.map((_, i) => i + 1);
+
+/**
  * Format age range for display (handles preschool and grades)
  */
 export function formatAgeRange(minAge?: number | null, maxAge?: number | null): string {
@@ -175,24 +192,15 @@ export function formatAgeRange(minAge?: number | null, maxAge?: number | null): 
   if (!minAge) return formatAge(maxAge!);
   if (!maxAge) return formatAge(minAge);
   if (minAge === maxAge) return formatAge(minAge);
-  
+
   return `${formatAge(minAge)} - ${formatAge(maxAge)}`;
 }
 
 /**
- * Format single age value (1-6 = numeric ages, 7-18 = grades א-יב)
+ * Format single age-group value (1-2 = preschool bands, 3-14 = grades א-י״ב)
  */
 export function formatAge(age: number): string {
-  if (age <= 6) {
-    return `גיל ${age}`;
-  }
-  // Convert age to grade: 7 = כיתה א', 8 = כיתה ב', ..., 18 = כיתה י"ב
-  const grade = age - 6;
-  const hebrewGrades = [
-    'א\'', 'ב\'', 'ג\'', 'ד\'', 'ה\'', 'ו\'',
-    'ז\'', 'ח\'', 'ט\'', 'י\'', 'י"א', 'י"ב'
-  ];
-  return `כיתה ${hebrewGrades[grade - 1] || grade}`;
+  return AGE_GROUP_LABELS[age - 1] ?? '';
 }
 
 /**

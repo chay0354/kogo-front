@@ -1,4 +1,4 @@
-import { getDayName, formatTimeRange } from '@/lib/courseUtils';
+import { getDayName, formatTimeRange, formatAgeRange } from '@/lib/courseUtils';
 import type { Course } from '../types';
 import { MapPin, Users, CalendarDays, Wallet, X } from 'lucide-react';
 import styles from './CourseExpandedDetail.module.css';
@@ -14,12 +14,7 @@ export default function CourseExpandedDetail({ course, onEnroll, onClose }: Cour
     new Set(course.lessons?.map((l) => l.instructor_name).filter(Boolean))
   ) as string[];
 
-  const ageLabel =
-    course.min_age != null && course.max_age != null
-      ? `${course.min_age}-${course.max_age}`
-      : course.min_age != null
-      ? `${course.min_age}+`
-      : '—';
+  const ageLabel = formatAgeRange(course.min_age, course.max_age) || '—';
 
   return (
     <div className={styles.card} dir="rtl">

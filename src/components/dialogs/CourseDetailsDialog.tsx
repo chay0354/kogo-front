@@ -2,6 +2,7 @@
 
 import { X, Users, Calendar, DollarSign, GraduationCap, MapPin } from 'lucide-react';
 import { DAY_OF_WEEK_HEBREW } from '@/types/branch';
+import { formatAgeRange } from '@/lib/courseUtils';
 
 interface CourseDetailsDialogProps {
   isOpen: boolean;
@@ -90,12 +91,7 @@ export default function CourseDetailsDialog({ isOpen, onClose, course }: CourseD
             <div>
               <label className="text-sm text-muted-foreground">טווח גילאים</label>
               <div className="text-lg font-medium">
-                {course.min_age && course.max_age
-                  ? `${course.min_age} - ${course.max_age} שנים`
-                  : course.min_age
-                  ? `מגיל ${course.min_age}`
-                  : `עד גיל ${course.max_age}`
-                }
+                {formatAgeRange(course.min_age, course.max_age)}
               </div>
             </div>
           )}

@@ -12,6 +12,7 @@ import {
   updateExtraTierPrice,
 } from '@/lib/coursePriceTiers';
 import {
+  AGE_OPTIONS,
   formatAge,
   formatCurrency,
   getInstructorMonthlySalaryFromProfile,
@@ -69,8 +70,8 @@ export default function EditCourseDialog({
     description: course.description || '',
     price: Number(course.price),
     capacity: course.capacity,
-    min_age: course.min_age || 6,
-    max_age: course.max_age || 18,
+    min_age: course.min_age || 1,
+    max_age: course.max_age || 14,
     is_adult: course.is_adult ?? false,
     external_link: course.external_link || '',
   });
@@ -89,7 +90,6 @@ export default function EditCourseDialog({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const ageOptions = Array.from({ length: 18 }, (_, i) => i + 1);
   const selectedBranch = branches.find((b) => b.id === branchId);
 
   useEffect(() => {
@@ -298,7 +298,7 @@ export default function EditCourseDialog({
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500"
                   required
                 >
-                  {ageOptions.map((age) => (
+                  {AGE_OPTIONS.map((age) => (
                     <option key={age} value={age}>
                       {formatAge(age)}
                     </option>
@@ -316,7 +316,7 @@ export default function EditCourseDialog({
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500"
                   required
                 >
-                  {ageOptions.map((age) => (
+                  {AGE_OPTIONS.map((age) => (
                     <option key={age} value={age}>
                       {formatAge(age)}
                     </option>
