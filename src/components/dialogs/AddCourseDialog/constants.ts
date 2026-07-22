@@ -1,6 +1,6 @@
-export const FIRST_PRICE_TIER_INDEX = 2;
+export { AGE_OPTIONS } from '@/lib/courseUtils';
 
-export const AGE_OPTIONS = Array.from({ length: 18 }, (_, i) => i + 1);
+export const FIRST_PRICE_TIER_INDEX = 2;
 
 export const DAYS_OF_WEEK = [
   { value: 0, label: 'ראשון' },

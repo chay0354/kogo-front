@@ -30,8 +30,8 @@ export function buildDefaultCourseData(courseTypeId: string): CourseFormData {
     price: 0,
     capacity: 20,
     branch: '',
-    min_age: 6,
-    max_age: 18,
+    min_age: 1,
+    max_age: 14,
     instructor: '',
     instructor_salary_override: undefined,
     is_adult: false,
@@ -66,8 +66,8 @@ export function buildDuplicateFormState(
       price: Number(source.price),
       capacity: source.capacity,
       branch: branchId,
-      min_age: source.min_age || 6,
-      max_age: source.max_age || 18,
+      min_age: source.min_age || 1,
+      max_age: source.max_age || 14,
       instructor: source.instructor?.id || '',
       instructor_salary_override:
         source.instructor_salary_override != null

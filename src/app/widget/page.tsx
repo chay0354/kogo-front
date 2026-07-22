@@ -9,6 +9,7 @@ import CourseExpandedDetail from './CourseExpandedDetail/index';
 import { CourseList } from './CourseList/CourseList';
 import type { City, Branch, Course } from './types';
 import { sortCitiesByFixedOrder } from './page.utils';
+import { AGE_OPTIONS, formatAge } from '@/lib/courseUtils';
 import styles from './page.module.css';
 
 type PanelPos = { top: number; left: number; width: number };
@@ -124,15 +125,6 @@ export default function WidgetPage() {
     new Map(branchCourses.map((c) => [String(c.course_type), c.course_type_name])).entries()
   ).map(([id, name]) => ({ id, name }));
 
-  const coursesForType = selectedCourseType ? branchCourses.filter((c) => String(c.course_type) === selectedCourseType) : branchCourses;
-
-  const ageOptions = (() => {
-    const min = Math.min(...coursesForType.map((c) => c.min_age ?? 3));
-    const max = Math.max(...coursesForType.map((c) => c.max_age ?? 18));
-    if (!isFinite(min) || !isFinite(max)) return [];
-    return Array.from({ length: max - min + 1 }, (_, i) => min + i);
-  })();
-
   const filteredCourses = branchCourses.filter((course) => {
     if (selectedCourseType && String(course.course_type) !== selectedCourseType) return false;
     if (selectedAge) {
@@ -200,7 +192,6 @@ export default function WidgetPage() {
   const handleBranchChange = (branchId: string) => { setSelectedBranch(branchId); setSelectedCourseType(''); setSelectedAge(''); };
   const handleCourseTypeChange = (typeId: string) => { setSelectedCourseType(typeId); setSelectedAge(''); };
 
-const ageLabel = (age: number) => `${age} שנים`;
   const filledDropdowns = [selectedCity, selectedBranch, selectedCourseType, selectedAge].filter(Boolean).length;
   const showTable = filledDropdowns >= 3;
 
@@ -233,8 +224,8 @@ const ageLabel = (age: number) => `${age} שנים`;
           {courseTypes.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
         </FilterSelect>
 
-        <FilterSelect value={selectedAge} onChange={setSelectedAge} disabled={!selectedCourseType} placeholder="בחרו גיל" selectedLabel={selectedAge ? ageLabel(parseInt(selectedAge)) : undefined} active={activeField === 'age'}>
-          {ageOptions.map((age) => <option key={age} value={age}>{ageLabel(age)}</option>)}
+        <FilterSelect value={selectedAge} onChange={setSelectedAge} disabled={!selectedCourseType} placeholder="בחרו גיל" selectedLabel={selectedAge ? formatAge(parseInt(selectedAge)) : undefined} active={activeField === 'age'}>
+          {AGE_OPTIONS.map((age) => <option key={age} value={age}>{formatAge(age)}</option>)}
         </FilterSelect>
       </div>
 
