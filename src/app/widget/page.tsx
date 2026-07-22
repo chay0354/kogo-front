@@ -20,6 +20,7 @@ function FilterSelect({ value, onChange, disabled, loading, placeholder, selecte
   const [isOpen, setIsOpen] = useState(false);
   const [panelPos, setPanelPos] = useState<PanelPos | null>(null);
   const wrapperRef = useRef<HTMLDivElement>(null);
+  const panelRef = useRef<HTMLUListElement>(null);
 
   const options = React.Children.toArray(children)
     .filter(React.isValidElement)
@@ -46,7 +47,10 @@ function FilterSelect({ value, onChange, disabled, loading, placeholder, selecte
   useEffect(() => {
     if (!isOpen) return;
     const onResize = () => { if (window.innerWidth >= 768) setIsOpen(false); };
-    const onScroll = () => setIsOpen(false);
+    const onScroll = (e: Event) => {
+      if (panelRef.current && e.target instanceof Node && panelRef.current.contains(e.target)) return;
+      setIsOpen(false);
+    };
     window.addEventListener('resize', onResize);
     window.addEventListener('scroll', onScroll, true);
     return () => {
@@ -73,7 +77,7 @@ function FilterSelect({ value, onChange, disabled, loading, placeholder, selecte
   const panel = isOpen && panelPos ? (
     <>
       <div className={styles.dropdownBackdrop} onClick={closePanel} />
-      <ul role="listbox" aria-label={placeholder} className={styles.dropdownPanel} style={{ '--dp-top': `${panelPos.top}px`, '--dp-left': `${panelPos.left}px`, '--dp-width': `${panelPos.width}px` } as React.CSSProperties}>
+      <ul ref={panelRef} role="listbox" aria-label={placeholder} className={styles.dropdownPanel} style={{ '--dp-top': `${panelPos.top}px`, '--dp-left': `${panelPos.left}px`, '--dp-width': `${panelPos.width}px` } as React.CSSProperties}>
         {options.length === 0 ? (
           <li className={styles.dropdownEmpty}>אין אפשרויות</li>
         ) : options.map((opt) => (
