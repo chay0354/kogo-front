@@ -81,7 +81,7 @@ export default function AddCourseDialog({
     try {
       const [branchesRes, roomsRes, instructorsList] = await Promise.all([
         api.get('/core/branches/?simple=true'),
-        api.get('/core/rooms/'),
+        api.get('/core/rooms/', { params: { dropdown: 'true' } }),
         fetchInstructorsDropdown(),
       ]);
       setBranches(Array.isArray(branchesRes.data) ? branchesRes.data : branchesRes.data?.results || []);
@@ -97,13 +97,7 @@ export default function AddCourseDialog({
   const selectedBranch = branches.find((b) => b.id === courseData.branch);
 
   const filteredRooms = courseData.branch
-    ? rooms.filter((room) => {
-        const branchId =
-          typeof (room as any).branch === 'string'
-            ? (room as any).branch
-            : (room as any).branch?.id;
-        return branchId === courseData.branch;
-      })
+    ? rooms.filter((room) => room.branch === courseData.branch)
     : [];
 
   const selectedInstructor = instructors.find((i) => i.id === courseData.instructor);
