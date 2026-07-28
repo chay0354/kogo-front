@@ -100,6 +100,36 @@ export interface Lesson {
   notes: string;
 }
 
+// LessonBundle (מסלול משולב) — combined-price package of 2+ lessons of the same course
+export interface LessonBundleLesson {
+  id: string;
+  day_of_week: number;
+  day_name: string;
+  start_time: string;
+  end_time: string;
+}
+
+export interface LessonBundle {
+  id: string;
+  course: string;
+  name: string;
+  lessons: string[];
+  lessons_detail: LessonBundleLesson[];
+  combined_price: number;
+  price_per_lesson: number;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface LessonBundleFormData {
+  course: string;
+  name?: string;
+  lessons: string[];
+  combined_price: number;
+  is_active?: boolean;
+}
+
 // Course with nested lessons
 export interface CourseWithLessons {
   id: string;

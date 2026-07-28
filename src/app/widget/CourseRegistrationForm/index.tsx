@@ -8,7 +8,7 @@ import type { Props, Step, LookupResult, PaymentResponse } from './types';
 
 export type { CourseLesson } from './types';
 
-export default function CourseRegistrationForm({ courseId, courseName, isAdult = false, onBack, onComplete }: Props) {
+export default function CourseRegistrationForm({ courseId, courseName, isAdult = false, bundleId, onBack, onComplete }: Props) {
   const [step, setStep] = useState<Step>('details');
   const [errorMsg, setErrorMsg] = useState('');
 
@@ -50,7 +50,9 @@ export default function CourseRegistrationForm({ courseId, courseName, isAdult =
     setErrorMsg('');
     try {
       const res = await api.post('/customers/widget/charge/', {
-        payment_id: paymentData.payment_id,
+        ...(paymentData.payment_ids
+          ? { payment_ids: paymentData.payment_ids }
+          : { payment_id: paymentData.payment_id }),
         card_details: {
           card_number: cardNumber.replace(/\s/g, ''),
           expiry_month: parseInt(expiryMonth),
@@ -63,7 +65,9 @@ export default function CourseRegistrationForm({ courseId, courseName, isAdult =
         setStep('payment_success');
         setTimeout(() => onComplete(), 3000);
       } else {
-        setErrorMsg(res.data.error || 'התשלום נכשל');
+        const firstError = res.data.error
+          ?? res.data.results?.find((r: { success: boolean; error?: string }) => !r.success)?.error;
+        setErrorMsg(firstError || 'התשלום נכשל');
         setStep('payment_failed');
       }
     } catch (err: unknown) {
@@ -130,17 +134,29 @@ export default function CourseRegistrationForm({ courseId, courseName, isAdult =
         child_birth_date: childBirthDate,
         child_gender: childGender,
         course_id: courseId,
+        bundle_id: bundleId,
         signature: signature,
         discount_confirmed: discountConfirmed,
         existing_child_id: existingChildId,
       });
-      setPaymentData({
-        payment_id: res.data.payment_id,
-        final_amount: res.data.final_amount,
-        base_amount: res.data.base_amount,
-        discount_amount: res.data.discount_amount,
-        discounts_applied: res.data.discounts_applied ?? [],
-      });
+      if (res.data.is_bundle) {
+        setPaymentData({
+          payment_id: res.data.payments[0].payment_id,
+          payment_ids: res.data.payments.map((p: { payment_id: string }) => p.payment_id),
+          final_amount: res.data.final_amount,
+          base_amount: res.data.base_amount,
+          discount_amount: res.data.discount_amount,
+          discounts_applied: res.data.payments.flatMap((p: { discounts_applied?: Array<{ name: string; amount: number }> }) => p.discounts_applied ?? []),
+        });
+      } else {
+        setPaymentData({
+          payment_id: res.data.payment_id,
+          final_amount: res.data.final_amount,
+          base_amount: res.data.base_amount,
+          discount_amount: res.data.discount_amount,
+          discounts_applied: res.data.discounts_applied ?? [],
+        });
+      }
       setStep('payment');
     } catch (err: unknown) {
       const msg =

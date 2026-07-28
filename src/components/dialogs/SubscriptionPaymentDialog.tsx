@@ -28,7 +28,8 @@ interface Lesson {
 
 interface SubscriptionPaymentDialogProps {
   child: ChildWithDetails;
-  lesson: Lesson;
+  lessons: Lesson[];
+  bundleId?: string;
   isOpen: boolean;
   onClose: () => void;
   onSuccess: () => void;
@@ -36,14 +37,15 @@ interface SubscriptionPaymentDialogProps {
 
 export default function SubscriptionPaymentDialog({
   child,
-  lesson,
+  lessons,
+  bundleId,
   isOpen,
   onClose,
   onSuccess,
 }: SubscriptionPaymentDialogProps) {
-  // Pricing summary state
+  // Pricing summary state — one entry per lesson (bundle registrations bill each member lesson separately)
   const [loading, setLoading] = useState(false);
-  const [paymentData, setPaymentData] = useState<PaymentInitiationResponse | null>(null);
+  const [paymentDataList, setPaymentDataList] = useState<PaymentInitiationResponse[]>([]);
   const [error, setError] = useState('');
   const hasInitiatedRef = useRef(false);
   const requestSeqRef = useRef(0);
@@ -57,15 +59,17 @@ export default function SubscriptionPaymentDialog({
   const [charging, setCharging] = useState(false);
   const [success, setSuccess] = useState(false);
 
+  const lessonIds = lessons.map((l) => l.id).join(',');
+
   // Fetch pricing/discount summary on open (reuse initiate_subscription — same endpoint, same response shape)
   useEffect(() => {
-    if (isOpen && lesson?.id && !hasInitiatedRef.current) {
+    if (isOpen && lessons.length > 0 && !hasInitiatedRef.current) {
       hasInitiatedRef.current = true;
       fetchPricing();
     }
     if (!isOpen) {
       hasInitiatedRef.current = false;
-      setPaymentData(null);
+      setPaymentDataList([]);
       setError('');
       setSuccess(false);
       setCardNumber('');
@@ -74,24 +78,30 @@ export default function SubscriptionPaymentDialog({
       setCvv('');
       setCardHolderId('');
     }
-  }, [isOpen, lesson]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, lessonIds]);
 
   const fetchPricing = async () => {
     const reqId = ++requestSeqRef.current;
-    if (!lesson?.id) {
+    if (lessons.length === 0) {
       setError('שגיאה: חסר מזהה שיעור');
       return;
     }
     setLoading(true);
     setError('');
     try {
-      const response = await api.post('/customers/payments/initiate_subscription/', {
-        child_id: child.id,
-        lesson_id: lesson.id,
-        payment_date: new Date().toISOString().split('T')[0],
-      });
+      const responses = await Promise.all(
+        lessons.map((l) =>
+          api.post('/customers/payments/initiate_subscription/', {
+            child_id: child.id,
+            lesson_id: l.id,
+            bundle_id: bundleId,
+            payment_date: new Date().toISOString().split('T')[0],
+          })
+        )
+      );
       if (reqId !== requestSeqRef.current) return;
-      setPaymentData(response.data);
+      setPaymentDataList(responses.map((r) => r.data));
     } catch (err: any) {
       if (reqId !== requestSeqRef.current) return;
       const d = err.response?.data;
@@ -107,25 +117,33 @@ export default function SubscriptionPaymentDialog({
     setCharging(true);
     setError('');
     try {
-      const response = await api.post('/customers/payments/charge_subscription/', {
-        child_id: child.id,
-        lesson_id: lesson.id,
-        card_details: {
-          card_number: cardNumber.replace(/\s/g, ''),
-          expiry_month: parseInt(expiryMonth),
-          expiry_year: parseInt(expiryYear),
-          cvv,
-          card_holder_id: cardHolderId,
-        },
-      });
-      if (response.data.success) {
+      const cardDetails = {
+        card_number: cardNumber.replace(/\s/g, ''),
+        expiry_month: parseInt(expiryMonth),
+        expiry_year: parseInt(expiryYear),
+        cvv,
+        card_holder_id: cardHolderId,
+      };
+      const responses = await Promise.all(
+        lessons.map((l) =>
+          api.post('/customers/payments/charge_subscription/', {
+            child_id: child.id,
+            lesson_id: l.id,
+            bundle_id: bundleId,
+            card_details: cardDetails,
+          })
+        )
+      );
+      const allSucceeded = responses.every((r) => r.data.success);
+      if (allSucceeded) {
         setSuccess(true);
         setTimeout(() => {
           onSuccess();
           onClose();
         }, 2000);
       } else {
-        setError(response.data.error || 'התשלום נכשל');
+        const failed = responses.find((r) => !r.data.success);
+        setError(failed?.data.error || 'התשלום נכשל');
       }
     } catch (err: any) {
       const d = err.response?.data;
@@ -134,6 +152,9 @@ export default function SubscriptionPaymentDialog({
       setCharging(false);
     }
   };
+
+  const paymentData = paymentDataList[0] ?? null;
+  const totalFinalAmount = paymentDataList.reduce((sum, p) => sum + Number(p.final_amount || 0), 0);
 
   if (!isOpen) return null;
 
@@ -146,7 +167,8 @@ export default function SubscriptionPaymentDialog({
           <div>
             <h2 className="text-xl font-bold text-gray-900">תשלום מנוי חודשי<span style={{ fontSize: '10px', color: 'white', userSelect: 'none' }}> #30</span></h2>
             <p className="text-sm text-gray-600 mt-1">
-              {child.first_name} {child.last_name} — {lesson.name}
+              {child.first_name} {child.last_name} — {lessons[0]?.name}
+              {lessons.length > 1 ? ` (${lessons.map((l) => l.day_of_week).join(' + ')})` : ''}
             </p>
           </div>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
@@ -193,10 +215,19 @@ export default function SubscriptionPaymentDialog({
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
                 <h3 className="font-semibold text-gray-900 mb-3">סיכום תשלום</h3>
                 <div className="space-y-2 text-sm">
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">מחיר לשיעור ה-{paymentData.course_index || 1}:</span>
-                    <span className="font-medium">₪{Number(paymentData.base_amount || 0).toFixed(2)}</span>
-                  </div>
+                  {paymentDataList.length > 1 ? (
+                    paymentDataList.map((p, i) => (
+                      <div key={i} className="flex justify-between">
+                        <span className="text-gray-600">{p.lesson?.day_of_week ?? lessons[i]?.day_of_week}:</span>
+                        <span className="font-medium">₪{Number(p.base_amount || 0).toFixed(2)}</span>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">מחיר לשיעור ה-{paymentData.course_index || 1}:</span>
+                      <span className="font-medium">₪{Number(paymentData.base_amount || 0).toFixed(2)}</span>
+                    </div>
+                  )}
                   {(paymentData.discounts_applied?.length ?? 0) > 0 && (
                     <div className="border-t border-blue-300 pt-2 space-y-1">
                       {paymentData.discounts_applied!.map((d, i) => (
@@ -217,7 +248,9 @@ export default function SubscriptionPaymentDialog({
                   )}
                   <div className="border-t border-blue-300 pt-2 flex justify-between font-bold text-base">
                     <span>סה"כ לתשלום:</span>
-                    <span className="text-blue-600">₪{Number(paymentData.final_amount || 0).toFixed(2)}</span>
+                    <span className="text-blue-600">
+                      ₪{(paymentDataList.length > 1 ? totalFinalAmount : Number(paymentData.final_amount || 0)).toFixed(2)}
+                    </span>
                   </div>
                   {paymentData.next_billing_date && (
                     <div className="flex justify-between text-xs text-gray-500 pt-1">
@@ -226,7 +259,7 @@ export default function SubscriptionPaymentDialog({
                     </div>
                   )}
                 </div>
-                {paymentData.lesson && (
+                {paymentDataList.length <= 1 && paymentData.lesson && (
                   <p className="text-xs text-gray-500 mt-3 border-t border-blue-300 pt-2">
                     {paymentData.lesson.day_of_week} בשעה {paymentData.lesson.time}
                   </p>
@@ -273,7 +306,7 @@ export default function SubscriptionPaymentDialog({
                 {charging ? (
                   <><Loader2 className="h-4 w-4 animate-spin ml-2" />מעבד תשלום...</>
                 ) : (
-                  `שלם ₪${Number(paymentData.final_amount || 0).toFixed(2)}`
+                  `שלם ₪${(paymentDataList.length > 1 ? totalFinalAmount : Number(paymentData.final_amount || 0)).toFixed(2)}`
                 )}
               </Button>
             </>

@@ -63,6 +63,17 @@
   white-space: nowrap;
 }
 
+.bundleBadge {
+  background-color: rgba(245, 197, 24, 0.18);
+  color: #2B3090;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 999px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
 /* Left zone — day/time + button (40%) */
 
 .slotZone {
@@ -76,6 +87,25 @@
 .lessonSlot {
   flex: 1;
   text-align: center;
+}
+
+.lessonSlotStack {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 2px;
+}
+
+.lessonSlotStack .lessonSlot {
+  flex: none;
+}
+
+.slotConnector {
+  font-size: 0.75rem;
+  color: #9ca3af;
+  line-height: 1;
+  margin-inline-end: 4px;
 }
 
 .lessonDay {

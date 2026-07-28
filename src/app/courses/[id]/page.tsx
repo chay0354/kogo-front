@@ -11,6 +11,7 @@ import AddCourseDialog from '@/components/dialogs/AddCourseDialog';
 import AddLessonDialog from '@/components/dialogs/AddLessonDialog';
 import EditCourseDialog from '@/components/dialogs/EditCourseDialog';
 import EditLessonDialog from '@/components/dialogs/EditLessonDialog';
+import ManageLessonBundlesDialog from '@/components/dialogs/ManageLessonBundlesDialog';
 import styles from './page.module.css';
 import { AGE_FILTER_OPTIONS } from './constants';
 
@@ -35,6 +36,7 @@ export default function CourseTypeDetailsPage() {
   const [selectedLesson, setSelectedLesson] = useState<Lesson | null>(null);
   const [deletingCourseId, setDeletingCourseId] = useState<string | null>(null);
   const [deletingLessonId, setDeletingLessonId] = useState<string | null>(null);
+  const [bundlesCourse, setBundlesCourse] = useState<CourseWithLessons | null>(null);
 
   // Filters
   const [ageFilter, setAgeFilter] = useState<AgeFilter>({ label: 'הכל' });
@@ -459,6 +461,15 @@ export default function CourseTypeDetailsPage() {
                           >
                             + הוסף שיעור
                           </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setBundlesCourse(course);
+                            }}
+                            className={`btn-secondary ${styles.addLessonButton}`}
+                          >
+                            מסלולים משולבים
+                          </button>
                           <div className={styles.courseFooterStats}>
                             <span>מחיר חודשי: <span className={styles.statValue}>{formatCurrency(Number(course.price))}</span></span>
                             <span>הכנסות: <span className={styles.statRevenue}>{formatCurrency(courseFinancials.monthlyRevenue)}</span></span>
@@ -507,6 +518,16 @@ export default function CourseTypeDetailsPage() {
         />
       )}
       {showEditCourseDialog && selectedCourse && <EditCourseDialog course={selectedCourse} open onClose={() => { setShowEditCourseDialog(false); setSelectedCourse(null); }} onSuccess={handleCourseUpdated} />}
+
+      {bundlesCourse && (
+        <ManageLessonBundlesDialog
+          isOpen={!!bundlesCourse}
+          onClose={() => setBundlesCourse(null)}
+          courseId={bundlesCourse.id}
+          courseName={bundlesCourse.name}
+          lessons={bundlesCourse.lessons}
+        />
+      )}
       {showEditLessonDialog && selectedLesson && (
         <EditLessonDialog
           lesson={selectedLesson}

@@ -44,6 +44,16 @@ interface Lesson {
   max_students?: number | null;
 }
 
+interface Bundle {
+  id: string;
+  name: string;
+  combined_price: number | string;
+  is_active: boolean;
+  lessons_detail: Array<{ id: string; day_of_week: number; start_time: string; end_time: string }>;
+}
+
+const FULL_SUBSCRIPTION_MODE = 'full';
+
 const BILLING_ENROLLMENT_STATUSES = new Set(['active', 'payments_problem']);
 
 const DAY_NAMES = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שבת'];
@@ -71,18 +81,20 @@ const lessonSeatsLeft = (lesson: Lesson) => {
   return computeSeatsLeft(capacity, lesson.enrolled_students_count);
 };
 
-const formatLessonSchedule = (lesson: Lesson) =>
+const formatLessonSchedule = (lesson: Pick<Lesson, 'day_of_week' | 'start_time' | 'end_time'>) =>
   `${DAY_NAMES[lesson.day_of_week]} ${lesson.start_time.slice(0, 5)} - ${lesson.end_time.slice(0, 5)}`;
 
 export default function EnrollToLessonDialog({ child, isOpen, onClose, onEnroll }: EnrollToLessonDialogProps) {
   const [courseTypes, setCourseTypes] = useState<CourseType[]>([]);
   const [courses, setCourses] = useState<Course[]>([]);
   const [lessons, setLessons] = useState<Lesson[]>([]);
+  const [bundles, setBundles] = useState<Bundle[]>([]);
 
   const [selectedCourseType, setSelectedCourseType] = useState('');
   const [selectedCourse, setSelectedCourse] = useState('');
   const [selectedTrialLesson, setSelectedTrialLesson] = useState('');
   const [trialPickerOpen, setTrialPickerOpen] = useState(false);
+  const [registrationMode, setRegistrationMode] = useState(FULL_SUBSCRIPTION_MODE);
 
   const [loading, setLoading] = useState(false);
   const [loadingCourseTypes, setLoadingCourseTypes] = useState(false);
@@ -111,10 +123,13 @@ export default function EnrollToLessonDialog({ child, isOpen, onClose, onEnroll 
   useEffect(() => {
     if (selectedCourse) {
       loadLessons(selectedCourse);
+      loadBundles(selectedCourse);
       setTrialPickerOpen(false);
       setSelectedTrialLesson('');
+      setRegistrationMode(FULL_SUBSCRIPTION_MODE);
     } else {
       setLessons([]);
+      setBundles([]);
     }
   }, [selectedCourse]);
 
@@ -157,12 +172,25 @@ export default function EnrollToLessonDialog({ child, isOpen, onClose, onEnroll 
     }
   };
 
-  const enrollInAllTeamLessons = async (options?: { trial?: boolean; skipLessonIds?: string[] }) => {
-    const targetLessons = lessons.filter(
+  const loadBundles = async (courseId: string) => {
+    try {
+      const response = await api.get(`/courses/bundles/?course=${courseId}&is_active=true`);
+      setBundles(response.data.results || response.data || []);
+    } catch (error) {
+      console.error('Error loading lesson bundles:', error);
+      setBundles([]);
+    }
+  };
+
+  const enrollInLessons = async (
+    targetLessonList: Lesson[],
+    options?: { trial?: boolean; skipLessonIds?: string[]; bundleId?: string }
+  ) => {
+    const targetLessons = targetLessonList.filter(
       (lesson) => !options?.skipLessonIds?.includes(lesson.id)
     );
 
-    if (targetLessons.length === 0 && lessons.length === 0) {
+    if (targetLessons.length === 0 && targetLessonList.length === 0) {
       throw new Error('לקבוצה זו אין שיעורים — הוסף שיעור לפני רישום');
     }
 
@@ -174,6 +202,7 @@ export default function EnrollToLessonDialog({ child, isOpen, onClose, onEnroll 
           lesson: lesson.id,
           child: child.id,
           status: 'active',
+          ...(options?.bundleId ? { bundle: options.bundleId } : {}),
           ...(options?.trial && index === 0 ? { trial_registration: true } : {}),
         });
         if (index === 0) firstResponse = res;
@@ -186,12 +215,15 @@ export default function EnrollToLessonDialog({ child, isOpen, onClose, onEnroll 
       }
     }
 
-    if (!firstResponse && lessons.length > 0) {
+    if (!firstResponse && targetLessonList.length > 0) {
       throw new Error('הילד כבר רשום לקבוצה זו');
     }
 
     return firstResponse;
   };
+
+  const enrollInAllTeamLessons = (options?: { trial?: boolean; skipLessonIds?: string[] }) =>
+    enrollInLessons(lessons, options);
 
   const handleTrialRegistration = async () => {
     if (!selectedCourse) {
@@ -273,6 +305,15 @@ export default function EnrollToLessonDialog({ child, isOpen, onClose, onEnroll 
   };
 
   const handlePaymentSuccess = async () => {
+    if (activeBundle) {
+      // Each bundle lesson is charged (and its LessonEnrollment created server-side)
+      // individually via SubscriptionPaymentDialog — nothing left to enroll here.
+      onEnroll();
+      setPaymentModalOpen(false);
+      onClose();
+      return;
+    }
+
     const paidLessonId = lessons[0]?.id;
     try {
       await enrollInAllTeamLessons({
@@ -289,9 +330,19 @@ export default function EnrollToLessonDialog({ child, isOpen, onClose, onEnroll 
   if (!isOpen) return null;
 
   const selectedCourseDetails = courses.find((c) => c.id === selectedCourse);
+  const activeBundle = bundles.find((b) => b.id === registrationMode);
   const billingLesson = lessons[0];
+  const bundleLessons = activeBundle
+    ? lessons.filter((l) => activeBundle.lessons_detail.some((bl) => bl.id === l.id))
+    : [];
+  const paymentLessons = activeBundle ? bundleLessons : (billingLesson ? [billingLesson] : []);
   const courseSeats = selectedCourseDetails ? courseSeatsLeft(selectedCourseDetails) : null;
-  const canEnroll = Boolean(selectedCourse && lessons.length > 0 && courseSeats !== 0);
+  const canEnroll = Boolean(
+    selectedCourse &&
+    lessons.length > 0 &&
+    courseSeats !== 0 &&
+    (!activeBundle || bundleLessons.length === activeBundle.lessons_detail.length)
+  );
 
   const existingCourseIds = new Set(
     child.enrollments
@@ -431,14 +482,68 @@ export default function EnrollToLessonDialog({ child, isOpen, onClose, onEnroll 
                 <div className="text-sm text-muted-foreground">
                   {loadingLessons ? (
                     <div>טוען מועדים...</div>
-                  ) : lessons.length > 0 ? (
+                  ) : lessons.length === 0 ? (
+                    <div className="text-red-600">לקבוצה זו אין שיעורים — יש להוסיף שיעור לפני רישום</div>
+                  ) : bundles.length > 0 ? (
+                    <div>
+                      <label className="block text-sm font-medium mb-2 text-foreground">
+                        אופן הרשמה
+                      </label>
+                      <div className="space-y-2" role="radiogroup" aria-label="אופן הרשמה">
+                        <div
+                          role="radio"
+                          aria-checked={registrationMode === FULL_SUBSCRIPTION_MODE}
+                          tabIndex={0}
+                          onClick={() => setRegistrationMode(FULL_SUBSCRIPTION_MODE)}
+                          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setRegistrationMode(FULL_SUBSCRIPTION_MODE); } }}
+                          className={`p-3 rounded-lg cursor-pointer text-foreground ${
+                            registrationMode === FULL_SUBSCRIPTION_MODE
+                              ? 'border-2 border-[hsl(var(--primary))] bg-[hsl(var(--primary)/0.04)]'
+                              : 'border-2 border-border'
+                          }`}
+                        >
+                          <div className="font-medium text-sm">
+                            מנוי מלא — כל השיעורים (₪{selectedCourseDetails?.price ?? '—'})
+                          </div>
+                          <ul className="mt-1 space-y-0.5">
+                            {lessons.map((lesson) => (
+                              <li key={lesson.id}>{formatLessonSchedule(lesson)}</li>
+                            ))}
+                          </ul>
+                        </div>
+
+                        {bundles.map((bundle) => (
+                          <div
+                            key={bundle.id}
+                            role="radio"
+                            aria-checked={registrationMode === bundle.id}
+                            tabIndex={0}
+                            onClick={() => setRegistrationMode(bundle.id)}
+                            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setRegistrationMode(bundle.id); } }}
+                            className={`p-3 rounded-lg cursor-pointer text-foreground ${
+                              registrationMode === bundle.id
+                                ? 'border-2 border-[hsl(var(--primary))] bg-[hsl(var(--primary)/0.04)]'
+                                : 'border-2 border-border'
+                            }`}
+                          >
+                            <div className="font-medium text-sm">
+                              {bundle.name || 'מסלול משולב'} (₪{bundle.combined_price})
+                            </div>
+                            <ul className="mt-1 space-y-0.5">
+                              {bundle.lessons_detail.map((bl) => (
+                                <li key={bl.id}>{formatLessonSchedule(bl)}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ) : (
                     <ul className="space-y-1">
                       {lessons.map((lesson) => (
                         <li key={lesson.id}>{formatLessonSchedule(lesson)}</li>
                       ))}
                     </ul>
-                  ) : (
-                    <div className="text-red-600">לקבוצה זו אין שיעורים — יש להוסיף שיעור לפני רישום</div>
                   )}
                 </div>
               )}
@@ -477,16 +582,17 @@ export default function EnrollToLessonDialog({ child, isOpen, onClose, onEnroll 
         </div>
       </div>
 
-      {paymentModalOpen && billingLesson && selectedCourseDetails && (
+      {paymentModalOpen && paymentLessons.length > 0 && selectedCourseDetails && (
         <SubscriptionPaymentDialog
           child={child}
-          lesson={{
-            id: billingLesson.id,
+          lessons={paymentLessons.map((l) => ({
+            id: l.id,
             name: selectedCourseDetails.name,
-            day_of_week: DAY_NAMES[billingLesson.day_of_week],
-            time: billingLesson.start_time,
-            price: selectedCourseDetails.price,
-          }}
+            day_of_week: DAY_NAMES[l.day_of_week],
+            time: l.start_time,
+            price: activeBundle ? String(activeBundle.combined_price) : selectedCourseDetails.price,
+          }))}
+          bundleId={activeBundle?.id}
           isOpen={paymentModalOpen}
           onClose={() => setPaymentModalOpen(false)}
           onSuccess={handlePaymentSuccess}

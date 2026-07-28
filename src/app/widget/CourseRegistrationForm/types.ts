@@ -10,6 +10,7 @@ export interface Props {
   courseId: string;
   courseName: string;
   isAdult?: boolean;
+  bundleId?: string;
   onBack: () => void;
   onComplete: () => void;
 }
@@ -34,6 +35,7 @@ export interface LookupResult {
 
 export interface PaymentResponse {
   payment_id: string;
+  payment_ids?: string[]; // present for a bundle registration — charge all of these with the same card
   final_amount: number;
   base_amount: number;
   discount_amount: number;

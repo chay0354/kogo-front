@@ -1,20 +1,24 @@
 import { getDayName, formatTimeRange, formatAgeRange } from '@/lib/courseUtils';
-import type { Course } from '../types';
+import type { Course, CourseBundle } from '../types';
 import { MapPin, Users, CalendarDays, Wallet, X } from 'lucide-react';
 import styles from './CourseExpandedDetail.module.css';
 
 interface CourseExpandedDetailProps {
   course: Course;
+  bundle?: CourseBundle;
   onEnroll: () => void;
   onClose: () => void;
 }
 
-export default function CourseExpandedDetail({ course, onEnroll, onClose }: CourseExpandedDetailProps) {
+export default function CourseExpandedDetail({ course, bundle, onEnroll, onClose }: CourseExpandedDetailProps) {
   const instructors = Array.from(
     new Set(course.lessons?.map((l) => l.instructor_name).filter(Boolean))
   ) as string[];
 
   const ageLabel = formatAgeRange(course.min_age, course.max_age) || '—';
+  const scheduleLessons = bundle ? bundle.lessons : course.lessons;
+  const displayPrice = bundle ? bundle.combined_price : course.price;
+  const displayTitle = bundle ? `${course.name} (${bundle.name || 'פעמיים בשבוע'})` : course.name;
 
   return (
     <div className={styles.card} dir="rtl">
@@ -24,7 +28,7 @@ export default function CourseExpandedDetail({ course, onEnroll, onClose }: Cour
 
         {/* Header */}
         <div className={styles.header}>
-          <h2 className={styles.title}>{course.name}</h2>
+          <h2 className={styles.title}>{displayTitle}</h2>
           <p className={styles.subtitle}>{course.course_type_name}</p>
         </div>
 
@@ -50,8 +54,8 @@ export default function CourseExpandedDetail({ course, onEnroll, onClose }: Cour
           <div className={styles.infoPill}>
             <CalendarDays size={20} className={styles.infoIcon} />
             <span className={styles.infoLabel}>יום ושעה</span>
-            {course.lessons?.length ? (
-              course.lessons.map((l, i) => (
+            {scheduleLessons?.length ? (
+              scheduleLessons.map((l, i) => (
                 <span key={i} className={styles.infoValue}>
                   {getDayName(l.day_of_week)}{' '}
                   {formatTimeRange(l.start_time, l.end_time)}
@@ -83,7 +87,7 @@ export default function CourseExpandedDetail({ course, onEnroll, onClose }: Cour
           </div>
           <div className={styles.priceRight}>
             <span className={styles.priceAmount}>
-              {course.price != null ? `₪${course.price}` : '—'}
+              {displayPrice != null ? `₪${displayPrice}` : '—'}
             </span>
             <span className={styles.priceLabel}>לחודש</span>
           </div>
