@@ -7,7 +7,7 @@ import api from '@/lib/api';
 import CourseRegistrationForm from './CourseRegistrationForm';
 import CourseExpandedDetail from './CourseExpandedDetail/index';
 import { CourseList } from './CourseList/CourseList';
-import type { City, Branch, Course } from './types';
+import type { City, Branch, Course, CourseBundle } from './types';
 import { sortCitiesByFixedOrder } from './page.utils';
 import { AGE_OPTIONS, formatAge } from '@/lib/courseUtils';
 import styles from './page.module.css';
@@ -116,10 +116,15 @@ export default function WidgetPage() {
 
   const [loadingBranches, setLoadingBranches] = useState(true);
   const [detailCourse, setDetailCourse] = useState<Course | null>(null);
+  const [detailBundle, setDetailBundle] = useState<CourseBundle | null>(null);
   const [drawerCourse, setDrawerCourse] = useState<Course | null>(null);
+  const [drawerBundle, setDrawerBundle] = useState<CourseBundle | null>(null);
 
-  const toggleDetail = (course: Course) =>
-    setDetailCourse((prev) => (prev?.id === course.id ? null : course));
+  const toggleDetail = (course: Course, bundle?: CourseBundle) => {
+    const isSame = detailCourse?.id === course.id && detailBundle?.id === bundle?.id;
+    setDetailCourse(isSame ? null : course);
+    setDetailBundle(isSame ? null : (bundle ?? null));
+  };
 
   const branchCourses = selectedBranch ? (allCoursesMap[selectedBranch] ?? []) : [];
 
@@ -186,10 +191,13 @@ export default function WidgetPage() {
     if (branch?.is_external && externalLink) {
       window.open(normalizeExternalLink(externalLink), '_blank', 'noopener,noreferrer');
       setDetailCourse(null);
+      setDetailBundle(null);
       return;
     }
     setDrawerCourse(detailCourse);
+    setDrawerBundle(detailBundle);
     setDetailCourse(null);
+    setDetailBundle(null);
   };
 
   const handleCityChange = (cityId: string) => { setSelectedCity(cityId); setSelectedBranch(''); setSelectedCourseType(''); setSelectedAge(''); };
@@ -247,9 +255,14 @@ export default function WidgetPage() {
       {/* Course detail overlay */}
       {detailCourse && (
         <>
-          <div className={styles.detailOverlay} onClick={() => setDetailCourse(null)} />
+          <div className={styles.detailOverlay} onClick={() => { setDetailCourse(null); setDetailBundle(null); }} />
           <div className={styles.detailPanel}>
-            <CourseExpandedDetail course={detailCourse} onClose={() => setDetailCourse(null)} onEnroll={handleEnrollClick} />
+            <CourseExpandedDetail
+              course={detailCourse}
+              bundle={detailBundle ?? undefined}
+              onClose={() => { setDetailCourse(null); setDetailBundle(null); }}
+              onEnroll={handleEnrollClick}
+            />
           </div>
         </>
       )}
@@ -274,7 +287,14 @@ export default function WidgetPage() {
                 })()}
               </div>
             ) : (
-              <CourseRegistrationForm courseId={drawerCourse.id} courseName={drawerCourse.name} isAdult={drawerCourse.is_adult ?? false} onBack={() => setDrawerCourse(null)} onComplete={() => setDrawerCourse(null)} />
+              <CourseRegistrationForm
+                courseId={drawerCourse.id}
+                courseName={drawerBundle ? `${drawerCourse.name} (${drawerBundle.name || 'פעמיים בשבוע'})` : drawerCourse.name}
+                isAdult={drawerCourse.is_adult ?? false}
+                bundleId={drawerBundle?.id}
+                onBack={() => { setDrawerCourse(null); setDrawerBundle(null); }}
+                onComplete={() => { setDrawerCourse(null); setDrawerBundle(null); }}
+              />
             )}
           </div>
         </>

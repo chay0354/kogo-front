@@ -20,6 +20,21 @@ export interface CourseLesson {
   instructor_name: string | null;
 }
 
+// A combined "twice a week" package of 2+ of this course's own lessons, sold at a discount.
+export interface CourseBundleLesson {
+  id: string;
+  day_of_week: number;
+  start_time: string;
+  end_time: string;
+}
+
+export interface CourseBundle {
+  id: string;
+  name: string;
+  combined_price: number;
+  lessons: CourseBundleLesson[];
+}
+
 export interface Course {
   id: string;
   name: string;
@@ -34,4 +49,5 @@ export interface Course {
   external_link: string;
   lessons_count: number;
   lessons: CourseLesson[];
+  bundles: CourseBundle[];
 }

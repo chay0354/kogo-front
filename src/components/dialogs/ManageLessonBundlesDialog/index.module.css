@@ -1,0 +1,286 @@
+.overlay {
+  position: fixed;
+  inset: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 1rem;
+}
+
+.panel {
+  background: hsl(var(--card));
+  border-radius: 0.5rem;
+  max-height: 90vh;
+  overflow-y: auto;
+  max-width: 42rem;
+  width: calc(100% - 2rem);
+  box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
+  z-index: 1001;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1.5rem;
+  border-bottom: 1px solid hsl(var(--border));
+  position: sticky;
+  top: 0;
+  background: hsl(var(--card));
+}
+
+.title {
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: hsl(var(--foreground));
+}
+
+.closeButton {
+  padding: 0.5rem;
+  border-radius: var(--radius);
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  color: hsl(var(--muted-foreground));
+  transition: background-color 150ms;
+}
+
+.closeButton:hover {
+  background-color: hsl(var(--muted));
+}
+
+.body {
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.emptyState {
+  font-size: 0.875rem;
+  color: hsl(var(--muted-foreground));
+  text-align: center;
+  padding: 1rem 0;
+}
+
+.bundleList {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.bundleRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  border: 1px solid hsl(var(--border));
+  border-radius: calc(var(--radius) - 4px);
+}
+
+.bundleInfo {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+}
+
+.bundleName {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: hsl(var(--foreground));
+}
+
+.bundleSchedule {
+  font-size: 0.75rem;
+  color: hsl(var(--muted-foreground));
+}
+
+.bundlePrice {
+  font-size: 0.75rem;
+  color: hsl(var(--foreground));
+  font-weight: 500;
+}
+
+.bundleActions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
+
+.activeToggle {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.75rem;
+  color: hsl(var(--muted-foreground));
+  white-space: nowrap;
+}
+
+.iconButton {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 0.25rem;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  color: hsl(var(--muted-foreground));
+  transition: background-color 150ms;
+}
+
+.editIconButton:hover {
+  background-color: #eff6ff;
+  color: #2563eb;
+}
+
+.deleteIconButton:hover {
+  background-color: #fef2f2;
+  color: #dc2626;
+}
+
+.addButton {
+  align-self: flex-start;
+  padding: 0.5rem 1rem;
+  border-radius: var(--radius);
+  border: 1px dashed hsl(var(--border));
+  background: transparent;
+  color: hsl(var(--primary));
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 150ms;
+  min-height: 44px;
+}
+
+.addButton:hover {
+  background-color: hsl(var(--primary) / 0.06);
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid hsl(var(--border));
+}
+
+.formField {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.label {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #374151;
+}
+
+.textInput {
+  height: 2.75rem;
+  border-radius: 0.5rem;
+  border: 1px solid hsl(var(--input));
+  padding: 0 0.75rem;
+  font-size: 0.875rem;
+  color: hsl(var(--foreground));
+  background: hsl(var(--card));
+}
+
+.textInput:focus {
+  outline: none;
+  box-shadow: 0 0 0 2px hsl(var(--ring));
+  border-color: hsl(var(--ring));
+}
+
+.lessonPicker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.lessonCard {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  min-height: 44px;
+  border-radius: calc(var(--radius) - 4px);
+  border: 2px solid hsl(var(--border));
+  cursor: pointer;
+  transition: border-color 150ms, background-color 150ms;
+  outline: none;
+}
+
+.lessonCard:focus-visible {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: 1px;
+}
+
+.lessonCardSelected {
+  border-color: hsl(var(--primary));
+  background: hsl(var(--primary) / 0.04);
+}
+
+.lessonCardIcon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.25rem;
+  height: 1.25rem;
+  border-radius: 50%;
+  background: hsl(var(--primary) / 0.12);
+  color: hsl(var(--primary));
+  flex-shrink: 0;
+}
+
+.lessonCardLabel {
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: hsl(var(--foreground));
+  white-space: nowrap;
+}
+
+.errorText {
+  font-size: 0.875rem;
+  color: #ef4444;
+}
+
+.formActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
+.cancelButton {
+  padding: 0.5rem 1rem;
+  border-radius: var(--radius);
+  border: 1px solid hsl(var(--border));
+  background: hsl(var(--secondary));
+  color: hsl(var(--secondary-foreground));
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.saveButton {
+  padding: 0.5rem 1rem;
+  border-radius: var(--radius);
+  border: none;
+  background: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.saveButton:disabled,
+.cancelButton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

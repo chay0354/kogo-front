@@ -2,17 +2,18 @@
 
 import { ChevronDown } from 'lucide-react';
 import { getDayName, formatTimeRange } from '@/lib/courseUtils';
-import type { Course, CourseLesson } from '../types';
+import type { Course, CourseLesson, CourseBundle } from '../types';
 import styles from './CourseList.module.css';
 
 interface CourseListProps {
   filteredCourses: Course[];
-  onSelect: (course: Course) => void;
+  onSelect: (course: Course, bundle?: CourseBundle) => void;
 }
 
 interface CourseRow {
   course: Course;
   lesson: CourseLesson | null;
+  bundle: CourseBundle | null;
 }
 
 function buildRows(courses: Course[]): CourseRow[] {
@@ -20,10 +21,13 @@ function buildRows(courses: Course[]): CourseRow[] {
   for (const course of courses) {
     if (course.lessons && course.lessons.length > 0) {
       for (const lesson of course.lessons) {
-        rows.push({ course, lesson });
+        rows.push({ course, lesson, bundle: null });
       }
     } else {
-      rows.push({ course, lesson: null });
+      rows.push({ course, lesson: null, bundle: null });
+    }
+    for (const bundle of course.bundles ?? []) {
+      rows.push({ course, lesson: null, bundle });
     }
   }
   return rows;
@@ -34,34 +38,47 @@ export function CourseList({ filteredCourses, onSelect }: CourseListProps) {
 
   return (
     <div role="list" className={styles.list}>
-      {rows.map(({ course, lesson }, index) => (
+      {rows.map(({ course, lesson, bundle }, index) => (
         <div
-          key={`${course.id}-${lesson?.id ?? index}`}
+          key={`${course.id}-${bundle?.id ?? lesson?.id ?? index}`}
           role="listitem"
           className={styles.row}
-          onClick={() => onSelect(course)}
-          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelect(course); } }}
+          onClick={() => onSelect(course, bundle ?? undefined)}
+          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelect(course, bundle ?? undefined); } }}
           tabIndex={0}
         >
           <div className={styles.nameZone}>
             <span className={styles.bullet} aria-hidden="true" />
             <span className={styles.courseName}>{course.name}</span>
+            {bundle && <span className={styles.bundleBadge}>{bundle.name || 'פעמיים בשבוע'}</span>}
           </div>
           <div className={styles.divider}></div>
           <div className={styles.slotZone}>
 
-            <div className={styles.lessonSlot}>
-              {lesson ? (
-                <>
-                  <span className={styles.lessonDay}>{getDayName(lesson.day_of_week)}</span>
-                  <span className={styles.lessonTime} dir="ltr">{formatTimeRange(lesson.start_time, lesson.end_time)}</span>
-                </>
-              ) : (
-                <span className={styles.lessonDay}>—</span>
-              )}
-            </div>
+            {bundle ? (
+              <div className={styles.lessonSlotStack}>
+                {bundle.lessons.map((bl, i) => (
+                  <div key={bl.id} className={styles.lessonSlot}>
+                    {i > 0 && <span className={styles.slotConnector} aria-hidden="true">+</span>}
+                    <span className={styles.lessonDay}>{getDayName(bl.day_of_week)}</span>
+                    <span className={styles.lessonTime} dir="ltr">{formatTimeRange(bl.start_time, bl.end_time)}</span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className={styles.lessonSlot}>
+                {lesson ? (
+                  <>
+                    <span className={styles.lessonDay}>{getDayName(lesson.day_of_week)}</span>
+                    <span className={styles.lessonTime} dir="ltr">{formatTimeRange(lesson.start_time, lesson.end_time)}</span>
+                  </>
+                ) : (
+                  <span className={styles.lessonDay}>—</span>
+                )}
+              </div>
+            )}
 
-            <button type="button" className={styles.expandBtn} aria-label={`פרטי קורס — ${course.name}`} onClick={(e) => { e.stopPropagation(); onSelect(course); }} tabIndex={-1}>
+            <button type="button" className={styles.expandBtn} aria-label={`פרטי קורס — ${course.name}`} onClick={(e) => { e.stopPropagation(); onSelect(course, bundle ?? undefined); }} tabIndex={-1}>
               <ChevronDown size={16} color="#2B3090" />
             </button>
           </div>
