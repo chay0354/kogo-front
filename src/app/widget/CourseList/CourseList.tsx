@@ -7,7 +7,7 @@ import styles from './CourseList.module.css';
 
 interface CourseListProps {
   filteredCourses: Course[];
-  onSelect: (course: Course, bundle?: CourseBundle) => void;
+  onSelect: (course: Course, bundle?: CourseBundle, lesson?: CourseLesson) => void;
 }
 
 interface CourseRow {
@@ -43,8 +43,8 @@ export function CourseList({ filteredCourses, onSelect }: CourseListProps) {
           key={`${course.id}-${bundle?.id ?? lesson?.id ?? index}`}
           role="listitem"
           className={styles.row}
-          onClick={() => onSelect(course, bundle ?? undefined)}
-          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelect(course, bundle ?? undefined); } }}
+          onClick={() => onSelect(course, bundle ?? undefined, lesson ?? undefined)}
+          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelect(course, bundle ?? undefined, lesson ?? undefined); } }}
           tabIndex={0}
         >
           <div className={styles.nameZone}>
@@ -78,7 +78,7 @@ export function CourseList({ filteredCourses, onSelect }: CourseListProps) {
               </div>
             )}
 
-            <button type="button" className={styles.expandBtn} aria-label={`פרטי קורס — ${course.name}`} onClick={(e) => { e.stopPropagation(); onSelect(course, bundle ?? undefined); }} tabIndex={-1}>
+            <button type="button" className={styles.expandBtn} aria-label={`פרטי קורס — ${course.name}`} onClick={(e) => { e.stopPropagation(); onSelect(course, bundle ?? undefined, lesson ?? undefined); }} tabIndex={-1}>
               <ChevronDown size={16} color="#2B3090" />
             </button>
           </div>

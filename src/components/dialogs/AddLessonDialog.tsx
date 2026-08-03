@@ -67,7 +67,7 @@ export default function AddLessonDialog({
     if (!open || !branchId) return;
     setLoadingRooms(true);
     api
-      .get('/core/rooms/')
+      .get('/core/rooms/', { params: { dropdown: 'true' } })
       .then((res) => {
         const allRooms: Room[] = Array.isArray(res.data) ? res.data : res.data?.results || [];
         setRooms(allRooms.filter((r) => r.branch === branchId));

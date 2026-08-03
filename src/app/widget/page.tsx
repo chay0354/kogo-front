@@ -7,7 +7,7 @@ import api from '@/lib/api';
 import CourseRegistrationForm from './CourseRegistrationForm';
 import CourseExpandedDetail from './CourseExpandedDetail/index';
 import { CourseList } from './CourseList/CourseList';
-import type { City, Branch, Course, CourseBundle } from './types';
+import type { City, Branch, Course, CourseBundle, CourseLesson } from './types';
 import { sortCitiesByFixedOrder } from './page.utils';
 import { AGE_OPTIONS, formatAge } from '@/lib/courseUtils';
 import styles from './page.module.css';
@@ -117,13 +117,16 @@ export default function WidgetPage() {
   const [loadingBranches, setLoadingBranches] = useState(true);
   const [detailCourse, setDetailCourse] = useState<Course | null>(null);
   const [detailBundle, setDetailBundle] = useState<CourseBundle | null>(null);
+  const [detailLesson, setDetailLesson] = useState<CourseLesson | null>(null);
   const [drawerCourse, setDrawerCourse] = useState<Course | null>(null);
   const [drawerBundle, setDrawerBundle] = useState<CourseBundle | null>(null);
+  const [drawerLesson, setDrawerLesson] = useState<CourseLesson | null>(null);
 
-  const toggleDetail = (course: Course, bundle?: CourseBundle) => {
-    const isSame = detailCourse?.id === course.id && detailBundle?.id === bundle?.id;
+  const toggleDetail = (course: Course, bundle?: CourseBundle, lesson?: CourseLesson) => {
+    const isSame = detailCourse?.id === course.id && detailBundle?.id === bundle?.id && detailLesson?.id === lesson?.id;
     setDetailCourse(isSame ? null : course);
     setDetailBundle(isSame ? null : (bundle ?? null));
+    setDetailLesson(isSame ? null : (lesson ?? null));
   };
 
   const branchCourses = selectedBranch ? (allCoursesMap[selectedBranch] ?? []) : [];
@@ -192,12 +195,15 @@ export default function WidgetPage() {
       window.open(normalizeExternalLink(externalLink), '_blank', 'noopener,noreferrer');
       setDetailCourse(null);
       setDetailBundle(null);
+      setDetailLesson(null);
       return;
     }
     setDrawerCourse(detailCourse);
     setDrawerBundle(detailBundle);
+    setDrawerLesson(detailLesson);
     setDetailCourse(null);
     setDetailBundle(null);
+    setDetailLesson(null);
   };
 
   const handleCityChange = (cityId: string) => { setSelectedCity(cityId); setSelectedBranch(''); setSelectedCourseType(''); setSelectedAge(''); };
@@ -255,12 +261,13 @@ export default function WidgetPage() {
       {/* Course detail overlay */}
       {detailCourse && (
         <>
-          <div className={styles.detailOverlay} onClick={() => { setDetailCourse(null); setDetailBundle(null); }} />
+          <div className={styles.detailOverlay} onClick={() => { setDetailCourse(null); setDetailBundle(null); setDetailLesson(null); }} />
           <div className={styles.detailPanel}>
             <CourseExpandedDetail
               course={detailCourse}
               bundle={detailBundle ?? undefined}
-              onClose={() => { setDetailCourse(null); setDetailBundle(null); }}
+              lesson={detailLesson ?? undefined}
+              onClose={() => { setDetailCourse(null); setDetailBundle(null); setDetailLesson(null); }}
               onEnroll={handleEnrollClick}
             />
           </div>
@@ -292,8 +299,9 @@ export default function WidgetPage() {
                 courseName={drawerBundle ? `${drawerCourse.name} (${drawerBundle.name || 'פעמיים בשבוע'})` : drawerCourse.name}
                 isAdult={drawerCourse.is_adult ?? false}
                 bundleId={drawerBundle?.id}
-                onBack={() => { setDrawerCourse(null); setDrawerBundle(null); }}
-                onComplete={() => { setDrawerCourse(null); setDrawerBundle(null); }}
+                lessonId={drawerLesson?.id}
+                onBack={() => { setDrawerCourse(null); setDrawerBundle(null); setDrawerLesson(null); }}
+                onComplete={() => { setDrawerCourse(null); setDrawerBundle(null); setDrawerLesson(null); }}
               />
             )}
           </div>

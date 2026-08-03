@@ -8,7 +8,7 @@ import type { Props, Step, LookupResult, PaymentResponse } from './types';
 
 export type { CourseLesson } from './types';
 
-export default function CourseRegistrationForm({ courseId, courseName, isAdult = false, bundleId, onBack, onComplete }: Props) {
+export default function CourseRegistrationForm({ courseId, courseName, isAdult = false, bundleId, lessonId, onBack, onComplete }: Props) {
   const [step, setStep] = useState<Step>('details');
   const [errorMsg, setErrorMsg] = useState('');
 
@@ -135,6 +135,7 @@ export default function CourseRegistrationForm({ courseId, courseName, isAdult =
         child_gender: childGender,
         course_id: courseId,
         bundle_id: bundleId,
+        lesson_id: lessonId,
         signature: signature,
         discount_confirmed: discountConfirmed,
         existing_child_id: existingChildId,

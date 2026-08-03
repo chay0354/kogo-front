@@ -1,22 +1,23 @@
 import { getDayName, formatTimeRange, formatAgeRange } from '@/lib/courseUtils';
-import type { Course, CourseBundle } from '../types';
+import type { Course, CourseBundle, CourseLesson } from '../types';
 import { MapPin, Users, CalendarDays, Wallet, X } from 'lucide-react';
 import styles from './CourseExpandedDetail.module.css';
 
 interface CourseExpandedDetailProps {
   course: Course;
   bundle?: CourseBundle;
+  lesson?: CourseLesson;
   onEnroll: () => void;
   onClose: () => void;
 }
 
-export default function CourseExpandedDetail({ course, bundle, onEnroll, onClose }: CourseExpandedDetailProps) {
+export default function CourseExpandedDetail({ course, bundle, lesson, onEnroll, onClose }: CourseExpandedDetailProps) {
   const instructors = Array.from(
-    new Set(course.lessons?.map((l) => l.instructor_name).filter(Boolean))
+    new Set((lesson ? [lesson] : course.lessons)?.map((l) => l.instructor_name).filter(Boolean))
   ) as string[];
 
   const ageLabel = formatAgeRange(course.min_age, course.max_age) || '—';
-  const scheduleLessons = bundle ? bundle.lessons : course.lessons;
+  const scheduleLessons = bundle ? bundle.lessons : lesson ? [lesson] : course.lessons;
   const displayPrice = bundle ? bundle.combined_price : course.price;
   const displayTitle = bundle ? `${course.name} (${bundle.name || 'פעמיים בשבוע'})` : course.name;
 
