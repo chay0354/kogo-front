@@ -12,6 +12,7 @@ export interface Props {
   isAdult?: boolean;
   bundleId?: string;
   lessonId?: string;
+  isTrial?: boolean;
   onBack: () => void;
   onComplete: () => void;
 }
@@ -24,7 +25,8 @@ export type Step =
   | 'error'
   | 'payment'
   | 'payment_success'
-  | 'payment_failed';
+  | 'payment_failed'
+  | 'trial_success';
 
 export interface LookupResult {
   family_status: 'new' | 'existing';

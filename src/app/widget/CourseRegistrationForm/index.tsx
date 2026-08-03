@@ -8,7 +8,7 @@ import type { Props, Step, LookupResult, PaymentResponse } from './types';
 
 export type { CourseLesson } from './types';
 
-export default function CourseRegistrationForm({ courseId, courseName, isAdult = false, bundleId, lessonId, onBack, onComplete }: Props) {
+export default function CourseRegistrationForm({ courseId, courseName, isAdult = false, bundleId, lessonId, isTrial = false, onBack, onComplete }: Props) {
   const [step, setStep] = useState<Step>('details');
   const [errorMsg, setErrorMsg] = useState('');
 
@@ -82,6 +82,12 @@ export default function CourseRegistrationForm({ courseId, courseName, isAdult =
   const handleDetailsSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg('');
+
+    if (isTrial) {
+      setStep('consents');
+      return;
+    }
+
     setLookingUp(true);
     const lookupChildFirstName = selfRegistering ? parentFirstName : childFirstName;
     const lookupChildLastName = selfRegistering ? parentLastName : childLastName;
@@ -121,6 +127,33 @@ export default function CourseRegistrationForm({ courseId, courseName, isAdult =
     const registerChildFirstName = selfRegistering ? parentFirstName : childFirstName;
     const registerChildLastName = selfRegistering ? parentLastName : childLastName;
     const registerChildIdNumber = selfRegistering ? parentIdNumber : childIdNumber;
+
+    if (isTrial) {
+      try {
+        await api.post('/customers/widget/trial-register/', {
+          parent_id_number: parentIdNumber,
+          parent_first_name: parentFirstName,
+          parent_last_name: parentLastName,
+          parent_phone: parentPhone,
+          child_first_name: registerChildFirstName,
+          child_last_name: registerChildLastName,
+          child_id_number: registerChildIdNumber,
+          child_birth_date: childBirthDate,
+          child_gender: childGender,
+          course_id: courseId,
+          lesson_id: lessonId,
+        });
+        setStep('trial_success');
+        setTimeout(() => onComplete(), 3000);
+      } catch (err: unknown) {
+        const msg =
+          (err as { response?: { data?: { error?: string } } })?.response?.data?.error ??
+          'אירעה שגיאה. נסה שנית.';
+        setErrorMsg(msg);
+        setStep('error');
+      }
+      return;
+    }
 
     try {
       const res = await api.post('/customers/widget/register/', {
@@ -177,7 +210,7 @@ export default function CourseRegistrationForm({ courseId, courseName, isAdult =
       >
         ← חזרה
       </button>
-      <h3 className={styles.title}>הרשמה לחוג: {courseName}</h3>
+      <h3 className={styles.title}>{isTrial ? `הרשמה לשיעור ניסיון: ${courseName}` : `הרשמה לחוג: ${courseName}`}</h3>
     </div>
   );
 
@@ -400,7 +433,7 @@ export default function CourseRegistrationForm({ courseId, courseName, isAdult =
         {errorMsg && <p className={styles.errorText}>{errorMsg}</p>}
 
         <button type="submit" className={styles.submitButton}>
-          שלח והמשך לתשלום
+          {isTrial ? 'שלח והרשם לניסיון' : 'שלח והמשך לתשלום'}
         </button>
       </form>
     );
@@ -469,6 +502,19 @@ export default function CourseRegistrationForm({ courseId, courseName, isAdult =
           className={styles.submitButton}
         >
           {charging ? 'מעבד...' : `שלם ₪${Number(paymentData.final_amount).toFixed(2)}`}
+        </button>
+      </div>
+    );
+  }
+
+  if (step === 'trial_success') {
+    return (
+      <div className={styles.resultContainer} dir="rtl">
+        <div className={styles.successIcon}>✓</div>
+        <p className={styles.resultTitle}>נרשמתם לשיעור ניסיון!</p>
+        <p className={styles.resultSubtext}>ניצור איתכם קשר בווטסאפ עם פרטי השיעור.</p>
+        <button type="button" onClick={onComplete} className={styles.closeButton}>
+          סגור
         </button>
       </div>
     );

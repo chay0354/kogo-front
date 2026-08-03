@@ -8,10 +8,11 @@ interface CourseExpandedDetailProps {
   bundle?: CourseBundle;
   lesson?: CourseLesson;
   onEnroll: () => void;
+  onTrialEnroll: () => void;
   onClose: () => void;
 }
 
-export default function CourseExpandedDetail({ course, bundle, lesson, onEnroll, onClose }: CourseExpandedDetailProps) {
+export default function CourseExpandedDetail({ course, bundle, lesson, onEnroll, onTrialEnroll, onClose }: CourseExpandedDetailProps) {
   const instructors = Array.from(
     new Set((lesson ? [lesson] : course.lessons)?.map((l) => l.instructor_name).filter(Boolean))
   ) as string[];
@@ -93,11 +94,14 @@ export default function CourseExpandedDetail({ course, bundle, lesson, onEnroll,
             <span className={styles.priceLabel}>לחודש</span>
           </div>
         </div>
-        <p className={styles.priceNote}>תשלום חודשי, ניתן לבטל בכל עת</p>
+        <p className={styles.priceNote}>מנוי שנתי עד חודש יולי. ניתן לבטל מנוי עד חודש אפריל</p>
 
         {/* Buttons */}
         <button onClick={onEnroll} className={styles.enrollButton}>
           הרשמה לחוג
+        </button>
+        <button onClick={onTrialEnroll} className={styles.trialButton}>
+          הרשמה לניסיון
         </button>
 
       </div>

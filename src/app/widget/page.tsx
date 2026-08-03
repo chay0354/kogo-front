@@ -121,6 +121,7 @@ export default function WidgetPage() {
   const [drawerCourse, setDrawerCourse] = useState<Course | null>(null);
   const [drawerBundle, setDrawerBundle] = useState<CourseBundle | null>(null);
   const [drawerLesson, setDrawerLesson] = useState<CourseLesson | null>(null);
+  const [drawerIsTrial, setDrawerIsTrial] = useState(false);
 
   const toggleDetail = (course: Course, bundle?: CourseBundle, lesson?: CourseLesson) => {
     const isSame = detailCourse?.id === course.id && detailBundle?.id === bundle?.id && detailLesson?.id === lesson?.id;
@@ -188,7 +189,7 @@ export default function WidgetPage() {
     );
   }, [detailCourse, drawerCourse]);
 
-  const handleEnrollClick = () => {
+  const handleEnrollClick = (isTrial = false) => {
     const branch = allBranches.find((b) => b.id === selectedBranch);
     const externalLink = detailCourse?.external_link || branch?.external_link;
     if (branch?.is_external && externalLink) {
@@ -201,10 +202,13 @@ export default function WidgetPage() {
     setDrawerCourse(detailCourse);
     setDrawerBundle(detailBundle);
     setDrawerLesson(detailLesson);
+    setDrawerIsTrial(isTrial);
     setDetailCourse(null);
     setDetailBundle(null);
     setDetailLesson(null);
   };
+
+  const handleTrialEnrollClick = () => handleEnrollClick(true);
 
   const handleCityChange = (cityId: string) => { setSelectedCity(cityId); setSelectedBranch(''); setSelectedCourseType(''); setSelectedAge(''); };
   const handleBranchChange = (branchId: string) => { setSelectedBranch(branchId); setSelectedCourseType(''); setSelectedAge(''); };
@@ -268,7 +272,8 @@ export default function WidgetPage() {
               bundle={detailBundle ?? undefined}
               lesson={detailLesson ?? undefined}
               onClose={() => { setDetailCourse(null); setDetailBundle(null); setDetailLesson(null); }}
-              onEnroll={handleEnrollClick}
+              onEnroll={() => handleEnrollClick(false)}
+              onTrialEnroll={handleTrialEnrollClick}
             />
           </div>
         </>
@@ -277,7 +282,7 @@ export default function WidgetPage() {
       {/* Enrollment side drawer */}
       {drawerCourse && (
         <>
-          <div className={styles.drawerOverlay} onClick={() => setDrawerCourse(null)} />
+          <div className={styles.drawerOverlay} onClick={() => { setDrawerCourse(null); setDrawerIsTrial(false); }} />
           <div className={styles.drawerPanel}>
             {allBranches.find((b) => b.id === selectedBranch)?.is_external ? (
               <div className={styles.externalBranchMessage}>
@@ -300,8 +305,9 @@ export default function WidgetPage() {
                 isAdult={drawerCourse.is_adult ?? false}
                 bundleId={drawerBundle?.id}
                 lessonId={drawerLesson?.id}
-                onBack={() => { setDrawerCourse(null); setDrawerBundle(null); setDrawerLesson(null); }}
-                onComplete={() => { setDrawerCourse(null); setDrawerBundle(null); setDrawerLesson(null); }}
+                isTrial={drawerIsTrial}
+                onBack={() => { setDrawerCourse(null); setDrawerBundle(null); setDrawerLesson(null); setDrawerIsTrial(false); }}
+                onComplete={() => { setDrawerCourse(null); setDrawerBundle(null); setDrawerLesson(null); setDrawerIsTrial(false); }}
               />
             )}
           </div>
