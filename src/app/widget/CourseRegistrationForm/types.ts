@@ -11,6 +11,7 @@ export interface Props {
   courseName: string;
   isAdult?: boolean;
   bundleId?: string;
+  lessonId?: string;
   onBack: () => void;
   onComplete: () => void;
 }
