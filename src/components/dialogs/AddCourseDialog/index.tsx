@@ -257,6 +257,14 @@ export default function AddCourseDialog({
               </label>
             </div>
 
+            {/* Must attend all lessons toggle */}
+            <div className={styles.adultToggleRow}>
+              <label htmlFor="must_attend_all_lessons" className={styles.adultToggleLabel}>
+                <input type="checkbox" id="must_attend_all_lessons" className={styles.adultCheckbox} checked={courseData.must_attend_all_lessons ?? false} onChange={(e) => setCourseData({ ...courseData, must_attend_all_lessons: e.target.checked })} />
+                מחוייב בכל השיעורים
+              </label>
+            </div>
+
             {/* Price and Capacity */}
             <div className={styles.grid2}>
               <div>
