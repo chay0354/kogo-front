@@ -123,7 +123,7 @@ export default function EditCourseDialog({
     setLoadingReferenceData(true);
     Promise.all([
       api.get('/core/branches/?simple=true'),
-      api.get('/core/rooms/'),
+      api.get('/core/rooms/', { params: { dropdown: 'true' } }),
     ])
       .then(([branchesRes, roomsRes]) => {
         const branchList = Array.isArray(branchesRes.data)
