@@ -317,7 +317,12 @@ export default function CourseTypeDetailsPage() {
                         >
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                         </svg>
-                        <span className={styles.courseName}>{course.name}</span>
+                        <div className={styles.courseNameGroup}>
+                          <span className={styles.courseName}>{course.name}</span>
+                          {course.must_attend_all_lessons && (
+                            <span className={styles.mustAttendBadge}>מחוייב בכל השיעורים</span>
+                          )}
+                        </div>
                         <div className={styles.courseActions} onClick={(e) => e.stopPropagation()}>
                           <button
                             onClick={() => handleEditCourse(course)}
