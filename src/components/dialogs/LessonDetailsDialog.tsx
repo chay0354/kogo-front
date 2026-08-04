@@ -55,6 +55,36 @@ function formatLessonDate(dateStr: string | null | undefined) {
   });
 }
 
+type StudentFilter = 'all' | 'active' | 'trial';
+
+function isTrialEnrollment(
+  enrollment: {
+    trial_lesson_date?: string | null;
+    is_trial?: boolean;
+    child_status?: string;
+    child_name?: string;
+  },
+  occurrenceDate: string | null,
+) {
+  return (
+    enrollment.is_trial === true ||
+    (enrollment.trial_lesson_date === occurrenceDate &&
+      (enrollment.child_status === 'trial_signed' ||
+        enrollment.child_status === 'trial_completed'))
+  );
+}
+
+function isGhostEnrollment(
+  enrollment: { child_status?: string; child_name?: string },
+  attendanceRecord?: { child_status?: string },
+) {
+  return (
+    enrollment.child_status === 'ghost' ||
+    attendanceRecord?.child_status === 'ghost' ||
+    /רפאים/.test(enrollment.child_name || '')
+  );
+}
+
 export default function LessonDetailsDialog({
   lessonId,
   occurrenceDate,
@@ -74,14 +104,47 @@ export default function LessonDetailsDialog({
   const [ghostFamilyName, setGhostFamilyName] = useState('');
   const [ghostPhoneNumber, setGhostPhoneNumber] = useState('');
   const [isCreatingGhost, setIsCreatingGhost] = useState(false);
+  const [studentFilter, setStudentFilter] = useState<StudentFilter>('all');
 
   const isManager = user?.role === 'manager';
   const isOpen = Boolean(lessonId && occurrenceDate);
+
+  const visibleEnrollments = useMemo(() => {
+    if (!lesson?.enrollments || !occurrenceDate) return [];
+    return lesson.enrollments.filter((enrollment) => {
+      if (enrollment.trial_lesson_date) {
+        return enrollment.trial_lesson_date === occurrenceDate;
+      }
+      if (enrollment.child_status === 'trial_signed') {
+        return false;
+      }
+      return true;
+    });
+  }, [lesson?.enrollments, occurrenceDate]);
+
+  const filteredEnrollments = useMemo(() => {
+    if (!occurrenceDate) return visibleEnrollments;
+    return visibleEnrollments.filter((enrollment) => {
+      const attendanceRecord = lesson?.attendance.find(
+        (a) => a.child_id === enrollment.child_id,
+      );
+      const trial = isTrialEnrollment(enrollment, occurrenceDate);
+      const ghost = isGhostEnrollment(enrollment, attendanceRecord);
+
+      if (studentFilter === 'trial') return trial && !ghost;
+      if (studentFilter === 'active') return !trial && !ghost;
+      return true;
+    });
+  }, [visibleEnrollments, studentFilter, occurrenceDate, lesson?.attendance]);
 
   useEffect(() => {
     if (lessonId && occurrenceDate) {
       loadLessonDetails();
     }
+  }, [lessonId, occurrenceDate]);
+
+  useEffect(() => {
+    setStudentFilter('all');
   }, [lessonId, occurrenceDate]);
 
   const loadLessonDetails = async () => {
@@ -391,10 +454,40 @@ export default function LessonDetailsDialog({
 
                 {/* Students */}
                 <div className="space-y-3">
-                  <div className="flex items-center justify-between gap-3">
-                    <h3 className="font-semibold text-gray-900">
-                      תלמידים ({lesson.enrollments.length})
-                    </h3>
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div className="flex flex-wrap items-center gap-3">
+                      <h3 className="font-semibold text-gray-900">
+                        תלמידים ({filteredEnrollments.length}
+                        {studentFilter !== 'all' && visibleEnrollments.length !== filteredEnrollments.length
+                          ? ` / ${visibleEnrollments.length}`
+                          : ''}
+                        )
+                      </h3>
+                      <div className="flex rounded-lg border border-gray-200 overflow-hidden shrink-0">
+                        {(
+                          [
+                            ['all', 'הכל'],
+                            ['active', 'פעילים'],
+                            ['trial', 'בניסיון'],
+                          ] as const
+                        ).map(([value, label]) => (
+                          <button
+                            key={value}
+                            type="button"
+                            onClick={() => setStudentFilter(value)}
+                            className={`px-3 py-1.5 text-sm font-medium transition-colors ${
+                              studentFilter === value
+                                ? value === 'trial'
+                                  ? 'bg-amber-100 text-amber-900'
+                                  : 'bg-teal-100 text-teal-900'
+                                : 'bg-white text-gray-600 hover:bg-gray-50'
+                            }`}
+                          >
+                            {label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
                     {!isCancelled ? (
                       <Button
                         type="button"
@@ -464,11 +557,19 @@ export default function LessonDetailsDialog({
                     </div>
                   ) : null}
 
-                  {lesson.enrollments.length === 0 ? (
+                  {filteredEnrollments.length === 0 ? (
                     <div className="rounded-xl border border-dashed border-gray-200 py-12 text-center">
                       <Users className="h-10 w-10 text-gray-300 mx-auto mb-3" />
-                      <p className="text-gray-500 font-medium">אין תלמידים רשומים לשיעור זה</p>
-                      {!isCancelled && !showGhostChildForm ? (
+                      <p className="text-gray-500 font-medium">
+                        {visibleEnrollments.length === 0
+                          ? 'אין תלמידים רשומים לשיעור זה'
+                          : studentFilter === 'trial'
+                            ? 'אין תלמידים בניסיון לשיעור זה'
+                            : studentFilter === 'active'
+                              ? 'אין תלמידים פעילים לשיעור זה'
+                              : 'אין תלמידים להצגה'}
+                      </p>
+                      {!isCancelled && !showGhostChildForm && visibleEnrollments.length === 0 ? (
                         <Button
                           type="button"
                           variant="outline"
@@ -483,16 +584,14 @@ export default function LessonDetailsDialog({
                     </div>
                   ) : (
                     <div className="space-y-2">
-                      {lesson.enrollments.map((enrollment) => {
+                      {filteredEnrollments.map((enrollment) => {
                         const { firstName, lastName, initials } = splitChildName(enrollment.child_name);
                         const currentStatus = attendance[enrollment.child_id] || 'not_marked';
                         const attendanceRecord = lesson.attendance.find(
                           (a) => a.child_id === enrollment.child_id
                         );
-                        const isGhost =
-                          enrollment.child_status === 'ghost' ||
-                          attendanceRecord?.child_status === 'ghost' ||
-                          /רפאים/.test(enrollment.child_name);
+                        const isGhost = isGhostEnrollment(enrollment, attendanceRecord);
+                        const isTrial = isTrialEnrollment(enrollment, occurrenceDate);
 
                         return (
                           <div
@@ -500,6 +599,8 @@ export default function LessonDetailsDialog({
                             className={`flex flex-col sm:flex-row sm:items-center gap-3 rounded-xl border p-4 transition-colors ${
                               isGhost
                                 ? 'border-red-100 bg-red-50/40'
+                                : isTrial
+                                  ? 'border-amber-100 bg-amber-50/40'
                                 : currentStatus === 'present'
                                   ? 'border-emerald-100 bg-emerald-50/30'
                                   : currentStatus === 'absent'
@@ -512,6 +613,8 @@ export default function LessonDetailsDialog({
                                 className={`h-11 w-11 shrink-0 rounded-full flex items-center justify-center text-sm font-bold ${
                                   isGhost
                                     ? 'bg-red-100 text-red-700'
+                                    : isTrial
+                                      ? 'bg-amber-100 text-amber-800'
                                     : 'bg-teal-100 text-teal-700'
                                 }`}
                               >
@@ -523,10 +626,10 @@ export default function LessonDetailsDialog({
                                 </div>
                                 <div className="mt-1 flex flex-wrap items-center gap-2">
                                   <Badge
-                                    variant={isGhost ? 'destructive' : 'default'}
-                                    className="text-[11px]"
+                                    variant={isGhost ? 'destructive' : 'outline'}
+                                    className={`text-[11px] ${isTrial && !isGhost ? 'bg-amber-100 text-amber-800 border-amber-200' : ''}`}
                                   >
-                                    {isGhost ? 'רפאים' : 'רשום'}
+                                    {isGhost ? 'רפאים' : isTrial ? 'בניסיון' : 'רשום'}
                                   </Badge>
                                   {currentStatus === 'present' ? (
                                     <span className="text-xs text-emerald-700 flex items-center gap-1">

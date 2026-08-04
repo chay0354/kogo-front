@@ -24,7 +24,7 @@ const api = axios.create({
     'Content-Type': 'application/json',
   },
   withCredentials: true,
-  timeout: 10000,
+  timeout: 30000,
 });
 
 // Request interceptor: Bearer-style Token header when stored (cross-site); cookies still used withCredentials.
@@ -47,11 +47,17 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    console.error('API Error:', error);
-    if (error.response) {
-      console.error('Response status:', error.response.status);
-      console.error('Response data:', error.response.data);
-      console.error('Response headers:', error.response.headers);
+    const status = error.response?.status;
+    const url = String(error.config?.url ?? '');
+    const isExpectedAuthCheck = status === 401 && url.includes('/core/auth/me/');
+
+    if (!isExpectedAuthCheck) {
+      console.error('API Error:', error);
+      if (error.response) {
+        console.error('Response status:', error.response.status);
+        console.error('Response data:', error.response.data);
+        console.error('Response headers:', error.response.headers);
+      }
     }
     return Promise.reject(error);
   }

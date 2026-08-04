@@ -98,6 +98,7 @@ export default function SchedulePage() {
   const [selectedEvent, setSelectedEvent] = useState<ScheduleEvent | null>(null);
 
   const { start, end, dates } = getWeekDates(currentDate);
+  const loadSeqRef = useRef(0);
 
   useEffect(() => {
     if (canUseStaffFilters) {
@@ -130,6 +131,7 @@ export default function SchedulePage() {
     cityFilter === 'all' ? branches : filterBranchesByCity(branches, cityFilter);
 
   const loadLessons = async () => {
+    const seq = ++loadSeqRef.current;
     setIsLoading(true);
     setError('');
 
@@ -145,34 +147,55 @@ export default function SchedulePage() {
         city_id: cityFilter !== 'all' ? cityFilter : undefined,
       };
 
-      let lessonsData: Lesson[] = [];
-      if (contentFilter === 'all' || contentFilter === 'lessons') {
-        const lessonFilters: LessonFilters = { ...dateRange };
-        if (branchFilter !== 'all') lessonFilters.branch_id = branchFilter;
-        if (cityFilter !== 'all') lessonFilters.city_id = cityFilter;
-        if (instructorFilter !== 'all') lessonFilters.instructor_id = instructorFilter;
-        lessonsData = await fetchLessons(lessonFilters);
-      }
+      const lessonFilters: LessonFilters = { ...dateRange };
+      if (branchFilter !== 'all') lessonFilters.branch_id = branchFilter;
+      if (cityFilter !== 'all') lessonFilters.city_id = cityFilter;
+      if (instructorFilter !== 'all') lessonFilters.instructor_id = instructorFilter;
 
-      let eventsData: ScheduleEvent[] = [];
+      const lessonsPromise =
+        contentFilter === 'all' || contentFilter === 'lessons'
+          ? fetchLessons(lessonFilters)
+          : Promise.resolve([] as Lesson[]);
+
+      let eventsPromise: Promise<ScheduleEvent[]> = Promise.resolve([]);
       if (contentFilter === 'rentals') {
         if (!isWorker) {
-          eventsData = await fetchEvents({ ...eventFilters, studio_rental: true });
+          eventsPromise = fetchEvents({ ...eventFilters, studio_rental: true });
         }
       } else if (contentFilter === 'all') {
-        eventsData = await fetchEvents(eventFilters);
-        if (isWorker) {
-          eventsData = eventsData.filter((e) => !e.is_studio_rental);
-        }
+        eventsPromise = fetchEvents(eventFilters).then((data) =>
+          isWorker ? data.filter((e) => !e.is_studio_rental) : data
+        );
       }
 
-      setLessons(lessonsData);
-      setEvents(eventsData);
+      const [lessonsResult, eventsResult] = await Promise.allSettled([lessonsPromise, eventsPromise]);
+
+      if (seq !== loadSeqRef.current) return;
+
+      if (lessonsResult.status === 'fulfilled') {
+        setLessons(lessonsResult.value);
+      } else {
+        setLessons([]);
+        setError('שגיאה בטעינת השיעורים');
+        console.error(lessonsResult.reason);
+      }
+
+      if (eventsResult.status === 'fulfilled') {
+        setEvents(eventsResult.value);
+      } else if (lessonsResult.status === 'fulfilled') {
+        console.error(eventsResult.reason);
+      } else {
+        setError('שגיאה בטעינת השיעורים והאירועים');
+        console.error(eventsResult.reason);
+      }
     } catch (err) {
+      if (seq !== loadSeqRef.current) return;
       setError('שגיאה בטעינת השיעורים והאירועים');
       console.error(err);
     } finally {
-      setIsLoading(false);
+      if (seq === loadSeqRef.current) {
+        setIsLoading(false);
+      }
     }
   };
 

@@ -300,7 +300,12 @@ export default function CourseTypeDetailsPage() {
               {filteredCourses.map((course) => {
                 const isExpanded = expandedCourses.has(course.id);
                 const courseFinancials = calculateCourseFinancials(course);
-                const totalStudents = course.lessons.reduce((sum, l) => sum + (l.total_students_count || l.enrolled_count), 0);
+                const courseStudentCount =
+                  course.course_enrollment_count ??
+                  course.lessons.reduce((sum, l) => sum + (l.total_students_count || l.enrolled_count), 0);
+                const capacity = course.capacity || 0;
+                const studentsDisplay = capacity > 0 ? `${courseStudentCount}/${capacity}` : String(courseStudentCount);
+                const enrollmentDisplay = studentsDisplay;
 
                 return (
                   <div key={course.id} className={styles.courseCard}>
@@ -381,7 +386,7 @@ export default function CourseTypeDetailsPage() {
                         </div>
                         <div className={styles.statItem}>
                           <span className={styles.statLabel}>תלמידים</span>
-                          <span className={styles.statText}>{totalStudents}</span>
+                          <span className={styles.statText}>{studentsDisplay}</span>
                         </div>
                         <div className={styles.statItem}>
                           <span className={styles.statLabel}>שיעורים</span>
@@ -416,7 +421,7 @@ export default function CourseTypeDetailsPage() {
                                     <td className={`${styles.td} ${styles.tdBold}`}>
                                       {getDayName(lesson.day_of_week)} {formatTimeRange(lesson.start_time, lesson.end_time)}
                                     </td>
-                                    <td className={styles.td}>{lesson.total_students_count || lesson.enrolled_count}</td>
+                                    <td className={styles.td}>{enrollmentDisplay}</td>
                                     <td className={`${styles.td} ${styles.tdCenter}`}>
                                       <div className={styles.lessonActionButtons}>
                                         <button

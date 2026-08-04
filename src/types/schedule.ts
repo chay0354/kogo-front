@@ -32,6 +32,8 @@ export type LessonDetail = Lesson & {
     child_id: string;
     child_name: string;
     child_status?: string;
+    trial_lesson_date?: string | null;
+    is_trial?: boolean;
   }>;
   attendance: Array<{
     id: string;

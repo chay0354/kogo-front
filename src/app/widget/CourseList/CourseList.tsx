@@ -2,34 +2,41 @@
 
 import { ChevronDown } from 'lucide-react';
 import { getDayName, formatTimeRange } from '@/lib/courseUtils';
-import type { Course, CourseLesson, CourseBundle } from '../types';
+import type { Course, CourseLesson } from '../types';
+import { isLessonVisibleInCatalog } from '../lessonVisibility';
 import styles from './CourseList.module.css';
 
 interface CourseListProps {
   filteredCourses: Course[];
-  onSelect: (course: Course, bundle?: CourseBundle, lesson?: CourseLesson) => void;
+  onSelect: (course: Course, lesson: CourseLesson) => void;
 }
 
 interface CourseRow {
   course: Course;
-  lesson: CourseLesson | null;
-  bundle: CourseBundle | null;
+  lesson: CourseLesson;
 }
 
 function buildRows(courses: Course[]): CourseRow[] {
   const rows: CourseRow[] = [];
+
   for (const course of courses) {
-    if (course.lessons && course.lessons.length > 0) {
-      for (const lesson of course.lessons) {
-        rows.push({ course, lesson, bundle: null });
-      }
-    } else {
-      rows.push({ course, lesson: null, bundle: null });
-    }
-    for (const bundle of course.bundles ?? []) {
-      rows.push({ course, lesson: null, bundle });
+    for (const lesson of course.lessons ?? []) {
+      if (!isLessonVisibleInCatalog(lesson)) continue;
+      rows.push({ course, lesson });
     }
   }
+
+  rows.sort((a, b) => {
+    if (a.lesson.day_of_week !== b.lesson.day_of_week) {
+      return a.lesson.day_of_week - b.lesson.day_of_week;
+    }
+    const timeCmp = a.lesson.start_time.localeCompare(b.lesson.start_time);
+    if (timeCmp !== 0) return timeCmp;
+    const typeCmp = (a.course.course_type_name || '').localeCompare(b.course.course_type_name || '', 'he');
+    if (typeCmp !== 0) return typeCmp;
+    return a.course.name.localeCompare(b.course.name, 'he');
+  });
+
   return rows;
 }
 
@@ -38,52 +45,49 @@ export function CourseList({ filteredCourses, onSelect }: CourseListProps) {
 
   return (
     <div role="list" className={styles.list}>
-      {rows.map(({ course, lesson, bundle }, index) => (
+      {rows.map(({ course, lesson }) => (
         <div
-          key={`${course.id}-${bundle?.id ?? lesson?.id ?? index}`}
+          key={`${course.id}-${lesson.id}`}
           role="listitem"
           className={styles.row}
-          onClick={() => onSelect(course, bundle ?? undefined, lesson ?? undefined)}
-          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelect(course, bundle ?? undefined, lesson ?? undefined); } }}
+          onClick={() => onSelect(course, lesson)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              onSelect(course, lesson);
+            }
+          }}
           tabIndex={0}
         >
           <div className={styles.nameZone}>
             <span className={styles.bullet} aria-hidden="true" />
             <span className={styles.courseName}>{course.name}</span>
-            {bundle && <span className={styles.bundleBadge}>{bundle.name || 'פעמיים בשבוע'}</span>}
+            {course.course_type_name ? (
+              <span className={styles.courseType}>{course.course_type_name}</span>
+            ) : null}
           </div>
-          <div className={styles.divider}></div>
+          <div className={styles.divider} />
           <div className={styles.slotZone}>
+            <div className={styles.lessonSlot}>
+              <span className={styles.lessonDay}>{getDayName(lesson.day_of_week)}</span>
+              <span className={styles.lessonTime} dir="ltr">
+                {formatTimeRange(lesson.start_time, lesson.end_time)}
+              </span>
+            </div>
 
-            {bundle ? (
-              <div className={styles.lessonSlotStack}>
-                {bundle.lessons.map((bl, i) => (
-                  <div key={bl.id} className={styles.lessonSlot}>
-                    {i > 0 && <span className={styles.slotConnector} aria-hidden="true">+</span>}
-                    <span className={styles.lessonDay}>{getDayName(bl.day_of_week)}</span>
-                    <span className={styles.lessonTime} dir="ltr">{formatTimeRange(bl.start_time, bl.end_time)}</span>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className={styles.lessonSlot}>
-                {lesson ? (
-                  <>
-                    <span className={styles.lessonDay}>{getDayName(lesson.day_of_week)}</span>
-                    <span className={styles.lessonTime} dir="ltr">{formatTimeRange(lesson.start_time, lesson.end_time)}</span>
-                  </>
-                ) : (
-                  <span className={styles.lessonDay}>—</span>
-                )}
-              </div>
-            )}
-
-            <button type="button" className={styles.expandBtn} aria-label={`פרטי קורס — ${course.name}`} onClick={(e) => { e.stopPropagation(); onSelect(course, bundle ?? undefined, lesson ?? undefined); }} tabIndex={-1}>
+            <button
+              type="button"
+              className={styles.expandBtn}
+              aria-label={`פרטי קורס — ${course.name}`}
+              onClick={(e) => {
+                e.stopPropagation();
+                onSelect(course, lesson);
+              }}
+              tabIndex={-1}
+            >
               <ChevronDown size={16} color="#2B3090" />
             </button>
           </div>
-
-
         </div>
       ))}
     </div>

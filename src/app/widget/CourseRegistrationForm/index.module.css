@@ -188,6 +188,35 @@
   @apply w-1/2;
 }
 
+.helperText {
+  @apply text-sm text-gray-600;
+}
+
+.trialDateList {
+  @apply space-y-2;
+}
+
+.trialDateOption {
+  @apply flex flex-wrap items-center gap-2 rounded-lg border border-gray-200 px-4 py-3 cursor-pointer transition-colors;
+}
+
+.trialDateOptionSelected {
+  border-color: #2B3090;
+  background-color: #f0f1fa;
+}
+
+.trialDateRadio {
+  accent-color: #2B3090;
+}
+
+.trialDateLabel {
+  @apply font-medium text-gray-900;
+}
+
+.trialDateTime {
+  @apply text-sm text-gray-600 mr-auto;
+}
+
 /* Discount step */
 .discountBox {
   @apply rounded-lg p-5 text-sm leading-relaxed text-gray-700;

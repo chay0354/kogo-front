@@ -17,6 +17,14 @@ export interface Props {
   onComplete: () => void;
 }
 
+export interface TrialOccurrence {
+  date: string;
+  label: string;
+  day_name: string;
+  start_time: string;
+  end_time: string;
+}
+
 export type Step =
   | 'details'
   | 'discount_confirm'

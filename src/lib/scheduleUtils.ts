@@ -15,7 +15,7 @@ export async function fetchLessons(filters?: LessonFilters): Promise<Lesson[]> {
   if (filters?.status) params.append('status', filters.status);
   
   const url = `/scheduling/lessons/${params.toString() ? `?${params.toString()}` : ''}`;
-  const res = await api.get(url);
+  const res = await api.get(url, { timeout: 45000 });
   return res.data as Lesson[];
 }
 

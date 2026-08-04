@@ -1,10 +1,10 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import api from '@/lib/api';
 import SignatureCanvas from '../SignatureCanvas';
 import styles from './index.module.css';
-import type { Props, Step, LookupResult, PaymentResponse } from './types';
+import type { Props, Step, LookupResult, PaymentResponse, TrialOccurrence } from './types';
 
 export type { CourseLesson } from './types';
 
@@ -43,6 +43,30 @@ export default function CourseRegistrationForm({ courseId, courseName, isAdult =
   const [charging, setCharging] = useState(false);
   const [lookingUp, setLookingUp] = useState(false);
   const [showTerms, setShowTerms] = useState(false);
+
+  const [trialOccurrences, setTrialOccurrences] = useState<TrialOccurrence[]>([]);
+  const [trialLessonDate, setTrialLessonDate] = useState('');
+  const [loadingTrialDates, setLoadingTrialDates] = useState(false);
+
+  useEffect(() => {
+    if (!isTrial || !lessonId) {
+      setTrialOccurrences([]);
+      setTrialLessonDate('');
+      return;
+    }
+
+    setLoadingTrialDates(true);
+    api.get('/customers/widget/lesson-occurrences/', { params: { lesson_id: lessonId, count: 8 } })
+      .then((res) => {
+        const dates = Array.isArray(res.data) ? res.data as TrialOccurrence[] : [];
+        setTrialOccurrences(dates);
+        if (dates.length === 1) {
+          setTrialLessonDate(dates[0].date);
+        }
+      })
+      .catch(() => setTrialOccurrences([]))
+      .finally(() => setLoadingTrialDates(false));
+  }, [isTrial, lessonId]);
 
   const handleCardCharge = async () => {
     if (!paymentData || !cardNumber || !expiryMonth || !expiryYear || !cvv) return;
@@ -84,6 +108,10 @@ export default function CourseRegistrationForm({ courseId, courseName, isAdult =
     setErrorMsg('');
 
     if (isTrial) {
+      if (!trialLessonDate) {
+        setErrorMsg('יש לבחור תאריך לשיעור הניסיון');
+        return;
+      }
       setStep('consents');
       return;
     }
@@ -142,6 +170,7 @@ export default function CourseRegistrationForm({ courseId, courseName, isAdult =
           child_gender: childGender,
           course_id: courseId,
           lesson_id: lessonId,
+          trial_lesson_date: trialLessonDate,
         });
         setStep('trial_success');
         setTimeout(() => onComplete(), 3000);
@@ -322,6 +351,51 @@ export default function CourseRegistrationForm({ courseId, courseName, isAdult =
                 </div>
               </div>
             </div>
+          </div>
+        )}
+
+        {isTrial && (
+          <div className={`${styles.section} ${styles.fadeIn}`}>
+            <div className={styles.sectionTitle}>
+              <span className={styles.sectionTitleLine} />
+              <span className={styles.sectionTitleText}>בחרו תאריך לשיעור הניסיון</span>
+              <span className={styles.sectionTitleLine} />
+            </div>
+            {!lessonId ? (
+              <p className={styles.helperText}>לא נבחר שיעור — חזרו ובחרו מפגש מהרשימה.</p>
+            ) : loadingTrialDates ? (
+              <p className={styles.helperText}>טוען תאריכים זמינים...</p>
+            ) : trialOccurrences.length === 0 ? (
+              <p className={styles.errorText}>אין תאריכים פנויים לשיעור ניסיון כרגע.</p>
+            ) : (
+              <div className={styles.trialDateList}>
+                {trialOccurrences.map((occ) => (
+                  <label
+                    key={occ.date}
+                    className={`${styles.trialDateOption} ${trialLessonDate === occ.date ? styles.trialDateOptionSelected : ''}`}
+                  >
+                    <input
+                      type="radio"
+                      name="trialLessonDate"
+                      value={occ.date}
+                      checked={trialLessonDate === occ.date}
+                      onChange={() => {
+                        setTrialLessonDate(occ.date);
+                        setErrorMsg('');
+                      }}
+                      className={styles.trialDateRadio}
+                      required
+                    />
+                    <span className={styles.trialDateLabel}>
+                      {occ.day_name} · {occ.label}
+                    </span>
+                    <span className={styles.trialDateTime}>
+                      {occ.start_time}–{occ.end_time}
+                    </span>
+                  </label>
+                ))}
+              </div>
+            )}
           </div>
         )}
 

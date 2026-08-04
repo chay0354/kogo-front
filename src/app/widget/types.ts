@@ -18,6 +18,9 @@ export interface CourseLesson {
   start_time: string;
   end_time: string;
   instructor_name: string | null;
+  price?: string | null;
+  lesson_date?: string | null;
+  is_recurring?: boolean;
 }
 
 // A combined "twice a week" package of 2+ of this course's own lessons, sold at a discount.

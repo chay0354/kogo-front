@@ -9,6 +9,7 @@ import CourseExpandedDetail from './CourseExpandedDetail/index';
 import { CourseList } from './CourseList/CourseList';
 import type { City, Branch, Course, CourseBundle, CourseLesson } from './types';
 import { sortCitiesByFixedOrder } from './page.utils';
+import { isLessonVisibleInCatalog } from './lessonVisibility';
 import { AGE_OPTIONS, formatAge } from '@/lib/courseUtils';
 import styles from './page.module.css';
 
@@ -123,19 +124,27 @@ export default function WidgetPage() {
   const [drawerLesson, setDrawerLesson] = useState<CourseLesson | null>(null);
   const [drawerIsTrial, setDrawerIsTrial] = useState(false);
 
-  const toggleDetail = (course: Course, bundle?: CourseBundle, lesson?: CourseLesson) => {
-    const isSame = detailCourse?.id === course.id && detailBundle?.id === bundle?.id && detailLesson?.id === lesson?.id;
+  const toggleDetail = (course: Course, lesson: CourseLesson) => {
+    const isSame = detailCourse?.id === course.id && detailLesson?.id === lesson.id && !detailBundle;
     setDetailCourse(isSame ? null : course);
-    setDetailBundle(isSame ? null : (bundle ?? null));
-    setDetailLesson(isSame ? null : (lesson ?? null));
+    setDetailBundle(null);
+    setDetailLesson(isSame ? null : lesson);
   };
+
+  const detailBundleForLesson = detailCourse && detailLesson
+    ? detailCourse.bundles?.find((b) => b.lessons.some((l) => l.id === detailLesson.id)) ?? null
+    : null;
 
   const branchCourses = selectedBranch ? (allCoursesMap[selectedBranch] ?? []) : [];
 
   const filteredBranches = selectedCity ? allBranches.filter((b) => b.city === selectedCity) : [];
 
   const courseTypes = Array.from(
-    new Map(branchCourses.map((c) => [String(c.course_type), c.course_type_name])).entries()
+    new Map(
+      branchCourses
+        .filter((c) => (c.lessons ?? []).some(isLessonVisibleInCatalog))
+        .map((c) => [String(c.course_type), c.course_type_name])
+    ).entries()
   ).map(([id, name]) => ({ id, name }));
 
   const filteredCourses = branchCourses.filter((course) => {
@@ -146,7 +155,7 @@ export default function WidgetPage() {
       const maxAge = course.max_age ?? 99;
       if (age < minAge || age > maxAge) return false;
     }
-    return true;
+    return (course.lessons ?? []).some(isLessonVisibleInCatalog);
   });
 
   useEffect(() => {
@@ -189,7 +198,7 @@ export default function WidgetPage() {
     );
   }, [detailCourse, drawerCourse]);
 
-  const handleEnrollClick = (isTrial = false) => {
+  const handleEnrollClick = (isTrial = false, bundleOverride?: CourseBundle | null) => {
     const branch = allBranches.find((b) => b.id === selectedBranch);
     const externalLink = detailCourse?.external_link || branch?.external_link;
     if (branch?.is_external && externalLink) {
@@ -200,7 +209,7 @@ export default function WidgetPage() {
       return;
     }
     setDrawerCourse(detailCourse);
-    setDrawerBundle(detailBundle);
+    setDrawerBundle(bundleOverride ?? detailBundle ?? null);
     setDrawerLesson(detailLesson);
     setDrawerIsTrial(isTrial);
     setDetailCourse(null);
@@ -209,6 +218,9 @@ export default function WidgetPage() {
   };
 
   const handleTrialEnrollClick = () => handleEnrollClick(true);
+  const handleBundleEnrollClick = () => {
+    if (detailBundleForLesson) handleEnrollClick(false, detailBundleForLesson);
+  };
 
   const handleCityChange = (cityId: string) => { setSelectedCity(cityId); setSelectedBranch(''); setSelectedCourseType(''); setSelectedAge(''); };
   const handleBranchChange = (branchId: string) => { setSelectedBranch(branchId); setSelectedCourseType(''); setSelectedAge(''); };
@@ -269,10 +281,11 @@ export default function WidgetPage() {
           <div className={styles.detailPanel}>
             <CourseExpandedDetail
               course={detailCourse}
-              bundle={detailBundle ?? undefined}
               lesson={detailLesson ?? undefined}
+              bundleOffer={detailBundleForLesson ?? undefined}
               onClose={() => { setDetailCourse(null); setDetailBundle(null); setDetailLesson(null); }}
               onEnroll={() => handleEnrollClick(false)}
+              onBundleEnroll={detailBundleForLesson ? handleBundleEnrollClick : undefined}
               onTrialEnroll={handleTrialEnrollClick}
             />
           </div>

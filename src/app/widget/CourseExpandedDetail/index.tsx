@@ -5,22 +5,31 @@ import styles from './CourseExpandedDetail.module.css';
 
 interface CourseExpandedDetailProps {
   course: Course;
-  bundle?: CourseBundle;
   lesson?: CourseLesson;
+  bundleOffer?: CourseBundle;
   onEnroll: () => void;
+  onBundleEnroll?: () => void;
   onTrialEnroll: () => void;
   onClose: () => void;
 }
 
-export default function CourseExpandedDetail({ course, bundle, lesson, onEnroll, onTrialEnroll, onClose }: CourseExpandedDetailProps) {
+export default function CourseExpandedDetail({
+  course,
+  lesson,
+  bundleOffer,
+  onEnroll,
+  onBundleEnroll,
+  onTrialEnroll,
+  onClose,
+}: CourseExpandedDetailProps) {
   const instructors = Array.from(
     new Set((lesson ? [lesson] : course.lessons)?.map((l) => l.instructor_name).filter(Boolean))
   ) as string[];
 
   const ageLabel = formatAgeRange(course.min_age, course.max_age) || '—';
-  const scheduleLessons = bundle ? bundle.lessons : lesson ? [lesson] : course.lessons;
-  const displayPrice = bundle ? bundle.combined_price : course.price;
-  const displayTitle = bundle ? `${course.name} (${bundle.name || 'פעמיים בשבוע'})` : course.name;
+  const scheduleLessons = lesson ? [lesson] : course.lessons;
+  const displayPrice = lesson?.price ?? course.price;
+  const displayTitle = course.name;
 
   return (
     <div className={styles.card} dir="rtl">
@@ -94,12 +103,22 @@ export default function CourseExpandedDetail({ course, bundle, lesson, onEnroll,
             <span className={styles.priceLabel}>לחודש</span>
           </div>
         </div>
+        {bundleOffer ? (
+          <p className={styles.priceNote}>
+            מסלול משולב ({bundleOffer.name || 'פעמיים בשבוע'}): ₪{bundleOffer.combined_price} לחודש
+          </p>
+        ) : null}
         <p className={styles.priceNote}>מנוי שנתי עד חודש יולי. ניתן לבטל מנוי עד חודש אפריל</p>
 
         {/* Buttons */}
         <button onClick={onEnroll} className={styles.enrollButton}>
-          הרשמה לחוג
+          הרשמה לשיעור זה
         </button>
+        {bundleOffer && onBundleEnroll ? (
+          <button onClick={onBundleEnroll} className={styles.enrollButton}>
+            הרשמה למסלול ({bundleOffer.name || 'פעמיים בשבוע'})
+          </button>
+        ) : null}
         <button onClick={onTrialEnroll} className={styles.trialButton}>
           הרשמה לניסיון
         </button>

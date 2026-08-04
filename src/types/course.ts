@@ -143,6 +143,8 @@ export interface CourseWithLessons {
   branch_name?: string;
   instructor?: Instructor | null;
   instructor_salary_override?: number | null;
+  /** Distinct active students (paying + trial) across all lessons in this course */
+  course_enrollment_count?: number;
   lessons: Lesson[];
   is_active: boolean;
   is_adult?: boolean;

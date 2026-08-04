@@ -63,6 +63,13 @@
   white-space: nowrap;
 }
 
+.courseType {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: #6b7280;
+  white-space: nowrap;
+}
+
 .bundleBadge {
   background-color: rgba(245, 197, 24, 0.18);
   color: #2B3090;
