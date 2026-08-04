@@ -19,14 +19,15 @@ interface CourseRow {
 function buildRows(courses: Course[]): CourseRow[] {
   const rows: CourseRow[] = [];
   for (const course of courses) {
+    const bundles = course.bundles ?? [];
     if (course.lessons && course.lessons.length > 0) {
       for (const lesson of course.lessons) {
         rows.push({ course, lesson, bundle: null });
       }
-    } else {
+    } else if (bundles.length === 0) {
       rows.push({ course, lesson: null, bundle: null });
     }
-    for (const bundle of course.bundles ?? []) {
+    for (const bundle of bundles) {
       rows.push({ course, lesson: null, bundle });
     }
   }
