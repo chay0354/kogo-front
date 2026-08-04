@@ -105,6 +105,7 @@ export default function EditCourseDialog({
       min_age: course.min_age || 6,
       max_age: course.max_age || 18,
       is_adult: course.is_adult ?? false,
+      must_attend_all_lessons: course.must_attend_all_lessons ?? false,
       external_link: course.external_link || '',
     });
     setExtraTiers(tiersFromCourseLessons(courseWithLessons.lessons));
