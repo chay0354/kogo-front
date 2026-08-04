@@ -73,6 +73,7 @@ export default function EditCourseDialog({
     min_age: course.min_age || 1,
     max_age: course.max_age || 14,
     is_adult: course.is_adult ?? false,
+    must_attend_all_lessons: course.must_attend_all_lessons ?? false,
     external_link: course.external_link || '',
   });
   const [extraTiers, setExtraTiers] = useState<LessonPriceTier[]>(() =>
@@ -329,6 +330,13 @@ export default function EditCourseDialog({
               <label htmlFor="is_adult_edit" className={styles.adultToggleLabel}>
                 <input type="checkbox" id="is_adult_edit" className={styles.adultCheckbox} checked={formData.is_adult ?? false} onChange={(e) => setFormData({ ...formData, is_adult: e.target.checked })} />
                 18+
+              </label>
+            </div>
+
+            <div className={styles.adultToggleRow}>
+              <label htmlFor="must_attend_all_lessons_edit" className={styles.adultToggleLabel}>
+                <input type="checkbox" id="must_attend_all_lessons_edit" className={styles.adultCheckbox} checked={formData.must_attend_all_lessons ?? false} onChange={(e) => setFormData({ ...formData, must_attend_all_lessons: e.target.checked })} />
+                מחוייב בכל השיעורים
               </label>
             </div>
 
