@@ -35,6 +35,7 @@ export function buildDefaultCourseData(courseTypeId: string): CourseFormData {
     instructor: '',
     instructor_salary_override: undefined,
     is_adult: false,
+    must_attend_all_lessons: false,
     external_link: '',
   };
 }
@@ -74,6 +75,7 @@ export function buildDuplicateFormState(
           ? Number(source.instructor_salary_override)
           : undefined,
       is_adult: source.is_adult ?? false,
+      must_attend_all_lessons: source.must_attend_all_lessons ?? false,
       external_link: source.external_link || '',
     },
     lessons,

@@ -49,6 +49,7 @@ export interface Course {
   max_age: number | null;
   price: number | null;
   is_adult: boolean;
+  must_attend_all_lessons: boolean;
   external_link: string;
   lessons_count: number;
   lessons: CourseLesson[];

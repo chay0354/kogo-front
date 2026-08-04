@@ -64,6 +64,7 @@ export interface Course {
   max_age?: number | null;
   is_active: boolean;
   is_adult: boolean;
+  must_attend_all_lessons: boolean;
   external_link?: string;
   created_at: string;
   updated_at: string;
@@ -148,6 +149,7 @@ export interface CourseWithLessons {
   lessons: Lesson[];
   is_active: boolean;
   is_adult?: boolean;
+  must_attend_all_lessons?: boolean;
   external_link?: string;
 }
 
@@ -215,6 +217,7 @@ export interface CourseFormData {
   instructor?: string;
   instructor_salary_override?: number | null;
   is_adult?: boolean;
+  must_attend_all_lessons?: boolean;
   external_link?: string;
 }
 

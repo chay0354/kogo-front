@@ -124,11 +124,14 @@ export default function WidgetPage() {
   const [drawerLesson, setDrawerLesson] = useState<CourseLesson | null>(null);
   const [drawerIsTrial, setDrawerIsTrial] = useState(false);
 
-  const toggleDetail = (course: Course, lesson: CourseLesson) => {
-    const isSame = detailCourse?.id === course.id && detailLesson?.id === lesson.id && !detailBundle;
+  const toggleDetail = (course: Course, bundle?: CourseBundle, lesson?: CourseLesson) => {
+    const isSame =
+      detailCourse?.id === course.id &&
+      detailBundle?.id === bundle?.id &&
+      detailLesson?.id === lesson?.id;
     setDetailCourse(isSame ? null : course);
-    setDetailBundle(null);
-    setDetailLesson(isSame ? null : lesson);
+    setDetailBundle(isSame ? null : (bundle ?? null));
+    setDetailLesson(isSame ? null : (lesson ?? null));
   };
 
   const detailBundleForLesson = detailCourse && detailLesson
@@ -282,7 +285,7 @@ export default function WidgetPage() {
             <CourseExpandedDetail
               course={detailCourse}
               lesson={detailLesson ?? undefined}
-              bundleOffer={detailBundleForLesson ?? undefined}
+              bundleOffer={detailBundle ?? detailBundleForLesson ?? undefined}
               onClose={() => { setDetailCourse(null); setDetailBundle(null); setDetailLesson(null); }}
               onEnroll={() => handleEnrollClick(false)}
               onBundleEnroll={detailBundleForLesson ? handleBundleEnrollClick : undefined}
