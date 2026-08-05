@@ -285,9 +285,14 @@ export function filterCourses(
     age?: { minAge?: number; maxAge?: number };
     time?: { startHour?: number; endHour?: number };
     profitability?: 'all' | 'profitable' | 'unprofitable';
+    branchId?: string;
   }
 ): CourseWithLessons[] {
   return courses.filter((course) => {
+    if (filters.branchId && String(course.branch) !== filters.branchId) {
+      return false;
+    }
+
     // Age filter
     if (filters.age && !matchesAgeFilter(course, filters.age)) {
       return false;

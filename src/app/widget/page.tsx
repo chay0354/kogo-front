@@ -9,7 +9,7 @@ import CourseExpandedDetail from './CourseExpandedDetail/index';
 import { CourseList } from './CourseList/CourseList';
 import type { City, Branch, Course, CourseBundle, CourseLesson } from './types';
 import { sortCitiesByFixedOrder } from './page.utils';
-import { isLessonVisibleInCatalog } from './lessonVisibility';
+import { isCourseVisibleInWidgetCatalog } from './lessonVisibility';
 import { AGE_OPTIONS, formatAge } from '@/lib/courseUtils';
 import styles from './page.module.css';
 
@@ -145,7 +145,7 @@ export default function WidgetPage() {
   const courseTypes = Array.from(
     new Map(
       branchCourses
-        .filter((c) => (c.lessons ?? []).some(isLessonVisibleInCatalog))
+        .filter(isCourseVisibleInWidgetCatalog)
         .map((c) => [String(c.course_type), c.course_type_name])
     ).entries()
   ).map(([id, name]) => ({ id, name }));
@@ -158,7 +158,7 @@ export default function WidgetPage() {
       const maxAge = course.max_age ?? 99;
       if (age < minAge || age > maxAge) return false;
     }
-    return (course.lessons ?? []).some(isLessonVisibleInCatalog);
+    return isCourseVisibleInWidgetCatalog(course);
   });
 
   useEffect(() => {

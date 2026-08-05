@@ -40,6 +40,7 @@ export default function CourseTypeDetailsPage() {
 
   // Filters
   const [ageFilter, setAgeFilter] = useState<AgeFilter>({ label: 'הכל' });
+  const [branchFilter, setBranchFilter] = useState<string>('all');
   const [profitabilityFilter, setProfitabilityFilter] = useState<'all' | 'profitable' | 'unprofitable'>('all');
 
   useEffect(() => {
@@ -169,9 +170,20 @@ export default function CourseTypeDetailsPage() {
     );
   }
 
+  const branchById = new Map<string, string>();
+  for (const course of courseTypeDetails.courses) {
+    if (course.branch && course.branch_name) {
+      branchById.set(String(course.branch), course.branch_name);
+    }
+  }
+  const branchOptions = Array.from(branchById.entries())
+    .map(([id, name]) => ({ id, name }))
+    .sort((a, b) => a.name.localeCompare(b.name, 'he'));
+
   const filteredCourses = filterCourses(courseTypeDetails.courses, {
     age: ageFilter.minAge !== undefined ? ageFilter : undefined,
     profitability: profitabilityFilter,
+    branchId: branchFilter === 'all' ? undefined : branchFilter,
   });
 
   const financials = calculateCourseTypeFinancials(filteredCourses);
@@ -273,6 +285,19 @@ export default function CourseTypeDetailsPage() {
               {AGE_FILTER_OPTIONS.map((option) => (
                 <option key={option.label} value={option.label}>
                   גיל: {option.label}
+                </option>
+              ))}
+            </select>
+
+            <select
+              value={branchFilter}
+              onChange={(e) => setBranchFilter(e.target.value)}
+              className={styles.filterSelect}
+            >
+              <option value="all">סניף: הכל</option>
+              {branchOptions.map((branch) => (
+                <option key={branch.id} value={branch.id}>
+                  סניף: {branch.name}
                 </option>
               ))}
             </select>

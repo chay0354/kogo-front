@@ -1,12 +1,15 @@
 import type { CourseLesson } from './types';
 
-/** Match schedule page: hide recurring lessons before their lesson_date start. */
-export function isLessonVisibleInCatalog(lesson: CourseLesson): boolean {
-  if (lesson.is_recurring === false) return true;
-  if (!lesson.lesson_date) return true;
-  const start = new Date(lesson.lesson_date);
-  start.setHours(0, 0, 0, 0);
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  return start.getTime() <= today.getTime();
+/** Widget registration catalog — include upcoming lessons (parents enroll before season starts). */
+export function isLessonVisibleInCatalog(_lesson: CourseLesson): boolean {
+  return true;
+}
+
+/** Course is listed when it has visible lessons and/or a combined bundle row. */
+export function isCourseVisibleInWidgetCatalog(course: {
+  lessons?: CourseLesson[];
+  bundles?: unknown[];
+}): boolean {
+  if ((course.bundles?.length ?? 0) > 0) return true;
+  return (course.lessons ?? []).some(isLessonVisibleInCatalog);
 }
