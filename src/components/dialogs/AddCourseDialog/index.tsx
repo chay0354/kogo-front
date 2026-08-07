@@ -136,6 +136,10 @@ export default function AddCourseDialog({
       setError('יש לבחור מדריך');
       return;
     }
+    if (courseData.trial_lesson_is_paid && (!courseData.trial_lesson_price || courseData.trial_lesson_price <= 0)) {
+      setError('יש להזין מחיר לשיעור ניסיון בתשלום');
+      return;
+    }
 
     // Lesson validation
     if (!courseData.branch) { setError('יש לבחור סניף'); return; }
@@ -158,6 +162,7 @@ export default function AddCourseDialog({
         name: courseData.name.trim(),
         instructor_salary_override: courseData.instructor_salary_override ?? null,
         external_link: selectedBranch?.is_external ? (courseData.external_link || '') : '',
+        trial_lesson_price: courseData.trial_lesson_is_paid ? courseData.trial_lesson_price : null,
       });
       const newCourseId = courseRes.data.id;
       createdCount = 1;
@@ -264,6 +269,45 @@ export default function AddCourseDialog({
                 מחוייב בכל השיעורים
               </label>
             </div>
+
+            {/* Paid trial lesson toggle */}
+            <div className={styles.adultToggleRow}>
+              <label htmlFor="trial_lesson_is_paid" className={styles.adultToggleLabel}>
+                <input
+                  type="checkbox"
+                  id="trial_lesson_is_paid"
+                  className={styles.adultCheckbox}
+                  checked={courseData.trial_lesson_is_paid ?? false}
+                  onChange={(e) => setCourseData({
+                    ...courseData,
+                    trial_lesson_is_paid: e.target.checked,
+                    trial_lesson_price: e.target.checked ? courseData.trial_lesson_price : null,
+                  })}
+                />
+                שיעור ניסיון בתשלום
+              </label>
+            </div>
+            {courseData.trial_lesson_is_paid ? (
+              <div>
+                <label htmlFor="trial_lesson_price" className={styles.label}>
+                  מחיר שיעור ניסיון (₪) <span className={styles.required}>*</span>
+                </label>
+                <input
+                  type="number"
+                  id="trial_lesson_price"
+                  value={courseData.trial_lesson_price ?? ''}
+                  onChange={(e) => setCourseData({
+                    ...courseData,
+                    trial_lesson_price: e.target.value === '' ? null : Number(e.target.value),
+                  })}
+                  className={styles.input}
+                  placeholder="50"
+                  min="0"
+                  step="0.01"
+                  required
+                />
+              </div>
+            ) : null}
 
             {/* Price and Capacity */}
             <div className={styles.grid2}>

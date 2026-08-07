@@ -120,7 +120,9 @@ export default function CourseExpandedDetail({
           </button>
         ) : null}
         <button onClick={onTrialEnroll} className={styles.trialButton}>
-          הרשמה לניסיון
+          {course.trial_lesson_is_paid && course.trial_lesson_price != null
+            ? `הרשמה לניסיון (₪${Number(course.trial_lesson_price).toFixed(0)})`
+            : 'הרשמה לניסיון'}
         </button>
 
       </div>

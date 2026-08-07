@@ -50,6 +50,8 @@ export interface Course {
   price: number | null;
   is_adult: boolean;
   must_attend_all_lessons: boolean;
+  trial_lesson_is_paid: boolean;
+  trial_lesson_price: number | null;
   external_link: string;
   lessons_count: number;
   lessons: CourseLesson[];

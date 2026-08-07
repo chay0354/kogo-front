@@ -65,6 +65,8 @@ export interface Course {
   is_active: boolean;
   is_adult: boolean;
   must_attend_all_lessons: boolean;
+  trial_lesson_is_paid?: boolean;
+  trial_lesson_price?: number | null;
   external_link?: string;
   created_at: string;
   updated_at: string;
@@ -150,6 +152,8 @@ export interface CourseWithLessons {
   is_active: boolean;
   is_adult?: boolean;
   must_attend_all_lessons?: boolean;
+  trial_lesson_is_paid?: boolean;
+  trial_lesson_price?: number | null;
   external_link?: string;
 }
 
@@ -218,6 +222,8 @@ export interface CourseFormData {
   instructor_salary_override?: number | null;
   is_adult?: boolean;
   must_attend_all_lessons?: boolean;
+  trial_lesson_is_paid?: boolean;
+  trial_lesson_price?: number | null;
   external_link?: string;
 }
 

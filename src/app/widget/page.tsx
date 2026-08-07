@@ -322,6 +322,12 @@ export default function WidgetPage() {
                 bundleId={drawerBundle?.id}
                 lessonId={drawerLesson?.id}
                 isTrial={drawerIsTrial}
+                trialLessonIsPaid={drawerCourse.trial_lesson_is_paid ?? false}
+                trialLessonPrice={
+                  drawerCourse.trial_lesson_price != null
+                    ? Number(drawerCourse.trial_lesson_price)
+                    : null
+                }
                 onBack={() => { setDrawerCourse(null); setDrawerBundle(null); setDrawerLesson(null); setDrawerIsTrial(false); }}
                 onComplete={() => { setDrawerCourse(null); setDrawerBundle(null); setDrawerLesson(null); setDrawerIsTrial(false); }}
               />

@@ -13,6 +13,8 @@ export interface Props {
   bundleId?: string;
   lessonId?: string;
   isTrial?: boolean;
+  trialLessonIsPaid?: boolean;
+  trialLessonPrice?: number | null;
   onBack: () => void;
   onComplete: () => void;
 }

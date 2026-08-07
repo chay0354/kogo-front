@@ -74,6 +74,8 @@ export default function EditCourseDialog({
     max_age: course.max_age || 14,
     is_adult: course.is_adult ?? false,
     must_attend_all_lessons: course.must_attend_all_lessons ?? false,
+    trial_lesson_is_paid: course.trial_lesson_is_paid ?? false,
+    trial_lesson_price: course.trial_lesson_price != null ? Number(course.trial_lesson_price) : null,
     external_link: course.external_link || '',
   });
   const [extraTiers, setExtraTiers] = useState<LessonPriceTier[]>(() =>
@@ -106,6 +108,8 @@ export default function EditCourseDialog({
       max_age: course.max_age || 18,
       is_adult: course.is_adult ?? false,
       must_attend_all_lessons: course.must_attend_all_lessons ?? false,
+      trial_lesson_is_paid: course.trial_lesson_is_paid ?? false,
+      trial_lesson_price: course.trial_lesson_price != null ? Number(course.trial_lesson_price) : null,
       external_link: course.external_link || '',
     });
     setExtraTiers(tiersFromCourseLessons(courseWithLessons.lessons));
@@ -176,6 +180,11 @@ export default function EditCourseDialog({
       return;
     }
 
+    if (formData.trial_lesson_is_paid && (!formData.trial_lesson_price || formData.trial_lesson_price <= 0)) {
+      setError('יש להזין מחיר לשיעור ניסיון בתשלום');
+      return;
+    }
+
     if (!branchId) {
       setError('יש לבחור סניף');
       return;
@@ -195,6 +204,7 @@ export default function EditCourseDialog({
         instructor: instructorId,
         instructor_salary_override: instructorSalaryOverride ?? null,
         external_link: selectedBranch?.is_external ? (formData.external_link || '') : '',
+        trial_lesson_price: formData.trial_lesson_is_paid ? formData.trial_lesson_price : null,
       });
 
       const tierPayload = cleanTiersForSubmit(extraTiers);
@@ -340,6 +350,44 @@ export default function EditCourseDialog({
                 מחוייב בכל השיעורים
               </label>
             </div>
+
+            <div className={styles.adultToggleRow}>
+              <label htmlFor="trial_lesson_is_paid_edit" className={styles.adultToggleLabel}>
+                <input
+                  type="checkbox"
+                  id="trial_lesson_is_paid_edit"
+                  className={styles.adultCheckbox}
+                  checked={formData.trial_lesson_is_paid ?? false}
+                  onChange={(e) => setFormData({
+                    ...formData,
+                    trial_lesson_is_paid: e.target.checked,
+                    trial_lesson_price: e.target.checked ? formData.trial_lesson_price : null,
+                  })}
+                />
+                שיעור ניסיון בתשלום
+              </label>
+            </div>
+            {formData.trial_lesson_is_paid ? (
+              <div>
+                <label htmlFor="trial_lesson_price_edit" className="block text-sm font-medium text-gray-700 mb-1">
+                  מחיר שיעור ניסיון (₪) <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="number"
+                  id="trial_lesson_price_edit"
+                  value={formData.trial_lesson_price ?? ''}
+                  onChange={(e) => setFormData({
+                    ...formData,
+                    trial_lesson_price: e.target.value === '' ? null : Number(e.target.value),
+                  })}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500"
+                  placeholder="50"
+                  min="0"
+                  step="0.01"
+                  required
+                />
+              </div>
+            ) : null}
 
             <div className="grid grid-cols-2 gap-4">
               <div>

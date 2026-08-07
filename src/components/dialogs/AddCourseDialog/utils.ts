@@ -36,6 +36,8 @@ export function buildDefaultCourseData(courseTypeId: string): CourseFormData {
     instructor_salary_override: undefined,
     is_adult: false,
     must_attend_all_lessons: false,
+    trial_lesson_is_paid: false,
+    trial_lesson_price: null,
     external_link: '',
   };
 }
@@ -76,6 +78,8 @@ export function buildDuplicateFormState(
           : undefined,
       is_adult: source.is_adult ?? false,
       must_attend_all_lessons: source.must_attend_all_lessons ?? false,
+      trial_lesson_is_paid: source.trial_lesson_is_paid ?? false,
+      trial_lesson_price: source.trial_lesson_price != null ? Number(source.trial_lesson_price) : null,
       external_link: source.external_link || '',
     },
     lessons,

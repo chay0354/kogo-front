@@ -8,7 +8,7 @@ import type { Props, Step, LookupResult, PaymentResponse, TrialOccurrence } from
 
 export type { CourseLesson } from './types';
 
-export default function CourseRegistrationForm({ courseId, courseName, isAdult = false, bundleId, lessonId, isTrial = false, onBack, onComplete }: Props) {
+export default function CourseRegistrationForm({ courseId, courseName, isAdult = false, bundleId, lessonId, isTrial = false, trialLessonIsPaid = false, trialLessonPrice, onBack, onComplete }: Props) {
   const [step, setStep] = useState<Step>('details');
   const [errorMsg, setErrorMsg] = useState('');
 
@@ -86,7 +86,7 @@ export default function CourseRegistrationForm({ courseId, courseName, isAdult =
         },
       });
       if (res.data.success) {
-        setStep('payment_success');
+        setStep(isTrial ? 'trial_success' : 'payment_success');
         setTimeout(() => onComplete(), 3000);
       } else {
         const firstError = res.data.error
@@ -158,7 +158,7 @@ export default function CourseRegistrationForm({ courseId, courseName, isAdult =
 
     if (isTrial) {
       try {
-        await api.post('/customers/widget/trial-register/', {
+        const res = await api.post('/customers/widget/trial-register/', {
           parent_id_number: parentIdNumber,
           parent_first_name: parentFirstName,
           parent_last_name: parentLastName,
@@ -172,6 +172,17 @@ export default function CourseRegistrationForm({ courseId, courseName, isAdult =
           lesson_id: lessonId,
           trial_lesson_date: trialLessonDate,
         });
+        if (res.data.requires_payment) {
+          setPaymentData({
+            payment_id: res.data.payment_id,
+            final_amount: res.data.final_amount,
+            base_amount: res.data.base_amount,
+            discount_amount: res.data.discount_amount ?? 0,
+            discounts_applied: [],
+          });
+          setStep('payment');
+          return;
+        }
         setStep('trial_success');
         setTimeout(() => onComplete(), 3000);
       } catch (err: unknown) {
@@ -507,7 +518,9 @@ export default function CourseRegistrationForm({ courseId, courseName, isAdult =
         {errorMsg && <p className={styles.errorText}>{errorMsg}</p>}
 
         <button type="submit" className={styles.submitButton}>
-          {isTrial ? 'שלח והרשם לניסיון' : 'שלח והמשך לתשלום'}
+          {isTrial
+            ? (trialLessonIsPaid ? 'שלח והמשך לתשלום' : 'שלח והרשם לניסיון')
+            : 'שלח והמשך לתשלום'}
         </button>
       </form>
     );
@@ -516,10 +529,12 @@ export default function CourseRegistrationForm({ courseId, courseName, isAdult =
   if (step === 'payment' && paymentData) {
     return (
       <div className={styles.paymentContainer} dir="rtl">
-        <h3 className={styles.title}>הרשמה לחוג: {courseName}</h3>
+        <h3 className={styles.title}>
+          {isTrial ? `הרשמה לשיעור ניסיון: ${courseName}` : `הרשמה לחוג: ${courseName}`}
+        </h3>
 
         <div className={styles.paymentSummary}>
-          <p className={styles.summaryTitle}>סיכום תשלום</p>
+          <p className={styles.summaryTitle}>{isTrial ? 'תשלום לשיעור ניסיון' : 'סיכום תשלום'}</p>
           <div className={styles.summaryRow}>
             <span>מחיר בסיס</span>
             <span>₪{Number(paymentData.base_amount).toFixed(2)}</span>
