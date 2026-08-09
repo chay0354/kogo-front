@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { FileText, Search, DollarSign, Clock, TrendingUp, Wallet, AlertCircle, Plus, Bell } from 'lucide-react';
+import { FileText, Search, DollarSign, Clock, TrendingUp, Wallet, AlertCircle, Plus, Bell, Repeat } from 'lucide-react';
 import AppLayout from '@/components/AppLayout';
 import PageFilters from '@/components/PageFilters';
 import NewDocumentDialog from '@/components/dialogs/NewDocumentDialog';
@@ -14,6 +14,7 @@ import { filterBranchesForUser, unwrapApiList } from '@/lib/scopedFilters';
 import type { StoreInvoice } from '@/types/store';
 import type { Branch } from '@/types/branch';
 import type { ChildWithDetails } from '@/types/customer';
+import type { RecurringPayment } from '@/types/payment';
 import type { ActiveTab, PaymentRecord } from './types';
 import { PAYMENT_SUBCATEGORIES } from './constants';
 import {
@@ -30,6 +31,8 @@ import {
   getDaysOverdue,
   getOverdueLabel,
   getAgingBuckets,
+  getRecurringStatusLabel,
+  getRecurringStatusClass,
 } from './utils';
 import styles from './invoices.module.css';
 
@@ -61,6 +64,18 @@ export default function InvoicesPage() {
 
   // Collection tab state
   const [collectionCustomerFilter, setCollectionCustomerFilter] = useState('');
+
+  // Recurring payments tab state
+  const [recurringPayments, setRecurringPayments] = useState<RecurringPayment[]>([]);
+  const [recurringLoading, setRecurringLoading] = useState(false);
+  const [recurringLoaded, setRecurringLoaded] = useState(false);
+  const [recurringStatusFilter, setRecurringStatusFilter] = useState('');
+  const [recurringBranchFilter, setRecurringBranchFilter] = useState('');
+  const [recurringSearch, setRecurringSearch] = useState('');
+  const [recurringActionId, setRecurringActionId] = useState<string | null>(null);
+  const [editingRecurring, setEditingRecurring] = useState<RecurringPayment | null>(null);
+  const [editAmountValue, setEditAmountValue] = useState('');
+  const [editAmountError, setEditAmountError] = useState('');
 
   const { data: childrenData } = useQuery({
     queryKey: ['children'],
@@ -113,10 +128,89 @@ export default function InvoicesPage() {
     }
   }
 
+  async function loadRecurringPayments() {
+    if (recurringLoaded) return;
+    setRecurringLoading(true);
+    try {
+      const response = await api.get('/customers/recurring-payments/');
+      const list = response.data?.results ?? response.data;
+      setRecurringPayments(Array.isArray(list) ? list : []);
+    } catch (error) {
+      console.error('Error loading recurring payments:', error);
+      setRecurringPayments([]);
+    } finally {
+      setRecurringLoading(false);
+      setRecurringLoaded(true);
+    }
+  }
+
+  async function handleScheduleRecurringAmount(e: React.FormEvent) {
+    e.preventDefault();
+    if (!editingRecurring) return;
+
+    const parsed = Number(editAmountValue);
+    if (!Number.isFinite(parsed) || parsed <= 0) {
+      setEditAmountError('יש להזין סכום גדול מ-0');
+      return;
+    }
+
+    setRecurringActionId(editingRecurring.id);
+    setEditAmountError('');
+    try {
+      const response = await api.post(
+        `/customers/recurring-payments/${editingRecurring.id}/schedule-amount/`,
+        { amount: parsed },
+      );
+      setRecurringPayments((prev) =>
+        prev.map((item) => (item.id === editingRecurring.id ? response.data : item)),
+      );
+      setEditingRecurring(null);
+      setEditAmountValue('');
+    } catch (error: unknown) {
+      const msg =
+        (error as { response?: { data?: { error?: string } } })?.response?.data?.error ??
+        'שגיאה בעדכון הסכום';
+      setEditAmountError(msg);
+    } finally {
+      setRecurringActionId(null);
+    }
+  }
+
+  function openEditRecurringAmount(item: RecurringPayment) {
+    setEditingRecurring(item);
+    setEditAmountValue(String(item.pending_amount ?? item.amount));
+    setEditAmountError('');
+  }
+
+  async function handleCancelRecurring(recurringId: string, childName: string) {
+    if (!window.confirm(`לבטל את הוראת הקבע של ${childName}?`)) return;
+    setRecurringActionId(recurringId);
+    try {
+      await api.post(`/customers/recurring-payments/${recurringId}/cancel/`, {
+        cancellation_reason: 'בוטל ממסך הוראות קבע',
+      });
+      setRecurringPayments((prev) =>
+        prev.map((item) =>
+          item.id === recurringId
+            ? { ...item, status: 'cancelled', cancelled_at: new Date().toISOString() }
+            : item,
+        ),
+      );
+    } catch (error) {
+      console.error('Error cancelling recurring payment:', error);
+      window.alert('שגיאה בביטול הוראת הקבע');
+    } finally {
+      setRecurringActionId(null);
+    }
+  }
+
   function handleTabChange(tab: ActiveTab) {
     setActiveTab(tab);
     if (tab === 'תשלומים' && !paymentsLoaded) {
       loadPayments();
+    }
+    if (tab === 'הוראת קבע' && !recurringLoaded) {
+      loadRecurringPayments();
     }
   }
 
@@ -159,6 +253,37 @@ export default function InvoicesPage() {
     (a, b) => getDaysOverdue(b.issue_date) - getDaysOverdue(a.issue_date),
   );
 
+  const filteredRecurring = recurringPayments.filter((item) => {
+    if (recurringStatusFilter && item.status !== recurringStatusFilter) return false;
+    const branchName = item.initial_payment_details?.branch_name ?? item.branch_name ?? '';
+    if (recurringBranchFilter && branchName !== recurringBranchFilter) return false;
+    const q = recurringSearch.trim().toLowerCase();
+    if (!q) return true;
+    const courseName = item.initial_payment_details?.lesson_name ?? item.course_name ?? '';
+    return (
+      item.child_name.toLowerCase().includes(q) ||
+      courseName.toLowerCase().includes(q) ||
+      branchName.toLowerCase().includes(q)
+    );
+  });
+
+  const sortedRecurring = [...filteredRecurring].sort(
+    (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+  );
+
+  const activeRecurring = recurringPayments.filter((item) => item.status === 'active');
+  const activeRecurringTotal = activeRecurring.reduce(
+    (sum, item) => sum + Number(item.amount || 0),
+    0,
+  );
+  const recurringBranchOptions = Array.from(
+    new Set(
+      recurringPayments
+        .map((item) => item.initial_payment_details?.branch_name ?? item.branch_name ?? '')
+        .filter(Boolean),
+    ),
+  ).sort((a, b) => a.localeCompare(b, 'he'));
+
   return (
     <AppLayout>
       <div className={styles.page}>
@@ -170,6 +295,8 @@ export default function InvoicesPage() {
                 <Wallet className={styles.titleIcon} />
               ) : activeTab === 'גבייה' ? (
                 <AlertCircle className={styles.titleIcon} />
+              ) : activeTab === 'הוראת קבע' ? (
+                <Repeat className={styles.titleIcon} />
               ) : (
                 <FileText className={styles.titleIcon} />
               )}
@@ -180,6 +307,8 @@ export default function InvoicesPage() {
                 ? 'עוקב כל התשלומים שהתקבלו, אישור וניהול אסמכתאות'
                 : activeTab === 'גבייה'
                 ? 'מסמכים עם יתרה פתוחה, מעקב Aging ופעולות גבייה'
+                : activeTab === 'הוראת קבע'
+                ? 'כל הוראות הקבע הפעילות והמבוטלות של לקוחות החוגים'
                 : 'כל החשבוניות, קבלות וזיכויים במקום אחד'}
             </p>
           </div>
@@ -209,6 +338,14 @@ export default function InvoicesPage() {
                 onClick={() => handleTabChange('גבייה')}
               >
                 גבייה
+              </button>
+              <button
+                role="tab"
+                aria-selected={activeTab === 'הוראת קבע'}
+                className={`${styles.tabBtn} ${activeTab === 'הוראת קבע' ? styles.tabBtnActive : ''}`}
+                onClick={() => handleTabChange('הוראת קבע')}
+              >
+                הוראת קבע
               </button>
             </div>
 
@@ -467,6 +604,173 @@ export default function InvoicesPage() {
           </>
         )}
 
+        {activeTab === 'הוראת קבע' && (
+          <>
+            <div className={styles.statsRow}>
+              <div className={`${styles.statCard} ${styles.statCardBlue}`}>
+                <div className={styles.statCardIcon}>
+                  <Repeat size={18} />
+                </div>
+                <div className={styles.statCardBody}>
+                  <span className={styles.statCardValue}>{recurringPayments.length}</span>
+                  <span className={styles.statCardLabel}>סה&quot;כ הוראות קבע</span>
+                </div>
+              </div>
+
+              <div className={`${styles.statCard} ${styles.statCardGreen}`}>
+                <div className={styles.statCardIcon}>
+                  <TrendingUp size={18} />
+                </div>
+                <div className={styles.statCardBody}>
+                  <span className={styles.statCardValue}>{activeRecurring.length}</span>
+                  <span className={styles.statCardLabel}>פעילות</span>
+                </div>
+              </div>
+
+              <div className={`${styles.statCard} ${styles.statCardOrange}`}>
+                <div className={styles.statCardIcon}>
+                  <DollarSign size={18} />
+                </div>
+                <div className={styles.statCardBody}>
+                  <span className={styles.statCardValue}>{formatAmount(activeRecurringTotal)}</span>
+                  <span className={styles.statCardLabel}>סכום חודשי פעיל</span>
+                </div>
+              </div>
+            </div>
+
+            <div className={styles.filterBar}>
+              <select
+                className={styles.filterSelect}
+                value={recurringStatusFilter}
+                onChange={(e) => setRecurringStatusFilter(e.target.value)}
+                aria-label="סינון לפי סטטוס"
+              >
+                <option value="">כל הסטטוסים</option>
+                <option value="active">פעיל</option>
+                <option value="paused">מושהה</option>
+                <option value="cancelled">מבוטל</option>
+                <option value="expired">פג תוקף</option>
+                <option value="failed">נכשל</option>
+              </select>
+
+              <select
+                className={styles.filterSelect}
+                value={recurringBranchFilter}
+                onChange={(e) => setRecurringBranchFilter(e.target.value)}
+                aria-label="סינון לפי סניף"
+              >
+                <option value="">כל הסניפים</option>
+                {recurringBranchOptions.map((branchName) => (
+                  <option key={branchName} value={branchName}>{branchName}</option>
+                ))}
+              </select>
+
+              <div className={styles.searchWrapper}>
+                <Search className={styles.searchIcon} aria-hidden="true" />
+                <input
+                  type="text"
+                  className={styles.searchInput}
+                  placeholder="חיפוש לפי לקוח, חוג, סניף..."
+                  value={recurringSearch}
+                  onChange={(e) => setRecurringSearch(e.target.value)}
+                  aria-label="חיפוש הוראות קבע"
+                />
+              </div>
+            </div>
+
+            <div className={styles.tableCard}>
+              {recurringLoading ? (
+                <div className={styles.loadingWrapper}>טוען...</div>
+              ) : sortedRecurring.length === 0 ? (
+                <div className={styles.emptyState}>לא נמצאו הוראות קבע</div>
+              ) : (
+                <table className={`${styles.invoiceTable} ${styles.paymentsTable}`}>
+                  <thead>
+                    <tr>
+                      <th scope="col">לקוח</th>
+                      <th scope="col">חוג</th>
+                      <th scope="col">סניף</th>
+                      <th scope="col">סכום חודשי</th>
+                      <th scope="col">יום חיוב</th>
+                      <th scope="col">חיוב הבא</th>
+                      <th scope="col">חיוב אחרון</th>
+                      <th scope="col">תאריך התחלה</th>
+                      <th scope="col">סטטוס</th>
+                      <th scope="col">פעולות</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {sortedRecurring.map((item) => {
+                      const statusLabel = getRecurringStatusLabel(item.status);
+                      const courseName =
+                        item.initial_payment_details?.lesson_name ??
+                        item.course_name ??
+                        item.initial_payment_details?.description ??
+                        '-';
+                      const branchName =
+                        item.initial_payment_details?.branch_name ??
+                        item.branch_name ??
+                        '-';
+
+                      return (
+                        <tr key={item.id}>
+                          <td className={styles.customerName}>{item.child_name}</td>
+                          <td>{courseName}</td>
+                          <td>{branchName}</td>
+                          <td className={styles.amount}>
+                            <div>{formatAmount(Number(item.amount))}</div>
+                            {item.pending_amount != null && item.pending_amount_effective_date ? (
+                              <div className={styles.pendingAmountNote}>
+                                → {formatAmount(Number(item.pending_amount))} מ-{formatDate(item.pending_amount_effective_date)}
+                              </div>
+                            ) : null}
+                          </td>
+                          <td>{item.billing_day}</td>
+                          <td>{item.next_billing_date ? formatDate(item.next_billing_date) : '—'}</td>
+                          <td>{item.last_charge_date ? formatDate(item.last_charge_date) : '—'}</td>
+                          <td>{formatDate(item.start_date)}</td>
+                          <td>
+                            <span
+                              className={`${styles.statusBadge} ${getRecurringStatusClass(item.status)}`}
+                              aria-label={statusLabel}
+                            >
+                              {statusLabel}
+                            </span>
+                          </td>
+                          <td>
+                            {item.status === 'active' ? (
+                              <div className={styles.recurringActions}>
+                                <button
+                                  type="button"
+                                  className={styles.editRecurringBtn}
+                                  disabled={recurringActionId === item.id}
+                                  onClick={() => openEditRecurringAmount(item)}
+                                >
+                                  עריכה
+                                </button>
+                                <button
+                                  type="button"
+                                  className={styles.cancelRecurringBtn}
+                                  disabled={recurringActionId === item.id}
+                                  onClick={() => handleCancelRecurring(item.id, item.child_name)}
+                                >
+                                  {recurringActionId === item.id ? 'מבטל...' : 'ביטול'}
+                                </button>
+                              </div>
+                            ) : (
+                              '—'
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </>
+        )}
+
         {activeTab === 'גבייה' && (
           <>
             {/* Aging buckets */}
@@ -594,6 +898,58 @@ export default function InvoicesPage() {
       </div>
 
       <NewDocumentDialog open={isNewDocOpen} onClose={() => setIsNewDocOpen(false)} />
+
+      {editingRecurring ? (
+        <div className={styles.editAmountOverlay} onClick={() => setEditingRecurring(null)}>
+          <form
+            className={styles.editAmountModal}
+            dir="rtl"
+            onClick={(e) => e.stopPropagation()}
+            onSubmit={handleScheduleRecurringAmount}
+          >
+            <h3 className={styles.editAmountTitle}>עדכון סכום חודשי</h3>
+            <p className={styles.editAmountSubtitle}>
+              {editingRecurring.child_name} · הסכום הנוכחי {formatAmount(Number(editingRecurring.amount))}
+            </p>
+            <p className={styles.editAmountHint}>
+              השינוי יחול מהחודש הבא (מחזור החיוב הבא), לא מהחיוב הנוכחי.
+            </p>
+            <label className={styles.editAmountLabel} htmlFor="recurring-amount-edit">
+              סכום חודשי חדש (₪)
+            </label>
+            <input
+              id="recurring-amount-edit"
+              type="number"
+              min="0"
+              step="0.01"
+              className={styles.editAmountInput}
+              value={editAmountValue}
+              onChange={(e) => {
+                setEditAmountValue(e.target.value);
+                setEditAmountError('');
+              }}
+              required
+            />
+            {editAmountError ? <p className={styles.editAmountError}>{editAmountError}</p> : null}
+            <div className={styles.editAmountActions}>
+              <button
+                type="button"
+                className={styles.editAmountCancelBtn}
+                onClick={() => setEditingRecurring(null)}
+              >
+                ביטול
+              </button>
+              <button
+                type="submit"
+                className={styles.editAmountSaveBtn}
+                disabled={recurringActionId === editingRecurring.id}
+              >
+                {recurringActionId === editingRecurring.id ? 'שומר...' : 'שמור לחודש הבא'}
+              </button>
+            </div>
+          </form>
+        </div>
+      ) : null}
     </AppLayout>
   );
 }

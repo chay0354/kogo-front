@@ -59,6 +59,28 @@ export function getPaymentStatusClass(status: string): string {
   return classes[status] ?? '';
 }
 
+export function getRecurringStatusLabel(status: string): string {
+  const labels: Record<string, string> = {
+    active: 'פעיל',
+    paused: 'מושהה',
+    cancelled: 'מבוטל',
+    expired: 'פג תוקף',
+    failed: 'נכשל',
+  };
+  return labels[status] ?? status;
+}
+
+export function getRecurringStatusClass(status: string): string {
+  const classes: Record<string, string> = {
+    active: styles.statusCompleted,
+    paused: styles.statusPending,
+    cancelled: styles.statusRefunded,
+    expired: styles.statusFailed,
+    failed: styles.statusFailed,
+  };
+  return classes[status] ?? '';
+}
+
 export function formatAmount(n: number | undefined | null): string {
   return `₪${(n ?? 0).toLocaleString('he-IL')}`;
 }

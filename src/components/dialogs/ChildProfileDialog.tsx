@@ -139,15 +139,15 @@ export default function ChildProfileDialog({
   };
   
   const handleUpdateRecurring = async (recurringId: string) => {
-    const newAmount = prompt('הזן סכום חדש למנוי:');
+    const newAmount = prompt('הזן סכום חדש למנוי (יחול מהחודש הבא):');
     if (!newAmount) return;
     
     setActionLoading(recurringId);
     try {
-      await api.patch(`/customers/recurring-payments/${recurringId}/`, {
-        amount: parseFloat(newAmount)
+      await api.post(`/customers/recurring-payments/${recurringId}/schedule-amount/`, {
+        amount: parseFloat(newAmount),
       });
-      alert('המנוי עודכן בהצלחה');
+      alert('הסכום החדש נקבע לחודש הבא');
       fetchPaymentData();
     } catch (error) {
       console.error('Error updating recurring payment:', error);

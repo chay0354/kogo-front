@@ -82,6 +82,8 @@ export interface RecurringPayment {
   initial_payment_details: Payment | null;
   status: RecurringPaymentStatus;
   amount: number | string;
+  pending_amount?: number | string | null;
+  pending_amount_effective_date?: string | null;
   billing_day: number;
   start_date: string;
   end_date: string | null;

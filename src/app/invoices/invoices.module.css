@@ -605,6 +605,141 @@
   color: #ef4444 !important;
 }
 
+.cancelRecurringBtn {
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: #dc2626;
+  background: transparent;
+  border: 1px solid #fecaca;
+  border-radius: calc(var(--radius) - 4px);
+  padding: 0.25rem 0.625rem;
+  cursor: pointer;
+  transition: background-color 150ms, color 150ms;
+}
+
+.cancelRecurringBtn:hover:not(:disabled) {
+  background: #fef2f2;
+}
+
+.cancelRecurringBtn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.recurringActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.375rem;
+}
+
+.editRecurringBtn {
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: hsl(var(--primary));
+  background: transparent;
+  border: 1px solid hsl(var(--border));
+  border-radius: calc(var(--radius) - 4px);
+  padding: 0.25rem 0.625rem;
+  cursor: pointer;
+  transition: background-color 150ms;
+}
+
+.editRecurringBtn:hover:not(:disabled) {
+  background: hsl(var(--secondary));
+}
+
+.pendingAmountNote {
+  margin-top: 0.125rem;
+  font-size: 0.75rem;
+  color: hsl(var(--muted-foreground));
+}
+
+.editAmountOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgb(0 0 0 / 0.45);
+  padding: 1rem;
+}
+
+.editAmountModal {
+  width: 100%;
+  max-width: 28rem;
+  background: hsl(var(--background));
+  border: 1px solid hsl(var(--border));
+  border-radius: calc(var(--radius));
+  padding: 1.25rem;
+  box-shadow: 0 10px 30px rgb(0 0 0 / 0.15);
+}
+
+.editAmountTitle {
+  margin: 0 0 0.375rem;
+  font-size: 1.125rem;
+  font-weight: 700;
+}
+
+.editAmountSubtitle,
+.editAmountHint {
+  margin: 0 0 0.75rem;
+  font-size: 0.875rem;
+  color: hsl(var(--muted-foreground));
+}
+
+.editAmountLabel {
+  display: block;
+  margin-bottom: 0.375rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.editAmountInput {
+  width: 100%;
+  border: 1px solid hsl(var(--border));
+  border-radius: calc(var(--radius) - 4px);
+  padding: 0.5rem 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.editAmountError {
+  margin: 0 0 0.75rem;
+  font-size: 0.875rem;
+  color: #dc2626;
+}
+
+.editAmountActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
+.editAmountCancelBtn,
+.editAmountSaveBtn {
+  border-radius: calc(var(--radius) - 4px);
+  padding: 0.5rem 0.875rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.editAmountCancelBtn {
+  border: 1px solid hsl(var(--border));
+  background: transparent;
+}
+
+.editAmountSaveBtn {
+  border: none;
+  background: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
+}
+
+.editAmountSaveBtn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 /* Mobile */
 @media (max-width: 767px) {
   .filterBar {
