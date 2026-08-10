@@ -34,6 +34,7 @@ const EMPTY_FORM: ProductFormData = {
   min_stock_alert: 3,
   image_url: '',
   notes: '',
+  branch_only: false,
   size_stocks: []
 };
 
@@ -162,6 +163,7 @@ export default function AddProductDialog({ isOpen, onClose, onSuccess }: AddProd
       min_stock_alert: Math.max(0, Math.floor(Number(formData.min_stock_alert) || 0)),
       image_url: formData.image_url ?? '',
       notes: formData.notes ?? '',
+      branch_only: Boolean(formData.branch_only),
       size_stocks: cleanedSizeRows
     };
 
@@ -222,6 +224,15 @@ export default function AddProductDialog({ isOpen, onClose, onSuccess }: AddProd
               placeholder="כללי"
             />
           </div>
+
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={Boolean(formData.branch_only)}
+              onChange={(e) => setFormData({ ...formData, branch_only: e.target.checked })}
+            />
+            לסניפים בלבד (לא לרכישה באתר — מסונכרן לחנות B2C)
+          </label>
 
           {/* Sizes + per-size stock */}
           <div className="border rounded-lg p-4 space-y-3 bg-gray-50">

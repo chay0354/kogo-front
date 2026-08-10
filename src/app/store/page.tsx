@@ -8,7 +8,7 @@ import AppLayout from '@/components/AppLayout';
 import PageFilters from '@/components/PageFilters';
 import { useAuth } from '@/components/AuthProvider';
 import { Card, CardContent, CardHeader, CardTitle, Button, Input, Select, Badge, Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui';
-import { fetchProducts } from '@/lib/storeApi';
+import { fetchProducts, syncWebsiteProducts } from '@/lib/storeApi';
 import { getProductStockLocationLabels } from '@/lib/storeProductDisplay';
 import api from '@/lib/api';
 import { filterBranchesForUser, unwrapApiList } from '@/lib/scopedFilters';
@@ -20,6 +20,7 @@ import AdjustStockDialog from '@/components/store/AdjustStockDialog';
 import TransferStockDialog from '@/components/store/TransferStockDialog';
 import AddToCartDialog from '@/components/store/AddToCartDialog';
 import CartCheckoutDialog from '@/components/store/CartCheckoutDialog';
+import { toast } from 'sonner';
 
 function productMatchesCity(product: StoreProduct, cityId: string, branches: Branch[]): boolean {
   if (cityId === 'all') return true;
@@ -44,6 +45,7 @@ export default function StorePage() {
   const [products, setProducts] = useState<StoreProduct[]>([]);
   const [branches, setBranches] = useState<Branch[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isSyncing, setIsSyncing] = useState(false);
 
   // Filter states
   const [searchQuery, setSearchQuery] = useState('');
@@ -93,28 +95,60 @@ export default function StorePage() {
   }
 
   useEffect(() => {
-    if (user) loadData();
+    if (!user) return;
+    loadData().then(() => backgroundSync());
   }, [user?.id]);
+
+  async function refreshProducts() {
+    const [productsData, branchesResponse] = await Promise.all([
+      fetchProducts(),
+      api.get('/core/branches/'),
+    ]);
+    const products = (productsData as any)?.results || productsData;
+    const branches = branchesResponse.data?.results || branchesResponse.data;
+    setProducts(Array.isArray(products) ? products : []);
+    setBranches(
+      filterBranchesForUser(unwrapApiList<Branch>(branches), user),
+    );
+  }
+
+  async function backgroundSync() {
+    setIsSyncing(true);
+    try {
+      const result = await syncWebsiteProducts();
+      await refreshProducts();
+      if (result.created > 0 || result.updated > 0) {
+        toast.success(`סנכרון מהאתר: ${result.created} חדשים, ${result.updated} עודכנו`);
+      }
+    } catch (error) {
+      console.warn('Background website sync failed:', error);
+    } finally {
+      setIsSyncing(false);
+    }
+  }
+
+  async function syncFromWebsite() {
+    setIsSyncing(true);
+    try {
+      const result = await syncWebsiteProducts();
+      if (result.errors?.length) {
+        toast.warning(`סנכרון חלקי: ${result.created} חדשים, ${result.updated} עודכנו`);
+      } else {
+        toast.success(`סנכרון מהאתר: ${result.created} חדשים, ${result.updated} עודכנו (${result.total_crm} במערכת)`);
+      }
+      await refreshProducts();
+    } catch (error) {
+      console.error('Website sync failed:', error);
+      toast.error('סנכרון מהאתר נכשל — ודאו שהאתר רץ על פורט 3001');
+    } finally {
+      setIsSyncing(false);
+    }
+  }
 
   async function loadData() {
     setIsLoading(true);
     try {
-      const [productsData, branchesResponse] = await Promise.all([
-        fetchProducts(),
-        api.get('/core/branches/')
-      ]);
-      
-      // Handle paginated responses
-      const products = (productsData as any)?.results || productsData;
-      const branches = branchesResponse.data?.results || branchesResponse.data;
-      
-      setProducts(Array.isArray(products) ? products : []);
-      setBranches(
-        filterBranchesForUser(
-          unwrapApiList<Branch>(branches),
-          user,
-        ),
-      );
+      await refreshProducts();
     } catch (error) {
       console.error('Error loading data:', error);
       setProducts([]);
@@ -219,9 +253,13 @@ export default function StorePage() {
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-bold">חנות</h1>
-          <p className="text-gray-600">ניהול מוצרים ומכירות</p>
+          <p className="text-gray-600">ניהול מוצרים ומכירות — מסונכרן עם חנות האתר (B2C)</p>
         </div>
         <div className="flex gap-3">
+          <Button variant="outline" onClick={syncFromWebsite} disabled={isSyncing}>
+            <RefreshCw className={`ml-2 h-4 w-4 ${isSyncing ? 'animate-spin' : ''}`} />
+            {isSyncing ? 'מסנכרן…' : 'סנכרון מהאתר'}
+          </Button>
           <Link href="/store/dashboard">
             <Button variant="outline">
               <TrendingUp className="ml-2 h-4 w-4" />
@@ -449,7 +487,15 @@ export default function StorePage() {
                   <TableCell>
                     <div>
                       <div className="font-medium">{product.name}</div>
-                      <Badge className="mt-1">{product.category}</Badge>
+                      <div className="flex flex-wrap gap-1 mt-1">
+                        <Badge>{product.category}</Badge>
+                        {product.branch_only && (
+                          <Badge variant="secondary">לסניפים בלבד</Badge>
+                        )}
+                        {product.website_legacy_id != null && (
+                          <Badge variant="outline">באתר #{product.website_legacy_id}</Badge>
+                        )}
+                      </div>
                     </div>
                   </TableCell>
                   <TableCell>{product.size || '-'}</TableCell>

@@ -65,6 +65,19 @@ export async function transferStock(id: string, transfer: TransferStockData): Pr
   return data;
 }
 
+/** Pull catalog from B2C website — creates/links CRM products to match the online shop. */
+export async function syncWebsiteProducts(): Promise<{
+  ok: boolean;
+  created: number;
+  updated: number;
+  pushed: number;
+  total_crm: number;
+  errors: string[];
+}> {
+  const { data } = await api.post('/store/products/sync-website/', {}, { timeout: 120_000 });
+  return data;
+}
+
 // ============================
 // Invoices API
 // ============================

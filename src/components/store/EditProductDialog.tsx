@@ -87,7 +87,8 @@ export default function EditProductDialog({ isOpen, onClose, product, onSuccess 
         stock_quantity: product.stock_quantity,
         min_stock_alert: product.min_stock_alert,
         image_url: product.image_url || '',
-        notes: product.notes || ''
+        notes: product.notes || '',
+        branch_only: product.branch_only ?? false,
       });
       setSizeRows(deriveSizeRows(product));
       fetchBranches();
@@ -211,6 +212,7 @@ export default function EditProductDialog({ isOpen, onClose, product, onSuccess 
       min_stock_alert: Math.max(0, Math.floor(Number(formData.min_stock_alert) || 0)),
       image_url: formData.image_url ?? '',
       notes: formData.notes ?? '',
+      branch_only: Boolean(formData.branch_only),
       size_stocks: cleanedSizeRows,
     };
 
@@ -226,7 +228,11 @@ export default function EditProductDialog({ isOpen, onClose, product, onSuccess 
       const detail =
         (typeof d === 'string' && d) ||
         d?.error ||
-        (d && typeof d === 'object' ? JSON.stringify(d) : null) ||
+        (d && typeof d === 'object'
+          ? Object.entries(d)
+              .map(([k, v]) => `${k}: ${Array.isArray(v) ? v.join(', ') : String(v)}`)
+              .join('\n')
+          : null) ||
         error?.message ||
         'שגיאה לא ידועה';
       toast.error(`שגיאה בעדכון המוצר:\n${detail}`);
@@ -260,6 +266,15 @@ export default function EditProductDialog({ isOpen, onClose, product, onSuccess 
               onChange={(e) => setFormData({ ...formData, category: e.target.value })}
             />
           </div>
+
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={Boolean(formData.branch_only)}
+              onChange={(e) => setFormData({ ...formData, branch_only: e.target.checked })}
+            />
+            לסניפים בלבד (לא לרכישה באתר — מסונכרן לחנות B2C)
+          </label>
 
           <div className="grid grid-cols-2 gap-4">
             <div>

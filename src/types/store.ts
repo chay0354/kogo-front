@@ -29,6 +29,9 @@ export interface StoreProduct {
   notes: string;
   is_active: boolean;
   profit_margin: number;
+  /** B2C website product id when linked to cogomelo.co.il shop */
+  website_legacy_id?: number | null;
+  branch_only?: boolean;
   size_stocks?: ProductSizeStock[];
   created_at: string;
   updated_at: string;
@@ -138,6 +141,7 @@ export interface ProductFormData {
   min_stock_alert: number;
   image_url: string;
   notes: string;
+  branch_only?: boolean;
   size_stocks?: ProductSizeStock[];
 }
 
