@@ -93,7 +93,7 @@ export default function EditProductDialog({ isOpen, onClose, product, onSuccess 
       setSizeRows(deriveSizeRows(product));
       fetchBranches();
     }
-  }, [product, isOpen]);
+  }, [product?.id, isOpen]);
 
   useEffect(() => {
     if (!isOpen || !product || branches.length === 0) return;
