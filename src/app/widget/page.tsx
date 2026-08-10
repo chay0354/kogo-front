@@ -15,6 +15,12 @@ import styles from './page.module.css';
 
 type PanelPos = { top: number; left: number; width: number };
 
+/** Render modals on document.body so fixed positioning is not affected by page scroll. */
+function WidgetPortal({ children }: { children: React.ReactNode }) {
+  if (typeof document === 'undefined') return null;
+  return ReactDOM.createPortal(children, document.body);
+}
+
 const normalizeExternalLink = (link: string) => (/^https?:\/\//i.test(link) ? link : `https://${link}`);
 
 function FilterSelect({ value, onChange, disabled, loading, placeholder, selectedLabel, children, active }: { value: string; onChange: (v: string) => void; disabled?: boolean; loading?: boolean; placeholder: string; selectedLabel?: string; children: React.ReactNode; active?: boolean }) {
@@ -201,6 +207,19 @@ export default function WidgetPage() {
     );
   }, [detailCourse, drawerCourse]);
 
+  useEffect(() => {
+    if (!detailCourse && !drawerCourse) return;
+    const { body, documentElement } = document;
+    const prevBodyOverflow = body.style.overflow;
+    const prevHtmlOverflow = documentElement.style.overflow;
+    body.style.overflow = 'hidden';
+    documentElement.style.overflow = 'hidden';
+    return () => {
+      body.style.overflow = prevBodyOverflow;
+      documentElement.style.overflow = prevHtmlOverflow;
+    };
+  }, [detailCourse, drawerCourse]);
+
   const handleEnrollClick = (isTrial = false, bundleOverride?: CourseBundle | null) => {
     const branch = allBranches.find((b) => b.id === selectedBranch);
     const externalLink = detailCourse?.external_link || branch?.external_link;
@@ -277,9 +296,9 @@ export default function WidgetPage() {
         </>
       )}
 
-      {/* Course detail overlay */}
+      {/* Course detail overlay — portaled so mobile fixed layout stays viewport-aligned */}
       {detailCourse && (
-        <>
+        <WidgetPortal>
           <div className={styles.detailOverlay} onClick={() => { setDetailCourse(null); setDetailBundle(null); setDetailLesson(null); }} />
           <div className={styles.detailPanel}>
             <CourseExpandedDetail
@@ -292,12 +311,12 @@ export default function WidgetPage() {
               onTrialEnroll={handleTrialEnrollClick}
             />
           </div>
-        </>
+        </WidgetPortal>
       )}
 
       {/* Enrollment side drawer */}
       {drawerCourse && (
-        <>
+        <WidgetPortal>
           <div className={styles.drawerOverlay} onClick={() => { setDrawerCourse(null); setDrawerIsTrial(false); }} />
           <div className={styles.drawerPanel}>
             {allBranches.find((b) => b.id === selectedBranch)?.is_external ? (
@@ -333,7 +352,7 @@ export default function WidgetPage() {
               />
             )}
           </div>
-        </>
+        </WidgetPortal>
       )}
     </div>
   );
