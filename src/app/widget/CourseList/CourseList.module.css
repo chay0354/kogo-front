@@ -2,9 +2,11 @@
   display: flex;
   flex-direction: column;
   gap: 10px;
+  width: 100%;
   max-width: 100%;
   min-width: 0;
   overflow-x: clip;
+  box-sizing: border-box;
 }
 
 .row {
@@ -18,9 +20,11 @@
   background-color: #ffffff;
   box-shadow: 1px 3px 3px rgba(0, 0, 0, 0.07);
   padding: 0;
+  width: 100%;
   max-width: 100%;
   min-width: 0;
   overflow: hidden;
+  box-sizing: border-box;
 }
 
 .row:hover {
@@ -50,6 +54,7 @@
   background-color: #e5e7eb;
   margin-top: auto;
   margin-bottom: auto;
+  flex-shrink: 0;
 }
 
 .bullet {
@@ -77,6 +82,10 @@
   font-weight: 500;
   color: #6b7280;
   white-space: nowrap;
+  flex-shrink: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .bundleBadge {
@@ -88,6 +97,9 @@
   border-radius: 999px;
   white-space: nowrap;
   flex-shrink: 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* Left zone — day/time + button (40%) */
@@ -103,11 +115,13 @@
 
 .lessonSlot {
   flex: 1;
+  min-width: 0;
   text-align: center;
 }
 
 .lessonSlotStack {
   flex: 1;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -159,7 +173,7 @@
   background-color: #e5e7eb;
 }
 
-/* Mobile — stack name and schedule; long titles must wrap inside the card */
+/* Mobile — stacked card; keep everything inside the iframe width */
 @media (max-width: 767px) {
   .row {
     flex-direction: column;
@@ -169,14 +183,20 @@
   .nameZone {
     flex: none;
     width: 100%;
-    flex-wrap: wrap;
-    align-items: flex-start;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 4px;
     padding: 10px 12px;
     border-bottom: 1px solid #e5e7eb;
   }
 
+  .bullet {
+    display: none;
+  }
+
   .courseName {
-    flex: 1 1 100%;
+    flex: none;
+    width: 100%;
     white-space: normal;
     overflow: visible;
     text-overflow: unset;
@@ -186,8 +206,11 @@
 
   .courseType {
     white-space: normal;
-    flex: 1 1 auto;
-    min-width: 0;
+    align-self: flex-start;
+  }
+
+  .bundleBadge {
+    align-self: flex-start;
   }
 
   .divider {
@@ -197,10 +220,22 @@
   .slotZone {
     flex: none;
     width: 100%;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 10px;
     padding: 8px 12px 10px;
   }
 
+  .lessonSlot,
   .lessonSlotStack {
+    grid-column: 1;
     min-width: 0;
+    text-align: right;
+  }
+
+  .expandBtn {
+    grid-column: 2;
+    grid-row: 1;
   }
 }

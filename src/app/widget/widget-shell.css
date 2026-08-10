@@ -1,0 +1,17 @@
+/*
+ * Embed shell — the widget runs inside a cross-origin iframe on mobile.
+ * RTL + horizontal overflow leaves a blank strip on one side; clip it here.
+ */
+html,
+body {
+  width: 100%;
+  max-width: 100%;
+  margin: 0;
+  padding: 0;
+  overflow-x: clip;
+  overscroll-behavior-x: none;
+}
+
+body {
+  min-height: 100%;
+}
