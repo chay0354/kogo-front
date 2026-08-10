@@ -59,6 +59,9 @@ export interface Payment {
   family: string;
   family_name: string;
   branch: string | null;
+  branch_name?: string | null;
+  lesson?: string | null;
+  lesson_name?: string | null;
   payment_type: PaymentType;
   status: PaymentStatus;
   base_amount: number;
