@@ -30,4 +30,7 @@ export const BUSINESS_TYPE_OPTIONS = [
   'חוגים',
   'מותג קוגומלו',
   'מותג געגע',
+  'סניפים',
 ] as const;
+
+export const BRANCHES_CATEGORY = 'סניפים';

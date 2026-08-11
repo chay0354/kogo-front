@@ -21,15 +21,22 @@ import {
   X,
 } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
-import api, { createBusinessCustomer, fetchBranchesList, searchBusinessCustomers } from '@/lib/api';
+import api, { createBusinessCustomer, searchBusinessCustomers } from '@/lib/api';
 import { createDocument, fetchDocuments } from '@/lib/documentsApi';
 import type { CreateDocumentPayload } from '@/types/document';
 import { Select } from '@/components/ui/select';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import type { ChildWithDetails } from '@/types/customer';
+import { useScopedBranches } from '@/hooks/useScopedBranches';
 import styles from './index.module.css';
-import { BUSINESS_TYPE_OPTIONS, CLIENT_TYPE_OPTIONS, DOCUMENT_TYPE_OPTIONS } from './constants';
-import { canAdvanceFromStep, getNextButtonLabel, getStepStatus } from './utils';
+import BusinessCategoryOptions from './BusinessCategoryOptions';
+import { CLIENT_TYPE_OPTIONS, DOCUMENT_TYPE_OPTIONS } from './constants';
+import {
+  businessFormFromCustomer,
+  canAdvanceFromStep,
+  getNextButtonLabel,
+  getStepStatus,
+} from './utils';
 import { useNewDocumentWizard } from './useNewDocumentWizard';
 import type {
   BusinessCustomer,
@@ -113,12 +120,7 @@ export default function NewDocumentDialog({ open, onClose }: NewDocumentDialogPr
     enabled: open && clientType === 'existing',
   });
 
-  const { data: branchesData } = useQuery({
-    queryKey: ['branches-list'],
-    queryFn: fetchBranchesList,
-    staleTime: 10 * 60 * 1000,
-    enabled: open,
-  });
+  const { branches, isLoading: branchesLoading } = useScopedBranches();
 
   const customers: ChildWithDetails[] = useMemo(
     () => (Array.isArray(childrenData) ? childrenData : []),
@@ -372,22 +374,13 @@ export default function NewDocumentDialog({ open, onClose }: NewDocumentDialogPr
           {currentStep === 'businessClientDetails' && (
             <BusinessClientStep
               formData={businessFormData}
+              branches={branches}
+              branchesLoading={branchesLoading}
               selectedBusinessCustomerId={businessCustomerId}
               onFormChange={setBusinessFormData}
               onSelectExisting={(customer) => {
                 setBusinessCustomerId(customer.id);
-                setBusinessFormData({
-                  first_name: customer.first_name,
-                  last_name: customer.last_name,
-                  email: customer.email,
-                  phone: customer.phone,
-                  id_number: customer.id_number || customer.company_number,
-                  company_number: customer.company_number,
-                  address: customer.address ?? '',
-                  business_type: customer.business_type,
-                  category: customer.category,
-                  notes: customer.notes,
-                });
+                setBusinessFormData(businessFormFromCustomer(customer));
               }}
               onClearSelection={() => {
                 setBusinessCustomerId(null);
@@ -418,7 +411,7 @@ export default function NewDocumentDialog({ open, onClose }: NewDocumentDialogPr
           )}
           {currentStep === 'selectBranch' && (
             <SelectBranchStep
-              branches={Array.isArray(branchesData) ? branchesData : []}
+              branches={branches}
               selectedBranchId={selectedBranchId}
               onSelect={setSelectedBranchId}
             />
@@ -577,6 +570,8 @@ function ClientTypeStep({ clientType, onSelect }: ClientTypeStepProps) {
 
 interface BusinessClientStepProps {
   formData: BusinessCustomerFormData;
+  branches: { id: string; name: string }[];
+  branchesLoading: boolean;
   selectedBusinessCustomerId: string | null;
   onFormChange: (data: BusinessCustomerFormData) => void;
   onSelectExisting: (customer: BusinessCustomer) => void;
@@ -585,6 +580,8 @@ interface BusinessClientStepProps {
 
 function BusinessClientStep({
   formData,
+  branches,
+  branchesLoading,
   selectedBusinessCustomerId,
   onFormChange,
   onSelectExisting,
@@ -850,13 +847,10 @@ function BusinessClientStep({
             className={styles.formSelect}
             value={formData.business_type}
             onChange={(e) => updateField('business_type', e.target.value)}
+            disabled={branchesLoading}
           >
             <option value="">בחר סוג עסק</option>
-            {BUSINESS_TYPE_OPTIONS.map((opt) => (
-              <option key={opt} value={opt}>
-                {opt}
-              </option>
-            ))}
+            <BusinessCategoryOptions branches={branches} />
           </Select>
         </div>
 
@@ -869,13 +863,10 @@ function BusinessClientStep({
             className={styles.formSelect}
             value={formData.category}
             onChange={(e) => updateField('category', e.target.value)}
+            disabled={branchesLoading}
           >
             <option value="">בחר קטגוריה</option>
-            {BUSINESS_TYPE_OPTIONS.map((opt) => (
-              <option key={opt} value={opt}>
-                {opt}
-              </option>
-            ))}
+            <BusinessCategoryOptions branches={branches} />
           </Select>
         </div>
 

@@ -11,6 +11,7 @@ import type {
 } from '@/types/discount';
 import type { BusinessCustomer, BusinessCustomerFormData } from '@/components/dialogs/NewDocumentDialog/types';
 import { dedupeCitiesByName } from '@/lib/cityUtils';
+import { unwrapApiList } from '@/lib/scopedFilters';
 import type { City } from '@/types/branch';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1';
@@ -281,7 +282,7 @@ export const refreshCurrentMonthSnapshots = async () => {
  */
 export const fetchBranchesList = async () => {
   const response = await api.get('/core/branches/', { params: { simple: 'true' } });
-  return response.data;
+  return unwrapApiList(response.data);
 };
 
 /**

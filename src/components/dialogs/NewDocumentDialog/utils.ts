@@ -8,6 +8,33 @@ import type {
   WizardStepId,
 } from './types';
 
+/** Restore form state when picking an existing business customer. */
+export function businessFormFromCustomer(customer: {
+  first_name: string;
+  last_name: string;
+  email: string;
+  phone: string;
+  id_number: string;
+  company_number: string;
+  address?: string;
+  business_type: string;
+  category: string;
+  notes: string;
+}): BusinessCustomerFormData {
+  return {
+    first_name: customer.first_name,
+    last_name: customer.last_name,
+    email: customer.email,
+    phone: customer.phone,
+    id_number: customer.id_number || customer.company_number,
+    company_number: customer.company_number,
+    address: customer.address ?? '',
+    business_type: customer.business_type,
+    category: customer.category,
+    notes: customer.notes,
+  };
+}
+
 export function generateDocumentNumber(): string {
   const year = new Date().getFullYear();
   const seq = String(Math.floor(Math.random() * 9000) + 1000);

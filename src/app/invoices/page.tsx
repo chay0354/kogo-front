@@ -540,6 +540,7 @@ export default function InvoicesPage() {
                 <option value="חוגים">חוגים</option>
                 <option value="מותג קוגומלו">מותג קוגומלו</option>
                 <option value="מותג געגע">מותג געגע</option>
+                <option value="סניפים">סניפים</option>
               </select>
               {paymentBranchFilter && (
                 <select
