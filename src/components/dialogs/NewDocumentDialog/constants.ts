@@ -39,4 +39,7 @@ export const BUSINESS_TYPE_OPTIONS = [
   'סניפים',
 ] as const;
 
+/** קטגוריה — סוגים כלליים; בחירת סניף ספציפי בשדה נפרד. */
+export const BUSINESS_CATEGORY_OPTIONS = [...BUSINESS_TYPE_OPTIONS] as const;
+
 export const BRANCHES_CATEGORY = 'סניפים';

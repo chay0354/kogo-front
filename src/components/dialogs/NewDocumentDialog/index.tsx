@@ -29,8 +29,7 @@ import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import type { ChildWithDetails } from '@/types/customer';
 import { useScopedBranches } from '@/hooks/useScopedBranches';
 import styles from './index.module.css';
-import BusinessCategoryOptions from './BusinessCategoryOptions';
-import { BUSINESS_AFFILIATION_OPTIONS, CLIENT_TYPE_OPTIONS, DOCUMENT_TYPE_OPTIONS } from './constants';
+import { BUSINESS_AFFILIATION_OPTIONS, BUSINESS_CATEGORY_OPTIONS, CLIENT_TYPE_OPTIONS, DOCUMENT_TYPE_OPTIONS } from './constants';
 import {
   businessFormFromCustomer,
   canAdvanceFromStep,
@@ -394,6 +393,7 @@ export default function NewDocumentDialog({ open, onClose }: NewDocumentDialogPr
                   address: '',
                   business_type: '',
                   category: '',
+                  branch_id: null,
                   notes: '',
                 });
               }}
@@ -649,9 +649,14 @@ function BusinessClientStep({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  function updateField(field: keyof BusinessCustomerFormData, value: string) {
+  function updateField(field: keyof BusinessCustomerFormData, value: string | null) {
     onFormChange({ ...formData, [field]: value });
   }
+
+  const sortedBranches = useMemo(
+    () => [...branches].sort((a, b) => a.name.localeCompare(b.name, 'he')),
+    [branches],
+  );
 
   return (
     <div>
@@ -858,6 +863,26 @@ function BusinessClientStep({
         </div>
 
         <div className={styles.formRow}>
+          <label htmlFor="biz-branch-affiliation" className={styles.fieldLabel}>
+            שיוך לסניף
+          </label>
+          <Select
+            id="biz-branch-affiliation"
+            className={styles.formSelect}
+            value={formData.branch_id ?? ''}
+            onChange={(e) => updateField('branch_id', e.target.value || null)}
+            disabled={branchesLoading}
+          >
+            <option value="">בחר סניף</option>
+            {sortedBranches.map((branch) => (
+              <option key={branch.id} value={branch.id}>
+                {branch.name}
+              </option>
+            ))}
+          </Select>
+        </div>
+
+        <div className={styles.formRow}>
           <label htmlFor="biz-category" className={styles.fieldLabel}>
             קטגוריה
           </label>
@@ -866,10 +891,13 @@ function BusinessClientStep({
             className={styles.formSelect}
             value={formData.category}
             onChange={(e) => updateField('category', e.target.value)}
-            disabled={branchesLoading}
           >
             <option value="">בחר קטגוריה</option>
-            <BusinessCategoryOptions branches={branches} />
+            {BUSINESS_CATEGORY_OPTIONS.map((opt) => (
+              <option key={opt} value={opt}>
+                {opt}
+              </option>
+            ))}
           </Select>
         </div>
 

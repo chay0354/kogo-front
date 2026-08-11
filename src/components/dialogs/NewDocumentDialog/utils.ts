@@ -19,6 +19,7 @@ export function businessFormFromCustomer(customer: {
   address?: string;
   business_type: string;
   category: string;
+  branch_id?: string | null;
   notes: string;
 }): BusinessCustomerFormData {
   return {
@@ -29,10 +30,11 @@ export function businessFormFromCustomer(customer: {
     id_number: customer.id_number || customer.company_number,
     company_number: customer.company_number,
     address: customer.address ?? '',
-    business_type: customer.business_type,
-    category: customer.category,
-    notes: customer.notes,
-  };
+  business_type: customer.business_type,
+  category: customer.category,
+  branch_id: customer.branch_id ?? null,
+  notes: customer.notes,
+};
 }
 
 export function generateDocumentNumber(): string {
