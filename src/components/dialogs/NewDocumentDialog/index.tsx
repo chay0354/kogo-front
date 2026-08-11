@@ -30,7 +30,7 @@ import type { ChildWithDetails } from '@/types/customer';
 import { useScopedBranches } from '@/hooks/useScopedBranches';
 import styles from './index.module.css';
 import BusinessCategoryOptions from './BusinessCategoryOptions';
-import { CLIENT_TYPE_OPTIONS, DOCUMENT_TYPE_OPTIONS } from './constants';
+import { BUSINESS_AFFILIATION_OPTIONS, CLIENT_TYPE_OPTIONS, DOCUMENT_TYPE_OPTIONS } from './constants';
 import {
   businessFormFromCustomer,
   canAdvanceFromStep,
@@ -847,10 +847,13 @@ function BusinessClientStep({
             className={styles.formSelect}
             value={formData.business_type}
             onChange={(e) => updateField('business_type', e.target.value)}
-            disabled={branchesLoading}
           >
             <option value="">בחר סוג עסק</option>
-            <BusinessCategoryOptions branches={branches} />
+            {BUSINESS_AFFILIATION_OPTIONS.map((opt) => (
+              <option key={opt} value={opt}>
+                {opt}
+              </option>
+            ))}
           </Select>
         </div>
 

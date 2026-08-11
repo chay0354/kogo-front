@@ -23,13 +23,19 @@ export const DOCUMENT_TYPE_OPTIONS: DocumentTypeOption[] = [
   { type: 'חשבונית מס זיכוי', description: 'זיכוי על חשבונית' },
 ];
 
-export const BUSINESS_TYPE_OPTIONS = [
+/** שיוך לעסק — ללא סניפים (סניפים נבחרים רק בקטגוריה). */
+export const BUSINESS_AFFILIATION_OPTIONS = [
   'לקוחות',
   'סוחרים',
   'ספקים',
   'חוגים',
   'מותג קוגומלו',
   'מותג געגע',
+] as const;
+
+/** כל סוגי העסק/קטגוריה — כולל סניפים (לסינונים וכו'). */
+export const BUSINESS_TYPE_OPTIONS = [
+  ...BUSINESS_AFFILIATION_OPTIONS,
   'סניפים',
 ] as const;
 

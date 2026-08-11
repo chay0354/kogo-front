@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { BRANCHES_CATEGORY, BUSINESS_TYPE_OPTIONS } from './constants';
+import { BRANCHES_CATEGORY, BUSINESS_AFFILIATION_OPTIONS } from './constants';
 
 type BranchOption = { id: string; name: string };
 
@@ -10,10 +10,7 @@ export default function BusinessCategoryOptions({ branches }: { branches: Branch
     [branches],
   );
 
-  const flatOptions = useMemo(
-    () => BUSINESS_TYPE_OPTIONS.filter((opt) => opt !== BRANCHES_CATEGORY),
-    [],
-  );
+  const flatOptions = useMemo(() => [...BUSINESS_AFFILIATION_OPTIONS], []);
 
   return (
     <>
