@@ -2,11 +2,11 @@
 
 import { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { FileText, Search, DollarSign, Clock, TrendingUp, Wallet, AlertCircle, Plus, Bell, Repeat } from 'lucide-react';
+import { FileText, Search, DollarSign, Clock, TrendingUp, Wallet, AlertCircle, Plus, Bell, Repeat, Download } from 'lucide-react';
 import AppLayout from '@/components/AppLayout';
 import PageFilters from '@/components/PageFilters';
 import NewDocumentDialog from '@/components/dialogs/NewDocumentDialog';
-import { fetchInvoices } from '@/lib/storeApi';
+import { fetchInvoices, downloadStoreInvoicePdf } from '@/lib/storeApi';
 import { sendDocumentReminder } from '@/lib/documentsApi';
 import api from '@/lib/api';
 import { useAuth } from '@/components/AuthProvider';
@@ -41,6 +41,7 @@ export default function InvoicesPage() {
   const [activeTab, setActiveTab] = useState<ActiveTab>('מסמכים');
   const [isNewDocOpen, setIsNewDocOpen] = useState(false);
   const [reminderStatus, setReminderStatus] = useState<Record<string, 'sending' | 'sent' | 'error'>>({});
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
   const [primaryFilter, setPrimaryFilter] = useState('');
   const [secondaryFilter, setSecondaryFilter] = useState('');
 
@@ -453,6 +454,7 @@ export default function InvoicesPage() {
                       <th scope="col">שולם עד כה</th>
                       <th scope="col">יתרה פתוחה</th>
                       <th scope="col">סטטוס</th>
+                      <th scope="col">פעולות</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -460,6 +462,7 @@ export default function InvoicesPage() {
                       const paidSoFar = inv.payment_status === 'completed' ? inv.total_amount : 0;
                       const openBalance = inv.payment_status !== 'completed' ? inv.total_amount : 0;
                       const customerDisplay = inv.child_name ?? inv.customer_name;
+                      const isDownloading = downloadingId === inv.id;
 
                       return (
                         <tr key={inv.id}>
@@ -479,6 +482,29 @@ export default function InvoicesPage() {
                             >
                               {getStatusLabel(inv.payment_status)}
                             </span>
+                          </td>
+                          <td>
+                            <div className={styles.collectionActions}>
+                              <button
+                                type="button"
+                                className={styles.reminderBtn}
+                                aria-label={`הורדת ${inv.invoice_number}`}
+                                title="הורד PDF"
+                                disabled={isDownloading}
+                                onClick={async () => {
+                                  setDownloadingId(inv.id);
+                                  try {
+                                    await downloadStoreInvoicePdf(inv.id, inv.invoice_number);
+                                  } catch {
+                                    alert('שגיאה בהורדת החשבונית');
+                                  } finally {
+                                    setDownloadingId(null);
+                                  }
+                                }}
+                              >
+                                <Download size={16} />
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       );

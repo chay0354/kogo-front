@@ -97,6 +97,20 @@ export async function fetchInvoice(id: string): Promise<StoreInvoice> {
   return data;
 }
 
+export async function downloadStoreInvoicePdf(id: string, invoiceNumber: string): Promise<void> {
+  const response = await api.get(`/store/invoices/${id}/download/`, {
+    responseType: 'blob',
+  });
+  const blobUrl = window.URL.createObjectURL(new Blob([response.data], { type: 'application/pdf' }));
+  const link = document.createElement('a');
+  link.href = blobUrl;
+  link.download = `${invoiceNumber}.pdf`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.URL.revokeObjectURL(blobUrl);
+}
+
 export async function createCashInvoice(
   items: CartItem[],
   childId: string,
