@@ -155,6 +155,8 @@ export default function SubscriptionPaymentDialog({
 
   const paymentData = paymentDataList[0] ?? null;
   const totalFinalAmount = paymentDataList.reduce((sum, p) => sum + Number(p.final_amount || 0), 0);
+  const totalRegistrationFee = paymentDataList.reduce((sum, p) => sum + Number(p.registration_fee || 0), 0);
+  const totalProratedAmount = paymentDataList.reduce((sum, p) => sum + Number(p.prorated_amount || 0), 0);
 
   if (!isOpen) return null;
 
@@ -244,6 +246,22 @@ export default function SubscriptionPaymentDialog({
                         חיוב יחסי ({paymentData.prorate_lessons_remaining} שיעורים מתוך {paymentData.total_lessons_this_month})
                       </span>
                       <span className="text-amber-600">×{Number(paymentData.prorate_factor).toFixed(2)}</span>
+                    </div>
+                  )}
+                  {(paymentDataList.length > 1 ? totalProratedAmount : Number(paymentData.prorated_amount || 0)) > 0 && (
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">מנוי חודשי (יחסי)</span>
+                      <span className="font-medium">
+                        ₪{(paymentDataList.length > 1 ? totalProratedAmount : Number(paymentData.prorated_amount || 0)).toFixed(2)}
+                      </span>
+                    </div>
+                  )}
+                  {(paymentDataList.length > 1 ? totalRegistrationFee : Number(paymentData.registration_fee || 0)) > 0 && (
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">דמי רישום (חד-פעמי)</span>
+                      <span className="font-medium">
+                        ₪{(paymentDataList.length > 1 ? totalRegistrationFee : Number(paymentData.registration_fee || 0)).toFixed(2)}
+                      </span>
                     </div>
                   )}
                   <div className="border-t border-blue-300 pt-2 flex justify-between font-bold text-base">

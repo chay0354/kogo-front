@@ -140,6 +140,8 @@ export interface PaymentInitiationResponse {
   course_index?: number;
   base_amount?: number;
   discount_amount?: number;
+  prorated_amount?: number;
+  registration_fee?: number;
   final_amount: number;
   prorate_factor?: number;
   prorate_lessons_remaining?: number;

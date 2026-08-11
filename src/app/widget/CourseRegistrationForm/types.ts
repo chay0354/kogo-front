@@ -52,5 +52,7 @@ export interface PaymentResponse {
   final_amount: number;
   base_amount: number;
   discount_amount: number;
+  prorated_amount?: number;
+  registration_fee?: number;
   discounts_applied: Array<{ name: string; amount: number }>;
 }

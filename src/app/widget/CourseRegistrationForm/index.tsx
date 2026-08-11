@@ -220,6 +220,8 @@ export default function CourseRegistrationForm({ courseId, courseName, isAdult =
           final_amount: res.data.final_amount,
           base_amount: res.data.base_amount,
           discount_amount: res.data.discount_amount,
+          prorated_amount: res.data.prorated_amount,
+          registration_fee: res.data.registration_fee,
           discounts_applied: res.data.payments.flatMap((p: { discounts_applied?: Array<{ name: string; amount: number }> }) => p.discounts_applied ?? []),
         });
       } else {
@@ -228,6 +230,8 @@ export default function CourseRegistrationForm({ courseId, courseName, isAdult =
           final_amount: res.data.final_amount,
           base_amount: res.data.base_amount,
           discount_amount: res.data.discount_amount,
+          prorated_amount: res.data.prorated_amount,
+          registration_fee: res.data.registration_fee,
           discounts_applied: res.data.discounts_applied ?? [],
         });
       }
@@ -543,6 +547,18 @@ export default function CourseRegistrationForm({ courseId, courseName, isAdult =
             <div className={styles.discountRow}>
               <span>הנחה</span>
               <span>-₪{Number(paymentData.discount_amount).toFixed(2)}</span>
+            </div>
+          )}
+          {(paymentData.prorated_amount ?? 0) > 0 && (
+            <div className={styles.summaryRow}>
+              <span>מנוי חודשי (יחסי)</span>
+              <span>₪{Number(paymentData.prorated_amount).toFixed(2)}</span>
+            </div>
+          )}
+          {(paymentData.registration_fee ?? 0) > 0 && (
+            <div className={styles.summaryRow}>
+              <span>דמי רישום (חד-פעמי)</span>
+              <span>₪{Number(paymentData.registration_fee).toFixed(2)}</span>
             </div>
           )}
           <div className={styles.totalRow}>
