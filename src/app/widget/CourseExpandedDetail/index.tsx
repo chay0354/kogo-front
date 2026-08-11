@@ -109,6 +109,7 @@ export default function CourseExpandedDetail({
           </p>
         ) : null}
         <p className={styles.priceNote}>מנוי שנתי עד חודש יולי. ניתן לבטל מנוי עד חודש אפריל</p>
+        <p className={styles.priceNote}>ברכישת מנוי חיוב ע&quot;ס 120 שקל עבור דמי רישום</p>
 
         {/* Buttons */}
         <button onClick={onEnroll} className={styles.enrollButton}>
