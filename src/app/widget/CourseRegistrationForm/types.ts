@@ -6,12 +6,21 @@ export interface CourseLesson {
   instructor_name: string | null;
 }
 
+export interface TrialLessonOption {
+  id: string;
+  day_of_week: number;
+  start_time: string;
+  end_time: string;
+}
+
 export interface Props {
   courseId: string;
   courseName: string;
   isAdult?: boolean;
   bundleId?: string;
   lessonId?: string;
+  /** When trial signup has no single lesson (e.g. twice-a-week bundle), pick one of these slots. */
+  trialLessonOptions?: TrialLessonOption[];
   isTrial?: boolean;
   trialLessonIsPaid?: boolean;
   trialLessonPrice?: number | null;
@@ -20,6 +29,7 @@ export interface Props {
 }
 
 export interface TrialOccurrence {
+  lesson_id?: string;
   date: string;
   label: string;
   day_name: string;

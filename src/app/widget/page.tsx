@@ -340,6 +340,7 @@ export default function WidgetPage() {
                 isAdult={drawerCourse.is_adult ?? false}
                 bundleId={drawerBundle?.id}
                 lessonId={drawerLesson?.id}
+                trialLessonOptions={drawerLesson ? [] : (drawerBundle?.lessons ?? [])}
                 isTrial={drawerIsTrial}
                 trialLessonIsPaid={drawerCourse.trial_lesson_is_paid ?? false}
                 trialLessonPrice={

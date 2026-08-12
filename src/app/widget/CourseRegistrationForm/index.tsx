@@ -8,7 +8,7 @@ import type { Props, Step, LookupResult, PaymentResponse, TrialOccurrence } from
 
 export type { CourseLesson } from './types';
 
-export default function CourseRegistrationForm({ courseId, courseName, isAdult = false, bundleId, lessonId, isTrial = false, trialLessonIsPaid = false, trialLessonPrice, onBack, onComplete }: Props) {
+export default function CourseRegistrationForm({ courseId, courseName, isAdult = false, bundleId, lessonId, trialLessonOptions = [], isTrial = false, trialLessonIsPaid = false, trialLessonPrice, onBack, onComplete }: Props) {
   const [step, setStep] = useState<Step>('details');
   const [errorMsg, setErrorMsg] = useState('');
 
@@ -47,27 +47,48 @@ export default function CourseRegistrationForm({ courseId, courseName, isAdult =
 
   const [trialOccurrences, setTrialOccurrences] = useState<TrialOccurrence[]>([]);
   const [trialLessonDate, setTrialLessonDate] = useState('');
+  const [selectedTrialLessonId, setSelectedTrialLessonId] = useState(lessonId ?? '');
   const [loadingTrialDates, setLoadingTrialDates] = useState(false);
 
+  const effectiveTrialLessonId = lessonId || selectedTrialLessonId;
+  const trialLessonIdsKey = lessonId ?? trialLessonOptions.map((option) => option.id).join(',');
+  const trialLessonIds = lessonId
+    ? [lessonId]
+    : trialLessonOptions.map((option) => option.id);
+
   useEffect(() => {
-    if (!isTrial || !lessonId) {
+    setSelectedTrialLessonId(lessonId ?? '');
+  }, [lessonId]);
+
+  useEffect(() => {
+    if (!isTrial || trialLessonIds.length === 0) {
       setTrialOccurrences([]);
       setTrialLessonDate('');
+      setSelectedTrialLessonId(lessonId ?? '');
       return;
     }
 
     setLoadingTrialDates(true);
-    api.get('/customers/widget/lesson-occurrences/', { params: { lesson_id: lessonId, count: 8 } })
+    setTrialLessonDate('');
+    setSelectedTrialLessonId(lessonId ?? '');
+
+    const params =
+      trialLessonIds.length === 1
+        ? { lesson_id: trialLessonIds[0], count: 3 }
+        : { lesson_ids: trialLessonIds.join(','), count: 3 };
+
+    api.get('/customers/widget/lesson-occurrences/', { params })
       .then((res) => {
         const dates = Array.isArray(res.data) ? res.data as TrialOccurrence[] : [];
         setTrialOccurrences(dates);
         if (dates.length === 1) {
           setTrialLessonDate(dates[0].date);
+          if (dates[0].lesson_id) setSelectedTrialLessonId(dates[0].lesson_id);
         }
       })
       .catch(() => setTrialOccurrences([]))
       .finally(() => setLoadingTrialDates(false));
-  }, [isTrial, lessonId]);
+  }, [isTrial, lessonId, trialLessonIdsKey, trialLessonOptions]);
 
   const handleCardCharge = async () => {
     if (!paymentData || !cardNumber || !expiryMonth || !expiryYear || !cvv) return;
@@ -109,7 +130,7 @@ export default function CourseRegistrationForm({ courseId, courseName, isAdult =
     setErrorMsg('');
 
     if (isTrial) {
-      if (!trialLessonDate) {
+      if (!trialLessonDate || !effectiveTrialLessonId) {
         setErrorMsg('יש לבחור תאריך לשיעור הניסיון');
         return;
       }
@@ -171,7 +192,7 @@ export default function CourseRegistrationForm({ courseId, courseName, isAdult =
           child_birth_date: childBirthDate,
           child_gender: childGender,
           course_id: courseId,
-          lesson_id: lessonId,
+          lesson_id: effectiveTrialLessonId,
           trial_lesson_date: trialLessonDate,
         });
         if (res.data.requires_payment) {
@@ -385,7 +406,7 @@ export default function CourseRegistrationForm({ courseId, courseName, isAdult =
               <span className={styles.sectionTitleText}>בחרו תאריך לשיעור הניסיון</span>
               <span className={styles.sectionTitleLine} />
             </div>
-            {!lessonId ? (
+            {trialLessonIds.length === 0 ? (
               <p className={styles.helperText}>לא נבחר שיעור — חזרו ובחרו מפגש מהרשימה.</p>
             ) : loadingTrialDates ? (
               <p className={styles.helperText}>טוען תאריכים זמינים...</p>
@@ -395,16 +416,17 @@ export default function CourseRegistrationForm({ courseId, courseName, isAdult =
               <div className={styles.trialDateList}>
                 {trialOccurrences.map((occ) => (
                   <label
-                    key={occ.date}
-                    className={`${styles.trialDateOption} ${trialLessonDate === occ.date ? styles.trialDateOptionSelected : ''}`}
+                    key={`${occ.lesson_id ?? 'lesson'}-${occ.date}`}
+                    className={`${styles.trialDateOption} ${trialLessonDate === occ.date && effectiveTrialLessonId === (occ.lesson_id ?? effectiveTrialLessonId) ? styles.trialDateOptionSelected : ''}`}
                   >
                     <input
                       type="radio"
                       name="trialLessonDate"
                       value={occ.date}
-                      checked={trialLessonDate === occ.date}
+                      checked={trialLessonDate === occ.date && effectiveTrialLessonId === (occ.lesson_id ?? effectiveTrialLessonId)}
                       onChange={() => {
                         setTrialLessonDate(occ.date);
+                        if (occ.lesson_id) setSelectedTrialLessonId(occ.lesson_id);
                         setErrorMsg('');
                       }}
                       className={styles.trialDateRadio}
