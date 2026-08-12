@@ -38,3 +38,13 @@ export async function me(): Promise<CurrentUser> {
   const res = await api.get('/core/auth/me/');
   return res.data.user as CurrentUser;
 }
+
+export async function requestPasswordReset(email: string): Promise<string> {
+  const res = await api.post('/core/auth/forgot-password/', { email });
+  return (res.data?.message as string) || 'אם כתובת האימייל קיימת במערכת, נשלח אליך קישור לאיפוס סיסמה.';
+}
+
+export async function resetPassword(uid: string, token: string, password: string): Promise<string> {
+  const res = await api.post('/core/auth/reset-password/', { uid, token, password });
+  return (res.data?.message as string) || 'הסיסמה עודכנה בהצלחה.';
+}

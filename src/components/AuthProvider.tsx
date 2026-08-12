@@ -20,6 +20,8 @@ const AuthContext = React.createContext<AuthContextValue | null>(null);
 const isPublicPath = (pathname: string | null) =>
   pathname === '/login' ||
   pathname === '/signin' ||
+  pathname === '/forgot-password' ||
+  pathname === '/reset-password' ||
   pathname?.startsWith('/widget') === true;
 
 function AuthProviderInner({ children }: { children: React.ReactNode }) {

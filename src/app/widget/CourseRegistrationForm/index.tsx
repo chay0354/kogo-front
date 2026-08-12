@@ -17,6 +17,7 @@ export default function CourseRegistrationForm({ courseId, courseName, isAdult =
   const [parentFirstName, setParentFirstName] = useState('');
   const [parentLastName, setParentLastName] = useState('');
   const [parentPhone, setParentPhone] = useState('');
+  const [parentEmail, setParentEmail] = useState('');
   const [childFirstName, setChildFirstName] = useState('');
   const [childLastName, setChildLastName] = useState('');
   const [childIdNumber, setChildIdNumber] = useState('');
@@ -163,6 +164,7 @@ export default function CourseRegistrationForm({ courseId, courseName, isAdult =
           parent_first_name: parentFirstName,
           parent_last_name: parentLastName,
           parent_phone: parentPhone,
+          parent_email: parentEmail,
           child_first_name: registerChildFirstName,
           child_last_name: registerChildLastName,
           child_id_number: registerChildIdNumber,
@@ -201,6 +203,7 @@ export default function CourseRegistrationForm({ courseId, courseName, isAdult =
         parent_first_name: parentFirstName,
         parent_last_name: parentLastName,
         parent_phone: parentPhone,
+        parent_email: parentEmail,
         child_first_name: registerChildFirstName,
         child_last_name: registerChildLastName,
         child_id_number: registerChildIdNumber,
@@ -298,6 +301,12 @@ export default function CourseRegistrationForm({ courseId, courseName, isAdult =
               <label className={styles.label}>טלפון נייד</label>
               <input required type="tel" value={parentPhone}
                 onChange={(e) => setParentPhone(e.target.value)} className={styles.input} />
+            </div>
+            <div className={styles.gridFull}>
+              <label className={styles.label}>דוא&quot;ל *</label>
+              <input required type="email" value={parentEmail}
+                onChange={(e) => setParentEmail(e.target.value)} className={styles.input}
+                autoComplete="email" dir="ltr" />
             </div>
             {selfRegistering && (
               <>
