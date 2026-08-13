@@ -7,11 +7,10 @@ import api from '@/lib/api';
 import CourseRegistrationForm from './CourseRegistrationForm';
 import CourseExpandedDetail from './CourseExpandedDetail/index';
 import { CourseList } from './CourseList/CourseList';
-import type { City, Branch, Course, CourseBundle, CourseLesson } from './types';
-import { sortCitiesByFixedOrder } from './page.utils';
+import type { Branch, Course, CourseBundle, CourseLesson } from './types';
+import { STATIC_CITIES } from './page.utils';
 import { isCourseVisibleInWidgetCatalog } from './lessonVisibility';
 import { AGE_OPTIONS, formatAge } from '@/lib/courseUtils';
-import { dedupeCitiesByName } from '@/lib/cityUtils';
 import { findWidgetAlternatives, isWidgetSelectionFull, type WidgetAlternative } from './alternativeLessons';
 import styles from './page.module.css';
 
@@ -125,7 +124,7 @@ function FilterSelect({ value, onChange, disabled, loading, placeholder, selecte
 }
 
 export default function WidgetPage() {
-  const [cities, setCities] = useState<City[]>([]);
+  const cities = STATIC_CITIES;
   const [allBranches, setAllBranches] = useState<Branch[]>([]);
   const [allCoursesMap, setAllCoursesMap] = useState<Record<string, Course[]>>({});
 
@@ -182,11 +181,9 @@ export default function WidgetPage() {
 
   useEffect(() => {
     setLoadingBranches(true);
-    Promise.all([api.get('/customers/widget/cities/'), api.get('/customers/widget/branches/')])
-      .then(([citiesRes, branchesRes]) => {
-        const citiesData = Array.isArray(citiesRes.data) ? citiesRes.data : citiesRes.data.results ?? [];
+    api.get('/customers/widget/branches/')
+      .then((branchesRes) => {
         const branchesData: Branch[] = Array.isArray(branchesRes.data) ? branchesRes.data : branchesRes.data.results ?? [];
-        setCities(sortCitiesByFixedOrder(dedupeCitiesByName(citiesData)));
         setAllBranches(branchesData);
         return Promise.all(
           branchesData.map((b) =>
@@ -306,7 +303,7 @@ export default function WidgetPage() {
           <span className={styles.filterStripLine} />
         </div>
           
-        <FilterSelect value={selectedCity} onChange={handleCityChange} loading={loadingBranches} placeholder="בחרו עיר" selectedLabel={cities.find((c) => c.id === selectedCity)?.name} active={activeField === 'city'}>
+        <FilterSelect value={selectedCity} onChange={handleCityChange} placeholder="בחרו עיר" selectedLabel={cities.find((c) => c.id === selectedCity)?.name} active={activeField === 'city'}>
           {cities.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
         </FilterSelect>
 
