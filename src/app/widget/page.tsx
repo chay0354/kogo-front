@@ -8,7 +8,7 @@ import CourseRegistrationForm from './CourseRegistrationForm';
 import CourseExpandedDetail from './CourseExpandedDetail/index';
 import { CourseList } from './CourseList/CourseList';
 import type { City, Branch, Course, CourseBundle, CourseLesson } from './types';
-import { sortCitiesByFixedOrder } from './page.utils';
+import { sortCitiesByFixedOrder, normalizeExternalLink } from './page.utils';
 import { isCourseVisibleInWidgetCatalog } from './lessonVisibility';
 import { AGE_OPTIONS, formatAge } from '@/lib/courseUtils';
 import { dedupeCitiesByName } from '@/lib/cityUtils';
