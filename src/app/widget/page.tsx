@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import ReactDOM from 'react-dom';
 import { ChevronDown, ChevronUp, Check } from 'lucide-react';
 import api from '@/lib/api';
@@ -18,15 +18,13 @@ type PanelPos = {
   left: number;
   width: number;
   maxHeight: number;
-  placement: 'below' | 'above' | 'sheet';
-  top?: number;
-  bottom?: number;
+  top: number;
 };
 
+const MOBILE_DROPDOWN_GAP = 6;
 const MOBILE_DROPDOWN_EDGE = 8;
 const MOBILE_OPTION_HEIGHT = 44;
-const MOBILE_MIN_PANEL_HEIGHT = 120;
-const MOBILE_SHEET_HEIGHT_RATIO = 0.62;
+const MOBILE_MAX_PANEL_HEIGHT = 240;
 
 function isMobileFilterUi() {
   return typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches;
@@ -36,66 +34,48 @@ function isWidgetEmbedded() {
   return typeof window !== 'undefined' && window.self !== window.top;
 }
 
-function notifyHostDropdown(open: boolean) {
-  if (!isWidgetEmbedded()) return;
-  window.parent.postMessage(
-    { type: open ? 'kogo-widget-dropdown-open' : 'kogo-widget-dropdown-close' },
-    '*',
-  );
+function panelHeightForOptions(optionCount: number) {
+  return Math.min(MOBILE_MAX_PANEL_HEIGHT, Math.max(optionCount, 1) * MOBILE_OPTION_HEIGHT + 8);
 }
 
-function getMobileViewport() {
-  const vv = window.visualViewport;
-  const docEl = document.documentElement;
-  const layoutHeight = docEl.clientHeight || window.innerHeight;
-  const layoutWidth = docEl.clientWidth || window.innerWidth;
-  const visualHeight = vv?.height ?? layoutHeight;
-  const visualWidth = vv?.width ?? layoutWidth;
-  // Inside an iframe on iOS, clamp to the document box so fixed sheets stay visible.
-  const height = Math.min(visualHeight, layoutHeight, window.innerHeight);
-  const width = Math.min(visualWidth, layoutWidth, window.innerWidth);
-  const top = vv?.offsetTop ?? 0;
+function computeMobilePanelPosition(rect: DOMRect, optionCount: number): PanelPos {
+  const viewportW = window.innerWidth;
+  const width = Math.min(rect.width, viewportW - MOBILE_DROPDOWN_EDGE * 2);
+  const left = Math.max(
+    MOBILE_DROPDOWN_EDGE,
+    Math.min(rect.left, viewportW - width - MOBILE_DROPDOWN_EDGE),
+  );
 
   return {
-    top,
-    left: vv?.offsetLeft ?? 0,
-    height,
+    left,
     width,
-    bottom: top + height,
+    maxHeight: panelHeightForOptions(optionCount),
+    top: rect.bottom + MOBILE_DROPDOWN_GAP,
   };
 }
 
-function computeMobilePanelPosition(_rect: DOMRect, optionCount: number): PanelPos {
-  const viewport = getMobileViewport();
-  const idealHeight = Math.min(320, Math.max(optionCount, 1) * MOBILE_OPTION_HEIGHT + 24);
-  const sheetCap = Math.floor(viewport.height * MOBILE_SHEET_HEIGHT_RATIO);
-  const maxHeight = Math.max(
-    MOBILE_MIN_PANEL_HEIGHT,
-    Math.min(idealHeight, sheetCap, viewport.height - MOBILE_DROPDOWN_EDGE * 2),
-  );
+/** Scroll the phone page so the open list sits fully on screen (works in the B2C iframe too). */
+function revealDropdownOnPhone(triggerRect: DOMRect, panelHeight: number) {
+  const panelBottomInIframe = triggerRect.bottom + MOBILE_DROPDOWN_GAP + panelHeight;
+  const padding = 20;
 
-  return {
-    left: MOBILE_DROPDOWN_EDGE,
-    width: viewport.width - MOBILE_DROPDOWN_EDGE * 2,
-    maxHeight,
-    placement: 'sheet',
-    bottom: 0,
-  };
-}
-
-/** After paint, ensure the bottom sheet fits fully inside the iframe viewport. */
-function nudgePanelIntoView(pos: PanelPos, panelEl: HTMLElement, optionCount: number): PanelPos {
-  const viewport = getMobileViewport();
-  const rect = panelEl.getBoundingClientRect();
-  const edge = MOBILE_DROPDOWN_EDGE;
-  const maxBottom = viewport.bottom - edge;
-  const minTop = viewport.top + edge;
-
-  if (rect.bottom <= maxBottom && rect.top >= minTop) {
-    return pos;
+  if (isWidgetEmbedded()) {
+    window.parent.postMessage(
+      {
+        type: 'kogo-widget-dropdown-open',
+        triggerBottom: triggerRect.bottom,
+        panelHeight,
+        panelBottom: panelBottomInIframe,
+      },
+      '*',
+    );
+    return;
   }
 
-  return computeMobilePanelPosition(rect, optionCount);
+  const overflow = panelBottomInIframe - window.innerHeight + padding;
+  if (overflow > 0) {
+    window.scrollBy({ top: overflow, behavior: 'smooth' });
+  }
 }
 
 /** Render modals on document.body so fixed positioning is not affected by page scroll. */
@@ -142,23 +122,20 @@ const FilterSelect = React.memo(function FilterSelect({
   const [panelPos, setPanelPos] = useState<PanelPos | null>(null);
   const wrapperRef = useRef<HTMLDivElement>(null);
   const panelRef = useRef<HTMLUListElement>(null);
-  const nudgePassRef = useRef(0);
 
   const openPanel = () => {
     if (disabled || loading || typeof window === 'undefined' || !isMobileFilterUi()) return;
     const rect = wrapperRef.current?.getBoundingClientRect();
     if (!rect) return;
-    nudgePassRef.current = 0;
-    setPanelPos(computeMobilePanelPosition(rect, options.length));
+    const pos = computeMobilePanelPosition(rect, options.length);
+    setPanelPos(pos);
     setIsOpen(true);
-    notifyHostDropdown(true);
+    revealDropdownOnPhone(rect, pos.maxHeight);
   };
 
   const closePanel = () => {
-    notifyHostDropdown(false);
     setIsOpen(false);
     setPanelPos(null);
-    nudgePassRef.current = 0;
   };
 
   const handleSelect = (optValue: string) => {
@@ -169,69 +146,24 @@ const FilterSelect = React.memo(function FilterSelect({
   useEffect(() => {
     if (!isOpen) return;
 
-    const { body, documentElement } = document;
-    const prevBodyOverflow = body.style.overflow;
-    const prevHtmlOverflow = documentElement.style.overflow;
-    body.style.overflow = 'hidden';
-    documentElement.style.overflow = 'hidden';
-
-    return () => {
-      body.style.overflow = prevBodyOverflow;
-      documentElement.style.overflow = prevHtmlOverflow;
-    };
-  }, [isOpen]);
-
-  useEffect(() => {
-    if (!isOpen) return;
-
     const updatePanelPosition = () => {
       if (!isMobileFilterUi()) {
-        notifyHostDropdown(false);
         setIsOpen(false);
         setPanelPos(null);
-        nudgePassRef.current = 0;
         return;
       }
       const rect = wrapperRef.current?.getBoundingClientRect();
       if (rect) setPanelPos(computeMobilePanelPosition(rect, options.length));
     };
 
-    updatePanelPosition();
     window.addEventListener('resize', updatePanelPosition);
     window.visualViewport?.addEventListener('resize', updatePanelPosition);
-    window.visualViewport?.addEventListener('scroll', updatePanelPosition);
-
-    const onScroll = (e: Event) => {
-      if (panelRef.current && e.target instanceof Node && panelRef.current.contains(e.target)) return;
-      notifyHostDropdown(false);
-      setIsOpen(false);
-      setPanelPos(null);
-      nudgePassRef.current = 0;
-    };
-    window.addEventListener('scroll', onScroll, true);
 
     return () => {
       window.removeEventListener('resize', updatePanelPosition);
       window.visualViewport?.removeEventListener('resize', updatePanelPosition);
-      window.visualViewport?.removeEventListener('scroll', updatePanelPosition);
-      window.removeEventListener('scroll', onScroll, true);
     };
   }, [isOpen, options.length]);
-
-  useLayoutEffect(() => {
-    if (!isOpen || !panelRef.current || !panelPos || nudgePassRef.current >= 2) return;
-
-    const refined = nudgePanelIntoView(panelPos, panelRef.current, options.length);
-    const changed =
-      refined.top !== panelPos.top
-      || refined.bottom !== panelPos.bottom
-      || refined.maxHeight !== panelPos.maxHeight;
-
-    if (!changed) return;
-
-    nudgePassRef.current += 1;
-    setPanelPos(refined);
-  }, [isOpen, panelPos]);
 
   const chevronIcon = loading ? (
     <svg className={styles.filterSpinner} width="16" height="16" viewBox="0 0 24 24" fill="none">
@@ -248,13 +180,6 @@ const FilterSelect = React.memo(function FilterSelect({
     <ChevronDown size={16} className={styles.filterChevron} />
   );
 
-  const panelPlacementClass =
-    panelPos?.placement === 'above'
-      ? styles.dropdownPanelAbove
-      : panelPos?.placement === 'sheet'
-        ? styles.dropdownPanelSheet
-        : styles.dropdownPanelBelow;
-
   const panel = isOpen && panelPos ? (
     <>
       <div className={styles.dropdownBackdrop} onClick={closePanel} />
@@ -262,18 +187,14 @@ const FilterSelect = React.memo(function FilterSelect({
         ref={panelRef}
         role="listbox"
         aria-label={placeholder}
-        className={`${styles.dropdownPanel} ${panelPlacementClass}`}
+        className={`${styles.dropdownPanel} ${styles.dropdownPanelBelow}`}
         style={{
           '--dp-left': `${panelPos.left}px`,
           '--dp-width': `${panelPos.width}px`,
           '--dp-max-height': `${panelPos.maxHeight}px`,
-          ...(panelPos.top != null ? { '--dp-top': `${panelPos.top}px` } : {}),
-          ...(panelPos.bottom != null ? { '--dp-bottom': `${panelPos.bottom}px` } : {}),
+          '--dp-top': `${panelPos.top}px`,
         } as React.CSSProperties}
       >
-        {panelPos.placement === 'sheet' ? (
-          <li className={styles.dropdownSheetHeader} role="presentation">{placeholder}</li>
-        ) : null}
         {options.length === 0 ? (
           <li className={styles.dropdownEmpty}>אין אפשרויות</li>
         ) : options.map((opt) => (
