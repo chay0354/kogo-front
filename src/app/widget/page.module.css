@@ -246,7 +246,18 @@
 /* Results table */
 
 .emptyMessage {
-  @apply text-center text-gray-500 py-10;
+  @apply text-center text-gray-500 py-10 text-sm leading-relaxed px-4;
+}
+
+.emptyMessagePhone {
+  color: #2B3090;
+  font-weight: 700;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.emptyMessagePhone:hover {
+  text-decoration: underline;
 }
 
 .headerRow {

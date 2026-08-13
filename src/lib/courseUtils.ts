@@ -176,10 +176,11 @@ export const AGE_GROUP_LABELS = [
   '3-4.5', '4.5-6',
   'כיתה א', 'כיתה ב', 'כיתה ג', 'כיתה ד', 'כיתה ה', 'כיתה ו',
   'כיתה ז', 'כיתה ח', 'כיתה ט', 'כיתה י', 'כיתה י״א', 'כיתה י״ב',
+  'בוגרים', 'מדריכים',
 ];
 
 /**
- * Ordinal age-group values (1-14) matching AGE_GROUP_LABELS, for populating
+ * Ordinal age-group values (1-16) matching AGE_GROUP_LABELS, for populating
  * min/max age dropdowns.
  */
 export const AGE_OPTIONS = AGE_GROUP_LABELS.map((_, i) => i + 1);
@@ -197,7 +198,7 @@ export function formatAgeRange(minAge?: number | null, maxAge?: number | null): 
 }
 
 /**
- * Format single age-group value (1-2 = preschool bands, 3-14 = grades א-י״ב)
+ * Format single age-group value (1-2 = preschool, 3-14 = grades א-י״ב, 15-16 = בוגרים/מדריכים)
  */
 export function formatAge(age: number): string {
   return AGE_GROUP_LABELS[age - 1] ?? '';

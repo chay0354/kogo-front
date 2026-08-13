@@ -347,6 +347,18 @@
   color: #333;
   line-height: 1.7;
 }
+.termsBody :global(.terms-badge) {
+  display: block;
+  width: fit-content;
+  margin: 12px auto 0;
+  background: #7BBFEA;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  padding: 10px 24px;
+  border-radius: 999px;
+  text-align: center;
+}
 
 .centerChild{
   display: flex;

@@ -145,6 +145,9 @@ export default function SettingsPage() {
               <Link href="/credit-charge">
                 <Button variant="outline">סליקת אשראי</Button>
               </Link>
+              <Link href="/settings/terms">
+                <Button variant="outline">ערוך תקנון</Button>
+              </Link>
               <Button variant="gradient" onClick={openCreate}>
                 משתמש חדש
               </Button>

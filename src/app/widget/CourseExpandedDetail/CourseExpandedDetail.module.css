@@ -39,6 +39,21 @@
   @apply text-sm text-gray-500 mt-1;
 }
 
+.bundleBadge {
+  display: inline-block;
+  margin-top: 8px;
+  background-color: rgba(245, 197, 24, 0.18);
+  color: #2B3090;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 999px;
+  white-space: nowrap;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 /* Course type description */
 .description {
   @apply text-sm text-gray-600 text-center mb-5;
@@ -135,6 +150,50 @@
 
 .priceNote {
   @apply text-xs text-gray-400 text-center mb-5;
+}
+
+.fullSection {
+  @apply rounded-xl mb-3 px-4 py-4;
+  background: #fff8e6;
+  border: 1px solid #f5d77a;
+}
+
+.fullTitle {
+  @apply text-base font-bold text-gray-900 text-center mb-2;
+}
+
+.fullHint {
+  @apply text-sm text-gray-600 text-center mb-3;
+}
+
+.alternativesList {
+  @apply flex flex-col gap-2;
+}
+
+.alternativeButton {
+  @apply w-full rounded-xl py-3 px-3 text-sm font-semibold text-right;
+  background: #ffffff;
+  border: 1.5px solid #2B3090;
+  color: #2B3090;
+  line-height: 1.4;
+}
+
+.alternativeButton:hover {
+  background: #eef0fb;
+}
+
+.fullHelp {
+  @apply text-sm text-gray-700 text-center leading-relaxed;
+}
+
+.fullHelpPhone {
+  color: #2B3090;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.fullHelpPhone:hover {
+  text-decoration: underline;
 }
 
 /* Buttons */

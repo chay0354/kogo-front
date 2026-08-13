@@ -11,6 +11,8 @@ import type { City, Branch, Course, CourseBundle, CourseLesson } from './types';
 import { sortCitiesByFixedOrder } from './page.utils';
 import { isCourseVisibleInWidgetCatalog } from './lessonVisibility';
 import { AGE_OPTIONS, formatAge } from '@/lib/courseUtils';
+import { dedupeCitiesByName } from '@/lib/cityUtils';
+import { findWidgetAlternatives, isWidgetSelectionFull, type WidgetAlternative } from './alternativeLessons';
 import styles from './page.module.css';
 
 type PanelPos = { top: number; left: number; width: number };
@@ -21,7 +23,18 @@ function WidgetPortal({ children }: { children: React.ReactNode }) {
   return ReactDOM.createPortal(children, document.body);
 }
 
-const normalizeExternalLink = (link: string) => (/^https?:\/\//i.test(link) ? link : `https://${link}`);
+const WIDGET_SUPPORT_PHONE = '0509424755';
+
+function NoMatchingCoursesMessage() {
+  return (
+    <p className={styles.emptyMessage}>
+      בסניף זה אין חוגים מתאימים לבחירתכם. צריך עזרה? דברו איתנו!{' '}
+      <a href={`tel:${WIDGET_SUPPORT_PHONE}`} className={styles.emptyMessagePhone}>
+        {WIDGET_SUPPORT_PHONE}
+      </a>
+    </p>
+  );
+}
 
 function FilterSelect({ value, onChange, disabled, loading, placeholder, selectedLabel, children, active }: { value: string; onChange: (v: string) => void; disabled?: boolean; loading?: boolean; placeholder: string; selectedLabel?: string; children: React.ReactNode; active?: boolean }) {
   const [isOpen, setIsOpen] = useState(false);
@@ -173,7 +186,7 @@ export default function WidgetPage() {
       .then(([citiesRes, branchesRes]) => {
         const citiesData = Array.isArray(citiesRes.data) ? citiesRes.data : citiesRes.data.results ?? [];
         const branchesData: Branch[] = Array.isArray(branchesRes.data) ? branchesRes.data : branchesRes.data.results ?? [];
-        setCities(sortCitiesByFixedOrder(citiesData));
+        setCities(sortCitiesByFixedOrder(dedupeCitiesByName(citiesData)));
         setAllBranches(branchesData);
         return Promise.all(
           branchesData.map((b) =>
@@ -244,12 +257,37 @@ export default function WidgetPage() {
     if (detailBundleForLesson) handleEnrollClick(false, detailBundleForLesson);
   };
 
+  const activeDetailBundle = detailBundle ?? detailBundleForLesson;
+  const detailSelectionFull = detailCourse
+    ? isWidgetSelectionFull(detailCourse, detailLesson, activeDetailBundle)
+    : false;
+  const detailAlternatives = detailCourse && detailSelectionFull && selectedCourseType
+    ? findWidgetAlternatives(branchCourses, {
+        courseTypeId: selectedCourseType,
+        selectedAge: selectedAge ? parseInt(selectedAge, 10) : null,
+        currentCourseId: detailCourse.id,
+        currentLessonId: detailLesson?.id,
+        currentBundleId: activeDetailBundle?.id,
+      })
+    : [];
+
+  const handleSelectAlternative = (alt: WidgetAlternative) => {
+    setDetailCourse(alt.course);
+    setDetailLesson(alt.lesson ?? null);
+    setDetailBundle(alt.bundle ?? null);
+  };
+
   const handleCityChange = (cityId: string) => { setSelectedCity(cityId); setSelectedBranch(''); setSelectedCourseType(''); setSelectedAge(''); };
   const handleBranchChange = (branchId: string) => { setSelectedBranch(branchId); setSelectedCourseType(''); setSelectedAge(''); };
   const handleCourseTypeChange = (typeId: string) => { setSelectedCourseType(typeId); setSelectedAge(''); };
 
   const filledDropdowns = [selectedCity, selectedBranch, selectedCourseType, selectedAge].filter(Boolean).length;
   const showTable = filledDropdowns >= 3;
+
+  const showNoMatchingCoursesMessage =
+    Boolean(selectedBranch) &&
+    !loadingBranches &&
+    (courseTypes.length === 0 || (showTable && filteredCourses.length === 0));
 
   const activeField = !selectedCity ? 'city'
     : !selectedBranch ? 'branch'
@@ -286,15 +324,11 @@ export default function WidgetPage() {
       </div>
 
       {/* Course list */}
-      {showTable && (
-        <>
-          {filteredCourses.length === 0 ? (
-            <p className={styles.emptyMessage}>לא נמצאו חוגים</p>
-          ) : (
-            <CourseList filteredCourses={filteredCourses} onSelect={toggleDetail} />
-          )}
-        </>
-      )}
+      {showNoMatchingCoursesMessage ? (
+        <NoMatchingCoursesMessage />
+      ) : showTable ? (
+        <CourseList filteredCourses={filteredCourses} onSelect={toggleDetail} />
+      ) : null}
 
       {/* Course detail overlay — portaled so mobile fixed layout stays viewport-aligned */}
       {detailCourse && (
@@ -304,7 +338,10 @@ export default function WidgetPage() {
             <CourseExpandedDetail
               course={detailCourse}
               lesson={detailLesson ?? undefined}
-              bundleOffer={detailBundle ?? detailBundleForLesson ?? undefined}
+              bundleOffer={activeDetailBundle ?? undefined}
+              selectionFull={detailSelectionFull}
+              alternatives={detailAlternatives}
+              onSelectAlternative={handleSelectAlternative}
               onClose={() => { setDetailCourse(null); setDetailBundle(null); setDetailLesson(null); }}
               onEnroll={() => handleEnrollClick(false)}
               onBundleEnroll={detailBundleForLesson ? handleBundleEnrollClick : undefined}

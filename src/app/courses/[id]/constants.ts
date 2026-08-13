@@ -20,4 +20,6 @@ export const AGE_FILTER_OPTIONS: AgeFilter[] = [
   { label: 'י',  minAge: 16, maxAge: 16 },
   { label: 'יא', minAge: 17, maxAge: 17 },
   { label: 'יב', minAge: 18, maxAge: 18 },
+  { label: 'בוגרים', minAge: 15, maxAge: 15 },
+  { label: 'מדריכים', minAge: 16, maxAge: 16 },
 ];

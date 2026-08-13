@@ -21,6 +21,10 @@ export interface CourseLesson {
   price?: string | null;
   lesson_date?: string | null;
   is_recurring?: boolean;
+  enrolled_count?: number;
+  capacity?: number | null;
+  available_spots?: number | null;
+  is_full?: boolean;
 }
 
 // A combined "twice a week" package of 2+ of this course's own lessons, sold at a discount.
@@ -36,6 +40,7 @@ export interface CourseBundle {
   name: string;
   combined_price: number;
   lessons: CourseBundleLesson[];
+  is_full?: boolean;
 }
 
 export interface Course {

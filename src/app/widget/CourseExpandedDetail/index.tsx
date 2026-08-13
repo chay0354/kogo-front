@@ -1,12 +1,25 @@
 import { getDayName, formatTimeRange, formatAgeRange } from '@/lib/courseUtils';
 import type { Course, CourseBundle, CourseLesson } from '../types';
+import type { WidgetAlternative } from '../alternativeLessons';
 import { MapPin, Users, CalendarDays, Wallet, X } from 'lucide-react';
 import styles from './CourseExpandedDetail.module.css';
+
+const WIDGET_SUPPORT_PHONE = '0509424755';
+
+function formatTimesPerWeek(count: number): string {
+  if (count === 1) return 'פעם בשבוע';
+  if (count === 2) return 'פעמיים בשבוע';
+  if (count >= 3) return `${count} פעמים בשבוע`;
+  return '—';
+}
 
 interface CourseExpandedDetailProps {
   course: Course;
   lesson?: CourseLesson;
   bundleOffer?: CourseBundle;
+  selectionFull?: boolean;
+  alternatives?: WidgetAlternative[];
+  onSelectAlternative?: (alt: WidgetAlternative) => void;
   onEnroll: () => void;
   onBundleEnroll?: () => void;
   onTrialEnroll: () => void;
@@ -17,6 +30,9 @@ export default function CourseExpandedDetail({
   course,
   lesson,
   bundleOffer,
+  selectionFull = false,
+  alternatives = [],
+  onSelectAlternative,
   onEnroll,
   onBundleEnroll,
   onTrialEnroll,
@@ -28,6 +44,14 @@ export default function CourseExpandedDetail({
 
   const ageLabel = formatAgeRange(course.min_age, course.max_age) || '—';
   const scheduleLessons = lesson ? [lesson] : course.lessons;
+  const timesPerWeek = bundleOffer
+    ? bundleOffer.lessons.length
+    : lesson
+      ? 1
+      : course.lessons_count || course.lessons?.length || 0;
+  const timesPerWeekLabel = bundleOffer
+    ? (bundleOffer.name || 'פעמיים בשבוע')
+    : formatTimesPerWeek(timesPerWeek);
   const displayPrice = lesson?.price ?? course.price;
   const displayTitle = course.name;
 
@@ -41,6 +65,9 @@ export default function CourseExpandedDetail({
         <div className={styles.header}>
           <h2 className={styles.title}>{displayTitle}</h2>
           <p className={styles.subtitle}>{course.course_type_name}</p>
+          {timesPerWeek > 0 ? (
+            <span className={styles.bundleBadge}>{timesPerWeekLabel}</span>
+          ) : null}
         </div>
 
         {/* Course type description */}
@@ -111,20 +138,51 @@ export default function CourseExpandedDetail({
         <p className={styles.priceNote}>מנוי שנתי עד חודש יולי. ניתן לבטל מנוי עד חודש אפריל</p>
         <p className={styles.priceNote}>ברכישת מנוי חיוב ע&quot;ס 120 שקל עבור דמי רישום</p>
 
-        {/* Buttons */}
-        <button onClick={onEnroll} className={styles.enrollButton}>
-          הרשמה לשיעור זה
-        </button>
-        {bundleOffer && onBundleEnroll ? (
-          <button onClick={onBundleEnroll} className={styles.enrollButton}>
-            הרשמה למסלול ({bundleOffer.name || 'פעמיים בשבוע'})
-          </button>
-        ) : null}
-        <button onClick={onTrialEnroll} className={styles.trialButton}>
-          {course.trial_lesson_is_paid && course.trial_lesson_price != null
-            ? `הרשמה לניסיון (₪${Number(course.trial_lesson_price).toFixed(0)})`
-            : 'הרשמה לניסיון'}
-        </button>
+        {selectionFull ? (
+          <div className={styles.fullSection}>
+            <p className={styles.fullTitle}>השיעור שבחרתם מלא</p>
+            {alternatives.length > 0 ? (
+              <>
+                <p className={styles.fullHint}>מועדים פנויים אחרים באותו תחום וגיל:</p>
+                <div className={styles.alternativesList}>
+                  {alternatives.map((alt) => (
+                    <button
+                      key={`${alt.course.id}-${alt.lesson?.id ?? alt.bundle?.id}`}
+                      type="button"
+                      className={styles.alternativeButton}
+                      onClick={() => onSelectAlternative?.(alt)}
+                    >
+                      {alt.label}
+                    </button>
+                  ))}
+                </div>
+              </>
+            ) : (
+              <p className={styles.fullHelp}>
+                צריכים עזרה? דברו איתנו!{' '}
+                <a href={`tel:${WIDGET_SUPPORT_PHONE}`} className={styles.fullHelpPhone}>
+                  {WIDGET_SUPPORT_PHONE}
+                </a>
+              </p>
+            )}
+          </div>
+        ) : (
+          <>
+            <button onClick={onEnroll} className={styles.enrollButton}>
+              הירשם לחוג
+            </button>
+            {bundleOffer && onBundleEnroll ? (
+              <button onClick={onBundleEnroll} className={styles.enrollButton}>
+                הרשמה למסלול ({bundleOffer.name || 'פעמיים בשבוע'})
+              </button>
+            ) : null}
+            <button onClick={onTrialEnroll} className={styles.trialButton}>
+              {course.trial_lesson_is_paid && course.trial_lesson_price != null
+                ? `הרשמה לניסיון (₪${Number(course.trial_lesson_price).toFixed(0)})`
+                : 'הרשמה לניסיון'}
+            </button>
+          </>
+        )}
 
       </div>
   );
