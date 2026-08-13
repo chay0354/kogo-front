@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import ReactDOM from 'react-dom';
 import { ChevronDown, ChevronUp, Check } from 'lucide-react';
 import api from '@/lib/api';
@@ -26,26 +26,41 @@ type PanelPos = {
 const MOBILE_DROPDOWN_GAP = 6;
 const MOBILE_DROPDOWN_EDGE = 8;
 const MOBILE_OPTION_HEIGHT = 44;
+const MOBILE_MIN_PANEL_HEIGHT = 100;
+
+function getMobileViewport() {
+  const vv = window.visualViewport;
+  const top = vv?.offsetTop ?? 0;
+  const height = vv?.height ?? window.innerHeight;
+  const width = vv?.width ?? window.innerWidth;
+  return {
+    top,
+    left: vv?.offsetLeft ?? 0,
+    height,
+    width,
+    bottom: top + height,
+  };
+}
 
 function computeMobilePanelPosition(rect: DOMRect, optionCount: number): PanelPos {
-  const viewportH = window.visualViewport?.height ?? window.innerHeight;
-  const viewportW = window.visualViewport?.width ?? window.innerWidth;
+  const viewport = getMobileViewport();
   const idealHeight = Math.min(280, Math.max(optionCount, 1) * MOBILE_OPTION_HEIGHT + 8);
-  const width = Math.min(rect.width, viewportW - MOBILE_DROPDOWN_EDGE * 2);
+  const width = Math.min(rect.width, viewport.width - MOBILE_DROPDOWN_EDGE * 2);
   const left = Math.max(
     MOBILE_DROPDOWN_EDGE,
-    Math.min(rect.left, viewportW - width - MOBILE_DROPDOWN_EDGE),
+    Math.min(rect.left, viewport.width - width - MOBILE_DROPDOWN_EDGE),
   );
 
-  const spaceBelow = viewportH - rect.bottom - MOBILE_DROPDOWN_GAP - MOBILE_DROPDOWN_EDGE;
-  const spaceAbove = rect.top - MOBILE_DROPDOWN_GAP - MOBILE_DROPDOWN_EDGE;
+  const spaceBelow = viewport.bottom - rect.bottom - MOBILE_DROPDOWN_GAP - MOBILE_DROPDOWN_EDGE;
+  const spaceAbove = rect.top - viewport.top - MOBILE_DROPDOWN_GAP - MOBILE_DROPDOWN_EDGE;
 
   // Short iframe / lower filters: anchor a scrollable sheet to the bottom of the screen.
   if (Math.max(spaceBelow, spaceAbove) < 160 && idealHeight > spaceBelow) {
+    const sheetHeight = Math.min(idealHeight, Math.max(viewport.height * 0.55, 180));
     return {
       left: MOBILE_DROPDOWN_EDGE,
-      width: viewportW - MOBILE_DROPDOWN_EDGE * 2,
-      maxHeight: Math.min(idealHeight, Math.max(viewportH * 0.55, 180)),
+      width: viewport.width - MOBILE_DROPDOWN_EDGE * 2,
+      maxHeight: Math.min(sheetHeight, viewport.height - MOBILE_DROPDOWN_EDGE * 2),
       placement: 'sheet',
       bottom: MOBILE_DROPDOWN_EDGE,
     };
@@ -57,25 +72,72 @@ function computeMobilePanelPosition(rect: DOMRect, optionCount: number): PanelPo
   }
 
   const available = placement === 'below' ? spaceBelow : spaceAbove;
-  const maxHeight = Math.max(120, Math.min(idealHeight, available));
+  let maxHeight = Math.max(MOBILE_MIN_PANEL_HEIGHT, Math.min(idealHeight, available));
 
   if (placement === 'below') {
-    return {
-      left,
-      width,
-      maxHeight,
-      placement,
-      top: rect.bottom + MOBILE_DROPDOWN_GAP,
-    };
+    let top = rect.bottom + MOBILE_DROPDOWN_GAP;
+    const maxBottom = viewport.bottom - MOBILE_DROPDOWN_EDGE;
+    if (top + maxHeight > maxBottom) {
+      maxHeight = Math.max(MOBILE_MIN_PANEL_HEIGHT, maxBottom - top);
+    }
+    if (maxHeight < MOBILE_MIN_PANEL_HEIGHT && spaceAbove > spaceBelow) {
+      placement = 'above';
+    } else {
+      return { left, width, maxHeight, placement, top };
+    }
+  }
+
+  const bottom = viewport.bottom - rect.top + MOBILE_DROPDOWN_GAP;
+  maxHeight = Math.max(MOBILE_MIN_PANEL_HEIGHT, Math.min(idealHeight, spaceAbove));
+  const maxTop = rect.top - MOBILE_DROPDOWN_GAP;
+  if (maxTop - maxHeight < viewport.top + MOBILE_DROPDOWN_EDGE) {
+    maxHeight = Math.max(MOBILE_MIN_PANEL_HEIGHT, maxTop - viewport.top - MOBILE_DROPDOWN_EDGE);
   }
 
   return {
     left,
     width,
     maxHeight,
-    placement,
-    bottom: viewportH - rect.top + MOBILE_DROPDOWN_GAP,
+    placement: 'above',
+    bottom,
   };
+}
+
+/** After paint, nudge the panel if the viewport still clips it (common on iOS iframes). */
+function nudgePanelIntoView(pos: PanelPos, panelEl: HTMLElement): PanelPos {
+  const viewport = getMobileViewport();
+  const edge = MOBILE_DROPDOWN_EDGE;
+  const rect = panelEl.getBoundingClientRect();
+  const maxBottom = viewport.bottom - edge;
+  const minTop = viewport.top + edge;
+
+  if (rect.bottom <= maxBottom && rect.top >= minTop) {
+    return pos;
+  }
+
+  const next: PanelPos = { ...pos };
+
+  if (rect.bottom > maxBottom) {
+    const overflow = rect.bottom - maxBottom;
+    if (pos.placement === 'below' && pos.top != null) {
+      next.top = Math.max(minTop, pos.top - overflow);
+    } else {
+      next.bottom = (pos.bottom ?? edge) + overflow;
+    }
+    next.maxHeight = Math.max(MOBILE_MIN_PANEL_HEIGHT, pos.maxHeight - overflow);
+  }
+
+  if (rect.top < minTop) {
+    const overflow = minTop - rect.top;
+    if (pos.placement === 'below' && next.top != null) {
+      next.top = next.top + overflow;
+    } else if (pos.placement === 'above' || pos.placement === 'sheet') {
+      next.bottom = Math.max(edge, (next.bottom ?? edge) - overflow);
+    }
+    next.maxHeight = Math.max(MOBILE_MIN_PANEL_HEIGHT, next.maxHeight - overflow);
+  }
+
+  return next;
 }
 
 /** Render modals on document.body so fixed positioning is not affected by page scroll. */
@@ -122,11 +184,13 @@ const FilterSelect = React.memo(function FilterSelect({
   const [panelPos, setPanelPos] = useState<PanelPos | null>(null);
   const wrapperRef = useRef<HTMLDivElement>(null);
   const panelRef = useRef<HTMLUListElement>(null);
+  const nudgePassRef = useRef(0);
 
   const openPanel = () => {
     if (disabled || loading || typeof window === 'undefined' || window.innerWidth >= 768) return;
     const rect = wrapperRef.current?.getBoundingClientRect();
     if (!rect) return;
+    nudgePassRef.current = 0;
     setPanelPos(computeMobilePanelPosition(rect, options.length));
     setIsOpen(true);
   };
@@ -134,6 +198,7 @@ const FilterSelect = React.memo(function FilterSelect({
   const closePanel = () => {
     setIsOpen(false);
     setPanelPos(null);
+    nudgePassRef.current = 0;
   };
 
   const handleSelect = (optValue: string) => {
@@ -171,6 +236,21 @@ const FilterSelect = React.memo(function FilterSelect({
       window.removeEventListener('scroll', onScroll, true);
     };
   }, [isOpen, options.length]);
+
+  useLayoutEffect(() => {
+    if (!isOpen || !panelRef.current || !panelPos || nudgePassRef.current >= 2) return;
+
+    const refined = nudgePanelIntoView(panelPos, panelRef.current);
+    const changed =
+      refined.top !== panelPos.top
+      || refined.bottom !== panelPos.bottom
+      || refined.maxHeight !== panelPos.maxHeight;
+
+    if (!changed) return;
+
+    nudgePassRef.current += 1;
+    setPanelPos(refined);
+  }, [isOpen, panelPos]);
 
   const chevronIcon = loading ? (
     <svg className={styles.filterSpinner} width="16" height="16" viewBox="0 0 24 24" fill="none">
