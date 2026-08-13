@@ -64,19 +64,9 @@ function visibleBand(): VisibleBand {
   return { top, bottom: top + (vv?.height ?? window.innerHeight) };
 }
 
-type PanelPlacement = { direction: 'below' | 'above'; maxHeight: number; fits: boolean };
-
-function computePlacement(fieldRect: DOMRect, desiredHeight: number): PanelPlacement {
-  const band = visibleBand();
-  const spaceBelow = band.bottom - fieldRect.bottom - PANEL_GAP * 2;
-  const spaceAbove = fieldRect.top - band.top - PANEL_GAP * 2;
-
-  if (desiredHeight <= spaceBelow) return { direction: 'below', maxHeight: desiredHeight, fits: true };
-  if (desiredHeight <= spaceAbove) return { direction: 'above', maxHeight: desiredHeight, fits: true };
-
-  const useAbove = spaceAbove > spaceBelow;
-  const room = Math.max(MIN_PANEL_HEIGHT, useAbove ? spaceAbove : spaceBelow);
-  return { direction: useAbove ? 'above' : 'below', maxHeight: room, fits: false };
+/** Visible room under the field — the list always opens downward into it. */
+function roomBelowField(fieldRect: DOMRect) {
+  return visibleBand().bottom - fieldRect.bottom - PANEL_GAP * 2;
 }
 
 function isWidgetEmbedded() {
@@ -93,7 +83,7 @@ function scrollWindowBy(delta: number) {
   window.scrollTo(0, next);
 }
 
-/** Ask the B2C host (and this page) to scroll until the whole list has room. */
+/** Ask the B2C host (and this page) to scroll down until the whole list shows. */
 function requestReveal(fieldRect: DOMRect, desiredHeight: number) {
   const wantedBottom = fieldRect.bottom + PANEL_GAP + desiredHeight;
   try {
@@ -107,6 +97,14 @@ function requestReveal(fieldRect: DOMRect, desiredHeight: number) {
   // Embedded, the host owns scrolling — it answers with a fresh visible band.
   if (isWidgetEmbedded()) return;
   scrollWindowBy(wantedBottom - visibleBand().bottom + 16);
+}
+
+function notifyDropdownClosed() {
+  try {
+    window.parent.postMessage({ type: 'kogo-widget-dropdown-close' }, '*');
+  } catch {
+    /* cross-origin host may still receive the message */
+  }
 }
 
 /** Render modals on document.body so fixed positioning is not affected by page scroll. */
@@ -150,61 +148,71 @@ const FilterSelect = React.memo(function FilterSelect({
   active?: boolean;
 }) {
   const [isOpen, setIsOpen] = useState(false);
-  const [placement, setPlacement] = useState<PanelPlacement>({ direction: 'below', maxHeight: MAX_PANEL_HEIGHT, fits: true });
+  const [maxHeight, setMaxHeight] = useState(MAX_PANEL_HEIGHT);
   const wrapperRef = useRef<HTMLDivElement>(null);
+  const openedAtRef = useRef(0);
   const desiredHeight = panelHeightForOptions(options.length);
 
-  const syncPlacement = useCallback(() => {
+  /**
+   * The list always opens downward. While the page is still scrolling towards
+   * it we keep the full height; only if the page truly cannot scroll any
+   * further do we shrink the list so it never gets cut off.
+   */
+  const syncHeight = useCallback(() => {
     const field = wrapperRef.current;
     if (!field) return;
-    const next = computePlacement(field.getBoundingClientRect(), desiredHeight);
-    setPlacement((prev) =>
-      prev.direction === next.direction && Math.abs(prev.maxHeight - next.maxHeight) < 2 && prev.fits === next.fits
-        ? prev
-        : next,
-    );
+    const room = roomBelowField(field.getBoundingClientRect());
+    const settling = Date.now() - openedAtRef.current < 900;
+    const next = room >= desiredHeight || settling ? desiredHeight : Math.max(MIN_PANEL_HEIGHT, room);
+    setMaxHeight((prev) => (Math.abs(prev - next) < 2 ? prev : next));
   }, [desiredHeight]);
 
   const openPanel = () => {
     if (disabled || loading || typeof window === 'undefined') return;
     ensureHostBandBridge();
     requestHostBand();
+    openedAtRef.current = Date.now();
+    setMaxHeight(desiredHeight);
     const field = wrapperRef.current;
     if (field) {
       const rect = field.getBoundingClientRect();
-      const next = computePlacement(rect, desiredHeight);
-      setPlacement(next);
-      // Not enough visible room either way — nudge the page so the list fits below.
-      if (!next.fits) requestReveal(rect, desiredHeight);
+      // Embedded without a band yet we cannot judge the room, so scroll anyway.
+      const unknownRoom = isWidgetEmbedded() && !hostBand;
+      if (unknownRoom || roomBelowField(rect) < desiredHeight) requestReveal(rect, desiredHeight);
     }
     setIsOpen(true);
   };
 
-  const closePanel = () => setIsOpen(false);
+  const closePanel = () => {
+    setIsOpen(false);
+    notifyDropdownClosed();
+  };
 
   const handleSelect = (optValue: string) => {
     onChange(optValue);
     closePanel();
   };
 
-  // Keep the list inside the visible band while it is open: the host reports a
-  // new band on every scroll, and standalone we watch scroll/resize ourselves.
+  // The host reports a new visible band on every scroll; standalone we watch
+  // scroll/resize ourselves. Either way we re-check the room under the field.
   useEffect(() => {
     if (!isOpen) return;
-    syncPlacement();
-    bandSubscribers.add(syncPlacement);
-    window.addEventListener('scroll', syncPlacement, { passive: true });
-    window.addEventListener('resize', syncPlacement);
-    window.visualViewport?.addEventListener('resize', syncPlacement);
-    window.visualViewport?.addEventListener('scroll', syncPlacement);
+    syncHeight();
+    bandSubscribers.add(syncHeight);
+    window.addEventListener('scroll', syncHeight, { passive: true });
+    window.addEventListener('resize', syncHeight);
+    window.visualViewport?.addEventListener('resize', syncHeight);
+    window.visualViewport?.addEventListener('scroll', syncHeight);
+    const settle = setTimeout(syncHeight, 950);
     return () => {
-      bandSubscribers.delete(syncPlacement);
-      window.removeEventListener('scroll', syncPlacement);
-      window.removeEventListener('resize', syncPlacement);
-      window.visualViewport?.removeEventListener('resize', syncPlacement);
-      window.visualViewport?.removeEventListener('scroll', syncPlacement);
+      clearTimeout(settle);
+      bandSubscribers.delete(syncHeight);
+      window.removeEventListener('scroll', syncHeight);
+      window.removeEventListener('resize', syncHeight);
+      window.visualViewport?.removeEventListener('resize', syncHeight);
+      window.visualViewport?.removeEventListener('scroll', syncHeight);
     };
-  }, [isOpen, syncPlacement]);
+  }, [isOpen, syncHeight]);
 
   const chevronIcon = loading ? (
     <svg className={styles.filterSpinner} width="16" height="16" viewBox="0 0 24 24" fill="none">
@@ -225,8 +233,8 @@ const FilterSelect = React.memo(function FilterSelect({
     <ul
       role="listbox"
       aria-label={placeholder}
-      className={`${styles.dropdownPanel} ${placement.direction === 'above' ? styles.dropdownPanelAbove : ''}`}
-      style={{ '--dp-max-height': `${placement.maxHeight}px` } as React.CSSProperties}
+      className={styles.dropdownPanel}
+      style={{ '--dp-max-height': `${maxHeight}px` } as React.CSSProperties}
       onClick={(e) => e.stopPropagation()}
     >
       {options.length === 0 ? (

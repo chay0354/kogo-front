@@ -467,11 +467,6 @@
   overscroll-behavior: contain;
 }
 
-.dropdownPanelAbove {
-  top: auto;
-  bottom: calc(100% + 6px);
-}
-
 @media (prefers-reduced-motion: no-preference) {
   .dropdownPanel {
     animation: widgetDropdownOpen 150ms ease-out;
