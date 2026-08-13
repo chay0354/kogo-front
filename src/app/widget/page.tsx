@@ -174,14 +174,16 @@ const FilterSelect = React.memo(function FilterSelect({
         aria-haspopup="listbox"
         aria-expanded={isOpen}
       >
-        <select value={value} onChange={(e) => onChange(e.target.value)} disabled={disabled || loading} className={styles.filterSelect}>
-          <option value="">{placeholder}</option>
-          {options.map((opt) => (
-            <option key={opt.value} value={opt.value}>{opt.label}</option>
-          ))}
-        </select>
-        <span className={styles.filterDisplayText}>{value ? selectedLabel : placeholder}</span>
-        <div className={styles.filterIconBox}>{chevronIcon}</div>
+        <div className={styles.filterFace}>
+          <select value={value} onChange={(e) => onChange(e.target.value)} disabled={disabled || loading} className={styles.filterSelect}>
+            <option value="">{placeholder}</option>
+            {options.map((opt) => (
+              <option key={opt.value} value={opt.value}>{opt.label}</option>
+            ))}
+          </select>
+          <span className={styles.filterDisplayText}>{value ? selectedLabel : placeholder}</span>
+          <div className={styles.filterIconBox}>{chevronIcon}</div>
+        </div>
         {typeof document !== 'undefined' && panel ? panel : null}
       </div>
     </>
