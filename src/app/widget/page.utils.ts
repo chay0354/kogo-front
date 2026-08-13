@@ -1,10 +1,5 @@
 import type { City } from './types';
 
-/** External links entered by studio staff may omit the protocol (e.g. "wa.me/123"). */
-export function normalizeExternalLink(link: string): string {
-  return /^https?:\/\//i.test(link) ? link : `https://${link}`;
-}
-
 export const CITY_DISPLAY_ORDER = [
   'פתח תקווה',
   'ראש העין',

@@ -7,7 +7,6 @@ import api from '@/lib/api';
 import CourseRegistrationForm from './CourseRegistrationForm';
 import CourseExpandedDetail from './CourseExpandedDetail/index';
 import { CourseList } from './CourseList/CourseList';
-// Changed this:
 import type { Branch, Course, CourseBundle, CourseLesson } from './types';
 import { STATIC_CITIES, normalizeExternalLink } from './page.utils';
 import { isCourseVisibleInWidgetCatalog } from './lessonVisibility';
