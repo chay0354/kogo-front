@@ -1,5 +1,6 @@
 'use client';
 
+import { Fragment } from 'react';
 import { ChevronDown } from 'lucide-react';
 import { getDayName, formatTimeRange } from '@/lib/courseUtils';
 import type { Course, CourseLesson, CourseBundle } from '../types';
@@ -95,13 +96,15 @@ export function CourseList({ filteredCourses, onSelect }: CourseListProps) {
             {bundle ? (
               <div className={styles.lessonSlotStack}>
                 {bundle.lessons.map((bl, i) => (
-                  <div key={bl.id} className={styles.lessonSlot}>
+                  <Fragment key={bl.id}>
                     {i > 0 ? <span className={styles.slotConnector} aria-hidden="true">+</span> : null}
-                    <span className={styles.lessonDay}>{getDayName(bl.day_of_week)}</span>
-                    <span className={styles.lessonTime} dir="ltr">
-                      {formatTimeRange(bl.start_time, bl.end_time)}
-                    </span>
-                  </div>
+                    <div className={styles.lessonSlot}>
+                      <span className={styles.lessonDay}>{getDayName(bl.day_of_week)}</span>
+                      <span className={styles.lessonTime} dir="ltr">
+                        {formatTimeRange(bl.start_time, bl.end_time)}
+                      </span>
+                    </div>
+                  </Fragment>
                 ))}
               </div>
             ) : (
