@@ -465,11 +465,33 @@
 
 .dropdownPanelSheet {
   left: var(--dp-left);
-  right: auto;
   width: var(--dp-width);
-  bottom: max(var(--dp-bottom), env(safe-area-inset-bottom, 0px));
-  border-radius: 16px;
-  box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.2);
+  bottom: 0;
+  border-radius: 16px 16px 0 0;
+  box-shadow: 0 -8px 32px rgba(0, 0, 0, 0.22);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+.dropdownSheetHeader {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding: 14px 16px 10px;
+  font-size: 1rem;
+  font-weight: 700;
+  color: #2B3090;
+  background-color: #ffffff;
+  border-bottom: 1px solid #DDE0F5;
+  list-style: none;
+  cursor: default;
+}
+
+.dropdownPanelSheet .dropdownOption:first-child {
+  border-radius: 0;
+}
+
+.dropdownPanelSheet .dropdownOption:last-child {
+  border-radius: 0 0 16px 16px;
 }
 
 @media (prefers-reduced-motion: no-preference) {

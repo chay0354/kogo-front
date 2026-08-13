@@ -23,16 +23,39 @@ type PanelPos = {
   bottom?: number;
 };
 
-const MOBILE_DROPDOWN_GAP = 6;
 const MOBILE_DROPDOWN_EDGE = 8;
 const MOBILE_OPTION_HEIGHT = 44;
-const MOBILE_MIN_PANEL_HEIGHT = 100;
+const MOBILE_MIN_PANEL_HEIGHT = 120;
+const MOBILE_SHEET_HEIGHT_RATIO = 0.62;
+
+function isMobileFilterUi() {
+  return typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches;
+}
+
+function isWidgetEmbedded() {
+  return typeof window !== 'undefined' && window.self !== window.top;
+}
+
+function notifyHostDropdown(open: boolean) {
+  if (!isWidgetEmbedded()) return;
+  window.parent.postMessage(
+    { type: open ? 'kogo-widget-dropdown-open' : 'kogo-widget-dropdown-close' },
+    '*',
+  );
+}
 
 function getMobileViewport() {
   const vv = window.visualViewport;
+  const docEl = document.documentElement;
+  const layoutHeight = docEl.clientHeight || window.innerHeight;
+  const layoutWidth = docEl.clientWidth || window.innerWidth;
+  const visualHeight = vv?.height ?? layoutHeight;
+  const visualWidth = vv?.width ?? layoutWidth;
+  // Inside an iframe on iOS, clamp to the document box so fixed sheets stay visible.
+  const height = Math.min(visualHeight, layoutHeight, window.innerHeight);
+  const width = Math.min(visualWidth, layoutWidth, window.innerWidth);
   const top = vv?.offsetTop ?? 0;
-  const height = vv?.height ?? window.innerHeight;
-  const width = vv?.width ?? window.innerWidth;
+
   return {
     top,
     left: vv?.offsetLeft ?? 0,
@@ -42,72 +65,29 @@ function getMobileViewport() {
   };
 }
 
-function computeMobilePanelPosition(rect: DOMRect, optionCount: number): PanelPos {
+function computeMobilePanelPosition(_rect: DOMRect, optionCount: number): PanelPos {
   const viewport = getMobileViewport();
-  const idealHeight = Math.min(280, Math.max(optionCount, 1) * MOBILE_OPTION_HEIGHT + 8);
-  const width = Math.min(rect.width, viewport.width - MOBILE_DROPDOWN_EDGE * 2);
-  const left = Math.max(
-    MOBILE_DROPDOWN_EDGE,
-    Math.min(rect.left, viewport.width - width - MOBILE_DROPDOWN_EDGE),
+  const idealHeight = Math.min(320, Math.max(optionCount, 1) * MOBILE_OPTION_HEIGHT + 24);
+  const sheetCap = Math.floor(viewport.height * MOBILE_SHEET_HEIGHT_RATIO);
+  const maxHeight = Math.max(
+    MOBILE_MIN_PANEL_HEIGHT,
+    Math.min(idealHeight, sheetCap, viewport.height - MOBILE_DROPDOWN_EDGE * 2),
   );
 
-  const spaceBelow = viewport.bottom - rect.bottom - MOBILE_DROPDOWN_GAP - MOBILE_DROPDOWN_EDGE;
-  const spaceAbove = rect.top - viewport.top - MOBILE_DROPDOWN_GAP - MOBILE_DROPDOWN_EDGE;
-
-  // Short iframe / lower filters: anchor a scrollable sheet to the bottom of the screen.
-  if (Math.max(spaceBelow, spaceAbove) < 160 && idealHeight > spaceBelow) {
-    const sheetHeight = Math.min(idealHeight, Math.max(viewport.height * 0.55, 180));
-    return {
-      left: MOBILE_DROPDOWN_EDGE,
-      width: viewport.width - MOBILE_DROPDOWN_EDGE * 2,
-      maxHeight: Math.min(sheetHeight, viewport.height - MOBILE_DROPDOWN_EDGE * 2),
-      placement: 'sheet',
-      bottom: MOBILE_DROPDOWN_EDGE,
-    };
-  }
-
-  let placement: 'below' | 'above' = 'below';
-  if (spaceBelow < idealHeight && spaceAbove > spaceBelow) {
-    placement = 'above';
-  }
-
-  const available = placement === 'below' ? spaceBelow : spaceAbove;
-  let maxHeight = Math.max(MOBILE_MIN_PANEL_HEIGHT, Math.min(idealHeight, available));
-
-  if (placement === 'below') {
-    let top = rect.bottom + MOBILE_DROPDOWN_GAP;
-    const maxBottom = viewport.bottom - MOBILE_DROPDOWN_EDGE;
-    if (top + maxHeight > maxBottom) {
-      maxHeight = Math.max(MOBILE_MIN_PANEL_HEIGHT, maxBottom - top);
-    }
-    if (maxHeight < MOBILE_MIN_PANEL_HEIGHT && spaceAbove > spaceBelow) {
-      placement = 'above';
-    } else {
-      return { left, width, maxHeight, placement, top };
-    }
-  }
-
-  const bottom = viewport.bottom - rect.top + MOBILE_DROPDOWN_GAP;
-  maxHeight = Math.max(MOBILE_MIN_PANEL_HEIGHT, Math.min(idealHeight, spaceAbove));
-  const maxTop = rect.top - MOBILE_DROPDOWN_GAP;
-  if (maxTop - maxHeight < viewport.top + MOBILE_DROPDOWN_EDGE) {
-    maxHeight = Math.max(MOBILE_MIN_PANEL_HEIGHT, maxTop - viewport.top - MOBILE_DROPDOWN_EDGE);
-  }
-
   return {
-    left,
-    width,
+    left: MOBILE_DROPDOWN_EDGE,
+    width: viewport.width - MOBILE_DROPDOWN_EDGE * 2,
     maxHeight,
-    placement: 'above',
-    bottom,
+    placement: 'sheet',
+    bottom: 0,
   };
 }
 
-/** After paint, nudge the panel if the viewport still clips it (common on iOS iframes). */
-function nudgePanelIntoView(pos: PanelPos, panelEl: HTMLElement): PanelPos {
+/** After paint, ensure the bottom sheet fits fully inside the iframe viewport. */
+function nudgePanelIntoView(pos: PanelPos, panelEl: HTMLElement, optionCount: number): PanelPos {
   const viewport = getMobileViewport();
-  const edge = MOBILE_DROPDOWN_EDGE;
   const rect = panelEl.getBoundingClientRect();
+  const edge = MOBILE_DROPDOWN_EDGE;
   const maxBottom = viewport.bottom - edge;
   const minTop = viewport.top + edge;
 
@@ -115,29 +95,7 @@ function nudgePanelIntoView(pos: PanelPos, panelEl: HTMLElement): PanelPos {
     return pos;
   }
 
-  const next: PanelPos = { ...pos };
-
-  if (rect.bottom > maxBottom) {
-    const overflow = rect.bottom - maxBottom;
-    if (pos.placement === 'below' && pos.top != null) {
-      next.top = Math.max(minTop, pos.top - overflow);
-    } else {
-      next.bottom = (pos.bottom ?? edge) + overflow;
-    }
-    next.maxHeight = Math.max(MOBILE_MIN_PANEL_HEIGHT, pos.maxHeight - overflow);
-  }
-
-  if (rect.top < minTop) {
-    const overflow = minTop - rect.top;
-    if (pos.placement === 'below' && next.top != null) {
-      next.top = next.top + overflow;
-    } else if (pos.placement === 'above' || pos.placement === 'sheet') {
-      next.bottom = Math.max(edge, (next.bottom ?? edge) - overflow);
-    }
-    next.maxHeight = Math.max(MOBILE_MIN_PANEL_HEIGHT, next.maxHeight - overflow);
-  }
-
-  return next;
+  return computeMobilePanelPosition(rect, optionCount);
 }
 
 /** Render modals on document.body so fixed positioning is not affected by page scroll. */
@@ -187,15 +145,17 @@ const FilterSelect = React.memo(function FilterSelect({
   const nudgePassRef = useRef(0);
 
   const openPanel = () => {
-    if (disabled || loading || typeof window === 'undefined' || window.innerWidth >= 768) return;
+    if (disabled || loading || typeof window === 'undefined' || !isMobileFilterUi()) return;
     const rect = wrapperRef.current?.getBoundingClientRect();
     if (!rect) return;
     nudgePassRef.current = 0;
     setPanelPos(computeMobilePanelPosition(rect, options.length));
     setIsOpen(true);
+    notifyHostDropdown(true);
   };
 
   const closePanel = () => {
+    notifyHostDropdown(false);
     setIsOpen(false);
     setPanelPos(null);
     nudgePassRef.current = 0;
@@ -203,15 +163,33 @@ const FilterSelect = React.memo(function FilterSelect({
 
   const handleSelect = (optValue: string) => {
     onChange(optValue);
-    setIsOpen(false);
+    closePanel();
   };
 
   useEffect(() => {
     if (!isOpen) return;
 
+    const { body, documentElement } = document;
+    const prevBodyOverflow = body.style.overflow;
+    const prevHtmlOverflow = documentElement.style.overflow;
+    body.style.overflow = 'hidden';
+    documentElement.style.overflow = 'hidden';
+
+    return () => {
+      body.style.overflow = prevBodyOverflow;
+      documentElement.style.overflow = prevHtmlOverflow;
+    };
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+
     const updatePanelPosition = () => {
-      if (window.innerWidth >= 768) {
+      if (!isMobileFilterUi()) {
+        notifyHostDropdown(false);
         setIsOpen(false);
+        setPanelPos(null);
+        nudgePassRef.current = 0;
         return;
       }
       const rect = wrapperRef.current?.getBoundingClientRect();
@@ -225,7 +203,10 @@ const FilterSelect = React.memo(function FilterSelect({
 
     const onScroll = (e: Event) => {
       if (panelRef.current && e.target instanceof Node && panelRef.current.contains(e.target)) return;
+      notifyHostDropdown(false);
       setIsOpen(false);
+      setPanelPos(null);
+      nudgePassRef.current = 0;
     };
     window.addEventListener('scroll', onScroll, true);
 
@@ -240,7 +221,7 @@ const FilterSelect = React.memo(function FilterSelect({
   useLayoutEffect(() => {
     if (!isOpen || !panelRef.current || !panelPos || nudgePassRef.current >= 2) return;
 
-    const refined = nudgePanelIntoView(panelPos, panelRef.current);
+    const refined = nudgePanelIntoView(panelPos, panelRef.current, options.length);
     const changed =
       refined.top !== panelPos.top
       || refined.bottom !== panelPos.bottom
@@ -290,6 +271,9 @@ const FilterSelect = React.memo(function FilterSelect({
           ...(panelPos.bottom != null ? { '--dp-bottom': `${panelPos.bottom}px` } : {}),
         } as React.CSSProperties}
       >
+        {panelPos.placement === 'sheet' ? (
+          <li className={styles.dropdownSheetHeader} role="presentation">{placeholder}</li>
+        ) : null}
         {options.length === 0 ? (
           <li className={styles.dropdownEmpty}>אין אפשרויות</li>
         ) : options.map((opt) => (
