@@ -344,7 +344,7 @@ export default function CourseRegistrationForm({ courseId, courseName, isAdult =
                 <div className={styles.fadeIn}>
                   <label className={styles.label}>תאריך לידה *</label>
                   <input required type="date" value={childBirthDate}
-                    onChange={(e) => setChildBirthDate(e.target.value)} className={styles.input} />
+                    onChange={(e) => setChildBirthDate(e.target.value)} className={`${styles.input} ${styles.inputDate}`} />
                 </div>
                 <div className={`${styles.fadeIn} ${styles.gridFull}`}>
                   <label className={styles.label}>מין *</label>
@@ -390,7 +390,7 @@ export default function CourseRegistrationForm({ courseId, courseName, isAdult =
               <div>
                 <label className={styles.label}>תאריך לידה *</label>
                 <input required type="date" value={childBirthDate}
-                  onChange={(e) => setChildBirthDate(e.target.value)} className={styles.input} />
+                  onChange={(e) => setChildBirthDate(e.target.value)} className={`${styles.input} ${styles.inputDate}`} />
               </div>
               <div style={{ gridColumn: '1 / -1' }}>
                 <label className={styles.label}>מין *</label>
