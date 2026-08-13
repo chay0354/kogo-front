@@ -53,6 +53,16 @@
   overflow: hidden;
 }
 
+@media (max-width: 767px) {
+  .filterWrapper {
+    overflow: visible;
+  }
+
+  .filterWrapperOpen {
+    z-index: 520;
+  }
+}
+
 @media (min-width: 768px) {
   .filterWrapper {
     @apply flex-1;
@@ -146,7 +156,7 @@
   min-width: 0;
   box-sizing: border-box;
   padding: 5px;
-  overflow-x: clip;
+  overflow: visible;
 }
 
 @media (min-width: 768px) {
@@ -166,7 +176,7 @@
   border-radius: var(--widget-radius);
   padding-bottom: 2.5rem;
   padding-top: 2rem;
-
+  overflow: visible;
 }
 
 @media (min-width: 768px) {
@@ -402,9 +412,10 @@
 }
 
 .dropdownPanel {
-  position: fixed;
-  left: var(--dp-left);
-  width: var(--dp-width);
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  width: 100%;
   z-index: 500;
   list-style: none;
   margin: 0;
@@ -419,12 +430,8 @@
   overscroll-behavior: contain;
 }
 
-.dropdownPanelBelow {
-  top: var(--dp-top);
-}
-
 @media (prefers-reduced-motion: no-preference) {
-  .dropdownPanelBelow {
+  .dropdownPanel {
     animation: widgetDropdownOpen 150ms ease-out;
   }
 }

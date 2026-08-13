@@ -10,6 +10,7 @@ export interface Branch {
   city_name: string;
   is_external: boolean;
   external_link: string;
+  course_types?: { id: string; name: string }[];
 }
 
 export interface CourseLesson {

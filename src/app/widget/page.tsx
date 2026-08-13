@@ -14,15 +14,6 @@ import { AGE_OPTIONS, formatAge } from '@/lib/courseUtils';
 import { findWidgetAlternatives, isWidgetSelectionFull, type WidgetAlternative } from './alternativeLessons';
 import styles from './page.module.css';
 
-type PanelPos = {
-  left: number;
-  width: number;
-  maxHeight: number;
-  top: number;
-};
-
-const MOBILE_DROPDOWN_GAP = 6;
-const MOBILE_DROPDOWN_EDGE = 8;
 const MOBILE_OPTION_HEIGHT = 44;
 const MOBILE_MAX_PANEL_HEIGHT = 240;
 
@@ -38,42 +29,25 @@ function panelHeightForOptions(optionCount: number) {
   return Math.min(MOBILE_MAX_PANEL_HEIGHT, Math.max(optionCount, 1) * MOBILE_OPTION_HEIGHT + 8);
 }
 
-function computeMobilePanelPosition(rect: DOMRect, optionCount: number): PanelPos {
-  const viewportW = window.innerWidth;
-  const width = Math.min(rect.width, viewportW - MOBILE_DROPDOWN_EDGE * 2);
-  const left = Math.max(
-    MOBILE_DROPDOWN_EDGE,
-    Math.min(rect.left, viewportW - width - MOBILE_DROPDOWN_EDGE),
-  );
-
-  return {
-    left,
-    width,
-    maxHeight: panelHeightForOptions(optionCount),
-    top: rect.bottom + MOBILE_DROPDOWN_GAP,
-  };
-}
-
-/** Scroll the phone page so the open list sits fully on screen (works in the B2C iframe too). */
-function revealDropdownOnPhone(triggerRect: DOMRect, panelHeight: number) {
-  const panelBottomInIframe = triggerRect.bottom + MOBILE_DROPDOWN_GAP + panelHeight;
-  const padding = 20;
+/** Scroll the phone (or the B2C parent page) until the open list is fully on screen. */
+function revealDropdownOnPhone(panelEl: HTMLElement) {
+  const rect = panelEl.getBoundingClientRect();
+  const padding = 24;
 
   if (isWidgetEmbedded()) {
     window.parent.postMessage(
       {
         type: 'kogo-widget-dropdown-open',
-        triggerBottom: triggerRect.bottom,
-        panelHeight,
-        panelBottom: panelBottomInIframe,
+        panelBottom: rect.bottom,
       },
       '*',
     );
     return;
   }
 
-  const overflow = panelBottomInIframe - window.innerHeight + padding;
-  if (overflow > 0) {
+  const viewBottom = (window.visualViewport?.offsetTop ?? 0) + (window.visualViewport?.height ?? window.innerHeight);
+  const overflow = rect.bottom - viewBottom + padding;
+  if (overflow > 4) {
     window.scrollBy({ top: overflow, behavior: 'smooth' });
   }
 }
@@ -119,24 +93,16 @@ const FilterSelect = React.memo(function FilterSelect({
   active?: boolean;
 }) {
   const [isOpen, setIsOpen] = useState(false);
-  const [panelPos, setPanelPos] = useState<PanelPos | null>(null);
   const wrapperRef = useRef<HTMLDivElement>(null);
   const panelRef = useRef<HTMLUListElement>(null);
+  const maxHeight = panelHeightForOptions(options.length);
 
   const openPanel = () => {
     if (disabled || loading || typeof window === 'undefined' || !isMobileFilterUi()) return;
-    const rect = wrapperRef.current?.getBoundingClientRect();
-    if (!rect) return;
-    const pos = computeMobilePanelPosition(rect, options.length);
-    setPanelPos(pos);
     setIsOpen(true);
-    revealDropdownOnPhone(rect, pos.maxHeight);
   };
 
-  const closePanel = () => {
-    setIsOpen(false);
-    setPanelPos(null);
-  };
+  const closePanel = () => setIsOpen(false);
 
   const handleSelect = (optValue: string) => {
     onChange(optValue);
@@ -145,25 +111,22 @@ const FilterSelect = React.memo(function FilterSelect({
 
   useEffect(() => {
     if (!isOpen) return;
-
-    const updatePanelPosition = () => {
-      if (!isMobileFilterUi()) {
-        setIsOpen(false);
-        setPanelPos(null);
-        return;
-      }
-      const rect = wrapperRef.current?.getBoundingClientRect();
-      if (rect) setPanelPos(computeMobilePanelPosition(rect, options.length));
-    };
-
-    window.addEventListener('resize', updatePanelPosition);
-    window.visualViewport?.addEventListener('resize', updatePanelPosition);
-
-    return () => {
-      window.removeEventListener('resize', updatePanelPosition);
-      window.visualViewport?.removeEventListener('resize', updatePanelPosition);
-    };
+    const panel = panelRef.current;
+    if (!panel) return;
+    const frame = requestAnimationFrame(() => {
+      requestAnimationFrame(() => revealDropdownOnPhone(panel));
+    });
+    return () => cancelAnimationFrame(frame);
   }, [isOpen, options.length]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const onResize = () => {
+      if (!isMobileFilterUi()) setIsOpen(false);
+    };
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, [isOpen]);
 
   const chevronIcon = loading ? (
     <svg className={styles.filterSpinner} width="16" height="16" viewBox="0 0 24 24" fill="none">
@@ -180,35 +143,37 @@ const FilterSelect = React.memo(function FilterSelect({
     <ChevronDown size={16} className={styles.filterChevron} />
   );
 
-  const panel = isOpen && panelPos ? (
-    <>
-      <div className={styles.dropdownBackdrop} onClick={closePanel} />
-      <ul
-        ref={panelRef}
-        role="listbox"
-        aria-label={placeholder}
-        className={`${styles.dropdownPanel} ${styles.dropdownPanelBelow}`}
-        style={{
-          '--dp-left': `${panelPos.left}px`,
-          '--dp-width': `${panelPos.width}px`,
-          '--dp-max-height': `${panelPos.maxHeight}px`,
-          '--dp-top': `${panelPos.top}px`,
-        } as React.CSSProperties}
-      >
-        {options.length === 0 ? (
-          <li className={styles.dropdownEmpty}>אין אפשרויות</li>
-        ) : options.map((opt) => (
-          <li key={opt.value} role="option" aria-selected={opt.value === value} className={`${styles.dropdownOption} ${opt.value === value ? styles.dropdownOptionSelected : ''}`} onClick={() => handleSelect(opt.value)}>
-            {opt.label}
-          </li>
-        ))}
-      </ul>
-    </>
+  const panel = isOpen ? (
+    <ul
+      ref={panelRef}
+      role="listbox"
+      aria-label={placeholder}
+      className={styles.dropdownPanel}
+      style={{ '--dp-max-height': `${maxHeight}px` } as React.CSSProperties}
+      onClick={(e) => e.stopPropagation()}
+    >
+      {options.length === 0 ? (
+        <li className={styles.dropdownEmpty}>אין אפשרויות</li>
+      ) : options.map((opt) => (
+        <li key={opt.value} role="option" aria-selected={opt.value === value} className={`${styles.dropdownOption} ${opt.value === value ? styles.dropdownOptionSelected : ''}`} onClick={() => handleSelect(opt.value)}>
+          {opt.label}
+        </li>
+      ))}
+    </ul>
   ) : null;
 
   return (
     <>
-      <div ref={wrapperRef} className={`${styles.filterWrapper} ${active ? styles.filterWrapperActive : ''}`} onClick={openPanel} aria-haspopup="listbox" aria-expanded={isOpen}>
+      {isOpen && typeof document !== 'undefined'
+        ? ReactDOM.createPortal(<div className={styles.dropdownBackdrop} onClick={closePanel} />, document.body)
+        : null}
+      <div
+        ref={wrapperRef}
+        className={`${styles.filterWrapper} ${active ? styles.filterWrapperActive : ''} ${isOpen ? styles.filterWrapperOpen : ''}`}
+        onClick={openPanel}
+        aria-haspopup="listbox"
+        aria-expanded={isOpen}
+      >
         <select value={value} onChange={(e) => onChange(e.target.value)} disabled={disabled || loading} className={styles.filterSelect}>
           <option value="">{placeholder}</option>
           {options.map((opt) => (
@@ -217,8 +182,8 @@ const FilterSelect = React.memo(function FilterSelect({
         </select>
         <span className={styles.filterDisplayText}>{value ? selectedLabel : placeholder}</span>
         <div className={styles.filterIconBox}>{chevronIcon}</div>
+        {typeof document !== 'undefined' && panel ? panel : null}
       </div>
-      {typeof document !== 'undefined' && panel ? ReactDOM.createPortal(panel, document.body) : null}
     </>
   );
 });
@@ -309,6 +274,13 @@ export default function WidgetPage() {
       .then((branchesRes) => {
         const branchesData: Branch[] = Array.isArray(branchesRes.data) ? branchesRes.data : branchesRes.data.results ?? [];
         setAllBranches(branchesData);
+        const typeMap: Record<string, { id: string; name: string }[]> = {};
+        for (const branch of branchesData) {
+          if (!branch.course_types?.length) continue;
+          typeMap[branch.id] = branch.course_types;
+          loadedCourseTypesRef.current.add(branch.id);
+        }
+        if (Object.keys(typeMap).length) setCourseTypesByBranch(typeMap);
       })
       .finally(() => setLoadingBranches(false));
   }, []);
@@ -485,7 +457,7 @@ export default function WidgetPage() {
 
         <FilterSelect value={selectedBranch} onChange={handleBranchChange} disabled={!selectedCity} loading={loadingBranches} placeholder="בחרו סניף" options={branchOptions} selectedLabel={filteredBranches.find((b) => b.id === selectedBranch)?.name} active={activeField === 'branch'} />
 
-        <FilterSelect value={selectedCourseType} onChange={handleCourseTypeChange} disabled={!selectedBranch} loading={loadingCourseTypes} placeholder="בחרו חוג" options={courseTypeOptions} selectedLabel={courseTypes.find((t) => t.id === selectedCourseType)?.name} active={activeField === 'courseType'} />
+        <FilterSelect value={selectedCourseType} onChange={handleCourseTypeChange} disabled={!selectedBranch} loading={loadingCourseTypes && courseTypes.length === 0} placeholder="בחרו חוג" options={courseTypeOptions} selectedLabel={courseTypes.find((t) => t.id === selectedCourseType)?.name} active={activeField === 'courseType'} />
 
         <FilterSelect value={selectedAge} onChange={setSelectedAge} disabled={!selectedCourseType} placeholder="בחרו גיל" options={ageOptions} selectedLabel={selectedAge ? formatAge(parseInt(selectedAge)) : undefined} active={activeField === 'age'} />
       </div>
