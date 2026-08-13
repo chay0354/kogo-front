@@ -196,7 +196,7 @@ const FilterSelect = React.memo(function FilterSelect({
               <option key={opt.value} value={opt.value}>{opt.label}</option>
             ))}
           </select>
-          <span className={styles.filterDisplayText}>{value ? selectedLabel : placeholder}</span>
+          <span className={styles.filterDisplayText}>{value && selectedLabel ? selectedLabel : placeholder}</span>
           <div className={styles.filterIconBox}>{chevronIcon}</div>
         </div>
         {typeof document !== 'undefined' && panel ? panel : null}
@@ -247,10 +247,14 @@ export default function WidgetPage() {
 
   const filteredBranches = useMemo(() => {
     if (!selectedCity) return [];
-    const seen = new Set<string>();
+    const seenIds = new Set<string>();
+    const seenNames = new Set<string>();
     return allBranches.filter((b) => {
-      if (b.city !== selectedCity || seen.has(b.id)) return false;
-      seen.add(b.id);
+      if (b.city !== selectedCity) return false;
+      const nameKey = b.name.trim();
+      if (seenIds.has(b.id) || seenNames.has(nameKey)) return false;
+      seenIds.add(b.id);
+      seenNames.add(nameKey);
       return true;
     });
   }, [allBranches, selectedCity]);
@@ -355,7 +359,8 @@ export default function WidgetPage() {
   useEffect(() => {
     if (!selectedCity) return;
     const cityBranches = allBranches.filter((b) => b.city === selectedCity);
-    if (cityBranches.length === 1) {
+    const uniqueNames = new Set(cityBranches.map((b) => b.name.trim()));
+    if (uniqueNames.size === 1 && cityBranches[0]) {
       setSelectedBranch(cityBranches[0].id);
     }
   }, [selectedCity, allBranches]);
@@ -472,7 +477,7 @@ export default function WidgetPage() {
 
         <FilterSelect value={selectedCity} onChange={handleCityChange} placeholder="בחרו עיר" options={cityOptions} selectedLabel={cities.find((c) => c.id === selectedCity)?.name} active={activeField === 'city'} />
 
-        <FilterSelect value={selectedBranch} onChange={handleBranchChange} disabled={!selectedCity} loading={loadingBranches} placeholder="בחרו סניף" options={branchOptions} selectedLabel={filteredBranches.find((b) => b.id === selectedBranch)?.name} active={activeField === 'branch'} />
+        <FilterSelect value={selectedBranch} onChange={handleBranchChange} disabled={!selectedCity} placeholder="בחרו סניף" options={branchOptions} selectedLabel={filteredBranches.find((b) => b.id === selectedBranch)?.name} active={activeField === 'branch'} />
 
         <FilterSelect value={selectedCourseType} onChange={handleCourseTypeChange} disabled={!selectedBranch} loading={loadingCourseTypes && courseTypes.length === 0} placeholder="בחרו חוג" options={courseTypeOptions} selectedLabel={courseTypes.find((t) => t.id === selectedCourseType)?.name} active={activeField === 'courseType'} />
 

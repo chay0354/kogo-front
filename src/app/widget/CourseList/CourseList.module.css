@@ -11,7 +11,7 @@
 
 .row {
   display: flex;
-  align-items: stretch;
+  align-items: center;
   direction: rtl;
   cursor: pointer;
   border-radius: 10px;
@@ -23,6 +23,7 @@
   width: 100%;
   max-width: 100%;
   min-width: 0;
+  height: 64px;
   overflow: hidden;
   box-sizing: border-box;
 }
@@ -36,24 +37,20 @@
   outline-offset: -2px;
 }
 
-/* Right zone — course name (60%) */
-
 .nameZone {
-  flex: 6;
+  flex: 1 1 42%;
   min-width: 0;
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 6px 14px;
-  /* border-inline-end: 1px solid #e5e7eb; */
+  padding: 0 14px;
+  height: 100%;
 }
 
-.divider{
+.divider {
   width: 1px;
   height: 34px;
   background-color: #e5e7eb;
-  margin-top: auto;
-  margin-bottom: auto;
   flex-shrink: 0;
 }
 
@@ -74,43 +71,16 @@
   text-overflow: ellipsis;
   white-space: nowrap;
   min-width: 0;
-  flex: 0 1 auto;
 }
-
-.courseType {
-  font-size: 0.75rem;
-  font-weight: 500;
-  color: #6b7280;
-  white-space: nowrap;
-  flex-shrink: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.bundleBadge {
-  background-color: rgba(245, 197, 24, 0.18);
-  color: #2B3090;
-  font-size: 0.6875rem;
-  font-weight: 700;
-  padding: 2px 8px;
-  border-radius: 999px;
-  white-space: nowrap;
-  flex-shrink: 0;
-  max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-/* Left zone — day/time + button (40%) */
 
 .slotZone {
-  flex: 4;
+  flex: 1 1 58%;
   min-width: 0;
   display: flex;
   align-items: center;
-  padding: 9px 12px 9px 10px;
-  gap: 10px;
+  padding: 0 10px 0 12px;
+  gap: 8px;
+  height: 100%;
 }
 
 .lessonSlot {
@@ -119,31 +89,15 @@
   text-align: center;
 }
 
-.lessonSlotStack {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-}
-
-.lessonSlotStack .lessonSlot {
-  flex: none;
-}
-
-.slotConnector {
-  font-size: 0.75rem;
-  color: #9ca3af;
-  line-height: 1;
-}
-
 .lessonDay {
-  font-size: 0.875rem;
+  font-size: 0.8125rem;
   font-weight: 700;
   color: #2B3090;
   display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.2;
 }
 
 .lessonTime {
@@ -153,11 +107,16 @@
   display: block;
   margin-top: 2px;
   direction: ltr;
+  unicode-bidi: isolate;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.2;
 }
 
 .expandBtn {
-  width: 38px;
-  height: 38px;
+  width: 36px;
+  height: 36px;
   flex-shrink: 0;
   display: flex;
   align-items: center;
@@ -173,42 +132,37 @@
   background-color: #e5e7eb;
 }
 
-/* Mobile — same single-row template as desktop, tuned for narrower width */
 @media (max-width: 767px) {
+  .row {
+    height: 62px;
+  }
+
   .nameZone {
-    flex: 1 1 auto;
-    min-width: 0;
-    display: flex;
-    align-items: center;
+    flex: 1 1 38%;
     gap: 8px;
-    padding: 10px 12px;
+    padding: 0 10px 0 8px;
   }
 
   .courseName {
-    flex: 0 1 auto;
-    min-width: 0;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-
-  .courseType {
-    flex-shrink: 0;
-  }
-
-  .bundleBadge {
-    flex-shrink: 0;
-  }
-
-  .divider {
-    display: none;
+    font-size: 0.875rem;
   }
 
   .slotZone {
-    flex: 0 0 auto;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 10px 12px;
+    flex: 1 1 62%;
+    gap: 6px;
+    padding: 0 8px 0 10px;
+  }
+
+  .lessonDay {
+    font-size: 0.75rem;
+  }
+
+  .lessonTime {
+    font-size: 0.6875rem;
+  }
+
+  .expandBtn {
+    width: 34px;
+    height: 34px;
   }
 }

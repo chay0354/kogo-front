@@ -57,10 +57,13 @@ export default function CourseExpandedDetail({
 
   return (
     <div className={styles.card} dir="rtl">
-      <button onClick={onClose} className={styles.closeButton} aria-label="סגור">
-        <X size={20} />
-      </button>
+      <div className={styles.topBar}>
+        <button onClick={onClose} className={styles.closeButton} aria-label="סגור">
+          <X size={20} />
+        </button>
+      </div>
 
+      <div className={styles.scrollArea}>
         {/* Header */}
         <div className={styles.header}>
           <h2 className={styles.title}>{displayTitle}</h2>
@@ -183,7 +186,7 @@ export default function CourseExpandedDetail({
             </button>
           </>
         )}
-
       </div>
+    </div>
   );
 }

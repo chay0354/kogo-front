@@ -1,6 +1,5 @@
 'use client';
 
-import { Fragment } from 'react';
 import { ChevronDown } from 'lucide-react';
 import { getDayName, formatTimeRange } from '@/lib/courseUtils';
 import type { Course, CourseLesson, CourseBundle } from '../types';
@@ -62,12 +61,30 @@ function buildRows(courses: Course[]): CourseRow[] {
   return rows;
 }
 
+function scheduleLines(lesson: CourseLesson | null, bundle: CourseBundle | null): { days: string; times: string } {
+  if (bundle?.lessons?.length) {
+    return {
+      days: bundle.lessons.map((bl) => getDayName(bl.day_of_week)).join(' / '),
+      times: bundle.lessons.map((bl) => formatTimeRange(bl.start_time, bl.end_time)).join(' / '),
+    };
+  }
+  if (lesson) {
+    return {
+      days: getDayName(lesson.day_of_week),
+      times: formatTimeRange(lesson.start_time, lesson.end_time),
+    };
+  }
+  return { days: '—', times: '' };
+}
+
 export function CourseList({ filteredCourses, onSelect }: CourseListProps) {
   const rows = buildRows(filteredCourses);
 
   return (
     <div role="list" className={styles.list}>
-      {rows.map(({ course, lesson, bundle }, index) => (
+      {rows.map(({ course, lesson, bundle }, index) => {
+        const schedule = scheduleLines(lesson, bundle);
+        return (
         <div
           key={`${course.id}-${bundle?.id ?? lesson?.id ?? index}`}
           role="listitem"
@@ -84,43 +101,17 @@ export function CourseList({ filteredCourses, onSelect }: CourseListProps) {
           <div className={styles.nameZone}>
             <span className={styles.bullet} aria-hidden="true" />
             <span className={styles.courseName}>{course.name}</span>
-            {course.course_type_name ? (
-              <span className={styles.courseType}>{course.course_type_name}</span>
-            ) : null}
-            {bundle ? (
-              <span className={styles.bundleBadge}>{bundle.name || 'פעמיים בשבוע'}</span>
-            ) : null}
           </div>
           <div className={styles.divider} />
           <div className={styles.slotZone}>
-            {bundle ? (
-              <div className={styles.lessonSlotStack}>
-                {bundle.lessons.map((bl, i) => (
-                  <Fragment key={bl.id}>
-                    {i > 0 ? <span className={styles.slotConnector} aria-hidden="true">+</span> : null}
-                    <div className={styles.lessonSlot}>
-                      <span className={styles.lessonDay}>{getDayName(bl.day_of_week)}</span>
-                      <span className={styles.lessonTime} dir="ltr">
-                        {formatTimeRange(bl.start_time, bl.end_time)}
-                      </span>
-                    </div>
-                  </Fragment>
-                ))}
-              </div>
-            ) : (
-              <div className={styles.lessonSlot}>
-                {lesson ? (
-                  <>
-                    <span className={styles.lessonDay}>{getDayName(lesson.day_of_week)}</span>
-                    <span className={styles.lessonTime} dir="ltr">
-                      {formatTimeRange(lesson.start_time, lesson.end_time)}
-                    </span>
-                  </>
-                ) : (
-                  <span className={styles.lessonDay}>—</span>
-                )}
-              </div>
-            )}
+            <div className={styles.lessonSlot}>
+              <span className={styles.lessonDay}>{schedule.days}</span>
+              {schedule.times ? (
+                <span className={styles.lessonTime} dir="ltr">
+                  {schedule.times}
+                </span>
+              ) : null}
+            </div>
 
             <button
               type="button"
@@ -136,7 +127,8 @@ export function CourseList({ filteredCourses, onSelect }: CourseListProps) {
             </button>
           </div>
         </div>
-      ))}
+        );
+      })}
     </div>
   );
 }
