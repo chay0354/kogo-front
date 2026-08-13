@@ -42,3 +42,11 @@ export function sortCitiesByFixedOrder(cities: City[]): City[] {
     return rankA - rankB;
   });
 }
+
+/** Ensure external branch/course links open correctly when stored without a scheme. */
+export function normalizeExternalLink(link: string): string {
+  const trimmed = link.trim();
+  if (!trimmed) return trimmed;
+  if (/^https?:\/\//i.test(trimmed)) return trimmed;
+  return `https://${trimmed}`;
+}
