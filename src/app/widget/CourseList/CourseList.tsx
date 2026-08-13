@@ -61,20 +61,31 @@ function buildRows(courses: Course[]): CourseRow[] {
   return rows;
 }
 
-function scheduleLines(lesson: CourseLesson | null, bundle: CourseBundle | null): { days: string; times: string } {
+function scheduleLines(lesson: CourseLesson | null, bundle: CourseBundle | null): { days: string; times: string; isBundle: boolean } {
   if (bundle?.lessons?.length) {
+    const dayParts = bundle.lessons.map((bl) => getDayName(bl.day_of_week));
+    const timeParts = bundle.lessons.map((bl) => formatTimeRange(bl.start_time, bl.end_time));
+    const uniqueTimes = [...new Set(timeParts)];
     return {
-      days: bundle.lessons.map((bl) => getDayName(bl.day_of_week)).join(' / '),
-      times: bundle.lessons.map((bl) => formatTimeRange(bl.start_time, bl.end_time)).join(' / '),
+      days: dayParts.join(' / '),
+      times: uniqueTimes.length === 1 ? uniqueTimes[0] : timeParts.join(' / '),
+      isBundle: true,
     };
   }
   if (lesson) {
     return {
       days: getDayName(lesson.day_of_week),
       times: formatTimeRange(lesson.start_time, lesson.end_time),
+      isBundle: false,
     };
   }
-  return { days: '—', times: '' };
+  return { days: '—', times: '', isBundle: false };
+}
+
+function frequencyLabel(lesson: CourseLesson | null, bundle: CourseBundle | null): string | null {
+  if (bundle) return bundle.name || 'פעמיים בשבוע';
+  if (lesson) return 'פעם בשבוע';
+  return null;
 }
 
 export function CourseList({ filteredCourses, onSelect }: CourseListProps) {
@@ -84,6 +95,7 @@ export function CourseList({ filteredCourses, onSelect }: CourseListProps) {
     <div role="list" className={styles.list}>
       {rows.map(({ course, lesson, bundle }, index) => {
         const schedule = scheduleLines(lesson, bundle);
+        const frequency = frequencyLabel(lesson, bundle);
         return (
         <div
           key={`${course.id}-${bundle?.id ?? lesson?.id ?? index}`}
@@ -104,12 +116,17 @@ export function CourseList({ filteredCourses, onSelect }: CourseListProps) {
           </div>
           <div className={styles.divider} />
           <div className={styles.slotZone}>
-            <div className={styles.lessonSlot}>
-              <span className={styles.lessonDay}>{schedule.days}</span>
-              {schedule.times ? (
-                <span className={styles.lessonTime} dir="ltr">
-                  {schedule.times}
-                </span>
+            <div className={styles.scheduleGroup}>
+              <div className={`${styles.lessonSlot} ${schedule.isBundle ? styles.lessonSlotBundle : ''}`}>
+                <span className={styles.lessonDay}>{schedule.days}</span>
+                {schedule.times ? (
+                  <span className={styles.lessonTime} dir="ltr">
+                    {schedule.times}
+                  </span>
+                ) : null}
+              </div>
+              {frequency ? (
+                <span className={styles.frequencyBadge}>{frequency}</span>
               ) : null}
             </div>
 

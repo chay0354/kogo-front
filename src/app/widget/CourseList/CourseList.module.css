@@ -78,15 +78,48 @@
   min-width: 0;
   display: flex;
   align-items: center;
+  justify-content: space-between;
   padding: 0 10px 0 12px;
   gap: 8px;
   height: 100%;
 }
 
-.lessonSlot {
+.scheduleGroup {
   flex: 1;
   min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  direction: ltr;
+}
+
+.frequencyBadge {
+  flex-shrink: 0;
+  margin-left: auto;
+  background-color: rgba(245, 197, 24, 0.18);
+  color: #2B3090;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  padding: 4px 8px;
+  border-radius: 999px;
+  white-space: nowrap;
+  line-height: 1.25;
   text-align: center;
+}
+
+.lessonSlot {
+  flex: 0 1 auto;
+  min-width: 0;
+  text-align: right;
+}
+
+.lessonSlotBundle .lessonDay {
+  font-size: 0.75rem;
+}
+
+.lessonSlotBundle .lessonTime {
+  font-size: 0.6875rem;
 }
 
 .lessonDay {
@@ -151,6 +184,23 @@
     flex: 1 1 62%;
     gap: 6px;
     padding: 0 8px 0 10px;
+  }
+
+  .scheduleGroup {
+    gap: 6px;
+  }
+
+  .frequencyBadge {
+    font-size: 0.625rem;
+    padding: 3px 7px;
+  }
+
+  .lessonSlotBundle .lessonDay {
+    font-size: 0.6875rem;
+  }
+
+  .lessonSlotBundle .lessonTime {
+    font-size: 0.625rem;
   }
 
   .lessonDay {
