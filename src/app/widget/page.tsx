@@ -278,8 +278,7 @@ export default function WidgetPage() {
   const handleBranchChange = (branchId: string) => { setSelectedBranch(branchId); setSelectedCourseType(''); setSelectedAge(''); };
   const handleCourseTypeChange = (typeId: string) => { setSelectedCourseType(typeId); setSelectedAge(''); };
 
-  const filledDropdowns = [selectedCity, selectedBranch, selectedCourseType, selectedAge].filter(Boolean).length;
-  const showTable = filledDropdowns >= 3;
+  const showTable = Boolean(selectedCity && selectedBranch && selectedCourseType && selectedAge);
 
   const showNoMatchingCoursesMessage =
     Boolean(selectedBranch) &&
