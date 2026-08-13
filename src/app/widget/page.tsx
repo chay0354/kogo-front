@@ -22,19 +22,27 @@ function isMobileFilterUi() {
 }
 
 function isWidgetEmbedded() {
-  return typeof window !== 'undefined' && window.self !== window.top;
+  try {
+    return typeof window !== 'undefined' && window.parent !== window;
+  } catch {
+    return true;
+  }
 }
 
 function panelHeightForOptions(optionCount: number) {
   return Math.min(MOBILE_MAX_PANEL_HEIGHT, Math.max(optionCount, 1) * MOBILE_OPTION_HEIGHT + 8);
 }
 
-/** Scroll the phone (or the B2C parent page) until the open list is fully on screen. */
+function scrollWindowBy(delta: number) {
+  if (delta <= 2) return;
+  const next = Math.max(0, (window.scrollY || window.pageYOffset || 0) + delta);
+  window.scrollTo(0, next);
+}
+
+/** Ask the B2C host (and/or this page) to scroll until the open list is on screen. */
 function revealDropdownOnPhone(panelEl: HTMLElement) {
   const rect = panelEl.getBoundingClientRect();
-  const padding = 24;
-
-  if (isWidgetEmbedded()) {
+  try {
     window.parent.postMessage(
       {
         type: 'kogo-widget-dropdown-open',
@@ -42,14 +50,15 @@ function revealDropdownOnPhone(panelEl: HTMLElement) {
       },
       '*',
     );
-    return;
+  } catch {
+    /* cross-origin host may still receive the message */
   }
 
-  const viewBottom = (window.visualViewport?.offsetTop ?? 0) + (window.visualViewport?.height ?? window.innerHeight);
-  const overflow = rect.bottom - viewBottom + padding;
-  if (overflow > 4) {
-    window.scrollBy({ top: overflow, behavior: 'smooth' });
-  }
+  if (isWidgetEmbedded()) return;
+
+  const viewBottom =
+    (window.visualViewport?.offsetTop ?? 0) + (window.visualViewport?.height ?? window.innerHeight);
+  scrollWindowBy(rect.bottom - viewBottom + 24);
 }
 
 /** Render modals on document.body so fixed positioning is not affected by page scroll. */
@@ -113,10 +122,16 @@ const FilterSelect = React.memo(function FilterSelect({
     if (!isOpen) return;
     const panel = panelRef.current;
     if (!panel) return;
+    let cancelled = false;
     const frame = requestAnimationFrame(() => {
-      requestAnimationFrame(() => revealDropdownOnPhone(panel));
+      requestAnimationFrame(() => {
+        if (!cancelled) revealDropdownOnPhone(panel);
+      });
     });
-    return () => cancelAnimationFrame(frame);
+    return () => {
+      cancelled = true;
+      cancelAnimationFrame(frame);
+    };
   }, [isOpen, options.length]);
 
   useEffect(() => {
