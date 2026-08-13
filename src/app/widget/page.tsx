@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import ReactDOM from 'react-dom';
 import { ChevronDown, ChevronUp, Check } from 'lucide-react';
 import api from '@/lib/api';
@@ -35,18 +35,31 @@ function NoMatchingCoursesMessage() {
   );
 }
 
-function FilterSelect({ value, onChange, disabled, loading, placeholder, selectedLabel, children, active }: { value: string; onChange: (v: string) => void; disabled?: boolean; loading?: boolean; placeholder: string; selectedLabel?: string; children: React.ReactNode; active?: boolean }) {
+type FilterOption = { value: string; label: string };
+
+const FilterSelect = React.memo(function FilterSelect({
+  value,
+  onChange,
+  disabled,
+  loading,
+  placeholder,
+  selectedLabel,
+  options,
+  active,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  disabled?: boolean;
+  loading?: boolean;
+  placeholder: string;
+  selectedLabel?: string;
+  options: FilterOption[];
+  active?: boolean;
+}) {
   const [isOpen, setIsOpen] = useState(false);
   const [panelPos, setPanelPos] = useState<PanelPos | null>(null);
   const wrapperRef = useRef<HTMLDivElement>(null);
   const panelRef = useRef<HTMLUListElement>(null);
-
-  const options = React.Children.toArray(children)
-    .filter(React.isValidElement)
-    .map((child) => {
-      const el = child as React.ReactElement<{ value: string | number; children: React.ReactNode }>;
-      return { value: String(el.props.value), label: String(el.props.children) };
-    });
 
   const openPanel = () => {
     if (disabled || loading || typeof window === 'undefined' || window.innerWidth >= 768) return;
@@ -113,7 +126,9 @@ function FilterSelect({ value, onChange, disabled, loading, placeholder, selecte
       <div ref={wrapperRef} className={`${styles.filterWrapper} ${active ? styles.filterWrapperActive : ''}`} onClick={openPanel} aria-haspopup="listbox" aria-expanded={isOpen}>
         <select value={value} onChange={(e) => onChange(e.target.value)} disabled={disabled || loading} className={styles.filterSelect}>
           <option value="">{placeholder}</option>
-          {children}
+          {options.map((opt) => (
+            <option key={opt.value} value={opt.value}>{opt.label}</option>
+          ))}
         </select>
         <span className={styles.filterDisplayText}>{value ? selectedLabel : placeholder}</span>
         <div className={styles.filterIconBox}>{chevronIcon}</div>
@@ -121,12 +136,12 @@ function FilterSelect({ value, onChange, disabled, loading, placeholder, selecte
       {typeof document !== 'undefined' && panel ? ReactDOM.createPortal(panel, document.body) : null}
     </>
   );
-}
+});
 
 export default function WidgetPage() {
   const cities = STATIC_CITIES;
   const [allBranches, setAllBranches] = useState<Branch[]>([]);
-  const [allCoursesMap, setAllCoursesMap] = useState<Record<string, Course[]>>({});
+  const [coursesByBranch, setCoursesByBranch] = useState<Record<string, Course[]>>({});
 
   const [selectedCity, setSelectedCity] = useState('');
   const [selectedBranch, setSelectedBranch] = useState('');
@@ -134,6 +149,8 @@ export default function WidgetPage() {
   const [selectedAge, setSelectedAge] = useState('');
 
   const [loadingBranches, setLoadingBranches] = useState(true);
+  const [loadingCourses, setLoadingCourses] = useState(false);
+  const loadedBranchCoursesRef = useRef(new Set<string>());
   const [detailCourse, setDetailCourse] = useState<Course | null>(null);
   const [detailBundle, setDetailBundle] = useState<CourseBundle | null>(null);
   const [detailLesson, setDetailLesson] = useState<CourseLesson | null>(null);
@@ -156,19 +173,27 @@ export default function WidgetPage() {
     ? detailCourse.bundles?.find((b) => b.lessons.some((l) => l.id === detailLesson.id)) ?? null
     : null;
 
-  const branchCourses = selectedBranch ? (allCoursesMap[selectedBranch] ?? []) : [];
+  const branchCourses = selectedBranch ? (coursesByBranch[selectedBranch] ?? []) : [];
 
-  const filteredBranches = selectedCity ? allBranches.filter((b) => b.city === selectedCity) : [];
+  const filteredBranches = useMemo(() => {
+    if (!selectedCity) return [];
+    const seen = new Set<string>();
+    return allBranches.filter((b) => {
+      if (b.city !== selectedCity || seen.has(b.id)) return false;
+      seen.add(b.id);
+      return true;
+    });
+  }, [allBranches, selectedCity]);
 
-  const courseTypes = Array.from(
+  const courseTypes = useMemo(() => Array.from(
     new Map(
       branchCourses
         .filter(isCourseVisibleInWidgetCatalog)
         .map((c) => [String(c.course_type), c.course_type_name])
     ).entries()
-  ).map(([id, name]) => ({ id, name }));
+  ).map(([id, name]) => ({ id, name: name ?? '' })), [branchCourses]);
 
-  const filteredCourses = branchCourses.filter((course) => {
+  const filteredCourses = useMemo(() => branchCourses.filter((course) => {
     if (selectedCourseType && String(course.course_type) !== selectedCourseType) return false;
     if (selectedAge) {
       const age = parseInt(selectedAge);
@@ -177,7 +202,24 @@ export default function WidgetPage() {
       if (age < minAge || age > maxAge) return false;
     }
     return isCourseVisibleInWidgetCatalog(course);
-  });
+  }), [branchCourses, selectedCourseType, selectedAge]);
+
+  const cityOptions = useMemo(
+    () => cities.map((c) => ({ value: c.id, label: c.name })),
+    [cities],
+  );
+  const branchOptions = useMemo(
+    () => filteredBranches.map((b) => ({ value: b.id, label: b.name })),
+    [filteredBranches],
+  );
+  const courseTypeOptions = useMemo(
+    () => courseTypes.map((t) => ({ value: t.id, label: t.name })),
+    [courseTypes],
+  );
+  const ageOptions = useMemo(
+    () => AGE_OPTIONS.map((age) => ({ value: String(age), label: formatAge(age) })),
+    [],
+  );
 
   useEffect(() => {
     setLoadingBranches(true);
@@ -185,20 +227,34 @@ export default function WidgetPage() {
       .then((branchesRes) => {
         const branchesData: Branch[] = Array.isArray(branchesRes.data) ? branchesRes.data : branchesRes.data.results ?? [];
         setAllBranches(branchesData);
-        return Promise.all(
-          branchesData.map((b) =>
-            api.get(`/customers/widget/courses/?branch_id=${b.id}`)
-              .then((res) => ({ branchId: b.id, courses: Array.isArray(res.data) ? res.data : (res.data.results ?? []) as Course[] }))
-          )
-        );
-      })
-      .then((results) => {
-        const map: Record<string, Course[]> = {};
-        for (const { branchId, courses } of results) map[branchId] = courses;
-        setAllCoursesMap(map);
       })
       .finally(() => setLoadingBranches(false));
   }, []);
+
+  useEffect(() => {
+    if (!selectedBranch || loadedBranchCoursesRef.current.has(selectedBranch)) return;
+
+    let cancelled = false;
+    setLoadingCourses(true);
+    api.get(`/customers/widget/courses/?branch_id=${selectedBranch}`)
+      .then((res) => {
+        if (cancelled) return;
+        const courses = Array.isArray(res.data) ? res.data : (res.data.results ?? []) as Course[];
+        loadedBranchCoursesRef.current.add(selectedBranch);
+        setCoursesByBranch((prev) => ({ ...prev, [selectedBranch]: courses }));
+      })
+      .catch(() => {
+        if (!cancelled) {
+          loadedBranchCoursesRef.current.add(selectedBranch);
+          setCoursesByBranch((prev) => ({ ...prev, [selectedBranch]: [] }));
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingCourses(false);
+      });
+
+    return () => { cancelled = true; };
+  }, [selectedBranch]);
 
   useEffect(() => {
     if (!selectedCity) return;
@@ -274,15 +330,28 @@ export default function WidgetPage() {
     setDetailBundle(alt.bundle ?? null);
   };
 
-  const handleCityChange = (cityId: string) => { setSelectedCity(cityId); setSelectedBranch(''); setSelectedCourseType(''); setSelectedAge(''); };
-  const handleBranchChange = (branchId: string) => { setSelectedBranch(branchId); setSelectedCourseType(''); setSelectedAge(''); };
-  const handleCourseTypeChange = (typeId: string) => { setSelectedCourseType(typeId); setSelectedAge(''); };
+  const handleCityChange = useCallback((cityId: string) => {
+    setSelectedCity(cityId);
+    setSelectedBranch('');
+    setSelectedCourseType('');
+    setSelectedAge('');
+  }, []);
+  const handleBranchChange = useCallback((branchId: string) => {
+    setSelectedBranch(branchId);
+    setSelectedCourseType('');
+    setSelectedAge('');
+  }, []);
+  const handleCourseTypeChange = useCallback((typeId: string) => {
+    setSelectedCourseType(typeId);
+    setSelectedAge('');
+  }, []);
 
   const showTable = Boolean(selectedCity && selectedBranch && selectedCourseType && selectedAge);
 
   const showNoMatchingCoursesMessage =
     Boolean(selectedBranch) &&
     !loadingBranches &&
+    !loadingCourses &&
     (courseTypes.length === 0 || (showTable && filteredCourses.length === 0));
 
   const activeField = !selectedCity ? 'city'
@@ -302,21 +371,13 @@ export default function WidgetPage() {
           <span className={styles.filterStripLine} />
         </div>
 
-        <FilterSelect value={selectedCity} onChange={handleCityChange} placeholder="בחרו עיר" selectedLabel={cities.find((c) => c.id === selectedCity)?.name} active={activeField === 'city'}>
-          {cities.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-        </FilterSelect>
+        <FilterSelect value={selectedCity} onChange={handleCityChange} placeholder="בחרו עיר" options={cityOptions} selectedLabel={cities.find((c) => c.id === selectedCity)?.name} active={activeField === 'city'} />
 
-        <FilterSelect value={selectedBranch} onChange={handleBranchChange} disabled={!selectedCity} loading={loadingBranches} placeholder="בחרו סניף" selectedLabel={filteredBranches.find((b) => b.id === selectedBranch)?.name} active={activeField === 'branch'}>
-          {filteredBranches.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
-        </FilterSelect>
+        <FilterSelect value={selectedBranch} onChange={handleBranchChange} disabled={!selectedCity} loading={loadingBranches} placeholder="בחרו סניף" options={branchOptions} selectedLabel={filteredBranches.find((b) => b.id === selectedBranch)?.name} active={activeField === 'branch'} />
 
-        <FilterSelect value={selectedCourseType} onChange={handleCourseTypeChange} disabled={!selectedBranch} placeholder="בחרו חוג" selectedLabel={courseTypes.find((t) => t.id === selectedCourseType)?.name} active={activeField === 'courseType'}>
-          {courseTypes.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
-        </FilterSelect>
+        <FilterSelect value={selectedCourseType} onChange={handleCourseTypeChange} disabled={!selectedBranch} loading={loadingCourses} placeholder="בחרו חוג" options={courseTypeOptions} selectedLabel={courseTypes.find((t) => t.id === selectedCourseType)?.name} active={activeField === 'courseType'} />
 
-        <FilterSelect value={selectedAge} onChange={setSelectedAge} disabled={!selectedCourseType} placeholder="בחרו גיל" selectedLabel={selectedAge ? formatAge(parseInt(selectedAge)) : undefined} active={activeField === 'age'}>
-          {AGE_OPTIONS.map((age) => <option key={age} value={age}>{formatAge(age)}</option>)}
-        </FilterSelect>
+        <FilterSelect value={selectedAge} onChange={setSelectedAge} disabled={!selectedCourseType} placeholder="בחרו גיל" options={ageOptions} selectedLabel={selectedAge ? formatAge(parseInt(selectedAge)) : undefined} active={activeField === 'age'} />
       </div>
 
       {/* Course list */}
