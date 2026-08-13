@@ -322,6 +322,7 @@ export default function WidgetPage() {
   const cities = STATIC_CITIES;
   const [allBranches, setAllBranches] = useState<Branch[]>([]);
   const [coursesByBranch, setCoursesByBranch] = useState<Record<string, Course[]>>({});
+  const [courseTypesByBranch, setCourseTypesByBranch] = useState<Record<string, { id: string; name: string }[]>>({});
 
   const [selectedCity, setSelectedCity] = useState('');
   const [selectedBranch, setSelectedBranch] = useState('');
@@ -329,8 +330,10 @@ export default function WidgetPage() {
   const [selectedAge, setSelectedAge] = useState('');
 
   const [loadingBranches, setLoadingBranches] = useState(true);
+  const [loadingCourseTypes, setLoadingCourseTypes] = useState(false);
   const [loadingCourses, setLoadingCourses] = useState(false);
   const loadedBranchCoursesRef = useRef(new Set<string>());
+  const loadedCourseTypesRef = useRef(new Set<string>());
   const [detailCourse, setDetailCourse] = useState<Course | null>(null);
   const [detailBundle, setDetailBundle] = useState<CourseBundle | null>(null);
   const [detailLesson, setDetailLesson] = useState<CourseLesson | null>(null);
@@ -365,13 +368,7 @@ export default function WidgetPage() {
     });
   }, [allBranches, selectedCity]);
 
-  const courseTypes = useMemo(() => Array.from(
-    new Map(
-      branchCourses
-        .filter(isCourseVisibleInWidgetCatalog)
-        .map((c) => [String(c.course_type), c.course_type_name])
-    ).entries()
-  ).map(([id, name]) => ({ id, name: name ?? '' })), [branchCourses]);
+  const courseTypes = selectedBranch ? (courseTypesByBranch[selectedBranch] ?? []) : [];
 
   const filteredCourses = useMemo(() => branchCourses.filter((course) => {
     if (selectedCourseType && String(course.course_type) !== selectedCourseType) return false;
@@ -410,6 +407,31 @@ export default function WidgetPage() {
       })
       .finally(() => setLoadingBranches(false));
   }, []);
+
+  useEffect(() => {
+    if (!selectedBranch || loadedCourseTypesRef.current.has(selectedBranch)) return;
+
+    let cancelled = false;
+    setLoadingCourseTypes(true);
+    api.get(`/customers/widget/course-types/?branch_id=${selectedBranch}`)
+      .then((res) => {
+        if (cancelled) return;
+        const types = Array.isArray(res.data) ? res.data as { id: string; name: string }[] : [];
+        loadedCourseTypesRef.current.add(selectedBranch);
+        setCourseTypesByBranch((prev) => ({ ...prev, [selectedBranch]: types }));
+      })
+      .catch(() => {
+        if (!cancelled) {
+          loadedCourseTypesRef.current.add(selectedBranch);
+          setCourseTypesByBranch((prev) => ({ ...prev, [selectedBranch]: [] }));
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingCourseTypes(false);
+      });
+
+    return () => { cancelled = true; };
+  }, [selectedBranch]);
 
   useEffect(() => {
     if (!selectedBranch || loadedBranchCoursesRef.current.has(selectedBranch)) return;
@@ -531,8 +553,11 @@ export default function WidgetPage() {
   const showNoMatchingCoursesMessage =
     Boolean(selectedBranch) &&
     !loadingBranches &&
+    !loadingCourseTypes &&
     !loadingCourses &&
     (courseTypes.length === 0 || (showTable && filteredCourses.length === 0));
+
+  const showCourseListLoading = showTable && loadingCourses && branchCourses.length === 0;
 
   const activeField = !selectedCity ? 'city'
     : !selectedBranch ? 'branch'
@@ -555,7 +580,7 @@ export default function WidgetPage() {
 
         <FilterSelect value={selectedBranch} onChange={handleBranchChange} disabled={!selectedCity} loading={loadingBranches} placeholder="בחרו סניף" options={branchOptions} selectedLabel={filteredBranches.find((b) => b.id === selectedBranch)?.name} active={activeField === 'branch'} />
 
-        <FilterSelect value={selectedCourseType} onChange={handleCourseTypeChange} disabled={!selectedBranch} loading={loadingCourses} placeholder="בחרו חוג" options={courseTypeOptions} selectedLabel={courseTypes.find((t) => t.id === selectedCourseType)?.name} active={activeField === 'courseType'} />
+        <FilterSelect value={selectedCourseType} onChange={handleCourseTypeChange} disabled={!selectedBranch} loading={loadingCourseTypes} placeholder="בחרו חוג" options={courseTypeOptions} selectedLabel={courseTypes.find((t) => t.id === selectedCourseType)?.name} active={activeField === 'courseType'} />
 
         <FilterSelect value={selectedAge} onChange={setSelectedAge} disabled={!selectedCourseType} placeholder="בחרו גיל" options={ageOptions} selectedLabel={selectedAge ? formatAge(parseInt(selectedAge)) : undefined} active={activeField === 'age'} />
       </div>
@@ -563,6 +588,8 @@ export default function WidgetPage() {
       {/* Course list */}
       {showNoMatchingCoursesMessage ? (
         <NoMatchingCoursesMessage />
+      ) : showCourseListLoading ? (
+        <p className={styles.emptyMessage}>טוען חוגים...</p>
       ) : showTable ? (
         <CourseList filteredCourses={filteredCourses} onSelect={toggleDetail} />
       ) : null}
