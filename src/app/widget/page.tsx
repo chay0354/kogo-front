@@ -14,7 +14,69 @@ import { AGE_OPTIONS, formatAge } from '@/lib/courseUtils';
 import { findWidgetAlternatives, isWidgetSelectionFull, type WidgetAlternative } from './alternativeLessons';
 import styles from './page.module.css';
 
-type PanelPos = { top: number; left: number; width: number };
+type PanelPos = {
+  left: number;
+  width: number;
+  maxHeight: number;
+  placement: 'below' | 'above' | 'sheet';
+  top?: number;
+  bottom?: number;
+};
+
+const MOBILE_DROPDOWN_GAP = 6;
+const MOBILE_DROPDOWN_EDGE = 8;
+const MOBILE_OPTION_HEIGHT = 44;
+
+function computeMobilePanelPosition(rect: DOMRect, optionCount: number): PanelPos {
+  const viewportH = window.visualViewport?.height ?? window.innerHeight;
+  const viewportW = window.visualViewport?.width ?? window.innerWidth;
+  const idealHeight = Math.min(280, Math.max(optionCount, 1) * MOBILE_OPTION_HEIGHT + 8);
+  const width = Math.min(rect.width, viewportW - MOBILE_DROPDOWN_EDGE * 2);
+  const left = Math.max(
+    MOBILE_DROPDOWN_EDGE,
+    Math.min(rect.left, viewportW - width - MOBILE_DROPDOWN_EDGE),
+  );
+
+  const spaceBelow = viewportH - rect.bottom - MOBILE_DROPDOWN_GAP - MOBILE_DROPDOWN_EDGE;
+  const spaceAbove = rect.top - MOBILE_DROPDOWN_GAP - MOBILE_DROPDOWN_EDGE;
+
+  // Short iframe / lower filters: anchor a scrollable sheet to the bottom of the screen.
+  if (Math.max(spaceBelow, spaceAbove) < 160 && idealHeight > spaceBelow) {
+    return {
+      left: MOBILE_DROPDOWN_EDGE,
+      width: viewportW - MOBILE_DROPDOWN_EDGE * 2,
+      maxHeight: Math.min(idealHeight, Math.max(viewportH * 0.55, 180)),
+      placement: 'sheet',
+      bottom: MOBILE_DROPDOWN_EDGE,
+    };
+  }
+
+  let placement: 'below' | 'above' = 'below';
+  if (spaceBelow < idealHeight && spaceAbove > spaceBelow) {
+    placement = 'above';
+  }
+
+  const available = placement === 'below' ? spaceBelow : spaceAbove;
+  const maxHeight = Math.max(120, Math.min(idealHeight, available));
+
+  if (placement === 'below') {
+    return {
+      left,
+      width,
+      maxHeight,
+      placement,
+      top: rect.bottom + MOBILE_DROPDOWN_GAP,
+    };
+  }
+
+  return {
+    left,
+    width,
+    maxHeight,
+    placement,
+    bottom: viewportH - rect.top + MOBILE_DROPDOWN_GAP,
+  };
+}
 
 /** Render modals on document.body so fixed positioning is not affected by page scroll. */
 function WidgetPortal({ children }: { children: React.ReactNode }) {
@@ -65,11 +127,14 @@ const FilterSelect = React.memo(function FilterSelect({
     if (disabled || loading || typeof window === 'undefined' || window.innerWidth >= 768) return;
     const rect = wrapperRef.current?.getBoundingClientRect();
     if (!rect) return;
-    setPanelPos({ top: rect.bottom + 6, left: rect.left, width: rect.width });
+    setPanelPos(computeMobilePanelPosition(rect, options.length));
     setIsOpen(true);
   };
 
-  const closePanel = () => setIsOpen(false);
+  const closePanel = () => {
+    setIsOpen(false);
+    setPanelPos(null);
+  };
 
   const handleSelect = (optValue: string) => {
     onChange(optValue);
@@ -78,18 +143,34 @@ const FilterSelect = React.memo(function FilterSelect({
 
   useEffect(() => {
     if (!isOpen) return;
-    const onResize = () => { if (window.innerWidth >= 768) setIsOpen(false); };
+
+    const updatePanelPosition = () => {
+      if (window.innerWidth >= 768) {
+        setIsOpen(false);
+        return;
+      }
+      const rect = wrapperRef.current?.getBoundingClientRect();
+      if (rect) setPanelPos(computeMobilePanelPosition(rect, options.length));
+    };
+
+    updatePanelPosition();
+    window.addEventListener('resize', updatePanelPosition);
+    window.visualViewport?.addEventListener('resize', updatePanelPosition);
+    window.visualViewport?.addEventListener('scroll', updatePanelPosition);
+
     const onScroll = (e: Event) => {
       if (panelRef.current && e.target instanceof Node && panelRef.current.contains(e.target)) return;
       setIsOpen(false);
     };
-    window.addEventListener('resize', onResize);
     window.addEventListener('scroll', onScroll, true);
+
     return () => {
-      window.removeEventListener('resize', onResize);
+      window.removeEventListener('resize', updatePanelPosition);
+      window.visualViewport?.removeEventListener('resize', updatePanelPosition);
+      window.visualViewport?.removeEventListener('scroll', updatePanelPosition);
       window.removeEventListener('scroll', onScroll, true);
     };
-  }, [isOpen]);
+  }, [isOpen, options.length]);
 
   const chevronIcon = loading ? (
     <svg className={styles.filterSpinner} width="16" height="16" viewBox="0 0 24 24" fill="none">
@@ -106,10 +187,29 @@ const FilterSelect = React.memo(function FilterSelect({
     <ChevronDown size={16} className={styles.filterChevron} />
   );
 
+  const panelPlacementClass =
+    panelPos?.placement === 'above'
+      ? styles.dropdownPanelAbove
+      : panelPos?.placement === 'sheet'
+        ? styles.dropdownPanelSheet
+        : styles.dropdownPanelBelow;
+
   const panel = isOpen && panelPos ? (
     <>
       <div className={styles.dropdownBackdrop} onClick={closePanel} />
-      <ul ref={panelRef} role="listbox" aria-label={placeholder} className={styles.dropdownPanel} style={{ '--dp-top': `${panelPos.top}px`, '--dp-left': `${panelPos.left}px`, '--dp-width': `${panelPos.width}px` } as React.CSSProperties}>
+      <ul
+        ref={panelRef}
+        role="listbox"
+        aria-label={placeholder}
+        className={`${styles.dropdownPanel} ${panelPlacementClass}`}
+        style={{
+          '--dp-left': `${panelPos.left}px`,
+          '--dp-width': `${panelPos.width}px`,
+          '--dp-max-height': `${panelPos.maxHeight}px`,
+          ...(panelPos.top != null ? { '--dp-top': `${panelPos.top}px` } : {}),
+          ...(panelPos.bottom != null ? { '--dp-bottom': `${panelPos.bottom}px` } : {}),
+        } as React.CSSProperties}
+      >
         {options.length === 0 ? (
           <li className={styles.dropdownEmpty}>אין אפשרויות</li>
         ) : options.map((opt) => (

@@ -32,6 +32,30 @@
   }
 }
 
+@keyframes widgetDropdownOpenAbove {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes widgetDropdownSheetOpen {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 @keyframes widgetSlideInFromRight {
   from {
     opacity: 0;
@@ -403,7 +427,6 @@
 
 .dropdownPanel {
   position: fixed;
-  top: var(--dp-top);
   left: var(--dp-left);
   width: var(--dp-width);
   z-index: 500;
@@ -414,13 +437,44 @@
   border: 1px solid #DDE0F5;
   border-radius: 15px;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.18);
-  max-height: 240px;
+  max-height: var(--dp-max-height, 240px);
   overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+}
+
+.dropdownPanelBelow {
+  top: var(--dp-top);
 }
 
 @media (prefers-reduced-motion: no-preference) {
-  .dropdownPanel {
+  .dropdownPanelBelow {
     animation: widgetDropdownOpen 150ms ease-out;
+  }
+}
+
+.dropdownPanelAbove {
+  bottom: var(--dp-bottom);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .dropdownPanelAbove {
+    animation: widgetDropdownOpenAbove 150ms ease-out;
+  }
+}
+
+.dropdownPanelSheet {
+  left: var(--dp-left);
+  right: auto;
+  width: var(--dp-width);
+  bottom: max(var(--dp-bottom), env(safe-area-inset-bottom, 0px));
+  border-radius: 16px;
+  box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.2);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .dropdownPanelSheet {
+    animation: widgetDropdownSheetOpen 180ms ease-out;
   }
 }
 
