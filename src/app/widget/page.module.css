@@ -85,10 +85,8 @@
   border-radius: 17px;
 }
 
-@media (max-width: 767px) {
-  .filterWrapperOpen {
-    z-index: 520;
-  }
+.filterWrapperOpen {
+  z-index: 520;
 }
 
 @media (min-width: 768px) {
@@ -118,25 +116,10 @@
   background-color: #F5C518;
 }
 
+/* Kept for form semantics only — the custom list handles all interaction so we
+   can place it inside the visible area of the embedding iframe. */
 .filterSelect {
-  @apply appearance-none border-0 outline-none;
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  opacity: 0;
-  cursor: pointer;
-  z-index: 1;
-}
-
-.filterSelect:disabled {
-  cursor: not-allowed;
-}
-
-@media (max-width: 767px) {
-  .filterSelect {
-    display: none;
-  }
+  display: none;
 }
 
 .filterDisplayText {
@@ -482,6 +465,11 @@
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior: contain;
+}
+
+.dropdownPanelAbove {
+  top: auto;
+  bottom: calc(100% + 6px);
 }
 
 @media (prefers-reduced-motion: no-preference) {

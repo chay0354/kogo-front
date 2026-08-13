@@ -14,11 +14,69 @@ import { AGE_OPTIONS, formatAge } from '@/lib/courseUtils';
 import { findWidgetAlternatives, isWidgetSelectionFull, type WidgetAlternative } from './alternativeLessons';
 import styles from './page.module.css';
 
-const MOBILE_OPTION_HEIGHT = 44;
-const MOBILE_MAX_PANEL_HEIGHT = 240;
+const OPTION_HEIGHT = 44;
+const MAX_PANEL_HEIGHT = 240;
+const MIN_PANEL_HEIGHT = 132;
+const PANEL_GAP = 8;
 
-function isMobileFilterUi() {
-  return typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches;
+function panelHeightForOptions(optionCount: number) {
+  return Math.min(MAX_PANEL_HEIGHT, Math.max(optionCount, 1) * OPTION_HEIGHT + 8);
+}
+
+/**
+ * The vertical slice of this document the visitor can actually see, in local
+ * coordinates. Embedded in the B2C site the iframe is taller than the phone
+ * screen, so only the host page knows the real band — it reports it to us.
+ */
+type VisibleBand = { top: number; bottom: number };
+
+let hostBand: VisibleBand | null = null;
+const bandSubscribers = new Set<() => void>();
+let bandBridgeReady = false;
+
+function requestHostBand() {
+  try {
+    window.parent.postMessage({ type: 'kogo-widget-request-viewport' }, '*');
+  } catch {
+    /* cross-origin host may still receive the message */
+  }
+}
+
+function ensureHostBandBridge() {
+  if (bandBridgeReady || typeof window === 'undefined') return;
+  bandBridgeReady = true;
+  window.addEventListener('message', (event: MessageEvent) => {
+    const data = event.data as { type?: string; top?: number; bottom?: number } | null;
+    if (!data || data.type !== 'kogo-widget-visible-band') return;
+    const top = Number(data.top);
+    const bottom = Number(data.bottom);
+    if (!Number.isFinite(top) || !Number.isFinite(bottom) || bottom - top < 80) return;
+    hostBand = { top, bottom };
+    bandSubscribers.forEach((notify) => notify());
+  });
+  requestHostBand();
+}
+
+function visibleBand(): VisibleBand {
+  if (hostBand) return hostBand;
+  const vv = window.visualViewport;
+  const top = vv?.offsetTop ?? 0;
+  return { top, bottom: top + (vv?.height ?? window.innerHeight) };
+}
+
+type PanelPlacement = { direction: 'below' | 'above'; maxHeight: number; fits: boolean };
+
+function computePlacement(fieldRect: DOMRect, desiredHeight: number): PanelPlacement {
+  const band = visibleBand();
+  const spaceBelow = band.bottom - fieldRect.bottom - PANEL_GAP * 2;
+  const spaceAbove = fieldRect.top - band.top - PANEL_GAP * 2;
+
+  if (desiredHeight <= spaceBelow) return { direction: 'below', maxHeight: desiredHeight, fits: true };
+  if (desiredHeight <= spaceAbove) return { direction: 'above', maxHeight: desiredHeight, fits: true };
+
+  const useAbove = spaceAbove > spaceBelow;
+  const room = Math.max(MIN_PANEL_HEIGHT, useAbove ? spaceAbove : spaceBelow);
+  return { direction: useAbove ? 'above' : 'below', maxHeight: room, fits: false };
 }
 
 function isWidgetEmbedded() {
@@ -29,36 +87,26 @@ function isWidgetEmbedded() {
   }
 }
 
-function panelHeightForOptions(optionCount: number) {
-  return Math.min(MOBILE_MAX_PANEL_HEIGHT, Math.max(optionCount, 1) * MOBILE_OPTION_HEIGHT + 8);
-}
-
 function scrollWindowBy(delta: number) {
   if (delta <= 2) return;
   const next = Math.max(0, (window.scrollY || window.pageYOffset || 0) + delta);
   window.scrollTo(0, next);
 }
 
-/** Ask the B2C host (and/or this page) to scroll until the open list is on screen. */
-function revealDropdownOnPhone(panelEl: HTMLElement) {
-  const rect = panelEl.getBoundingClientRect();
+/** Ask the B2C host (and this page) to scroll until the whole list has room. */
+function requestReveal(fieldRect: DOMRect, desiredHeight: number) {
+  const wantedBottom = fieldRect.bottom + PANEL_GAP + desiredHeight;
   try {
     window.parent.postMessage(
-      {
-        type: 'kogo-widget-dropdown-open',
-        panelBottom: rect.bottom,
-      },
+      { type: 'kogo-widget-dropdown-open', panelBottom: wantedBottom },
       '*',
     );
   } catch {
     /* cross-origin host may still receive the message */
   }
-
+  // Embedded, the host owns scrolling — it answers with a fresh visible band.
   if (isWidgetEmbedded()) return;
-
-  const viewBottom =
-    (window.visualViewport?.offsetTop ?? 0) + (window.visualViewport?.height ?? window.innerHeight);
-  scrollWindowBy(rect.bottom - viewBottom + 24);
+  scrollWindowBy(wantedBottom - visibleBand().bottom + 16);
 }
 
 /** Render modals on document.body so fixed positioning is not affected by page scroll. */
@@ -102,12 +150,33 @@ const FilterSelect = React.memo(function FilterSelect({
   active?: boolean;
 }) {
   const [isOpen, setIsOpen] = useState(false);
+  const [placement, setPlacement] = useState<PanelPlacement>({ direction: 'below', maxHeight: MAX_PANEL_HEIGHT, fits: true });
   const wrapperRef = useRef<HTMLDivElement>(null);
-  const panelRef = useRef<HTMLUListElement>(null);
-  const maxHeight = panelHeightForOptions(options.length);
+  const desiredHeight = panelHeightForOptions(options.length);
+
+  const syncPlacement = useCallback(() => {
+    const field = wrapperRef.current;
+    if (!field) return;
+    const next = computePlacement(field.getBoundingClientRect(), desiredHeight);
+    setPlacement((prev) =>
+      prev.direction === next.direction && Math.abs(prev.maxHeight - next.maxHeight) < 2 && prev.fits === next.fits
+        ? prev
+        : next,
+    );
+  }, [desiredHeight]);
 
   const openPanel = () => {
-    if (disabled || loading || typeof window === 'undefined' || !isMobileFilterUi()) return;
+    if (disabled || loading || typeof window === 'undefined') return;
+    ensureHostBandBridge();
+    requestHostBand();
+    const field = wrapperRef.current;
+    if (field) {
+      const rect = field.getBoundingClientRect();
+      const next = computePlacement(rect, desiredHeight);
+      setPlacement(next);
+      // Not enough visible room either way — nudge the page so the list fits below.
+      if (!next.fits) requestReveal(rect, desiredHeight);
+    }
     setIsOpen(true);
   };
 
@@ -118,30 +187,24 @@ const FilterSelect = React.memo(function FilterSelect({
     closePanel();
   };
 
+  // Keep the list inside the visible band while it is open: the host reports a
+  // new band on every scroll, and standalone we watch scroll/resize ourselves.
   useEffect(() => {
     if (!isOpen) return;
-    const panel = panelRef.current;
-    if (!panel) return;
-    let cancelled = false;
-    const frame = requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        if (!cancelled) revealDropdownOnPhone(panel);
-      });
-    });
+    syncPlacement();
+    bandSubscribers.add(syncPlacement);
+    window.addEventListener('scroll', syncPlacement, { passive: true });
+    window.addEventListener('resize', syncPlacement);
+    window.visualViewport?.addEventListener('resize', syncPlacement);
+    window.visualViewport?.addEventListener('scroll', syncPlacement);
     return () => {
-      cancelled = true;
-      cancelAnimationFrame(frame);
+      bandSubscribers.delete(syncPlacement);
+      window.removeEventListener('scroll', syncPlacement);
+      window.removeEventListener('resize', syncPlacement);
+      window.visualViewport?.removeEventListener('resize', syncPlacement);
+      window.visualViewport?.removeEventListener('scroll', syncPlacement);
     };
-  }, [isOpen, options.length]);
-
-  useEffect(() => {
-    if (!isOpen) return;
-    const onResize = () => {
-      if (!isMobileFilterUi()) setIsOpen(false);
-    };
-    window.addEventListener('resize', onResize);
-    return () => window.removeEventListener('resize', onResize);
-  }, [isOpen]);
+  }, [isOpen, syncPlacement]);
 
   const chevronIcon = loading ? (
     <svg className={styles.filterSpinner} width="16" height="16" viewBox="0 0 24 24" fill="none">
@@ -160,11 +223,10 @@ const FilterSelect = React.memo(function FilterSelect({
 
   const panel = isOpen ? (
     <ul
-      ref={panelRef}
       role="listbox"
       aria-label={placeholder}
-      className={styles.dropdownPanel}
-      style={{ '--dp-max-height': `${maxHeight}px` } as React.CSSProperties}
+      className={`${styles.dropdownPanel} ${placement.direction === 'above' ? styles.dropdownPanelAbove : ''}`}
+      style={{ '--dp-max-height': `${placement.maxHeight}px` } as React.CSSProperties}
       onClick={(e) => e.stopPropagation()}
     >
       {options.length === 0 ? (
@@ -186,6 +248,15 @@ const FilterSelect = React.memo(function FilterSelect({
         ref={wrapperRef}
         className={`${styles.filterWrapper} ${active ? styles.filterWrapperActive : ''} ${isOpen ? styles.filterWrapperOpen : ''}`}
         onClick={openPanel}
+        onKeyDown={(e) => {
+          if (e.key === 'Escape') return closePanel();
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            isOpen ? closePanel() : openPanel();
+          }
+        }}
+        role="button"
+        tabIndex={disabled || loading ? -1 : 0}
         aria-haspopup="listbox"
         aria-expanded={isOpen}
       >
@@ -365,6 +436,11 @@ export default function WidgetPage() {
     }
   }, [selectedCity, allBranches]);
 
+
+  // Learn the visible slice of this iframe from the host as early as possible.
+  useEffect(() => {
+    ensureHostBandBridge();
+  }, []);
 
   useEffect(() => {
     const expanded = !!(detailCourse || drawerCourse);
