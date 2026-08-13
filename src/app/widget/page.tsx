@@ -7,6 +7,7 @@ import api from '@/lib/api';
 import CourseRegistrationForm from './CourseRegistrationForm';
 import CourseExpandedDetail from './CourseExpandedDetail/index';
 import { CourseList } from './CourseList/CourseList';
+// Changed this:
 import type { Branch, Course, CourseBundle, CourseLesson } from './types';
 import { STATIC_CITIES, normalizeExternalLink } from './page.utils';
 import { isCourseVisibleInWidgetCatalog } from './lessonVisibility';
@@ -260,12 +261,12 @@ export default function WidgetPage() {
     : false;
   const detailAlternatives = detailCourse && detailSelectionFull && selectedCourseType
     ? findWidgetAlternatives(branchCourses, {
-        courseTypeId: selectedCourseType,
-        selectedAge: selectedAge ? parseInt(selectedAge, 10) : null,
-        currentCourseId: detailCourse.id,
-        currentLessonId: detailLesson?.id,
-        currentBundleId: activeDetailBundle?.id,
-      })
+      courseTypeId: selectedCourseType,
+      selectedAge: selectedAge ? parseInt(selectedAge, 10) : null,
+      currentCourseId: detailCourse.id,
+      currentLessonId: detailLesson?.id,
+      currentBundleId: activeDetailBundle?.id,
+    })
     : [];
 
   const handleSelectAlternative = (alt: WidgetAlternative) => {
@@ -288,9 +289,9 @@ export default function WidgetPage() {
 
   const activeField = !selectedCity ? 'city'
     : !selectedBranch ? 'branch'
-    : !selectedCourseType ? 'courseType'
-    : !selectedAge ? 'age'
-    : null;
+      : !selectedCourseType ? 'courseType'
+        : !selectedAge ? 'age'
+          : null;
 
   return (
     <div dir="rtl" className={styles.page}>
@@ -302,7 +303,7 @@ export default function WidgetPage() {
           <span className={styles.filterStripLabel}>חיפוש חוגים</span>
           <span className={styles.filterStripLine} />
         </div>
-          
+
         <FilterSelect value={selectedCity} onChange={handleCityChange} placeholder="בחרו עיר" selectedLabel={cities.find((c) => c.id === selectedCity)?.name} active={activeField === 'city'}>
           {cities.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
         </FilterSelect>
