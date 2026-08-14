@@ -1,16 +1,51 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import api from '@/lib/api';
 import SignatureCanvas from '../SignatureCanvas';
 import styles from './index.module.css';
+import { israeliIdFieldError, sanitizeIsraeliIdInput } from '@/lib/israeliId';
 import type { Props, Step, LookupResult, PaymentResponse, TrialOccurrence } from './types';
 
 export type { CourseLesson } from './types';
 
+const MIN_NAME_LENGTH = 2;
+const REQUIRED = 'שדה חובה';
+const NAME_TOO_SHORT = `יש להזין לפחות ${MIN_NAME_LENGTH} תווים`;
+
+type NameFieldKey = 'parentFirstName' | 'parentLastName' | 'childFirstName' | 'childLastName';
+type IdFieldKey = 'parentIdNumber' | 'childIdNumber';
+type DetailsFieldKey = NameFieldKey | IdFieldKey | 'parentPhone' | 'parentEmail' | 'childBirthDate' | 'childGender';
+type ConsentFieldKey = 'health' | 'terms' | 'signature';
+
+function nameFieldError(value: string): string | null {
+  const trimmed = value.trim();
+  if (!trimmed) return REQUIRED;
+  return trimmed.length >= MIN_NAME_LENGTH ? null : NAME_TOO_SHORT;
+}
+
+function phoneFieldError(value: string): string | null {
+  const trimmed = value.trim();
+  if (!trimmed) return 'טלפון נייד חובה';
+  if (!/^0\d{1,2}-?\d{7}$|^05\d{8}$/.test(trimmed.replace(/\s/g, ''))) {
+    return 'מספר טלפון לא תקין';
+  }
+  return null;
+}
+
+function emailFieldError(value: string): string | null {
+  const trimmed = value.trim();
+  if (!trimmed) return 'דוא"ל חובה';
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) {
+    return 'כתובת דוא"ל לא תקינה';
+  }
+  return null;
+}
+
 export default function CourseRegistrationForm({ courseId, courseName, isAdult = false, bundleId, lessonId, trialLessonOptions = [], isTrial = false, trialLessonIsPaid = false, trialLessonPrice, onBack, onComplete }: Props) {
   const [step, setStep] = useState<Step>('details');
   const [errorMsg, setErrorMsg] = useState('');
+  const [fieldErrors, setFieldErrors] = useState<Partial<Record<DetailsFieldKey, string>>>({});
 
   // Step 1 — details
   const [parentIdNumber, setParentIdNumber] = useState('');
@@ -31,8 +66,11 @@ export default function CourseRegistrationForm({ courseId, courseName, isAdult =
   // Step 3 — consents
   const [healthConsent, setHealthConsent] = useState(false);
   const [termsConsent, setTermsConsent] = useState(false);
-  const [rulesConsent, setRulesConsent] = useState(false);
+  const [termsReadComplete, setTermsReadComplete] = useState(false);
+  const [termsScrolledToEnd, setTermsScrolledToEnd] = useState(false);
   const [signature, setSignature] = useState<string | null>(null);
+  const [consentErrors, setConsentErrors] = useState<Partial<Record<ConsentFieldKey, string>>>({});
+  const termsBodyRef = useRef<HTMLDivElement>(null);
 
   // Payment step
   const [paymentData, setPaymentData] = useState<PaymentResponse | null>(null);
@@ -100,6 +138,57 @@ export default function CourseRegistrationForm({ courseId, courseName, isAdult =
       .finally(() => setLoadingTerms(false));
   }, []);
 
+  const updateTermsScrollState = useCallback(() => {
+    const el = termsBodyRef.current;
+    if (!el) return;
+    const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 24;
+    if (atBottom) setTermsScrolledToEnd(true);
+  }, []);
+
+  useEffect(() => {
+    if (!showTerms || loadingTerms) return;
+    const frame = requestAnimationFrame(() => {
+      updateTermsScrollState();
+      const el = termsBodyRef.current;
+      if (!el) return;
+      if (el.scrollHeight <= el.clientHeight + 1) {
+        setTermsScrolledToEnd(true);
+      } else if (!termsReadComplete) {
+        setTermsScrolledToEnd(false);
+      }
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [showTerms, loadingTerms, termsContent, termsReadComplete, updateTermsScrollState]);
+
+  const openTermsModal = () => {
+    setShowTerms(true);
+    if (!termsReadComplete) {
+      setTermsScrolledToEnd(false);
+    }
+  };
+
+  const confirmTermsRead = () => {
+    if (!termsScrolledToEnd) return;
+    setTermsReadComplete(true);
+    setTermsConsent(true);
+    setShowTerms(false);
+    setConsentErrors((prev) => {
+      if (!prev.terms) return prev;
+      const next = { ...prev };
+      delete next.terms;
+      return next;
+    });
+  };
+
+  const clearConsentError = (field: ConsentFieldKey) => {
+    setConsentErrors((prev) => {
+      if (!prev[field]) return prev;
+      const next = { ...prev };
+      delete next[field];
+      return next;
+    });
+  };
+
   const handleCardCharge = async () => {
     if (!paymentData || !cardNumber || !expiryMonth || !expiryYear || !cvv) return;
     setCharging(true);
@@ -138,6 +227,41 @@ export default function CourseRegistrationForm({ courseId, courseName, isAdult =
   const handleDetailsSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg('');
+
+    const errors: Partial<Record<DetailsFieldKey, string>> = {};
+    const parentFirstErr = nameFieldError(parentFirstName);
+    const parentLastErr = nameFieldError(parentLastName);
+    if (parentFirstErr) errors.parentFirstName = parentFirstErr;
+    if (parentLastErr) errors.parentLastName = parentLastErr;
+    if (!selfRegistering) {
+      const childFirstErr = nameFieldError(childFirstName);
+      const childLastErr = nameFieldError(childLastName);
+      if (childFirstErr) errors.childFirstName = childFirstErr;
+      if (childLastErr) errors.childLastName = childLastErr;
+    }
+
+    const parentIdErr = israeliIdFieldError(parentIdNumber);
+    if (parentIdErr) errors.parentIdNumber = parentIdErr;
+    if (!selfRegistering) {
+      const childIdErr = israeliIdFieldError(childIdNumber);
+      if (childIdErr) errors.childIdNumber = childIdErr;
+    }
+
+    const parentPhoneErr = phoneFieldError(parentPhone);
+    if (parentPhoneErr) errors.parentPhone = parentPhoneErr;
+
+    const parentEmailErr = emailFieldError(parentEmail);
+    if (parentEmailErr) errors.parentEmail = parentEmailErr;
+
+    if (!childBirthDate.trim()) errors.childBirthDate = 'תאריך לידה חובה';
+    if (!childGender) errors.childGender = 'יש לבחור מין';
+
+    if (Object.keys(errors).length > 0) {
+      setFieldErrors(errors);
+      setErrorMsg('יש לתקן את השדות המסומנים');
+      return;
+    }
+    setFieldErrors({});
 
     if (isTrial) {
       if (!trialLessonDate || !effectiveTrialLessonId) {
@@ -178,6 +302,28 @@ export default function CourseRegistrationForm({ courseId, courseName, isAdult =
 
   const handleFinalSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setErrorMsg('');
+
+    const errors: Partial<Record<ConsentFieldKey, string>> = {};
+    if (!healthConsent) {
+      errors.health = 'יש לאשר את ההתחייבות לגבי מצב בריאותי';
+    }
+    if (!termsReadComplete) {
+      errors.terms = 'יש לפתוח את התקנון, לגלול עד הסוף ולאשר';
+    } else if (!termsConsent) {
+      errors.terms = 'יש לאשר את התקנון והנהלים';
+    }
+    if (!signature) {
+      errors.signature = 'נדרשת חתימה';
+    }
+
+    if (Object.keys(errors).length > 0) {
+      setConsentErrors(errors);
+      setErrorMsg('יש להשלים את כל השדות הנדרשים');
+      return;
+    }
+    setConsentErrors({});
+
     setStep('submitting');
     setErrorMsg('');
 
@@ -279,6 +425,18 @@ export default function CourseRegistrationForm({ courseId, courseName, isAdult =
     }
   };
 
+  const clearFieldError = (field: DetailsFieldKey) => {
+    setFieldErrors((prev) => {
+      if (!prev[field]) return prev;
+      const next = { ...prev };
+      delete next[field];
+      return next;
+    });
+  };
+
+  const fieldInputClass = (field: DetailsFieldKey) =>
+    `${styles.input}${fieldErrors[field] ? ` ${styles.inputInvalid}` : ''}`;
+
   const header = (
     <div className={styles.header}>
       <button
@@ -294,7 +452,7 @@ export default function CourseRegistrationForm({ courseId, courseName, isAdult =
 
   if (step === 'details') {
     return (
-      <form onSubmit={handleDetailsSubmit} className={styles.form} dir="rtl">
+      <form noValidate onSubmit={handleDetailsSubmit} className={styles.form} dir="rtl">
         {header}
 
         {isAdult && (
@@ -315,36 +473,63 @@ export default function CourseRegistrationForm({ courseId, courseName, isAdult =
           <div className={styles.grid2}>
             <div>
               <label className={styles.label}>שם פרטי</label>
-              <input required type="text" value={parentFirstName}
-                onChange={(e) => setParentFirstName(e.target.value)} className={styles.input} />
+              <input type="text" value={parentFirstName}
+                onChange={(e) => { setParentFirstName(e.target.value); clearFieldError('parentFirstName'); }}
+                className={fieldInputClass('parentFirstName')} />
+              {fieldErrors.parentFirstName ? (
+                <p className={styles.fieldError}>{fieldErrors.parentFirstName}</p>
+              ) : null}
             </div>
             <div>
               <label className={styles.label}>שם משפחה</label>
-              <input required type="text" value={parentLastName}
-                onChange={(e) => setParentLastName(e.target.value)} className={styles.input} />
+              <input type="text" value={parentLastName}
+                onChange={(e) => { setParentLastName(e.target.value); clearFieldError('parentLastName'); }}
+                className={fieldInputClass('parentLastName')} />
+              {fieldErrors.parentLastName ? (
+                <p className={styles.fieldError}>{fieldErrors.parentLastName}</p>
+              ) : null}
             </div>
             <div>
               <label className={styles.label}>ת.ז. הורה *</label>
-              <input required type="text" value={parentIdNumber}
-                onChange={(e) => setParentIdNumber(e.target.value)} className={styles.input} />
+              <input type="text" inputMode="numeric" value={parentIdNumber}
+                onChange={(e) => {
+                  setParentIdNumber(sanitizeIsraeliIdInput(e.target.value));
+                  clearFieldError('parentIdNumber');
+                }}
+                className={fieldInputClass('parentIdNumber')} dir="ltr" />
+              {fieldErrors.parentIdNumber ? (
+                <p className={styles.fieldError}>{fieldErrors.parentIdNumber}</p>
+              ) : null}
             </div>
             <div>
               <label className={styles.label}>טלפון נייד</label>
-              <input required type="tel" value={parentPhone}
-                onChange={(e) => setParentPhone(e.target.value)} className={styles.input} />
+              <input type="tel" value={parentPhone}
+                onChange={(e) => { setParentPhone(e.target.value); clearFieldError('parentPhone'); }}
+                className={fieldInputClass('parentPhone')} dir="ltr" />
+              {fieldErrors.parentPhone ? (
+                <p className={styles.fieldError}>{fieldErrors.parentPhone}</p>
+              ) : null}
             </div>
             <div className={styles.gridFull}>
               <label className={styles.label}>דוא&quot;ל *</label>
-              <input required type="email" value={parentEmail}
-                onChange={(e) => setParentEmail(e.target.value)} className={styles.input}
-                autoComplete="email" dir="ltr" />
+              <input type="text" value={parentEmail}
+                onChange={(e) => { setParentEmail(e.target.value); clearFieldError('parentEmail'); }}
+                className={fieldInputClass('parentEmail')}
+                autoComplete="email" dir="ltr" inputMode="email" />
+              {fieldErrors.parentEmail ? (
+                <p className={styles.fieldError}>{fieldErrors.parentEmail}</p>
+              ) : null}
             </div>
             {selfRegistering && (
               <>
                 <div className={styles.fadeIn}>
                   <label className={styles.label}>תאריך לידה *</label>
-                  <input required type="date" value={childBirthDate}
-                    onChange={(e) => setChildBirthDate(e.target.value)} className={`${styles.input} ${styles.inputDate}`} />
+                  <input type="date" value={childBirthDate}
+                    onChange={(e) => { setChildBirthDate(e.target.value); clearFieldError('childBirthDate'); }}
+                    className={`${fieldInputClass('childBirthDate')} ${styles.inputDate}`} />
+                  {fieldErrors.childBirthDate ? (
+                    <p className={styles.fieldError}>{fieldErrors.childBirthDate}</p>
+                  ) : null}
                 </div>
                 <div className={`${styles.fadeIn} ${styles.gridFull}`}>
                   <label className={styles.label}>מין *</label>
@@ -352,12 +537,15 @@ export default function CourseRegistrationForm({ courseId, courseName, isAdult =
                     {(['male', 'female'] as const).map((g) => (
                       <label key={g} className={styles.radioLabel}>
                         <input type="radio" name="gender" value={g}
-                          checked={childGender === g} onChange={() => setChildGender(g)}
-                          style={{ accentColor: '#2B3090' }} required />
+                          checked={childGender === g} onChange={() => { setChildGender(g); clearFieldError('childGender'); }}
+                          style={{ accentColor: '#2B3090' }} />
                         {g === 'male' ? 'זכר' : 'נקבה'}
                       </label>
                     ))}
                   </div>
+                  {fieldErrors.childGender ? (
+                    <p className={styles.fieldError}>{fieldErrors.childGender}</p>
+                  ) : null}
                 </div>
               </>
             )}
@@ -374,23 +562,42 @@ export default function CourseRegistrationForm({ courseId, courseName, isAdult =
             <div className={styles.grid2}>
               <div>
                 <label className={styles.label}>שם פרטי *</label>
-                <input required type="text" value={childFirstName}
-                  onChange={(e) => setChildFirstName(e.target.value)} className={styles.input} />
+                <input type="text" value={childFirstName}
+                  onChange={(e) => { setChildFirstName(e.target.value); clearFieldError('childFirstName'); }}
+                  className={fieldInputClass('childFirstName')} />
+                {fieldErrors.childFirstName ? (
+                  <p className={styles.fieldError}>{fieldErrors.childFirstName}</p>
+                ) : null}
               </div>
               <div>
                 <label className={styles.label}>שם משפחה *</label>
-                <input required type="text" value={childLastName}
-                  onChange={(e) => setChildLastName(e.target.value)} className={styles.input} />
+                <input type="text" value={childLastName}
+                  onChange={(e) => { setChildLastName(e.target.value); clearFieldError('childLastName'); }}
+                  className={fieldInputClass('childLastName')} />
+                {fieldErrors.childLastName ? (
+                  <p className={styles.fieldError}>{fieldErrors.childLastName}</p>
+                ) : null}
               </div>
               <div>
                 <label className={styles.label}>ת.ז. ילד *</label>
-                <input required type="text" value={childIdNumber}
-                  onChange={(e) => setChildIdNumber(e.target.value)} className={styles.input} />
+                <input type="text" inputMode="numeric" value={childIdNumber}
+                  onChange={(e) => {
+                    setChildIdNumber(sanitizeIsraeliIdInput(e.target.value));
+                    clearFieldError('childIdNumber');
+                  }}
+                  className={fieldInputClass('childIdNumber')} dir="ltr" />
+                {fieldErrors.childIdNumber ? (
+                  <p className={styles.fieldError}>{fieldErrors.childIdNumber}</p>
+                ) : null}
               </div>
               <div>
                 <label className={styles.label}>תאריך לידה *</label>
-                <input required type="date" value={childBirthDate}
-                  onChange={(e) => setChildBirthDate(e.target.value)} className={`${styles.input} ${styles.inputDate}`} />
+                <input type="date" value={childBirthDate}
+                  onChange={(e) => { setChildBirthDate(e.target.value); clearFieldError('childBirthDate'); }}
+                  className={`${fieldInputClass('childBirthDate')} ${styles.inputDate}`} />
+                {fieldErrors.childBirthDate ? (
+                  <p className={styles.fieldError}>{fieldErrors.childBirthDate}</p>
+                ) : null}
               </div>
               <div style={{ gridColumn: '1 / -1' }}>
                 <label className={styles.label}>מין *</label>
@@ -398,12 +605,15 @@ export default function CourseRegistrationForm({ courseId, courseName, isAdult =
                   {(['male', 'female'] as const).map((g) => (
                     <label key={g} className={styles.radioLabel}>
                       <input type="radio" name="gender" value={g}
-                        checked={childGender === g} onChange={() => setChildGender(g)}
-                        style={{ accentColor: '#2B3090' }} required />
+                        checked={childGender === g} onChange={() => { setChildGender(g); clearFieldError('childGender'); }}
+                        style={{ accentColor: '#2B3090' }} />
                       {g === 'male' ? 'זכר' : 'נקבה'}
                     </label>
                   ))}
                 </div>
+                {fieldErrors.childGender ? (
+                  <p className={styles.fieldError}>{fieldErrors.childGender}</p>
+                ) : null}
               </div>
             </div>
           </div>
@@ -440,7 +650,6 @@ export default function CourseRegistrationForm({ courseId, courseName, isAdult =
                         setErrorMsg('');
                       }}
                       className={styles.trialDateRadio}
-                      required
                     />
                     <span className={styles.trialDateLabel}>
                       {occ.day_name} · {occ.label}
@@ -485,46 +694,70 @@ export default function CourseRegistrationForm({ courseId, courseName, isAdult =
 
   if (step === 'consents' || step === 'error') {
     return (
-      <form onSubmit={handleFinalSubmit} className={styles.form} dir="rtl">
+      <form noValidate onSubmit={handleFinalSubmit} className={styles.form} dir="rtl">
         {header}
 
         <label className={styles.consentLabel}>
           <input type="checkbox" checked={healthConsent}
-            onChange={(e) => setHealthConsent(e.target.checked)}
-            className={styles.checkbox} required />
-          אני מתחייב להודיע על כל שינוי במצב הבריאותי המשפיע על השתתפות הילד בפעילות.
+            onChange={(e) => {
+              setHealthConsent(e.target.checked);
+              if (e.target.checked) clearConsentError('health');
+            }}
+            className={styles.checkbox} />
+          <span>אני מתחייב להודיע על כל שינוי במצב הבריאותי המשפיע על השתתפות הילד בפעילות.</span>
         </label>
+        {consentErrors.health ? (
+          <p className={styles.fieldError}>{consentErrors.health}</p>
+        ) : null}
 
-        <label className={styles.consentLabel}>
-          <input type="checkbox" checked={termsConsent}
-            onChange={(e) => setTermsConsent(e.target.checked)}
-            className={styles.checkbox} required />
-          אני הנרשם/ההורה הרושם קראתי בעיון את כל הנהלים והתנאים ואני מסכים/ה לכולם ומתחייב/ת לשלם את שכר הלימוד כנדרש.
-        </label>
-
-        <div className={styles.signatureWrapper}>
-          <label className={styles.label}>חתימה</label>
-          <SignatureCanvas onChange={setSignature} />
+        <div className={styles.termsConsentBlock}>
+          <label className={`${styles.consentLabel} ${!termsReadComplete ? styles.consentLabelDisabled : ''}`}>
+            <input type="checkbox" checked={termsConsent}
+              disabled={!termsReadComplete}
+              onChange={(e) => {
+                setTermsConsent(e.target.checked);
+                if (e.target.checked) clearConsentError('terms');
+              }}
+              className={styles.checkbox} />
+            <span>
+              אני מאשר/ת שקראתי בעיון את{' '}
+              <button type="button" className={styles.termsLink} onClick={openTermsModal}>
+                התקנון והנהלים
+              </button>
+              , אני מסכים/ה לכל התנאים ומתחייב/ת לשלם את שכר הלימוד כנדרש.
+            </span>
+          </label>
+          {!termsReadComplete ? (
+            <p className={styles.helperText}>יש לפתוח את התקנון ולגלול עד הסוף לפני האישור</p>
+          ) : null}
+          {consentErrors.terms ? (
+            <p className={styles.fieldError}>{consentErrors.terms}</p>
+          ) : null}
         </div>
 
-        <label className={styles.consentLabel}>
-          <input type="checkbox" checked={rulesConsent}
-            onChange={(e) => setRulesConsent(e.target.checked)}
-            className={styles.checkbox} required />
-          מסכים עם התקנון
-          <button type="button" className={styles.termsLink} onClick={() => setShowTerms(true)}>
-            תקנון
-          </button>
-        </label>
+        <div className={`${styles.signatureWrapper}${consentErrors.signature ? ` ${styles.signatureInvalid}` : ''}`}>
+          <label className={styles.label}>חתימה *</label>
+          <SignatureCanvas onChange={(value) => {
+            setSignature(value);
+            if (value) clearConsentError('signature');
+          }} />
+          {consentErrors.signature ? (
+            <p className={styles.fieldError}>{consentErrors.signature}</p>
+          ) : null}
+        </div>
 
         {showTerms && (
           <div className={styles.termsOverlay} onClick={() => setShowTerms(false)}>
             <div className={styles.termsModal} onClick={(e) => e.stopPropagation()}>
               <div className={styles.termsHeader}>
-                <span className={styles.termsModalTitle}>תקנון</span>
+                <span className={styles.termsModalTitle}>תקנון ונהלים</span>
                 <button type="button" className={styles.termsClose} onClick={() => setShowTerms(false)}>✕</button>
               </div>
-              <div className={styles.termsBody}>
+              <div
+                ref={termsBodyRef}
+                className={styles.termsBody}
+                onScroll={updateTermsScrollState}
+              >
                 {loadingTerms ? (
                   <p>טוען תקנון...</p>
                 ) : termsContent ? (
@@ -532,6 +765,19 @@ export default function CourseRegistrationForm({ courseId, courseName, isAdult =
                 ) : (
                   <p>לא ניתן לטעון את התקנון. נסו שוב מאוחר יותר.</p>
                 )}
+              </div>
+              <div className={styles.termsFooter}>
+                {!termsScrolledToEnd && !loadingTerms && termsContent ? (
+                  <p className={styles.termsScrollHint}>גללו עד הסוף כדי לאשר שקראתם את התקנון</p>
+                ) : null}
+                <button
+                  type="button"
+                  className={styles.termsConfirmButton}
+                  disabled={!termsScrolledToEnd || loadingTerms || !termsContent}
+                  onClick={confirmTermsRead}
+                >
+                  אישור — קראתי את התקנון והנהלים
+                </button>
               </div>
             </div>
           </div>

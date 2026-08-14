@@ -18,6 +18,22 @@
   box-shadow: 0 0 0 2px #2B3090;
 }
 
+.inputInvalid {
+  border-color: #dc2626;
+}
+
+.inputInvalid:focus {
+  box-shadow: 0 0 0 2px #dc2626;
+}
+
+.fieldError {
+  margin-top: 4px;
+  font-size: 12px;
+  color: #dc2626;
+  text-align: right;
+  line-height: 1.3;
+}
+
 /* iOS Safari blows up native date inputs unless appearance is reset. */
 .inputDate {
   appearance: none;
@@ -221,12 +237,22 @@
 .consentLabel {
   @apply flex items-start gap-3 text-sm cursor-pointer;
 }
+.consentLabelDisabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+.termsConsentBlock {
+  @apply space-y-1;
+}
 .checkbox {
   @apply mt-0.5;
   accent-color: #2B3090;
 }
 .signatureWrapper {
-  @apply w-1/2;
+  @apply w-full;
+}
+.signatureInvalid :global(canvas) {
+  border-color: #dc2626;
 }
 
 .helperText {
@@ -400,6 +426,35 @@
   border-radius: 999px;
   text-align: center;
 }
+.termsFooter {
+  padding: 12px 20px 16px;
+  border-top: 1px solid #DDE0F5;
+  direction: rtl;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.termsScrollHint {
+  margin: 0;
+  font-size: 12px;
+  color: #6b7280;
+  text-align: center;
+}
+.termsConfirmButton {
+  width: 100%;
+  height: 44px;
+  border: none;
+  border-radius: 10px;
+  background: #2B3090;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.termsConfirmButton:disabled {
+  background: #b8bbd4;
+  cursor: not-allowed;
+}
 
 .centerChild{
   display: flex;
@@ -442,11 +497,6 @@
 @media (max-width: 767px) {
   .section {
     padding: 16px;
-  }
-
-  .grid2 {
-    grid-template-columns: 1fr;
-    gap: 12px;
   }
 
   .input,
