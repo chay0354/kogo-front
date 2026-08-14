@@ -107,6 +107,34 @@ function notifyDropdownClosed() {
   }
 }
 
+/** iOS-safe scroll freeze while a modal is open inside the iframe. */
+function lockDocumentScroll() {
+  const { body, documentElement } = document;
+  const scrollY = window.scrollY || window.pageYOffset || 0;
+  const previous = {
+    bodyPosition: body.style.position,
+    bodyTop: body.style.top,
+    bodyWidth: body.style.width,
+    bodyOverflow: body.style.overflow,
+    htmlOverflow: documentElement.style.overflow,
+  };
+
+  body.style.position = 'fixed';
+  body.style.top = `-${scrollY}px`;
+  body.style.width = '100%';
+  body.style.overflow = 'hidden';
+  documentElement.style.overflow = 'hidden';
+
+  return () => {
+    body.style.position = previous.bodyPosition;
+    body.style.top = previous.bodyTop;
+    body.style.width = previous.bodyWidth;
+    body.style.overflow = previous.bodyOverflow;
+    documentElement.style.overflow = previous.htmlOverflow;
+    window.scrollTo(0, scrollY);
+  };
+}
+
 /** Render modals on document.body so fixed positioning is not affected by page scroll. */
 function WidgetPortal({ children }: { children: React.ReactNode }) {
   if (typeof document === 'undefined') return null;
@@ -451,23 +479,21 @@ export default function WidgetPage() {
   }, []);
 
   useEffect(() => {
-    const expanded = !!(detailCourse || drawerCourse);
-    window.parent.postMessage(
-      { type: expanded ? 'kogo-widget-expand' : 'kogo-widget-collapse' },
-      '*'
-    );
+    if (detailCourse || drawerCourse) {
+      window.parent.postMessage({ type: 'kogo-widget-expand' }, '*');
+      return;
+    }
+    const frame = requestAnimationFrame(() => {
+      window.parent.postMessage({ type: 'kogo-widget-collapse' }, '*');
+    });
+    return () => cancelAnimationFrame(frame);
   }, [detailCourse, drawerCourse]);
 
   useEffect(() => {
     if (!detailCourse && !drawerCourse) return;
-    const { body, documentElement } = document;
-    const prevBodyOverflow = body.style.overflow;
-    const prevHtmlOverflow = documentElement.style.overflow;
-    body.style.overflow = 'hidden';
-    documentElement.style.overflow = 'hidden';
+    const unlock = lockDocumentScroll();
     return () => {
-      body.style.overflow = prevBodyOverflow;
-      documentElement.style.overflow = prevHtmlOverflow;
+      unlock();
     };
   }, [detailCourse, drawerCourse]);
 

@@ -120,6 +120,7 @@
 
 .infoLabel {
   @apply text-xs text-gray-400 font-medium;
+  flex-shrink: 0;
 }
 
 .infoValue {

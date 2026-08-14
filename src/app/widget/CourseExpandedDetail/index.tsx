@@ -13,6 +13,18 @@ function formatTimesPerWeek(count: number): string {
   return '—';
 }
 
+type ScheduleSlot = Pick<CourseLesson, 'day_of_week' | 'start_time' | 'end_time'>;
+
+function resolveScheduleLessons(
+  course: Course,
+  lesson?: CourseLesson,
+  bundleOffer?: CourseBundle,
+): ScheduleSlot[] {
+  if (lesson) return [lesson];
+  if (bundleOffer?.lessons?.length) return bundleOffer.lessons;
+  return course.lessons ?? [];
+}
+
 interface CourseExpandedDetailProps {
   course: Course;
   lesson?: CourseLesson;
@@ -43,7 +55,7 @@ export default function CourseExpandedDetail({
   ) as string[];
 
   const ageLabel = formatAgeRange(course.min_age, course.max_age) || '—';
-  const scheduleLessons = lesson ? [lesson] : course.lessons;
+  const scheduleLessons = resolveScheduleLessons(course, lesson, bundleOffer);
   const timesPerWeek = bundleOffer
     ? bundleOffer.lessons.length
     : lesson
@@ -94,13 +106,16 @@ export default function CourseExpandedDetail({
           <div className={styles.infoPill}>
             <CalendarDays size={20} className={styles.infoIcon} />
             <span className={styles.infoLabel}>יום ושעה</span>
-            {scheduleLessons?.length ? (
-              scheduleLessons.map((l, i) => (
-                <span key={i} className={styles.infoValue}>
-                  {getDayName(l.day_of_week)}{' '}
-                  {formatTimeRange(l.start_time, l.end_time)}
-                </span>
-              ))
+            {scheduleLessons.length ? (
+              scheduleLessons.map((l, i) => {
+                const day = getDayName(l.day_of_week);
+                const time = formatTimeRange(l.start_time, l.end_time);
+                return (
+                  <span key={i} className={styles.infoValue}>
+                    {day && time ? `${day} ${time}` : day || time || '—'}
+                  </span>
+                );
+              })
             ) : (
               <span className={styles.infoValue}>—</span>
             )}

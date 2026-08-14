@@ -209,13 +209,15 @@ export function formatAge(age: number): string {
  */
 export function getDayName(dayOfWeek: number): string {
   const days = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שבת'];
-  return days[dayOfWeek] || '';
+  if (!Number.isInteger(dayOfWeek) || dayOfWeek < 0 || dayOfWeek > 6) return '';
+  return days[dayOfWeek];
 }
 
 /**
  * Format time range
  */
 export function formatTimeRange(startTime: string, endTime: string): string {
+  if (!startTime || !endTime) return '';
   return `${startTime.slice(0, 5)}-${endTime.slice(0, 5)}`;
 }
 
