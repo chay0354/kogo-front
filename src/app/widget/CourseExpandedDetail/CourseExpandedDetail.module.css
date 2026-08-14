@@ -72,10 +72,6 @@
   line-height: 1.3;
 }
 
-.subtitle {
-  @apply text-sm text-gray-500 mt-1;
-}
-
 .bundleBadge {
   display: inline-block;
   margin-top: 8px;
@@ -186,7 +182,12 @@
 }
 
 .priceNote {
-  @apply text-xs text-gray-400 text-center mb-5;
+  @apply text-xs text-gray-400 text-center mb-1;
+  line-height: 1.35;
+}
+
+.priceNote:last-of-type {
+  @apply mb-5;
 }
 
 .fullSection {
@@ -265,4 +266,59 @@
 
 .heartIcon {
   color: #6b7280;
+}
+
+@media (max-width: 640px) {
+  .topBar {
+    padding: 6px 12px 0;
+  }
+
+  .scrollArea {
+    padding: 4px 10px 14px 16px;
+  }
+
+  .header {
+    margin-bottom: 12px;
+  }
+
+  .title {
+    font-size: 1.375rem;
+  }
+
+  .description {
+    margin-bottom: 12px;
+    padding: 10px 12px;
+  }
+
+  .infoRow {
+    margin-bottom: 12px;
+  }
+
+  .infoPill {
+    padding-top: 8px;
+    padding-bottom: 8px;
+  }
+
+  .instructorBox {
+    margin-bottom: 12px;
+    padding: 10px 12px;
+    gap: 10px;
+  }
+
+  .instructorAvatar {
+    width: 44px;
+    height: 44px;
+    font-size: 1rem;
+  }
+
+  .priceNote:last-of-type {
+    margin-bottom: 12px;
+  }
+
+  .enrollButton,
+  .trialButton {
+    padding-top: 12px;
+    padding-bottom: 12px;
+    margin-bottom: 8px;
+  }
 }

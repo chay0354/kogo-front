@@ -67,7 +67,6 @@ export default function CourseExpandedDetail({
         {/* Header */}
         <div className={styles.header}>
           <h2 className={styles.title}>{displayTitle}</h2>
-          <p className={styles.subtitle}>{course.course_type_name}</p>
           {timesPerWeek > 0 ? (
             <span className={styles.bundleBadge}>{timesPerWeekLabel}</span>
           ) : null}
