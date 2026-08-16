@@ -611,7 +611,7 @@ export default function WidgetPage() {
             <CourseExpandedDetail
               course={detailCourse}
               lesson={detailLesson ?? undefined}
-              bundleOffer={activeDetailBundle ?? undefined}
+              bundleOffer={detailBundle ?? undefined}
               selectionFull={detailSelectionFull}
               alternatives={detailAlternatives}
               onSelectAlternative={handleSelectAlternative}
