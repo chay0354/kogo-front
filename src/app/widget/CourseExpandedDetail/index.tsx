@@ -64,7 +64,7 @@ export default function CourseExpandedDetail({
   const timesPerWeekLabel = bundleOffer
     ? (bundleOffer.name || 'פעמיים בשבוע')
     : formatTimesPerWeek(timesPerWeek);
-  const displayPrice = lesson?.price ?? course.price;
+  const displayPrice = bundleOffer?.combined_price ?? lesson?.price ?? course.price;
   const displayTitle = course.name;
 
   return (
