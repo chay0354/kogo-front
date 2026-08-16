@@ -59,6 +59,8 @@ function resolveInstructorName(
   return names.length ? names.join(' ו') : null;
 }
 
+type ScheduleSlot = Pick<CourseLesson, 'day_of_week' | 'start_time' | 'end_time'>;
+
 function resolveScheduleLessons(
   course: Course,
   lesson?: CourseLesson,
