@@ -107,24 +107,53 @@ function notifyDropdownClosed() {
   }
 }
 
-/** Freeze iframe scrolling while a modal is open. Avoid position:fixed here —
- *  the host page already locks; a second fixed-body unlock jumps the list. */
+function readScrollY() {
+  return window.scrollY || window.pageYOffset || document.documentElement.scrollTop || 0;
+}
+
+function writeScrollY(y: number) {
+  const top = Math.max(0, y);
+  const html = document.documentElement;
+  const previous = html.style.scrollBehavior;
+  html.style.scrollBehavior = 'auto';
+  window.scrollTo({ top, left: 0, behavior: 'auto' });
+  html.scrollTop = top;
+  document.body.scrollTop = top;
+  html.style.scrollBehavior = previous;
+}
+
+/** Freeze the widget page at the current offset before the host stretches the iframe. */
 function lockDocumentScroll() {
   const { body, documentElement } = document;
+  const scrollY = readScrollY();
   const previous = {
+    bodyPosition: body.style.position,
+    bodyTop: body.style.top,
+    bodyLeft: body.style.left,
+    bodyRight: body.style.right,
+    bodyWidth: body.style.width,
     bodyOverflow: body.style.overflow,
     htmlOverflow: documentElement.style.overflow,
-    bodyOverscroll: body.style.overscrollBehavior,
   };
 
+  body.style.position = 'fixed';
+  body.style.top = `-${scrollY}px`;
+  body.style.left = '0';
+  body.style.right = '0';
+  body.style.width = '100%';
   body.style.overflow = 'hidden';
   documentElement.style.overflow = 'hidden';
-  body.style.overscrollBehavior = 'none';
 
   return () => {
+    body.style.position = previous.bodyPosition;
+    body.style.top = previous.bodyTop;
+    body.style.left = previous.bodyLeft;
+    body.style.right = previous.bodyRight;
+    body.style.width = previous.bodyWidth;
     body.style.overflow = previous.bodyOverflow;
     documentElement.style.overflow = previous.htmlOverflow;
-    body.style.overscrollBehavior = previous.bodyOverscroll;
+    writeScrollY(scrollY);
+    requestAnimationFrame(() => writeScrollY(scrollY));
   };
 }
 
@@ -473,21 +502,16 @@ export default function WidgetPage() {
 
   useEffect(() => {
     if (detailCourse || drawerCourse) {
+      const unlock = lockDocumentScroll();
       window.parent.postMessage({ type: 'kogo-widget-expand' }, '*');
-      return;
+      return () => {
+        unlock();
+      };
     }
     const frame = requestAnimationFrame(() => {
       window.parent.postMessage({ type: 'kogo-widget-collapse' }, '*');
     });
     return () => cancelAnimationFrame(frame);
-  }, [detailCourse, drawerCourse]);
-
-  useEffect(() => {
-    if (!detailCourse && !drawerCourse) return;
-    const unlock = lockDocumentScroll();
-    return () => {
-      unlock();
-    };
   }, [detailCourse, drawerCourse]);
 
   const handleEnrollClick = (isTrial = false, bundleOverride?: CourseBundle | null) => {
