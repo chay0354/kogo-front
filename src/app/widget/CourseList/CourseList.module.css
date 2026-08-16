@@ -1,12 +1,58 @@
 .list {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 16px;
   width: 100%;
   max-width: 100%;
   min-width: 0;
   overflow-x: clip;
   box-sizing: border-box;
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+
+.sectionList {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+
+.sectionHeader,
+.sectionHeaderStatic {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  padding: 4px 4px 0;
+  border: none;
+  background: none;
+  color: #2B3090;
+}
+
+.sectionHeader {
+  cursor: pointer;
+}
+
+.sectionTitle {
+  font-size: 0.8125rem;
+  font-weight: 700;
+}
+
+.sectionChevron {
+  flex-shrink: 0;
+  color: #2B3090;
+  transition: transform 180ms ease;
+}
+
+.sectionChevronOpen {
+  transform: rotate(180deg);
 }
 
 .row {

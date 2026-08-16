@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import { ChevronDown } from 'lucide-react';
 import { getDayName, formatTimeRange } from '@/lib/courseUtils';
 import type { Course, CourseLesson, CourseBundle } from '../types';
@@ -88,64 +89,124 @@ function frequencyLabel(lesson: CourseLesson | null, bundle: CourseBundle | null
   return null;
 }
 
-export function CourseList({ filteredCourses, onSelect }: CourseListProps) {
-  const rows = buildRows(filteredCourses);
+function CourseRowItem({
+  row,
+  index,
+  onSelect,
+}: {
+  row: CourseRow;
+  index: number;
+  onSelect: CourseListProps['onSelect'];
+}) {
+  const { course, lesson, bundle } = row;
+  const schedule = scheduleLines(lesson, bundle);
+  const frequency = frequencyLabel(lesson, bundle);
 
   return (
-    <div role="list" className={styles.list}>
-      {rows.map(({ course, lesson, bundle }, index) => {
-        const schedule = scheduleLines(lesson, bundle);
-        const frequency = frequencyLabel(lesson, bundle);
-        return (
-        <div
-          key={`${course.id}-${bundle?.id ?? lesson?.id ?? index}`}
-          role="listitem"
-          className={styles.row}
-          onClick={() => onSelect(course, bundle ?? undefined, lesson ?? undefined)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' || e.key === ' ') {
-              e.preventDefault();
-              onSelect(course, bundle ?? undefined, lesson ?? undefined);
-            }
-          }}
-          tabIndex={0}
-        >
-          <div className={styles.nameZone}>
-            <span className={styles.bullet} aria-hidden="true" />
-            <span className={styles.courseName}>{course.name}</span>
+    <div
+      key={`${course.id}-${bundle?.id ?? lesson?.id ?? index}`}
+      role="listitem"
+      className={styles.row}
+      onClick={() => onSelect(course, bundle ?? undefined, lesson ?? undefined)}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          onSelect(course, bundle ?? undefined, lesson ?? undefined);
+        }
+      }}
+      tabIndex={0}
+    >
+      <div className={styles.nameZone}>
+        <span className={styles.bullet} aria-hidden="true" />
+        <span className={styles.courseName}>{course.name}</span>
+      </div>
+      <div className={styles.divider} />
+      <div className={styles.slotZone}>
+        <div className={styles.scheduleGroup}>
+          <div className={`${styles.lessonSlot} ${schedule.isBundle ? styles.lessonSlotBundle : ''}`}>
+            <span className={styles.lessonDay}>{schedule.days}</span>
+            {schedule.times ? (
+              <span className={styles.lessonTime} dir="ltr">
+                {schedule.times}
+              </span>
+            ) : null}
           </div>
-          <div className={styles.divider} />
-          <div className={styles.slotZone}>
-            <div className={styles.scheduleGroup}>
-              <div className={`${styles.lessonSlot} ${schedule.isBundle ? styles.lessonSlotBundle : ''}`}>
-                <span className={styles.lessonDay}>{schedule.days}</span>
-                {schedule.times ? (
-                  <span className={styles.lessonTime} dir="ltr">
-                    {schedule.times}
-                  </span>
-                ) : null}
-              </div>
-              {frequency ? (
-                <span className={styles.frequencyBadge}>{frequency}</span>
-              ) : null}
-            </div>
-
-            <button
-              type="button"
-              className={styles.expandBtn}
-              aria-label={`פרטי קורס — ${course.name}`}
-              onClick={(e) => {
-                e.stopPropagation();
-                onSelect(course, bundle ?? undefined, lesson ?? undefined);
-              }}
-              tabIndex={-1}
-            >
-              <ChevronDown size={16} color="#2B3090" />
-            </button>
-          </div>
+          {frequency ? (
+            <span className={styles.frequencyBadge}>{frequency}</span>
+          ) : null}
         </div>
-        );
-      })}
+
+        <button
+          type="button"
+          className={styles.expandBtn}
+          aria-label={`פרטי קורס — ${course.name}`}
+          onClick={(e) => {
+            e.stopPropagation();
+            onSelect(course, bundle ?? undefined, lesson ?? undefined);
+          }}
+          tabIndex={-1}
+        >
+          <ChevronDown size={16} color="#2B3090" />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+export function CourseList({ filteredCourses, onSelect }: CourseListProps) {
+  const rows = buildRows(filteredCourses);
+  const twiceAWeek = rows.filter((row) => row.bundle);
+  const onceAWeek = rows.filter((row) => !row.bundle);
+  const [onceAWeekOpen, setOnceAWeekOpen] = useState(twiceAWeek.length === 0);
+
+  return (
+    <div className={styles.list}>
+      {twiceAWeek.length > 0 ? (
+        <section className={styles.section} aria-label="פעמיים בשבוע">
+          <div className={styles.sectionHeaderStatic}>
+            <span className={styles.sectionTitle}>פעמיים בשבוע</span>
+          </div>
+          <div role="list" className={styles.sectionList}>
+            {twiceAWeek.map((row, index) => (
+              <CourseRowItem
+                key={`${row.course.id}-${row.bundle?.id ?? index}`}
+                row={row}
+                index={index}
+                onSelect={onSelect}
+              />
+            ))}
+          </div>
+        </section>
+      ) : null}
+
+      {onceAWeek.length > 0 ? (
+        <section className={styles.section} aria-label="פעם בשבוע">
+          <button
+            type="button"
+            className={styles.sectionHeader}
+            onClick={() => setOnceAWeekOpen((open) => !open)}
+            aria-expanded={onceAWeekOpen}
+          >
+            <span className={styles.sectionTitle}>פעם בשבוע</span>
+            <ChevronDown
+              size={18}
+              className={`${styles.sectionChevron} ${onceAWeekOpen ? styles.sectionChevronOpen : ''}`}
+            />
+          </button>
+          {onceAWeekOpen ? (
+            <div role="list" className={styles.sectionList}>
+              {onceAWeek.map((row, index) => (
+                <CourseRowItem
+                  key={`${row.course.id}-${row.lesson?.id ?? index}`}
+                  row={row}
+                  index={index}
+                  onSelect={onSelect}
+                />
+              ))}
+            </div>
+          ) : null}
+        </section>
+      ) : null}
     </div>
   );
 }

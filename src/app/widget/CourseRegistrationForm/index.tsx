@@ -24,11 +24,20 @@ function nameFieldError(value: string): string | null {
   return trimmed.length >= MIN_NAME_LENGTH ? null : NAME_TOO_SHORT;
 }
 
+const PHONE_DIGITS = 10;
+
+function sanitizePhoneInput(value: string): string {
+  return value.replace(/\D/g, '').slice(0, PHONE_DIGITS);
+}
+
 function phoneFieldError(value: string): string | null {
-  const trimmed = value.trim();
-  if (!trimmed) return 'טלפון נייד חובה';
-  if (!/^0\d{1,2}-?\d{7}$|^05\d{8}$/.test(trimmed.replace(/\s/g, ''))) {
-    return 'מספר טלפון לא תקין';
+  const digits = value.replace(/\D/g, '');
+  if (!digits) return 'טלפון נייד חובה';
+  if (digits.length !== PHONE_DIGITS) {
+    return `יש להזין ${PHONE_DIGITS} ספרות (הוזנו ${digits.length})`;
+  }
+  if (!/^05\d{8}$/.test(digits)) {
+    return 'מספר נייד חייב להתחיל ב-05';
   }
   return null;
 }
@@ -503,9 +512,13 @@ export default function CourseRegistrationForm({ courseId, courseName, isAdult =
             </div>
             <div>
               <label className={styles.label}>טלפון נייד</label>
-              <input type="tel" value={parentPhone}
-                onChange={(e) => { setParentPhone(e.target.value); clearFieldError('parentPhone'); }}
-                className={fieldInputClass('parentPhone')} dir="ltr" />
+              <input type="tel" inputMode="numeric" value={parentPhone}
+                onChange={(e) => {
+                  setParentPhone(sanitizePhoneInput(e.target.value));
+                  clearFieldError('parentPhone');
+                }}
+                className={fieldInputClass('parentPhone')} dir="ltr"
+                maxLength={PHONE_DIGITS} autoComplete="tel" />
               {fieldErrors.parentPhone ? (
                 <p className={styles.fieldError}>{fieldErrors.parentPhone}</p>
               ) : null}

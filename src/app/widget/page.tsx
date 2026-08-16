@@ -33,6 +33,8 @@ type VisibleBand = { top: number; bottom: number };
 let hostBand: VisibleBand | null = null;
 const bandSubscribers = new Set<() => void>();
 let bandBridgeReady = false;
+/** While a fullscreen overlay is open, ignore host band updates (they become 0). */
+let bandFrozen = false;
 
 function requestHostBand() {
   try {
@@ -48,6 +50,7 @@ function ensureHostBandBridge() {
   window.addEventListener('message', (event: MessageEvent) => {
     const data = event.data as { type?: string; top?: number; bottom?: number } | null;
     if (!data || data.type !== 'kogo-widget-visible-band') return;
+    if (bandFrozen) return;
     const top = Number(data.top);
     const bottom = Number(data.bottom);
     if (!Number.isFinite(top) || !Number.isFinite(bottom) || bottom - top < 80) return;
@@ -122,38 +125,28 @@ function writeScrollY(y: number) {
   html.style.scrollBehavior = previous;
 }
 
-/** Freeze the widget page at the current offset before the host stretches the iframe. */
-function lockDocumentScroll() {
-  const { body, documentElement } = document;
-  const scrollY = readScrollY();
-  const previous = {
-    bodyPosition: body.style.position,
-    bodyTop: body.style.top,
-    bodyLeft: body.style.left,
-    bodyRight: body.style.right,
-    bodyWidth: body.style.width,
-    bodyOverflow: body.style.overflow,
-    htmlOverflow: documentElement.style.overflow,
+/**
+ * The iframe is taller than the phone. The visitor scrolls the *host* page, so
+ * this document's scrollY is usually 0. When the host stretches the iframe to
+ * fullscreen, it would show the filters at the top unless we shift this page
+ * by the last visible-band offset. Shift the page only — not body — so the
+ * portaled overlay stays on the phone screen.
+ */
+function pinVisibleSlice(page: HTMLElement | null) {
+  const iframeScroll = readScrollY();
+  const apply = () => {
+    const shift = Math.max(0, iframeScroll + visibleBand().top);
+    if (page) page.style.transform = shift ? `translateY(-${shift}px)` : '';
+    if (shift > 0) bandFrozen = true;
   };
-
-  body.style.position = 'fixed';
-  body.style.top = `-${scrollY}px`;
-  body.style.left = '0';
-  body.style.right = '0';
-  body.style.width = '100%';
-  body.style.overflow = 'hidden';
-  documentElement.style.overflow = 'hidden';
-
+  apply();
+  bandSubscribers.add(apply);
   return () => {
-    body.style.position = previous.bodyPosition;
-    body.style.top = previous.bodyTop;
-    body.style.left = previous.bodyLeft;
-    body.style.right = previous.bodyRight;
-    body.style.width = previous.bodyWidth;
-    body.style.overflow = previous.bodyOverflow;
-    documentElement.style.overflow = previous.htmlOverflow;
-    writeScrollY(scrollY);
-    requestAnimationFrame(() => writeScrollY(scrollY));
+    bandSubscribers.delete(apply);
+    if (page) page.style.transform = '';
+    writeScrollY(iframeScroll);
+    requestAnimationFrame(() => writeScrollY(iframeScroll));
+    bandFrozen = false;
   };
 }
 
@@ -357,6 +350,7 @@ export default function WidgetPage() {
   const [drawerBundle, setDrawerBundle] = useState<CourseBundle | null>(null);
   const [drawerLesson, setDrawerLesson] = useState<CourseLesson | null>(null);
   const [drawerIsTrial, setDrawerIsTrial] = useState(false);
+  const pageRef = useRef<HTMLDivElement>(null);
 
   const toggleDetail = (course: Course, bundle?: CourseBundle, lesson?: CourseLesson) => {
     const isSame =
@@ -502,10 +496,10 @@ export default function WidgetPage() {
 
   useEffect(() => {
     if (detailCourse || drawerCourse) {
-      const unlock = lockDocumentScroll();
+      const unpin = pinVisibleSlice(pageRef.current);
       window.parent.postMessage({ type: 'kogo-widget-expand' }, '*');
       return () => {
-        unlock();
+        unpin();
       };
     }
     const frame = requestAnimationFrame(() => {
@@ -592,7 +586,7 @@ export default function WidgetPage() {
           : null;
 
   return (
-    <div dir="rtl" className={styles.page}>
+    <div ref={pageRef} dir="rtl" className={styles.page}>
       {/* Filter strip */}
       <div className={styles.filterStrip}>
         <h1 className={styles.filterStripTitle}>הרשמה לחוגים / שיעור נסיון</h1>
