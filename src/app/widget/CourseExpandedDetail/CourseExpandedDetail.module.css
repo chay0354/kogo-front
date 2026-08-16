@@ -44,20 +44,20 @@
   flex: 0 0 auto;
   min-height: auto;
   overflow: visible;
-  padding: 44px 18px 16px;
+  padding: 36px 16px 12px;
 }
 
 .header {
   text-align: center;
-  margin-bottom: 8px;
+  margin-bottom: 6px;
 }
 
 .title {
   margin: 0;
   color: #2B3090;
-  font-size: 1.75rem;
+  font-size: 1.5rem;
   font-weight: 800;
-  line-height: 1.25;
+  line-height: 1.2;
 }
 
 .badgeRow {
@@ -65,7 +65,7 @@
   align-items: center;
   justify-content: center;
   gap: 10px;
-  margin-top: 8px;
+  margin-top: 6px;
 }
 
 .badgeLine {
@@ -78,18 +78,18 @@
 .bundleBadge {
   background: #F5C518;
   color: #2B3090;
-  font-size: 0.8125rem;
+  font-size: 0.75rem;
   font-weight: 800;
-  padding: 5px 16px;
+  padding: 3px 14px;
   border-radius: 999px;
   white-space: nowrap;
 }
 
 .description {
-  margin: 0 0 10px;
+  margin: 0 0 8px;
   color: #2B3090;
-  font-size: 0.875rem;
-  line-height: 1.5;
+  font-size: 0.8125rem;
+  line-height: 1.4;
   text-align: center;
   display: -webkit-box;
   -webkit-box-orient: vertical;
@@ -101,9 +101,9 @@
   display: flex;
   align-items: stretch;
   justify-content: center;
-  margin-bottom: 10px;
-  padding: 10px 6px;
-  border-radius: 16px;
+  margin-bottom: 8px;
+  padding: 8px 6px;
+  border-radius: 14px;
   background: #eef3fb;
 }
 
@@ -113,8 +113,8 @@
   flex-direction: column;
   align-items: center;
   justify-content: flex-start;
-  gap: 4px;
-  padding: 4px 6px;
+  gap: 2px;
+  padding: 2px 4px;
   min-width: 0;
 }
 
@@ -158,18 +158,18 @@
   display: flex;
   flex-direction: row;
   align-items: center;
-  gap: 14px;
-  margin-bottom: 10px;
-  padding: 10px 16px;
-  border-radius: 16px;
+  gap: 12px;
+  margin-bottom: 8px;
+  padding: 8px 14px;
+  border-radius: 14px;
   background: #f7f1e4;
   direction: ltr;
 }
 
 .instructorAvatar {
   flex-shrink: 0;
-  width: 68px;
-  height: 68px;
+  width: 56px;
+  height: 56px;
   overflow: hidden;
   border-radius: 50%;
   background: #F5C518;
@@ -217,32 +217,32 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  margin-bottom: 8px;
-  padding: 12px 12px 10px;
-  border-radius: 16px;
+  margin-bottom: 6px;
+  padding: 8px 12px 8px;
+  border-radius: 14px;
   background: #f7f1e4;
   text-align: center;
 }
 
 .priceLabel {
-  margin: 0 0 4px;
+  margin: 0 0 2px;
   color: #2B3090;
-  font-size: 0.8125rem;
+  font-size: 0.75rem;
   font-weight: 600;
 }
 
 .priceAmount {
   margin: 0;
   color: #2B3090;
-  font-size: 2.5rem;
+  font-size: 2rem;
   font-weight: 800;
-  line-height: 1.1;
+  line-height: 1.05;
 }
 
 .priceSwoosh {
-  width: 64px;
-  height: 10px;
-  margin: 2px 0 6px;
+  width: 56px;
+  height: 8px;
+  margin: 0 0 4px;
 }
 
 .priceTrack {
@@ -260,22 +260,22 @@
 }
 
 .priceNote:last-of-type {
-  margin-bottom: 12px;
+  margin-bottom: 8px;
 }
 
 .actions {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
 }
 
 .enrollButton,
 .trialButton {
   width: 100%;
   border: none;
-  border-radius: 14px;
-  padding: 12px 16px;
-  font-size: 1.0625rem;
+  border-radius: 12px;
+  padding: 10px 14px;
+  font-size: 1rem;
   font-weight: 800;
   cursor: pointer;
 }
@@ -355,60 +355,60 @@
 
 @media (max-width: 640px) {
   .scrollArea {
-    padding: 40px 16px 12px;
-  }
-
-  .title {
-    font-size: 1.5rem;
-  }
-
-  .priceAmount {
-    font-size: 2.15rem;
-  }
-
-  .enrollButton,
-  .trialButton {
-    padding: 12px 14px;
-  }
-}
-
-@media (max-height: 760px) {
-  .scrollArea {
-    padding-top: 36px;
-    padding-bottom: 10px;
+    padding: 32px 16px 10px;
   }
 
   .title {
     font-size: 1.4rem;
   }
 
+  .priceAmount {
+    font-size: 1.85rem;
+  }
+
+  .enrollButton,
+  .trialButton {
+    padding: 10px 14px;
+  }
+}
+
+@media (max-height: 760px) {
+  .scrollArea {
+    padding-top: 30px;
+    padding-bottom: 8px;
+  }
+
+  .title {
+    font-size: 1.35rem;
+  }
+
   .description {
-    margin-bottom: 8px;
-    font-size: 0.8125rem;
-    line-height: 1.4;
+    margin-bottom: 6px;
+    font-size: 0.75rem;
+    line-height: 1.35;
   }
 
   .infoRow,
   .instructorBox,
   .priceCard {
-    margin-bottom: 8px;
+    margin-bottom: 6px;
   }
 
   .instructorAvatar {
-    width: 56px;
-    height: 56px;
+    width: 48px;
+    height: 48px;
   }
 
   .priceAmount {
-    font-size: 1.9rem;
+    font-size: 1.75rem;
   }
 
   .priceNote:last-of-type {
-    margin-bottom: 8px;
+    margin-bottom: 6px;
   }
 
   .enrollButton,
   .trialButton {
-    padding: 11px 14px;
+    padding: 9px 12px;
   }
 }
