@@ -164,7 +164,9 @@ export function CourseList({ filteredCourses, onSelect }: CourseListProps) {
       {twiceAWeek.length > 0 ? (
         <section className={styles.section} aria-label="פעמיים בשבוע">
           <div className={styles.sectionHeaderStatic}>
-            <span className={styles.sectionTitle}>פעמיים בשבוע</span>
+            <span className={styles.sectionChip}>
+              <span className={styles.sectionTitle}>פעמיים בשבוע</span>
+            </span>
           </div>
           <div role="list" className={styles.sectionList}>
             {twiceAWeek.map((row, index) => (
@@ -187,11 +189,13 @@ export function CourseList({ filteredCourses, onSelect }: CourseListProps) {
             onClick={() => setOnceAWeekOpen((open) => !open)}
             aria-expanded={onceAWeekOpen}
           >
-            <span className={styles.sectionTitle}>פעם בשבוע</span>
-            <ChevronDown
-              size={18}
-              className={`${styles.sectionChevron} ${onceAWeekOpen ? styles.sectionChevronOpen : ''}`}
-            />
+            <span className={styles.sectionChip}>
+              <span className={styles.sectionTitle}>פעם בשבוע</span>
+              <ChevronDown
+                size={16}
+                className={`${styles.sectionChevron} ${onceAWeekOpen ? styles.sectionChevronOpen : ''}`}
+              />
+            </span>
           </button>
           {onceAWeekOpen ? (
             <div role="list" className={styles.sectionList}>

@@ -34,6 +34,7 @@ export interface CourseBundleLesson {
   day_of_week: number;
   start_time: string;
   end_time: string;
+  instructor_name?: string | null;
 }
 
 export interface CourseBundle {

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import ReactDOM from 'react-dom';
 import { ChevronDown, ChevronUp, Check } from 'lucide-react';
 import api from '@/lib/api';
@@ -126,26 +126,17 @@ function writeScrollY(y: number) {
 }
 
 /**
- * The iframe is taller than the phone. The visitor scrolls the *host* page, so
- * this document's scrollY is usually 0. When the host stretches the iframe to
- * fullscreen, it would show the filters at the top unless we shift this page
- * by the last visible-band offset. Shift the page only — not body — so the
- * portaled overlay stays on the phone screen.
+ * Freeze the currently visible iframe slice in place. Apply once — re-applying
+ * when the host later reports a fullscreen band is what made the list jump.
  */
 function pinVisibleSlice(page: HTMLElement | null) {
   const iframeScroll = readScrollY();
-  const apply = () => {
-    const shift = Math.max(0, iframeScroll + visibleBand().top);
-    if (page) page.style.transform = shift ? `translateY(-${shift}px)` : '';
-    if (shift > 0) bandFrozen = true;
-  };
-  apply();
-  bandSubscribers.add(apply);
+  const shift = Math.max(0, iframeScroll + visibleBand().top);
+  bandFrozen = true;
+  if (page && shift) page.style.transform = `translateY(-${shift}px)`;
   return () => {
-    bandSubscribers.delete(apply);
     if (page) page.style.transform = '';
     writeScrollY(iframeScroll);
-    requestAnimationFrame(() => writeScrollY(iframeScroll));
     bandFrozen = false;
   };
 }
@@ -494,7 +485,7 @@ export default function WidgetPage() {
     ensureHostBandBridge();
   }, []);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (detailCourse || drawerCourse) {
       const unpin = pinVisibleSlice(pageRef.current);
       window.parent.postMessage({ type: 'kogo-widget-expand' }, '*');

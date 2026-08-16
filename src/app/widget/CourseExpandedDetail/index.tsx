@@ -1,7 +1,7 @@
-import { getDayName, formatTimeRange, formatAgeRange } from '@/lib/courseUtils';
+import { getDayName, formatTimeRange, formatAge, formatAgeRange } from '@/lib/courseUtils';
 import type { Course, CourseBundle, CourseLesson } from '../types';
 import type { WidgetAlternative } from '../alternativeLessons';
-import { MapPin, Users, CalendarDays, Wallet, X } from 'lucide-react';
+import { MapPin, Users, CalendarDays, X } from 'lucide-react';
 import styles from './CourseExpandedDetail.module.css';
 
 const WIDGET_SUPPORT_PHONE = '0509424755';
@@ -13,7 +13,51 @@ function formatTimesPerWeek(count: number): string {
   return '—';
 }
 
-type ScheduleSlot = Pick<CourseLesson, 'day_of_week' | 'start_time' | 'end_time'>;
+function formatShekel(value: number | string | null | undefined): string {
+  if (value == null || value === '') return '—';
+  const n = Number(value);
+  if (!Number.isFinite(n)) return '—';
+  return `₪${Number.isInteger(n) ? n : n.toFixed(2)}`;
+}
+
+function formatAgesCompact(minAge?: number | null, maxAge?: number | null): string {
+  if (!minAge && !maxAge) return '—';
+  const minLabel = minAge ? formatAge(minAge) : '';
+  const maxLabel = maxAge ? formatAge(maxAge) : '';
+  if (minLabel.startsWith('כיתה ') && maxLabel.startsWith('כיתה ')) {
+    if (minAge === maxAge) return minLabel;
+    return `כיתות ${minLabel.slice(5)} - ${maxLabel.slice(5)}`;
+  }
+  return formatAgeRange(minAge, maxAge) || '—';
+}
+
+function resolveInstructorName(
+  course: Course,
+  lesson?: CourseLesson,
+  bundleOffer?: CourseBundle,
+): string | null {
+  const names: string[] = [];
+  const add = (value?: string | null) => {
+    const name = value?.trim();
+    if (name && !names.includes(name)) names.push(name);
+  };
+
+  add(lesson?.instructor_name);
+
+  if (bundleOffer?.lessons?.length) {
+    const bundleIds = new Set(bundleOffer.lessons.map((l) => l.id));
+    for (const slot of bundleOffer.lessons) add(slot.instructor_name);
+    for (const courseLesson of course.lessons ?? []) {
+      if (bundleIds.has(courseLesson.id)) add(courseLesson.instructor_name);
+    }
+  }
+
+  if (!names.length) {
+    for (const courseLesson of course.lessons ?? []) add(courseLesson.instructor_name);
+  }
+
+  return names.length ? names.join(' ו') : null;
+}
 
 function resolveScheduleLessons(
   course: Course,
@@ -23,6 +67,33 @@ function resolveScheduleLessons(
   if (lesson) return [lesson];
   if (bundleOffer?.lessons?.length) return bundleOffer.lessons;
   return course.lessons ?? [];
+}
+
+function CornerSwoosh() {
+  return (
+    <svg className={styles.swoosh} viewBox="0 0 140 90" fill="none" aria-hidden>
+      <path
+        d="M-20 18c42-6 78 8 92 48"
+        stroke="#2B3090"
+        strokeWidth="14"
+        strokeLinecap="round"
+      />
+      <path
+        d="M-20 38c36-4 66 10 78 40"
+        stroke="#F5C518"
+        strokeWidth="7"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+function PriceSwoosh() {
+  return (
+    <svg className={styles.priceSwoosh} viewBox="0 0 72 10" fill="none" aria-hidden>
+      <path d="M2 6c18-6 34-6 68 0" stroke="#F5C518" strokeWidth="3" strokeLinecap="round" />
+    </svg>
+  );
 }
 
 interface CourseExpandedDetailProps {
@@ -46,112 +117,99 @@ export default function CourseExpandedDetail({
   alternatives = [],
   onSelectAlternative,
   onEnroll,
-  onBundleEnroll,
   onTrialEnroll,
   onClose,
 }: CourseExpandedDetailProps) {
-  const instructors = Array.from(
-    new Set((lesson ? [lesson] : course.lessons)?.map((l) => l.instructor_name).filter(Boolean))
-  ) as string[];
+  const instructorName = resolveInstructorName(course, lesson, bundleOffer);
 
-  const ageLabel = formatAgeRange(course.min_age, course.max_age) || '—';
+  const ageLabel = formatAgesCompact(course.min_age, course.max_age);
   const scheduleLessons = resolveScheduleLessons(course, lesson, bundleOffer);
   const timesPerWeek = bundleOffer
     ? bundleOffer.lessons.length
     : lesson
       ? 1
       : course.lessons_count || course.lessons?.length || 0;
-  const timesPerWeekLabel = bundleOffer
-    ? (bundleOffer.name || 'פעמיים בשבוע')
-    : formatTimesPerWeek(timesPerWeek);
+  const timesPerWeekLabel = formatTimesPerWeek(timesPerWeek);
   const displayPrice = bundleOffer?.combined_price ?? lesson?.price ?? course.price;
-  const displayTitle = course.name;
 
   return (
     <div className={styles.card} dir="rtl">
-      <div className={styles.topBar}>
-        <button onClick={onClose} className={styles.closeButton} aria-label="סגור">
-          <X size={20} />
-        </button>
-      </div>
+      <CornerSwoosh />
+      <button type="button" onClick={onClose} className={styles.closeButton} aria-label="סגור">
+        <X size={18} strokeWidth={2.4} />
+      </button>
 
       <div className={styles.scrollArea}>
-        {/* Header */}
         <div className={styles.header}>
-          <h2 className={styles.title}>{displayTitle}</h2>
+          <h2 className={styles.title}>{course.name}</h2>
           {timesPerWeek > 0 ? (
-            <span className={styles.bundleBadge}>{timesPerWeekLabel}</span>
+            <div className={styles.badgeRow}>
+              <span className={styles.badgeLine} />
+              <span className={styles.bundleBadge}>{timesPerWeekLabel}</span>
+              <span className={styles.badgeLine} />
+            </div>
           ) : null}
         </div>
 
-        {/* Course type description */}
-        {course.course_type_description && (
+        {course.course_type_description ? (
           <p className={styles.description}>{course.course_type_description}</p>
-        )}
+        ) : null}
 
-        {/* Info pills */}
         <div className={styles.infoRow}>
           <div className={styles.infoPill}>
-            <MapPin size={20} className={styles.infoIcon} />
+            <MapPin size={22} className={styles.infoIcon} />
             <span className={styles.infoLabel}>מיקום</span>
             <span className={styles.infoValue}>{course.branch_name}</span>
           </div>
           <div className={styles.pillDivider} />
           <div className={styles.infoPill}>
-            <Users size={20} className={styles.infoIcon} />
-            <span className={styles.infoLabel}>גיליאים</span>
+            <Users size={22} className={styles.infoIcon} />
+            <span className={styles.infoLabel}>גילאים</span>
             <span className={styles.infoValue}>{ageLabel}</span>
           </div>
           <div className={styles.pillDivider} />
-          <div className={styles.infoPill}>
-            <CalendarDays size={20} className={styles.infoIcon} />
+          <div className={`${styles.infoPill} ${styles.schedulePill}`}>
+            <CalendarDays size={22} className={styles.infoIcon} />
             <span className={styles.infoLabel}>יום ושעה</span>
             {scheduleLessons.length ? (
               scheduleLessons.map((l, i) => {
                 const day = getDayName(l.day_of_week);
                 const time = formatTimeRange(l.start_time, l.end_time);
                 return (
-                  <span key={i} className={styles.infoValue}>
+                  <span key={i} className={`${styles.infoValue} ${styles.scheduleValue}`}>
                     {day && time ? `${day} ${time}` : day || time || '—'}
                   </span>
                 );
               })
             ) : (
-              <span className={styles.infoValue}>—</span>
+              <span className={`${styles.infoValue} ${styles.scheduleValue}`}>—</span>
             )}
           </div>
         </div>
 
-        {/* Instructor */}
-        {instructors.length > 0 && (
-          <div className={styles.instructorBox}>
-            <div className={styles.instructorAvatar}>
-              {instructors[0].charAt(0)}
-            </div>
-            <div className={styles.instructorInfo}>
-              <p className={styles.instructorName}>{instructors[0]}</p>
-              <p className={styles.instructorTitle}>מדריך {course.course_type_name}</p>
-            </div>
+        <div className={styles.instructorBox}>
+          <div className={styles.instructorAvatar} aria-hidden>
+            <svg viewBox="0 0 64 64" className={styles.avatarPlaceholder}>
+              <rect width="64" height="64" fill="#F5C518" />
+              <circle cx="32" cy="24" r="11" fill="#2B3090" opacity="0.35" />
+              <path d="M12 58c2-13 11-21 20-21s18 8 20 21" fill="#2B3090" opacity="0.35" />
+            </svg>
           </div>
-        )}
-
-        {/* Price */}
-        <div className={styles.priceRow}>
-          <div className={styles.priceLeft}>
-            <Wallet size={22} className={styles.walletIcon} />
-          </div>
-          <div className={styles.priceRight}>
-            <span className={styles.priceAmount}>
-              {displayPrice != null ? `₪${displayPrice}` : '—'}
-            </span>
-            <span className={styles.priceLabel}>לחודש</span>
+          <div className={styles.instructorDivider} />
+          <div className={styles.instructorInfo}>
+            <p className={styles.instructorName}>
+              {instructorName ? `החוג בהדרכת ${instructorName}` : 'החוג בהדרכת מדריך'}
+            </p>
+            <p className={styles.instructorTitle}>מדריך ישיר של הקוגומלו</p>
           </div>
         </div>
-        {bundleOffer ? (
-          <p className={styles.priceNote}>
-            מסלול משולב ({bundleOffer.name || 'פעמיים בשבוע'}): ₪{bundleOffer.combined_price} לחודש
-          </p>
-        ) : null}
+
+        <div className={styles.priceCard}>
+          <p className={styles.priceLabel}>מחיר לחודש</p>
+          <p className={styles.priceAmount}>{formatShekel(displayPrice)}</p>
+          <PriceSwoosh />
+          <p className={styles.priceTrack}>מסלול שנתי • תשלום חודשי</p>
+        </div>
         <p className={styles.priceNote}>מנוי שנתי עד חודש יולי. ניתן לבטל מנוי עד חודש אפריל</p>
         <p className={styles.priceNote}>ברכישת מנוי חיוב ע&quot;ס 120 שקל עבור דמי רישום</p>
 
@@ -184,21 +242,16 @@ export default function CourseExpandedDetail({
             )}
           </div>
         ) : (
-          <>
-            <button onClick={onEnroll} className={styles.enrollButton}>
+          <div className={styles.actions}>
+            <button type="button" onClick={onEnroll} className={styles.enrollButton}>
               הירשם לחוג
             </button>
-            {bundleOffer && onBundleEnroll ? (
-              <button onClick={onBundleEnroll} className={styles.enrollButton}>
-                הרשמה למסלול ({bundleOffer.name || 'פעמיים בשבוע'})
-              </button>
-            ) : null}
-            <button onClick={onTrialEnroll} className={styles.trialButton}>
+            <button type="button" onClick={onTrialEnroll} className={styles.trialButton}>
               {course.trial_lesson_is_paid && course.trial_lesson_price != null
                 ? `הרשמה לניסיון (₪${Number(course.trial_lesson_price).toFixed(0)})`
                 : 'הרשמה לניסיון'}
             </button>
-          </>
+          </div>
         )}
       </div>
     </div>

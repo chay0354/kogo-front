@@ -1,116 +1,127 @@
 .card {
-  @apply bg-white shadow-sm flex flex-col relative;
-  flex: 1 1 auto;
-  min-height: 0;
+  position: relative;
+  flex: 0 1 auto;
+  min-height: min-content;
+  display: flex;
+  flex-direction: column;
   overflow: hidden;
   border-radius: inherit;
+  background: #fff;
 }
 
-.topBar {
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  padding: 10px 12px 2px;
-}
-
-.scrollArea {
-  flex: 1 1 auto;
-  min-height: 0;
-  overflow-y: auto;
-  overflow-x: hidden;
-  -webkit-overflow-scrolling: touch;
-  padding: 8px 10px 20px 16px;
-  scrollbar-width: thin;
-  scrollbar-color: #2B3090 transparent;
-}
-
-.scrollArea::-webkit-scrollbar {
-  width: 6px;
-}
-
-.scrollArea::-webkit-scrollbar-track {
-  background: transparent;
-  margin: 6px 2px 10px;
-}
-
-.scrollArea::-webkit-scrollbar-thumb {
-  background: linear-gradient(180deg, #3d43a8 0%, #2B3090 100%);
-  border-radius: 999px;
-  border: 2px solid #fff;
-}
-
-.scrollArea::-webkit-scrollbar-thumb:hover {
-  background: #F5C518;
-  border-color: #fff;
+.swoosh {
+  position: absolute;
+  top: -10px;
+  left: -18px;
+  width: 128px;
+  height: 82px;
+  pointer-events: none;
+  z-index: 1;
 }
 
 .closeButton {
+  position: absolute;
+  top: 10px;
+  right: 12px;
+  z-index: 2;
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  background: #f3f4f6;
-  color: #6b7280;
+  width: 36px;
+  height: 36px;
   border: none;
+  border-radius: 50%;
+  background: #e8eefc;
+  color: #2B3090;
   cursor: pointer;
 }
 
 .closeButton:hover {
-  background: #e5e7eb;
-  color: #374151;
+  background: #d7def5;
 }
 
-/* Header */
+.scrollArea {
+  flex: 0 0 auto;
+  min-height: auto;
+  overflow: visible;
+  padding: 44px 18px 16px;
+}
+
 .header {
-  @apply text-center mb-5;
+  text-align: center;
+  margin-bottom: 8px;
 }
 
 .title {
-  @apply text-2xl font-bold text-gray-900;
-  line-height: 1.3;
+  margin: 0;
+  color: #2B3090;
+  font-size: 1.75rem;
+  font-weight: 800;
+  line-height: 1.25;
+}
+
+.badgeRow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.badgeLine {
+  width: 36px;
+  height: 2px;
+  background: #F5C518;
+  border-radius: 999px;
 }
 
 .bundleBadge {
-  display: inline-block;
-  margin-top: 8px;
-  background-color: rgba(245, 197, 24, 0.18);
+  background: #F5C518;
   color: #2B3090;
-  font-size: 0.6875rem;
-  font-weight: 700;
-  padding: 2px 8px;
+  font-size: 0.8125rem;
+  font-weight: 800;
+  padding: 5px 16px;
   border-radius: 999px;
   white-space: nowrap;
-  max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
-/* Course type description */
 .description {
-  @apply text-sm text-gray-600 text-center mb-5;
-  line-height: 1.6;
-  background-color: #f8f9fa;
-  border-radius: 8px;
-  padding: 12px 16px;
+  margin: 0 0 10px;
+  color: #2B3090;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  text-align: center;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  overflow: hidden;
 }
 
-/* Info pills row */
 .infoRow {
-  @apply flex items-stretch justify-center rounded-xl mb-5;
-  border: 1px solid #e5e7eb;
-  overflow: hidden;
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+  margin-bottom: 10px;
+  padding: 10px 6px;
+  border-radius: 16px;
+  background: #eef3fb;
 }
 
 .infoPill {
-  @apply flex flex-col items-center justify-start flex-1 py-3 px-2;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
   gap: 4px;
+  padding: 4px 6px;
+  min-width: 0;
 }
 
 .pillDivider {
   width: 1px;
-  @apply bg-gray-200 self-stretch my-3;
+  margin: 8px 0;
+  background: #cfd6ea;
 }
 
 .infoIcon {
@@ -119,207 +130,285 @@
 }
 
 .infoLabel {
-  @apply text-xs text-gray-400 font-medium;
-  flex-shrink: 0;
+  color: #2B3090;
+  font-size: 0.75rem;
+  font-weight: 500;
+  opacity: 0.7;
 }
 
 .infoValue {
-  @apply text-xs text-gray-700 font-semibold text-center;
-  line-height: 1.4;
-}
-
-/* Instructor */
-.instructorBox {
-  @apply flex flex-row-reverse items-center rounded-xl mb-5;
-  background: #f8f9fa;
-  padding: 14px 16px;
-  gap: 14px;
-}
-
-.instructorAvatar {
-  @apply rounded-full flex items-center justify-center text-white font-bold text-lg flex-shrink-0;
-  width: 52px;
-  height: 52px;
-  background: linear-gradient(135deg, #2B3090, #4a55c8);
-}
-
-.instructorInfo {
-  @apply flex flex-col flex-1;
-  gap: 2px;
-}
-
-.instructorName {
-  @apply font-bold text-gray-900 text-base;
-}
-
-.instructorTitle {
-  @apply text-sm text-gray-500;
-}
-
-/* Price row */
-.priceRow {
-  @apply flex items-center justify-between rounded-xl px-4 py-3 mb-1;
-  background: #f8f9fa;
-}
-
-.priceLeft {
-  @apply flex items-center;
-}
-
-.walletIcon {
-  color: #6b7280;
-}
-
-.priceRight {
-  @apply flex items-baseline gap-1;
-}
-
-.priceAmount {
-  @apply text-2xl font-bold text-gray-900;
-}
-
-.priceLabel {
-  @apply text-sm text-gray-500;
-}
-
-.priceNote {
-  @apply text-xs text-gray-400 text-center mb-1;
+  color: #2B3090;
+  font-size: 0.75rem;
+  font-weight: 800;
+  text-align: center;
   line-height: 1.35;
 }
 
+.schedulePill {
+  flex: 1.35;
+  padding-inline: 2px;
+}
+
+.scheduleValue {
+  white-space: nowrap;
+  font-size: 0.6875rem;
+}
+
+.instructorBox {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 10px;
+  padding: 10px 16px;
+  border-radius: 16px;
+  background: #f7f1e4;
+  direction: ltr;
+}
+
+.instructorAvatar {
+  flex-shrink: 0;
+  width: 68px;
+  height: 68px;
+  overflow: hidden;
+  border-radius: 50%;
+  background: #F5C518;
+  box-shadow: 0 0 0 3px #F5C518;
+}
+
+.avatarPlaceholder {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.instructorDivider {
+  width: 1px;
+  align-self: stretch;
+  margin: 6px 0;
+  background: #2B3090;
+  opacity: 0.25;
+}
+
+.instructorInfo {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+  direction: rtl;
+  text-align: right;
+}
+
+.instructorName {
+  margin: 0;
+  color: #2B3090;
+  font-size: 0.9375rem;
+  font-weight: 800;
+}
+
+.instructorTitle {
+  margin: 0;
+  color: #2B3090;
+  font-size: 0.8125rem;
+  opacity: 0.7;
+}
+
+.priceCard {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-bottom: 8px;
+  padding: 12px 12px 10px;
+  border-radius: 16px;
+  background: #f7f1e4;
+  text-align: center;
+}
+
+.priceLabel {
+  margin: 0 0 4px;
+  color: #2B3090;
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+
+.priceAmount {
+  margin: 0;
+  color: #2B3090;
+  font-size: 2.5rem;
+  font-weight: 800;
+  line-height: 1.1;
+}
+
+.priceSwoosh {
+  width: 64px;
+  height: 10px;
+  margin: 2px 0 6px;
+}
+
+.priceTrack {
+  margin: 0;
+  color: #2B3090;
+  font-size: 0.75rem;
+}
+
+.priceNote {
+  margin: 0 0 4px;
+  color: #9aa0b5;
+  font-size: 0.6875rem;
+  line-height: 1.45;
+  text-align: center;
+}
+
 .priceNote:last-of-type {
-  @apply mb-5;
+  margin-bottom: 12px;
+}
+
+.actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.enrollButton,
+.trialButton {
+  width: 100%;
+  border: none;
+  border-radius: 14px;
+  padding: 12px 16px;
+  font-size: 1.0625rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.enrollButton {
+  background: #F5C518;
+  color: #2B3090;
+}
+
+.enrollButton:hover {
+  background: #ffc93f;
+}
+
+.trialButton {
+  background: #2B3090;
+  color: #fff;
+}
+
+.trialButton:hover {
+  background: #23287a;
 }
 
 .fullSection {
-  @apply rounded-xl mb-3 px-4 py-4;
-  background: #fff8e6;
+  margin-bottom: 8px;
+  padding: 16px;
   border: 1px solid #f5d77a;
+  border-radius: 16px;
+  background: #fff8e6;
 }
 
 .fullTitle {
-  @apply text-base font-bold text-gray-900 text-center mb-2;
+  margin: 0 0 8px;
+  color: #2B3090;
+  font-size: 1rem;
+  font-weight: 800;
+  text-align: center;
 }
 
 .fullHint {
-  @apply text-sm text-gray-600 text-center mb-3;
+  margin: 0 0 12px;
+  color: #4b5168;
+  font-size: 0.875rem;
+  text-align: center;
 }
 
 .alternativesList {
-  @apply flex flex-col gap-2;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
 .alternativeButton {
-  @apply w-full rounded-xl py-3 px-3 text-sm font-semibold text-right;
-  background: #ffffff;
+  width: 100%;
+  padding: 12px;
   border: 1.5px solid #2B3090;
+  border-radius: 12px;
+  background: #fff;
   color: #2B3090;
-  line-height: 1.4;
-}
-
-.alternativeButton:hover {
-  background: #eef0fb;
+  font-size: 0.875rem;
+  font-weight: 700;
+  text-align: right;
+  cursor: pointer;
 }
 
 .fullHelp {
-  @apply text-sm text-gray-700 text-center leading-relaxed;
+  color: #2B3090;
+  font-size: 0.875rem;
+  text-align: center;
+  line-height: 1.5;
 }
 
 .fullHelpPhone {
   color: #2B3090;
-  font-weight: 700;
+  font-weight: 800;
   text-decoration: none;
 }
 
-.fullHelpPhone:hover {
-  text-decoration: underline;
-}
-
-/* Buttons */
-.enrollButton {
-  @apply w-full rounded-xl py-3.5 text-base font-semibold text-white mb-3;
-  background-color: #f2c34b;
-  color: #1e2570;
-}
-
-.enrollButton:hover {
-  background-color: #ffc93f;
-}
-
-.trialButton {
-  @apply w-full rounded-xl py-3.5 text-base font-semibold text-white mb-3;
-  background-color: #1e2570;
-}
-
-.trialButton:hover {
-  background-color: #1d4ed8;
-}
-
-.saveButton {
-  @apply w-full rounded-xl py-3.5 text-base font-semibold flex items-center justify-center gap-2;
-  border: 1.5px solid #d1d5db;
-  color: #374151;
-}
-
-.saveButton:hover {
-  @apply bg-gray-50;
-}
-
-.heartIcon {
-  color: #6b7280;
-}
-
 @media (max-width: 640px) {
-  .topBar {
-    padding: 6px 12px 0;
-  }
-
   .scrollArea {
-    padding: 4px 10px 14px 16px;
-  }
-
-  .header {
-    margin-bottom: 12px;
+    padding: 40px 16px 12px;
   }
 
   .title {
-    font-size: 1.375rem;
+    font-size: 1.5rem;
   }
 
-  .description {
-    margin-bottom: 12px;
-    padding: 10px 12px;
-  }
-
-  .infoRow {
-    margin-bottom: 12px;
-  }
-
-  .infoPill {
-    padding-top: 8px;
-    padding-bottom: 8px;
-  }
-
-  .instructorBox {
-    margin-bottom: 12px;
-    padding: 10px 12px;
-    gap: 10px;
-  }
-
-  .instructorAvatar {
-    width: 44px;
-    height: 44px;
-    font-size: 1rem;
-  }
-
-  .priceNote:last-of-type {
-    margin-bottom: 12px;
+  .priceAmount {
+    font-size: 2.15rem;
   }
 
   .enrollButton,
   .trialButton {
-    padding-top: 12px;
-    padding-bottom: 12px;
+    padding: 12px 14px;
+  }
+}
+
+@media (max-height: 760px) {
+  .scrollArea {
+    padding-top: 36px;
+    padding-bottom: 10px;
+  }
+
+  .title {
+    font-size: 1.4rem;
+  }
+
+  .description {
     margin-bottom: 8px;
+    font-size: 0.8125rem;
+    line-height: 1.4;
+  }
+
+  .infoRow,
+  .instructorBox,
+  .priceCard {
+    margin-bottom: 8px;
+  }
+
+  .instructorAvatar {
+    width: 56px;
+    height: 56px;
+  }
+
+  .priceAmount {
+    font-size: 1.9rem;
+  }
+
+  .priceNote:last-of-type {
+    margin-bottom: 8px;
+  }
+
+  .enrollButton,
+  .trialButton {
+    padding: 11px 14px;
   }
 }
