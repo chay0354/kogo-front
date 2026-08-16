@@ -107,31 +107,24 @@ function notifyDropdownClosed() {
   }
 }
 
-/** iOS-safe scroll freeze while a modal is open inside the iframe. */
+/** Freeze iframe scrolling while a modal is open. Avoid position:fixed here —
+ *  the host page already locks; a second fixed-body unlock jumps the list. */
 function lockDocumentScroll() {
   const { body, documentElement } = document;
-  const scrollY = window.scrollY || window.pageYOffset || 0;
   const previous = {
-    bodyPosition: body.style.position,
-    bodyTop: body.style.top,
-    bodyWidth: body.style.width,
     bodyOverflow: body.style.overflow,
     htmlOverflow: documentElement.style.overflow,
+    bodyOverscroll: body.style.overscrollBehavior,
   };
 
-  body.style.position = 'fixed';
-  body.style.top = `-${scrollY}px`;
-  body.style.width = '100%';
   body.style.overflow = 'hidden';
   documentElement.style.overflow = 'hidden';
+  body.style.overscrollBehavior = 'none';
 
   return () => {
-    body.style.position = previous.bodyPosition;
-    body.style.top = previous.bodyTop;
-    body.style.width = previous.bodyWidth;
     body.style.overflow = previous.bodyOverflow;
     documentElement.style.overflow = previous.htmlOverflow;
-    window.scrollTo(0, scrollY);
+    body.style.overscrollBehavior = previous.bodyOverscroll;
   };
 }
 
