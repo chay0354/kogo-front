@@ -273,6 +273,40 @@ export const refreshCurrentMonthSnapshots = async () => {
   return response.data;
 };
 
+export interface CreditCardChargeRequest {
+  card_holder_id: string;
+  card_number: string;
+  expiry_month: number;
+  expiry_year: number;
+  cvv: string;
+  amount: number;
+}
+
+export interface CreditCardChargeResult {
+  success: boolean;
+  message?: string;
+  error?: string;
+  transaction_id?: string;
+  confirmation_code?: string;
+}
+
+/**
+ * Charge a real credit card via Tranzila's production terminal (admin-only, capped server-side at ₪5).
+ */
+export const chargeCreditCard = async (
+  data: CreditCardChargeRequest
+): Promise<CreditCardChargeResult> => {
+  try {
+    const response = await api.post('/core/credit-cards/charge/', data);
+    return response.data;
+  } catch (error) {
+    if (axios.isAxiosError(error) && error.response?.data) {
+      return error.response.data as CreditCardChargeResult;
+    }
+    throw error;
+  }
+};
+
 // ============================
 // Reference Data API Functions
 // ============================
