@@ -55,6 +55,25 @@
   border-color: hsl(var(--ring));
 }
 
+.resultSuccess {
+  padding: 0.75rem 1rem;
+  border-radius: 0.5rem;
+  background: hsl(var(--success) / 0.12);
+  color: hsl(var(--success));
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.resultError {
+  padding: 0.75rem 1rem;
+  border-radius: 0.5rem;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  color: hsl(var(--destructive));
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
 .submitButton {
   padding: 0.5rem 1rem;
   border-radius: 0.5rem;
@@ -69,4 +88,9 @@
 
 .submitButton:hover {
   opacity: 0.9;
+}
+
+.submitButton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
