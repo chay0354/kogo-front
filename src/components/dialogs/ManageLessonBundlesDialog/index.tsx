@@ -2,12 +2,23 @@
 
 import { useEffect, useState } from 'react';
 import { X, Check, Pencil, Trash2 } from 'lucide-react';
-import api from '@/lib/api';
+import api, { fetchInstructorsDropdown } from '@/lib/api';
 import { getDayName, formatTimeRange } from '@/lib/courseUtils';
 import type { Lesson } from '@/types/course';
-import type { ManageLessonBundlesDialogProps, BundleFormState, LessonBundle } from './types';
+import type {
+  ManageLessonBundlesDialogProps,
+  BundleFormState,
+  LessonBundle,
+  InstructorOption,
+} from './types';
 import { emptyFormState } from './types';
 import styles from './index.module.css';
+
+function lessonInstructorId(lesson: Lesson): string {
+  if (!lesson.instructor) return '';
+  if (typeof lesson.instructor === 'string') return lesson.instructor;
+  return lesson.instructor.id || '';
+}
 
 export default function ManageLessonBundlesDialog({
   isOpen,
@@ -15,6 +26,7 @@ export default function ManageLessonBundlesDialog({
   courseId,
   courseName,
   lessons,
+  onSaved,
 }: ManageLessonBundlesDialogProps) {
   const [bundles, setBundles] = useState<LessonBundle[]>([]);
   const [loading, setLoading] = useState(false);
@@ -23,12 +35,16 @@ export default function ManageLessonBundlesDialog({
   const [editingBundleId, setEditingBundleId] = useState<string | null>(null);
   const [form, setForm] = useState<BundleFormState>(emptyFormState);
   const [formError, setFormError] = useState('');
+  const [instructors, setInstructors] = useState<InstructorOption[]>([]);
 
   const scheduledLessons = lessons.filter((l) => l.status === 'scheduled');
 
   useEffect(() => {
     if (isOpen) {
       loadBundles();
+      fetchInstructorsDropdown()
+        .then((rows) => setInstructors(Array.isArray(rows) ? rows : []))
+        .catch(() => setInstructors([]));
       setShowForm(false);
       setEditingBundleId(null);
       setForm(emptyFormState);
@@ -56,22 +72,51 @@ export default function ManageLessonBundlesDialog({
   };
 
   const openEditForm = (bundle: LessonBundle) => {
+    const instructorsByLesson: Record<string, string> = {};
+    for (const lessonId of bundle.lessons) {
+      const detail = bundle.lessons_detail.find((row) => row.id === lessonId);
+      const courseLesson = lessons.find((row) => row.id === lessonId);
+      instructorsByLesson[lessonId] =
+        detail?.instructor_id || (courseLesson ? lessonInstructorId(courseLesson) : '') || '';
+    }
     setEditingBundleId(bundle.id);
     setForm({
       name: bundle.name || '',
       lessonIds: bundle.lessons,
       combinedPrice: String(bundle.combined_price),
+      instructorsByLesson,
     });
     setFormError('');
     setShowForm(true);
   };
 
-  const toggleLesson = (lessonId: string) => {
+  const toggleLesson = (lesson: Lesson) => {
+    setForm((prev) => {
+      const selected = prev.lessonIds.includes(lesson.id);
+      if (selected) {
+        const nextInstructors = { ...prev.instructorsByLesson };
+        delete nextInstructors[lesson.id];
+        return {
+          ...prev,
+          lessonIds: prev.lessonIds.filter((id) => id !== lesson.id),
+          instructorsByLesson: nextInstructors,
+        };
+      }
+      return {
+        ...prev,
+        lessonIds: [...prev.lessonIds, lesson.id],
+        instructorsByLesson: {
+          ...prev.instructorsByLesson,
+          [lesson.id]: lessonInstructorId(lesson),
+        },
+      };
+    });
+  };
+
+  const setLessonInstructor = (lessonId: string, instructorId: string) => {
     setForm((prev) => ({
       ...prev,
-      lessonIds: prev.lessonIds.includes(lessonId)
-        ? prev.lessonIds.filter((id) => id !== lessonId)
-        : [...prev.lessonIds, lessonId],
+      instructorsByLesson: { ...prev.instructorsByLesson, [lessonId]: instructorId },
     }));
   };
 
@@ -89,11 +134,16 @@ export default function ManageLessonBundlesDialog({
     setSaving(true);
     setFormError('');
     try {
+      const lesson_instructors: Record<string, string | null> = {};
+      for (const lessonId of form.lessonIds) {
+        lesson_instructors[lessonId] = form.instructorsByLesson[lessonId] || null;
+      }
       const payload = {
         course: courseId,
         name: form.name.trim(),
         lessons: form.lessonIds,
         combined_price: price,
+        lesson_instructors,
       };
       if (editingBundleId) {
         await api.patch(`/courses/bundles/${editingBundleId}/`, payload);
@@ -102,9 +152,16 @@ export default function ManageLessonBundlesDialog({
       }
       setShowForm(false);
       await loadBundles();
+      onSaved?.();
     } catch (error: any) {
       const data = error?.response?.data;
-      const message = data?.lessons || data?.combined_price || data?.error || data?.detail || 'שגיאה בשמירת המסלול';
+      const message =
+        data?.lesson_instructors ||
+        data?.lessons ||
+        data?.combined_price ||
+        data?.error ||
+        data?.detail ||
+        'שגיאה בשמירת המסלול';
       setFormError(Array.isArray(message) ? message.join(', ') : String(message));
     } finally {
       setSaving(false);
@@ -133,6 +190,16 @@ export default function ManageLessonBundlesDialog({
   const formatLessonSchedule = (lesson: { day_of_week: number; start_time: string; end_time: string }) =>
     `${getDayName(lesson.day_of_week)} ${formatTimeRange(lesson.start_time, lesson.end_time)}`;
 
+  const formatLessonWithInstructor = (lesson: {
+    day_of_week: number;
+    start_time: string;
+    end_time: string;
+    instructor_name?: string | null;
+  }) => {
+    const schedule = formatLessonSchedule(lesson);
+    return lesson.instructor_name ? `${schedule} · ${lesson.instructor_name}` : schedule;
+  };
+
   if (!isOpen) return null;
 
   return (
@@ -157,7 +224,7 @@ export default function ManageLessonBundlesDialog({
                   <div className={styles.bundleInfo}>
                     <span className={styles.bundleName}>{bundle.name || 'מסלול משולב'}</span>
                     <span className={styles.bundleSchedule}>
-                      {bundle.lessons_detail.map(formatLessonSchedule).join(' + ')}
+                      {bundle.lessons_detail.map(formatLessonWithInstructor).join(' + ')}
                     </span>
                     <span className={styles.bundlePrice}>₪{bundle.combined_price} לחודש</span>
                   </div>
@@ -204,29 +271,44 @@ export default function ManageLessonBundlesDialog({
               </div>
 
               <div className={styles.formField}>
-                <label className={styles.label}>בחר שיעורים (2 לפחות)</label>
+                <label className={styles.label}>בחר שיעורים (2 לפחות) ומדריך לכל שיעור</label>
                 <div className={styles.lessonPicker}>
                   {scheduledLessons.map((lesson: Lesson) => {
                     const selected = form.lessonIds.includes(lesson.id);
                     return (
                       <div
                         key={lesson.id}
-                        role="checkbox"
-                        aria-checked={selected}
-                        tabIndex={0}
                         className={`${styles.lessonCard} ${selected ? styles.lessonCardSelected : ''}`}
-                        onClick={() => toggleLesson(lesson.id)}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter' || e.key === ' ') {
-                            e.preventDefault();
-                            toggleLesson(lesson.id);
-                          }
-                        }}
                       >
-                        <span className={styles.lessonCardIcon}>
-                          {selected && <Check size={14} />}
-                        </span>
-                        <span className={styles.lessonCardLabel}>{formatLessonSchedule(lesson)}</span>
+                        <button
+                          type="button"
+                          role="checkbox"
+                          aria-checked={selected}
+                          className={styles.lessonCardToggle}
+                          onClick={() => toggleLesson(lesson)}
+                        >
+                          <span className={styles.lessonCardIcon}>
+                            {selected && <Check size={14} />}
+                          </span>
+                          <span className={styles.lessonCardLabel}>{formatLessonSchedule(lesson)}</span>
+                        </button>
+                        {selected && (
+                          <label className={styles.instructorField}>
+                            <span className={styles.instructorLabel}>מדריך</span>
+                            <select
+                              value={form.instructorsByLesson[lesson.id] || ''}
+                              onChange={(e) => setLessonInstructor(lesson.id, e.target.value)}
+                              className={styles.instructorSelect}
+                            >
+                              <option value="">בחר מדריך</option>
+                              {instructors.map((instructor) => (
+                                <option key={instructor.id} value={instructor.id}>
+                                  {instructor.full_name}
+                                </option>
+                              ))}
+                            </select>
+                          </label>
+                        )}
                       </div>
                     );
                   })}

@@ -450,6 +450,9 @@ export default function CourseTypeDetailsPage() {
                                   <tr key={lesson.id} className={styles.tableRow}>
                                     <td className={`${styles.td} ${styles.tdBold}`}>
                                       {getDayName(lesson.day_of_week)} {formatTimeRange(lesson.start_time, lesson.end_time)}
+                                      {lesson.instructor?.full_name && (
+                                        <div className={styles.lessonInstructor}>{lesson.instructor.full_name}</div>
+                                      )}
                                     </td>
                                     <td className={styles.td}>{enrollmentDisplay}</td>
                                     <td className={`${styles.td} ${styles.tdCenter}`}>
@@ -561,6 +564,7 @@ export default function CourseTypeDetailsPage() {
           courseId={bundlesCourse.id}
           courseName={bundlesCourse.name}
           lessons={bundlesCourse.lessons}
+          onSaved={fetchCourseTypeDetails}
         />
       )}
       {showEditLessonDialog && selectedLesson && (

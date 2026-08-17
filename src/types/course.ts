@@ -110,6 +110,8 @@ export interface LessonBundleLesson {
   day_name: string;
   start_time: string;
   end_time: string;
+  instructor_id?: string | null;
+  instructor_name?: string | null;
 }
 
 export interface LessonBundle {

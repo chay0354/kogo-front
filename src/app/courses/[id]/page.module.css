@@ -395,6 +395,12 @@
   font-size: 0.75rem;
 }
 .tdBold    { font-weight: 500; }
+.lessonInstructor {
+  font-size: 0.6875rem;
+  font-weight: 400;
+  color: hsl(var(--muted-foreground));
+  margin-top: 0.125rem;
+}
 .tdRevenue { color: #16a34a; font-weight: 500; }
 .tdSalary  { color: #ea580c; font-weight: 500; }
 .tdCenter  { text-align: center; }

@@ -200,31 +200,36 @@
 
 .lessonPicker {
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
   gap: 0.5rem;
 }
 
 .lessonCard {
   display: flex;
-  align-items: center;
+  flex-direction: column;
   gap: 0.5rem;
   padding: 0.5rem 0.75rem;
-  min-height: 44px;
   border-radius: calc(var(--radius) - 4px);
   border: 2px solid hsl(var(--border));
-  cursor: pointer;
   transition: border-color 150ms, background-color 150ms;
-  outline: none;
-}
-
-.lessonCard:focus-visible {
-  outline: 2px solid hsl(var(--ring));
-  outline-offset: 1px;
 }
 
 .lessonCardSelected {
   border-color: hsl(var(--primary));
   background: hsl(var(--primary) / 0.04);
+}
+
+.lessonCardToggle {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 32px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  text-align: inherit;
+  color: inherit;
 }
 
 .lessonCardIcon {
@@ -244,6 +249,34 @@
   font-weight: 500;
   color: hsl(var(--foreground));
   white-space: nowrap;
+}
+
+.instructorField {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding-inline-start: 1.75rem;
+}
+
+.instructorLabel {
+  font-size: 0.75rem;
+  color: hsl(var(--muted-foreground));
+}
+
+.instructorSelect {
+  height: 2.5rem;
+  border-radius: 0.5rem;
+  border: 1px solid hsl(var(--input));
+  padding: 0 0.75rem;
+  font-size: 0.875rem;
+  color: hsl(var(--foreground));
+  background: hsl(var(--card));
+}
+
+.instructorSelect:focus {
+  outline: none;
+  box-shadow: 0 0 0 2px hsl(var(--ring));
+  border-color: hsl(var(--ring));
 }
 
 .errorText {
