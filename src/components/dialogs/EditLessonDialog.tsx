@@ -1,16 +1,32 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import api from '@/lib/api';
+import api, { fetchInstructorsDropdown } from '@/lib/api';
 import { LessonFormData, Lesson } from '@/types/course';
 import { addMinutesToTime, normalizeTimeValue } from '@/lib/timeUtils';
 import { TimeField } from '@/components/ui/time-picker';
+
+interface InstructorOption {
+  id: string;
+  full_name: string;
+}
 
 interface EditLessonDialogProps {
   lesson: Lesson;
   open: boolean;
   onClose: () => void;
   onSuccess: () => void;
+}
+
+function lessonInstructorId(lesson: Lesson): string {
+  if (!lesson.instructor) return '';
+  if (typeof lesson.instructor === 'string') return lesson.instructor;
+  return lesson.instructor.id || '';
+}
+
+function lessonInstructorName(lesson: Lesson): string {
+  if (!lesson.instructor || typeof lesson.instructor === 'string') return '';
+  return lesson.instructor.full_name || '';
 }
 
 export default function EditLessonDialog({
@@ -31,12 +47,15 @@ export default function EditLessonDialog({
   const [formData, setFormData] = useState<LessonFormData>({
     course: getCourseId(lesson.course),
     room: '',
+    instructor: lessonInstructorId(lesson),
     day_of_week: lesson.day_of_week,
     start_time: lesson.start_time,
     end_time: lesson.end_time,
     notes: lesson.notes || '',
   });
 
+  const [instructors, setInstructors] = useState<InstructorOption[]>([]);
+  const [loadingInstructors, setLoadingInstructors] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -55,6 +74,7 @@ export default function EditLessonDialog({
       setFormData({
         course: getCourseId(lesson.course),
         room: '',
+        instructor: lessonInstructorId(lesson),
         day_of_week: lesson.day_of_week,
         start_time: normalizeTimeValue(lesson.start_time, '16:00'),
         end_time: normalizeTimeValue(lesson.end_time, '16:45'),
@@ -62,6 +82,15 @@ export default function EditLessonDialog({
       });
     }
   }, [lesson]);
+
+  useEffect(() => {
+    if (!open) return;
+    setLoadingInstructors(true);
+    fetchInstructorsDropdown()
+      .then((rows) => setInstructors(Array.isArray(rows) ? rows : []))
+      .catch(() => setInstructors([]))
+      .finally(() => setLoadingInstructors(false));
+  }, [open]);
 
   useEffect(() => {
     if (formData.start_time) {
@@ -82,6 +111,7 @@ export default function EditLessonDialog({
     try {
       await api.put(`/courses/lessons/${lesson.id}/`, {
         course: formData.course,
+        instructor: formData.instructor || null,
         day_of_week: formData.day_of_week,
         start_time: formData.start_time,
         end_time: formData.end_time,
@@ -91,19 +121,26 @@ export default function EditLessonDialog({
       });
       onSuccess();
     } catch (err: unknown) {
-      const errorData = (err as { response?: { data?: Record<string, string> } })?.response?.data;
-      setError(
-        errorData?.instructor ||
-          errorData?.detail ||
-          errorData?.message ||
-          'שגיאה בעדכון שיעור'
-      );
+      const errorData = (err as { response?: { data?: Record<string, unknown> } })?.response?.data;
+      const instructorError = errorData?.instructor;
+      const message =
+        (Array.isArray(instructorError) ? instructorError.join(', ') : instructorError) ||
+        errorData?.detail ||
+        errorData?.message ||
+        'שגיאה בעדכון שיעור';
+      setError(String(message));
     } finally {
       setLoading(false);
     }
   };
 
   if (!open) return null;
+
+  const currentInstructorId = lessonInstructorId(lesson);
+  const currentInstructorOption =
+    currentInstructorId
+      ? { id: currentInstructorId, full_name: lessonInstructorName(lesson) || 'מדריך נוכחי' }
+      : null;
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" dir="rtl">
@@ -120,8 +157,36 @@ export default function EditLessonDialog({
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <p className="text-sm text-gray-500">
-              סניף, סטודיו, קיבולת ומדריך נקבעים ברמת הקבוצה — ערוך ב&quot;עריכת קבוצה&quot;.
+              סניף, סטודיו וקיבולת נקבעים ברמת הקבוצה — ערוך ב&quot;עריכת קבוצה&quot;.
             </p>
+
+            <div>
+              <label htmlFor="instructor" className="block text-sm font-medium text-gray-700 mb-1">
+                מדריך
+              </label>
+              <select
+                id="instructor"
+                value={formData.instructor || ''}
+                onChange={(e) => setFormData({ ...formData, instructor: e.target.value })}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 disabled:bg-gray-100"
+                disabled={loadingInstructors}
+              >
+                <option value="">
+                  {loadingInstructors ? 'טוען מדריכים...' : 'בחר מדריך'}
+                </option>
+                {currentInstructorOption &&
+                  !instructors.some((row) => row.id === currentInstructorOption.id) && (
+                    <option value={currentInstructorOption.id}>
+                      {currentInstructorOption.full_name}
+                    </option>
+                  )}
+                {instructors.map((instructor) => (
+                  <option key={instructor.id} value={instructor.id}>
+                    {instructor.full_name}
+                  </option>
+                ))}
+              </select>
+            </div>
 
             <div>
               <label htmlFor="day_of_week" className="block text-sm font-medium text-gray-700 mb-1">
