@@ -6,6 +6,7 @@ export interface ManageLessonBundlesDialogProps {
   courseId: string;
   courseName: string;
   lessons: Lesson[];
+  branchId?: string;
   onSaved?: () => void;
 }
 
@@ -14,6 +15,7 @@ export interface BundleFormState {
   lessonIds: string[];
   combinedPrice: string;
   instructorsByLesson: Record<string, string>;
+  roomsByLesson: Record<string, string>;
 }
 
 export const emptyFormState: BundleFormState = {
@@ -21,11 +23,18 @@ export const emptyFormState: BundleFormState = {
   lessonIds: [],
   combinedPrice: '',
   instructorsByLesson: {},
+  roomsByLesson: {},
 };
 
 export interface InstructorOption {
   id: string;
   full_name: string;
+}
+
+export interface RoomOption {
+  id: string;
+  name: string;
+  branch?: string;
 }
 
 export type { LessonBundle };

@@ -11,6 +11,12 @@ interface InstructorOption {
   full_name: string;
 }
 
+interface RoomOption {
+  id: string;
+  name: string;
+  branch?: string;
+}
+
 interface EditLessonDialogProps {
   lesson: Lesson;
   open: boolean;
@@ -27,6 +33,17 @@ function lessonInstructorId(lesson: Lesson): string {
 function lessonInstructorName(lesson: Lesson): string {
   if (!lesson.instructor || typeof lesson.instructor === 'string') return '';
   return lesson.instructor.full_name || '';
+}
+
+function lessonRoomId(lesson: Lesson): string {
+  if (!lesson.room) return '';
+  if (typeof lesson.room === 'string') return lesson.room;
+  return lesson.room.id || '';
+}
+
+function lessonRoomName(lesson: Lesson): string {
+  if (!lesson.room || typeof lesson.room === 'string') return '';
+  return lesson.room.name || '';
 }
 
 export default function EditLessonDialog({
@@ -46,7 +63,7 @@ export default function EditLessonDialog({
 
   const [formData, setFormData] = useState<LessonFormData>({
     course: getCourseId(lesson.course),
-    room: '',
+    room: lessonRoomId(lesson),
     instructor: lessonInstructorId(lesson),
     day_of_week: lesson.day_of_week,
     start_time: lesson.start_time,
@@ -56,6 +73,8 @@ export default function EditLessonDialog({
 
   const [instructors, setInstructors] = useState<InstructorOption[]>([]);
   const [loadingInstructors, setLoadingInstructors] = useState(false);
+  const [rooms, setRooms] = useState<RoomOption[]>([]);
+  const [loadingRooms, setLoadingRooms] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -73,7 +92,7 @@ export default function EditLessonDialog({
     if (lesson) {
       setFormData({
         course: getCourseId(lesson.course),
-        room: '',
+        room: lessonRoomId(lesson),
         instructor: lessonInstructorId(lesson),
         day_of_week: lesson.day_of_week,
         start_time: normalizeTimeValue(lesson.start_time, '16:00'),
@@ -91,6 +110,24 @@ export default function EditLessonDialog({
       .catch(() => setInstructors([]))
       .finally(() => setLoadingInstructors(false));
   }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    const branchId = lesson.branch?.id;
+    if (!branchId) {
+      setRooms([]);
+      return;
+    }
+    setLoadingRooms(true);
+    api
+      .get('/core/rooms/', { params: { dropdown: 'true' } })
+      .then((res) => {
+        const allRooms: RoomOption[] = Array.isArray(res.data) ? res.data : res.data?.results || [];
+        setRooms(allRooms.filter((room) => !room.branch || room.branch === branchId));
+      })
+      .catch(() => setRooms([]))
+      .finally(() => setLoadingRooms(false));
+  }, [open, lesson]);
 
   useEffect(() => {
     if (formData.start_time) {
@@ -111,6 +148,7 @@ export default function EditLessonDialog({
     try {
       await api.put(`/courses/lessons/${lesson.id}/`, {
         course: formData.course,
+        room: formData.room || null,
         instructor: formData.instructor || null,
         day_of_week: formData.day_of_week,
         start_time: formData.start_time,
@@ -122,9 +160,9 @@ export default function EditLessonDialog({
       onSuccess();
     } catch (err: unknown) {
       const errorData = (err as { response?: { data?: Record<string, unknown> } })?.response?.data;
-      const instructorError = errorData?.instructor;
+      const fieldError = errorData?.room || errorData?.instructor;
       const message =
-        (Array.isArray(instructorError) ? instructorError.join(', ') : instructorError) ||
+        (Array.isArray(fieldError) ? fieldError.join(', ') : fieldError) ||
         errorData?.detail ||
         errorData?.message ||
         'שגיאה בעדכון שיעור';
@@ -140,6 +178,11 @@ export default function EditLessonDialog({
   const currentInstructorOption =
     currentInstructorId
       ? { id: currentInstructorId, full_name: lessonInstructorName(lesson) || 'מדריך נוכחי' }
+      : null;
+  const currentRoomId = lessonRoomId(lesson);
+  const currentRoomOption =
+    currentRoomId
+      ? { id: currentRoomId, name: lessonRoomName(lesson) || 'סטודיו נוכחי' }
       : null;
 
   return (
@@ -157,9 +200,10 @@ export default function EditLessonDialog({
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <p className="text-sm text-gray-500">
-              סניף, סטודיו וקיבולת נקבעים ברמת הקבוצה — ערוך ב&quot;עריכת קבוצה&quot;.
+              סניף וקיבולת נקבעים ברמת הקבוצה — ערוך ב&quot;עריכת קבוצה&quot;.
             </p>
 
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label htmlFor="instructor" className="block text-sm font-medium text-gray-700 mb-1">
                 מדריך
@@ -186,6 +230,35 @@ export default function EditLessonDialog({
                   </option>
                 ))}
               </select>
+            </div>
+
+            <div>
+              <label htmlFor="room" className="block text-sm font-medium text-gray-700 mb-1">
+                סטודיו
+              </label>
+              <select
+                id="room"
+                value={formData.room || ''}
+                onChange={(e) => setFormData({ ...formData, room: e.target.value })}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 disabled:bg-gray-100"
+                disabled={loadingRooms}
+              >
+                <option value="">
+                  {loadingRooms ? 'טוען סטודיואים...' : 'בחר סטודיו'}
+                </option>
+                {currentRoomOption &&
+                  !rooms.some((row) => row.id === currentRoomOption.id) && (
+                    <option value={currentRoomOption.id}>
+                      {currentRoomOption.name}
+                    </option>
+                  )}
+                {rooms.map((room) => (
+                  <option key={room.id} value={room.id}>
+                    {room.name}
+                  </option>
+                ))}
+              </select>
+            </div>
             </div>
 
             <div>

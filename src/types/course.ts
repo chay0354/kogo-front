@@ -112,6 +112,8 @@ export interface LessonBundleLesson {
   end_time: string;
   instructor_id?: string | null;
   instructor_name?: string | null;
+  room_id?: string | null;
+  room_name?: string | null;
 }
 
 export interface LessonBundle {

@@ -122,10 +122,14 @@ export default function CourseTypeDetailsPage() {
     }
   };
 
-  const handleEditLesson = (lesson: Lesson, courseId: string) => {
-    // Attach course ID to lesson since nested lessons don't include it
-    const lessonWithCourse = { ...lesson, course: courseId };
-    setSelectedLesson(lessonWithCourse);
+  const handleEditLesson = (lesson: Lesson, course: CourseWithLessons) => {
+    setSelectedLesson({
+      ...lesson,
+      course: course.id,
+      branch: course.branch
+        ? { id: String(course.branch), name: course.branch_name || '' }
+        : lesson.branch || null,
+    });
     setShowEditLessonDialog(true);
   };
 
@@ -453,12 +457,15 @@ export default function CourseTypeDetailsPage() {
                                       {lesson.instructor?.full_name && (
                                         <div className={styles.lessonInstructor}>{lesson.instructor.full_name}</div>
                                       )}
+                                      {lesson.room?.name && (
+                                        <div className={styles.lessonInstructor}>{lesson.room.name}</div>
+                                      )}
                                     </td>
                                     <td className={styles.td}>{enrollmentDisplay}</td>
                                     <td className={`${styles.td} ${styles.tdCenter}`}>
                                       <div className={styles.lessonActionButtons}>
                                         <button
-                                          onClick={() => handleEditLesson(lesson, course.id)}
+                                          onClick={() => handleEditLesson(lesson, course)}
                                           className={`${styles.lessonActionButton} ${styles.editButton}`}
                                           title="עריכת שיעור"
                                         >
@@ -564,6 +571,7 @@ export default function CourseTypeDetailsPage() {
           courseId={bundlesCourse.id}
           courseName={bundlesCourse.name}
           lessons={bundlesCourse.lessons}
+          branchId={typeof bundlesCourse.branch === 'string' ? bundlesCourse.branch : undefined}
           onSaved={fetchCourseTypeDetails}
         />
       )}

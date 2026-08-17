@@ -10,6 +10,7 @@ import type {
   BundleFormState,
   LessonBundle,
   InstructorOption,
+  RoomOption,
 } from './types';
 import { emptyFormState } from './types';
 import styles from './index.module.css';
@@ -20,12 +21,19 @@ function lessonInstructorId(lesson: Lesson): string {
   return lesson.instructor.id || '';
 }
 
+function lessonRoomId(lesson: Lesson): string {
+  if (!lesson.room) return '';
+  if (typeof lesson.room === 'string') return lesson.room;
+  return lesson.room.id || '';
+}
+
 export default function ManageLessonBundlesDialog({
   isOpen,
   onClose,
   courseId,
   courseName,
   lessons,
+  branchId,
   onSaved,
 }: ManageLessonBundlesDialogProps) {
   const [bundles, setBundles] = useState<LessonBundle[]>([]);
@@ -36,6 +44,7 @@ export default function ManageLessonBundlesDialog({
   const [form, setForm] = useState<BundleFormState>(emptyFormState);
   const [formError, setFormError] = useState('');
   const [instructors, setInstructors] = useState<InstructorOption[]>([]);
+  const [rooms, setRooms] = useState<RoomOption[]>([]);
 
   const scheduledLessons = lessons.filter((l) => l.status === 'scheduled');
 
@@ -45,12 +54,23 @@ export default function ManageLessonBundlesDialog({
       fetchInstructorsDropdown()
         .then((rows) => setInstructors(Array.isArray(rows) ? rows : []))
         .catch(() => setInstructors([]));
+      if (branchId) {
+        api
+          .get('/core/rooms/', { params: { dropdown: 'true' } })
+          .then((res) => {
+            const allRooms: RoomOption[] = Array.isArray(res.data) ? res.data : res.data?.results || [];
+            setRooms(allRooms.filter((room) => !room.branch || room.branch === branchId));
+          })
+          .catch(() => setRooms([]));
+      } else {
+        setRooms([]);
+      }
       setShowForm(false);
       setEditingBundleId(null);
       setForm(emptyFormState);
       setFormError('');
     }
-  }, [isOpen, courseId]);
+  }, [isOpen, courseId, branchId]);
 
   const loadBundles = async () => {
     setLoading(true);
@@ -73,11 +93,14 @@ export default function ManageLessonBundlesDialog({
 
   const openEditForm = (bundle: LessonBundle) => {
     const instructorsByLesson: Record<string, string> = {};
+    const roomsByLesson: Record<string, string> = {};
     for (const lessonId of bundle.lessons) {
       const detail = bundle.lessons_detail.find((row) => row.id === lessonId);
       const courseLesson = lessons.find((row) => row.id === lessonId);
       instructorsByLesson[lessonId] =
         detail?.instructor_id || (courseLesson ? lessonInstructorId(courseLesson) : '') || '';
+      roomsByLesson[lessonId] =
+        detail?.room_id || (courseLesson ? lessonRoomId(courseLesson) : '') || '';
     }
     setEditingBundleId(bundle.id);
     setForm({
@@ -85,6 +108,7 @@ export default function ManageLessonBundlesDialog({
       lessonIds: bundle.lessons,
       combinedPrice: String(bundle.combined_price),
       instructorsByLesson,
+      roomsByLesson,
     });
     setFormError('');
     setShowForm(true);
@@ -95,11 +119,14 @@ export default function ManageLessonBundlesDialog({
       const selected = prev.lessonIds.includes(lesson.id);
       if (selected) {
         const nextInstructors = { ...prev.instructorsByLesson };
+        const nextRooms = { ...prev.roomsByLesson };
         delete nextInstructors[lesson.id];
+        delete nextRooms[lesson.id];
         return {
           ...prev,
           lessonIds: prev.lessonIds.filter((id) => id !== lesson.id),
           instructorsByLesson: nextInstructors,
+          roomsByLesson: nextRooms,
         };
       }
       return {
@@ -109,6 +136,10 @@ export default function ManageLessonBundlesDialog({
           ...prev.instructorsByLesson,
           [lesson.id]: lessonInstructorId(lesson),
         },
+        roomsByLesson: {
+          ...prev.roomsByLesson,
+          [lesson.id]: lessonRoomId(lesson),
+        },
       };
     });
   };
@@ -117,6 +148,13 @@ export default function ManageLessonBundlesDialog({
     setForm((prev) => ({
       ...prev,
       instructorsByLesson: { ...prev.instructorsByLesson, [lessonId]: instructorId },
+    }));
+  };
+
+  const setLessonRoom = (lessonId: string, roomId: string) => {
+    setForm((prev) => ({
+      ...prev,
+      roomsByLesson: { ...prev.roomsByLesson, [lessonId]: roomId },
     }));
   };
 
@@ -135,8 +173,10 @@ export default function ManageLessonBundlesDialog({
     setFormError('');
     try {
       const lesson_instructors: Record<string, string | null> = {};
+      const lesson_rooms: Record<string, string | null> = {};
       for (const lessonId of form.lessonIds) {
         lesson_instructors[lessonId] = form.instructorsByLesson[lessonId] || null;
+        lesson_rooms[lessonId] = form.roomsByLesson[lessonId] || null;
       }
       const payload = {
         course: courseId,
@@ -144,6 +184,7 @@ export default function ManageLessonBundlesDialog({
         lessons: form.lessonIds,
         combined_price: price,
         lesson_instructors,
+        lesson_rooms,
       };
       if (editingBundleId) {
         await api.patch(`/courses/bundles/${editingBundleId}/`, payload);
@@ -156,6 +197,7 @@ export default function ManageLessonBundlesDialog({
     } catch (error: any) {
       const data = error?.response?.data;
       const message =
+        data?.lesson_rooms ||
         data?.lesson_instructors ||
         data?.lessons ||
         data?.combined_price ||
@@ -190,14 +232,17 @@ export default function ManageLessonBundlesDialog({
   const formatLessonSchedule = (lesson: { day_of_week: number; start_time: string; end_time: string }) =>
     `${getDayName(lesson.day_of_week)} ${formatTimeRange(lesson.start_time, lesson.end_time)}`;
 
-  const formatLessonWithInstructor = (lesson: {
+  const formatLessonWithOverrides = (lesson: {
     day_of_week: number;
     start_time: string;
     end_time: string;
     instructor_name?: string | null;
+    room_name?: string | null;
   }) => {
-    const schedule = formatLessonSchedule(lesson);
-    return lesson.instructor_name ? `${schedule} · ${lesson.instructor_name}` : schedule;
+    const parts = [formatLessonSchedule(lesson)];
+    if (lesson.instructor_name) parts.push(lesson.instructor_name);
+    if (lesson.room_name) parts.push(lesson.room_name);
+    return parts.join(' · ');
   };
 
   if (!isOpen) return null;
@@ -224,7 +269,7 @@ export default function ManageLessonBundlesDialog({
                   <div className={styles.bundleInfo}>
                     <span className={styles.bundleName}>{bundle.name || 'מסלול משולב'}</span>
                     <span className={styles.bundleSchedule}>
-                      {bundle.lessons_detail.map(formatLessonWithInstructor).join(' + ')}
+                      {bundle.lessons_detail.map(formatLessonWithOverrides).join(' + ')}
                     </span>
                     <span className={styles.bundlePrice}>₪{bundle.combined_price} לחודש</span>
                   </div>
@@ -271,7 +316,7 @@ export default function ManageLessonBundlesDialog({
               </div>
 
               <div className={styles.formField}>
-                <label className={styles.label}>בחר שיעורים (2 לפחות) ומדריך לכל שיעור</label>
+                <label className={styles.label}>בחר שיעורים (2 לפחות), מדריך וסטודיו לכל שיעור</label>
                 <div className={styles.lessonPicker}>
                   {scheduledLessons.map((lesson: Lesson) => {
                     const selected = form.lessonIds.includes(lesson.id);
@@ -293,21 +338,38 @@ export default function ManageLessonBundlesDialog({
                           <span className={styles.lessonCardLabel}>{formatLessonSchedule(lesson)}</span>
                         </button>
                         {selected && (
-                          <label className={styles.instructorField}>
-                            <span className={styles.instructorLabel}>מדריך</span>
-                            <select
-                              value={form.instructorsByLesson[lesson.id] || ''}
-                              onChange={(e) => setLessonInstructor(lesson.id, e.target.value)}
-                              className={styles.instructorSelect}
-                            >
-                              <option value="">בחר מדריך</option>
-                              {instructors.map((instructor) => (
-                                <option key={instructor.id} value={instructor.id}>
-                                  {instructor.full_name}
-                                </option>
-                              ))}
-                            </select>
-                          </label>
+                          <div className={styles.slotFields}>
+                            <label className={styles.slotField}>
+                              <span className={styles.slotLabel}>מדריך</span>
+                              <select
+                                value={form.instructorsByLesson[lesson.id] || ''}
+                                onChange={(e) => setLessonInstructor(lesson.id, e.target.value)}
+                                className={styles.slotSelect}
+                              >
+                                <option value="">בחר מדריך</option>
+                                {instructors.map((instructor) => (
+                                  <option key={instructor.id} value={instructor.id}>
+                                    {instructor.full_name}
+                                  </option>
+                                ))}
+                              </select>
+                            </label>
+                            <label className={styles.slotField}>
+                              <span className={styles.slotLabel}>סטודיו</span>
+                              <select
+                                value={form.roomsByLesson[lesson.id] || ''}
+                                onChange={(e) => setLessonRoom(lesson.id, e.target.value)}
+                                className={styles.slotSelect}
+                              >
+                                <option value="">בחר סטודיו</option>
+                                {rooms.map((room) => (
+                                  <option key={room.id} value={room.id}>
+                                    {room.name}
+                                  </option>
+                                ))}
+                              </select>
+                            </label>
+                          </div>
                         )}
                       </div>
                     );
