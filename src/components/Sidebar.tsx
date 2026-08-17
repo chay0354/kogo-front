@@ -16,6 +16,7 @@ import {
   FileText,
   Users2,
   PanelRightClose,
+  CreditCard,
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -32,13 +33,14 @@ const MANAGER_MENU = [
   { name: 'מדריכים', href: '/instructors', icon: GraduationCap },
   { name: 'חנות', href: '/store', icon: ShoppingBag },
   { name: 'חשבוניות', href: '/invoices', icon: FileText },
+  { name: 'כרטיסי אשראי', href: '/credit-cards', icon: CreditCard },
   { name: 'שותפים', href: '/partners', icon: Users2 },
   { name: 'WhatsApp', href: '/whatsapp', icon: MessageCircle },
   { name: 'הגדרות', href: '/settings', icon: Settings },
 ];
 
 const PARTNER_MENU = MANAGER_MENU.filter(
-  (item) => !['/partners', '/settings', '/whatsapp'].includes(item.href)
+  (item) => !['/partners', '/settings', '/whatsapp', '/credit-cards'].includes(item.href)
 );
 
 function getMenuItems(role: UserRole | null | undefined) {
