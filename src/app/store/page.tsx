@@ -3,12 +3,12 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Package, ShoppingCart, TrendingUp, AlertTriangle, Plus, Search, Edit, RefreshCw, X, ArrowUpDown, ArrowLeftRight } from 'lucide-react';
+import { Package, ShoppingCart, TrendingUp, AlertTriangle, Plus, Search, Edit, RefreshCw, X, ArrowUpDown, ArrowLeftRight, Trash2 } from 'lucide-react';
 import AppLayout from '@/components/AppLayout';
 import PageFilters from '@/components/PageFilters';
 import { useAuth } from '@/components/AuthProvider';
 import { Card, CardContent, CardHeader, CardTitle, Button, Input, Select, Badge, Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui';
-import { fetchProducts, syncWebsiteProducts } from '@/lib/storeApi';
+import { fetchProducts, syncWebsiteProducts, deleteProduct } from '@/lib/storeApi';
 import { getProductStockLocationLabels } from '@/lib/storeProductDisplay';
 import api from '@/lib/api';
 import { filterBranchesForUser, unwrapApiList } from '@/lib/scopedFilters';
@@ -68,6 +68,7 @@ export default function StorePage() {
   const [cart, setCart] = useState<StoreCartLine[]>([]);
   const [isAddToCartOpen, setIsAddToCartOpen] = useState(false);
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
+  const [deletingProductId, setDeletingProductId] = useState<string | null>(null);
 
   const cartCount = cart.reduce((n, l) => n + l.quantity, 0);
   const cartTotal = cart.reduce((sum, l) => sum + l.sale_price * l.quantity, 0);
@@ -92,6 +93,27 @@ export default function StorePage() {
 
   function removeCartLine(key: string) {
     setCart((prev) => prev.filter((l) => l.key !== key));
+  }
+
+  function removeProductFromCart(productId: string) {
+    setCart((prev) => prev.filter((l) => l.product_id !== productId));
+  }
+
+  async function handleRemoveFromStore(product: StoreProduct) {
+    const confirmed = window.confirm(`להסיר את "${product.name}" מהחנות?`);
+    if (!confirmed) return;
+    setDeletingProductId(product.id);
+    try {
+      await deleteProduct(product.id);
+      removeProductFromCart(product.id);
+      toast.success(`${product.name} הוסר מהחנות`);
+      await loadData();
+    } catch (error) {
+      console.error('Failed to delete product:', error);
+      toast.error('לא ניתן להסיר את המוצר מהחנות');
+    } finally {
+      setDeletingProductId(null);
+    }
   }
 
   useEffect(() => {
@@ -548,6 +570,17 @@ export default function StorePage() {
                       >
                         <ShoppingCart className="h-4 w-4 ml-1" />
                         הוסף לסל
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700"
+                        title="הסר מהחנות"
+                        disabled={deletingProductId === product.id}
+                        onClick={() => handleRemoveFromStore(product)}
+                      >
+                        <Trash2 className="h-4 w-4 ml-1" />
+                        {deletingProductId === product.id ? 'מסיר…' : 'הסר מהחנות'}
                       </Button>
                     </div>
                   </TableCell>
