@@ -91,12 +91,13 @@ export default function SubscriptionPaymentDialog({
     setError('');
     try {
       const responses = await Promise.all(
-        lessons.map((l) =>
+        lessons.map((l, index) =>
           api.post('/customers/payments/initiate_subscription/', {
             child_id: child.id,
             lesson_id: l.id,
             bundle_id: bundleId,
             payment_date: new Date().toISOString().split('T')[0],
+            include_registration_fee: !bundleId || index === 0,
           })
         )
       );
@@ -124,27 +125,32 @@ export default function SubscriptionPaymentDialog({
         cvv,
         card_holder_id: cardHolderId,
       };
-      const responses = await Promise.all(
-        lessons.map((l) =>
-          api.post('/customers/payments/charge_subscription/', {
-            child_id: child.id,
-            lesson_id: l.id,
-            bundle_id: bundleId,
-            card_details: cardDetails,
-          })
-        )
-      );
-      const allSucceeded = responses.every((r) => r.data.success);
-      if (allSucceeded) {
-        setSuccess(true);
-        setTimeout(() => {
-          onSuccess();
-          onClose();
-        }, 2000);
-      } else {
-        const failed = responses.find((r) => !r.data.success);
-        setError(failed?.data.error || 'התשלום נכשל');
+      // Charged one lesson at a time so a decline on the second lesson of a bundle
+      // does not follow an already-approved charge on the third.
+      let charged = 0;
+      for (const [index, l] of lessons.entries()) {
+        const { data } = await api.post('/customers/payments/charge_subscription/', {
+          child_id: child.id,
+          lesson_id: l.id,
+          bundle_id: bundleId,
+          card_details: cardDetails,
+          include_registration_fee: !bundleId || index === 0,
+        });
+        if (!data.success) {
+          setError(
+            charged > 0
+              ? `${data.error || 'התשלום נכשל'} — חלק מהשיעורים כבר חויבו, יש להשלים ידנית`
+              : data.error || 'התשלום נכשל'
+          );
+          return;
+        }
+        charged += 1;
       }
+      setSuccess(true);
+      setTimeout(() => {
+        onSuccess();
+        onClose();
+      }, 2000);
     } catch (err: any) {
       const d = err.response?.data;
       setError(d?.error || d?.detail || 'שגיאה בסליקה');
