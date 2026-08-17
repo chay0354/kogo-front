@@ -83,10 +83,10 @@ function scheduleLines(lesson: CourseLesson | null, bundle: CourseBundle | null)
   return { days: '—', times: '', isBundle: false };
 }
 
-function frequencyLabel(lesson: CourseLesson | null, bundle: CourseBundle | null): string | null {
-  if (bundle) return bundle.name || 'פעמיים בשבוע';
-  if (lesson) return 'פעם בשבוע';
-  return null;
+function timesPerWeek(row: CourseRow): number {
+  if (row.bundle?.lessons?.length) return row.bundle.lessons.length;
+  if (row.lesson) return 1;
+  return 0;
 }
 
 function CourseRowItem({
@@ -100,7 +100,6 @@ function CourseRowItem({
 }) {
   const { course, lesson, bundle } = row;
   const schedule = scheduleLines(lesson, bundle);
-  const frequency = frequencyLabel(lesson, bundle);
 
   return (
     <div
@@ -131,9 +130,6 @@ function CourseRowItem({
               </span>
             ) : null}
           </div>
-          {frequency ? (
-            <span className={styles.frequencyBadge}>{frequency}</span>
-          ) : null}
         </div>
 
         <button
@@ -153,50 +149,82 @@ function CourseRowItem({
   );
 }
 
+function TrackSection({
+  title,
+  subtitle,
+  rows,
+  onSelect,
+}: {
+  title: string;
+  subtitle: string;
+  rows: CourseRow[];
+  onSelect: CourseListProps['onSelect'];
+}) {
+  if (rows.length === 0) return null;
+  return (
+    <section className={styles.section} aria-label={title}>
+      <div className={styles.trackHeader}>
+        <h3 className={styles.trackTitle}>{title}</h3>
+        <p className={styles.trackSubtitle}>{subtitle}</p>
+      </div>
+      <div role="list" className={styles.sectionList}>
+        {rows.map((row, index) => (
+          <CourseRowItem
+            key={`${row.course.id}-${row.bundle?.id ?? row.lesson?.id ?? index}`}
+            row={row}
+            index={index}
+            onSelect={onSelect}
+          />
+        ))}
+      </div>
+    </section>
+  );
+}
+
+const CHOOSE_DAYS_COPY = 'בחרו את הימים והשעות שמתאימים לכם';
+
 export function CourseList({ filteredCourses, onSelect }: CourseListProps) {
   const rows = buildRows(filteredCourses);
-  const twiceAWeek = rows.filter((row) => row.bundle);
-  const onceAWeek = rows.filter((row) => !row.bundle);
-  const [onceAWeekOpen, setOnceAWeekOpen] = useState(twiceAWeek.length === 0);
+  const threeAWeek = rows.filter((row) => timesPerWeek(row) >= 3);
+  const twiceAWeek = rows.filter((row) => timesPerWeek(row) === 2);
+  const onceAWeek = rows.filter((row) => timesPerWeek(row) <= 1);
+  const [onceAWeekOpen, setOnceAWeekOpen] = useState(threeAWeek.length === 0 && twiceAWeek.length === 0);
 
   return (
     <div className={styles.list}>
-      {twiceAWeek.length > 0 ? (
-        <section className={styles.section} aria-label="פעמיים בשבוע">
-          <div className={styles.sectionHeaderStatic}>
-            <span className={styles.sectionChip}>
-              <span className={styles.sectionTitle}>פעמיים בשבוע</span>
-            </span>
-          </div>
-          <div role="list" className={styles.sectionList}>
-            {twiceAWeek.map((row, index) => (
-              <CourseRowItem
-                key={`${row.course.id}-${row.bundle?.id ?? index}`}
-                row={row}
-                index={index}
-                onSelect={onSelect}
-              />
-            ))}
-          </div>
-        </section>
-      ) : null}
+      <TrackSection
+        title="מסלולים לשלוש פעמים בשבוע"
+        subtitle={CHOOSE_DAYS_COPY}
+        rows={threeAWeek}
+        onSelect={onSelect}
+      />
+      <TrackSection
+        title="מסלולים לפעמיים בשבוע"
+        subtitle={CHOOSE_DAYS_COPY}
+        rows={twiceAWeek}
+        onSelect={onSelect}
+      />
 
       {onceAWeek.length > 0 ? (
-        <section className={styles.section} aria-label="פעם בשבוע">
-          <button
-            type="button"
-            className={styles.sectionHeader}
-            onClick={() => setOnceAWeekOpen((open) => !open)}
-            aria-expanded={onceAWeekOpen}
-          >
-            <span className={styles.sectionChip}>
-              <span className={styles.sectionTitle}>פעם בשבוע</span>
+        <section className={styles.section} aria-label="מעדיפים להגיע פעם בשבוע?">
+          {(threeAWeek.length > 0 || twiceAWeek.length > 0) ? (
+            <div className={styles.sectionDivider} aria-hidden="true" />
+          ) : null}
+          <div className={styles.trackHeader}>
+            <h3 className={styles.trackTitle}>מעדיפים להגיע פעם בשבוע?</h3>
+            <button
+              type="button"
+              className={styles.onceCta}
+              onClick={() => setOnceAWeekOpen((open) => !open)}
+              aria-expanded={onceAWeekOpen}
+            >
+              הצגת רשימה מסלולים לפעם בשבוע
               <ChevronDown
                 size={16}
-                className={`${styles.sectionChevron} ${onceAWeekOpen ? styles.sectionChevronOpen : ''}`}
+                className={`${styles.onceCtaChevron} ${onceAWeekOpen ? styles.onceCtaChevronOpen : ''}`}
               />
-            </span>
-          </button>
+            </button>
+          </div>
           {onceAWeekOpen ? (
             <div role="list" className={styles.sectionList}>
               {onceAWeek.map((row, index) => (

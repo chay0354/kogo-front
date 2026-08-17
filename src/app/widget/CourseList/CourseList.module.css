@@ -1,7 +1,7 @@
 .list {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 22px;
   width: 100%;
   max-width: 100%;
   min-width: 0;
@@ -23,49 +23,65 @@
   min-width: 0;
 }
 
-.sectionHeader,
-.sectionHeaderStatic {
+.trackHeader {
   display: flex;
+  flex-direction: column;
   align-items: center;
-  justify-content: center;
-  width: 100%;
-  padding: 2px 0 4px;
-  border: none;
-  background: none;
+  text-align: center;
+  gap: 4px;
+  padding: 2px 8px 4px;
+}
+
+.trackTitle {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 800;
   color: #2B3090;
+  line-height: 1.3;
 }
 
-.sectionHeader {
-  cursor: pointer;
+.trackSubtitle {
+  margin: 0;
+  font-size: 0.8125rem;
+  font-weight: 400;
+  color: #6b7280;
+  line-height: 1.4;
 }
 
-.sectionChip {
+.sectionDivider {
+  width: 72px;
+  height: 1px;
+  margin: 2px auto 6px;
+  background: #d1d5db;
+}
+
+.onceCta {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
-  min-height: 36px;
-  padding: 6px 16px;
-  border: 1.5px solid #2B3090;
-  border-radius: 999px;
-  background: #2B3090;
-  color: #F5C518;
-  line-height: 1;
-}
-
-.sectionTitle {
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+  color: #2B3090;
   font-size: 0.8125rem;
   font-weight: 700;
-  color: #F5C518;
+  line-height: 1.4;
 }
 
-.sectionChevron {
+.onceCta:hover {
+  text-decoration: underline;
+}
+
+.onceCtaChevron {
   flex-shrink: 0;
-  color: #F5C518;
+  color: #2B3090;
   transition: transform 180ms ease;
 }
 
-.sectionChevronOpen {
+.onceCtaChevronOpen {
   transform: rotate(180deg);
 }
 
@@ -149,23 +165,9 @@
   min-width: 0;
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-start;
   gap: 8px;
   direction: ltr;
-}
-
-.frequencyBadge {
-  flex-shrink: 0;
-  margin-left: auto;
-  background-color: rgba(245, 197, 24, 0.18);
-  color: #2B3090;
-  font-size: 0.6875rem;
-  font-weight: 700;
-  padding: 4px 8px;
-  border-radius: 999px;
-  white-space: nowrap;
-  line-height: 1.25;
-  text-align: center;
 }
 
 .lessonSlot {
@@ -248,11 +250,6 @@
 
   .scheduleGroup {
     gap: 6px;
-  }
-
-  .frequencyBadge {
-    font-size: 0.625rem;
-    padding: 3px 7px;
   }
 
   .lessonSlotBundle .lessonDay {
