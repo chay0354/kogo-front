@@ -489,8 +489,14 @@ export default function WidgetPage() {
     if (detailCourse || drawerCourse) {
       const unpin = pinVisibleSlice(pageRef.current);
       window.parent.postMessage({ type: 'kogo-widget-expand' }, '*');
+      if (drawerCourse) {
+        window.parent.postMessage({ type: 'kogo-widget-register-open' }, '*');
+      }
       return () => {
         unpin();
+        if (drawerCourse) {
+          window.parent.postMessage({ type: 'kogo-widget-register-close' }, '*');
+        }
       };
     }
     const frame = requestAnimationFrame(() => {
