@@ -9,16 +9,6 @@
   background: #fff;
 }
 
-.swoosh {
-  position: absolute;
-  top: -10px;
-  left: -18px;
-  width: 128px;
-  height: 82px;
-  pointer-events: none;
-  z-index: 1;
-}
-
 .closeButton {
   position: absolute;
   top: 10px;
@@ -44,12 +34,13 @@
   flex: 0 0 auto;
   min-height: auto;
   overflow: visible;
-  padding: 36px 16px 12px;
+  padding: 56px 16px 12px;
 }
 
 .header {
   text-align: center;
   margin-bottom: 6px;
+  padding-inline: 40px;
 }
 
 .title {
@@ -355,7 +346,7 @@
 
 @media (max-width: 640px) {
   .scrollArea {
-    padding: 32px 16px 10px;
+    padding: 54px 16px 10px;
   }
 
   .title {
@@ -374,7 +365,7 @@
 
 @media (max-height: 760px) {
   .scrollArea {
-    padding-top: 30px;
+    padding-top: 54px;
     padding-bottom: 8px;
   }
 

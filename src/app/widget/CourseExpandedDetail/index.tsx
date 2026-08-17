@@ -71,25 +71,6 @@ function resolveScheduleLessons(
   return course.lessons ?? [];
 }
 
-function CornerSwoosh() {
-  return (
-    <svg className={styles.swoosh} viewBox="0 0 140 90" fill="none" aria-hidden>
-      <path
-        d="M-20 18c42-6 78 8 92 48"
-        stroke="#2B3090"
-        strokeWidth="14"
-        strokeLinecap="round"
-      />
-      <path
-        d="M-20 38c36-4 66 10 78 40"
-        stroke="#F5C518"
-        strokeWidth="7"
-        strokeLinecap="round"
-      />
-    </svg>
-  );
-}
-
 function PriceSwoosh() {
   return (
     <svg className={styles.priceSwoosh} viewBox="0 0 72 10" fill="none" aria-hidden>
@@ -136,7 +117,6 @@ export default function CourseExpandedDetail({
 
   return (
     <div className={styles.card} dir="rtl">
-      <CornerSwoosh />
       <button type="button" onClick={onClose} className={styles.closeButton} aria-label="סגור">
         <X size={18} strokeWidth={2.4} />
       </button>
