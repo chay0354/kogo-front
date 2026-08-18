@@ -215,6 +215,58 @@ function TrackSection({
   );
 }
 
+function CollapsibleTrackSection({
+  ariaLabel,
+  subtitle,
+  expandLabel,
+  rows,
+  onSelect,
+  defaultOpen,
+}: {
+  ariaLabel: string;
+  subtitle: string;
+  expandLabel: string;
+  rows: CourseRow[];
+  onSelect: CourseListProps['onSelect'];
+  defaultOpen: boolean;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+  if (rows.length === 0) return null;
+
+  return (
+    <section className={styles.section} aria-label={ariaLabel}>
+      <div className={styles.trackHeader}>
+        <p className={styles.trackSubtitle}>{subtitle}</p>
+        <div className={styles.sectionDivider} />
+        <button
+          type="button"
+          className={styles.onceCta}
+          onClick={() => setOpen((isOpen) => !isOpen)}
+          aria-expanded={open}
+        >
+          {open ? 'הסתרת רשימה' : expandLabel}
+          <ChevronDown
+            size={16}
+            className={`${styles.onceCtaChevron} ${open ? styles.onceCtaChevronOpen : ''}`}
+          />
+        </button>
+      </div>
+      {open ? (
+        <div role="list" className={styles.sectionList}>
+          {rows.map((row, index) => (
+            <CourseRowItem
+              key={`${row.course.id}-${row.bundle?.id ?? row.lesson?.id ?? index}-${row.priceOption?.id ?? 'default'}`}
+              row={row}
+              index={index}
+              onSelect={onSelect}
+            />
+          ))}
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
 const CHOOSE_DAYS_COPY = 'בחרו את הימים והשעות שמתאימים לכם';
 
 export function CourseList({ filteredCourses, onSelect }: CourseListProps) {
@@ -222,7 +274,6 @@ export function CourseList({ filteredCourses, onSelect }: CourseListProps) {
   const threeAWeek = rows.filter((row) => timesPerWeek(row) >= 3);
   const twiceAWeek = rows.filter((row) => timesPerWeek(row) === 2);
   const onceAWeek = rows.filter((row) => timesPerWeek(row) <= 1);
-  const [onceAWeekOpen, setOnceAWeekOpen] = useState(threeAWeek.length === 0 && twiceAWeek.length === 0);
 
   return (
     <div className={styles.list}>
@@ -232,44 +283,31 @@ export function CourseList({ filteredCourses, onSelect }: CourseListProps) {
         rows={threeAWeek}
         onSelect={onSelect}
       />
-      <TrackSection
-        title="מסלולים לפעמיים בשבוע"
-        subtitle={CHOOSE_DAYS_COPY}
-        rows={twiceAWeek}
+      {threeAWeek.length > 0 ? (
+        <CollapsibleTrackSection
+          ariaLabel="מסלולים לפעמיים בשבוע"
+          subtitle="מעדיפים להגיע פעמיים בשבוע?"
+          expandLabel="הצגת רשימה מסלולים לפעמיים בשבוע"
+          rows={twiceAWeek}
+          onSelect={onSelect}
+          defaultOpen={false}
+        />
+      ) : (
+        <TrackSection
+          title="מסלולים לפעמיים בשבוע"
+          subtitle={CHOOSE_DAYS_COPY}
+          rows={twiceAWeek}
+          onSelect={onSelect}
+        />
+      )}
+      <CollapsibleTrackSection
+        ariaLabel="מסלולים לפעם בשבוע"
+        subtitle="מעדיפים להגיע פעם בשבוע?"
+        expandLabel="הצגת רשימה מסלולים לפעם בשבוע"
+        rows={onceAWeek}
         onSelect={onSelect}
+        defaultOpen={threeAWeek.length === 0 && twiceAWeek.length === 0}
       />
-      {onceAWeek.length > 0 ? (
-        <section className={styles.section} aria-label="מסלולים לפעם בשבוע">
-          <div className={styles.trackHeader}>
-            <p className={styles.trackSubtitle}>מעדיפים להגיע פעם בשבוע?</p>
-            <div className={styles.sectionDivider} />
-            <button
-              type="button"
-              className={styles.onceCta}
-              onClick={() => setOnceAWeekOpen((open) => !open)}
-              aria-expanded={onceAWeekOpen}
-            >
-              {onceAWeekOpen ? 'הסתרת רשימה' : 'הצגת רשימה מסלולים לפעם בשבוע'}
-              <ChevronDown
-                size={16}
-                className={`${styles.onceCtaChevron} ${onceAWeekOpen ? styles.onceCtaChevronOpen : ''}`}
-              />
-            </button>
-          </div>
-          {onceAWeekOpen ? (
-            <div role="list" className={styles.sectionList}>
-              {onceAWeek.map((row, index) => (
-                <CourseRowItem
-                  key={`${row.course.id}-${row.bundle?.id ?? row.lesson?.id ?? index}-${row.priceOption?.id ?? 'default'}`}
-                  row={row}
-                  index={index}
-                  onSelect={onSelect}
-                />
-              ))}
-            </div>
-          ) : null}
-        </section>
-      ) : null}
     </div>
   );
 }
