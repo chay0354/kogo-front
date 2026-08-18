@@ -387,10 +387,17 @@ export default function WidgetPage() {
   const filteredCourses = useMemo(() => branchCourses.filter((course) => {
     if (selectedCourseType && String(course.course_type) !== selectedCourseType) return false;
     if (selectedAge) {
-      const age = parseInt(selectedAge);
+      const age = parseInt(selectedAge, 10);
       const minAge = course.min_age ?? 0;
       const maxAge = course.max_age ?? 99;
-      if (age < minAge || age > maxAge) return false;
+      const courseMatches = age >= minAge && age <= maxAge;
+      const optionMatches = (course.lessons ?? []).some((lesson) =>
+        (lesson.price_options ?? []).some((option) => {
+          if (option.min_age == null && option.max_age == null) return false;
+          return age >= (option.min_age ?? 0) && age <= (option.max_age ?? 99);
+        }),
+      );
+      if (!courseMatches && !optionMatches) return false;
     }
     return isCourseVisibleInWidgetCatalog(course);
   }), [branchCourses, selectedCourseType, selectedAge]);
@@ -621,7 +628,11 @@ export default function WidgetPage() {
       ) : showCourseListLoading ? (
         <p className={styles.emptyMessage}>טוען חוגים...</p>
       ) : showTable ? (
-        <CourseList filteredCourses={filteredCourses} onSelect={toggleDetail} />
+        <CourseList
+          filteredCourses={filteredCourses}
+          selectedAge={selectedAge ? parseInt(selectedAge, 10) : null}
+          onSelect={toggleDetail}
+        />
       ) : null}
 
       {/* Course detail overlay — portaled so mobile fixed layout stays viewport-aligned */}

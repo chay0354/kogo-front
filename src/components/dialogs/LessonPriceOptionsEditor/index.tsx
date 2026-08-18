@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { Check, Pencil, Trash2 } from 'lucide-react';
 import api from '@/lib/api';
+import { AGE_OPTIONS, formatAge, formatAgeRange } from '@/lib/courseUtils';
 import styles from './index.module.css';
 
 export interface LessonPriceOption {
@@ -10,6 +11,8 @@ export interface LessonPriceOption {
   lesson: string;
   display_title: string;
   monthly_price: number | string;
+  min_age?: number | null;
+  max_age?: number | null;
   sort_order: number;
   is_active: boolean;
 }
@@ -18,12 +21,18 @@ interface FormState {
   display_title: string;
   monthly_price: string;
   sort_order: string;
+  separateAge: boolean;
+  min_age: string;
+  max_age: string;
 }
 
-const emptyForm = (): FormState => ({
+const emptyForm = (courseMinAge?: number | null, courseMaxAge?: number | null): FormState => ({
   display_title: '',
   monthly_price: '',
   sort_order: '0',
+  separateAge: false,
+  min_age: courseMinAge != null ? String(courseMinAge) : '',
+  max_age: courseMaxAge != null ? String(courseMaxAge) : '',
 });
 
 interface LessonPriceOptionsEditorProps {
@@ -31,6 +40,8 @@ interface LessonPriceOptionsEditorProps {
   lessonLabel?: string;
   courseName: string;
   defaultPrice: number;
+  courseMinAge?: number | null;
+  courseMaxAge?: number | null;
   /** Inline panel inside another dialog (e.g. EditCourseDialog). */
   embedded?: boolean;
   onSaved?: () => void;
@@ -41,6 +52,8 @@ export default function LessonPriceOptionsEditor({
   lessonLabel,
   courseName,
   defaultPrice,
+  courseMinAge,
+  courseMaxAge,
   embedded = false,
   onSaved,
 }: LessonPriceOptionsEditorProps) {
@@ -49,17 +62,17 @@ export default function LessonPriceOptionsEditor({
   const [saving, setSaving] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [form, setForm] = useState<FormState>(emptyForm);
+  const [form, setForm] = useState<FormState>(() => emptyForm(courseMinAge, courseMaxAge));
   const [formError, setFormError] = useState('');
 
   useEffect(() => {
     if (!lessonId) return;
     setShowForm(false);
     setEditingId(null);
-    setForm(emptyForm());
+    setForm(emptyForm(courseMinAge, courseMaxAge));
     setFormError('');
     loadOptions();
-  }, [lessonId]);
+  }, [lessonId, courseMinAge, courseMaxAge]);
 
   const loadOptions = async () => {
     setLoading(true);
@@ -75,7 +88,7 @@ export default function LessonPriceOptionsEditor({
 
   const openCreate = () => {
     setEditingId(null);
-    setForm(emptyForm());
+    setForm(emptyForm(courseMinAge, courseMaxAge));
     setFormError('');
     setShowForm(true);
   };
@@ -86,6 +99,9 @@ export default function LessonPriceOptionsEditor({
       display_title: option.display_title,
       monthly_price: String(option.monthly_price),
       sort_order: String(option.sort_order ?? 0),
+      separateAge: option.min_age != null || option.max_age != null,
+      min_age: option.min_age != null ? String(option.min_age) : (courseMinAge != null ? String(courseMinAge) : ''),
+      max_age: option.max_age != null ? String(option.max_age) : (courseMaxAge != null ? String(courseMaxAge) : ''),
     });
     setFormError('');
     setShowForm(true);
@@ -103,6 +119,20 @@ export default function LessonPriceOptionsEditor({
       setFormError('יש להזין מחיר תקין');
       return;
     }
+    let minAge: number | null = null;
+    let maxAge: number | null = null;
+    if (form.separateAge) {
+      minAge = Number(form.min_age);
+      maxAge = Number(form.max_age);
+      if (!Number.isFinite(minAge) || !Number.isFinite(maxAge)) {
+        setFormError('יש לבחור קבוצת גיל מינימום ומקסימום');
+        return;
+      }
+      if (maxAge < minAge) {
+        setFormError('גיל מקסימום חייב להיות גדול או שווה לגיל מינימום');
+        return;
+      }
+    }
 
     setSaving(true);
     setFormError('');
@@ -113,6 +143,8 @@ export default function LessonPriceOptionsEditor({
         monthly_price: price,
         sort_order: Number.isFinite(sortOrder) ? sortOrder : 0,
         is_active: true,
+        min_age: minAge,
+        max_age: maxAge,
       };
       if (editingId) {
         await api.patch(`/courses/price-options/${editingId}/`, payload);
@@ -121,7 +153,7 @@ export default function LessonPriceOptionsEditor({
       }
       setShowForm(false);
       setEditingId(null);
-      setForm(emptyForm());
+      setForm(emptyForm(courseMinAge, courseMaxAge));
       await loadOptions();
       onSaved?.();
     } catch (error: unknown) {
@@ -130,6 +162,8 @@ export default function LessonPriceOptionsEditor({
       const message =
         (typeof data?.display_title === 'string' ? data.display_title : data?.display_title?.[0]) ||
         (typeof data?.monthly_price === 'string' ? data.monthly_price : data?.monthly_price?.[0]) ||
+        (typeof data?.min_age === 'string' ? data.min_age : data?.min_age?.[0]) ||
+        (typeof data?.max_age === 'string' ? data.max_age : data?.max_age?.[0]) ||
         (typeof data?.detail === 'string' ? data.detail : undefined) ||
         'שגיאה בשמירה';
       setFormError(message);
@@ -167,7 +201,7 @@ export default function LessonPriceOptionsEditor({
           )}
           <p className={styles.hint}>
             בווידג&apos;ט יופיעו שורות נפרדות עם כותרת ומחיר שונים לאותו שיעור. המחיר הרגיל של החוג
-            (₪{defaultPrice}) נשאר כשורה נפרדת.
+            (₪{defaultPrice}) נשאר כשורה נפרדת. אפשר גם לבחור קבוצת גיל אחרת, ואז השורה תופיע כשבוחרים את הגיל הזה.
           </p>
         </div>
       </div>
@@ -184,7 +218,12 @@ export default function LessonPriceOptionsEditor({
                 <div key={option.id} className={styles.row}>
                   <div>
                     <div className={styles.rowTitle}>{option.display_title}</div>
-                    <div className={styles.rowMeta}>₪{Number(option.monthly_price).toFixed(0)} לחודש</div>
+                    <div className={styles.rowMeta}>
+                      ₪{Number(option.monthly_price).toFixed(0)} לחודש
+                      {option.min_age != null || option.max_age != null
+                        ? ` · ${formatAgeRange(option.min_age, option.max_age)}`
+                        : ''}
+                    </div>
                   </div>
                   <div className={styles.rowActions}>
                     <button type="button" className={styles.iconBtn} onClick={() => openEdit(option)} title="עריכה">
@@ -236,6 +275,57 @@ export default function LessonPriceOptionsEditor({
                   onChange={(e) => setForm((prev) => ({ ...prev, sort_order: e.target.value }))}
                 />
               </label>
+              <label className={styles.checkboxLabel}>
+                <input
+                  type="checkbox"
+                  className={styles.checkbox}
+                  checked={form.separateAge}
+                  onChange={(e) => {
+                    const checked = e.target.checked;
+                    setForm((prev) => ({
+                      ...prev,
+                      separateAge: checked,
+                      min_age: prev.min_age || (courseMinAge != null ? String(courseMinAge) : ''),
+                      max_age: prev.max_age || (courseMaxAge != null ? String(courseMaxAge) : ''),
+                    }));
+                  }}
+                />
+                קבוצת גיל נפרדת בווידג&apos;ט
+              </label>
+              {form.separateAge ? (
+                <div className={styles.ageRow}>
+                  <label className={styles.label}>
+                    גיל מינימום
+                    <select
+                      className={styles.input}
+                      value={form.min_age}
+                      onChange={(e) => setForm((prev) => ({ ...prev, min_age: e.target.value }))}
+                    >
+                      <option value="">בחרו גיל</option>
+                      {AGE_OPTIONS.map((age) => (
+                        <option key={age} value={age}>
+                          {formatAge(age)}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className={styles.label}>
+                    גיל מקסימום
+                    <select
+                      className={styles.input}
+                      value={form.max_age}
+                      onChange={(e) => setForm((prev) => ({ ...prev, max_age: e.target.value }))}
+                    >
+                      <option value="">בחרו גיל</option>
+                      {AGE_OPTIONS.map((age) => (
+                        <option key={age} value={age}>
+                          {formatAge(age)}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                </div>
+              ) : null}
               {formError ? <p className={styles.error}>{formError}</p> : null}
               <div className={styles.formActions}>
                 <button

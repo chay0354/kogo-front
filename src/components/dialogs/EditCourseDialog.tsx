@@ -602,6 +602,8 @@ export default function EditCourseDialog({
                     lessonLabel={`${getDayName(lesson.day_of_week)} ${formatTimeRange(lesson.start_time, lesson.end_time)}`}
                     courseName={formData.name || course.name}
                     defaultPrice={formData.price}
+                    courseMinAge={formData.min_age}
+                    courseMaxAge={formData.max_age}
                     embedded
                   />
                 ))}

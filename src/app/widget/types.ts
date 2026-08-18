@@ -33,6 +33,8 @@ export interface CourseLessonPriceOption {
   id: string;
   display_title: string;
   monthly_price: string;
+  min_age?: number | null;
+  max_age?: number | null;
 }
 
 // A combined "twice a week" package of 2+ of this course's own lessons, sold at a discount.

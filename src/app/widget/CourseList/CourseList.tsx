@@ -9,6 +9,7 @@ import styles from './CourseList.module.css';
 
 interface CourseListProps {
   filteredCourses: Course[];
+  selectedAge?: number | null;
   onSelect: (
     course: Course,
     bundle?: CourseBundle,
@@ -54,24 +55,48 @@ function rowSortKey(row: CourseRow): { day: number; time: string; type: string; 
   };
 }
 
-function buildRows(courses: Course[]): CourseRow[] {
+function selectedAgeMatches(
+  minAge: number | null | undefined,
+  maxAge: number | null | undefined,
+  selectedAge: number | null | undefined,
+): boolean {
+  if (selectedAge == null || Number.isNaN(selectedAge)) return true;
+  return selectedAge >= (minAge ?? 0) && selectedAge <= (maxAge ?? 99);
+}
+
+function priceOptionMatchesAge(
+  option: CourseLessonPriceOption,
+  course: Course,
+  selectedAge: number | null | undefined,
+): boolean {
+  if (option.min_age != null || option.max_age != null) {
+    return selectedAgeMatches(option.min_age, option.max_age, selectedAge);
+  }
+  return selectedAgeMatches(course.min_age, course.max_age, selectedAge);
+}
+
+function buildRows(courses: Course[], selectedAge?: number | null): CourseRow[] {
   const rows: CourseRow[] = [];
 
   for (const course of courses) {
     const bundles = course.bundles ?? [];
+    const courseAgeMatches = selectedAgeMatches(course.min_age, course.max_age, selectedAge);
 
     if (course.lessons && course.lessons.length > 0) {
       for (const lesson of course.lessons) {
         if (!isLessonVisibleInCatalog(lesson)) continue;
-        rows.push({
-          course,
-          lesson,
-          bundle: null,
-          priceOption: null,
-          displayTitle: course.name,
-          displayPrice: formatListPrice(lesson.price ?? course.price),
-        });
+        if (courseAgeMatches) {
+          rows.push({
+            course,
+            lesson,
+            bundle: null,
+            priceOption: null,
+            displayTitle: course.name,
+            displayPrice: formatListPrice(lesson.price ?? course.price),
+          });
+        }
         for (const priceOption of lesson.price_options ?? []) {
+          if (!priceOptionMatchesAge(priceOption, course, selectedAge)) continue;
           rows.push({
             course,
             lesson,
@@ -82,7 +107,7 @@ function buildRows(courses: Course[]): CourseRow[] {
           });
         }
       }
-    } else if (bundles.length === 0) {
+    } else if (bundles.length === 0 && courseAgeMatches) {
       rows.push({
         course,
         lesson: null,
@@ -94,15 +119,17 @@ function buildRows(courses: Course[]): CourseRow[] {
     }
 
     // Each combined-track price is its own catalog row, even when the days/hours match.
-    for (const bundle of bundles) {
-      rows.push({
-        course,
-        lesson: null,
-        bundle,
-        priceOption: null,
-        displayTitle: bundleDisplayTitle(course, bundle),
-        displayPrice: formatListPrice(bundle.combined_price),
-      });
+    if (courseAgeMatches) {
+      for (const bundle of bundles) {
+        rows.push({
+          course,
+          lesson: null,
+          bundle,
+          priceOption: null,
+          displayTitle: bundleDisplayTitle(course, bundle),
+          displayPrice: formatListPrice(bundle.combined_price),
+        });
+      }
     }
   }
 
@@ -300,8 +327,8 @@ const FREQUENCY_GROUPS = [
   { minTimes: 0, maxTimes: 1, title: 'מסלולים לפעם בשבוע' },
 ] as const;
 
-export function CourseList({ filteredCourses, onSelect }: CourseListProps) {
-  const rows = buildRows(filteredCourses);
+export function CourseList({ filteredCourses, selectedAge = null, onSelect }: CourseListProps) {
+  const rows = buildRows(filteredCourses, selectedAge);
   const groups = FREQUENCY_GROUPS
     .map((group) => ({
       title: group.title,
