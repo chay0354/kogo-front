@@ -1,0 +1,113 @@
+.container {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.sectionTitle {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: hsl(var(--foreground));
+}
+
+.card {
+  background: hsl(var(--card));
+  border: 1px solid hsl(var(--border));
+  border-radius: var(--radius);
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.logicItem {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.logicItem:not(:last-child) {
+  padding-bottom: 1.25rem;
+  border-bottom: 1px solid hsl(var(--border));
+}
+
+.logicTitle {
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: hsl(var(--foreground));
+}
+
+.logicBody {
+  font-size: 0.875rem;
+  font-weight: 400;
+  color: hsl(var(--foreground));
+  line-height: 1.6;
+}
+
+.logicBody ul {
+  margin: 0.25rem 0 0;
+  padding-inline-start: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.note {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: hsl(var(--warning));
+  background: hsl(var(--warning) / 0.1);
+  border: 1px solid hsl(var(--warning) / 0.3);
+  border-radius: calc(var(--radius) - 4px);
+  padding: 0.5rem 0.75rem;
+}
+
+.glossaryGrid {
+  display: flex;
+  flex-direction: column;
+}
+
+.termRow {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 0.75rem 0;
+}
+
+.termRow:not(:last-child) {
+  border-bottom: 1px solid hsl(var(--border));
+}
+
+.termName {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: hsl(var(--foreground));
+}
+
+.termDef {
+  font-size: 0.875rem;
+  font-weight: 400;
+  color: hsl(var(--muted-foreground));
+  line-height: 1.6;
+}
+
+@media (min-width: 768px) {
+  .termRow {
+    flex-direction: row;
+    gap: 1.5rem;
+  }
+
+  .termName {
+    flex: 0 0 12rem;
+  }
+
+  .termDef {
+    flex: 1;
+  }
+}
