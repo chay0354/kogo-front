@@ -209,6 +209,16 @@
   line-height: 1.2;
 }
 
+.price {
+  flex-shrink: 0;
+  font-size: 0.875rem;
+  font-weight: 800;
+  color: #2B3090;
+  white-space: nowrap;
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+
 .expandBtn {
   width: 36px;
   height: 36px;
@@ -266,6 +276,10 @@
 
   .lessonTime {
     font-size: 0.6875rem;
+  }
+
+  .price {
+    font-size: 0.75rem;
   }
 
   .expandBtn {

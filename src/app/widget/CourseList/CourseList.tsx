@@ -23,15 +23,34 @@ interface CourseRow {
   bundle: CourseBundle | null;
   priceOption: CourseLessonPriceOption | null;
   displayTitle: string;
+  displayPrice: number | null;
 }
 
-function rowSortKey(row: CourseRow): { day: number; time: string; type: string; name: string } {
+const GENERIC_BUNDLE_NAMES = new Set(['', 'מסלול משולב', 'פעמיים בשבוע', 'שלוש פעמים בשבוע']);
+
+function formatListPrice(value: number | string | null | undefined): number | null {
+  if (value == null || value === '') return null;
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
+}
+
+function formatPriceLabel(value: number): string {
+  return `₪${Math.round(value)}`;
+}
+
+function bundleDisplayTitle(course: Course, bundle: CourseBundle): string {
+  const name = (bundle.name || '').trim();
+  return name && !GENERIC_BUNDLE_NAMES.has(name) ? name : course.name;
+}
+
+function rowSortKey(row: CourseRow): { day: number; time: string; type: string; name: string; price: number } {
   const lesson = row.lesson ?? row.bundle?.lessons[0];
   return {
     day: lesson?.day_of_week ?? 99,
     time: lesson?.start_time ?? '',
     type: row.course.course_type_name || '',
     name: row.displayTitle,
+    price: row.displayPrice ?? 0,
   };
 }
 
@@ -50,6 +69,7 @@ function buildRows(courses: Course[]): CourseRow[] {
           bundle: null,
           priceOption: null,
           displayTitle: course.name,
+          displayPrice: formatListPrice(lesson.price ?? course.price),
         });
         for (const priceOption of lesson.price_options ?? []) {
           rows.push({
@@ -58,6 +78,7 @@ function buildRows(courses: Course[]): CourseRow[] {
             bundle: null,
             priceOption,
             displayTitle: priceOption.display_title,
+            displayPrice: formatListPrice(priceOption.monthly_price),
           });
         }
       }
@@ -68,16 +89,19 @@ function buildRows(courses: Course[]): CourseRow[] {
         bundle: null,
         priceOption: null,
         displayTitle: course.name,
+        displayPrice: formatListPrice(course.price),
       });
     }
 
+    // Each combined-track price is its own catalog row, even when the days/hours match.
     for (const bundle of bundles) {
       rows.push({
         course,
         lesson: null,
         bundle,
         priceOption: null,
-        displayTitle: bundle.name || course.name,
+        displayTitle: bundleDisplayTitle(course, bundle),
+        displayPrice: formatListPrice(bundle.combined_price),
       });
     }
   }
@@ -90,7 +114,9 @@ function buildRows(courses: Course[]): CourseRow[] {
     if (timeCmp !== 0) return timeCmp;
     const typeCmp = keyA.type.localeCompare(keyB.type, 'he');
     if (typeCmp !== 0) return typeCmp;
-    return keyA.name.localeCompare(keyB.name, 'he');
+    const nameCmp = keyA.name.localeCompare(keyB.name, 'he');
+    if (nameCmp !== 0) return nameCmp;
+    return keyA.price - keyB.price;
   });
 
   return rows;
@@ -132,7 +158,7 @@ function CourseRowItem({
   index: number;
   onSelect: CourseListProps['onSelect'];
 }) {
-  const { course, lesson, bundle, priceOption, displayTitle } = row;
+  const { course, lesson, bundle, priceOption, displayTitle, displayPrice } = row;
   const schedule = scheduleLines(lesson, bundle);
 
   return (
@@ -165,6 +191,10 @@ function CourseRowItem({
             ) : null}
           </div>
         </div>
+
+        {displayPrice != null ? (
+          <span className={styles.price}>{formatPriceLabel(displayPrice)}</span>
+        ) : null}
 
         <button
           type="button"
