@@ -15,9 +15,12 @@ import {
   AGE_OPTIONS,
   formatAge,
   formatCurrency,
+  formatTimeRange,
+  getDayName,
   getInstructorMonthlySalaryFromProfile,
   LESSONS_PER_MONTH,
 } from '@/lib/courseUtils';
+import LessonPriceOptionsEditor from '@/components/dialogs/LessonPriceOptionsEditor';
 import styles from './EditCourseDialog.module.css';
 
 interface Branch {
@@ -269,6 +272,7 @@ export default function EditCourseDialog({
       Number(selectedInstructor.fixed_salary_per_lesson) * LESSONS_PER_MONTH * slotCount;
   }
   const hasDefaultMonthlySalary = defaultMonthlySalary > 0;
+  const scheduledLessons = (courseWithLessons.lessons || []).filter((l) => l.status === 'scheduled');
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" dir="rtl">
@@ -588,6 +592,25 @@ export default function EditCourseDialog({
                 + הוסף מחיר לחוג מקביל #{FIRST_PRICE_TIER_INDEX + extraTiers.length}
               </button>
             </div>
+
+            {scheduledLessons.length > 0 ? (
+              <div className={styles.priceOptionsSection}>
+                {scheduledLessons.map((lesson) => (
+                  <LessonPriceOptionsEditor
+                    key={lesson.id}
+                    lessonId={lesson.id}
+                    lessonLabel={`${getDayName(lesson.day_of_week)} ${formatTimeRange(lesson.start_time, lesson.end_time)}`}
+                    courseName={formData.name || course.name}
+                    defaultPrice={formData.price}
+                    embedded
+                  />
+                ))}
+              </div>
+            ) : (
+              <p className={styles.priceOptionsHint}>
+                לאחר הוספת מועד שיעור, ניתן להגדיר כאן מחירים נוספים לווידג&apos;ט (2 מחירונים לאותו שיעור).
+              </p>
+            )}
 
             <div>
               <label htmlFor="description" className="block text-sm font-medium text-gray-700 mb-1">

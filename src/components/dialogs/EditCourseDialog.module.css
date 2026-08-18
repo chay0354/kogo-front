@@ -21,3 +21,27 @@
   accent-color: hsl(var(--primary));
   flex-shrink: 0;
 }
+
+.priceOptionsSection {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.priceOptionsSection > div {
+  border: 1px dashed #d1d5db;
+  border-radius: 0.5rem;
+  background: #f9fafb;
+  padding: 1rem;
+}
+
+.priceOptionsHint {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: #6b7280;
+  line-height: 1.45;
+  padding: 0.75rem 1rem;
+  border: 1px dashed #d1d5db;
+  border-radius: 0.5rem;
+  background: #f9fafb;
+}
