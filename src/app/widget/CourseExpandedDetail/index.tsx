@@ -188,7 +188,6 @@ export default function CourseExpandedDetail({
             <p className={styles.instructorName}>
               {instructorName ? `החוג בהדרכת ${instructorName}` : 'החוג בהדרכת מדריך'}
             </p>
-            <p className={styles.instructorTitle}>מדריך ישיר של הקוגומלו</p>
           </div>
         </div>
 
