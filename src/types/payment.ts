@@ -147,6 +147,9 @@ export interface PaymentInitiationResponse {
   prorate_lessons_remaining?: number;
   total_lessons_this_month?: number;
   next_billing_date?: string;
+  monthly_amount?: number;
+  /** Set when monthly billing only starts later — nothing but דמי רישום is charged now. */
+  subscription_start_date?: string | null;
   discounts_applied?: AppliedDiscount[];
   lesson?: LessonInfo;
 }

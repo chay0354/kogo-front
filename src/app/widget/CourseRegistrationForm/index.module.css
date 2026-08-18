@@ -316,6 +316,10 @@
 .totalAmount {
   color: #2B3090;
 }
+.billingNote {
+  @apply text-sm font-semibold text-center leading-relaxed pt-2;
+  color: #2B3090;
+}
 .cardFields {
   @apply space-y-3;
 }

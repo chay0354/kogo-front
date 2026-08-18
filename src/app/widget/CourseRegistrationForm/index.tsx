@@ -51,7 +51,7 @@ function emailFieldError(value: string): string | null {
   return null;
 }
 
-export default function CourseRegistrationForm({ courseId, courseName, isAdult = false, bundleId, lessonId, trialLessonOptions = [], isTrial = false, trialLessonIsPaid = false, trialLessonPrice, onBack, onComplete }: Props) {
+export default function CourseRegistrationForm({ courseId, courseName, isAdult = false, bundleId, lessonId, priceOptionId, trialLessonOptions = [], isTrial = false, trialLessonIsPaid = false, trialLessonPrice, onBack, onComplete }: Props) {
   const [step, setStep] = useState<Step>('details');
   const [errorMsg, setErrorMsg] = useState('');
   const [fieldErrors, setFieldErrors] = useState<Partial<Record<DetailsFieldKey, string>>>({});
@@ -398,6 +398,7 @@ export default function CourseRegistrationForm({ courseId, courseName, isAdult =
         course_id: courseId,
         bundle_id: bundleId,
         lesson_id: lessonId,
+        price_option_id: priceOptionId,
         signature: signature,
         discount_confirmed: discountConfirmed,
         existing_child_id: existingChildId,
@@ -411,6 +412,8 @@ export default function CourseRegistrationForm({ courseId, courseName, isAdult =
           discount_amount: res.data.discount_amount,
           prorated_amount: res.data.prorated_amount,
           registration_fee: res.data.registration_fee,
+          monthly_amount: res.data.monthly_amount,
+          subscription_start_date: res.data.subscription_start_date,
           discounts_applied: res.data.payments.flatMap((p: { discounts_applied?: Array<{ name: string; amount: number }> }) => p.discounts_applied ?? []),
         });
       } else {
@@ -421,6 +424,8 @@ export default function CourseRegistrationForm({ courseId, courseName, isAdult =
           discount_amount: res.data.discount_amount,
           prorated_amount: res.data.prorated_amount,
           registration_fee: res.data.registration_fee,
+          monthly_amount: res.data.monthly_amount,
+          subscription_start_date: res.data.subscription_start_date,
           discounts_applied: res.data.discounts_applied ?? [],
         });
       }
@@ -839,9 +844,14 @@ export default function CourseRegistrationForm({ courseId, courseName, isAdult =
             </div>
           )}
           <div className={styles.totalRow}>
-            <span>לתשלום</span>
+            <span>לתשלום כעת</span>
             <span className={styles.totalAmount}>₪{Number(paymentData.final_amount).toFixed(2)}</span>
           </div>
+          {!isTrial && paymentData.subscription_start_date && (
+            <p className={styles.billingNote}>
+              דמי רישום יגבו עכשיו והוראת קבע תתחיל ב-1.9
+            </p>
+          )}
         </div>
 
         <div className={styles.cardFields}>

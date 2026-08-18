@@ -26,6 +26,13 @@ export interface CourseLesson {
   capacity?: number | null;
   available_spots?: number | null;
   is_full?: boolean;
+  price_options?: CourseLessonPriceOption[];
+}
+
+export interface CourseLessonPriceOption {
+  id: string;
+  display_title: string;
+  monthly_price: string;
 }
 
 // A combined "twice a week" package of 2+ of this course's own lessons, sold at a discount.

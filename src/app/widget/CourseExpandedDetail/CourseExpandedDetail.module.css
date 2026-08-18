@@ -250,6 +250,15 @@
   text-align: center;
 }
 
+.priceNoteHighlight {
+  margin: 0 0 8px;
+  color: #2B3090;
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1.45;
+  text-align: center;
+}
+
 .priceNote:last-of-type {
   margin-bottom: 8px;
 }

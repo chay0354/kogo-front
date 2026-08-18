@@ -3,19 +3,26 @@
 import { useState } from 'react';
 import { ChevronDown } from 'lucide-react';
 import { getDayName, formatTimeRange } from '@/lib/courseUtils';
-import type { Course, CourseLesson, CourseBundle } from '../types';
+import type { Course, CourseLesson, CourseBundle, CourseLessonPriceOption } from '../types';
 import { isLessonVisibleInCatalog } from '../lessonVisibility';
 import styles from './CourseList.module.css';
 
 interface CourseListProps {
   filteredCourses: Course[];
-  onSelect: (course: Course, bundle?: CourseBundle, lesson?: CourseLesson) => void;
+  onSelect: (
+    course: Course,
+    bundle?: CourseBundle,
+    lesson?: CourseLesson,
+    priceOption?: CourseLessonPriceOption,
+  ) => void;
 }
 
 interface CourseRow {
   course: Course;
   lesson: CourseLesson | null;
   bundle: CourseBundle | null;
+  priceOption: CourseLessonPriceOption | null;
+  displayTitle: string;
 }
 
 function rowSortKey(row: CourseRow): { day: number; time: string; type: string; name: string } {
@@ -24,7 +31,7 @@ function rowSortKey(row: CourseRow): { day: number; time: string; type: string; 
     day: lesson?.day_of_week ?? 99,
     time: lesson?.start_time ?? '',
     type: row.course.course_type_name || '',
-    name: row.course.name,
+    name: row.displayTitle,
   };
 }
 
@@ -37,14 +44,41 @@ function buildRows(courses: Course[]): CourseRow[] {
     if (course.lessons && course.lessons.length > 0) {
       for (const lesson of course.lessons) {
         if (!isLessonVisibleInCatalog(lesson)) continue;
-        rows.push({ course, lesson, bundle: null });
+        rows.push({
+          course,
+          lesson,
+          bundle: null,
+          priceOption: null,
+          displayTitle: course.name,
+        });
+        for (const priceOption of lesson.price_options ?? []) {
+          rows.push({
+            course,
+            lesson,
+            bundle: null,
+            priceOption,
+            displayTitle: priceOption.display_title,
+          });
+        }
       }
     } else if (bundles.length === 0) {
-      rows.push({ course, lesson: null, bundle: null });
+      rows.push({
+        course,
+        lesson: null,
+        bundle: null,
+        priceOption: null,
+        displayTitle: course.name,
+      });
     }
 
     for (const bundle of bundles) {
-      rows.push({ course, lesson: null, bundle });
+      rows.push({
+        course,
+        lesson: null,
+        bundle,
+        priceOption: null,
+        displayTitle: bundle.name || course.name,
+      });
     }
   }
 
@@ -98,26 +132,26 @@ function CourseRowItem({
   index: number;
   onSelect: CourseListProps['onSelect'];
 }) {
-  const { course, lesson, bundle } = row;
+  const { course, lesson, bundle, priceOption, displayTitle } = row;
   const schedule = scheduleLines(lesson, bundle);
 
   return (
     <div
-      key={`${course.id}-${bundle?.id ?? lesson?.id ?? index}`}
+      key={`${course.id}-${bundle?.id ?? lesson?.id ?? index}-${priceOption?.id ?? 'default'}`}
       role="listitem"
       className={styles.row}
-      onClick={() => onSelect(course, bundle ?? undefined, lesson ?? undefined)}
+      onClick={() => onSelect(course, bundle ?? undefined, lesson ?? undefined, priceOption ?? undefined)}
       onKeyDown={(e) => {
         if (e.key === 'Enter' || e.key === ' ') {
           e.preventDefault();
-          onSelect(course, bundle ?? undefined, lesson ?? undefined);
+          onSelect(course, bundle ?? undefined, lesson ?? undefined, priceOption ?? undefined);
         }
       }}
       tabIndex={0}
     >
       <div className={styles.nameZone}>
         <span className={styles.bullet} aria-hidden="true" />
-        <span className={styles.courseName}>{course.name}</span>
+        <span className={styles.courseName}>{displayTitle}</span>
       </div>
       <div className={styles.divider} />
       <div className={styles.slotZone}>
@@ -135,10 +169,10 @@ function CourseRowItem({
         <button
           type="button"
           className={styles.expandBtn}
-          aria-label={`פרטי קורס — ${course.name}`}
+          aria-label={`פרטי קורס — ${displayTitle}`}
           onClick={(e) => {
             e.stopPropagation();
-            onSelect(course, bundle ?? undefined, lesson ?? undefined);
+            onSelect(course, bundle ?? undefined, lesson ?? undefined, priceOption ?? undefined);
           }}
           tabIndex={-1}
         >
@@ -170,7 +204,7 @@ function TrackSection({
       <div role="list" className={styles.sectionList}>
         {rows.map((row, index) => (
           <CourseRowItem
-            key={`${row.course.id}-${row.bundle?.id ?? row.lesson?.id ?? index}`}
+            key={`${row.course.id}-${row.bundle?.id ?? row.lesson?.id ?? index}-${row.priceOption?.id ?? 'default'}`}
             row={row}
             index={index}
             onSelect={onSelect}
@@ -204,21 +238,18 @@ export function CourseList({ filteredCourses, onSelect }: CourseListProps) {
         rows={twiceAWeek}
         onSelect={onSelect}
       />
-
       {onceAWeek.length > 0 ? (
-        <section className={styles.section} aria-label="מעדיפים להגיע פעם בשבוע?">
-          {(threeAWeek.length > 0 || twiceAWeek.length > 0) ? (
-            <div className={styles.sectionDivider} aria-hidden="true" />
-          ) : null}
+        <section className={styles.section} aria-label="מסלולים לפעם בשבוע">
           <div className={styles.trackHeader}>
-            <h3 className={styles.trackTitle}>מעדיפים להגיע פעם בשבוע?</h3>
+            <p className={styles.trackSubtitle}>מעדיפים להגיע פעם בשבוע?</p>
+            <div className={styles.sectionDivider} />
             <button
               type="button"
               className={styles.onceCta}
               onClick={() => setOnceAWeekOpen((open) => !open)}
               aria-expanded={onceAWeekOpen}
             >
-              הצגת רשימה מסלולים לפעם בשבוע
+              {onceAWeekOpen ? 'הסתרת רשימה' : 'הצגת רשימה מסלולים לפעם בשבוע'}
               <ChevronDown
                 size={16}
                 className={`${styles.onceCtaChevron} ${onceAWeekOpen ? styles.onceCtaChevronOpen : ''}`}
@@ -229,7 +260,7 @@ export function CourseList({ filteredCourses, onSelect }: CourseListProps) {
             <div role="list" className={styles.sectionList}>
               {onceAWeek.map((row, index) => (
                 <CourseRowItem
-                  key={`${row.course.id}-${row.lesson?.id ?? index}`}
+                  key={`${row.course.id}-${row.bundle?.id ?? row.lesson?.id ?? index}-${row.priceOption?.id ?? 'default'}`}
                   row={row}
                   index={index}
                   onSelect={onSelect}

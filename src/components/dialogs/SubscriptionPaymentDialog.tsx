@@ -163,6 +163,7 @@ export default function SubscriptionPaymentDialog({
   const totalFinalAmount = paymentDataList.reduce((sum, p) => sum + Number(p.final_amount || 0), 0);
   const totalRegistrationFee = paymentDataList.reduce((sum, p) => sum + Number(p.registration_fee || 0), 0);
   const totalProratedAmount = paymentDataList.reduce((sum, p) => sum + Number(p.prorated_amount || 0), 0);
+  const totalMonthlyAmount = paymentDataList.reduce((sum, p) => sum + Number(p.monthly_amount || 0), 0);
 
   if (!isOpen) return null;
 
@@ -246,7 +247,9 @@ export default function SubscriptionPaymentDialog({
                       ))}
                     </div>
                   )}
-                  {paymentData.prorate_factor !== undefined && paymentData.prorate_factor < 1 && (
+                  {paymentData.prorate_factor !== undefined
+                    && paymentData.prorate_factor > 0
+                    && paymentData.prorate_factor < 1 && (
                     <div className="border-t border-blue-300 pt-2 flex justify-between">
                       <span className="text-gray-600">
                         חיוב יחסי ({paymentData.prorate_lessons_remaining} שיעורים מתוך {paymentData.total_lessons_this_month})
@@ -271,12 +274,18 @@ export default function SubscriptionPaymentDialog({
                     </div>
                   )}
                   <div className="border-t border-blue-300 pt-2 flex justify-between font-bold text-base">
-                    <span>סה"כ לתשלום:</span>
+                    <span>{paymentData.subscription_start_date ? 'סה"כ לתשלום כעת:' : 'סה"כ לתשלום:'}</span>
                     <span className="text-blue-600">
                       ₪{(paymentDataList.length > 1 ? totalFinalAmount : Number(paymentData.final_amount || 0)).toFixed(2)}
                     </span>
                   </div>
-                  {paymentData.next_billing_date && (
+                  {paymentData.subscription_start_date && (
+                    <p className="text-xs text-gray-600 pt-1">
+                      החודש הנוכחי אינו מחויב. המנוי החודשי בסך ₪{totalMonthlyAmount.toFixed(2)}
+                      {' '}יתחיל ב-{formatHebrewNextBilling(paymentData.subscription_start_date)}.
+                    </p>
+                  )}
+                  {paymentData.next_billing_date && !paymentData.subscription_start_date && (
                     <div className="flex justify-between text-xs text-gray-500 pt-1">
                       <span>חיוב מלא הבא:</span>
                       <span>{formatHebrewNextBilling(paymentData.next_billing_date)}</span>

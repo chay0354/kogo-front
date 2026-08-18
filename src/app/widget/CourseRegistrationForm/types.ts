@@ -19,6 +19,7 @@ export interface Props {
   isAdult?: boolean;
   bundleId?: string;
   lessonId?: string;
+  priceOptionId?: string;
   /** When trial signup has no single lesson (e.g. twice-a-week bundle), pick one of these slots. */
   trialLessonOptions?: TrialLessonOption[];
   isTrial?: boolean;
@@ -64,5 +65,8 @@ export interface PaymentResponse {
   discount_amount: number;
   prorated_amount?: number;
   registration_fee?: number;
+  monthly_amount?: number;
+  /** Set when monthly billing only starts later — nothing but דמי רישום is charged now. */
+  subscription_start_date?: string | null;
   discounts_applied: Array<{ name: string; amount: number }>;
 }

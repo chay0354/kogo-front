@@ -12,6 +12,7 @@ import AddLessonDialog from '@/components/dialogs/AddLessonDialog';
 import EditCourseDialog from '@/components/dialogs/EditCourseDialog';
 import EditLessonDialog from '@/components/dialogs/EditLessonDialog';
 import ManageLessonBundlesDialog from '@/components/dialogs/ManageLessonBundlesDialog';
+import ManageLessonPriceOptionsDialog from '@/components/dialogs/ManageLessonPriceOptionsDialog';
 import styles from './page.module.css';
 import { AGE_FILTER_OPTIONS } from './constants';
 
@@ -37,6 +38,7 @@ export default function CourseTypeDetailsPage() {
   const [deletingCourseId, setDeletingCourseId] = useState<string | null>(null);
   const [deletingLessonId, setDeletingLessonId] = useState<string | null>(null);
   const [bundlesCourse, setBundlesCourse] = useState<CourseWithLessons | null>(null);
+  const [priceOptionsLesson, setPriceOptionsLesson] = useState<{ lesson: Lesson; course: CourseWithLessons } | null>(null);
 
   // Filters
   const [ageFilter, setAgeFilter] = useState<AgeFilter>({ label: 'הכל' });
@@ -465,6 +467,13 @@ export default function CourseTypeDetailsPage() {
                                     <td className={`${styles.td} ${styles.tdCenter}`}>
                                       <div className={styles.lessonActionButtons}>
                                         <button
+                                          onClick={() => setPriceOptionsLesson({ lesson, course })}
+                                          className={`${styles.lessonActionButton} ${styles.editButton}`}
+                                          title="מחירים נוספים"
+                                        >
+                                          ₪
+                                        </button>
+                                        <button
                                           onClick={() => handleEditLesson(lesson, course)}
                                           className={`${styles.lessonActionButton} ${styles.editButton}`}
                                           title="עריכת שיעור"
@@ -572,6 +581,17 @@ export default function CourseTypeDetailsPage() {
           courseName={bundlesCourse.name}
           lessons={bundlesCourse.lessons}
           branchId={typeof bundlesCourse.branch === 'string' ? bundlesCourse.branch : undefined}
+          onSaved={fetchCourseTypeDetails}
+        />
+      )}
+      {priceOptionsLesson && (
+        <ManageLessonPriceOptionsDialog
+          isOpen={!!priceOptionsLesson}
+          onClose={() => setPriceOptionsLesson(null)}
+          lessonId={priceOptionsLesson.lesson.id}
+          lessonLabel={`${getDayName(priceOptionsLesson.lesson.day_of_week)} ${formatTimeRange(priceOptionsLesson.lesson.start_time, priceOptionsLesson.lesson.end_time)}`}
+          courseName={priceOptionsLesson.course.name}
+          defaultPrice={Number(priceOptionsLesson.course.price)}
           onSaved={fetchCourseTypeDetails}
         />
       )}

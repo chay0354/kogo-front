@@ -1,5 +1,5 @@
 import { getDayName, formatTimeRange, formatAge, formatAgeRange } from '@/lib/courseUtils';
-import type { Course, CourseBundle, CourseLesson } from '../types';
+import type { Course, CourseBundle, CourseLesson, CourseLessonPriceOption } from '../types';
 import type { WidgetAlternative } from '../alternativeLessons';
 import { MapPin, Users, CalendarDays, X } from 'lucide-react';
 import styles from './CourseExpandedDetail.module.css';
@@ -83,6 +83,7 @@ interface CourseExpandedDetailProps {
   course: Course;
   lesson?: CourseLesson;
   bundleOffer?: CourseBundle;
+  priceOption?: CourseLessonPriceOption;
   selectionFull?: boolean;
   alternatives?: WidgetAlternative[];
   onSelectAlternative?: (alt: WidgetAlternative) => void;
@@ -96,6 +97,7 @@ export default function CourseExpandedDetail({
   course,
   lesson,
   bundleOffer,
+  priceOption,
   selectionFull = false,
   alternatives = [],
   onSelectAlternative,
@@ -113,7 +115,11 @@ export default function CourseExpandedDetail({
       ? 1
       : course.lessons_count || course.lessons?.length || 0;
   const timesPerWeekLabel = formatTimesPerWeek(timesPerWeek);
-  const displayPrice = bundleOffer?.combined_price ?? lesson?.price ?? course.price;
+  const displayPrice = bundleOffer?.combined_price
+    ?? (priceOption ? Number(priceOption.monthly_price) : null)
+    ?? (lesson?.price != null ? Number(lesson.price) : null)
+    ?? course.price;
+  const displayTitle = priceOption?.display_title ?? course.name;
 
   return (
     <div className={styles.card} dir="rtl">
@@ -123,7 +129,7 @@ export default function CourseExpandedDetail({
 
       <div className={styles.scrollArea}>
         <div className={styles.header}>
-          <h2 className={styles.title}>{course.name}</h2>
+          <h2 className={styles.title}>{displayTitle}</h2>
           {timesPerWeek > 0 ? (
             <div className={styles.badgeRow}>
               <span className={styles.badgeLine} />
@@ -193,7 +199,7 @@ export default function CourseExpandedDetail({
           <p className={styles.priceTrack}>מסלול שנתי • תשלום חודשי</p>
         </div>
         <p className={styles.priceNote}>מנוי שנתי עד חודש יולי. ניתן לבטל מנוי עד חודש אפריל</p>
-        <p className={styles.priceNote}>ברכישת מנוי חיוב ע&quot;ס 120 שקל עבור דמי רישום</p>
+        <p className={styles.priceNoteHighlight}>דמי רישום יגבו עכשיו והוראת קבע תתחיל ב-1.9</p>
 
         {selectionFull ? (
           <div className={styles.fullSection}>

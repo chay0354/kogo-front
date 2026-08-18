@@ -7,7 +7,7 @@ import api from '@/lib/api';
 import CourseRegistrationForm from './CourseRegistrationForm';
 import CourseExpandedDetail from './CourseExpandedDetail/index';
 import { CourseList } from './CourseList/CourseList';
-import type { Branch, Course, CourseBundle, CourseLesson } from './types';
+import type { Branch, Course, CourseBundle, CourseLesson, CourseLessonPriceOption } from './types';
 import { STATIC_CITIES, normalizeExternalLink } from './page.utils';
 import { isCourseVisibleInWidgetCatalog } from './lessonVisibility';
 import { AGE_OPTIONS, formatAge } from '@/lib/courseUtils';
@@ -337,20 +337,29 @@ export default function WidgetPage() {
   const [detailCourse, setDetailCourse] = useState<Course | null>(null);
   const [detailBundle, setDetailBundle] = useState<CourseBundle | null>(null);
   const [detailLesson, setDetailLesson] = useState<CourseLesson | null>(null);
+  const [detailPriceOption, setDetailPriceOption] = useState<CourseLessonPriceOption | null>(null);
   const [drawerCourse, setDrawerCourse] = useState<Course | null>(null);
   const [drawerBundle, setDrawerBundle] = useState<CourseBundle | null>(null);
   const [drawerLesson, setDrawerLesson] = useState<CourseLesson | null>(null);
+  const [drawerPriceOption, setDrawerPriceOption] = useState<CourseLessonPriceOption | null>(null);
   const [drawerIsTrial, setDrawerIsTrial] = useState(false);
   const pageRef = useRef<HTMLDivElement>(null);
 
-  const toggleDetail = (course: Course, bundle?: CourseBundle, lesson?: CourseLesson) => {
+  const toggleDetail = (
+    course: Course,
+    bundle?: CourseBundle,
+    lesson?: CourseLesson,
+    priceOption?: CourseLessonPriceOption,
+  ) => {
     const isSame =
       detailCourse?.id === course.id &&
       detailBundle?.id === bundle?.id &&
-      detailLesson?.id === lesson?.id;
+      detailLesson?.id === lesson?.id &&
+      detailPriceOption?.id === priceOption?.id;
     setDetailCourse(isSame ? null : course);
     setDetailBundle(isSame ? null : (bundle ?? null));
     setDetailLesson(isSame ? null : (lesson ?? null));
+    setDetailPriceOption(isSame ? null : (priceOption ?? null));
   };
 
   const detailBundleForLesson = detailCourse && detailLesson
@@ -513,15 +522,18 @@ export default function WidgetPage() {
       setDetailCourse(null);
       setDetailBundle(null);
       setDetailLesson(null);
+      setDetailPriceOption(null);
       return;
     }
     setDrawerCourse(detailCourse);
     setDrawerBundle(bundleOverride ?? detailBundle ?? null);
     setDrawerLesson(detailLesson);
+    setDrawerPriceOption(detailPriceOption);
     setDrawerIsTrial(isTrial);
     setDetailCourse(null);
     setDetailBundle(null);
     setDetailLesson(null);
+    setDetailPriceOption(null);
   };
 
   const handleTrialEnrollClick = () => handleEnrollClick(true);
@@ -547,6 +559,7 @@ export default function WidgetPage() {
     setDetailCourse(alt.course);
     setDetailLesson(alt.lesson ?? null);
     setDetailBundle(alt.bundle ?? null);
+    setDetailPriceOption(null);
   };
 
   const handleCityChange = useCallback((cityId: string) => {
@@ -614,16 +627,17 @@ export default function WidgetPage() {
       {/* Course detail overlay — portaled so mobile fixed layout stays viewport-aligned */}
       {detailCourse && (
         <WidgetPortal>
-          <div className={styles.detailOverlay} onClick={() => { setDetailCourse(null); setDetailBundle(null); setDetailLesson(null); }} />
+          <div className={styles.detailOverlay} onClick={() => { setDetailCourse(null); setDetailBundle(null); setDetailLesson(null); setDetailPriceOption(null); }} />
           <div className={styles.detailPanel}>
             <CourseExpandedDetail
               course={detailCourse}
               lesson={detailLesson ?? undefined}
               bundleOffer={detailBundle ?? undefined}
+              priceOption={detailPriceOption ?? undefined}
               selectionFull={detailSelectionFull}
               alternatives={detailAlternatives}
               onSelectAlternative={handleSelectAlternative}
-              onClose={() => { setDetailCourse(null); setDetailBundle(null); setDetailLesson(null); }}
+              onClose={() => { setDetailCourse(null); setDetailBundle(null); setDetailLesson(null); setDetailPriceOption(null); }}
               onEnroll={() => handleEnrollClick(false)}
               onBundleEnroll={detailBundleForLesson ? handleBundleEnrollClick : undefined}
               onTrialEnroll={handleTrialEnrollClick}
@@ -654,10 +668,17 @@ export default function WidgetPage() {
             ) : (
               <CourseRegistrationForm
                 courseId={drawerCourse.id}
-                courseName={drawerBundle ? `${drawerCourse.name} (${drawerBundle.name || 'פעמיים בשבוע'})` : drawerCourse.name}
+                courseName={
+                  drawerPriceOption
+                    ? drawerPriceOption.display_title
+                    : drawerBundle
+                      ? `${drawerCourse.name} (${drawerBundle.name || 'פעמיים בשבוע'})`
+                      : drawerCourse.name
+                }
                 isAdult={drawerCourse.is_adult ?? false}
                 bundleId={drawerBundle?.id}
                 lessonId={drawerLesson?.id}
+                priceOptionId={drawerPriceOption?.id}
                 trialLessonOptions={drawerLesson ? [] : (drawerBundle?.lessons ?? [])}
                 isTrial={drawerIsTrial}
                 trialLessonIsPaid={drawerCourse.trial_lesson_is_paid ?? false}
@@ -666,8 +687,8 @@ export default function WidgetPage() {
                     ? Number(drawerCourse.trial_lesson_price)
                     : null
                 }
-                onBack={() => { setDrawerCourse(null); setDrawerBundle(null); setDrawerLesson(null); setDrawerIsTrial(false); }}
-                onComplete={() => { setDrawerCourse(null); setDrawerBundle(null); setDrawerLesson(null); setDrawerIsTrial(false); }}
+                onBack={() => { setDrawerCourse(null); setDrawerBundle(null); setDrawerLesson(null); setDrawerPriceOption(null); setDrawerIsTrial(false); }}
+                onComplete={() => { setDrawerCourse(null); setDrawerBundle(null); setDrawerLesson(null); setDrawerPriceOption(null); setDrawerIsTrial(false); }}
               />
             )}
           </div>
