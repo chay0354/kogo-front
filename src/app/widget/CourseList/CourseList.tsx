@@ -213,6 +213,10 @@ function CourseRowItem({
   );
 }
 
+function rowKey(row: CourseRow, index: number): string {
+  return `${row.course.id}-${row.bundle?.id ?? row.lesson?.id ?? index}-${row.priceOption?.id ?? 'default'}`;
+}
+
 function TrackSection({
   title,
   subtitle,
@@ -224,7 +228,6 @@ function TrackSection({
   rows: CourseRow[];
   onSelect: CourseListProps['onSelect'];
 }) {
-  if (rows.length === 0) return null;
   return (
     <section className={styles.section} aria-label={title}>
       <div className={styles.trackHeader}>
@@ -234,7 +237,7 @@ function TrackSection({
       <div role="list" className={styles.sectionList}>
         {rows.map((row, index) => (
           <CourseRowItem
-            key={`${row.course.id}-${row.bundle?.id ?? row.lesson?.id ?? index}-${row.priceOption?.id ?? 'default'}`}
+            key={rowKey(row, index)}
             row={row}
             index={index}
             onSelect={onSelect}
@@ -245,47 +248,39 @@ function TrackSection({
   );
 }
 
-function CollapsibleTrackSection({
-  ariaLabel,
-  subtitle,
-  expandLabel,
+function AccordionTrack({
+  title,
   rows,
   onSelect,
-  defaultOpen,
 }: {
-  ariaLabel: string;
-  subtitle: string;
-  expandLabel: string;
+  title: string;
   rows: CourseRow[];
   onSelect: CourseListProps['onSelect'];
-  defaultOpen: boolean;
 }) {
-  const [open, setOpen] = useState(defaultOpen);
-  if (rows.length === 0) return null;
+  const [open, setOpen] = useState(false);
 
   return (
-    <section className={styles.section} aria-label={ariaLabel}>
-      <div className={styles.trackHeader}>
-        <p className={styles.trackSubtitle}>{subtitle}</p>
-        <div className={styles.sectionDivider} />
-        <button
-          type="button"
-          className={styles.onceCta}
-          onClick={() => setOpen((isOpen) => !isOpen)}
-          aria-expanded={open}
-        >
-          {open ? 'הסתרת רשימה' : expandLabel}
+    <section className={styles.accordionSection} aria-label={title}>
+      <button
+        type="button"
+        className={styles.accordionCard}
+        onClick={() => setOpen((isOpen) => !isOpen)}
+        aria-expanded={open}
+      >
+        <span className={styles.accordionTitle}>{title}</span>
+        <span className={styles.expandBtn} aria-hidden="true">
           <ChevronDown
             size={16}
-            className={`${styles.onceCtaChevron} ${open ? styles.onceCtaChevronOpen : ''}`}
+            color="#2B3090"
+            className={`${styles.accordionChevron} ${open ? styles.accordionChevronOpen : ''}`}
           />
-        </button>
-      </div>
+        </span>
+      </button>
       {open ? (
         <div role="list" className={styles.sectionList}>
           {rows.map((row, index) => (
             <CourseRowItem
-              key={`${row.course.id}-${row.bundle?.id ?? row.lesson?.id ?? index}-${row.priceOption?.id ?? 'default'}`}
+              key={rowKey(row, index)}
               row={row}
               index={index}
               onSelect={onSelect}
@@ -299,45 +294,51 @@ function CollapsibleTrackSection({
 
 const CHOOSE_DAYS_COPY = 'בחרו את הימים והשעות שמתאימים לכם';
 
+const FREQUENCY_GROUPS = [
+  { minTimes: 3, title: 'מסלולים לשלוש פעמים בשבוע' },
+  { minTimes: 2, maxTimes: 2, title: 'מסלולים לפעמיים בשבוע' },
+  { minTimes: 0, maxTimes: 1, title: 'מסלולים לפעם בשבוע' },
+] as const;
+
 export function CourseList({ filteredCourses, onSelect }: CourseListProps) {
   const rows = buildRows(filteredCourses);
-  const threeAWeek = rows.filter((row) => timesPerWeek(row) >= 3);
-  const twiceAWeek = rows.filter((row) => timesPerWeek(row) === 2);
-  const onceAWeek = rows.filter((row) => timesPerWeek(row) <= 1);
+  const groups = FREQUENCY_GROUPS
+    .map((group) => ({
+      title: group.title,
+      rows: rows.filter((row) => {
+        const times = timesPerWeek(row);
+        const maxTimes = 'maxTimes' in group ? group.maxTimes : Infinity;
+        return times >= group.minTimes && times <= maxTimes;
+      }),
+    }))
+    .filter((group) => group.rows.length > 0);
+
+  const primary = groups[0];
+  const extras = groups.slice(1);
+
+  if (!primary) return <div className={styles.list} />;
 
   return (
     <div className={styles.list}>
       <TrackSection
-        title="מסלולים לשלוש פעמים בשבוע"
+        title={primary.title}
         subtitle={CHOOSE_DAYS_COPY}
-        rows={threeAWeek}
+        rows={primary.rows}
         onSelect={onSelect}
       />
-      {threeAWeek.length > 0 ? (
-        <CollapsibleTrackSection
-          ariaLabel="מסלולים לפעמיים בשבוע"
-          subtitle="מעדיפים להגיע פעמיים בשבוע?"
-          expandLabel="הצגת רשימה מסלולים לפעמיים בשבוע"
-          rows={twiceAWeek}
-          onSelect={onSelect}
-          defaultOpen={false}
-        />
-      ) : (
-        <TrackSection
-          title="מסלולים לפעמיים בשבוע"
-          subtitle={CHOOSE_DAYS_COPY}
-          rows={twiceAWeek}
-          onSelect={onSelect}
-        />
-      )}
-      <CollapsibleTrackSection
-        ariaLabel="מסלולים לפעם בשבוע"
-        subtitle="מעדיפים להגיע פעם בשבוע?"
-        expandLabel="הצגת רשימה מסלולים לפעם בשבוע"
-        rows={onceAWeek}
-        onSelect={onSelect}
-        defaultOpen={threeAWeek.length === 0 && twiceAWeek.length === 0}
-      />
+      {extras.length > 0 ? (
+        <div className={styles.extras}>
+          <p className={styles.extrasLabel}>אפשרויות נוספות</p>
+          {extras.map((group) => (
+            <AccordionTrack
+              key={group.title}
+              title={group.title}
+              rows={group.rows}
+              onSelect={onSelect}
+            />
+          ))}
+        </div>
+      ) : null}
     </div>
   );
 }
