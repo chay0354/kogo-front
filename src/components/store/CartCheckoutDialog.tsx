@@ -24,6 +24,14 @@ interface CartCheckoutDialogProps {
   onSuccess: () => void;
 }
 
+function lineDelivery(line: StoreCartLine): number {
+  return (Number(line.delivery_price) || 0) * line.quantity;
+}
+
+function lineTotal(line: StoreCartLine): number {
+  return line.sale_price * line.quantity + lineDelivery(line);
+}
+
 function toCartItems(lines: StoreCartLine[]): CartItem[] {
   return lines.map((line) => {
     const item: CartItem = { product_id: line.product_id, quantity: line.quantity };
@@ -64,7 +72,9 @@ export default function CartCheckoutDialog({
   const [cvv, setCvv] = useState('');
   const [cardHolderId, setCardHolderId] = useState('');
 
-  const total = lines.reduce((sum, line) => sum + line.sale_price * line.quantity, 0);
+  const productsTotal = lines.reduce((sum, line) => sum + line.sale_price * line.quantity, 0);
+  const deliveryTotal = lines.reduce((sum, line) => sum + lineDelivery(line), 0);
+  const total = productsTotal + deliveryTotal;
 
   useEffect(() => {
     if (isOpen && customerType === 'existing') {
@@ -281,6 +291,7 @@ export default function CartCheckoutDialog({
                         .filter(Boolean)
                         .join(' · ') || '—'}
                       {' · '}₪{line.sale_price} ליחידה
+                      {lineDelivery(line) > 0 ? ` · +₪${(Number(line.delivery_price) || 0).toFixed(2)} משלוח` : ''}
                     </div>
                   </div>
 
@@ -309,7 +320,7 @@ export default function CartCheckoutDialog({
                   </div>
 
                   <div className="w-20 text-left font-semibold text-sm shrink-0 tabular-nums">
-                    ₪{(line.sale_price * line.quantity).toFixed(2)}
+                    ₪{lineTotal(line).toFixed(2)}
                   </div>
 
                   <Button
@@ -488,7 +499,19 @@ export default function CartCheckoutDialog({
           )}
 
           {/* Total */}
-          <div className="bg-teal-50 p-4 rounded-lg">
+          <div className="bg-teal-50 p-4 rounded-lg space-y-1">
+            {deliveryTotal > 0 ? (
+              <>
+                <div className="flex justify-between text-sm text-gray-600">
+                  <span>מוצרים</span>
+                  <span>₪{productsTotal.toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between text-sm text-gray-600">
+                  <span>משלוח</span>
+                  <span>₪{deliveryTotal.toFixed(2)}</span>
+                </div>
+              </>
+            ) : null}
             <div className="flex justify-between items-center text-lg font-semibold">
               <span>
                 סכום כולל ({lines.reduce((n, l) => n + l.quantity, 0)} פריטים):

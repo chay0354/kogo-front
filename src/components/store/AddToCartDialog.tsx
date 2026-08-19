@@ -105,11 +105,13 @@ export default function AddToCartDialog({ isOpen, onClose, product, onAdd }: Add
   }, [filterBranch]); // eslint-disable-line react-hooks/exhaustive-deps
 
   function handleAdd() {
+    const isDelivery = selectedLine ? !selectedLine.branch : !product.branch;
     const line: StoreCartLine = {
       key: `${product.id}::${selectedLine?.key ?? 'default'}`,
       product_id: product.id,
       product_name: product.name,
       sale_price: product.sale_price,
+      delivery_price: isDelivery ? Number(product.delivery_price) || 0 : 0,
       quantity,
       max_stock: maxStock,
     };
@@ -133,6 +135,11 @@ export default function AddToCartDialog({ isOpen, onClose, product, onAdd }: Add
         <div className="bg-gray-50 p-3 rounded-lg">
           <div className="font-semibold">{product.name}</div>
           <div className="text-sm text-gray-600">₪{product.sale_price} ליחידה</div>
+          {Number(product.delivery_price) > 0 ? (
+            <div className="text-xs text-gray-500 mt-1">
+              + ₪{Number(product.delivery_price).toFixed(2)} משלוח ליחידה (רק במשלוח)
+            </div>
+          ) : null}
         </div>
 
         {lineOptions.length > 0 && (
@@ -189,7 +196,12 @@ export default function AddToCartDialog({ isOpen, onClose, product, onAdd }: Add
 
         <div className="flex items-center justify-between bg-teal-50 px-4 py-3 rounded-lg">
           <span className="text-sm font-medium">סה"כ לשורה:</span>
-          <span className="font-bold text-teal-700">₪{(product.sale_price * quantity).toFixed(2)}</span>
+          <span className="font-bold text-teal-700">
+            ₪{(
+              product.sale_price * quantity +
+              ((selectedLine ? !selectedLine.branch : !product.branch) ? (Number(product.delivery_price) || 0) * quantity : 0)
+            ).toFixed(2)}
+          </span>
         </div>
 
         <div className="flex gap-2 justify-end pt-2">

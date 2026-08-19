@@ -83,6 +83,7 @@ export default function EditProductDialog({ isOpen, onClose, product, onSuccess 
         size: product.size || '',
         cost_price: product.cost_price,
         sale_price: product.sale_price,
+        delivery_price: product.delivery_price ?? 0,
         branch: coerceBranchFromApi(product.branch),
         stock_quantity: product.stock_quantity,
         min_stock_alert: product.min_stock_alert,
@@ -207,6 +208,7 @@ export default function EditProductDialog({ isOpen, onClose, product, onSuccess 
       size: cleanedSizeRows.length ? [...new Set(cleanedSizeRows.map((r) => r.size))].join(',') : (formData.size ?? ''),
       cost_price: Number(formData.cost_price) || 0,
       sale_price: Number(formData.sale_price) || 0,
+      delivery_price: Math.max(0, Number(formData.delivery_price) || 0),
       branch: topBranchId,
       stock_quantity: cleanedSizeRows.length ? totalSizeStock : Math.max(0, Math.floor(Number(formData.stock_quantity) || 0)),
       min_stock_alert: Math.max(0, Math.floor(Number(formData.min_stock_alert) || 0)),
@@ -294,6 +296,17 @@ export default function EditProductDialog({ isOpen, onClose, product, onSuccess 
                 value={formData.sale_price || 0}
                 onChange={(e) => setFormData({ ...formData, sale_price: parseFloat(e.target.value) || 0 })}
               />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-2">מחיר משלוח</label>
+              <Input
+                type="number"
+                step="0.01"
+                min="0"
+                value={formData.delivery_price || 0}
+                onChange={(e) => setFormData({ ...formData, delivery_price: parseFloat(e.target.value) || 0 })}
+              />
+              <p className="text-xs text-gray-500 mt-1">ליחידה, במשלוח / רכישה באתר. 0 = ללא דמי משלוח.</p>
             </div>
           </div>
 

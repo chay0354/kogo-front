@@ -20,6 +20,8 @@ export interface StoreProduct {
   size: string | null;
   cost_price: number;
   sale_price: number;
+  /** Per-unit shipping fee for delivery/online sales (0 = none) */
+  delivery_price?: number;
   branch: string | null;
   branch_name: string | null;
   stock_quantity: number;
@@ -94,6 +96,8 @@ export interface StoreCartLine {
   product_id: string;
   product_name: string;
   sale_price: number;
+  /** Charged per unit when this line is a delivery (משלוח) sale */
+  delivery_price?: number;
   quantity: number;
   size?: string;
   branch?: string | null;
@@ -136,6 +140,7 @@ export interface ProductFormData {
   size: string;
   cost_price: number;
   sale_price: number;
+  delivery_price?: number;
   branch: string | null;
   stock_quantity: number;
   min_stock_alert: number;

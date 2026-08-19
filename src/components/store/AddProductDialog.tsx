@@ -29,6 +29,7 @@ const EMPTY_FORM: ProductFormData = {
   size: '',
   cost_price: 0,
   sale_price: 0,
+  delivery_price: 0,
   branch: null,
   stock_quantity: 0,
   min_stock_alert: 3,
@@ -158,6 +159,7 @@ export default function AddProductDialog({ isOpen, onClose, onSuccess }: AddProd
       size: cleanedSizeRows.length ? [...new Set(cleanedSizeRows.map((r) => r.size))].join(',') : formData.size,
       cost_price: Number(formData.cost_price) || 0,
       sale_price: Number(formData.sale_price) || 0,
+      delivery_price: Math.max(0, Number(formData.delivery_price) || 0),
       branch: topBranchId,
       stock_quantity: cleanedSizeRows.length ? totalSizeStock : Math.max(0, Math.floor(Number(formData.stock_quantity) || 0)),
       min_stock_alert: Math.max(0, Math.floor(Number(formData.min_stock_alert) || 0)),
@@ -358,6 +360,17 @@ export default function AddProductDialog({ isOpen, onClose, onSuccess }: AddProd
                 onChange={(e) => setFormData({ ...formData, sale_price: parseFloat(e.target.value) || 0 })}
               />
               {errors.sale_price && <p className="text-red-500 text-sm mt-1">{errors.sale_price}</p>}
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-2">מחיר משלוח</label>
+              <Input
+                type="number"
+                step="0.01"
+                min="0"
+                value={formData.delivery_price || 0}
+                onChange={(e) => setFormData({ ...formData, delivery_price: parseFloat(e.target.value) || 0 })}
+              />
+              <p className="text-xs text-gray-500 mt-1">ליחידה, במשלוח / רכישה באתר. 0 = ללא דמי משלוח.</p>
             </div>
           </div>
 

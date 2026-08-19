@@ -71,7 +71,10 @@ export default function StorePage() {
   const [deletingProductId, setDeletingProductId] = useState<string | null>(null);
 
   const cartCount = cart.reduce((n, l) => n + l.quantity, 0);
-  const cartTotal = cart.reduce((sum, l) => sum + l.sale_price * l.quantity, 0);
+  const cartTotal = cart.reduce(
+    (sum, l) => sum + l.sale_price * l.quantity + (Number(l.delivery_price) || 0) * l.quantity,
+    0,
+  );
 
   function addToCart(line: StoreCartLine) {
     setCart((prev) => {
