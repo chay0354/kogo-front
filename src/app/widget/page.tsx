@@ -8,6 +8,7 @@ import CourseRegistrationForm from './CourseRegistrationForm';
 import CourseExpandedDetail from './CourseExpandedDetail/index';
 import { CourseList } from './CourseList/CourseList';
 import type { Branch, Course, CourseBundle, CourseLesson, CourseLessonPriceOption } from './types';
+import type { SavedParentDetails } from './CourseRegistrationForm/types';
 import { STATIC_CITIES, normalizeExternalLink } from './page.utils';
 import { isCourseVisibleInWidgetCatalog } from './lessonVisibility';
 import { AGE_OPTIONS, formatAge } from '@/lib/courseUtils';
@@ -343,6 +344,8 @@ export default function WidgetPage() {
   const [drawerLesson, setDrawerLesson] = useState<CourseLesson | null>(null);
   const [drawerPriceOption, setDrawerPriceOption] = useState<CourseLessonPriceOption | null>(null);
   const [drawerIsTrial, setDrawerIsTrial] = useState(false);
+  const [savedParent, setSavedParent] = useState<SavedParentDetails | null>(null);
+  const [addingAnotherChild, setAddingAnotherChild] = useState(false);
   const pageRef = useRef<HTMLDivElement>(null);
 
   const toggleDetail = (
@@ -401,6 +404,16 @@ export default function WidgetPage() {
     }
     return isCourseVisibleInWidgetCatalog(course);
   }), [branchCourses, selectedCourseType, selectedAge]);
+
+  const catalogDefaultFilters = useMemo(
+    () => ({
+      city: selectedCity,
+      branch: selectedBranch,
+      courseType: selectedCourseType,
+      age: selectedAge,
+    }),
+    [selectedCity, selectedBranch, selectedCourseType, selectedAge],
+  );
 
   const cityOptions = useMemo(
     () => cities.map((c) => ({ value: c.id, label: c.name })),
@@ -569,6 +582,26 @@ export default function WidgetPage() {
     setDetailPriceOption(null);
   };
 
+  const closeDrawer = () => {
+    setDrawerCourse(null);
+    setDrawerBundle(null);
+    setDrawerLesson(null);
+    setDrawerPriceOption(null);
+    setDrawerIsTrial(false);
+  };
+
+  const finishFamilyRegistration = () => {
+    closeDrawer();
+    setAddingAnotherChild(false);
+    setSavedParent(null);
+  };
+
+  const handleRegisterAnother = (parent: SavedParentDetails) => {
+    setSavedParent(parent);
+    setAddingAnotherChild(true);
+    closeDrawer();
+  };
+
   const handleCityChange = useCallback((cityId: string) => {
     setSelectedCity(cityId);
     setSelectedBranch('');
@@ -622,6 +655,24 @@ export default function WidgetPage() {
         <FilterSelect value={selectedAge} onChange={setSelectedAge} disabled={!selectedCourseType} placeholder="בחרו גיל" options={ageOptions} selectedLabel={selectedAge ? formatAge(parseInt(selectedAge)) : undefined} active={activeField === 'age'} />
       </div>
 
+      {addingAnotherChild ? (
+        <div className={styles.siblingBanner} role="status">
+          <p className={styles.siblingBannerText}>
+            בחרו חוג לילד הנוסף. פרטי ההורה יישמרו אוטומטית.
+          </p>
+          <button
+            type="button"
+            className={styles.siblingBannerCancel}
+            onClick={() => {
+              setAddingAnotherChild(false);
+              setSavedParent(null);
+            }}
+          >
+            ביטול
+          </button>
+        </div>
+      ) : null}
+
       {/* Course list */}
       {showNoMatchingCoursesMessage ? (
         <NoMatchingCoursesMessage />
@@ -660,7 +711,7 @@ export default function WidgetPage() {
       {/* Enrollment side drawer */}
       {drawerCourse && (
         <WidgetPortal>
-          <div className={styles.drawerOverlay} onClick={() => { setDrawerCourse(null); setDrawerIsTrial(false); }} />
+          <div className={styles.drawerOverlay} onClick={closeDrawer} />
           <div className={styles.drawerPanel}>
             {allBranches.find((b) => b.id === selectedBranch)?.is_external ? (
               <div className={styles.externalBranchMessage}>
@@ -698,8 +749,11 @@ export default function WidgetPage() {
                     ? Number(drawerCourse.trial_lesson_price)
                     : null
                 }
-                onBack={() => { setDrawerCourse(null); setDrawerBundle(null); setDrawerLesson(null); setDrawerPriceOption(null); setDrawerIsTrial(false); }}
-                onComplete={() => { setDrawerCourse(null); setDrawerBundle(null); setDrawerLesson(null); setDrawerPriceOption(null); setDrawerIsTrial(false); }}
+                catalogDefaultFilters={catalogDefaultFilters}
+                initialParent={addingAnotherChild ? savedParent : null}
+                onBack={closeDrawer}
+                onComplete={finishFamilyRegistration}
+                onRegisterAnother={handleRegisterAnother}
               />
             )}
           </div>

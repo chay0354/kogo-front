@@ -9,6 +9,31 @@
   box-sizing: border-box;
 }
 
+.listCompact {
+  gap: 12px;
+}
+
+.listCompact .trackTitle {
+  font-size: 0.9rem;
+}
+
+.listCompact .trackSubtitle,
+.listCompact .extrasLabel {
+  font-size: 0.75rem;
+}
+
+.listCompact .row {
+  height: 56px;
+}
+
+.listCompact .courseName {
+  font-size: 0.8125rem;
+}
+
+.listCompact .accordionCard {
+  height: 56px;
+}
+
 .section {
   display: flex;
   flex-direction: column;

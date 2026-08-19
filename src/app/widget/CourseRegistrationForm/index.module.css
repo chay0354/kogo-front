@@ -346,6 +346,55 @@
 .resultActions {
   @apply flex gap-3 justify-center;
 }
+.successActions {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 10px;
+  width: min(100%, 280px);
+  margin: 0 auto;
+}
+.siblingNotice {
+  margin: 0 0 4px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: #eef2ff;
+  color: #2B3090;
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  text-align: right;
+}
+
+.addChildButton {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 44px;
+  padding: 0 16px;
+  border-radius: 10px;
+  border: 1px dashed rgba(43, 48, 144, 0.35);
+  background: #fff;
+  color: #2B3090;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.addChildButton:hover {
+  background: #f4f6ff;
+}
+
+.discountContext {
+  margin: 0 0 8px;
+  font-size: 13px;
+  color: #4b5563;
+  text-align: right;
+}
+
+.discountProgress {
+  color: #6b7280;
+}
 
 /* Terms link & modal */
 .termsLink {

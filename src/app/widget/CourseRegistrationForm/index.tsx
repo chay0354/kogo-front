@@ -5,6 +5,12 @@ import api from '@/lib/api';
 import SignatureCanvas from '../SignatureCanvas';
 import styles from './index.module.css';
 import { israeliIdFieldError, sanitizeIsraeliIdInput } from '@/lib/israeliId';
+import { enrollmentSelectionKey } from '../catalogRows';
+import AdditionalChildSection, {
+  createEmptyAdditionalChild,
+  type AdditionalChildEnrollment,
+  type AdditionalChildFieldKey,
+} from './AdditionalChildSection';
 import type { Props, Step, LookupResult, PaymentResponse, TrialOccurrence } from './types';
 
 export type { CourseLesson } from './types';
@@ -12,6 +18,12 @@ export type { CourseLesson } from './types';
 const MIN_NAME_LENGTH = 2;
 const REQUIRED = 'שדה חובה';
 const NAME_TOO_SHORT = `יש להזין לפחות ${MIN_NAME_LENGTH} תווים`;
+const MAX_ADDITIONAL_CHILDREN = 3;
+
+type DiscountQueueItem = {
+  id: 'primary' | string;
+  label: string;
+};
 
 type NameFieldKey = 'parentFirstName' | 'parentLastName' | 'childFirstName' | 'childLastName';
 type IdFieldKey = 'parentIdNumber' | 'childIdNumber';
@@ -51,19 +63,36 @@ function emailFieldError(value: string): string | null {
   return null;
 }
 
-export default function CourseRegistrationForm({ courseId, courseName, isAdult = false, bundleId, lessonId, priceOptionId, trialLessonOptions = [], isTrial = false, trialLessonIsPaid = false, trialLessonPrice, onBack, onComplete }: Props) {
+export default function CourseRegistrationForm({
+  courseId,
+  courseName,
+  isAdult = false,
+  bundleId,
+  lessonId,
+  priceOptionId,
+  trialLessonOptions = [],
+  isTrial = false,
+  trialLessonIsPaid = false,
+  trialLessonPrice,
+  catalogDefaultFilters = { city: '', branch: '', courseType: '', age: '' },
+  initialParent = null,
+  onBack,
+  onComplete,
+  onRegisterAnother,
+}: Props) {
+  const addingSibling = Boolean(initialParent);
   const [step, setStep] = useState<Step>('details');
   const [errorMsg, setErrorMsg] = useState('');
   const [fieldErrors, setFieldErrors] = useState<Partial<Record<DetailsFieldKey, string>>>({});
 
   // Step 1 — details
-  const [parentIdNumber, setParentIdNumber] = useState('');
-  const [parentFirstName, setParentFirstName] = useState('');
-  const [parentLastName, setParentLastName] = useState('');
-  const [parentPhone, setParentPhone] = useState('');
-  const [parentEmail, setParentEmail] = useState('');
+  const [parentIdNumber, setParentIdNumber] = useState(initialParent?.parentIdNumber ?? '');
+  const [parentFirstName, setParentFirstName] = useState(initialParent?.parentFirstName ?? '');
+  const [parentLastName, setParentLastName] = useState(initialParent?.parentLastName ?? '');
+  const [parentPhone, setParentPhone] = useState(initialParent?.parentPhone ?? '');
+  const [parentEmail, setParentEmail] = useState(initialParent?.parentEmail ?? '');
   const [childFirstName, setChildFirstName] = useState('');
-  const [childLastName, setChildLastName] = useState('');
+  const [childLastName, setChildLastName] = useState(initialParent?.parentLastName ?? '');
   const [childIdNumber, setChildIdNumber] = useState('');
   const [childBirthDate, setChildBirthDate] = useState('');
   const [childGender, setChildGender] = useState<'male' | 'female' | ''>('');
@@ -71,6 +100,10 @@ export default function CourseRegistrationForm({ courseId, courseName, isAdult =
 
   // Lookup result — used for discount step
   const [lookup, setLookup] = useState<LookupResult | null>(null);
+  const [additionalChildren, setAdditionalChildren] = useState<AdditionalChildEnrollment[]>([]);
+  const [discountQueue, setDiscountQueue] = useState<DiscountQueueItem[]>([]);
+  const [discountQueueIndex, setDiscountQueueIndex] = useState(0);
+  const [registeredChildCount, setRegisteredChildCount] = useState(1);
 
   // Step 3 — consents
   const [healthConsent, setHealthConsent] = useState(false);
@@ -104,6 +137,27 @@ export default function CourseRegistrationForm({ courseId, courseName, isAdult =
   const trialLessonIds = lessonId
     ? [lessonId]
     : trialLessonOptions.map((option) => option.id);
+
+  const primarySelectionKey = enrollmentSelectionKey({
+    courseId,
+    bundleId,
+    lessonId,
+    priceOptionId,
+  });
+
+  const canAddAnotherChild = !isTrial && !selfRegistering;
+
+  const excludedSelectionKeysForChild = useCallback(
+    (childId: string) => {
+      const keys = new Set<string>([primarySelectionKey]);
+      for (const child of additionalChildren) {
+        if (child.id === childId || !child.selection) continue;
+        keys.add(enrollmentSelectionKey(child.selection));
+      }
+      return keys;
+    },
+    [primarySelectionKey, additionalChildren],
+  );
 
   useEffect(() => {
     setSelectedTrialLessonId(lessonId ?? '');
@@ -198,6 +252,105 @@ export default function CourseRegistrationForm({ courseId, courseName, isAdult =
     });
   };
 
+  const validateAdditionalChildFields = (
+    child: AdditionalChildEnrollment,
+    usedIdNumbers: Set<string>,
+  ): Partial<Record<AdditionalChildFieldKey, string>> => {
+    const errors: Partial<Record<AdditionalChildFieldKey, string>> = {};
+    if (!child.selection) errors.selection = 'יש לבחור חוג ומפגש';
+    const firstErr = nameFieldError(child.firstName);
+    const lastErr = nameFieldError(child.lastName);
+    if (firstErr) errors.firstName = firstErr;
+    if (lastErr) errors.lastName = lastErr;
+    const idErr = israeliIdFieldError(child.idNumber);
+    if (idErr) errors.idNumber = idErr;
+    else if (usedIdNumbers.has(child.idNumber.replace(/\D/g, ''))) {
+      errors.idNumber = 'ת.ז. כבר בשימוש לילד אחר בטופס';
+    }
+    if (!child.birthDate.trim()) errors.birthDate = 'תאריך לידה חובה';
+    if (!child.gender) errors.gender = 'יש לבחור מין';
+    return errors;
+  };
+
+  const mergePaymentResponses = (responses: PaymentResponse[]): PaymentResponse => {
+    const paymentIds = responses.flatMap((response) => response.payment_ids ?? [response.payment_id]);
+    const discountsApplied = responses.flatMap((response) => response.discounts_applied ?? []);
+    return {
+      payment_id: paymentIds[0],
+      payment_ids: paymentIds.length > 1 ? paymentIds : undefined,
+      final_amount: responses.reduce((sum, response) => sum + Number(response.final_amount), 0),
+      base_amount: responses.reduce((sum, response) => sum + Number(response.base_amount), 0),
+      discount_amount: responses.reduce((sum, response) => sum + Number(response.discount_amount), 0),
+      prorated_amount: responses.reduce((sum, response) => sum + Number(response.prorated_amount ?? 0), 0),
+      registration_fee: responses.reduce((sum, response) => sum + Number(response.registration_fee ?? 0), 0),
+      monthly_amount: responses.reduce((sum, response) => sum + Number(response.monthly_amount ?? 0), 0),
+      subscription_start_date: responses.find((response) => response.subscription_start_date)?.subscription_start_date,
+      discounts_applied: discountsApplied,
+    };
+  };
+
+  const registerEnrollment = async (payload: Record<string, unknown>): Promise<PaymentResponse> => {
+    const res = await api.post('/customers/widget/register/', payload);
+    if (res.data.is_bundle) {
+      return {
+        payment_id: res.data.payments[0].payment_id,
+        payment_ids: res.data.payments.map((payment: { payment_id: string }) => payment.payment_id),
+        final_amount: res.data.final_amount,
+        base_amount: res.data.base_amount,
+        discount_amount: res.data.discount_amount,
+        prorated_amount: res.data.prorated_amount,
+        registration_fee: res.data.registration_fee,
+        monthly_amount: res.data.monthly_amount,
+        subscription_start_date: res.data.subscription_start_date,
+        discounts_applied: res.data.payments.flatMap(
+          (payment: { discounts_applied?: Array<{ name: string; amount: number }> }) => payment.discounts_applied ?? [],
+        ),
+      };
+    }
+    return res.data as PaymentResponse;
+  };
+
+  const buildDiscountQueue = (
+    primaryLookup: LookupResult | null,
+    extraChildren: AdditionalChildEnrollment[],
+    primaryLabel: string,
+  ): DiscountQueueItem[] => {
+    const queue: DiscountQueueItem[] = [];
+    if (primaryLookup?.discount_type) {
+      queue.push({ id: 'primary', label: primaryLabel });
+    }
+    for (const child of extraChildren) {
+      if (child.lookup?.discount_type) {
+        queue.push({ id: child.id, label: child.firstName.trim() || `ילד ${extraChildren.indexOf(child) + 2}` });
+      }
+    }
+    return queue;
+  };
+
+  const applyDiscountAnswer = (targetId: 'primary' | string, confirmed: boolean) => {
+    if (targetId === 'primary') {
+      setLookup((prev) => (prev ? { ...prev, _confirmed: confirmed } as LookupResult & { _confirmed: boolean } : prev));
+      return;
+    }
+    setAdditionalChildren((prev) =>
+      prev.map((child) =>
+        child.id === targetId
+          ? {
+              ...child,
+              lookup: child.lookup
+                ? ({ ...child.lookup, _confirmed: confirmed } as LookupResult & { _confirmed: boolean })
+                : child.lookup,
+            }
+          : child,
+      ),
+    );
+  };
+
+  const getLookupForDiscountTarget = (targetId: 'primary' | string): LookupResult | null => {
+    if (targetId === 'primary') return lookup;
+    return additionalChildren.find((child) => child.id === targetId)?.lookup ?? null;
+  };
+
   const handleCardCharge = async () => {
     if (!paymentData || !cardNumber || !expiryMonth || !expiryYear || !cvv) return;
     setCharging(true);
@@ -217,7 +370,6 @@ export default function CourseRegistrationForm({ courseId, courseName, isAdult =
       });
       if (res.data.success) {
         setStep(isTrial ? 'trial_success' : 'payment_success');
-        setTimeout(() => onComplete(), 3000);
       } else {
         const firstError = res.data.error
           ?? res.data.results?.find((r: { success: boolean; error?: string }) => !r.success)?.error;
@@ -254,6 +406,13 @@ export default function CourseRegistrationForm({ courseId, courseName, isAdult =
     if (!selfRegistering) {
       const childIdErr = israeliIdFieldError(childIdNumber);
       if (childIdErr) errors.childIdNumber = childIdErr;
+      else {
+        const normalizedPrimaryId = childIdNumber.replace(/\D/g, '');
+        const duplicateInForm = additionalChildren.some(
+          (child) => child.idNumber.replace(/\D/g, '') === normalizedPrimaryId && normalizedPrimaryId,
+        );
+        if (duplicateInForm) errors.childIdNumber = 'ת.ז. כבר בשימוש לילד אחר בטופס';
+      }
     }
 
     const parentPhoneErr = phoneFieldError(parentPhone);
@@ -265,7 +424,25 @@ export default function CourseRegistrationForm({ courseId, courseName, isAdult =
     if (!childBirthDate.trim()) errors.childBirthDate = 'תאריך לידה חובה';
     if (!childGender) errors.childGender = 'יש לבחור מין';
 
-    if (Object.keys(errors).length > 0) {
+    const usedIdNumbers = new Set<string>();
+    if (!selfRegistering && childIdNumber.replace(/\D/g, '')) {
+      usedIdNumbers.add(childIdNumber.replace(/\D/g, ''));
+    }
+
+    let additionalHasErrors = false;
+    const nextAdditionalChildren = additionalChildren.map((child) => {
+      const childErrors = validateAdditionalChildFields(child, usedIdNumbers);
+      if (child.idNumber.replace(/\D/g, '') && !childErrors.idNumber) {
+        usedIdNumbers.add(child.idNumber.replace(/\D/g, ''));
+      }
+      if (Object.keys(childErrors).length > 0) additionalHasErrors = true;
+      return { ...child, errors: childErrors };
+    });
+    if (additionalChildren.length > 0) {
+      setAdditionalChildren(nextAdditionalChildren);
+    }
+
+    if (Object.keys(errors).length > 0 || additionalHasErrors) {
       setFieldErrors(errors);
       setErrorMsg('יש לתקן את השדות המסומנים');
       return;
@@ -285,27 +462,88 @@ export default function CourseRegistrationForm({ courseId, courseName, isAdult =
     const lookupChildFirstName = selfRegistering ? parentFirstName : childFirstName;
     const lookupChildLastName = selfRegistering ? parentLastName : childLastName;
     try {
-      const res = await api.post('/customers/widget/lookup/', {
-        parent_id_number: parentIdNumber,
-        child_first_name: lookupChildFirstName,
-        child_last_name: lookupChildLastName,
+      const lookupRequests: Array<Promise<{ id: 'primary' | string; data: LookupResult }>> = [
+        api.post('/customers/widget/lookup/', {
+          parent_id_number: parentIdNumber,
+          child_first_name: lookupChildFirstName,
+          child_last_name: lookupChildLastName,
+        }).then((res) => ({ id: 'primary' as const, data: res.data as LookupResult })),
+      ];
+
+      for (const child of nextAdditionalChildren) {
+        lookupRequests.push(
+          api.post('/customers/widget/lookup/', {
+            parent_id_number: parentIdNumber,
+            child_first_name: child.firstName,
+            child_last_name: child.lastName,
+          }).then((res) => ({ id: child.id, data: res.data as LookupResult })),
+        );
+      }
+
+      const lookupResults = await Promise.allSettled(lookupRequests);
+      let primaryLookup: LookupResult | null = null;
+      const lookupByChildId = new Map<string, LookupResult>();
+
+      lookupResults.forEach((result, index) => {
+        if (result.status !== 'fulfilled') return;
+        if (result.value.id === 'primary') {
+          primaryLookup = result.value.data;
+          return;
+        }
+        lookupByChildId.set(result.value.id, result.value.data);
       });
-      const data: LookupResult = res.data;
-      setLookup(data);
-      if (data.discount_type) {
+
+      setLookup(primaryLookup);
+      if (nextAdditionalChildren.length > 0) {
+        setAdditionalChildren((prev) =>
+          prev.map((child) => ({
+            ...child,
+            lookup: lookupByChildId.get(child.id) ?? child.lookup,
+          })),
+        );
+      }
+
+      const queue = buildDiscountQueue(
+        primaryLookup,
+        nextAdditionalChildren.map((child) => ({
+          ...child,
+          lookup: lookupByChildId.get(child.id) ?? child.lookup,
+        })),
+        lookupChildFirstName.trim() || 'ילד 1',
+      );
+
+      if (queue.length > 0) {
+        setDiscountQueue(queue);
+        setDiscountQueueIndex(0);
         setStep('discount_confirm');
       } else {
+        setDiscountQueue([]);
+        setDiscountQueueIndex(0);
         setStep('consents');
       }
     } catch {
-      setStep('consents'); // proceed even if lookup fails
+      setStep('consents');
     } finally {
       setLookingUp(false);
     }
   };
 
   const handleDiscountAnswer = (confirmed: boolean) => {
-    setLookup((prev) => prev ? { ...prev, _confirmed: confirmed } as LookupResult & { _confirmed: boolean } : prev);
+    const current = discountQueue[discountQueueIndex];
+    if (!current) {
+      setStep('consents');
+      return;
+    }
+
+    applyDiscountAnswer(current.id, confirmed);
+
+    if (discountQueueIndex + 1 < discountQueue.length) {
+      setDiscountQueueIndex((index) => index + 1);
+      return;
+    }
+
+    setDiscountQueue([]);
+    setDiscountQueueIndex(0);
     setStep('consents');
   };
 
@@ -372,7 +610,6 @@ export default function CourseRegistrationForm({ courseId, courseName, isAdult =
           return;
         }
         setStep('trial_success');
-        setTimeout(() => onComplete(), 3000);
       } catch (err: unknown) {
         const msg =
           (err as { response?: { data?: { error?: string } } })?.response?.data?.error ??
@@ -384,7 +621,9 @@ export default function CourseRegistrationForm({ courseId, courseName, isAdult =
     }
 
     try {
-      const res = await api.post('/customers/widget/register/', {
+      const paymentResponses: PaymentResponse[] = [];
+
+      paymentResponses.push(await registerEnrollment({
         parent_id_number: parentIdNumber,
         parent_first_name: parentFirstName,
         parent_last_name: parentLastName,
@@ -402,33 +641,37 @@ export default function CourseRegistrationForm({ courseId, courseName, isAdult =
         signature: signature,
         discount_confirmed: discountConfirmed,
         existing_child_id: existingChildId,
-      });
-      if (res.data.is_bundle) {
-        setPaymentData({
-          payment_id: res.data.payments[0].payment_id,
-          payment_ids: res.data.payments.map((p: { payment_id: string }) => p.payment_id),
-          final_amount: res.data.final_amount,
-          base_amount: res.data.base_amount,
-          discount_amount: res.data.discount_amount,
-          prorated_amount: res.data.prorated_amount,
-          registration_fee: res.data.registration_fee,
-          monthly_amount: res.data.monthly_amount,
-          subscription_start_date: res.data.subscription_start_date,
-          discounts_applied: res.data.payments.flatMap((p: { discounts_applied?: Array<{ name: string; amount: number }> }) => p.discounts_applied ?? []),
-        });
-      } else {
-        setPaymentData({
-          payment_id: res.data.payment_id,
-          final_amount: res.data.final_amount,
-          base_amount: res.data.base_amount,
-          discount_amount: res.data.discount_amount,
-          prorated_amount: res.data.prorated_amount,
-          registration_fee: res.data.registration_fee,
-          monthly_amount: res.data.monthly_amount,
-          subscription_start_date: res.data.subscription_start_date,
-          discounts_applied: res.data.discounts_applied ?? [],
-        });
+      }));
+
+      for (const child of additionalChildren) {
+        const childDiscountConfirmed = (child.lookup as (LookupResult & { _confirmed?: boolean }) | null)?._confirmed ?? false;
+        const childExistingId = childDiscountConfirmed ? (child.lookup?.child_id ?? '') : '';
+        if (!child.selection) {
+          throw new Error('חסרה בחירת חוג לילד נוסף');
+        }
+        paymentResponses.push(await registerEnrollment({
+          parent_id_number: parentIdNumber,
+          parent_first_name: parentFirstName,
+          parent_last_name: parentLastName,
+          parent_phone: parentPhone,
+          parent_email: parentEmail,
+          child_first_name: child.firstName,
+          child_last_name: child.lastName,
+          child_id_number: child.idNumber,
+          child_birth_date: child.birthDate,
+          child_gender: child.gender,
+          course_id: child.selection.courseId,
+          bundle_id: child.selection.bundleId,
+          lesson_id: child.selection.lessonId,
+          price_option_id: child.selection.priceOptionId,
+          signature: signature,
+          discount_confirmed: childDiscountConfirmed,
+          existing_child_id: childExistingId,
+        }));
       }
+
+      setRegisteredChildCount(1 + additionalChildren.length);
+      setPaymentData(mergePaymentResponses(paymentResponses));
       setStep('payment');
     } catch (err: unknown) {
       const msg =
@@ -451,6 +694,41 @@ export default function CourseRegistrationForm({ courseId, courseName, isAdult =
   const fieldInputClass = (field: DetailsFieldKey) =>
     `${styles.input}${fieldErrors[field] ? ` ${styles.inputInvalid}` : ''}`;
 
+  const collectParentDetails = () => ({
+    parentIdNumber,
+    parentFirstName,
+    parentLastName,
+    parentPhone,
+    parentEmail,
+  });
+
+  const handleRegisterAnother = () => {
+    if (onRegisterAnother) {
+      onRegisterAnother(collectParentDetails());
+      return;
+    }
+    onComplete();
+  };
+
+  const canRegisterAnother = Boolean(onRegisterAnother) && !selfRegistering;
+
+  const successActions = (
+    <div className={styles.successActions}>
+      {canRegisterAnother ? (
+        <button type="button" onClick={handleRegisterAnother} className={styles.closeButton}>
+          רשום ילד נוסף
+        </button>
+      ) : null}
+      <button
+        type="button"
+        onClick={onComplete}
+        className={canRegisterAnother ? styles.outlineButton : styles.closeButton}
+      >
+        {canRegisterAnother ? 'סיום' : 'סגור'}
+      </button>
+    </div>
+  );
+
   const header = (
     <div className={styles.header}>
       <button
@@ -469,7 +747,13 @@ export default function CourseRegistrationForm({ courseId, courseName, isAdult =
       <form noValidate onSubmit={handleDetailsSubmit} className={styles.form} dir="rtl">
         {header}
 
-        {isAdult && (
+        {addingSibling ? (
+          <p className={styles.siblingNotice}>
+            פרטי ההורה נשמרו מההרשמה הקודמת. מלאו רק את פרטי הילד הנוסף.
+          </p>
+        ) : null}
+
+        {isAdult && !addingSibling && (
           <label className={styles.selfRegToggle}>
             <input type="checkbox" checked={selfRegistering}
               onChange={(e) => setSelfRegistering(e.target.checked)}
@@ -574,7 +858,7 @@ export default function CourseRegistrationForm({ courseId, courseName, isAdult =
           <div className={`${styles.section} ${styles.fadeIn}`}>
             <div className={styles.sectionTitle}>
               <span className={styles.sectionTitleLine} />
-              <span className={styles.sectionTitleText}>פרטי הילד</span>
+              <span className={styles.sectionTitleText}>{addingSibling ? 'פרטי הילד הנוסף' : 'פרטי הילד'}</span>
               <span className={styles.sectionTitleLine} />
             </div>
             <div className={styles.grid2}>
@@ -637,6 +921,37 @@ export default function CourseRegistrationForm({ courseId, courseName, isAdult =
           </div>
         )}
 
+        {canAddAnotherChild && additionalChildren.length < MAX_ADDITIONAL_CHILDREN ? (
+          <button
+            type="button"
+            className={styles.addChildButton}
+            onClick={() => {
+              setAdditionalChildren((prev) => [
+                ...prev,
+                createEmptyAdditionalChild(`child-${Date.now()}-${prev.length}`),
+              ]);
+            }}
+          >
+            + הוסיפו ילד נוסף
+          </button>
+        ) : null}
+
+        {additionalChildren.map((child, index) => (
+          <AdditionalChildSection
+            key={child.id}
+            index={index}
+            child={child}
+            catalogDefaultFilters={catalogDefaultFilters}
+            excludedSelectionKeys={excludedSelectionKeysForChild(child.id)}
+            onChange={(next) => {
+              setAdditionalChildren((prev) => prev.map((item) => (item.id === child.id ? next : item)));
+            }}
+            onRemove={() => {
+              setAdditionalChildren((prev) => prev.filter((item) => item.id !== child.id));
+            }}
+          />
+        ))}
+
         {isTrial && (
           <div className={`${styles.section} ${styles.fadeIn}`}>
             <div className={styles.sectionTitle}>
@@ -691,12 +1006,28 @@ export default function CourseRegistrationForm({ courseId, courseName, isAdult =
     );
   }
 
-  if (step === 'discount_confirm' && lookup?.discount_question) {
+  if (step === 'discount_confirm') {
+    const currentDiscount = discountQueue[discountQueueIndex];
+    const activeLookup = currentDiscount ? getLookupForDiscountTarget(currentDiscount.id) : lookup;
+    if (!activeLookup?.discount_question) {
+      return null;
+    }
     return (
       <div className={styles.form} dir="rtl">
         {header}
+        {currentDiscount ? (
+          <p className={styles.discountContext}>
+            {currentDiscount.label ? `עבור ${currentDiscount.label}` : null}
+            {discountQueue.length > 1 ? (
+              <span className={styles.discountProgress}>
+                {' '}
+                ({discountQueueIndex + 1} מתוך {discountQueue.length})
+              </span>
+            ) : null}
+          </p>
+        ) : null}
         <div className={styles.discountBox}>
-          {lookup.discount_question}
+          {activeLookup.discount_question}
         </div>
         <div className={styles.buttonRow}>
           <button onClick={() => handleDiscountAnswer(true)} className={styles.primaryButton}>
@@ -820,7 +1151,11 @@ export default function CourseRegistrationForm({ courseId, courseName, isAdult =
         </h3>
 
         <div className={styles.paymentSummary}>
-          <p className={styles.summaryTitle}>{isTrial ? 'תשלום לשיעור ניסיון' : 'סיכום תשלום'}</p>
+          <p className={styles.summaryTitle}>
+            {registeredChildCount > 1
+              ? `סיכום תשלום עבור ${registeredChildCount} ילדים`
+              : (isTrial ? 'תשלום לשיעור ניסיון' : 'סיכום תשלום')}
+          </p>
           <div className={styles.summaryRow}>
             <span>מחיר בסיס</span>
             <span>₪{Number(paymentData.base_amount).toFixed(2)}</span>
@@ -905,9 +1240,7 @@ export default function CourseRegistrationForm({ courseId, courseName, isAdult =
         <div className={styles.successIcon}>✓</div>
         <p className={styles.resultTitle}>נרשמתם לשיעור ניסיון!</p>
         <p className={styles.resultSubtext}>ניצור איתכם קשר בווטסאפ עם פרטי השיעור.</p>
-        <button type="button" onClick={onComplete} className={styles.closeButton}>
-          סגור
-        </button>
+        {successActions}
       </div>
     );
   }
@@ -917,10 +1250,12 @@ export default function CourseRegistrationForm({ courseId, courseName, isAdult =
       <div className={styles.resultContainer} dir="rtl">
         <div className={styles.successIcon}>✓</div>
         <p className={styles.resultTitle}>התשלום בוצע בהצלחה!</p>
-        <p className={styles.resultSubtext}>{selfRegistering ? parentFirstName : childFirstName} נרשמ/ה לחוג {courseName}.</p>
-        <button type="button" onClick={onComplete} className={styles.closeButton}>
-          סגור
-        </button>
+        <p className={styles.resultSubtext}>
+          {registeredChildCount > 1
+            ? `${registeredChildCount} ילדים נרשמו בהצלחה.`
+            : `${selfRegistering ? parentFirstName : childFirstName} נרשמ/ה לחוג ${courseName}.`}
+        </p>
+        {successActions}
       </div>
     );
   }

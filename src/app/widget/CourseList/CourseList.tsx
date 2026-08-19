@@ -4,149 +4,26 @@ import { useState } from 'react';
 import { ChevronDown } from 'lucide-react';
 import { getDayName, formatTimeRange } from '@/lib/courseUtils';
 import type { Course, CourseLesson, CourseBundle, CourseLessonPriceOption } from '../types';
-import { isLessonVisibleInCatalog } from '../lessonVisibility';
+import {
+  buildCatalogRows,
+  catalogRowKey,
+  enrollmentSelectionKey,
+  formatPriceLabel,
+  type CatalogRow,
+} from '../catalogRows';
 import styles from './CourseList.module.css';
 
 interface CourseListProps {
   filteredCourses: Course[];
   selectedAge?: number | null;
+  excludedSelectionKeys?: Set<string>;
+  compact?: boolean;
   onSelect: (
     course: Course,
     bundle?: CourseBundle,
     lesson?: CourseLesson,
     priceOption?: CourseLessonPriceOption,
   ) => void;
-}
-
-interface CourseRow {
-  course: Course;
-  lesson: CourseLesson | null;
-  bundle: CourseBundle | null;
-  priceOption: CourseLessonPriceOption | null;
-  displayTitle: string;
-  displayPrice: number | null;
-}
-
-const GENERIC_BUNDLE_NAMES = new Set(['', 'מסלול משולב', 'פעמיים בשבוע', 'שלוש פעמים בשבוע']);
-
-function formatListPrice(value: number | string | null | undefined): number | null {
-  if (value == null || value === '') return null;
-  const n = Number(value);
-  return Number.isFinite(n) ? n : null;
-}
-
-function formatPriceLabel(value: number): string {
-  return `₪${Math.round(value)}`;
-}
-
-function bundleDisplayTitle(course: Course, bundle: CourseBundle): string {
-  const name = (bundle.name || '').trim();
-  return name && !GENERIC_BUNDLE_NAMES.has(name) ? name : course.name;
-}
-
-function rowSortKey(row: CourseRow): { day: number; time: string; type: string; name: string; price: number } {
-  const lesson = row.lesson ?? row.bundle?.lessons[0];
-  return {
-    day: lesson?.day_of_week ?? 99,
-    time: lesson?.start_time ?? '',
-    type: row.course.course_type_name || '',
-    name: row.displayTitle,
-    price: row.displayPrice ?? 0,
-  };
-}
-
-function selectedAgeMatches(
-  minAge: number | null | undefined,
-  maxAge: number | null | undefined,
-  selectedAge: number | null | undefined,
-): boolean {
-  if (selectedAge == null || Number.isNaN(selectedAge)) return true;
-  return selectedAge >= (minAge ?? 0) && selectedAge <= (maxAge ?? 99);
-}
-
-function priceOptionMatchesAge(
-  option: CourseLessonPriceOption,
-  course: Course,
-  selectedAge: number | null | undefined,
-): boolean {
-  if (option.min_age != null || option.max_age != null) {
-    return selectedAgeMatches(option.min_age, option.max_age, selectedAge);
-  }
-  return selectedAgeMatches(course.min_age, course.max_age, selectedAge);
-}
-
-function buildRows(courses: Course[], selectedAge?: number | null): CourseRow[] {
-  const rows: CourseRow[] = [];
-
-  for (const course of courses) {
-    const bundles = course.bundles ?? [];
-    const courseAgeMatches = selectedAgeMatches(course.min_age, course.max_age, selectedAge);
-
-    if (course.lessons && course.lessons.length > 0) {
-      for (const lesson of course.lessons) {
-        if (!isLessonVisibleInCatalog(lesson)) continue;
-        if (courseAgeMatches) {
-          rows.push({
-            course,
-            lesson,
-            bundle: null,
-            priceOption: null,
-            displayTitle: course.name,
-            displayPrice: formatListPrice(lesson.price ?? course.price),
-          });
-        }
-        for (const priceOption of lesson.price_options ?? []) {
-          if (!priceOptionMatchesAge(priceOption, course, selectedAge)) continue;
-          rows.push({
-            course,
-            lesson,
-            bundle: null,
-            priceOption,
-            displayTitle: priceOption.display_title,
-            displayPrice: formatListPrice(priceOption.monthly_price),
-          });
-        }
-      }
-    } else if (bundles.length === 0 && courseAgeMatches) {
-      rows.push({
-        course,
-        lesson: null,
-        bundle: null,
-        priceOption: null,
-        displayTitle: course.name,
-        displayPrice: formatListPrice(course.price),
-      });
-    }
-
-    // Each combined-track price is its own catalog row, even when the days/hours match.
-    if (courseAgeMatches) {
-      for (const bundle of bundles) {
-        rows.push({
-          course,
-          lesson: null,
-          bundle,
-          priceOption: null,
-          displayTitle: bundleDisplayTitle(course, bundle),
-          displayPrice: formatListPrice(bundle.combined_price),
-        });
-      }
-    }
-  }
-
-  rows.sort((a, b) => {
-    const keyA = rowSortKey(a);
-    const keyB = rowSortKey(b);
-    if (keyA.day !== keyB.day) return keyA.day - keyB.day;
-    const timeCmp = keyA.time.localeCompare(keyB.time);
-    if (timeCmp !== 0) return timeCmp;
-    const typeCmp = keyA.type.localeCompare(keyB.type, 'he');
-    if (typeCmp !== 0) return typeCmp;
-    const nameCmp = keyA.name.localeCompare(keyB.name, 'he');
-    if (nameCmp !== 0) return nameCmp;
-    return keyA.price - keyB.price;
-  });
-
-  return rows;
 }
 
 function scheduleLines(lesson: CourseLesson | null, bundle: CourseBundle | null): { days: string; times: string; isBundle: boolean } {
@@ -170,7 +47,7 @@ function scheduleLines(lesson: CourseLesson | null, bundle: CourseBundle | null)
   return { days: '—', times: '', isBundle: false };
 }
 
-function timesPerWeek(row: CourseRow): number {
+function timesPerWeek(row: CatalogRow): number {
   if (row.bundle?.lessons?.length) return row.bundle.lessons.length;
   if (row.lesson) return 1;
   return 0;
@@ -181,7 +58,7 @@ function CourseRowItem({
   index,
   onSelect,
 }: {
-  row: CourseRow;
+  row: CatalogRow;
   index: number;
   onSelect: CourseListProps['onSelect'];
 }) {
@@ -240,8 +117,8 @@ function CourseRowItem({
   );
 }
 
-function rowKey(row: CourseRow, index: number): string {
-  return `${row.course.id}-${row.bundle?.id ?? row.lesson?.id ?? index}-${row.priceOption?.id ?? 'default'}`;
+function rowKey(row: CatalogRow, index: number): string {
+  return catalogRowKey(row, index);
 }
 
 function TrackSection({
@@ -252,7 +129,7 @@ function TrackSection({
 }: {
   title: string;
   subtitle: string;
-  rows: CourseRow[];
+  rows: CatalogRow[];
   onSelect: CourseListProps['onSelect'];
 }) {
   return (
@@ -281,7 +158,7 @@ function AccordionTrack({
   onSelect,
 }: {
   title: string;
-  rows: CourseRow[];
+  rows: CatalogRow[];
   onSelect: CourseListProps['onSelect'];
 }) {
   const [open, setOpen] = useState(false);
@@ -327,8 +204,23 @@ const FREQUENCY_GROUPS = [
   { minTimes: 0, maxTimes: 1, title: 'מסלולים לפעם בשבוע' },
 ] as const;
 
-export function CourseList({ filteredCourses, selectedAge = null, onSelect }: CourseListProps) {
-  const rows = buildRows(filteredCourses, selectedAge);
+export function CourseList({
+  filteredCourses,
+  selectedAge = null,
+  excludedSelectionKeys,
+  compact = false,
+  onSelect,
+}: CourseListProps) {
+  const rows = buildCatalogRows(filteredCourses, selectedAge).filter((row) => {
+    if (!excludedSelectionKeys?.size) return true;
+    const key = enrollmentSelectionKey({
+      courseId: row.course.id,
+      bundleId: row.bundle?.id,
+      lessonId: row.lesson?.id,
+      priceOptionId: row.priceOption?.id,
+    });
+    return !excludedSelectionKeys.has(key);
+  });
   const groups = FREQUENCY_GROUPS
     .map((group) => ({
       title: group.title,
@@ -343,10 +235,10 @@ export function CourseList({ filteredCourses, selectedAge = null, onSelect }: Co
   const primary = groups[0];
   const extras = groups.slice(1);
 
-  if (!primary) return <div className={styles.list} />;
+  if (!primary) return <div className={`${styles.list} ${compact ? styles.listCompact : ''}`} />;
 
   return (
-    <div className={styles.list}>
+    <div className={`${styles.list} ${compact ? styles.listCompact : ''}`}>
       <TrackSection
         title={primary.title}
         subtitle={CHOOSE_DAYS_COPY}

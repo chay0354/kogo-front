@@ -13,6 +13,14 @@ export interface TrialLessonOption {
   end_time: string;
 }
 
+export interface SavedParentDetails {
+  parentIdNumber: string;
+  parentFirstName: string;
+  parentLastName: string;
+  parentPhone: string;
+  parentEmail: string;
+}
+
 export interface Props {
   courseId: string;
   courseName: string;
@@ -20,13 +28,24 @@ export interface Props {
   bundleId?: string;
   lessonId?: string;
   priceOptionId?: string;
+  /** Default widget filters — prefill the mini catalog for additional children. */
+  catalogDefaultFilters?: {
+    city: string;
+    branch: string;
+    courseType: string;
+    age: string;
+  };
   /** When trial signup has no single lesson (e.g. twice-a-week bundle), pick one of these slots. */
   trialLessonOptions?: TrialLessonOption[];
   isTrial?: boolean;
   trialLessonIsPaid?: boolean;
   trialLessonPrice?: number | null;
+  /** Prefill parent fields when registering a sibling right after another child. */
+  initialParent?: SavedParentDetails | null;
   onBack: () => void;
   onComplete: () => void;
+  /** Close the form and return to the catalog to pick another lesson for a sibling. */
+  onRegisterAnother?: (parent: SavedParentDetails) => void;
 }
 
 export interface TrialOccurrence {

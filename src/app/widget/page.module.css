@@ -237,6 +237,37 @@
   font-size: 1.1rem;
 }
 
+.siblingBanner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 0 0 12px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: #eef2ff;
+  border: 1px solid #c7d2fe;
+}
+
+.siblingBannerText {
+  margin: 0;
+  color: #2B3090;
+  font-size: 0.875rem;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.siblingBannerCancel {
+  flex-shrink: 0;
+  border: none;
+  background: transparent;
+  color: #4338ca;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
 @media (min-width: 768px) {
   .filterStripDivider {
     @apply w-full;
