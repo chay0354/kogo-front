@@ -36,6 +36,7 @@ const MANAGER_MENU = [
   { name: 'כרטיסי אשראי', href: '/credit-cards', icon: CreditCard },
   { name: 'שותפים', href: '/partners', icon: Users2 },
   { name: 'WhatsApp', href: '/whatsapp', icon: MessageCircle },
+  { name: 'ספר-מערכת', href: '/manual', icon: BookOpen },
   { name: 'הגדרות', href: '/settings', icon: Settings },
 ];
 
