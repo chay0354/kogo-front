@@ -169,6 +169,24 @@ export default function ManualPage() {
             </div>
 
             <div className={styles.logicItem}>
+              <h3 className={styles.logicTitle}>&quot;מחוייב בכל השיעורים&quot;</h3>
+              <div className={styles.logicBody}>
+                תכונה שמסומנת ברמת החוג, בעת יצירתו או עריכתו. כאשר היא מסומנת:
+                <ul>
+                  <li>
+                    בקטלוג הציבורי (הווידג&apos;ט) לא מוצגים השיעורים הבודדים של החוג לבחירה
+                    בנפרד — ניתן להירשם רק ל&quot;מסלול משולב&quot; שכולל את כל שיעורי החוג יחד,
+                    ולא לשיעור אחד מתוכו.
+                  </li>
+                  <li>
+                    בפועל, המשמעות היא שחוג כזה מיועד להרשמה לכל המפגשים השבועיים שלו כמכלול
+                    אחד (למשל חוג הדורש נוכחות בשני מפגשים בשבוע ולא מאפשר להירשם רק לאחד מהם).
+                  </li>
+                </ul>
+              </div>
+            </div>
+
+            <div className={styles.logicItem}>
               <h3 className={styles.logicTitle}>לקוח 18+ / הרשמה עצמית</h3>
               <div className={styles.logicBody}>
                 הסימון &quot;18+&quot; הוא תכונה של החוג עצמו (לא מחושב לפי גיל הילד/הלקוח). כאשר
@@ -202,6 +220,13 @@ export default function ManualPage() {
                 <span className={styles.termName}>סניף חיצוני</span>
                 <span className={styles.termDef}>
                   סניף המסומן ככזה, עם קישור הרשמה חיצוני משלו המוצג במקום טופס ההרשמה הרגיל.
+                </span>
+              </div>
+              <div className={styles.termRow}>
+                <span className={styles.termName}>מחוייב בכל השיעורים</span>
+                <span className={styles.termDef}>
+                  סימון ברמת החוג הקובע שלא ניתן להירשם לשיעור בודד ממנו בנפרד — ההרשמה בווידג
+                  &apos;ט מוצעת רק כמסלול משולב הכולל את כל שיעורי החוג יחד.
                 </span>
               </div>
               <div className={styles.termRow}>
