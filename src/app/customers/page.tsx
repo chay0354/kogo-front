@@ -769,16 +769,7 @@ export default function CustomersPage() {
                   setAddCustomerStep('choice');
                   // Reset filters and refetch so the newly added child is visible
                   setChildrenPage(1);
-                  setFilters({
-                    search: '',
-                    branch: 'all',
-                    course: 'all',
-                    instructor: 'all',
-                    status: 'all',
-                    absent_irregularly: 'all',
-                    trial: 'all',
-                    payment: 'all',
-                  });
+                  setFilters(EMPTY_CUSTOMER_FILTERS);
                 }}
                 onCancel={() => setAddCustomerStep('choice')}
               />
@@ -791,16 +782,7 @@ export default function CustomersPage() {
                   setAddCustomerStep('choice');
                   // Reset filters and refetch so the newly added child is visible
                   setChildrenPage(1);
-                  setFilters({
-                    search: '',
-                    branch: 'all',
-                    course: 'all',
-                    instructor: 'all',
-                    status: 'all',
-                    absent_irregularly: 'all',
-                    trial: 'all',
-                    payment: 'all',
-                  });
+                  setFilters(EMPTY_CUSTOMER_FILTERS);
                 }}
                 onCancel={() => setAddCustomerStep('choice')}
               />
