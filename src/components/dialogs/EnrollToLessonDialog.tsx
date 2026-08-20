@@ -21,6 +21,7 @@ interface CourseType {
 interface Course {
   id: string;
   name: string;
+  display_id?: number;
   course_type: string;
   branch_name: string;
   price: string | null;
@@ -435,7 +436,7 @@ export default function EnrollToLessonDialog({ child, isOpen, onClose, onEnroll 
                             value={course.id}
                             disabled={isFull || alreadyEnrolled}
                           >
-                            {course.name} - {course.branch_name}
+                            {course.name} #{course.display_id} - {course.branch_name}
                             {alreadyEnrolled ? ' — כבר רשום' : formatSeatsSuffix(seats)}
                           </option>
                         );

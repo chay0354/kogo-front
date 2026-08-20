@@ -2,6 +2,7 @@ import { getDayName, formatTimeRange, formatAge, formatAgeRange } from '@/lib/co
 import type { Course, CourseBundle, CourseLesson, CourseLessonPriceOption } from '../types';
 import type { WidgetAlternative } from '../alternativeLessons';
 import { MapPin, Users, CalendarDays, X } from 'lucide-react';
+import { GroupIdBadge } from '@/components/GroupIdBadge/GroupIdBadge';
 import styles from './CourseExpandedDetail.module.css';
 
 const WIDGET_SUPPORT_PHONE = '0509424755';
@@ -129,7 +130,10 @@ export default function CourseExpandedDetail({
 
       <div className={styles.scrollArea}>
         <div className={styles.header}>
-          <h2 className={styles.title}>{displayTitle}</h2>
+          <h2 className={styles.title}>
+            {displayTitle}
+            <GroupIdBadge displayId={course.display_id} />
+          </h2>
           {timesPerWeek > 0 ? (
             <div className={styles.badgeRow}>
               <span className={styles.badgeLine} />

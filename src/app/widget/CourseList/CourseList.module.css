@@ -197,6 +197,10 @@
   min-width: 0;
 }
 
+.groupIdBadge {
+  flex-shrink: 0;
+}
+
 .slotZone {
   flex: 1 1 58%;
   min-width: 0;

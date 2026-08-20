@@ -17,6 +17,7 @@ import {
 import { LessonDetail, AttendanceStatus } from '@/types/schedule';
 import { fetchLessonDetail, cancelLesson, restoreLesson, markAttendance, formatTime } from '@/lib/scheduleUtils';
 import { useAuth } from '@/components/AuthProvider';
+import { GroupIdBadge } from '@/components/GroupIdBadge/GroupIdBadge';
 import api from '@/lib/api';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -322,9 +323,14 @@ export default function LessonDetailsDialog({
                   ) : null}
                 </div>
                 <DialogTitle className="text-2xl text-gray-900 leading-tight">
-                  {lesson
-                    ? `${lesson.course_type_name} · ${lesson.course_name}`
-                    : 'פרטי שיעור'}
+                  {lesson ? (
+                    <>
+                      {lesson.course_type_name} · {lesson.course_name}
+                      <GroupIdBadge displayId={lesson.course_display_id} />
+                    </>
+                  ) : (
+                    'פרטי שיעור'
+                  )}
                 </DialogTitle>
                 {lesson ? (
                   <DialogDescription className="text-gray-600">

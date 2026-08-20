@@ -6,6 +6,7 @@ import { FileText, Search, DollarSign, Clock, TrendingUp, Wallet, AlertCircle, P
 import AppLayout from '@/components/AppLayout';
 import PageFilters from '@/components/PageFilters';
 import NewDocumentDialog from '@/components/dialogs/NewDocumentDialog';
+import { GroupIdBadge } from '@/components/GroupIdBadge/GroupIdBadge';
 import { fetchInvoices, downloadStoreInvoicePdf } from '@/lib/storeApi';
 import { sendDocumentReminder } from '@/lib/documentsApi';
 import api from '@/lib/api';
@@ -734,6 +735,7 @@ export default function InvoicesPage() {
                         item.course_name ??
                         item.initial_payment_details?.description ??
                         '-';
+                      const courseDisplayId = item.initial_payment_details?.lesson_course_display_id;
                       const branchName =
                         item.initial_payment_details?.branch_name ??
                         item.branch_name ??
@@ -742,7 +744,10 @@ export default function InvoicesPage() {
                       return (
                         <tr key={item.id}>
                           <td className={styles.customerName}>{item.child_name}</td>
-                          <td>{courseName}</td>
+                          <td>
+                            {courseName}
+                            <GroupIdBadge displayId={courseDisplayId} />
+                          </td>
                           <td>{branchName}</td>
                           <td className={styles.amount}>
                             <div>{formatAmount(Number(item.amount))}</div>

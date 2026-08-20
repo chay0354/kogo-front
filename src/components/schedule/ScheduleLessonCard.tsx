@@ -34,7 +34,7 @@ export default function ScheduleLessonCard({
   const capacity = lesson.room_capacity || 20;
   const timeLabel = `${formatTime(lesson.start_time)}–${formatTime(lesson.end_time)}`;
   const titleLabel = [
-    lesson.course_name,
+    lesson.course_display_id ? `${lesson.course_name} #${lesson.course_display_id}` : lesson.course_name,
     lesson.course_type_name,
     timeLabel,
     showEnrollment ? `${lesson.enrollment_count}/${capacity}` : null,

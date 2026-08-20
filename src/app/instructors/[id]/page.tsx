@@ -6,6 +6,7 @@ import {
   ArrowRight, Phone, Mail, MapPin, Edit, Gift, Award, Building2, BookOpen, Calendar, List
 } from 'lucide-react';
 import AppLayout from '@/components/AppLayout';
+import { GroupIdBadge } from '@/components/GroupIdBadge/GroupIdBadge';
 import api from '@/lib/api';
 import {
   InstructorDetail,
@@ -243,7 +244,10 @@ export default function InstructorDetailPage() {
                       key={course.id} 
                       className="px-2 py-1 bg-gray-50 border border-gray-200 rounded-md inline-block mr-1"
                     >
-                      <p className="text-xs font-medium">{course.name}</p>
+                      <p className="text-xs font-medium">
+                        {course.name}
+                        <GroupIdBadge displayId={course.display_id} />
+                      </p>
                     </div>
                   ))}
                   {instructor.courses.length > 5 && (
@@ -428,7 +432,10 @@ export default function InstructorDetailPage() {
                           {lesson.branch_name}
                         </span>
                       </td>
-                      <td className="font-medium">{lesson.course_name}</td>
+                      <td className="font-medium">
+                        {lesson.course_name}
+                        <GroupIdBadge displayId={lesson.course_display_id} />
+                      </td>
                       <td className="text-center">
                         <span className="badge badge-gray">
                           {lesson.student_count}

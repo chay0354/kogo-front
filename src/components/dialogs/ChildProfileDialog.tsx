@@ -25,6 +25,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { GroupIdBadge } from '@/components/GroupIdBadge/GroupIdBadge';
 import api from '@/lib/api';
 import RefundDialog from '@/components/dialogs/RefundDialog';
 
@@ -426,7 +427,10 @@ export default function ChildProfileDialog({
                         ) : (
                           child.enrollments.map((en) => (
                             <tr key={en.enrollment_id}>
-                              <td className="font-medium">{en.course_name}</td>
+                              <td className="font-medium">
+                                {en.course_name}
+                                <GroupIdBadge displayId={en.course_display_id} />
+                              </td>
                               <td>{getDayName(en.day_of_week)}</td>
                               <td>{en.start_time}</td>
                               <td>{en.branch_name || '-'}</td>
@@ -476,7 +480,10 @@ export default function ChildProfileDialog({
                             absences.map((absence) => (
                               <tr key={absence.id}>
                                 <td>{formatHebrewDate(absence.occurrence_date)}</td>
-                                <td>{absence.course_name}</td>
+                                <td>
+                                  {absence.course_name}
+                                  <GroupIdBadge displayId={absence.course_display_id} />
+                                </td>
                                 <td>{absence.lesson_name}</td>
                               </tr>
                             ))
@@ -516,8 +523,9 @@ export default function ChildProfileDialog({
                                 {recurringPayments.map(recurring => (
                                   <tr key={recurring.id} className="border-t">
                                     <td className="p-3">
-                                      {recurring.initial_payment_details?.lesson_name || 
+                                      {recurring.initial_payment_details?.lesson_name ||
                                        recurring.initial_payment_details?.description || '-'}
+                                      <GroupIdBadge displayId={recurring.initial_payment_details?.lesson_course_display_id} />
                                     </td>
                                     <td className="p-3 text-sm text-gray-600">
                                       {recurring.initial_payment_details?.branch_name || '-'}

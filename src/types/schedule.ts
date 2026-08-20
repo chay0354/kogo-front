@@ -3,6 +3,7 @@ export type LessonStatus = 'scheduled' | 'completed' | 'cancelled';
 export type Lesson = {
   id: string;
   course_name: string;
+  course_display_id?: number;
   course_type_name: string;
   instructor_id: string;
   instructor_name: string;

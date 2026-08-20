@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { X, Check, Pencil, Trash2 } from 'lucide-react';
 import api, { fetchInstructorsDropdown } from '@/lib/api';
 import { getDayName, formatTimeRange } from '@/lib/courseUtils';
+import { GroupIdBadge } from '@/components/GroupIdBadge/GroupIdBadge';
 import type { Lesson } from '@/types/course';
 import type {
   ManageLessonBundlesDialogProps,
@@ -32,6 +33,7 @@ export default function ManageLessonBundlesDialog({
   onClose,
   courseId,
   courseName,
+  courseDisplayId,
   lessons,
   branchId,
   onSaved,
@@ -251,7 +253,10 @@ export default function ManageLessonBundlesDialog({
     <div className={styles.overlay} onClick={onClose}>
       <div className={styles.panel} onClick={(e) => e.stopPropagation()}>
         <div className={styles.header}>
-          <h2 className={styles.title}>ניהול מסלולים משולבים — {courseName}</h2>
+          <h2 className={styles.title}>
+            ניהול מסלולים משולבים — {courseName}
+            <GroupIdBadge displayId={courseDisplayId} />
+          </h2>
           <button onClick={onClose} className={styles.closeButton} aria-label="סגור">
             <X size={20} />
           </button>

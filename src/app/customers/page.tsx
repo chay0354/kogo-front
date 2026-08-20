@@ -333,8 +333,10 @@ export default function CustomersPage() {
               onChange={(e) => updateFilter('course', e.target.value)}
             >
               <option value="all">חוגים</option>
-              {visibleCourses.map((course: any) => (
-                <option key={course.id} value={course.id}>{course.name}</option>
+              {courses.map((course: any) => (
+                <option key={course.id} value={course.id}>
+                  {course.name}{course.display_id ? ` #${course.display_id}` : ''}
+                </option>
               ))}
             </select>
             

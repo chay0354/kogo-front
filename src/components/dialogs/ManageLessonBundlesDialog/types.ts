@@ -5,6 +5,7 @@ export interface ManageLessonBundlesDialogProps {
   onClose: () => void;
   courseId: string;
   courseName: string;
+  courseDisplayId?: number;
   lessons: Lesson[];
   branchId?: string;
   onSaved?: () => void;

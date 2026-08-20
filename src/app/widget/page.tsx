@@ -735,8 +735,8 @@ export default function WidgetPage() {
                   drawerPriceOption
                     ? drawerPriceOption.display_title
                     : drawerBundle
-                      ? `${drawerCourse.name} (${drawerBundle.name || 'פעמיים בשבוע'})`
-                      : drawerCourse.name
+                      ? `${drawerCourse.name} #${drawerCourse.display_id} (${drawerBundle.name || 'פעמיים בשבוע'})`
+                      : `${drawerCourse.name} #${drawerCourse.display_id}`
                 }
                 isAdult={drawerCourse.is_adult ?? false}
                 bundleId={drawerBundle?.id}
