@@ -47,6 +47,12 @@ export interface ChildWithDetails {
   
   // Enrollment and attendance
   enrollments: EnrollmentDetail[];
+  trial_enrollment?: {
+    enrollment_id: string;
+    lesson_id: string;
+    course_name: string;
+    trial_lesson_date: string | null;
+  } | null;
   attendance_rate: number;
   
   created_at: string | null;
@@ -61,6 +67,7 @@ export interface Course {
   id: string;
   name: string;
   branch_name: string;
+  course_type?: string;
 }
 
 export interface Instructor {
@@ -73,6 +80,7 @@ export interface Instructor {
 export interface CustomerFilters {
   search: string;
   branch: string;
+  course_type: string;
   course: string;
   instructor: string;
   status: string;

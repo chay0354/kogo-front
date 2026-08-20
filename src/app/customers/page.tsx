@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Users, MoreHorizontal, Eye, Edit, UserPlus, Trash2, UserCheck } from 'lucide-react';
 import AppLayout from '@/components/AppLayout';
 import PageHeader from '@/components/PageHeader';
@@ -15,12 +15,43 @@ import {
   formatWhatsAppLink, 
   getUniqueCourses
 } from '@/lib/customerUtils';
+import { sortWidgetCourseTypes } from '@/app/widget/courseTypeOrder';
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from '@/components/DropdownMenu';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogCloseButton } from '@/components/ui/dialog';
 import ChildProfileDialog from '@/components/dialogs/ChildProfileDialog';
 import EditChildDialog from '@/components/dialogs/EditChildDialog';
 import DeleteChildDialog from '@/components/dialogs/DeleteChildDialog';
 import EnrollToLessonDialog from '@/components/dialogs/EnrollToLessonDialog';
+import EditTrialLessonDateDialog from '@/components/dialogs/EditTrialLessonDateDialog';
+
+type CourseTypeOption = { id: string; name: string };
+
+function childrenListParams(filters: CustomerFilters, page: number) {
+  const params = new URLSearchParams();
+  if (filters.search) params.append('search', filters.search);
+  if (filters.branch !== 'all') params.append('branch', filters.branch);
+  if (filters.course_type !== 'all') params.append('course_type', filters.course_type);
+  if (filters.course !== 'all') params.append('course', filters.course);
+  if (filters.instructor !== 'all') params.append('instructor', filters.instructor);
+  if (filters.status !== 'all') params.append('status', filters.status);
+  if (filters.absent_irregularly !== 'all') params.append('absent_irregularly', filters.absent_irregularly);
+  if (filters.trial !== 'all') params.append('trial', filters.trial);
+  if (filters.payment !== 'all') params.append('payment', filters.payment);
+  params.append('page', String(page));
+  return params;
+}
+
+const EMPTY_CUSTOMER_FILTERS: CustomerFilters = {
+  search: '',
+  branch: 'all',
+  course_type: 'all',
+  course: 'all',
+  instructor: 'all',
+  status: 'all',
+  absent_irregularly: 'all',
+  trial: 'all',
+  payment: 'all',
+};
 
 export default function CustomersPage() {
   const { user } = useAuth();
@@ -33,6 +64,7 @@ export default function CustomersPage() {
   
   // Filter options
   const [branches, setBranches] = useState<Branch[]>([]);
+  const [courseTypes, setCourseTypes] = useState<CourseTypeOption[]>([]);
   const [courses, setCourses] = useState<Course[]>([]);
   const [instructors, setInstructors] = useState<Instructor[]>([]);
   const [dateFrom, setDateFrom] = useState('');
@@ -42,16 +74,7 @@ export default function CustomersPage() {
   
   // Active filters - default to all statuses so newly added children
   // (created with status='pending') are visible immediately.
-  const [filters, setFilters] = useState<CustomerFilters>({
-    search: '',
-    branch: 'all',
-    course: 'all',
-    instructor: 'all',
-    status: 'all',
-    absent_irregularly: 'all',
-    trial: 'all',  // Keep for now - can remove later if not needed
-    payment: 'all', // Keep for now - can remove later if not needed
-  });
+  const [filters, setFilters] = useState<CustomerFilters>(EMPTY_CUSTOMER_FILTERS);
   
   // Dialog states
   const [selectedChild, setSelectedChild] = useState<ChildWithDetails | null>(null);
@@ -64,14 +87,16 @@ export default function CustomersPage() {
   const [statusDialogOpen, setStatusDialogOpen] = useState(false);
   const [statusDialogValue, setStatusDialogValue] = useState('');
   const [statusSaving, setStatusSaving] = useState(false);
+  const [trialDateDialogOpen, setTrialDateDialogOpen] = useState(false);
 
   // Load filter options
   useEffect(() => {
     const loadFilterOptions = async () => {
       try {
-        const [branchesRes, coursesRes, instructorsList] = await Promise.all([
+        const [branchesRes, coursesRes, typesRes, instructorsList] = await Promise.all([
           api.get('/core/branches/'),
           api.get('/courses/courses/'),
+          api.get('/courses/types/'),
           fetchInstructorsDropdown(),
         ]);
         
@@ -82,7 +107,12 @@ export default function CustomersPage() {
             user,
           ),
         );
-        setCourses(coursesRes.data.results || coursesRes.data || []);
+        setCourses(unwrapApiList<Course>(coursesRes.data));
+        setCourseTypes(
+          sortWidgetCourseTypes(
+            unwrapApiList<CourseTypeOption>(typesRes.data).filter((row) => row.id && row.name),
+          ),
+        );
         setInstructors(Array.isArray(instructorsList) ? instructorsList : []);
       } catch (error) {
         console.error('Error loading filter options:', error);
@@ -99,17 +129,7 @@ export default function CustomersPage() {
     const fetchChildren = async () => {
       setLoading(true);
       try {
-        const params = new URLSearchParams();
-        
-        if (filters.search) params.append('search', filters.search);
-        if (filters.branch !== 'all') params.append('branch', filters.branch);
-        if (filters.course !== 'all') params.append('course', filters.course);
-        if (filters.instructor !== 'all') params.append('instructor', filters.instructor);
-        if (filters.status !== 'all') params.append('status', filters.status);
-        if (filters.absent_irregularly !== 'all') params.append('absent_irregularly', filters.absent_irregularly);
-        if (filters.trial !== 'all') params.append('trial', filters.trial);
-        if (filters.payment !== 'all') params.append('payment', filters.payment);
-        params.append('page', String(childrenPage));
+        const params = childrenListParams(filters, childrenPage);
         
         const response = await api.get(`/customers/children/?${params.toString()}`);
         // Extract results from paginated response
@@ -133,8 +153,22 @@ export default function CustomersPage() {
   }, [user?.id, user?.role, user?.branch_ids?.join(','), filters, childrenPage]);
 
 
+  const visibleCourses = useMemo(() => {
+    if (filters.course_type === 'all') return courses;
+    return courses.filter((course) => String(course.course_type) === filters.course_type);
+  }, [courses, filters.course_type]);
+
   const updateFilter = (key: keyof CustomerFilters, value: string) => {
-    setFilters(prev => ({ ...prev, [key]: value }));
+    setFilters(prev => {
+      const next = { ...prev, [key]: value };
+      if (key === 'course_type' && value !== 'all') {
+        const selected = courses.find((course) => course.id === prev.course);
+        if (selected && String(selected.course_type) !== value) {
+          next.course = 'all';
+        }
+      }
+      return next;
+    });
     setChildrenPage(1);
   };
   
@@ -165,13 +199,7 @@ export default function CustomersPage() {
     try {
       await api.put(`/customers/children/${selectedChild.id}/`, data);
       // Refresh the list with ALL current filters
-      const params = new URLSearchParams();
-      if (filters.search) params.append('search', filters.search);
-      if (filters.branch !== 'all') params.append('branch', filters.branch);
-      if (filters.course !== 'all') params.append('course', filters.course);
-      if (filters.instructor !== 'all') params.append('instructor', filters.instructor);
-      if (filters.status !== 'all') params.append('status', filters.status);
-      params.append('page', String(childrenPage));
+      const params = childrenListParams(filters, childrenPage);
       
       const response = await api.get(`/customers/children/?${params.toString()}`);
       setChildren(response.data.results || response.data || []);
@@ -202,6 +230,18 @@ export default function CustomersPage() {
     setStatusDialogOpen(true);
   };
 
+  const handleEditTrialDate = (child: ChildWithDetails) => {
+    setSelectedChild(child);
+    setTrialDateDialogOpen(true);
+  };
+
+  const formatTrialDate = (value?: string | null) => {
+    if (!value) return '';
+    const [year, month, day] = value.split('-');
+    if (!year || !month || !day) return value;
+    return `${day}/${month}/${year}`;
+  };
+
   const handleStatusSave = async () => {
     if (!selectedChild) return;
     setStatusSaving(true);
@@ -220,13 +260,7 @@ export default function CustomersPage() {
   const handleEnroll = async () => {
     // Refresh the children list after successful enrollment
     try {
-      const params = new URLSearchParams();
-      if (filters.search) params.append('search', filters.search);
-      if (filters.branch !== 'all') params.append('branch', filters.branch);
-      if (filters.course !== 'all') params.append('course', filters.course);
-      if (filters.instructor !== 'all') params.append('instructor', filters.instructor);
-      if (filters.status !== 'all') params.append('status', filters.status);
-      params.append('page', String(childrenPage));
+      const params = childrenListParams(filters, childrenPage);
       
       const response = await api.get(`/customers/children/?${params.toString()}`);
       setChildren(response.data.results || response.data || []);
@@ -279,6 +313,18 @@ export default function CustomersPage() {
                 <option key={branch.id} value={branch.id}>{branch.name}</option>
               ))}
             </select>
+
+            {/* Course type / תחום */}
+            <select
+              className="input w-full sm:w-40 text-sm"
+              value={filters.course_type}
+              onChange={(e) => updateFilter('course_type', e.target.value)}
+            >
+              <option value="all">תחומים</option>
+              {courseTypes.map((courseType) => (
+                <option key={courseType.id} value={courseType.id}>{courseType.name}</option>
+              ))}
+            </select>
             
             {/* Course Filter */}
             <select
@@ -287,7 +333,7 @@ export default function CustomersPage() {
               onChange={(e) => updateFilter('course', e.target.value)}
             >
               <option value="all">חוגים</option>
-              {courses.map((course: any) => (
+              {visibleCourses.map((course: any) => (
                 <option key={course.id} value={course.id}>{course.name}</option>
               ))}
             </select>
@@ -305,21 +351,12 @@ export default function CustomersPage() {
             </select>
             
             {/* Clear Filters Button */}
-            {(filters.search || filters.branch !== 'all' || filters.course !== 'all' || 
+            {(filters.search || filters.branch !== 'all' || filters.course_type !== 'all' || filters.course !== 'all' || 
               filters.instructor !== 'all' || filters.status !== 'all' || filters.absent_irregularly !== 'all') && (
               <button
               onClick={() => {
                 setChildrenPage(1);
-                setFilters({
-                  search: '',
-                  branch: 'all',
-                  course: 'all',
-                  instructor: 'all',
-                  status: 'all',
-                  absent_irregularly: 'all',
-                  trial: 'all',
-                  payment: 'all',
-                });
+                setFilters(EMPTY_CUSTOMER_FILTERS);
               }}
                 className="text-sm text-primary hover:text-primary/80 underline mr-2"
               >
@@ -510,9 +547,9 @@ export default function CustomersPage() {
                         </td>
                         
                         {/* Status */}
-                        <td onClick={(e) => { e.stopPropagation(); handleStatusClick(child); }}>
-                          <span
-                            className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium cursor-pointer hover:opacity-75 transition-opacity ${
+                        <td onClick={(e) => e.stopPropagation()}>
+                          <div
+                            className={`inline-flex items-center gap-1.5 max-w-full px-3 py-1 rounded-full text-xs font-medium ${
                               status.color === 'green' ? 'bg-green-100 text-green-800 border border-green-300' :
                               status.color === 'red' ? 'bg-red-100 text-red-800 border border-red-300' :
                               status.color === 'orange' ? 'bg-orange-100 text-orange-800 border border-orange-300' :
@@ -520,10 +557,30 @@ export default function CustomersPage() {
                               status.color === 'black' ? 'bg-gray-100 text-gray-800 border border-gray-300' :
                               'bg-gray-100 text-gray-600 border border-gray-300'
                             }`}
-                            title="לחץ לשינוי סטטוס"
                           >
-                            {status.hebrewStatus}
-                          </span>
+                            <button
+                              type="button"
+                              className="hover:opacity-75 transition-opacity whitespace-nowrap"
+                              title="לחץ לשינוי סטטוס"
+                              onClick={() => handleStatusClick(child)}
+                            >
+                              {status.hebrewStatus}
+                            </button>
+                            {child.status === 'trial_signed' && child.trial_enrollment?.trial_lesson_date ? (
+                              <span className="opacity-70 whitespace-nowrap">
+                                {formatTrialDate(child.trial_enrollment.trial_lesson_date)}
+                              </span>
+                            ) : null}
+                            {child.status === 'trial_signed' ? (
+                              <button
+                                type="button"
+                                className="rounded-full bg-white/70 px-1.5 py-0.5 text-[11px] font-semibold hover:bg-white"
+                                onClick={() => handleEditTrialDate(child)}
+                              >
+                                ערוך
+                              </button>
+                            ) : null}
+                          </div>
                         </td>
                         
                         {/* Actions */}
@@ -604,6 +661,29 @@ export default function CustomersPage() {
           />
         </>
       )}
+
+      <EditTrialLessonDateDialog
+        enrollmentId={selectedChild?.trial_enrollment?.enrollment_id ?? null}
+        childName={selectedChild?.full_name ?? ''}
+        courseName={selectedChild?.trial_enrollment?.course_name}
+        currentDate={selectedChild?.trial_enrollment?.trial_lesson_date}
+        isOpen={trialDateDialogOpen}
+        onClose={() => setTrialDateDialogOpen(false)}
+        onSaved={(nextDate) => {
+          setSelectedChild((prev) =>
+            prev?.trial_enrollment
+              ? { ...prev, trial_enrollment: { ...prev.trial_enrollment, trial_lesson_date: nextDate } }
+              : prev,
+          );
+          setChildren((prev) =>
+            prev.map((row) =>
+              row.id === selectedChild?.id && row.trial_enrollment
+                ? { ...row, trial_enrollment: { ...row.trial_enrollment, trial_lesson_date: nextDate } }
+                : row,
+            ),
+          );
+        }}
+      />
 
       {/* Status Change Dialog */}
       <Dialog open={statusDialogOpen} onOpenChange={setStatusDialogOpen}>

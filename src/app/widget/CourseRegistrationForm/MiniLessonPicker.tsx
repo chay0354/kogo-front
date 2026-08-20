@@ -7,6 +7,7 @@ import { CourseList } from '../CourseList/CourseList';
 import { isCourseVisibleInWidgetCatalog } from '../lessonVisibility';
 import { STATIC_CITIES } from '../page.utils';
 import { selectionFromCatalogPick, type EnrollmentSelection } from '../catalogRows';
+import { sortWidgetCourseTypes } from '../courseTypeOrder';
 import type { Branch, Course, CourseBundle, CourseLesson, CourseLessonPriceOption } from '../types';
 import styles from './MiniLessonPicker.module.css';
 
@@ -90,7 +91,7 @@ export default function MiniLessonPicker({
         const typeMap: Record<string, { id: string; name: string }[]> = {};
         for (const branch of branchesData) {
           if (!branch.course_types?.length) continue;
-          typeMap[branch.id] = branch.course_types;
+          typeMap[branch.id] = sortWidgetCourseTypes(branch.course_types);
           loadedCourseTypesRef.current.add(branch.id);
         }
         if (Object.keys(typeMap).length) setCourseTypesByBranch(typeMap);
@@ -108,7 +109,7 @@ export default function MiniLessonPicker({
         if (cancelled) return;
         const types = Array.isArray(res.data) ? res.data as { id: string; name: string }[] : [];
         loadedCourseTypesRef.current.add(selectedBranch);
-        setCourseTypesByBranch((prev) => ({ ...prev, [selectedBranch]: types }));
+        setCourseTypesByBranch((prev) => ({ ...prev, [selectedBranch]: sortWidgetCourseTypes(types) }));
       })
       .catch(() => {
         if (!cancelled) {
