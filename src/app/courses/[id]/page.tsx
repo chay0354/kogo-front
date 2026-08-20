@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import AppLayout from '@/components/AppLayout';
+import { GroupIdBadge } from '@/components/GroupIdBadge/GroupIdBadge';
 import api from '@/lib/api';
 import { CourseTypeDetails, CourseWithLessons, Lesson, AgeFilter, } from '@/types/course';
 import { calculateCourseFinancials, calculateCourseTypeFinancials, filterCourses, formatCurrency, formatAgeRange, formatTimeRange, getDayName, } from '@/lib/courseUtils';
@@ -355,6 +356,7 @@ export default function CourseTypeDetailsPage() {
                         </svg>
                         <div className={styles.courseNameGroup}>
                           <span className={styles.courseName}>{course.name}</span>
+                          <GroupIdBadge displayId={course.display_id} />
                           {course.must_attend_all_lessons && (
                             <span className={styles.mustAttendBadge}>מחוייב בכל השיעורים</span>
                           )}
@@ -579,6 +581,7 @@ export default function CourseTypeDetailsPage() {
           onClose={() => setBundlesCourse(null)}
           courseId={bundlesCourse.id}
           courseName={bundlesCourse.name}
+          courseDisplayId={bundlesCourse.display_id}
           lessons={bundlesCourse.lessons}
           branchId={typeof bundlesCourse.branch === 'string' ? bundlesCourse.branch : undefined}
           onSaved={fetchCourseTypeDetails}

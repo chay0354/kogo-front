@@ -72,6 +72,7 @@ export interface LessonWithStudents {
   lesson_id: string;
   course_name: string;
   course_id: string;
+  course_display_id?: number | null;
   day_of_week: number;
   start_time: string;
   end_time: string;
@@ -90,6 +91,7 @@ export interface LessonWithStudents {
 
 export interface CourseInfo {
   id: string;
+  display_id: number;
   name: string;
   course_type: string | null;
 }

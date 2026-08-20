@@ -6,6 +6,7 @@ import { useQueries, useQueryClient } from '@tanstack/react-query';
 import AppLayout from '@/components/AppLayout';
 import EditBranchDialog from '@/components/dialogs/EditBranchDialog';
 import CourseDetailsDialog from '@/components/dialogs/CourseDetailsDialog';
+import { GroupIdBadge } from '@/components/GroupIdBadge/GroupIdBadge';
 import BranchSectionFilters from '@/components/branches/BranchSectionFilters';
 import api from '@/lib/api';
 import { BranchDetail, BranchStatistics } from '@/types/branch';
@@ -550,7 +551,10 @@ export default function BranchDetailsPage() {
                     className="border-b border-border/50 hover:bg-accent/50 cursor-pointer transition-colors"
                     onClick={() => setSelectedCourse(course)}
                   >
-                    <td className="py-3 px-4 font-medium">{course.name}</td>
+                    <td className="py-3 px-4 font-medium">
+                      {course.name}
+                      <GroupIdBadge displayId={course.display_id} />
+                    </td>
                     <td className="py-3 px-4 text-muted-foreground">{course.lessons_count || 0}</td>
                     <td className="py-3 px-4">
                       <span className="inline-flex items-center gap-1">
@@ -611,7 +615,10 @@ export default function BranchDetailsPage() {
                     <td className="py-3 px-4 text-muted-foreground">
                       {lesson.start_time} - {lesson.end_time}
                     </td>
-                    <td className="py-3 px-4">{lesson.course_name}</td>
+                    <td className="py-3 px-4">
+                      {lesson.course_name}
+                      <GroupIdBadge displayId={lesson.course_display_id} />
+                    </td>
                     <td className="py-3 px-4 text-muted-foreground">{lesson.room_name || 'לא משויך'}</td>
                     <td className="py-3 px-4 text-muted-foreground">{lesson.instructor_name || 'לא משויך'}</td>
                     <td className="py-3 px-4">
@@ -707,7 +714,6 @@ export default function BranchDetailsPage() {
               <tbody>
                 {filteredStudents.map((student: any) => {
                   const enrollments = student.enrollments || [];
-                  const courseNames = enrollments.map((e: any) => e.course_name).join(', ');
 
                   const statusConfig: Record<string, { label: string; className: string }> = {
                     trial: { label: 'ניסיון', className: 'bg-warning/10 text-warning border-warning/20' },
@@ -722,7 +728,19 @@ export default function BranchDetailsPage() {
                       <td className="py-3 px-4 font-medium">{student.full_name}</td>
                       <td className="py-3 px-4 text-muted-foreground">{student.family_name}</td>
                       <td className="py-3 px-4 text-muted-foreground">{student.family_phone || '-'}</td>
-                      <td className="py-3 px-4 text-sm">{courseNames || 'לא רשום לחוגים'}</td>
+                      <td className="py-3 px-4 text-sm">
+                        {enrollments.length > 0 ? (
+                          enrollments.map((e: any, i: number) => (
+                            <span key={e.enrollment_id || e.course_id || i}>
+                              {i > 0 ? ', ' : ''}
+                              {e.course_name}
+                              <GroupIdBadge displayId={e.course_display_id} />
+                            </span>
+                          ))
+                        ) : (
+                          'לא רשום לחוגים'
+                        )}
+                      </td>
                       <td className="py-3 px-4">
                         <span className={`px-2 py-1 rounded-full text-xs font-medium border ${statusStyle.className}`}>
                           {statusStyle.label}

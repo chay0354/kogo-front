@@ -52,6 +52,7 @@ export interface Instructor {
 // Course (חוג) - Specific course within a type
 export interface Course {
   id: string;
+  display_id: number;
   course_type?: string;
   course_type_name?: string;
   name: string;
@@ -84,6 +85,7 @@ export interface Lesson {
   id: string;
   course?: string;
   course_name?: string;
+  course_display_id?: number;
   day_of_week: number;
   day_name: string;
   start_time: string;
@@ -140,6 +142,7 @@ export interface LessonBundleFormData {
 // Course with nested lessons
 export interface CourseWithLessons {
   id: string;
+  display_id: number;
   name: string;
   description: string;
   price: number;

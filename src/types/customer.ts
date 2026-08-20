@@ -7,6 +7,7 @@ export interface EnrollmentDetail {
   enrollment_id: string;
   course_name: string;
   course_id: string;
+  course_display_id: number | null;
   day_of_week: number;
   start_time: string;
   end_time: string;
@@ -86,6 +87,7 @@ export type ViewMode = 'children' | 'courses';
 export interface CourseGroup {
   course_id: string;
   course_name: string;
+  course_display_id: number | null;
   branch_name: string | null;
   instructor_name: string | null;
   students_count: number;
@@ -100,6 +102,7 @@ export interface AbsenceRecord {
   id: string;
   lesson_name: string;
   course_name: string;
+  course_display_id: number | null;
   occurrence_date: string;
   created_at: string;
 }

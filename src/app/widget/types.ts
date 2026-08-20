@@ -57,6 +57,7 @@ export interface CourseBundle {
 export interface Course {
   id: string;
   name: string;
+  display_id: number;
   course_type: string;
   course_type_name: string;
   course_type_description: string | null;

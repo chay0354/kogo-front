@@ -77,7 +77,7 @@ export default function StudentsFilters({ filters, onFiltersChange, onExport, co
             <option value="all">כל החוגים</option>
             {courses.map((course: any) => (
               <option key={course.id} value={course.id}>
-                {course.name}
+                {course.name}{course.display_id ? ` #${course.display_id}` : ''}
               </option>
             ))}
           </select>

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Lesson } from '@/types/schedule';
 import { cancelLesson } from '@/lib/scheduleUtils';
+import { GroupIdBadge } from '@/components/GroupIdBadge/GroupIdBadge';
 
 type CancelLessonDialogProps = {
   lesson: Lesson | null;
@@ -47,6 +48,7 @@ export default function CancelLessonDialog({
         <div className="mb-4 p-3 bg-gray-50 rounded">
           <div className="font-semibold">
             {lesson.course_type_name} - {lesson.course_name}
+            <GroupIdBadge displayId={lesson.course_display_id} />
           </div>
           <div className="text-sm text-gray-600 mt-1">
             {lesson.day_of_week_display} - {lesson.start_time}

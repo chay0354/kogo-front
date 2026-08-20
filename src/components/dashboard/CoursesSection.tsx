@@ -8,6 +8,7 @@ import { filterBranchesByCity } from '@/lib/scopedFilters';
 import { Button } from '@/components/ui/button';
 import { Download } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
+import { GroupIdBadge } from '@/components/GroupIdBadge/GroupIdBadge';
 import { BookOpen, TrendingUp, AlertCircle, CheckCircle, Loader2 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { format } from 'date-fns';
@@ -121,7 +122,7 @@ export default function CoursesSection({ globalDateRange }: Props) {
               <option value="all">כל החוגים</option>
               {courses.map((course: any) => (
                 <option key={course.id} value={course.id}>
-                  {course.name}
+                  {course.name}{course.display_id ? ` #${course.display_id}` : ''}
                 </option>
               ))}
             </select>
@@ -247,7 +248,10 @@ export default function CoursesSection({ globalDateRange }: Props) {
               {lowOccupancyCourses.map((course: any) => (
                 <div key={course.course_id} className="flex items-center justify-between p-3 bg-muted/30 rounded-lg">
                   <div>
-                    <p className="font-medium">{course.name}</p>
+                    <p className="font-medium">
+                      {course.name}
+                      <GroupIdBadge displayId={course.display_id} />
+                    </p>
                     <p className="text-sm text-muted-foreground">{course.branch}</p>
                   </div>
                   <div className="text-right">
@@ -284,7 +288,10 @@ export default function CoursesSection({ globalDateRange }: Props) {
               <tbody>
                 {courseList.map((course: any) => (
                   <tr key={course.course_id} className="border-b border-border">
-                    <td className="p-3 font-medium">{course.name}</td>
+                    <td className="p-3 font-medium">
+                      {course.name}
+                      <GroupIdBadge displayId={course.display_id} />
+                    </td>
                     <td className="p-3">{course.branch}</td>
                     <td className="p-3">{course.lessons}</td>
                     <td className="p-3">{course.students}</td>

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Lesson, AttendanceRecord, AttendanceMark, AttendanceStatus } from '@/types/schedule';
 import { fetchLessonAttendance, markAttendance } from '@/lib/scheduleUtils';
+import { GroupIdBadge } from '@/components/GroupIdBadge/GroupIdBadge';
 
 type AttendanceDialogProps = {
   lesson: Lesson | null;
@@ -98,6 +99,7 @@ export default function AttendanceDialog({
         <div className="mb-4 p-3 bg-gray-50 rounded">
           <div className="font-semibold">
             {lesson.course_type_name} - {lesson.course_name}
+            <GroupIdBadge displayId={lesson.course_display_id} />
           </div>
           <div className="text-sm text-gray-600 mt-1">
             {lesson.day_of_week_display} - {lesson.start_time}

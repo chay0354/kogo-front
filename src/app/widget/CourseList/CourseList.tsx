@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { ChevronDown } from 'lucide-react';
 import { getDayName, formatTimeRange } from '@/lib/courseUtils';
+import { GroupIdBadge } from '@/components/GroupIdBadge/GroupIdBadge';
 import type { Course, CourseLesson, CourseBundle, CourseLessonPriceOption } from '../types';
 import {
   buildCatalogRows,
@@ -82,6 +83,7 @@ function CourseRowItem({
       <div className={styles.nameZone}>
         <span className={styles.bullet} aria-hidden="true" />
         <span className={styles.courseName}>{displayTitle}</span>
+        <GroupIdBadge displayId={course.display_id} className={styles.groupIdBadge} />
       </div>
       <div className={styles.divider} />
       <div className={styles.slotZone}>

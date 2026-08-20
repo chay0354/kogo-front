@@ -62,6 +62,7 @@ export interface Payment {
   branch_name?: string | null;
   lesson?: string | null;
   lesson_name?: string | null;
+  lesson_course_display_id?: number | null;
   payment_type: PaymentType;
   status: PaymentStatus;
   base_amount: number;
