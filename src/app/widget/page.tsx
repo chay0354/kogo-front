@@ -13,6 +13,7 @@ import { STATIC_CITIES, normalizeExternalLink } from './page.utils';
 import { isCourseVisibleInWidgetCatalog } from './lessonVisibility';
 import { AGE_OPTIONS, formatAge } from '@/lib/courseUtils';
 import { findWidgetAlternatives, isWidgetSelectionFull, type WidgetAlternative } from './alternativeLessons';
+import { sortWidgetCourseTypes } from './courseTypeOrder';
 import styles from './page.module.css';
 
 const OPTION_HEIGHT = 44;
@@ -441,7 +442,7 @@ export default function WidgetPage() {
         const typeMap: Record<string, { id: string; name: string }[]> = {};
         for (const branch of branchesData) {
           if (!branch.course_types?.length) continue;
-          typeMap[branch.id] = branch.course_types;
+          typeMap[branch.id] = sortWidgetCourseTypes(branch.course_types);
           loadedCourseTypesRef.current.add(branch.id);
         }
         if (Object.keys(typeMap).length) setCourseTypesByBranch(typeMap);
@@ -459,7 +460,7 @@ export default function WidgetPage() {
         if (cancelled) return;
         const types = Array.isArray(res.data) ? res.data as { id: string; name: string }[] : [];
         loadedCourseTypesRef.current.add(selectedBranch);
-        setCourseTypesByBranch((prev) => ({ ...prev, [selectedBranch]: types }));
+        setCourseTypesByBranch((prev) => ({ ...prev, [selectedBranch]: sortWidgetCourseTypes(types) }));
       })
       .catch(() => {
         if (!cancelled) {
