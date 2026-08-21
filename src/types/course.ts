@@ -155,6 +155,12 @@ export interface CourseWithLessons {
   instructor_salary_override?: number | null;
   /** Distinct active students (paying + trial) across all lessons in this course */
   course_enrollment_count?: number;
+  /** Count from the backend — lessons[] starts empty and is filled lazily (see fetchCourseLessons) */
+  lessons_count: number;
+  /** Current-month aggregates from LessonMonthlySnapshot (nightly-refreshed, not live) */
+  monthly_revenue: number;
+  monthly_salary: number;
+  monthly_profit: number;
   lessons: Lesson[];
   is_active: boolean;
   is_adult?: boolean;
