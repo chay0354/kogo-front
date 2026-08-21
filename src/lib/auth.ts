@@ -8,6 +8,7 @@ export type CurrentUser = {
   first_name: string;
   last_name: string;
   is_active: boolean;
+  is_superuser: boolean;
   role: UserRole | null;
   branch_ids?: string[];
 };
