@@ -1,12 +1,12 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import AppLayout from '@/components/AppLayout';
 import { GroupIdBadge } from '@/components/GroupIdBadge/GroupIdBadge';
 import api from '@/lib/api';
 import { CourseTypeDetails, CourseWithLessons, Lesson, AgeFilter, } from '@/types/course';
-import { calculateCourseFinancials, calculateCourseTypeFinancials, filterCourses, formatCurrency, formatAgeRange, formatTimeRange, getDayName, } from '@/lib/courseUtils';
+import { filterCourses, formatCurrency, formatAgeRange, formatTimeRange, getDayName, } from '@/lib/courseUtils';
 import { Loader2 } from 'lucide-react';
 import AddCourseDialog from '@/components/dialogs/AddCourseDialog';
 import AddLessonDialog from '@/components/dialogs/AddLessonDialog';
@@ -42,6 +42,12 @@ export default function CourseTypeDetailsPage() {
   const [bundlesCourse, setBundlesCourse] = useState<CourseWithLessons | null>(null);
   const [priceOptionsLesson, setPriceOptionsLesson] = useState<{ lesson: Lesson; course: CourseWithLessons } | null>(null);
 
+  // Lesson detail is no longer nested in the course-type-details response (it made
+  // that request take 30+ seconds for course types with 100+ courses) — fetched
+  // lazily per course instead, on expand or before opening a per-course dialog.
+  const [loadingLessonsFor, setLoadingLessonsFor] = useState<Set<string>>(new Set());
+  const loadedLessonsRef = useRef<Set<string>>(new Set());
+
   // Filters
   const [ageFilter, setAgeFilter] = useState<AgeFilter>({ label: 'הכל' });
   const [branchFilter, setBranchFilter] = useState<string>('all');
@@ -54,17 +60,17 @@ export default function CourseTypeDetailsPage() {
   const fetchCourseTypeDetails = async () => {
     setLoadError(null);
     try {
-      // A course type with many courses (nested lessons/enrollments) can take well
-      // over the shared client's default 30s timeout to serialize — give this one
-      // more headroom rather than surfacing a false "not found".
-      const response = await api.get(`/courses/types/${courseTypeId}/details/`, {
-        timeout: 90000,
-      });
+      const response = await api.get(`/courses/types/${courseTypeId}/details/`);
       const data = response.data;
       if (data && !Array.isArray(data.courses)) {
         data.courses = [];
       }
+      // Every course arrives with an empty lessons[] here — that's now fetched
+      // lazily (see ensureCourseLessonsLoaded). Reset the cache so any
+      // still-expanded course refetches fresh lesson data instead of showing stale.
+      loadedLessonsRef.current = new Set();
       setCourseTypeDetails(data);
+      expandedCourses.forEach((courseId) => ensureCourseLessonsLoaded(courseId));
     } catch (error: any) {
       console.error('Error fetching course type details:', error);
       if (error?.response?.status === 404) {
@@ -79,18 +85,52 @@ export default function CourseTypeDetailsPage() {
     }
   };
 
+  /** Fetch one course's lessons (with instructor/enrollment detail) on demand and
+   * merge them into local state. Returns the lessons so a caller that needs them
+   * immediately (e.g. before opening a dialog) doesn't have to re-read state. */
+  const ensureCourseLessonsLoaded = async (courseId: string): Promise<Lesson[]> => {
+    if (loadedLessonsRef.current.has(courseId)) {
+      return courseTypeDetails?.courses.find((c) => c.id === courseId)?.lessons || [];
+    }
+    setLoadingLessonsFor((prev) => new Set(prev).add(courseId));
+    try {
+      const response = await api.get(`/courses/courses/${courseId}/lessons_detail/`);
+      const lessons: Lesson[] = response.data;
+      loadedLessonsRef.current.add(courseId);
+      setCourseTypeDetails((prev) =>
+        prev
+          ? { ...prev, courses: prev.courses.map((c) => (c.id === courseId ? { ...c, lessons } : c)) }
+          : prev,
+      );
+      return lessons;
+    } catch (error) {
+      console.error('Error fetching course lessons:', error);
+      return [];
+    } finally {
+      setLoadingLessonsFor((prev) => {
+        const next = new Set(prev);
+        next.delete(courseId);
+        return next;
+      });
+    }
+  };
+
   const toggleCourseExpanded = (courseId: string) => {
     const newExpanded = new Set(expandedCourses);
     if (newExpanded.has(courseId)) {
       newExpanded.delete(courseId);
     } else {
       newExpanded.add(courseId);
+      ensureCourseLessonsLoaded(courseId);
     }
     setExpandedCourses(newExpanded);
   };
 
-  const handleAddLesson = (courseId: string) => {
+  const handleAddLesson = async (courseId: string) => {
     setSelectedCourseId(courseId);
+    // Needed for the "default room" lookup in the dialog below (reads
+    // courseTypeDetails.courses[...].lessons[0]?.room).
+    await ensureCourseLessonsLoaded(courseId);
     setShowAddLessonDialog(true);
   };
 
@@ -106,14 +146,17 @@ export default function CourseTypeDetailsPage() {
     fetchCourseTypeDetails();
   };
 
-  const handleDuplicateCourse = (course: CourseWithLessons) => {
-    setCourseToDuplicate(course);
+  const handleDuplicateCourse = async (course: CourseWithLessons) => {
+    // Duplicate mode copies the lesson schedule as templates — needs full lesson data.
+    const lessons = await ensureCourseLessonsLoaded(course.id);
+    setCourseToDuplicate({ ...course, lessons });
     setShowDuplicateCourseDialog(true);
   };
 
-  const handleEditCourse = (course: CourseWithLessons) => {
+  const handleEditCourse = async (course: CourseWithLessons) => {
+    const lessons = await ensureCourseLessonsLoaded(course.id);
     // Attach course_type from URL params since nested courses don't include it
-    const courseWithType = { ...course, course_type: courseTypeId };
+    const courseWithType = { ...course, lessons, course_type: courseTypeId };
     setSelectedCourse(courseWithType as any);
     setShowEditCourseDialog(true);
   };
@@ -201,13 +244,26 @@ export default function CourseTypeDetailsPage() {
     .map(([id, name]) => ({ id, name }))
     .sort((a, b) => a.name.localeCompare(b.name, 'he'));
 
+  // Profitability is filtered separately below (not passed into filterCourses) —
+  // it needs the backend-computed monthly_profit field, since course.lessons is
+  // no longer eagerly loaded for every course (see ensureCourseLessonsLoaded).
   const filteredCourses = filterCourses(courseTypeDetails.courses, {
     age: ageFilter.minAge !== undefined ? ageFilter : undefined,
-    profitability: profitabilityFilter,
     branchId: branchFilter === 'all' ? undefined : branchFilter,
+  }).filter((course) => {
+    if (profitabilityFilter === 'all') return true;
+    const profitable = course.monthly_profit > 0;
+    return profitabilityFilter === 'profitable' ? profitable : !profitable;
   });
 
-  const financials = calculateCourseTypeFinancials(filteredCourses);
+  const financials = filteredCourses.reduce(
+    (acc, course) => ({
+      totalRevenue: acc.totalRevenue + (course.monthly_revenue || 0),
+      totalSalary: acc.totalSalary + (course.monthly_salary || 0),
+      totalProfit: acc.totalProfit + (course.monthly_profit || 0),
+    }),
+    { totalRevenue: 0, totalSalary: 0, totalProfit: 0 },
+  );
 
 
   return (
@@ -345,10 +401,13 @@ export default function CourseTypeDetailsPage() {
             <div className={styles.courseList}>
               {filteredCourses.map((course) => {
                 const isExpanded = expandedCourses.has(course.id);
-                const courseFinancials = calculateCourseFinancials(course);
-                const courseStudentCount =
-                  course.course_enrollment_count ??
-                  course.lessons.reduce((sum, l) => sum + (l.total_students_count || l.enrolled_count), 0);
+                const isLoadingLessons = loadingLessonsFor.has(course.id);
+                const courseFinancials = {
+                  monthlyRevenue: course.monthly_revenue || 0,
+                  monthlySalary: course.monthly_salary || 0,
+                  monthlyProfit: course.monthly_profit || 0,
+                };
+                const courseStudentCount = course.course_enrollment_count ?? 0;
                 const capacity = course.capacity || 0;
                 const studentsDisplay = capacity > 0 ? `${courseStudentCount}/${capacity}` : String(courseStudentCount);
                 const enrollmentDisplay = studentsDisplay;
@@ -442,7 +501,7 @@ export default function CourseTypeDetailsPage() {
                         </div>
                         <div className={styles.statItem}>
                           <span className={styles.statLabel}>שיעורים</span>
-                          <span className={styles.statText}>{course.lessons.length}</span>
+                          <span className={styles.statText}>{course.lessons_count}</span>
                         </div>
                         <div className={styles.statItem}>
                           <span className={styles.statLabel}>רווח</span>
@@ -455,7 +514,9 @@ export default function CourseTypeDetailsPage() {
 
                     {isExpanded && (
                       <div className={styles.lessonsBody}>
-                        {course.lessons.length === 0 ? (
+                        {isLoadingLessons ? (
+                          <p className={`text-muted-foreground ${styles.lessonsEmptyState}`}>טוען שיעורים...</p>
+                        ) : course.lessons.length === 0 ? (
                           <p className={`text-muted-foreground ${styles.lessonsEmptyState}`}>אין שיעורים בחוג זה</p>
                         ) : (
                           <div className={styles.lessonsTableWrap}>
@@ -532,9 +593,10 @@ export default function CourseTypeDetailsPage() {
                             + הוסף שיעור
                           </button>
                           <button
-                            onClick={(e) => {
+                            onClick={async (e) => {
                               e.stopPropagation();
-                              setBundlesCourse(course);
+                              const lessons = await ensureCourseLessonsLoaded(course.id);
+                              setBundlesCourse({ ...course, lessons });
                             }}
                             className={`btn-secondary ${styles.addLessonButton}`}
                           >
