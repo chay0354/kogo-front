@@ -24,6 +24,7 @@ export default function CourseTypeDetailsPage() {
 
   const [courseTypeDetails, setCourseTypeDetails] = useState<CourseTypeDetails | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [expandedCourses, setExpandedCourses] = useState<Set<string>>(new Set());
   const [showAddCourseDialog, setShowAddCourseDialog] = useState(false);
   const [showAddLessonDialog, setShowAddLessonDialog] = useState(false);
@@ -51,15 +52,28 @@ export default function CourseTypeDetailsPage() {
   }, [courseTypeId]);
 
   const fetchCourseTypeDetails = async () => {
+    setLoadError(null);
     try {
-      const response = await api.get(`/courses/types/${courseTypeId}/details/`);
+      // A course type with many courses (nested lessons/enrollments) can take well
+      // over the shared client's default 30s timeout to serialize — give this one
+      // more headroom rather than surfacing a false "not found".
+      const response = await api.get(`/courses/types/${courseTypeId}/details/`, {
+        timeout: 90000,
+      });
       const data = response.data;
       if (data && !Array.isArray(data.courses)) {
         data.courses = [];
       }
       setCourseTypeDetails(data);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error fetching course type details:', error);
+      if (error?.response?.status === 404) {
+        setLoadError('לא נמצא תחום');
+      } else if (error?.code === 'ECONNABORTED') {
+        setLoadError('הטעינה ארכה זמן רב מדי. נסה לרענן את הדף.');
+      } else {
+        setLoadError('שגיאה בטעינת הנתונים. נסה לרענן את הדף.');
+      }
     } finally {
       setLoading(false);
     }
@@ -171,7 +185,7 @@ export default function CourseTypeDetailsPage() {
     return (
       <AppLayout>
         <div className="card">
-          <p className="text-muted-foreground text-center">לא נמצא תחום</p>
+          <p className="text-muted-foreground text-center">{loadError || 'לא נמצא תחום'}</p>
         </div>
       </AppLayout>
     );
