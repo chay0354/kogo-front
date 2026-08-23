@@ -9,11 +9,10 @@ import PageFilters from '@/components/PageFilters';
 import api, { fetchInstructorsDropdown } from '@/lib/api';
 import { useAuth } from '@/components/AuthProvider';
 import { filterBranchesForUser, unwrapApiList } from '@/lib/scopedFilters';
-import { ChildWithDetails, CustomerFilters, Branch, Course, Instructor } from '@/types/customer';
+import { ChildWithDetails, CustomerFilters, Branch, Course, Instructor, EnrollmentDetail } from '@/types/customer';
 import { 
   getChildStatus, 
-  formatWhatsAppLink, 
-  getUniqueCourses
+  formatWhatsAppLink
 } from '@/lib/customerUtils';
 import { sortWidgetCourseTypes } from '@/app/widget/courseTypeOrder';
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from '@/components/DropdownMenu';
@@ -23,6 +22,7 @@ import EditChildDialog from '@/components/dialogs/EditChildDialog';
 import DeleteChildDialog from '@/components/dialogs/DeleteChildDialog';
 import EnrollToLessonDialog from '@/components/dialogs/EnrollToLessonDialog';
 import EditTrialLessonDateDialog from '@/components/dialogs/EditTrialLessonDateDialog';
+import ChangeChildLessonDialog from '@/components/dialogs/ChangeChildLessonDialog';
 
 type CourseTypeOption = { id: string; name: string };
 
@@ -88,6 +88,8 @@ export default function CustomersPage() {
   const [statusDialogValue, setStatusDialogValue] = useState('');
   const [statusSaving, setStatusSaving] = useState(false);
   const [trialDateDialogOpen, setTrialDateDialogOpen] = useState(false);
+  const [changeLessonDialogOpen, setChangeLessonDialogOpen] = useState(false);
+  const [changingEnrollment, setChangingEnrollment] = useState<EnrollmentDetail | null>(null);
 
   // Load filter options
   useEffect(() => {
@@ -233,6 +235,12 @@ export default function CustomersPage() {
   const handleEditTrialDate = (child: ChildWithDetails) => {
     setSelectedChild(child);
     setTrialDateDialogOpen(true);
+  };
+
+  const handleChangeLesson = (child: ChildWithDetails, enrollment: EnrollmentDetail) => {
+    setSelectedChild(child);
+    setChangingEnrollment(enrollment);
+    setChangeLessonDialogOpen(true);
   };
 
   const formatTrialDate = (value?: string | null) => {
@@ -478,7 +486,7 @@ export default function CustomersPage() {
                 <tbody>
                   {children.map((child, index) => {
                     const status = getChildStatus(child);
-                    const courses = getUniqueCourses(child);
+                    const courses = child.enrollments ?? [];
                     const whatsappLink = formatWhatsAppLink(child.parent_phone);
                     
                     return (
@@ -537,9 +545,25 @@ export default function CustomersPage() {
                         <td>
                           <div className="flex flex-wrap gap-1">
                             {courses.length > 0 ? (
-                              courses.map((course: any, i: number) => (
-                                <span key={i} className="badge badge-info text-xs">
-                                  {course}
+                              courses.map((enrollment) => (
+                                <span
+                                  key={enrollment.enrollment_id || enrollment.lesson_id || enrollment.course_id}
+                                  className="badge badge-info text-xs inline-flex items-center gap-1"
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  {enrollment.course_name}
+                                  {enrollment.lesson_id ? (
+                                    <button
+                                      type="button"
+                                      className="rounded-full bg-white/70 px-1.5 py-0.5 text-[11px] font-semibold hover:bg-white"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleChangeLesson(child, enrollment);
+                                      }}
+                                    >
+                                      ערוך
+                                    </button>
+                                  ) : null}
                                 </span>
                               ))
                             ) : (
@@ -663,6 +687,29 @@ export default function CustomersPage() {
           />
         </>
       )}
+
+      <ChangeChildLessonDialog
+        enrollment={changingEnrollment}
+        childName={selectedChild?.full_name ?? ''}
+        isOpen={changeLessonDialogOpen}
+        onClose={() => {
+          setChangeLessonDialogOpen(false);
+          setChangingEnrollment(null);
+        }}
+        onSaved={(enrollmentId, nextEnrollment) => {
+          const apply = (row: ChildWithDetails): ChildWithDetails => ({
+            ...row,
+            enrollments: (row.enrollments ?? []).map((item) =>
+              item.enrollment_id === enrollmentId ? { ...item, ...nextEnrollment } : item,
+            ),
+          });
+          setSelectedChild((prev) => (prev ? apply(prev) : prev));
+          setChildren((prev) =>
+            prev.map((row) => (row.id === selectedChild?.id ? apply(row) : row)),
+          );
+          setChangingEnrollment(nextEnrollment);
+        }}
+      />
 
       <EditTrialLessonDateDialog
         enrollmentId={selectedChild?.trial_enrollment?.enrollment_id ?? null}
