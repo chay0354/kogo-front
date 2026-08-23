@@ -385,6 +385,46 @@
   background: #f4f6ff;
 }
 
+.addActions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.addLessonButton {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 44px;
+  padding: 0 16px;
+  border-radius: 10px;
+  border: 1px dashed rgba(43, 48, 144, 0.35);
+  background: #fff;
+  color: #2B3090;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.addLessonButton:hover {
+  background: #f4f6ff;
+}
+
+.addLessonHint {
+  margin: -2px 2px 0;
+  font-size: 12px;
+  color: #6b7280;
+  text-align: right;
+  line-height: 1.4;
+}
+
+.primaryLessons {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
 .discountContext {
   margin: 0 0 8px;
   font-size: 13px;

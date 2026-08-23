@@ -78,6 +78,7 @@ export interface LookupResult {
 
 export interface PaymentResponse {
   payment_id: string;
+  child_id?: string;
   payment_ids?: string[]; // present for a bundle registration — charge all of these with the same card
   final_amount: number;
   base_amount: number;

@@ -5,12 +5,16 @@ import api from '@/lib/api';
 import SignatureCanvas from '../SignatureCanvas';
 import styles from './index.module.css';
 import { israeliIdFieldError, sanitizeIsraeliIdInput } from '@/lib/israeliId';
-import { enrollmentSelectionKey } from '../catalogRows';
+import { enrollmentSelectionKey, type EnrollmentSelection } from '../catalogRows';
 import AdditionalChildSection, {
+  childLessonSelections,
   createEmptyAdditionalChild,
+  MAX_EXTRA_LESSONS,
   type AdditionalChildEnrollment,
   type AdditionalChildFieldKey,
 } from './AdditionalChildSection';
+import ExtraLessonPicker from './ExtraLessonPicker';
+import SelectedLessonCard from './SelectedLessonCard';
 import type { Props, Step, LookupResult, PaymentResponse, TrialOccurrence } from './types';
 
 export type { CourseLesson } from './types';
@@ -101,9 +105,13 @@ export default function CourseRegistrationForm({
   // Lookup result — used for discount step
   const [lookup, setLookup] = useState<LookupResult | null>(null);
   const [additionalChildren, setAdditionalChildren] = useState<AdditionalChildEnrollment[]>([]);
+  const [primaryExtraLessons, setPrimaryExtraLessons] = useState<EnrollmentSelection[]>([]);
+  const [primaryExtraPickerOpen, setPrimaryExtraPickerOpen] = useState(false);
+  const [replacingPrimaryExtraIndex, setReplacingPrimaryExtraIndex] = useState<number | null>(null);
   const [discountQueue, setDiscountQueue] = useState<DiscountQueueItem[]>([]);
   const [discountQueueIndex, setDiscountQueueIndex] = useState(0);
   const [registeredChildCount, setRegisteredChildCount] = useState(1);
+  const [registeredLessonCount, setRegisteredLessonCount] = useState(1);
 
   // Step 3 — consents
   const [healthConsent, setHealthConsent] = useState(false);
@@ -146,18 +154,25 @@ export default function CourseRegistrationForm({
   });
 
   const canAddAnotherChild = !isTrial && !selfRegistering;
-
-  const excludedSelectionKeysForChild = useCallback(
-    (childId: string) => {
-      const keys = new Set<string>([primarySelectionKey]);
-      for (const child of additionalChildren) {
-        if (child.id === childId || !child.selection) continue;
-        keys.add(enrollmentSelectionKey(child.selection));
-      }
-      return keys;
-    },
-    [primarySelectionKey, additionalChildren],
-  );
+  const canAddExtraLesson = !isTrial;
+  const primarySelection: EnrollmentSelection = {
+    courseId,
+    courseName,
+    bundleId,
+    lessonId,
+    priceOptionId,
+    displayTitle: courseName,
+    displaySchedule: '',
+    displayPrice: null,
+  };
+  const primaryExcludedSelectionKeys = (() => {
+    const keys = new Set<string>([primarySelectionKey]);
+    primaryExtraLessons.forEach((selection, extraIndex) => {
+      if (replacingPrimaryExtraIndex === extraIndex) return;
+      keys.add(enrollmentSelectionKey(selection));
+    });
+    return keys;
+  })();
 
   useEffect(() => {
     setSelectedTrialLessonId(lessonId ?? '');
@@ -293,6 +308,7 @@ export default function CourseRegistrationForm({
     const res = await api.post('/customers/widget/register/', payload);
     if (res.data.is_bundle) {
       return {
+        child_id: res.data.child_id,
         payment_id: res.data.payments[0].payment_id,
         payment_ids: res.data.payments.map((payment: { payment_id: string }) => payment.payment_id),
         final_amount: res.data.final_amount,
@@ -622,55 +638,85 @@ export default function CourseRegistrationForm({
 
     try {
       const paymentResponses: PaymentResponse[] = [];
-
-      paymentResponses.push(await registerEnrollment({
+      const parentPayload = {
         parent_id_number: parentIdNumber,
         parent_first_name: parentFirstName,
         parent_last_name: parentLastName,
         parent_phone: parentPhone,
         parent_email: parentEmail,
-        child_first_name: registerChildFirstName,
-        child_last_name: registerChildLastName,
-        child_id_number: registerChildIdNumber,
-        child_birth_date: childBirthDate,
-        child_gender: childGender,
-        course_id: courseId,
-        bundle_id: bundleId,
-        lesson_id: lessonId,
-        price_option_id: priceOptionId,
-        signature: signature,
-        discount_confirmed: discountConfirmed,
-        existing_child_id: existingChildId,
-      }));
+        signature,
+      };
+
+      const registerChildLessons = async (
+        childPayload: Record<string, unknown>,
+        selections: Array<{
+          courseId: string;
+          bundleId?: string;
+          lessonId?: string;
+          priceOptionId?: string;
+        }>,
+        discountConfirmedForChild: boolean,
+        startingChildId: string,
+      ) => {
+        let resolvedChildId = startingChildId;
+        for (const [index, selection] of selections.entries()) {
+          const response = await registerEnrollment({
+            ...parentPayload,
+            ...childPayload,
+            course_id: selection.courseId,
+            bundle_id: selection.bundleId,
+            lesson_id: selection.lessonId,
+            price_option_id: selection.priceOptionId,
+            discount_confirmed: index === 0 ? discountConfirmedForChild : Boolean(resolvedChildId),
+            existing_child_id: resolvedChildId,
+          });
+          if (response.child_id) {
+            resolvedChildId = response.child_id;
+          }
+          paymentResponses.push(response);
+        }
+      };
+
+      await registerChildLessons(
+        {
+          child_first_name: registerChildFirstName,
+          child_last_name: registerChildLastName,
+          child_id_number: registerChildIdNumber,
+          child_birth_date: childBirthDate,
+          child_gender: childGender,
+        },
+        [primarySelection, ...primaryExtraLessons],
+        discountConfirmed,
+        existingChildId,
+      );
 
       for (const child of additionalChildren) {
         const childDiscountConfirmed = (child.lookup as (LookupResult & { _confirmed?: boolean }) | null)?._confirmed ?? false;
         const childExistingId = childDiscountConfirmed ? (child.lookup?.child_id ?? '') : '';
-        if (!child.selection) {
+        const selections = childLessonSelections(child);
+        if (selections.length === 0) {
           throw new Error('חסרה בחירת חוג לילד נוסף');
         }
-        paymentResponses.push(await registerEnrollment({
-          parent_id_number: parentIdNumber,
-          parent_first_name: parentFirstName,
-          parent_last_name: parentLastName,
-          parent_phone: parentPhone,
-          parent_email: parentEmail,
-          child_first_name: child.firstName,
-          child_last_name: child.lastName,
-          child_id_number: child.idNumber,
-          child_birth_date: child.birthDate,
-          child_gender: child.gender,
-          course_id: child.selection.courseId,
-          bundle_id: child.selection.bundleId,
-          lesson_id: child.selection.lessonId,
-          price_option_id: child.selection.priceOptionId,
-          signature: signature,
-          discount_confirmed: childDiscountConfirmed,
-          existing_child_id: childExistingId,
-        }));
+        await registerChildLessons(
+          {
+            child_first_name: child.firstName,
+            child_last_name: child.lastName,
+            child_id_number: child.idNumber,
+            child_birth_date: child.birthDate,
+            child_gender: child.gender,
+          },
+          selections,
+          childDiscountConfirmed,
+          childExistingId,
+        );
       }
 
+      const lessonCount = 1 + primaryExtraLessons.length + additionalChildren.reduce(
+        (sum, child) => sum + childLessonSelections(child).length,
+        0,
+      );
       setRegisteredChildCount(1 + additionalChildren.length);
+      setRegisteredLessonCount(lessonCount);
       setPaymentData(mergePaymentResponses(paymentResponses));
       setStep('payment');
     } catch (err: unknown) {
@@ -921,19 +967,30 @@ export default function CourseRegistrationForm({
           </div>
         )}
 
-        {canAddAnotherChild && additionalChildren.length < MAX_ADDITIONAL_CHILDREN ? (
-          <button
-            type="button"
-            className={styles.addChildButton}
-            onClick={() => {
-              setAdditionalChildren((prev) => [
-                ...prev,
-                createEmptyAdditionalChild(`child-${Date.now()}-${prev.length}`),
-              ]);
-            }}
-          >
-            + הוסיפו ילד נוסף
-          </button>
+        {canAddExtraLesson ? (
+          <div className={styles.primaryLessons}>
+            <label className={styles.label}>החוגים שנבחרו</label>
+            <SelectedLessonCard selection={primarySelection} />
+            {primaryExtraLessons.map((selection, extraIndex) => (
+              replacingPrimaryExtraIndex === extraIndex && primaryExtraPickerOpen ? null : (
+                <SelectedLessonCard
+                  key={`${enrollmentSelectionKey(selection)}-${extraIndex}`}
+                  selection={selection}
+                  onChange={() => {
+                    setReplacingPrimaryExtraIndex(extraIndex);
+                    setPrimaryExtraPickerOpen(true);
+                  }}
+                  onRemove={() => {
+                    setPrimaryExtraLessons((prev) => prev.filter((_, itemIndex) => itemIndex !== extraIndex));
+                    if (replacingPrimaryExtraIndex === extraIndex) {
+                      setPrimaryExtraPickerOpen(false);
+                      setReplacingPrimaryExtraIndex(null);
+                    }
+                  }}
+                />
+              )
+            ))}
+          </div>
         ) : null}
 
         {additionalChildren.map((child, index) => (
@@ -942,7 +999,6 @@ export default function CourseRegistrationForm({
             index={index}
             child={child}
             catalogDefaultFilters={catalogDefaultFilters}
-            excludedSelectionKeys={excludedSelectionKeysForChild(child.id)}
             onChange={(next) => {
               setAdditionalChildren((prev) => prev.map((item) => (item.id === child.id ? next : item)));
             }}
@@ -951,6 +1007,72 @@ export default function CourseRegistrationForm({
             }}
           />
         ))}
+
+        {canAddAnotherChild || canAddExtraLesson ? (
+          <div className={styles.addActions}>
+            {canAddAnotherChild && additionalChildren.length < MAX_ADDITIONAL_CHILDREN ? (
+              <button
+                type="button"
+                className={styles.addChildButton}
+                onClick={() => {
+                  setPrimaryExtraPickerOpen(false);
+                  setReplacingPrimaryExtraIndex(null);
+                  setAdditionalChildren((prev) => [
+                    ...prev,
+                    createEmptyAdditionalChild(`child-${Date.now()}-${prev.length}`),
+                  ]);
+                }}
+              >
+                + הוסיפו ילד נוסף
+              </button>
+            ) : null}
+
+            {canAddExtraLesson && primaryExtraLessons.length < MAX_EXTRA_LESSONS && !primaryExtraPickerOpen ? (
+              <>
+                <button
+                  type="button"
+                  className={styles.addLessonButton}
+                  onClick={() => {
+                    setReplacingPrimaryExtraIndex(null);
+                    setPrimaryExtraPickerOpen(true);
+                  }}
+                >
+                  + חוג נוסף
+                </button>
+                <p className={styles.addLessonHint}>
+                  {selfRegistering
+                    ? 'הוסיפו חוג נוסף לאותו נרשם'
+                    : `הוסיפו חוג נוסף עבור ${childFirstName.trim() || 'הילד הראשי'}`}
+                </p>
+              </>
+            ) : null}
+
+            {primaryExtraPickerOpen ? (
+              <ExtraLessonPicker
+                defaultFilters={catalogDefaultFilters}
+                excludedSelectionKeys={primaryExcludedSelectionKeys}
+                canCancel
+                onCancel={() => {
+                  setPrimaryExtraPickerOpen(false);
+                  setReplacingPrimaryExtraIndex(null);
+                }}
+                onSelect={(selection) => {
+                  if (replacingPrimaryExtraIndex != null) {
+                    setPrimaryExtraLessons((prev) =>
+                      prev.map((item, extraIndex) =>
+                        extraIndex === replacingPrimaryExtraIndex ? selection : item,
+                      ),
+                    );
+                  } else {
+                    setPrimaryExtraLessons((prev) => [...prev, selection]);
+                  }
+                  setPrimaryExtraPickerOpen(false);
+                  setReplacingPrimaryExtraIndex(null);
+                }}
+              />
+            ) : null}
+          </div>
+        ) : null}
 
         {isTrial && (
           <div className={`${styles.section} ${styles.fadeIn}`}>
@@ -1154,7 +1276,9 @@ export default function CourseRegistrationForm({
           <p className={styles.summaryTitle}>
             {registeredChildCount > 1
               ? `סיכום תשלום עבור ${registeredChildCount} ילדים`
-              : (isTrial ? 'תשלום לשיעור ניסיון' : 'סיכום תשלום')}
+              : registeredLessonCount > 1
+                ? `סיכום תשלום עבור ${registeredLessonCount} חוגים`
+                : (isTrial ? 'תשלום לשיעור ניסיון' : 'סיכום תשלום')}
           </p>
           <div className={styles.summaryRow}>
             <span>מחיר בסיס</span>
@@ -1253,7 +1377,9 @@ export default function CourseRegistrationForm({
         <p className={styles.resultSubtext}>
           {registeredChildCount > 1
             ? `${registeredChildCount} ילדים נרשמו בהצלחה.`
-            : `${selfRegistering ? parentFirstName : childFirstName} נרשמ/ה לחוג ${courseName}.`}
+            : registeredLessonCount > 1
+              ? `${selfRegistering ? parentFirstName : childFirstName} נרשמ/ה ל-${registeredLessonCount} חוגים.`
+              : `${selfRegistering ? parentFirstName : childFirstName} נרשמ/ה לחוג ${courseName}.`}
         </p>
         {successActions}
       </div>

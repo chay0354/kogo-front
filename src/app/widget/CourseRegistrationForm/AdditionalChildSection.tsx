@@ -1,11 +1,15 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { X } from 'lucide-react';
 import { sanitizeIsraeliIdInput } from '@/lib/israeliId';
-import { formatPriceLabel, type EnrollmentSelection } from '../catalogRows';
-import MiniLessonPicker, { type WidgetFilterDefaults } from './MiniLessonPicker';
+import { enrollmentSelectionKey, type EnrollmentSelection } from '../catalogRows';
+import ExtraLessonPicker from './ExtraLessonPicker';
+import SelectedLessonCard from './SelectedLessonCard';
+import type { WidgetFilterDefaults } from './MiniLessonPicker';
 import styles from './AdditionalChildSection.module.css';
+
+export const MAX_EXTRA_LESSONS = 4;
 
 export type AdditionalChildFieldKey =
   | 'selection'
@@ -18,6 +22,7 @@ export type AdditionalChildFieldKey =
 export interface AdditionalChildEnrollment {
   id: string;
   selection: EnrollmentSelection | null;
+  extraSelections: EnrollmentSelection[];
   firstName: string;
   lastName: string;
   idNumber: string;
@@ -31,15 +36,17 @@ interface AdditionalChildSectionProps {
   index: number;
   child: AdditionalChildEnrollment;
   catalogDefaultFilters: WidgetFilterDefaults;
-  excludedSelectionKeys: Set<string>;
   onChange: (next: AdditionalChildEnrollment) => void;
   onRemove: () => void;
 }
+
+type PickerKind = 'first' | 'extra' | number;
 
 export function createEmptyAdditionalChild(id: string): AdditionalChildEnrollment {
   return {
     id,
     selection: null,
+    extraSelections: [],
     firstName: '',
     lastName: '',
     idNumber: '',
@@ -50,15 +57,19 @@ export function createEmptyAdditionalChild(id: string): AdditionalChildEnrollmen
   };
 }
 
+export function childLessonSelections(child: AdditionalChildEnrollment): EnrollmentSelection[] {
+  return child.selection ? [child.selection, ...child.extraSelections] : [];
+}
+
 export default function AdditionalChildSection({
   index,
   child,
   catalogDefaultFilters,
-  excludedSelectionKeys,
   onChange,
   onRemove,
 }: AdditionalChildSectionProps) {
   const [pickerOpen, setPickerOpen] = useState(!child.selection);
+  const [pickerKind, setPickerKind] = useState<PickerKind>('first');
 
   const patch = (partial: Partial<AdditionalChildEnrollment>) => {
     onChange({ ...child, ...partial, errors: { ...child.errors, ...partial.errors } });
@@ -71,10 +82,61 @@ export default function AdditionalChildSection({
     patch({ errors: nextErrors });
   };
 
+  const clearSelectionError = () => {
+    if (!child.errors.selection) return;
+    const nextErrors = { ...child.errors };
+    delete nextErrors.selection;
+    return nextErrors;
+  };
+
   const fieldClass = (field: AdditionalChildFieldKey) =>
     `${styles.input}${child.errors[field] ? ` ${styles.inputInvalid}` : ''}`;
 
   const childNumber = index + 2;
+  const canAddExtra = Boolean(child.selection) && child.extraSelections.length < MAX_EXTRA_LESSONS;
+  const excludedSelectionKeys = useMemo(() => {
+    const keys = new Set<string>();
+    if (child.selection && pickerKind !== 'first') {
+      keys.add(enrollmentSelectionKey(child.selection));
+    }
+    child.extraSelections.forEach((selection, extraIndex) => {
+      if (pickerKind !== extraIndex) {
+        keys.add(enrollmentSelectionKey(selection));
+      }
+    });
+    return keys;
+  }, [child.selection, child.extraSelections, pickerKind]);
+
+  const openPicker = (kind: PickerKind) => {
+    setPickerKind(kind);
+    setPickerOpen(true);
+  };
+
+  const handleSelect = (selection: EnrollmentSelection) => {
+    const nextErrors = clearSelectionError();
+    if (pickerKind === 'first') {
+      onChange({
+        ...child,
+        selection,
+        errors: nextErrors ?? child.errors,
+      });
+    } else if (pickerKind === 'extra') {
+      onChange({
+        ...child,
+        extraSelections: [...child.extraSelections, selection],
+        errors: nextErrors ?? child.errors,
+      });
+    } else {
+      onChange({
+        ...child,
+        extraSelections: child.extraSelections.map((item, extraIndex) =>
+          extraIndex === pickerKind ? selection : item,
+        ),
+        errors: nextErrors ?? child.errors,
+      });
+    }
+    setPickerOpen(false);
+  };
 
   return (
     <div className={`${styles.section} ${styles.fadeIn}`}>
@@ -91,61 +153,58 @@ export default function AdditionalChildSection({
 
       <div className={styles.lessonBlock}>
         <label className={styles.label}>חוג ומפגש *</label>
-        {child.selection && !pickerOpen ? (
-          <div className={styles.selectedLesson}>
-            <div className={styles.selectedLessonText}>
-              <span className={styles.selectedLessonTitle}>{child.selection.displayTitle}</span>
-              {child.selection.displaySchedule ? (
-                <span className={styles.selectedLessonSchedule} dir="ltr">
-                  {child.selection.displaySchedule}
-                </span>
-              ) : null}
-              {child.selection.displayPrice != null ? (
-                <span className={styles.selectedLessonPrice}>{formatPriceLabel(child.selection.displayPrice)}</span>
-              ) : null}
-            </div>
-            <button
-              type="button"
-              className={styles.changeLessonBtn}
-              onClick={() => setPickerOpen(true)}
-            >
-              שנה
-            </button>
-          </div>
+        {child.selection && !(pickerOpen && pickerKind === 'first') ? (
+          <SelectedLessonCard
+            selection={child.selection}
+            onChange={() => openPicker('first')}
+          />
         ) : null}
+
+        {child.extraSelections.map((selection, extraIndex) => (
+          pickerOpen && pickerKind === extraIndex ? null : (
+            <SelectedLessonCard
+              key={`${enrollmentSelectionKey(selection)}-${extraIndex}`}
+              selection={selection}
+              onChange={() => openPicker(extraIndex)}
+              onRemove={() => {
+                patch({
+                  extraSelections: child.extraSelections.filter((_, itemIndex) => itemIndex !== extraIndex),
+                });
+                if (pickerOpen && pickerKind === extraIndex) {
+                  setPickerOpen(false);
+                }
+              }}
+            />
+          )
+        ))}
 
         {child.errors.selection && !pickerOpen ? (
           <p className={styles.fieldError}>{child.errors.selection}</p>
         ) : null}
 
         {pickerOpen ? (
-          <>
-            {child.selection ? (
-              <button type="button" className={styles.cancelPickerBtn} onClick={() => setPickerOpen(false)}>
-                ביטול
-              </button>
-            ) : null}
-            <MiniLessonPicker
-              defaultFilters={catalogDefaultFilters}
-              excludedSelectionKeys={excludedSelectionKeys}
-              onSelect={(selection) => {
-                patch({
-                  selection,
-                  errors: { ...child.errors, selection: undefined },
-                });
-                setPickerOpen(false);
-              }}
-            />
-          </>
+          <ExtraLessonPicker
+            defaultFilters={catalogDefaultFilters}
+            excludedSelectionKeys={excludedSelectionKeys}
+            canCancel={Boolean(child.selection) || pickerKind !== 'first'}
+            onCancel={() => setPickerOpen(false)}
+            onSelect={handleSelect}
+          />
         ) : null}
 
         {!child.selection && !pickerOpen ? (
           <button
             type="button"
             className={`${styles.openPickerBtn}${child.errors.selection ? ` ${styles.openPickerBtnInvalid}` : ''}`}
-            onClick={() => setPickerOpen(true)}
+            onClick={() => openPicker('first')}
           >
             בחרו חוג ומפגש
+          </button>
+        ) : null}
+
+        {canAddExtra && !pickerOpen ? (
+          <button type="button" className={styles.addLessonButton} onClick={() => openPicker('extra')}>
+            + חוג נוסף
           </button>
         ) : null}
       </div>

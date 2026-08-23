@@ -191,6 +191,50 @@
   cursor: pointer;
 }
 
+.extraPicker {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.addLessonButton {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 44px;
+  padding: 0 16px;
+  border-radius: 10px;
+  border: 1px dashed rgba(43, 48, 144, 0.35);
+  background: #fff;
+  color: #2B3090;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.addLessonButton:hover {
+  background: #f4f6ff;
+}
+
+.removeLessonBtn {
+  width: auto;
+  min-height: 36px;
+  padding: 0 12px;
+  flex-shrink: 0;
+  border: 1px solid rgba(220, 38, 38, 0.2);
+  border-radius: 8px;
+  background: #fff;
+  color: #dc2626;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.removeLessonBtn:hover {
+  background: rgba(220, 38, 38, 0.06);
+}
+
 .selectedLesson {
   display: flex;
   align-items: flex-start;
