@@ -7,8 +7,8 @@ import AppLayout from '@/components/AppLayout';
 import PageFilters from '@/components/PageFilters';
 import NewDocumentDialog from '@/components/dialogs/NewDocumentDialog';
 import { GroupIdBadge } from '@/components/GroupIdBadge/GroupIdBadge';
-import { fetchInvoices, downloadStoreInvoicePdf } from '@/lib/storeApi';
-import { sendDocumentReminder } from '@/lib/documentsApi';
+import { fetchAllInvoices, downloadStoreInvoicePdf } from '@/lib/storeApi';
+import { sendDocumentReminder, fetchTranzilaDocuments, fetchTranzilaTransactions } from '@/lib/documentsApi';
 import api from '@/lib/api';
 import { useAuth } from '@/components/AuthProvider';
 import { filterBranchesForUser, unwrapApiList } from '@/lib/scopedFilters';
@@ -16,10 +16,11 @@ import type { StoreInvoice } from '@/types/store';
 import type { Branch } from '@/types/branch';
 import type { ChildWithDetails } from '@/types/customer';
 import type { RecurringPayment } from '@/types/payment';
-import type { ActiveTab, PaymentRecord } from './types';
+import type { ActiveTab, DocumentRow, PaymentRecord } from './types';
 import { PAYMENT_SUBCATEGORIES } from './constants';
 import {
   getDocType,
+  getLedgerDocType,
   getStatusLabel,
   getStatusClass,
   getPaymentStatusLabel,
@@ -46,7 +47,9 @@ export default function InvoicesPage() {
   const [primaryFilter, setPrimaryFilter] = useState('');
   const [secondaryFilter, setSecondaryFilter] = useState('');
 
-  // Documents tab state
+  // Documents tab state — Tranzila tax documents + local invoices from those charges
+  const [documents, setDocuments] = useState<DocumentRow[]>([]);
+  const [documentsError, setDocumentsError] = useState('');
   const [invoices, setInvoices] = useState<StoreInvoice[]>([]);
   const [branches, setBranches] = useState<Branch[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -57,8 +60,9 @@ export default function InvoicesPage() {
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
 
-  // Payments tab state
+  // Payments tab state — live Tranzila transactions
   const [payments, setPayments] = useState<PaymentRecord[]>([]);
+  const [paymentsError, setPaymentsError] = useState('');
   const [paymentsLoading, setPaymentsLoading] = useState(false);
   const [paymentsLoaded, setPaymentsLoaded] = useState(false);
   const [paymentBranchFilter, setPaymentBranchFilter] = useState('');
@@ -91,14 +95,23 @@ export default function InvoicesPage() {
 
   async function loadInvoiceData() {
     setIsLoading(true);
+    setDocumentsError('');
     try {
-      const [invoicesData, branchesResponse] = await Promise.all([
-        fetchInvoices(),
+      const dateParams = {
+        ...(dateFrom ? { start_date: dateFrom } : {}),
+        ...(dateTo ? { end_date: dateTo } : {}),
+      };
+      const [ledger, invoicesData, branchesResponse] = await Promise.all([
+        fetchTranzilaDocuments(dateParams),
+        fetchAllInvoices(),
         api.get('/core/branches/'),
       ]);
-      const invoiceList = (invoicesData as any)?.results ?? invoicesData;
+      setDocuments(Array.isArray(ledger.documents) ? ledger.documents : []);
+      if (ledger.error && (!ledger.documents || ledger.documents.length === 0)) {
+        setDocumentsError('לא ניתן לטעון מסמכים מטרנזילה כרגע.');
+      }
+      setInvoices(Array.isArray(invoicesData) ? invoicesData : []);
       const branchList = branchesResponse.data?.results ?? branchesResponse.data;
-      setInvoices(Array.isArray(invoiceList) ? invoiceList : []);
       setBranches(
         filterBranchesForUser(
           unwrapApiList<Branch>(branchList),
@@ -107,8 +120,10 @@ export default function InvoicesPage() {
       );
     } catch (error) {
       console.error('Error loading invoices:', error);
+      setDocuments([]);
       setInvoices([]);
       setBranches([]);
+      setDocumentsError('שגיאה בטעינת המסמכים');
     } finally {
       setIsLoading(false);
     }
@@ -117,13 +132,20 @@ export default function InvoicesPage() {
   async function loadPayments() {
     if (paymentsLoaded) return;
     setPaymentsLoading(true);
+    setPaymentsError('');
     try {
-      const response = await api.get('/customers/payments/');
-      const list = response.data?.results ?? response.data;
-      setPayments(Array.isArray(list) ? list : []);
+      const ledger = await fetchTranzilaTransactions({
+        ...(dateFrom ? { start_date: dateFrom } : {}),
+        ...(dateTo ? { end_date: dateTo } : {}),
+      });
+      setPayments(Array.isArray(ledger.payments) ? ledger.payments : []);
+      if (ledger.error && (!ledger.payments || ledger.payments.length === 0)) {
+        setPaymentsError('לא ניתן לטעון עסקאות מטרנזילה כרגע.');
+      }
     } catch (error) {
       console.error('Error loading payments:', error);
       setPayments([]);
+      setPaymentsError('שגיאה בטעינת התשלומים');
     } finally {
       setPaymentsLoading(false);
       setPaymentsLoaded(true);
@@ -222,18 +244,17 @@ export default function InvoicesPage() {
     (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
   );
 
-  const filtered = invoices.filter(inv => {
-    if (docTypeFilter && getDocType(inv) !== docTypeFilter) return false;
-    if (statusFilter && inv.payment_status !== statusFilter) return false;
-    if (branchFilter && inv.branch !== branchFilter) return false;
-    if (dateFrom && inv.issue_date < dateFrom) return false;
-    if (dateTo && inv.issue_date > dateTo) return false;
+  const filtered = documents.filter(doc => {
+    if (docTypeFilter && getLedgerDocType(doc) !== docTypeFilter) return false;
+    if (statusFilter && doc.status !== statusFilter) return false;
+    if (branchFilter && doc.branch_id !== branchFilter) return false;
+    if (dateFrom && doc.issue_date < dateFrom) return false;
+    if (dateTo && doc.issue_date > dateTo) return false;
     const q = searchQuery.toLowerCase();
     if (
       q &&
-      !inv.invoice_number.toLowerCase().includes(q) &&
-      !(inv.child_name ?? '').toLowerCase().includes(q) &&
-      !inv.customer_name.toLowerCase().includes(q)
+      !doc.document_number.toLowerCase().includes(q) &&
+      !(doc.customer_name ?? '').toLowerCase().includes(q)
     ) {
       return false;
     }
@@ -306,12 +327,12 @@ export default function InvoicesPage() {
             </h2>
             <p className={styles.subtitle}>
               {activeTab === 'תשלומים'
-                ? 'עוקב כל התשלומים שהתקבלו, אישור וניהול אסמכתאות'
+                ? 'כל העסקאות שבוצעו בטרנזילה'
                 : activeTab === 'גבייה'
                 ? 'מסמכים עם יתרה פתוחה, מעקב Aging ופעולות גבייה'
                 : activeTab === 'הוראת קבע'
                 ? 'כל הוראות הקבע הפעילות והמבוטלות של לקוחות החוגים'
-                : 'כל החשבוניות, קבלות וזיכויים במקום אחד'}
+                : 'כל החשבוניות והקבלות שהופקו מול טרנזילה'}
             </p>
           </div>
 
@@ -380,8 +401,10 @@ export default function InvoicesPage() {
               >
                 <option value="">כל הסוגים</option>
                 <option value="חשבונית מס/קבלה">חשבונית מס/קבלה</option>
+                <option value="חשבונית מס">חשבונית מס</option>
+                <option value="קבלה">קבלה</option>
                 <option value="חשבונית עסקה">חשבונית עסקה</option>
-                <option value="טיוטה">טיוטה</option>
+                <option value="חשבונית מס זיכוי">חשבונית מס זיכוי</option>
               </select>
 
               <select
@@ -437,6 +460,10 @@ export default function InvoicesPage() {
               </div>
             </div>
 
+            {documentsError && (
+              <p className={styles.emptyState} style={{ padding: '8px 0' }}>{documentsError}</p>
+            )}
+
             {/* Table */}
             <div className={styles.tableCard}>
               {isLoading ? (
@@ -459,52 +486,56 @@ export default function InvoicesPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {filtered.map(inv => {
-                      const paidSoFar = inv.payment_status === 'completed' ? inv.total_amount : 0;
-                      const openBalance = inv.payment_status !== 'completed' ? inv.total_amount : 0;
-                      const customerDisplay = inv.child_name ?? inv.customer_name;
-                      const isDownloading = downloadingId === inv.id;
+                    {filtered.map(doc => {
+                      const canDownload = Boolean(doc.pdf_url || doc.store_invoice_id);
+                      const isDownloading = downloadingId === doc.id;
 
                       return (
-                        <tr key={inv.id}>
-                          <td className={styles.invoiceNumber}>{inv.invoice_number}</td>
-                          <td>{formatDate(inv.issue_date)}</td>
-                          <td className={styles.customerName}>{customerDisplay}</td>
-                          <td><span className={styles.docTypeChip}>{getDocType(inv)}</span></td>
-                          <td className={styles.amount}>{formatAmount(inv.total_amount)}</td>
-                          <td>{formatAmount(paidSoFar)}</td>
-                          <td className={openBalance > 0 ? styles.openBalance : styles.openBalanceZero}>
-                            {formatAmount(openBalance)}
+                        <tr key={doc.id}>
+                          <td className={styles.invoiceNumber}>{doc.document_number}</td>
+                          <td>{doc.issue_date ? formatDate(doc.issue_date) : '—'}</td>
+                          <td className={styles.customerName}>{doc.customer_name || '—'}</td>
+                          <td><span className={styles.docTypeChip}>{getLedgerDocType(doc)}</span></td>
+                          <td className={styles.amount}>{formatAmount(doc.total_amount)}</td>
+                          <td>{formatAmount(doc.amount_paid)}</td>
+                          <td className={doc.open_balance > 0 ? styles.openBalance : styles.openBalanceZero}>
+                            {formatAmount(doc.open_balance)}
                           </td>
                           <td>
                             <span
-                              className={`${styles.statusBadge} ${getStatusClass(inv.payment_status)}`}
-                              aria-label={getStatusLabel(inv.payment_status)}
+                              className={`${styles.statusBadge} ${getStatusClass(doc.status)}`}
+                              aria-label={getStatusLabel(doc.status)}
                             >
-                              {getStatusLabel(inv.payment_status)}
+                              {getStatusLabel(doc.status)}
                             </span>
                           </td>
                           <td>
                             <div className={styles.collectionActions}>
-                              <button
-                                type="button"
-                                className={styles.reminderBtn}
-                                aria-label={`הורדת ${inv.invoice_number}`}
-                                title="הורד PDF"
-                                disabled={isDownloading}
-                                onClick={async () => {
-                                  setDownloadingId(inv.id);
-                                  try {
-                                    await downloadStoreInvoicePdf(inv.id, inv.invoice_number);
-                                  } catch {
-                                    alert('שגיאה בהורדת החשבונית');
-                                  } finally {
-                                    setDownloadingId(null);
-                                  }
-                                }}
-                              >
-                                <Download size={16} />
-                              </button>
+                              {canDownload && (
+                                <button
+                                  type="button"
+                                  className={styles.reminderBtn}
+                                  aria-label={`הורדת ${doc.document_number}`}
+                                  title="הורד PDF"
+                                  disabled={isDownloading}
+                                  onClick={async () => {
+                                    setDownloadingId(doc.id);
+                                    try {
+                                      if (doc.store_invoice_id) {
+                                        await downloadStoreInvoicePdf(doc.store_invoice_id, doc.document_number);
+                                      } else if (doc.pdf_url) {
+                                        window.open(doc.pdf_url, '_blank', 'noopener,noreferrer');
+                                      }
+                                    } catch {
+                                      alert('שגיאה בהורדת החשבונית');
+                                    } finally {
+                                      setDownloadingId(null);
+                                    }
+                                  }}
+                                >
+                                  <Download size={16} />
+                                </button>
+                              )}
                             </div>
                           </td>
                         </tr>
@@ -584,6 +615,10 @@ export default function InvoicesPage() {
               )}
             </div>
 
+            {paymentsError && (
+              <p className={styles.emptyState} style={{ padding: '8px 0' }}>{paymentsError}</p>
+            )}
+
             {/* Payments table */}
             <div className={styles.tableCard}>
               {paymentsLoading ? (
@@ -608,12 +643,12 @@ export default function InvoicesPage() {
                       const statusLabel = getPaymentStatusLabel(p.status);
                       return (
                         <tr key={p.id}>
-                          <td>{formatDate(p.created_at)}</td>
-                          <td className={styles.customerName}>{p.customer_name}</td>
-                          <td className={styles.invoiceNumber}>{p.invoice_number}</td>
+                          <td>{p.created_at ? formatDate(p.created_at) : '—'}</td>
+                          <td className={styles.customerName}>{p.customer_name || '—'}</td>
+                          <td className={styles.invoiceNumber}>{p.invoice_number || '—'}</td>
                           <td className={styles.amount}>{formatAmount(p.amount)}</td>
-                          <td><span className={styles.methodBadge}>{p.payment_method}</span></td>
-                          <td className={styles.referenceCell}>{p.transaction_reference}</td>
+                          <td><span className={styles.methodBadge}>{p.payment_method || 'אשראי'}</span></td>
+                          <td className={styles.referenceCell}>{p.transaction_reference || '—'}</td>
                           <td>
                             <span
                               className={`${styles.statusBadge} ${getPaymentStatusClass(p.status)}`}
@@ -929,7 +964,7 @@ export default function InvoicesPage() {
         )}
       </div>
 
-      <NewDocumentDialog open={isNewDocOpen} onClose={() => setIsNewDocOpen(false)} />
+      <NewDocumentDialog open={isNewDocOpen} onClose={() => { setIsNewDocOpen(false); loadInvoiceData(); }} />
 
       {editingRecurring ? (
         <div className={styles.editAmountOverlay} onClick={() => setEditingRecurring(null)}>

@@ -1,5 +1,5 @@
 import type { StoreInvoice } from '@/types/store';
-import type { AgingBucket, DocType, PaymentRecord } from './types';
+import type { AgingBucket, DocType, DocumentRow, PaymentRecord } from './types';
 import styles from './invoices.module.css';
 
 const AGING_BUCKET_DEFS: Array<{ key: AgingBucket['key']; label: string; min: number; max: number }> = [
@@ -13,6 +13,10 @@ export function getDocType(inv: StoreInvoice): DocType {
   if (inv.invoice_number.startsWith('DRAFT')) return 'טיוטה';
   if (inv.payment_method === 'monthly_billing') return 'חשבונית עסקה';
   return 'חשבונית מס/קבלה';
+}
+
+export function getLedgerDocType(row: DocumentRow): string {
+  return row.document_type || 'חשבונית מס/קבלה';
 }
 
 export function getStatusLabel(status: string): string {
@@ -86,7 +90,13 @@ export function formatAmount(n: number | undefined | null): string {
 }
 
 export function formatDate(iso: string): string {
+  const datePart = (iso || '').slice(0, 10);
+  const [year, month, day] = datePart.split('-').map(Number);
+  if (year && month && day) {
+    return `${day}.${month}.${year}`;
+  }
   const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso || '';
   return `${d.getDate()}.${d.getMonth() + 1}.${d.getFullYear()}`;
 }
 

@@ -22,6 +22,9 @@ export type Lesson = {
   enrollment_count: number;
   notes: string;
   is_recurring: boolean;
+  attendance_complete?: boolean;
+  cancellation_reason?: string | null;
+  cancelled_at?: string | null;
 };
 
 export type LessonDetail = Lesson & {
@@ -32,6 +35,7 @@ export type LessonDetail = Lesson & {
     id: string;
     child_id: string;
     child_name: string;
+    child_phone?: string;
     child_status?: string;
     trial_lesson_date?: string | null;
     is_trial?: boolean;

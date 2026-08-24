@@ -136,7 +136,13 @@ export default function AppLayout({ children }: AppLayoutProps) {
           showSidebar && sidebarOpen && isDesktop ? 'lg:mr-64' : ''
         }`}
       >
-        <div className="container mx-auto px-4 py-4 sm:px-6 sm:py-8 max-w-full">
+        <div
+          className={
+            showSidebar
+              ? 'container mx-auto px-4 py-4 sm:px-6 sm:py-8 max-w-full'
+              : ''
+          }
+        >
           {children}
         </div>
       </main>
