@@ -371,30 +371,72 @@ export default function CourseRegistrationForm({
     if (!paymentData || !cardNumber || !expiryMonth || !expiryYear || !cvv) return;
     setCharging(true);
     setErrorMsg('');
-    try {
-      const res = await api.post('/customers/widget/charge/', {
-        ...(paymentData.payment_ids
-          ? { payment_ids: paymentData.payment_ids }
-          : { payment_id: paymentData.payment_id }),
-        card_details: {
-          card_number: cardNumber.replace(/\s/g, ''),
-          expiry_month: parseInt(expiryMonth),
-          expiry_year: parseInt(expiryYear),
-          cvv,
-          card_holder_id: cardHolderId,
-        },
-      });
-      if (res.data.success) {
+
+    const chargePayload = {
+      ...(paymentData.payment_ids
+        ? { payment_ids: paymentData.payment_ids }
+        : { payment_id: paymentData.payment_id }),
+      card_details: {
+        card_number: cardNumber.replace(/\s/g, ''),
+        expiry_month: parseInt(expiryMonth, 10),
+        expiry_year: parseInt(expiryYear, 10),
+        cvv,
+        card_holder_id: cardHolderId,
+      },
+    };
+
+    const applyChargeResult = (data: {
+      success?: boolean;
+      pending?: boolean;
+      indeterminate?: boolean;
+      partial?: boolean;
+      error?: string;
+      results?: Array<{ success: boolean; error?: string; pending?: boolean }>;
+    }) => {
+      if (data.success) {
         setStep(isTrial ? 'trial_success' : 'payment_success');
-      } else {
-        const firstError = res.data.error
-          ?? res.data.results?.find((r: { success: boolean; error?: string }) => !r.success)?.error;
-        setErrorMsg(firstError || 'התשלום נכשל');
-        setStep('payment_failed');
+        return;
       }
+      const firstError = data.error
+        ?? data.results?.find((result) => !result.success)?.error;
+      if (data.pending || data.indeterminate || data.results?.some((result) => result.pending)) {
+        setErrorMsg(firstError || 'התשלום בבדיקה מול חברת האשראי.');
+        setStep('payment_pending');
+        return;
+      }
+      setErrorMsg(firstError || 'התשלום נכשל');
+      setStep('payment_failed');
+    };
+
+    const postCharge = () => api.post('/customers/widget/charge/', chargePayload, { timeout: 120000 });
+
+    try {
+      const res = await postCharge();
+      applyChargeResult(res.data ?? {});
     } catch (err: unknown) {
-      const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'שגיאה בסליקה';
-      setErrorMsg(msg);
+      const axiosErr = err as {
+        code?: string;
+        response?: { data?: Parameters<typeof applyChargeResult>[0] };
+        message?: string;
+      };
+      const data = axiosErr.response?.data;
+      if (data && (data.success || data.pending || data.indeterminate || data.partial || data.error)) {
+        applyChargeResult(data);
+        return;
+      }
+      const timedOut = axiosErr.code === 'ECONNABORTED' || /timeout/i.test(axiosErr.message || '');
+      if (timedOut || !axiosErr.response) {
+        try {
+          const retry = await postCharge();
+          applyChargeResult(retry.data ?? {});
+          return;
+        } catch {
+          setErrorMsg('לא התקבלה תשובה סופית מחברת האשראי. אין לשלם שוב — אנחנו מאמתים את התשלום וניצור איתכם קשר.');
+          setStep('payment_pending');
+          return;
+        }
+      }
+      setErrorMsg(data?.error || 'שגיאה בסליקה');
       setStep('payment_failed');
     } finally {
       setCharging(false);
@@ -1376,12 +1418,30 @@ export default function CourseRegistrationForm({
         <p className={styles.resultTitle}>התשלום בוצע בהצלחה!</p>
         <p className={styles.resultSubtext}>
           {registeredChildCount > 1
-            ? `${registeredChildCount} ילדים נרשמו בהצלחה.`
+            ? `${registeredChildCount} ילדים נרשמו בהצלחה לחוג.`
             : registeredLessonCount > 1
               ? `${selfRegistering ? parentFirstName : childFirstName} נרשמ/ה ל-${registeredLessonCount} חוגים.`
               : `${selfRegistering ? parentFirstName : childFirstName} נרשמ/ה לחוג ${courseName}.`}
         </p>
+        <p className={styles.resultSubtext}>נשלח אישור לתשלום. אפשר לסגור את החלון.</p>
         {successActions}
+      </div>
+    );
+  }
+
+  if (step === 'payment_pending') {
+    return (
+      <div className={styles.resultContainer} dir="rtl">
+        <div className={styles.pendingIcon}>…</div>
+        <p className={styles.resultTitle}>התשלום בבדיקה</p>
+        <p className={styles.resultSubtext}>
+          {errorMsg || 'לא התקבלה תשובה סופית מחברת האשראי. אין לשלם שוב — אנחנו מאמתים את החיוב וניצור איתכם קשר עם אישור ההרשמה.'}
+        </p>
+        <div className={styles.resultActions}>
+          <button type="button" onClick={onBack} className={styles.primaryButton}>
+            סגור
+          </button>
+        </div>
       </div>
     );
   }

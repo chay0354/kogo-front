@@ -21,6 +21,64 @@ export async function fetchDocuments(params?: {
   return Array.isArray(res.data) ? res.data : (res.data?.results ?? []);
 }
 
+export async function fetchTranzilaDocuments(params?: {
+  start_date?: string;
+  end_date?: string;
+}): Promise<{
+  documents: Array<{
+    id: string;
+    document_number: string;
+    issue_date: string;
+    customer_name: string;
+    document_type: string;
+    document_type_code?: string;
+    total_amount: number;
+    amount_paid: number;
+    open_balance: number;
+    status: string;
+    pdf_url?: string;
+    store_invoice_id?: string;
+    tranzila_doc_id?: string;
+    source?: string;
+    branch?: string;
+    branch_id?: string | null;
+  }>;
+  source: string;
+  error?: string | null;
+}> {
+  const res = await api.get('/documents/documents/tranzila/', {
+    params,
+    timeout: 90000,
+  });
+  return res.data;
+}
+
+export async function fetchTranzilaTransactions(params?: {
+  start_date?: string;
+  end_date?: string;
+}): Promise<{
+  payments: Array<{
+    id: string;
+    created_at: string;
+    customer_name: string;
+    invoice_number: string;
+    amount: number;
+    payment_method: string;
+    transaction_reference: string;
+    status: string;
+    card_last4?: string;
+    source?: string;
+  }>;
+  source: string;
+  error?: string | null;
+}> {
+  const res = await api.get('/customers/payments/tranzila-transactions/', {
+    params,
+    timeout: 90000,
+  });
+  return res.data;
+}
+
 export async function fetchDocument(id: string): Promise<FormalDocument> {
   const res = await api.get(`/documents/documents/${id}/`);
   return res.data;

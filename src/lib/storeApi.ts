@@ -89,7 +89,31 @@ export async function fetchInvoices(params?: {
   end_date?: string;
 }): Promise<StoreInvoice[]> {
   const { data } = await api.get('/store/invoices/', { params });
-  return data;
+  return unwrapList<StoreInvoice>(data);
+}
+
+export async function fetchAllInvoices(): Promise<StoreInvoice[]> {
+  const items: StoreInvoice[] = [];
+  let page = 1;
+  while (page <= 50) {
+    const { data } = await api.get('/store/invoices/', { params: { page } });
+    if (Array.isArray(data)) {
+      return data;
+    }
+    const batch = data?.results ?? [];
+    items.push(...batch);
+    if (!data?.next || batch.length === 0) break;
+    page += 1;
+  }
+  return items;
+}
+
+function unwrapList<T>(data: unknown): T[] {
+  if (Array.isArray(data)) return data;
+  if (data && typeof data === 'object' && 'results' in data) {
+    return ((data as { results?: T[] }).results) ?? [];
+  }
+  return [];
 }
 
 export async function fetchInvoice(id: string): Promise<StoreInvoice> {

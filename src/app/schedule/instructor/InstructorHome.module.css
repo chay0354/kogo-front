@@ -1,0 +1,479 @@
+.page {
+  min-height: 100dvh;
+  background: #eef0f6;
+}
+
+.shell {
+  width: 100%;
+  margin: 0 auto;
+  min-height: 100dvh;
+  background: #fff;
+  display: flex;
+  flex-direction: column;
+  font-family: Heebo, sans-serif;
+  color: #1e2a6e;
+}
+
+.header {
+  background: #2b3090;
+  color: #fff;
+  padding: 16px 16px 18px;
+  border-bottom-left-radius: 28px;
+  border-bottom-right-radius: 28px;
+}
+
+.topBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.branchWrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #fff;
+  font-weight: 600;
+  font-size: 14px;
+  min-width: 0;
+}
+
+.branchSelect {
+  appearance: none;
+  background: transparent;
+  border: 0;
+  color: #fff;
+  font-weight: 700;
+  font-size: 14px;
+  padding: 4px 18px 4px 4px;
+  max-width: 180px;
+  cursor: pointer;
+}
+
+.branchSelect option {
+  color: #1e2a6e;
+}
+
+.branchWrap svg:last-of-type {
+  position: absolute;
+  left: 0;
+  pointer-events: none;
+}
+
+.topActions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.iconBtn {
+  position: relative;
+  width: 38px;
+  height: 38px;
+  border: 1.5px solid rgba(255, 255, 255, 0.85);
+  border-radius: 10px;
+  background: transparent;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+}
+
+.iconBtn:hover,
+.iconBtn:focus-visible {
+  background: rgba(255, 255, 255, 0.08);
+  outline: none;
+}
+
+.hiddenDate {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+  width: 100%;
+  height: 100%;
+}
+
+.dayTitleWrap {
+  display: flex;
+  justify-content: center;
+  margin: 18px 0 16px;
+}
+
+.dayTitle {
+  border: 1.5px solid rgba(110, 140, 220, 0.7);
+  border-radius: 18px;
+  padding: 10px 36px;
+  color: #f5c518;
+  font-size: 34px;
+  font-weight: 800;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+}
+
+.carouselRow {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.carouselArrow {
+  width: 28px;
+  height: 64px;
+  border: 0;
+  background: transparent;
+  color: #fff;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  padding: 0;
+}
+
+.carousel {
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+  scroll-snap-type: x proximity;
+  padding: 18px 4px 8px;
+  scrollbar-width: none;
+  flex: 1;
+}
+
+.carousel::-webkit-scrollbar {
+  display: none;
+}
+
+.slotWrap {
+  position: relative;
+  flex: 0 0 auto;
+  scroll-snap-align: center;
+}
+
+.nowBadge {
+  position: absolute;
+  top: -14px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #f5c518;
+  color: #1e2a6e;
+  font-size: 11px;
+  font-weight: 800;
+  border-radius: 999px;
+  padding: 2px 10px;
+  white-space: nowrap;
+  z-index: 1;
+}
+
+.slot {
+  width: 78px;
+  min-height: 92px;
+  background: #fff;
+  border: 2px solid transparent;
+  border-radius: 14px;
+  padding: 10px 6px 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  color: #1e2a6e;
+}
+
+.slot:hover,
+.slot:focus-visible {
+  border-color: rgba(245, 197, 24, 0.7);
+  outline: none;
+}
+
+.slotCurrent {
+  border-color: #f5c518;
+  box-shadow: 0 0 0 2px rgba(245, 197, 24, 0.25);
+}
+
+.slotSelected {
+  border-color: #f5c518;
+  background: #fff8de;
+}
+
+.slotTime {
+  font-size: 16px;
+  font-weight: 800;
+  line-height: 1.2;
+}
+
+.slotGroup {
+  font-size: 13px;
+  font-weight: 600;
+  text-align: center;
+  line-height: 1.2;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.slotStatus {
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ok {
+  color: #22c55e;
+}
+
+.miss {
+  color: #ef4444;
+}
+
+.sectionLabel {
+  text-align: center;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  margin-top: 10px;
+}
+
+.body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: #fff;
+}
+
+.list {
+  flex: 1;
+  padding: 18px 16px 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  background: #fff;
+}
+
+.attendancePane {
+  display: none;
+}
+
+.hasAttendance .header {
+  display: none;
+}
+
+.hasAttendance .list {
+  display: none;
+}
+
+.hasAttendance .attendancePane {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+.card {
+  display: flex;
+  align-items: stretch;
+  width: 100%;
+  background: #fff;
+  border: 1px solid #e4e6ef;
+  border-radius: 16px;
+  padding: 0;
+  cursor: pointer;
+  text-align: right;
+  color: inherit;
+  overflow: hidden;
+}
+
+.card:hover,
+.card:focus-visible {
+  border-color: #c9cde0;
+  outline: none;
+}
+
+.cardSelected {
+  border-color: #2b3090;
+  box-shadow: 0 0 0 2px rgba(43, 48, 144, 0.12);
+}
+
+.cardCancelled {
+  opacity: 0.7;
+}
+
+.cardMain {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 14px 14px 8px;
+  min-width: 0;
+}
+
+.cardChevron {
+  color: #f5a623;
+  flex-shrink: 0;
+}
+
+.cardText {
+  min-width: 0;
+  flex: 1;
+}
+
+.cardTitle {
+  font-size: 18px;
+  font-weight: 800;
+  color: #2b3090;
+  line-height: 1.25;
+}
+
+.cardTime {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+  color: #6b7280;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.statusCol {
+  width: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-right: 1px solid #eceef5;
+  flex-shrink: 0;
+}
+
+.empty,
+.loading,
+.error,
+.pickHint {
+  text-align: center;
+  padding: 28px 12px;
+  color: #6b7280;
+  font-size: 15px;
+}
+
+.pickHint {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  padding: 48px 24px;
+  font-size: 16px;
+  font-weight: 600;
+  color: #6b7280;
+}
+
+.error {
+  color: #b91c1c;
+}
+
+@media (min-width: 768px) {
+  .header {
+    padding: 20px 24px 22px;
+  }
+
+  .list {
+    padding: 22px 24px 32px;
+  }
+
+  .branchSelect {
+    max-width: 260px;
+    font-size: 15px;
+  }
+}
+
+@media (min-width: 1024px) {
+  .page {
+    padding: 20px 24px 28px;
+    box-sizing: border-box;
+  }
+
+  .shell {
+    max-width: 1200px;
+    min-height: calc(100dvh - 48px);
+    border-radius: 24px;
+    overflow: hidden;
+    box-shadow: 0 16px 40px rgba(30, 42, 110, 0.08);
+  }
+
+  .header {
+    border-bottom-left-radius: 20px;
+    border-bottom-right-radius: 20px;
+    padding: 16px 28px 14px;
+  }
+
+  .dayTitleWrap {
+    margin: 10px 0 8px;
+  }
+
+  .dayTitle {
+    font-size: 28px;
+    padding: 8px 36px;
+  }
+
+  .sectionLabel {
+    margin-top: 4px;
+  }
+
+  .carousel {
+    overflow: visible;
+    flex-wrap: wrap;
+    justify-content: center;
+    scroll-snap-type: none;
+    padding: 16px 0 4px;
+  }
+
+  .carouselArrow {
+    display: none;
+  }
+
+  .slot {
+    width: 96px;
+    min-height: 108px;
+  }
+
+  .slotTime {
+    font-size: 18px;
+  }
+
+  .hasAttendance .header {
+    display: block;
+  }
+
+  .hasAttendance .list {
+    display: flex;
+  }
+
+  .body {
+    display: grid;
+    grid-template-columns: minmax(320px, 0.95fr) minmax(400px, 1.15fr);
+    background: #f4f5fb;
+    min-height: 0;
+  }
+
+  .list {
+    overflow-y: auto;
+    padding: 20px 18px 28px;
+  }
+
+  .attendancePane {
+    display: flex;
+    min-height: 0;
+    border-right: 1px solid #e4e6ef;
+    background: #f7f7fb;
+  }
+
+  .card {
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  }
+}

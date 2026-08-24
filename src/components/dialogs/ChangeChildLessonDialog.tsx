@@ -9,13 +9,21 @@ import type { EnrollmentDetail } from '@/types/customer';
 
 type LessonOption = {
   id: string;
+  course?: string;
   course_name?: string;
+  course_display_id?: number | null;
+  course_type?: string | null;
+  course_type_name?: string | null;
+  branch_id?: string | null;
+  branch_name?: string | null;
   day_of_week: number;
   day_name?: string;
   start_time: string;
   end_time: string;
   status?: string;
 };
+
+type FilterOption = { id: string; name: string };
 
 type Props = {
   enrollment: EnrollmentDetail | null;
@@ -25,10 +33,33 @@ type Props = {
   onSaved: (enrollmentId: string, lesson: EnrollmentDetail) => void;
 };
 
-function lessonLabel(lesson: Pick<LessonOption, 'course_name' | 'day_of_week' | 'day_name' | 'start_time' | 'end_time'>): string {
+function asId(value: string | number | null | undefined): string {
+  return value == null ? '' : String(value);
+}
+
+function lessonLabel(lesson: Pick<LessonOption, 'course_name' | 'course_display_id' | 'day_of_week' | 'day_name' | 'start_time' | 'end_time'>): string {
+  const title = lesson.course_display_id
+    ? `${lesson.course_name ?? ''} #${lesson.course_display_id}`.trim()
+    : (lesson.course_name || '');
   const day = lesson.day_name || getDayName(lesson.day_of_week);
   const time = formatTimeRange(lesson.start_time || '', lesson.end_time || '');
-  return [lesson.course_name, day, time].filter(Boolean).join(' · ');
+  return [title, day, time].filter(Boolean).join(' · ');
+}
+
+function uniqueNamedOptions(
+  lessons: LessonOption[],
+  getId: (lesson: LessonOption) => string,
+  getName: (lesson: LessonOption) => string,
+): FilterOption[] {
+  const map = new Map<string, string>();
+  for (const lesson of lessons) {
+    const id = getId(lesson);
+    const name = getName(lesson);
+    if (id && name) map.set(id, name);
+  }
+  return [...map.entries()]
+    .map(([id, name]) => ({ id, name }))
+    .sort((a, b) => a.name.localeCompare(b.name, 'he'));
 }
 
 export default function ChangeChildLessonDialog({
@@ -40,6 +71,10 @@ export default function ChangeChildLessonDialog({
 }: Props) {
   const [lessons, setLessons] = useState<LessonOption[]>([]);
   const [search, setSearch] = useState('');
+  const [branchId, setBranchId] = useState('');
+  const [courseTypeId, setCourseTypeId] = useState('');
+  const [courseId, setCourseId] = useState('');
+  const [dayOfWeek, setDayOfWeek] = useState('');
   const [selectedId, setSelectedId] = useState('');
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -48,24 +83,97 @@ export default function ChangeChildLessonDialog({
   useEffect(() => {
     if (!isOpen) return;
     setSearch('');
+    setCourseTypeId('');
+    setCourseId('');
+    setDayOfWeek('');
     setSelectedId(enrollment?.lesson_id || '');
     setError('');
     setLoading(true);
     api.get('/courses/lessons/')
       .then((res) => {
         const rows = (Array.isArray(res.data) ? res.data : res.data?.results ?? []) as LessonOption[];
-        setLessons(rows.filter((row) => row.status !== 'cancelled'));
+        const active = rows.filter((row) => row.status !== 'cancelled');
+        setLessons(active);
+        const current = active.find((row) => row.id === enrollment?.lesson_id);
+        setBranchId(asId(current?.branch_id));
       })
       .catch(() => setError('לא ניתן לטעון את רשימת השיעורים'))
       .finally(() => setLoading(false));
   }, [isOpen, enrollment?.lesson_id]);
 
+  const branchOptions = useMemo(
+    () => uniqueNamedOptions(lessons, (lesson) => asId(lesson.branch_id), (lesson) => lesson.branch_name || ''),
+    [lessons],
+  );
+
+  const typeOptions = useMemo(() => {
+    const scoped = branchId
+      ? lessons.filter((lesson) => asId(lesson.branch_id) === branchId)
+      : lessons;
+    return uniqueNamedOptions(
+      scoped,
+      (lesson) => asId(lesson.course_type),
+      (lesson) => lesson.course_type_name || '',
+    );
+  }, [lessons, branchId]);
+
+  const courseOptions = useMemo(() => {
+    const scoped = lessons.filter((lesson) => {
+      if (branchId && asId(lesson.branch_id) !== branchId) return false;
+      if (courseTypeId && asId(lesson.course_type) !== courseTypeId) return false;
+      return true;
+    });
+    return uniqueNamedOptions(
+      scoped,
+      (lesson) => asId(lesson.course),
+      (lesson) => {
+        const name = lesson.course_name || '';
+        return lesson.course_display_id ? `${name} #${lesson.course_display_id}` : name;
+      },
+    );
+  }, [lessons, branchId, courseTypeId]);
+
+  const dayOptions = useMemo(() => {
+    const scoped = lessons.filter((lesson) => {
+      if (branchId && asId(lesson.branch_id) !== branchId) return false;
+      if (courseTypeId && asId(lesson.course_type) !== courseTypeId) return false;
+      if (courseId && asId(lesson.course) !== courseId) return false;
+      return true;
+    });
+    const days = [...new Set(scoped.map((lesson) => lesson.day_of_week))]
+      .filter((day) => Number.isInteger(day))
+      .sort((a, b) => a - b);
+    return days.map((day) => ({ id: String(day), name: getDayName(day) }));
+  }, [lessons, branchId, courseTypeId, courseId]);
+
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    const rows = lessons.map((lesson) => ({ lesson, label: lessonLabel(lesson) }));
-    if (!q) return rows;
-    return rows.filter((row) => row.label.toLowerCase().includes(q));
-  }, [lessons, search]);
+    return lessons
+      .filter((lesson) => {
+        if (branchId && asId(lesson.branch_id) !== branchId) return false;
+        if (courseTypeId && asId(lesson.course_type) !== courseTypeId) return false;
+        if (courseId && asId(lesson.course) !== courseId) return false;
+        if (dayOfWeek !== '' && String(lesson.day_of_week) !== dayOfWeek) return false;
+        if (!q) return true;
+        const haystack = [
+          lessonLabel(lesson),
+          lesson.branch_name,
+          lesson.course_type_name,
+        ].filter(Boolean).join(' ').toLowerCase();
+        return haystack.includes(q);
+      })
+      .map((lesson) => ({ lesson, label: lessonLabel(lesson) }));
+  }, [lessons, search, branchId, courseTypeId, courseId, dayOfWeek]);
+
+  const hasActiveFilters = Boolean(search.trim() || branchId || courseTypeId || courseId || dayOfWeek !== '');
+
+  const clearFilters = () => {
+    setSearch('');
+    setBranchId('');
+    setCourseTypeId('');
+    setCourseId('');
+    setDayOfWeek('');
+  };
 
   const handleSave = async () => {
     if (!enrollment?.enrollment_id || !selectedId) {
@@ -88,10 +196,13 @@ export default function ChangeChildLessonDialog({
       onSaved(enrollment.enrollment_id, {
         ...enrollment,
         lesson_id: selectedId,
+        course_id: asId(picked?.course) || enrollment.course_id,
         course_name: info?.course_name || picked?.course_name || enrollment.course_name,
+        course_display_id: picked?.course_display_id ?? enrollment.course_display_id,
         day_of_week: info?.day_of_week ?? picked?.day_of_week ?? enrollment.day_of_week,
         start_time: info?.start_time || picked?.start_time || enrollment.start_time,
         end_time: info?.end_time || picked?.end_time || enrollment.end_time,
+        branch_name: picked?.branch_name ?? enrollment.branch_name,
       });
       onClose();
     } catch (err: unknown) {
@@ -110,6 +221,7 @@ export default function ChangeChildLessonDialog({
   const currentLabel = enrollment
     ? lessonLabel({
         course_name: enrollment.course_name,
+        course_display_id: enrollment.course_display_id,
         day_of_week: enrollment.day_of_week,
         start_time: enrollment.start_time,
         end_time: enrollment.end_time,
@@ -118,7 +230,7 @@ export default function ChangeChildLessonDialog({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => { if (!open) onClose(); }}>
-      <DialogContent className="max-w-md overflow-hidden p-0 sm:max-h-[min(90vh,680px)]" dir="rtl">
+      <DialogContent className="max-w-lg overflow-hidden p-0 sm:max-h-[min(90vh,720px)]" dir="rtl">
         <div className="absolute left-3 top-3 z-10">
           <DialogCloseButton />
         </div>
@@ -138,18 +250,88 @@ export default function ChangeChildLessonDialog({
             </p>
           ) : null}
 
-          <input
-            type="search"
-            className="input w-full"
-            placeholder="חיפוש שיעור..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
+          <div className="grid grid-cols-2 gap-2">
+            <select
+              className="input w-full text-sm"
+              value={branchId}
+              onChange={(e) => {
+                setBranchId(e.target.value);
+                setCourseTypeId('');
+                setCourseId('');
+                setDayOfWeek('');
+              }}
+              aria-label="סניף"
+            >
+              <option value="">כל הסניפים</option>
+              {branchOptions.map((option) => (
+                <option key={option.id} value={option.id}>{option.name}</option>
+              ))}
+            </select>
+            <select
+              className="input w-full text-sm"
+              value={courseTypeId}
+              onChange={(e) => {
+                setCourseTypeId(e.target.value);
+                setCourseId('');
+                setDayOfWeek('');
+              }}
+              aria-label="תחום"
+            >
+              <option value="">כל התחומים</option>
+              {typeOptions.map((option) => (
+                <option key={option.id} value={option.id}>{option.name}</option>
+              ))}
+            </select>
+            <select
+              className="input w-full text-sm"
+              value={courseId}
+              onChange={(e) => {
+                setCourseId(e.target.value);
+                setDayOfWeek('');
+              }}
+              aria-label="חוג"
+            >
+              <option value="">כל החוגים</option>
+              {courseOptions.map((option) => (
+                <option key={option.id} value={option.id}>{option.name}</option>
+              ))}
+            </select>
+            <select
+              className="input w-full text-sm"
+              value={dayOfWeek}
+              onChange={(e) => setDayOfWeek(e.target.value)}
+              aria-label="יום"
+            >
+              <option value="">כל הימים</option>
+              {dayOptions.map((option) => (
+                <option key={option.id} value={option.id}>{option.name}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <input
+              type="search"
+              className="input w-full"
+              placeholder="חיפוש שיעור..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+            {hasActiveFilters ? (
+              <button
+                type="button"
+                className="shrink-0 text-sm text-primary underline whitespace-nowrap"
+                onClick={clearFilters}
+              >
+                נקה סינון
+              </button>
+            ) : null}
+          </div>
 
           {loading ? (
             <p className="text-sm text-muted-foreground">טוען שיעורים…</p>
           ) : (
-            <div className="max-h-[min(48vh,360px)] space-y-2 overflow-y-auto pe-1">
+            <div className="max-h-[min(42vh,320px)] space-y-2 overflow-y-auto pe-1">
               {filtered.length === 0 ? (
                 <p className="text-sm text-muted-foreground">לא נמצאו שיעורים.</p>
               ) : filtered.map(({ lesson, label }) => {

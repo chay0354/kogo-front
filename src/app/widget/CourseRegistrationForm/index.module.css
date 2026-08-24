@@ -337,6 +337,9 @@
 .failIcon {
   @apply text-red-500 text-6xl;
 }
+.pendingIcon {
+  @apply text-amber-500 text-6xl font-bold;
+}
 .resultTitle {
   @apply text-lg font-semibold text-gray-800;
 }

@@ -58,6 +58,7 @@ export default function SubscriptionPaymentDialog({
   const [cardHolderId, setCardHolderId] = useState('');
   const [charging, setCharging] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [pending, setPending] = useState(false);
 
   const lessonIds = lessons.map((l) => l.id).join(',');
 
@@ -72,6 +73,7 @@ export default function SubscriptionPaymentDialog({
       setPaymentDataList([]);
       setError('');
       setSuccess(false);
+      setPending(false);
       setCardNumber('');
       setExpiryMonth('');
       setExpiryYear('');
@@ -117,6 +119,9 @@ export default function SubscriptionPaymentDialog({
     if (!cardNumber || !expiryMonth || !expiryYear || !cvv) return;
     setCharging(true);
     setError('');
+    setPending(false);
+    const pendingCopy =
+      'לא התקבלה תשובה סופית מחברת האשראי. אין לשלם שוב — אנחנו מאמתים את התשלום וניצור איתכם קשר.';
     try {
       const cardDetails = {
         card_number: cardNumber.replace(/\s/g, ''),
@@ -129,22 +134,32 @@ export default function SubscriptionPaymentDialog({
       // does not follow an already-approved charge on the third.
       let charged = 0;
       for (const [index, l] of lessons.entries()) {
-        const { data } = await api.post('/customers/payments/charge_subscription/', {
-          child_id: child.id,
-          lesson_id: l.id,
-          bundle_id: bundleId,
-          card_details: cardDetails,
-          include_registration_fee: !bundleId || index === 0,
-        });
-        if (!data.success) {
-          setError(
-            charged > 0
-              ? `${data.error || 'התשלום נכשל'} — חלק מהשיעורים כבר חויבו, יש להשלים ידנית`
-              : data.error || 'התשלום נכשל'
-          );
+        const { data } = await api.post(
+          '/customers/payments/charge_subscription/',
+          {
+            child_id: child.id,
+            lesson_id: l.id,
+            bundle_id: bundleId,
+            card_details: cardDetails,
+            include_registration_fee: !bundleId || index === 0,
+          },
+          { timeout: 90000 },
+        );
+        if (data?.success) {
+          charged += 1;
+          continue;
+        }
+        if (data?.pending || data?.indeterminate) {
+          setPending(true);
+          setError(data.error || pendingCopy);
           return;
         }
-        charged += 1;
+        setError(
+          charged > 0
+            ? `${data?.error || 'התשלום נכשל'} — חלק מהשיעורים כבר חויבו, יש להשלים ידנית`
+            : data?.error || 'התשלום נכשל'
+        );
+        return;
       }
       setSuccess(true);
       setTimeout(() => {
@@ -153,6 +168,25 @@ export default function SubscriptionPaymentDialog({
       }, 2000);
     } catch (err: any) {
       const d = err.response?.data;
+      if (d?.success) {
+        setSuccess(true);
+        setTimeout(() => {
+          onSuccess();
+          onClose();
+        }, 2000);
+        return;
+      }
+      if (d?.pending || d?.indeterminate) {
+        setPending(true);
+        setError(d.error || pendingCopy);
+        return;
+      }
+      const timedOut = err.code === 'ECONNABORTED' || /timeout/i.test(err.message || '');
+      if (timedOut || !err.response) {
+        setPending(true);
+        setError(pendingCopy);
+        return;
+      }
       setError(d?.error || d?.detail || 'שגיאה בסליקה');
     } finally {
       setCharging(false);
@@ -195,12 +229,21 @@ export default function SubscriptionPaymentDialog({
             </div>
           )}
 
-          {/* Error */}
+          {/* Error / pending */}
           {error && !loading && (
-            <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+            <div className={`${pending ? 'bg-amber-50 border-amber-200' : 'bg-red-50 border-red-200'} border rounded-lg p-4`}>
               <div className="flex items-start gap-2">
-                <XCircle className="h-5 w-5 text-red-600 mt-0.5 shrink-0" />
-                <p className="text-sm text-red-700">{error}</p>
+                {pending ? (
+                  <Loader2 className="h-5 w-5 text-amber-600 mt-0.5 shrink-0" />
+                ) : (
+                  <XCircle className="h-5 w-5 text-red-600 mt-0.5 shrink-0" />
+                )}
+                <div>
+                  {pending && (
+                    <p className="font-medium text-amber-800 mb-0.5">התשלום בבדיקה</p>
+                  )}
+                  <p className={`text-sm ${pending ? 'text-amber-700' : 'text-red-700'}`}>{error}</p>
+                </div>
               </div>
             </div>
           )}
@@ -218,7 +261,7 @@ export default function SubscriptionPaymentDialog({
             </div>
           )}
 
-          {paymentData && !loading && !success && (
+          {paymentData && !loading && !success && !pending && (
             <>
               {/* Pricing summary */}
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">

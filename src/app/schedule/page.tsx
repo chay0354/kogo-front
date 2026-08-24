@@ -17,6 +17,7 @@ import { RefreshCw, Plus, ChevronRight, ChevronLeft, Calendar as CalendarIcon, L
 import { LG_MEDIA_QUERY, useMediaQuery } from '@/hooks/useMediaQuery';
 import api, { fetchInstructorsDropdown } from '@/lib/api';
 import { citiesFromBranches, filterBranchesByCity, filterBranchesForUser, unwrapApiList } from '@/lib/scopedFilters';
+import InstructorHome from './instructor/InstructorHome';
 
 type Branch = {
   id: string;
@@ -51,6 +52,24 @@ function shouldShowLessonOnDate(lesson: Lesson, date: Date): boolean {
 type ContentFilter = 'all' | 'lessons' | 'rentals';
 
 export default function SchedulePage() {
+  const { user, loading } = useAuth();
+
+  if (loading || !user) {
+    return <AppLayout>{null}</AppLayout>;
+  }
+
+  if (user.role === 'worker') {
+    return (
+      <AppLayout>
+        <InstructorHome />
+      </AppLayout>
+    );
+  }
+
+  return <StaffSchedulePage />;
+}
+
+function StaffSchedulePage() {
   const { user, logout } = useAuth();
   const router = useRouter();
   const [currentDate, setCurrentDate] = useState(new Date());
