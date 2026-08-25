@@ -669,7 +669,6 @@ export default function CourseRegistrationForm({
             price_option_id: selection.priceOptionId,
             discount_confirmed: index === 0 ? discountConfirmedForChild : Boolean(resolvedChildId),
             existing_child_id: resolvedChildId,
-            include_registration_fee: index === 0,
           });
           if (response.child_id) {
             resolvedChildId = response.child_id;
