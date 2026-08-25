@@ -97,7 +97,7 @@ export default function SubscriptionPaymentDialog({
             lesson_id: l.id,
             bundle_id: bundleId,
             payment_date: new Date().toISOString().split('T')[0],
-            include_registration_fee: true,
+            include_registration_fee: bundleId ? index === 0 : true,
           })
         )
       );
@@ -134,7 +134,7 @@ export default function SubscriptionPaymentDialog({
           lesson_id: l.id,
           bundle_id: bundleId,
           card_details: cardDetails,
-          include_registration_fee: true,
+          include_registration_fee: bundleId ? index === 0 : true,
         });
         if (!data.success) {
           setError(
