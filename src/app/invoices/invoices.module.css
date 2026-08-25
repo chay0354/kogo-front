@@ -131,6 +131,28 @@
   box-shadow: 0 0 0 2px hsl(var(--ring));
 }
 
+.syncFiveBtn {
+  height: 2.25rem;
+  padding: 0 0.9rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: hsl(var(--foreground));
+  background: hsl(var(--card));
+  border: 1px solid hsl(var(--input));
+  border-radius: calc(var(--radius) - 4px);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.syncFiveBtn:hover:not(:disabled) {
+  background: hsl(var(--muted));
+}
+
+.syncFiveBtn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
 .dateInput {
   height: 2.25rem;
   border: 1px solid hsl(var(--input));

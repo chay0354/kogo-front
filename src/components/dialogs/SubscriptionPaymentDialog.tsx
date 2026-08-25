@@ -98,6 +98,7 @@ export default function SubscriptionPaymentDialog({
             bundle_id: bundleId,
             payment_date: new Date().toISOString().split('T')[0],
             include_registration_fee: bundleId ? index === 0 : true,
+            include_monthly_amount: bundleId ? index === 0 : true,
           })
         )
       );
@@ -135,6 +136,7 @@ export default function SubscriptionPaymentDialog({
           bundle_id: bundleId,
           card_details: cardDetails,
           include_registration_fee: bundleId ? index === 0 : true,
+          include_monthly_amount: bundleId ? index === 0 : true,
         });
         if (!data.success) {
           setError(

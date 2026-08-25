@@ -1,5 +1,7 @@
 'use client';
 
+import type { ReactNode } from 'react';
+
 interface FilterOption {
   value: string;
   label: string;
@@ -14,6 +16,7 @@ interface PageFiltersProps {
   secondaryValue: string;
   secondaryOptions: FilterOption[];
   onSecondaryChange: (value: string) => void;
+  extra?: ReactNode;
 }
 
 export default function PageFilters({
@@ -25,6 +28,7 @@ export default function PageFilters({
   secondaryValue,
   secondaryOptions,
   onSecondaryChange,
+  extra,
 }: PageFiltersProps) {
   return (
     <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-3 mb-6" dir="rtl">
@@ -47,6 +51,7 @@ export default function PageFilters({
             </option>
           ))}
         </select>
+        {extra}
       </div>
 
       {secondaryOptions.length > 0 && (

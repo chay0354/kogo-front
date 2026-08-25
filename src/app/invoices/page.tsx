@@ -82,6 +82,7 @@ export default function InvoicesPage() {
   const [editingRecurring, setEditingRecurring] = useState<RecurringPayment | null>(null);
   const [editAmountValue, setEditAmountValue] = useState('');
   const [editAmountError, setEditAmountError] = useState('');
+  const [syncingFive, setSyncingFive] = useState(false);
 
   const { data: childrenData } = useQuery({
     queryKey: ['children'],
@@ -152,8 +153,8 @@ export default function InvoicesPage() {
     }
   }
 
-  async function loadRecurringPayments() {
-    if (recurringLoaded) return;
+  async function loadRecurringPayments(force = false) {
+    if (recurringLoaded && !force) return;
     setRecurringLoading(true);
     try {
       const items: RecurringPayment[] = [];
@@ -218,6 +219,48 @@ export default function InvoicesPage() {
     setEditingRecurring(item);
     setEditAmountValue(String(item.pending_amount ?? item.amount));
     setEditAmountError('');
+  }
+
+  async function handleSyncFive() {
+    if (
+      !window.confirm(
+        'לתקן בטרנזילה את 5 הוראות הקבע הראשונות של מסלול פעמיים/שלוש בשבוע? הסכום החודשי שם ישתנה, והוראות כפולות יכובו.',
+      )
+    ) {
+      return;
+    }
+    setSyncingFive(true);
+    try {
+      const response = await api.post('/customers/recurring-payments/sync-bundle-amounts/', {
+        limit: 5,
+      });
+      const synced = Array.isArray(response.data?.synced) ? response.data.synced : [];
+      const failed = Array.isArray(response.data?.failed) ? response.data.failed : [];
+      const remaining = Number(response.data?.remaining ?? 0);
+      if (synced.length === 0 && failed.length === 0) {
+        window.alert('אין הוראות קבע שצריך לסנכרן.');
+        return;
+      }
+      const lines = synced.map((row: { child?: string; old_amount?: string; new_amount?: string; tranzila_sto_id?: string; cancelled_ids?: string[] }) => {
+        const extra = row.cancelled_ids?.length ? ' (בוטלה כפילות)' : '';
+        const sto = row.tranzila_sto_id ? ` · STO ${row.tranzila_sto_id}` : '';
+        return `• ${row.child}: ₪${row.old_amount} → ₪${row.new_amount}${sto}${extra}`;
+      });
+      const failLines = failed.map((row: { child?: string; error?: string }) => `• ${row.child}: ${row.error}`);
+      const parts = [];
+      if (lines.length) parts.push(`עודכן בטרנזילה (${synced.length}):\n${lines.join('\n')}`);
+      if (failLines.length) parts.push(`נכשל (${failed.length}):\n${failLines.join('\n')}`);
+      parts.push(`נשארו ${remaining} לתיקון.`);
+      window.alert(parts.join('\n\n'));
+      await loadRecurringPayments(true);
+    } catch (error: unknown) {
+      const msg =
+        (error as { response?: { data?: { error?: string } } })?.response?.data?.error ??
+        'שגיאה בסנכרון הוראות הקבע';
+      window.alert(msg);
+    } finally {
+      setSyncingFive(false);
+    }
   }
 
   async function handleCancelRecurring(recurringId: string, childName: string) {
@@ -401,6 +444,16 @@ export default function InvoicesPage() {
           secondaryValue={secondaryFilter}
           secondaryOptions={[]}
           onSecondaryChange={setSecondaryFilter}
+          extra={
+            <button
+              type="button"
+              className={styles.syncFiveBtn}
+              onClick={handleSyncFive}
+              disabled={syncingFive}
+            >
+              {syncingFive ? 'מסנכרן...' : 'סנכרון 5'}
+            </button>
+          }
         />
 
         {activeTab === 'מסמכים' && (
