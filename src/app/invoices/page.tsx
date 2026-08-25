@@ -38,22 +38,6 @@ import {
 } from './utils';
 import styles from './invoices.module.css';
 
-type SyncedStandingOrder = {
-  child?: string;
-  old_amount?: string;
-  new_amount?: string;
-  tranzila_sto_id?: string;
-  pending_from?: string;
-  cancelled_ids?: string[];
-};
-
-type FailedStandingOrder = { child?: string; error?: string };
-
-// Each child costs a Tranzila round trip, so keep a batch well inside the
-// request timeout and let the caller loop for the rest.
-const SYNC_BATCH_SIZE = 5;
-const SYNC_BATCH_TIMEOUT_MS = 120000;
-
 export default function InvoicesPage() {
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<ActiveTab>('מסמכים');
@@ -98,8 +82,6 @@ export default function InvoicesPage() {
   const [editingRecurring, setEditingRecurring] = useState<RecurringPayment | null>(null);
   const [editAmountValue, setEditAmountValue] = useState('');
   const [editAmountError, setEditAmountError] = useState('');
-  const [syncingAll, setSyncingAll] = useState(false);
-  const [syncedSoFar, setSyncedSoFar] = useState(0);
 
   const { data: childrenData } = useQuery({
     queryKey: ['children'],
@@ -236,71 +218,6 @@ export default function InvoicesPage() {
     setEditingRecurring(item);
     setEditAmountValue(String(item.pending_amount ?? item.amount));
     setEditAmountError('');
-  }
-
-  async function handleSyncAll() {
-    if (
-      !window.confirm(
-        'לתקן את כל הוראות הקבע של מסלול פעמיים/שלוש בשבוע שחויבו בסכום מפוצל? הסכום החודשי יעודכן החל מהחיוב הבא, והוראות כפולות יבוטלו.',
-      )
-    ) {
-      return;
-    }
-    setSyncingAll(true);
-    setSyncedSoFar(0);
-    const allSynced: SyncedStandingOrder[] = [];
-    let stillFailing: FailedStandingOrder[] = [];
-    let remaining = 0;
-    try {
-      // Rows that fail stay at the front of the queue, so a batch that fixes
-      // nothing means everything left is stuck and looping again won't help.
-      for (;;) {
-        const response = await api.post(
-          '/customers/recurring-payments/sync-bundle-amounts/',
-          { limit: SYNC_BATCH_SIZE },
-          { timeout: SYNC_BATCH_TIMEOUT_MS },
-        );
-        const synced: SyncedStandingOrder[] = Array.isArray(response.data?.synced)
-          ? response.data.synced
-          : [];
-        stillFailing = Array.isArray(response.data?.failed) ? response.data.failed : [];
-        remaining = Number(response.data?.remaining ?? 0);
-        allSynced.push(...synced);
-        setSyncedSoFar(allSynced.length);
-        if (synced.length === 0 || remaining <= 0) break;
-      }
-
-      if (allSynced.length === 0 && stillFailing.length === 0) {
-        window.alert('אין הוראות קבע שצריך לתקן.');
-        return;
-      }
-
-      const lines = allSynced.map((row) => {
-        const extra = row.cancelled_ids?.length ? ' (בוטלה כפילות)' : '';
-        const where = row.tranzila_sto_id ? ` · בטרנזילה STO ${row.tranzila_sto_id}` : '';
-        const from = row.pending_from ? ` · מ-${row.pending_from}` : '';
-        return `• ${row.child}: ₪${row.old_amount} → ₪${row.new_amount}${from}${where}${extra}`;
-      });
-      const failLines = stillFailing.map((row) => `• ${row.child}: ${row.error}`);
-      const parts = [];
-      if (lines.length) parts.push(`תוקן (${allSynced.length}):\n${lines.join('\n')}`);
-      if (failLines.length) parts.push(`נכשל (${stillFailing.length}):\n${failLines.join('\n')}`);
-      parts.push(remaining > 0 ? `נשארו ${remaining} שלא ניתן לתקן.` : 'לא נשארו הוראות קבע לתיקון.');
-      window.alert(parts.join('\n\n'));
-      await loadRecurringPayments(true);
-    } catch (error: unknown) {
-      const msg =
-        (error as { response?: { data?: { error?: string } } })?.response?.data?.error ??
-        'שגיאה בתיקון הוראות הקבע';
-      window.alert(
-        allSynced.length
-          ? `${msg}\n\nתוקנו ${allSynced.length} לפני התקלה. אפשר ללחוץ שוב כדי להמשיך.`
-          : msg,
-      );
-      await loadRecurringPayments(true);
-    } finally {
-      setSyncingAll(false);
-    }
   }
 
   async function handleCancelRecurring(recurringId: string, childName: string) {
@@ -484,16 +401,6 @@ export default function InvoicesPage() {
           secondaryValue={secondaryFilter}
           secondaryOptions={[]}
           onSecondaryChange={setSecondaryFilter}
-          extra={
-            <button
-              type="button"
-              className={styles.syncAllBtn}
-              onClick={handleSyncAll}
-              disabled={syncingAll}
-            >
-              {syncingAll ? `מתקן... (${syncedSoFar})` : 'תיקון הוראות קבע'}
-            </button>
-          }
         />
 
         {activeTab === 'מסמכים' && (
