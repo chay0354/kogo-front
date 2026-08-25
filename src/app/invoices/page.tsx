@@ -38,6 +38,19 @@ import {
 } from './utils';
 import styles from './invoices.module.css';
 
+type SyncedStandingOrder = {
+  child?: string;
+  old_amount?: string;
+  new_amount?: string;
+  tranzila_sto_id?: string;
+  pending_from?: string;
+  cancelled_ids?: string[];
+};
+
+type FailedStandingOrder = { child?: string; error?: string };
+
+const SYNC_BATCH_SIZE = 20;
+
 export default function InvoicesPage() {
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<ActiveTab>('מסמכים');
@@ -82,7 +95,8 @@ export default function InvoicesPage() {
   const [editingRecurring, setEditingRecurring] = useState<RecurringPayment | null>(null);
   const [editAmountValue, setEditAmountValue] = useState('');
   const [editAmountError, setEditAmountError] = useState('');
-  const [syncingFive, setSyncingFive] = useState(false);
+  const [syncingAll, setSyncingAll] = useState(false);
+  const [syncedSoFar, setSyncedSoFar] = useState(0);
 
   const { data: childrenData } = useQuery({
     queryKey: ['children'],
@@ -221,46 +235,66 @@ export default function InvoicesPage() {
     setEditAmountError('');
   }
 
-  async function handleSyncFive() {
+  async function handleSyncAll() {
     if (
       !window.confirm(
-        'לתקן את 5 הוראות הקבע הראשונות של מסלול פעמיים/שלוש בשבוע? הסכום החודשי יעודכן החל מהחיוב הבא, והוראות כפולות יבוטלו.',
+        'לתקן את כל הוראות הקבע של מסלול פעמיים/שלוש בשבוע שחויבו בסכום מפוצל? הסכום החודשי יעודכן החל מהחיוב הבא, והוראות כפולות יבוטלו.',
       )
     ) {
       return;
     }
-    setSyncingFive(true);
+    setSyncingAll(true);
+    setSyncedSoFar(0);
+    const allSynced: SyncedStandingOrder[] = [];
+    let stillFailing: FailedStandingOrder[] = [];
+    let remaining = 0;
     try {
-      const response = await api.post('/customers/recurring-payments/sync-bundle-amounts/', {
-        limit: 5,
-      });
-      const synced = Array.isArray(response.data?.synced) ? response.data.synced : [];
-      const failed = Array.isArray(response.data?.failed) ? response.data.failed : [];
-      const remaining = Number(response.data?.remaining ?? 0);
-      if (synced.length === 0 && failed.length === 0) {
-        window.alert('אין הוראות קבע שצריך לסנכרן.');
+      // Rows that fail stay at the front of the queue, so a batch that fixes
+      // nothing means everything left is stuck and looping again won't help.
+      for (;;) {
+        const response = await api.post('/customers/recurring-payments/sync-bundle-amounts/', {
+          limit: SYNC_BATCH_SIZE,
+        });
+        const synced: SyncedStandingOrder[] = Array.isArray(response.data?.synced)
+          ? response.data.synced
+          : [];
+        stillFailing = Array.isArray(response.data?.failed) ? response.data.failed : [];
+        remaining = Number(response.data?.remaining ?? 0);
+        allSynced.push(...synced);
+        setSyncedSoFar(allSynced.length);
+        if (synced.length === 0 || remaining <= 0) break;
+      }
+
+      if (allSynced.length === 0 && stillFailing.length === 0) {
+        window.alert('אין הוראות קבע שצריך לתקן.');
         return;
       }
-      const lines = synced.map((row: { child?: string; old_amount?: string; new_amount?: string; tranzila_sto_id?: string; pending_from?: string; cancelled_ids?: string[] }) => {
+
+      const lines = allSynced.map((row) => {
         const extra = row.cancelled_ids?.length ? ' (בוטלה כפילות)' : '';
         const where = row.tranzila_sto_id ? ` · בטרנזילה STO ${row.tranzila_sto_id}` : '';
         const from = row.pending_from ? ` · מ-${row.pending_from}` : '';
         return `• ${row.child}: ₪${row.old_amount} → ₪${row.new_amount}${from}${where}${extra}`;
       });
-      const failLines = failed.map((row: { child?: string; error?: string }) => `• ${row.child}: ${row.error}`);
+      const failLines = stillFailing.map((row) => `• ${row.child}: ${row.error}`);
       const parts = [];
-      if (lines.length) parts.push(`תוקן (${synced.length}):\n${lines.join('\n')}`);
-      if (failLines.length) parts.push(`נכשל (${failed.length}):\n${failLines.join('\n')}`);
-      parts.push(`נשארו ${remaining} לתיקון.`);
+      if (lines.length) parts.push(`תוקן (${allSynced.length}):\n${lines.join('\n')}`);
+      if (failLines.length) parts.push(`נכשל (${stillFailing.length}):\n${failLines.join('\n')}`);
+      parts.push(remaining > 0 ? `נשארו ${remaining} שלא ניתן לתקן.` : 'לא נשארו הוראות קבע לתיקון.');
       window.alert(parts.join('\n\n'));
       await loadRecurringPayments(true);
     } catch (error: unknown) {
       const msg =
         (error as { response?: { data?: { error?: string } } })?.response?.data?.error ??
-        'שגיאה בסנכרון הוראות הקבע';
-      window.alert(msg);
+        'שגיאה בתיקון הוראות הקבע';
+      window.alert(
+        allSynced.length
+          ? `${msg}\n\nתוקנו ${allSynced.length} לפני התקלה. אפשר ללחוץ שוב כדי להמשיך.`
+          : msg,
+      );
+      await loadRecurringPayments(true);
     } finally {
-      setSyncingFive(false);
+      setSyncingAll(false);
     }
   }
 
@@ -448,11 +482,11 @@ export default function InvoicesPage() {
           extra={
             <button
               type="button"
-              className={styles.syncFiveBtn}
-              onClick={handleSyncFive}
-              disabled={syncingFive}
+              className={styles.syncAllBtn}
+              onClick={handleSyncAll}
+              disabled={syncingAll}
             >
-              {syncingFive ? 'מסנכרן...' : 'סנכרון 5'}
+              {syncingAll ? `מתקן... (${syncedSoFar})` : 'תיקון הוראות קבע'}
             </button>
           }
         />

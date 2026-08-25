@@ -131,7 +131,7 @@
   box-shadow: 0 0 0 2px hsl(var(--ring));
 }
 
-.syncFiveBtn {
+.syncAllBtn {
   height: 2.25rem;
   padding: 0 0.9rem;
   font-size: 0.875rem;
@@ -144,11 +144,11 @@
   white-space: nowrap;
 }
 
-.syncFiveBtn:hover:not(:disabled) {
+.syncAllBtn:hover:not(:disabled) {
   background: hsl(var(--muted));
 }
 
-.syncFiveBtn:disabled {
+.syncAllBtn:disabled {
   opacity: 0.6;
   cursor: default;
 }
