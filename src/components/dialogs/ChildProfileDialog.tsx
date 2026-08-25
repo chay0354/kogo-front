@@ -55,7 +55,13 @@ function isOneTimePayment(payment: {
   trial_lesson_date?: string | null;
   payment_type?: string;
   description?: string;
+  final_amount?: unknown;
 }): boolean {
+  // Extra twice/thrice-a-week days are stored as ₪0 payments so the child can
+  // enroll; they are not one-time charges and must not appear in this table.
+  if (Number(payment.final_amount || 0) <= 0 && Number(payment.registration_fee || 0) <= 0) {
+    return false;
+  }
   if (Number(payment.registration_fee || 0) > 0) return true;
   if (payment.trial_lesson_date) return true;
   if (payment.payment_type === 'one_time') return true;
