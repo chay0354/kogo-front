@@ -44,6 +44,68 @@ function daysUntil(dateString: string | null): number | null {
   return Math.ceil(diff / (1000 * 60 * 60 * 24));
 }
 
+function formatShekel(value: unknown): string {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return '₪0';
+  return `₪${n.toLocaleString('he-IL', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
+}
+
+function isOneTimePayment(payment: {
+  registration_fee?: unknown;
+  trial_lesson_date?: string | null;
+  payment_type?: string;
+  description?: string;
+}): boolean {
+  if (Number(payment.registration_fee || 0) > 0) return true;
+  if (payment.trial_lesson_date) return true;
+  if (payment.payment_type === 'one_time') return true;
+  const desc = String(payment.description || '');
+  return desc.includes('דמי רישום') || desc.includes('ניסיון');
+}
+
+function paymentStatusBadge(status: string): { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' } {
+  if (status === 'completed') return { label: 'הושלם', variant: 'default' };
+  if (status === 'refunded') return { label: 'זוכה', variant: 'secondary' };
+  if (status === 'failed' || status === 'refund_failed') return { label: status === 'refund_failed' ? 'זיכוי נכשל' : 'נכשל', variant: 'destructive' };
+  if (status === 'cancelled') return { label: 'בוטל', variant: 'outline' };
+  return { label: 'ממתין', variant: 'outline' };
+}
+
+function recurringStatusLabel(status: string): string {
+  if (status === 'active') return 'פעיל';
+  if (status === 'cancelled') return 'בוטל';
+  if (status === 'paused') return 'מושהה';
+  if (status === 'expired') return 'פג';
+  if (status === 'failed') return 'נכשל';
+  return status;
+}
+
+function storePurchaseLabel(invoice: {
+  invoice_number?: string;
+  line_items?: Array<{ product_name?: string }>;
+}): string {
+  const products = (invoice.line_items || [])
+    .map((item) => item.product_name)
+    .filter(Boolean);
+  if (products.length) return `רכישה בחנות · ${products.join(', ')}`;
+  return invoice.invoice_number ? `רכישה בחנות · ${invoice.invoice_number}` : 'רכישה בחנות';
+}
+
+function oneTimePaymentLabel(payment: {
+  description?: string;
+  lesson_name?: string;
+  registration_fee?: unknown;
+  trial_lesson_date?: string | null;
+}): string {
+  if (payment.trial_lesson_date) {
+    return payment.description || `שיעור ניסיון${payment.lesson_name ? ` · ${payment.lesson_name}` : ''}`;
+  }
+  if (Number(payment.registration_fee || 0) > 0 || String(payment.description || '').includes('דמי רישום')) {
+    return `דמי רישום${payment.lesson_name ? ` · ${payment.lesson_name}` : ''}`;
+  }
+  return payment.description || payment.lesson_name || 'חיוב חד-פעמי';
+}
+
 export default function ChildProfileDialog({
   child,
   isOpen,
@@ -205,32 +267,74 @@ export default function ChildProfileDialog({
     }
   };
 
+  const oneTimeCharges = useMemo(() => {
+    const fromPayments = payments
+      .filter((payment) => isOneTimePayment(payment) && ['completed', 'refunded'].includes(payment.status))
+      .map((payment) => ({
+        key: `payment-${payment.id}`,
+        kind: 'payment' as const,
+        date: payment.payment_date || payment.created_at || null,
+        description: oneTimePaymentLabel(payment),
+        amount: Number(payment.final_amount || 0),
+        status: payment.status as string,
+        canRefund: payment.status === 'completed' && Number(payment.final_amount || 0) > 0,
+        raw: payment,
+      }));
+
+    const fromStore = storeInvoices
+      .filter((invoice) => ['completed', 'refunded', 'refund_failed'].includes(invoice.payment_status))
+      .map((invoice) => ({
+        key: `store-${invoice.id}`,
+        kind: 'store' as const,
+        date: invoice.issue_date || invoice.created_at || null,
+        description: storePurchaseLabel(invoice),
+        amount: Number(invoice.total_amount || 0),
+        status: invoice.payment_status as string,
+        canRefund:
+          (invoice.payment_status === 'completed' || invoice.payment_status === 'refund_failed')
+          && invoice.payment_method === 'credit_card',
+        raw: invoice,
+      }));
+
+    return [...fromPayments, ...fromStore].sort((a, b) => {
+      const aTime = a.date ? new Date(a.date).getTime() : 0;
+      const bTime = b.date ? new Date(b.date).getTime() : 0;
+      return bTime - aTime;
+    });
+  }, [payments, storeInvoices]);
+
+  const standingOrders = useMemo(() => {
+    const rank = (status: string) => (status === 'active' ? 0 : 1);
+    return [...recurringPayments].sort((a, b) => rank(a.status) - rank(b.status));
+  }, [recurringPayments]);
+
+  const monthlyTotal = standingOrders
+    .filter((item) => item.status === 'active')
+    .reduce((sum, item) => sum + Number(item.amount || 0), 0);
+
   return (
     <>
     <Dialog open={isOpen} onOpenChange={(open) => (open ? undefined : onClose())}>
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto" dir="rtl">
-        {/* Header */}
-        <div className="sticky top-0 bg-white z-10 border-b">
-          <div className="flex items-start justify-between px-6 pt-6 pb-4">
-            <DialogHeader>
-              <DialogTitle className="flex items-center gap-2 text-xl">
-                <ChevronLeft className="h-5 w-5" />
-                <User className="h-5 w-5" />
-                {child.first_name} {child.last_name}
-                <Badge variant="outline" className="mr-2">
-                  {genderText}
-                </Badge>
-                <Badge variant="secondary">גיל {child.age}</Badge>
-                <span style={{ fontSize: '10px', color: 'white', userSelect: 'none' }}> #11</span>
-              </DialogTitle>
-              <DialogDescription>פרופיל ילד ומידע נוסף</DialogDescription>
-            </DialogHeader>
-            <DialogCloseButton />
-          </div>
-
-          {/* Tabs */}
-          <div className="px-6 pb-4">
-            <Tabs defaultValue="details">
+        <Tabs defaultValue="details">
+          <div className="sticky top-0 bg-white z-10 border-b">
+            <div className="flex items-start justify-between px-6 pt-6 pb-4">
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2 text-xl">
+                  <ChevronLeft className="h-5 w-5" />
+                  <User className="h-5 w-5" />
+                  {child.first_name} {child.last_name}
+                  <Badge variant="outline" className="mr-2">
+                    {genderText}
+                  </Badge>
+                  <Badge variant="secondary">גיל {child.age}</Badge>
+                  <span style={{ fontSize: '10px', color: 'white', userSelect: 'none' }}> #11</span>
+                </DialogTitle>
+                <DialogDescription>פרופיל ילד ומידע נוסף</DialogDescription>
+              </DialogHeader>
+              <DialogCloseButton />
+            </div>
+            <div className="px-6 pb-4">
               <TabsList className="grid w-full grid-cols-3">
                 <TabsTrigger value="details">
                   <User className="h-4 w-4" />
@@ -245,6 +349,8 @@ export default function ChildProfileDialog({
                   תשלומים
                 </TabsTrigger>
               </TabsList>
+            </div>
+          </div>
 
               {/* Tab 1: Details */}
               <TabsContent value="details" className="pt-6 px-0">
@@ -497,133 +603,149 @@ export default function ChildProfileDialog({
 
               {/* Tab 3: Payments */}
               <TabsContent value="payments" className="pt-6">
-                <div className="px-6 pb-6 space-y-6">
+                <div className="px-6 pb-6 space-y-8">
                   {loadingPayments ? (
-                    <div className="text-center py-8">טוען נתוני תשלומים...</div>
+                    <div className="text-center py-8 text-muted-foreground">טוען נתוני תשלומים...</div>
                   ) : (
                     <>
-                      {/* Recurring Payments Section */}
-                      {recurringPayments.length > 0 && (
-                        <div>
-                          <h3 className="font-semibold text-lg mb-3">מנויים חוזרים</h3>
+                      <div>
+                        <h3 className="font-semibold text-lg mb-1">חיובים חד פעמיים</h3>
+                        <p className="text-sm text-muted-foreground mb-3">דמי רישום ורכישות מהחנות</p>
+                        {oneTimeCharges.length === 0 ? (
+                          <div className="border rounded-lg px-4 py-8 text-center text-muted-foreground">
+                            אין חיובים חד-פעמיים
+                          </div>
+                        ) : (
                           <div className="border rounded-lg overflow-hidden">
                             <table className="w-full">
-                              <thead className="bg-gray-50">
+                              <thead className="bg-muted/50">
                                 <tr>
-                                  <th className="p-3 text-right">חוג</th>
-                                  <th className="p-3 text-right">סניף</th>
-                                  <th className="p-3 text-right">סכום</th>
-                                  <th className="p-3 text-right">יום חיוב</th>
-                                  <th className="p-3 text-right">סטטוס</th>
-                                  <th className="p-3 text-right">תאריך התחלה</th>
-                                  <th className="p-3 text-right">פעולות</th>
+                                  <th className="p-3 text-right font-medium">תאריך</th>
+                                  <th className="p-3 text-right font-medium">תיאור</th>
+                                  <th className="p-3 text-right font-medium">סכום</th>
+                                  <th className="p-3 text-right font-medium">סטטוס</th>
+                                  <th className="p-3 text-right font-medium">פעולות</th>
                                 </tr>
                               </thead>
                               <tbody>
-                                {recurringPayments.map(recurring => (
+                                {oneTimeCharges.map((charge) => {
+                                  const badge = paymentStatusBadge(charge.status);
+                                  return (
+                                    <tr key={charge.key} className="border-t">
+                                      <td className="p-3 text-sm text-muted-foreground whitespace-nowrap">
+                                        {charge.date ? new Date(charge.date).toLocaleDateString('he-IL') : '-'}
+                                      </td>
+                                      <td className="p-3">{charge.description}</td>
+                                      <td className="p-3 font-medium whitespace-nowrap">{formatShekel(charge.amount)}</td>
+                                      <td className="p-3">
+                                        <Badge variant={badge.variant}>{badge.label}</Badge>
+                                      </td>
+                                      <td className="p-3">
+                                        {charge.canRefund && (
+                                          <Button
+                                            size="sm"
+                                            variant="outline"
+                                            onClick={() => (
+                                              charge.kind === 'store'
+                                                ? handleCreditStoreInvoice(charge.raw)
+                                                : handleCreditPayment(charge.raw)
+                                            )}
+                                            disabled={refundLoading}
+                                          >
+                                            <ArrowLeftRight className="h-3 w-3 ml-1" />
+                                            זיכוי
+                                          </Button>
+                                        )}
+                                      </td>
+                                    </tr>
+                                  );
+                                })}
+                              </tbody>
+                            </table>
+                          </div>
+                        )}
+                      </div>
+
+                      <div>
+                        <div className="flex items-baseline justify-between gap-3 mb-1">
+                          <h3 className="font-semibold text-lg">הוראות קבע</h3>
+                          {monthlyTotal > 0 && (
+                            <span className="text-sm font-medium">
+                              סה״כ לחודש {formatShekel(monthlyTotal)}
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-sm text-muted-foreground mb-3">הסכום שנגבה בכל חודש עבור השיעורים</p>
+                        {standingOrders.length === 0 ? (
+                          <div className="border rounded-lg px-4 py-8 text-center text-muted-foreground">
+                            אין הוראות קבע
+                          </div>
+                        ) : (
+                          <div className="border rounded-lg overflow-hidden">
+                            <table className="w-full">
+                              <thead className="bg-muted/50">
+                                <tr>
+                                  <th className="p-3 text-right font-medium">שיעור</th>
+                                  <th className="p-3 text-right font-medium">סכום לחודש</th>
+                                  <th className="p-3 text-right font-medium">סטטוס</th>
+                                  <th className="p-3 text-right font-medium">פעולות</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {standingOrders.map((recurring) => (
                                   <tr key={recurring.id} className="border-t">
                                     <td className="p-3">
-                                      {recurring.initial_payment_details?.lesson_name ||
-                                       recurring.initial_payment_details?.description || '-'}
+                                      {recurring.initial_payment_details?.lesson_name
+                                        || recurring.initial_payment_details?.description
+                                        || '-'}
                                       <GroupIdBadge displayId={recurring.initial_payment_details?.lesson_course_display_id} />
                                     </td>
-                                    <td className="p-3 text-sm text-gray-600">
-                                      {recurring.initial_payment_details?.branch_name || '-'}
+                                    <td className="p-3 font-medium whitespace-nowrap">
+                                      {formatShekel(recurring.amount)}
+                                      {recurring.pending_amount != null && Number(recurring.pending_amount) !== Number(recurring.amount) && (
+                                        <div className="text-xs text-muted-foreground font-normal">
+                                          מהחודש הבא {formatShekel(recurring.pending_amount)}
+                                        </div>
+                                      )}
                                     </td>
-                                    <td className="p-3 font-medium">₪{recurring.amount}</td>
-                                    <td className="p-3">{recurring.billing_day}</td>
                                     <td className="p-3">
                                       <Badge variant={recurring.status === 'active' ? 'default' : 'outline'}>
-                                        {recurring.status === 'active' ? 'פעיל' : recurring.status}
-                                      </Badge>
-                                    </td>
-                                    <td className="p-3 text-sm text-gray-600">
-                                      {new Date(recurring.start_date).toLocaleDateString('he-IL')}
-                                    </td>
-                                    <td className="p-3">
-                                      <div className="flex gap-2">
-                                        {recurring.status === 'active' && (
-                                          <>
-                                            <Button
-                                              size="sm"
-                                              variant="outline"
-                                              onClick={() => handleUpdateRecurring(recurring.id)}
-                                              disabled={actionLoading === recurring.id}
-                                              title="עדכן סכום מנוי"
-                                            >
-                                              {actionLoading === recurring.id ? (
-                                                <Loader2 className="h-3 w-3 ml-1 animate-spin" />
-                                              ) : (
-                                                <RefreshCw className="h-3 w-3 ml-1" />
-                                              )}
-                                              עדכן
-                                            </Button>
-                                            <Button
-                                              size="sm"
-                                              variant="outline"
-                                              className="text-red-600 hover:text-red-700"
-                                              onClick={() => handleCancelRecurring(recurring.id)}
-                                              disabled={actionLoading === recurring.id}
-                                              title="בטל מנוי"
-                                            >
-                                              {actionLoading === recurring.id ? (
-                                                <Loader2 className="h-3 w-3 ml-1 animate-spin" />
-                                              ) : (
-                                                <Trash2 className="h-3 w-3 ml-1" />
-                                              )}
-                                              ביטול
-                                            </Button>
-                                          </>
-                                        )}
-                                      </div>
-                                    </td>
-                                  </tr>
-                                ))}
-                              </tbody>
-                            </table>
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Course Payments Section */}
-                      {payments.length > 0 && (
-                        <div>
-                          <h3 className="font-semibold text-lg mb-3">תשלומי חוגים</h3>
-                          <div className="border rounded-lg overflow-hidden">
-                            <table className="w-full">
-                              <thead className="bg-gray-50">
-                                <tr>
-                                  <th className="p-3 text-right">תאריך</th>
-                                  <th className="p-3 text-right">תיאור</th>
-                                  <th className="p-3 text-right">סכום</th>
-                                  <th className="p-3 text-right">סטטוס</th>
-                                  <th className="p-3 text-right">פעולות</th>
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {payments.map(payment => (
-                                  <tr key={payment.id} className="border-t">
-                                    <td className="p-3 text-sm text-gray-600">
-                                      {payment.payment_date ? new Date(payment.payment_date).toLocaleDateString('he-IL') : '-'}
-                                    </td>
-                                    <td className="p-3">{payment.description || '-'}</td>
-                                    <td className="p-3 font-medium">₪{payment.final_amount}</td>
-                                    <td className="p-3">
-                                      <Badge variant={payment.status === 'completed' ? 'default' : payment.status === 'failed' ? 'destructive' : 'outline'}>
-                                        {payment.status === 'completed' ? 'הושלם' : payment.status === 'failed' ? 'נכשל' : payment.status}
+                                        {recurringStatusLabel(recurring.status)}
                                       </Badge>
                                     </td>
                                     <td className="p-3">
-                                      {payment.status === 'completed' && (
-                                        <Button
-                                          size="sm"
-                                          variant="outline"
-                                          onClick={() => handleCreditPayment(payment)}
-                                          disabled={refundLoading}
-                                        >
-                                          <ArrowLeftRight className="h-3 w-3 ml-1" />
-                                          זיכוי
-                                        </Button>
+                                      {recurring.status === 'active' && (
+                                        <div className="flex flex-wrap gap-2">
+                                          <Button
+                                            size="sm"
+                                            variant="outline"
+                                            onClick={() => handleUpdateRecurring(recurring.id)}
+                                            disabled={actionLoading === recurring.id}
+                                            title="עדכן סכום מנוי"
+                                          >
+                                            {actionLoading === recurring.id ? (
+                                              <Loader2 className="h-3 w-3 ml-1 animate-spin" />
+                                            ) : (
+                                              <RefreshCw className="h-3 w-3 ml-1" />
+                                            )}
+                                            עדכן
+                                          </Button>
+                                          <Button
+                                            size="sm"
+                                            variant="outline"
+                                            className="text-red-600 hover:text-red-700"
+                                            onClick={() => handleCancelRecurring(recurring.id)}
+                                            disabled={actionLoading === recurring.id}
+                                            title="בטל מנוי"
+                                          >
+                                            {actionLoading === recurring.id ? (
+                                              <Loader2 className="h-3 w-3 ml-1 animate-spin" />
+                                            ) : (
+                                              <Trash2 className="h-3 w-3 ml-1" />
+                                            )}
+                                            ביטול
+                                          </Button>
+                                        </div>
                                       )}
                                     </td>
                                   </tr>
@@ -631,92 +753,14 @@ export default function ChildProfileDialog({
                               </tbody>
                             </table>
                           </div>
-                        </div>
-                      )}
-
-                      {/* Store Purchases Section */}
-                      {storeInvoices.length > 0 && (
-                        <div>
-                          <h3 className="font-semibold text-lg mb-3">רכישות בחנות</h3>
-                          <div className="border rounded-lg overflow-hidden">
-                            <table className="w-full">
-                              <thead className="bg-gray-50">
-                                <tr>
-                                  <th className="p-3 text-right">חשבונית</th>
-                                  <th className="p-3 text-right">תאריך</th>
-                                  <th className="p-3 text-right">סכום</th>
-                                  <th className="p-3 text-right">תשלום</th>
-                                  <th className="p-3 text-right">סטטוס</th>
-                                  <th className="p-3 text-right">פעולות</th>
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {storeInvoices.map(invoice => (
-                                  <tr key={invoice.id} className="border-t">
-                                    <td className="p-3 font-medium text-teal-600">{invoice.invoice_number}</td>
-                                    <td className="p-3 text-sm text-gray-600">
-                                      {new Date(invoice.issue_date).toLocaleDateString('he-IL')}
-                                    </td>
-                                    <td className="p-3 font-medium">₪{invoice.total_amount}</td>
-                                    <td className="p-3 text-sm">
-                                      {invoice.payment_method === 'credit_card' ? 'אשראי' :
-                                       invoice.payment_method === 'cash' ? 'מזומן' : 'הוראת קבע'}
-                                    </td>
-                                    <td className="p-3">
-                                      <Badge 
-                                        variant={
-                                          invoice.payment_status === 'completed' ? 'default' : 
-                                          invoice.payment_status === 'refunded' ? 'secondary' :
-                                          invoice.payment_status === 'failed' || invoice.payment_status === 'refund_failed' ? 'destructive' : 
-                                          'outline'
-                                        }
-                                        title={invoice.payment_status === 'refunded' && invoice.refunded_amount ? `סכום זיכוי: ₪${invoice.refunded_amount}` : ''}
-                                      >
-                                        {invoice.payment_status === 'completed' ? 'הושלם' : 
-                                         invoice.payment_status === 'refunded' ? 'זוכה' :
-                                         invoice.payment_status === 'failed' ? 'נכשל' :
-                                         invoice.payment_status === 'refund_failed' ? 'זיכוי נכשל' :
-                                         'ממתין'}
-                                      </Badge>
-                                    </td>
-                                    <td className="p-3">
-                                      {(invoice.payment_status === 'completed' || invoice.payment_status === 'refund_failed') && invoice.payment_method === 'credit_card' && (
-                                        <Button
-                                          size="sm"
-                                          variant="outline"
-                                          onClick={() => handleCreditStoreInvoice(invoice)}
-                                          disabled={refundLoading}
-                                          title={invoice.payment_status === 'refund_failed' ? 'נסה שוב לזכות' : 'זיכוי רכישה'}
-                                        >
-                                          <ArrowLeftRight className="h-3 w-3 ml-1" />
-                                          זיכוי
-                                        </Button>
-                                      )}
-                                    </td>
-                                  </tr>
-                                ))}
-                              </tbody>
-                            </table>
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Empty State */}
-                      {payments.length === 0 && storeInvoices.length === 0 && recurringPayments.length === 0 && (
-                        <div className="text-center py-12">
-                          <CreditCard className="h-16 w-16 text-gray-300 mx-auto mb-4" />
-                          <p className="text-gray-500">אין נתוני תשלומים</p>
-                          <p className="text-sm text-gray-400 mt-2">תשלומים ורכישות יופיעו כאן</p>
-                        </div>
-                      )}
+                        )}
+                      </div>
                     </>
                   )}
                 </div>
               </TabsContent>
 
             </Tabs>
-          </div>
-        </div>
       </DialogContent>
     </Dialog>
     

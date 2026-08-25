@@ -156,9 +156,23 @@ export default function InvoicesPage() {
     if (recurringLoaded) return;
     setRecurringLoading(true);
     try {
-      const response = await api.get('/customers/recurring-payments/');
-      const list = response.data?.results ?? response.data;
-      setRecurringPayments(Array.isArray(list) ? list : []);
+      const items: RecurringPayment[] = [];
+      let page = 1;
+      while (page <= 100) {
+        const response = await api.get('/customers/recurring-payments/', {
+          params: page === 1 ? {} : { page },
+        });
+        const data = response.data;
+        if (Array.isArray(data)) {
+          items.push(...data);
+          break;
+        }
+        const batch = Array.isArray(data?.results) ? data.results : [];
+        items.push(...batch);
+        if (!data?.next || batch.length === 0) break;
+        page += 1;
+      }
+      setRecurringPayments(items);
     } catch (error) {
       console.error('Error loading recurring payments:', error);
       setRecurringPayments([]);
