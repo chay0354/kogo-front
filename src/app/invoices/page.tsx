@@ -327,7 +327,7 @@ export default function InvoicesPage() {
             </h2>
             <p className={styles.subtitle}>
               {activeTab === 'תשלומים'
-                ? 'כל העסקאות שבוצעו בטרנזילה'
+                ? 'תשלומים מווידג׳ט ההרשמה ומהחנות'
                 : activeTab === 'גבייה'
                 ? 'מסמכים עם יתרה פתוחה, מעקב Aging ופעולות גבייה'
                 : activeTab === 'הוראת קבע'
