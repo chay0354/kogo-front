@@ -224,7 +224,7 @@ export default function InvoicesPage() {
   async function handleSyncFive() {
     if (
       !window.confirm(
-        'לתקן בטרנזילה את 5 הוראות הקבע הראשונות של מסלול פעמיים/שלוש בשבוע? הסכום החודשי שם ישתנה, והוראות כפולות יכובו.',
+        'לתקן את 5 הוראות הקבע הראשונות של מסלול פעמיים/שלוש בשבוע? הסכום החודשי יעודכן החל מהחיוב הבא, והוראות כפולות יבוטלו.',
       )
     ) {
       return;
@@ -241,14 +241,15 @@ export default function InvoicesPage() {
         window.alert('אין הוראות קבע שצריך לסנכרן.');
         return;
       }
-      const lines = synced.map((row: { child?: string; old_amount?: string; new_amount?: string; tranzila_sto_id?: string; cancelled_ids?: string[] }) => {
+      const lines = synced.map((row: { child?: string; old_amount?: string; new_amount?: string; tranzila_sto_id?: string; pending_from?: string; cancelled_ids?: string[] }) => {
         const extra = row.cancelled_ids?.length ? ' (בוטלה כפילות)' : '';
-        const sto = row.tranzila_sto_id ? ` · STO ${row.tranzila_sto_id}` : '';
-        return `• ${row.child}: ₪${row.old_amount} → ₪${row.new_amount}${sto}${extra}`;
+        const where = row.tranzila_sto_id ? ` · בטרנזילה STO ${row.tranzila_sto_id}` : '';
+        const from = row.pending_from ? ` · מ-${row.pending_from}` : '';
+        return `• ${row.child}: ₪${row.old_amount} → ₪${row.new_amount}${from}${where}${extra}`;
       });
       const failLines = failed.map((row: { child?: string; error?: string }) => `• ${row.child}: ${row.error}`);
       const parts = [];
-      if (lines.length) parts.push(`עודכן בטרנזילה (${synced.length}):\n${lines.join('\n')}`);
+      if (lines.length) parts.push(`תוקן (${synced.length}):\n${lines.join('\n')}`);
       if (failLines.length) parts.push(`נכשל (${failed.length}):\n${failLines.join('\n')}`);
       parts.push(`נשארו ${remaining} לתיקון.`);
       window.alert(parts.join('\n\n'));
