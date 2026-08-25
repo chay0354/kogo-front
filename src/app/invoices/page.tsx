@@ -49,7 +49,10 @@ type SyncedStandingOrder = {
 
 type FailedStandingOrder = { child?: string; error?: string };
 
-const SYNC_BATCH_SIZE = 20;
+// Each child costs a Tranzila round trip, so keep a batch well inside the
+// request timeout and let the caller loop for the rest.
+const SYNC_BATCH_SIZE = 5;
+const SYNC_BATCH_TIMEOUT_MS = 120000;
 
 export default function InvoicesPage() {
   const { user } = useAuth();
@@ -252,9 +255,11 @@ export default function InvoicesPage() {
       // Rows that fail stay at the front of the queue, so a batch that fixes
       // nothing means everything left is stuck and looping again won't help.
       for (;;) {
-        const response = await api.post('/customers/recurring-payments/sync-bundle-amounts/', {
-          limit: SYNC_BATCH_SIZE,
-        });
+        const response = await api.post(
+          '/customers/recurring-payments/sync-bundle-amounts/',
+          { limit: SYNC_BATCH_SIZE },
+          { timeout: SYNC_BATCH_TIMEOUT_MS },
+        );
         const synced: SyncedStandingOrder[] = Array.isArray(response.data?.synced)
           ? response.data.synced
           : [];
