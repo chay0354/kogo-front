@@ -23,6 +23,9 @@ const MIN_NAME_LENGTH = 2;
 const REQUIRED = 'שדה חובה';
 const NAME_TOO_SHORT = `יש להזין לפחות ${MIN_NAME_LENGTH} תווים`;
 const MAX_ADDITIONAL_CHILDREN = 3;
+const CHARGE_TIMEOUT_MS = 90_000;
+const CHARGE_POLL_INTERVAL_MS = 2_000;
+const CHARGE_POLL_MAX_MS = 60_000;
 
 type DiscountQueueItem = {
   id: 'primary' | string;
@@ -371,29 +374,102 @@ export default function CourseRegistrationForm({
     if (!paymentData || !cardNumber || !expiryMonth || !expiryYear || !cvv) return;
     setCharging(true);
     setErrorMsg('');
-    try {
-      const res = await api.post('/customers/widget/charge/', {
-        ...(paymentData.payment_ids
-          ? { payment_ids: paymentData.payment_ids }
-          : { payment_id: paymentData.payment_id }),
-        card_details: {
-          card_number: cardNumber.replace(/\s/g, ''),
-          expiry_month: parseInt(expiryMonth),
-          expiry_year: parseInt(expiryYear),
-          cvv,
-          card_holder_id: cardHolderId,
-        },
+
+    const ids = paymentData.payment_ids?.length
+      ? paymentData.payment_ids
+      : [paymentData.payment_id];
+
+    const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+    const pollChargeStatus = async (): Promise<'completed' | 'failed' | 'processing'> => {
+      const res = await api.get('/customers/widget/payment-status/', {
+        params: { payment_ids: ids.join(',') },
+        timeout: 15_000,
       });
-      if (res.data.success) {
-        setStep(isTrial ? 'trial_success' : 'payment_success');
-      } else {
-        const firstError = res.data.error
-          ?? res.data.results?.find((r: { success: boolean; error?: string }) => !r.success)?.error;
-        setErrorMsg(firstError || 'התשלום נכשל');
-        setStep('payment_failed');
+      if (res.data?.success) return 'completed';
+      if (res.data?.processing) return 'processing';
+      return 'failed';
+    };
+
+    const waitForSettlement = async (): Promise<'completed' | 'failed' | 'processing'> => {
+      const deadline = Date.now() + CHARGE_POLL_MAX_MS;
+      let last: 'completed' | 'failed' | 'processing' = 'processing';
+      while (Date.now() < deadline) {
+        try {
+          last = await pollChargeStatus();
+          if (last !== 'processing') return last;
+        } catch {
+          // Keep polling through transient network errors after the card was sent.
+        }
+        await sleep(CHARGE_POLL_INTERVAL_MS);
       }
+      return last;
+    };
+
+    const showSuccess = () => setStep(isTrial ? 'trial_success' : 'payment_success');
+
+    try {
+      const res = await api.post(
+        '/customers/widget/charge/',
+        {
+          ...(paymentData.payment_ids
+            ? { payment_ids: paymentData.payment_ids }
+            : { payment_id: paymentData.payment_id }),
+          card_details: {
+            card_number: cardNumber.replace(/\s/g, ''),
+            expiry_month: parseInt(expiryMonth, 10),
+            expiry_year: parseInt(expiryYear, 10),
+            cvv,
+            card_holder_id: cardHolderId,
+          },
+        },
+        { timeout: CHARGE_TIMEOUT_MS },
+      );
+      if (res.data.success) {
+        showSuccess();
+        return;
+      }
+      if (res.data.processing) {
+        const settled = await waitForSettlement();
+        if (settled === 'completed') {
+          showSuccess();
+          return;
+        }
+        if (settled === 'processing') {
+          setErrorMsg('התשלום התקבל אצל חברת הסליקה ועדיין מאושר אצלנו. אל תשלמו שוב — פנו למשרד אם ההרשמה לא מופיעה.');
+          setStep('payment_pending');
+          return;
+        }
+      }
+      const firstError = res.data.error
+        ?? res.data.results?.find((r: { success: boolean; error?: string }) => !r.success)?.error;
+      const settled = await pollChargeStatus().catch(() => 'failed' as const);
+      if (settled === 'completed') {
+        showSuccess();
+        return;
+      }
+      setErrorMsg(firstError || 'התשלום נכשל');
+      setStep('payment_failed');
     } catch (err: unknown) {
-      const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'שגיאה בסליקה';
+      const axiosErr = err as { response?: { data?: { success?: boolean; processing?: boolean; error?: string } }; code?: string };
+      if (axiosErr.response?.data?.success) {
+        showSuccess();
+        return;
+      }
+      const settled = await waitForSettlement();
+      if (settled === 'completed') {
+        showSuccess();
+        return;
+      }
+      if (settled === 'processing' || axiosErr.code === 'ECONNABORTED' || !axiosErr.response) {
+        setErrorMsg(
+          axiosErr.response?.data?.error
+          || 'התשלום נשלח ועדיין מאושר. אל תשלמו שוב — אם החיוב עבר, ההרשמה תופיע תוך רגע.',
+        );
+        setStep('payment_pending');
+        return;
+      }
+      const msg = axiosErr.response?.data?.error ?? 'שגיאה בסליקה';
       setErrorMsg(msg);
       setStep('payment_failed');
     } finally {
@@ -1382,6 +1458,30 @@ export default function CourseRegistrationForm({
               : `${selfRegistering ? parentFirstName : childFirstName} נרשמ/ה לחוג ${courseName}.`}
         </p>
         {successActions}
+      </div>
+    );
+  }
+
+  if (step === 'payment_pending') {
+    return (
+      <div className={styles.resultContainer} dir="rtl">
+        <span className={styles.submittingSpinner} />
+        <p className={styles.resultTitle}>בודקים את התשלום</p>
+        <p className={styles.resultSubtext}>
+          {errorMsg || 'הכרטיס כבר נשלח לסליקה. אל תשלמו שוב.'}
+        </p>
+        <div className={styles.resultActions}>
+          <button
+            type="button"
+            onClick={() => { setErrorMsg(''); setStep('payment'); }}
+            className={styles.primaryButton}
+          >
+            בדקו שוב
+          </button>
+          <button type="button" onClick={onBack} className={styles.outlineButton}>
+            סגור
+          </button>
+        </div>
       </div>
     );
   }
