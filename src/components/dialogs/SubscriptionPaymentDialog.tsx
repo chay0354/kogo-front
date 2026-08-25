@@ -91,14 +91,14 @@ export default function SubscriptionPaymentDialog({
     setError('');
     try {
       const responses = await Promise.all(
-        lessons.map((l, index) =>
+        (bundleId ? lessons.slice(0, 1) : lessons).map((l) =>
           api.post('/customers/payments/initiate_subscription/', {
             child_id: child.id,
             lesson_id: l.id,
             bundle_id: bundleId,
             payment_date: new Date().toISOString().split('T')[0],
-            include_registration_fee: bundleId ? index === 0 : true,
-            include_monthly_amount: bundleId ? index === 0 : true,
+            include_registration_fee: true,
+            include_monthly_amount: true,
           })
         )
       );
@@ -126,17 +126,16 @@ export default function SubscriptionPaymentDialog({
         cvv,
         card_holder_id: cardHolderId,
       };
-      // Charged one lesson at a time so a decline on the second lesson of a bundle
-      // does not follow an already-approved charge on the third.
+      const lessonsToCharge = bundleId ? lessons.slice(0, 1) : lessons;
       let charged = 0;
-      for (const [index, l] of lessons.entries()) {
+      for (const l of lessonsToCharge) {
         const { data } = await api.post('/customers/payments/charge_subscription/', {
           child_id: child.id,
           lesson_id: l.id,
           bundle_id: bundleId,
           card_details: cardDetails,
-          include_registration_fee: bundleId ? index === 0 : true,
-          include_monthly_amount: bundleId ? index === 0 : true,
+          include_registration_fee: true,
+          include_monthly_amount: true,
         });
         if (!data.success) {
           setError(
