@@ -111,6 +111,56 @@ export function isTrialEnrollment(enrollment: EnrollmentDetail): boolean {
   return Boolean(enrollment.trial_lesson_date);
 }
 
+export type GroupedEnrollmentChip = {
+  key: string;
+  courseId: string;
+  courseName: string;
+  trial: boolean;
+  slots: EnrollmentDetail[];
+};
+
+function enrollmentSlotTime(start?: string | null): string {
+  if (!start) return '';
+  return start.slice(0, 5);
+}
+
+export function formatEnrollmentSlot(enrollment: EnrollmentDetail): string {
+  const day = enrollment.day_of_week != null ? getDayName(enrollment.day_of_week) : '';
+  const time = enrollmentSlotTime(enrollment.start_time);
+  return [day, time].filter(Boolean).join(' ');
+}
+
+/** Same חוג twice/thrice a week → one chip; trial stays separate from regular. */
+export function groupEnrollmentsForTable(enrollments: EnrollmentDetail[]): GroupedEnrollmentChip[] {
+  const groups = new Map<string, GroupedEnrollmentChip>();
+  const order: string[] = [];
+  for (const enrollment of enrollments) {
+    const trial = isTrialEnrollment(enrollment);
+    const key = `${enrollment.course_id || enrollment.course_name}:${trial ? 'trial' : 'regular'}`;
+    let group = groups.get(key);
+    if (!group) {
+      group = {
+        key,
+        courseId: enrollment.course_id,
+        courseName: enrollment.course_name,
+        trial,
+        slots: [],
+      };
+      groups.set(key, group);
+      order.push(key);
+    }
+    group.slots.push(enrollment);
+  }
+  for (const group of groups.values()) {
+    group.slots.sort((a, b) => {
+      const day = (a.day_of_week ?? 0) - (b.day_of_week ?? 0);
+      if (day !== 0) return day;
+      return enrollmentSlotTime(a.start_time).localeCompare(enrollmentSlotTime(b.start_time));
+    });
+  }
+  return order.map((key) => groups.get(key)!);
+}
+
 /**
  * Get status dot CSS classes
  */

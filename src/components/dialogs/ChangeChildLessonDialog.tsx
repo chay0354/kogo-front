@@ -3,13 +3,14 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Check } from 'lucide-react';
 import api from '@/lib/api';
-import { AGE_OPTIONS, formatAge, formatAgeRange, formatTimeRange, getDayName } from '@/lib/courseUtils';
+import { AGE_OPTIONS, formatAge, formatAgeRange, getDayName } from '@/lib/courseUtils';
 import { sortWidgetCourseTypes } from '@/app/widget/courseTypeOrder';
 import { Dialog, DialogCloseButton, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import type { EnrollmentDetail } from '@/types/customer';
 
 type LessonOption = {
   id: string;
+  course?: string;
   course_name?: string;
   course_type?: string | null;
   course_type_name?: string | null;
@@ -24,18 +25,45 @@ type LessonOption = {
   status?: string;
 };
 
+type CourseUnit = {
+  id: string;
+  name: string;
+  branch_id: string | null;
+  branch_name: string | null;
+  course_type: string | null;
+  course_type_name: string | null;
+  min_age: number | null;
+  max_age: number | null;
+  lessons: LessonOption[];
+  label: string;
+};
+
 type Props = {
   enrollment: EnrollmentDetail | null;
+  unitSlots?: EnrollmentDetail[];
   childName: string;
   isOpen: boolean;
   onClose: () => void;
-  onSaved: (enrollmentId: string, lesson: EnrollmentDetail) => void;
+  onSaved: (payload: {
+    removedEnrollmentIds: string[];
+    enrollments: EnrollmentDetail[];
+  }) => void;
 };
 
-function lessonLabel(lesson: Pick<LessonOption, 'course_name' | 'day_of_week' | 'day_name' | 'start_time' | 'end_time'>): string {
-  const day = lesson.day_name || getDayName(lesson.day_of_week);
-  const time = formatTimeRange(lesson.start_time || '', lesson.end_time || '');
-  return [lesson.course_name, day, time].filter(Boolean).join(' · ');
+function slotTime(start?: string | null): string {
+  return start ? start.slice(0, 5) : '';
+}
+
+function courseUnitLabel(name: string, lessons: LessonOption[]): string {
+  const slots = [...lessons]
+    .sort((a, b) => (a.day_of_week ?? 0) - (b.day_of_week ?? 0) || slotTime(a.start_time).localeCompare(slotTime(b.start_time)))
+    .map((lesson) => {
+      const day = lesson.day_name || getDayName(lesson.day_of_week);
+      const time = slotTime(lesson.start_time);
+      return [day, time].filter(Boolean).join(' ');
+    })
+    .filter(Boolean);
+  return [name, ...slots].filter(Boolean).join(' · ');
 }
 
 function lessonMatchesAge(lesson: LessonOption, ageValue: string): boolean {
@@ -48,19 +76,32 @@ function lessonMatchesAge(lesson: LessonOption, ageValue: string): boolean {
   return age >= min && age <= max;
 }
 
+function asEnrollmentDetail(row: EnrollmentDetail, fallback: EnrollmentDetail): EnrollmentDetail {
+  return {
+    ...fallback,
+    ...row,
+    enrollment_id: row.enrollment_id || fallback.enrollment_id,
+    lesson_id: row.lesson_id,
+    course_id: row.course_id || fallback.course_id,
+    course_name: row.course_name || fallback.course_name,
+  };
+}
+
 export default function ChangeChildLessonDialog({
   enrollment,
+  unitSlots,
   childName,
   isOpen,
   onClose,
   onSaved,
 }: Props) {
+  const slots = unitSlots?.length ? unitSlots : enrollment ? [enrollment] : [];
   const [lessons, setLessons] = useState<LessonOption[]>([]);
   const [search, setSearch] = useState('');
   const [branchFilter, setBranchFilter] = useState('all');
   const [typeFilter, setTypeFilter] = useState('all');
   const [ageFilter, setAgeFilter] = useState('all');
-  const [selectedId, setSelectedId] = useState('');
+  const [selectedCourseId, setSelectedCourseId] = useState('');
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -70,7 +111,7 @@ export default function ChangeChildLessonDialog({
     setSearch('');
     setTypeFilter('all');
     setAgeFilter('all');
-    setSelectedId(enrollment?.lesson_id || '');
+    setSelectedCourseId(enrollment?.course_id || '');
     setError('');
     setLoading(true);
     api.get('/courses/lessons/')
@@ -81,72 +122,103 @@ export default function ChangeChildLessonDialog({
         const current = active.find((row) => row.id === enrollment?.lesson_id);
         setBranchFilter(current?.branch_id || 'all');
       })
-      .catch(() => setError('לא ניתן לטעון את רשימת השיעורים'))
+      .catch(() => setError('לא ניתן לטעון את רשימת החוגים'))
       .finally(() => setLoading(false));
-  }, [isOpen, enrollment?.lesson_id]);
+  }, [isOpen, enrollment?.lesson_id, enrollment?.course_id]);
+
+  const courseUnits = useMemo(() => {
+    const byId = new Map<string, CourseUnit>();
+    for (const lesson of lessons) {
+      const id = String(lesson.course || '');
+      if (!id) continue;
+      const existing = byId.get(id);
+      if (existing) {
+        existing.lessons.push(lesson);
+        continue;
+      }
+      byId.set(id, {
+        id,
+        name: lesson.course_name || '',
+        branch_id: lesson.branch_id || null,
+        branch_name: lesson.branch_name || null,
+        course_type: lesson.course_type ? String(lesson.course_type) : null,
+        course_type_name: lesson.course_type_name || null,
+        min_age: lesson.min_age ?? null,
+        max_age: lesson.max_age ?? null,
+        lessons: [lesson],
+        label: '',
+      });
+    }
+    return [...byId.values()].map((unit) => ({
+      ...unit,
+      label: courseUnitLabel(unit.name, unit.lessons),
+    }));
+  }, [lessons]);
 
   const branchOptions = useMemo(() => {
     const byId = new Map<string, string>();
-    for (const lesson of lessons) {
-      if (!lesson.branch_id || !lesson.branch_name) continue;
-      byId.set(lesson.branch_id, lesson.branch_name);
+    for (const unit of courseUnits) {
+      if (!unit.branch_id || !unit.branch_name) continue;
+      byId.set(unit.branch_id, unit.branch_name);
     }
     return [...byId.entries()]
       .map(([id, name]) => ({ id, name }))
       .sort((a, b) => a.name.localeCompare(b.name, 'he'));
-  }, [lessons]);
+  }, [courseUnits]);
 
   const typeOptions = useMemo(() => {
     const byId = new Map<string, string>();
-    for (const lesson of lessons) {
-      if (!lesson.course_type || !lesson.course_type_name) continue;
-      byId.set(String(lesson.course_type), lesson.course_type_name);
+    for (const unit of courseUnits) {
+      if (!unit.course_type || !unit.course_type_name) continue;
+      byId.set(unit.course_type, unit.course_type_name);
     }
     return sortWidgetCourseTypes(
       [...byId.entries()].map(([id, name]) => ({ id, name })),
     );
-  }, [lessons]);
+  }, [courseUnits]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    return lessons
-      .filter((lesson) => {
-        if (branchFilter !== 'all' && lesson.branch_id !== branchFilter) return false;
-        if (typeFilter !== 'all' && String(lesson.course_type || '') !== typeFilter) return false;
-        if (!lessonMatchesAge(lesson, ageFilter)) return false;
+    return courseUnits
+      .filter((unit) => {
+        if (branchFilter !== 'all' && unit.branch_id !== branchFilter) return false;
+        if (typeFilter !== 'all' && String(unit.course_type || '') !== typeFilter) return false;
+        if (!unit.lessons.some((lesson) => lessonMatchesAge(lesson, ageFilter))) return false;
         if (!q) return true;
         const haystack = [
-          lessonLabel(lesson),
-          lesson.branch_name,
-          lesson.course_type_name,
-          formatAgeRange(lesson.min_age, lesson.max_age),
+          unit.label,
+          unit.branch_name,
+          unit.course_type_name,
+          formatAgeRange(unit.min_age, unit.max_age),
         ].join(' ').toLowerCase();
         return haystack.includes(q);
-      })
-      .map((lesson) => ({ lesson, label: lessonLabel(lesson) }));
-  }, [lessons, search, branchFilter, typeFilter, ageFilter]);
+      });
+  }, [courseUnits, search, branchFilter, typeFilter, ageFilter]);
 
   const grouped = useMemo(() => {
-    const groups = new Map<string, { id: string; name: string; rows: typeof filtered }>();
-    for (const row of filtered) {
-      const id = row.lesson.branch_id || 'none';
-      const name = row.lesson.branch_name?.trim() || 'ללא סניף';
+    const groups = new Map<string, { id: string; name: string; rows: CourseUnit[] }>();
+    for (const unit of filtered) {
+      const id = unit.branch_id || 'none';
+      const name = unit.branch_name?.trim() || 'ללא סניף';
       const existing = groups.get(id);
       if (existing) {
-        existing.rows.push(row);
+        existing.rows.push(unit);
       } else {
-        groups.set(id, { id, name, rows: [row] });
+        groups.set(id, { id, name, rows: [unit] });
       }
+    }
+    for (const group of groups.values()) {
+      group.rows.sort((a, b) => a.label.localeCompare(b.label, 'he'));
     }
     return [...groups.values()].sort((a, b) => a.name.localeCompare(b.name, 'he'));
   }, [filtered]);
 
   const handleSave = async () => {
-    if (!enrollment?.enrollment_id || !selectedId) {
-      setError('יש לבחור שיעור');
+    if (!enrollment?.enrollment_id || !selectedCourseId) {
+      setError('יש לבחור חוג');
       return;
     }
-    if (selectedId === enrollment.lesson_id) {
+    if (selectedCourseId === enrollment.course_id) {
       onClose();
       return;
     }
@@ -155,18 +227,15 @@ export default function ChangeChildLessonDialog({
     try {
       const res = await api.post(
         `/enrollments/lesson-enrollments/${enrollment.enrollment_id}/change-lesson/`,
-        { lesson_id: selectedId },
+        { course_id: selectedCourseId },
       );
-      const info = res.data?.lesson_info;
-      const picked = lessons.find((lesson) => lesson.id === selectedId);
-      onSaved(enrollment.enrollment_id, {
-        ...enrollment,
-        lesson_id: selectedId,
-        course_name: info?.course_name || picked?.course_name || enrollment.course_name,
-        day_of_week: info?.day_of_week ?? picked?.day_of_week ?? enrollment.day_of_week,
-        start_time: info?.start_time || picked?.start_time || enrollment.start_time,
-        end_time: info?.end_time || picked?.end_time || enrollment.end_time,
-        branch_name: picked?.branch_name ?? enrollment.branch_name,
+      const fallback = enrollment;
+      const nextRows = (res.data?.enrollments || []).map((row: EnrollmentDetail) =>
+        asEnrollmentDetail(row, fallback),
+      );
+      onSaved({
+        removedEnrollmentIds: (res.data?.removed_enrollment_ids || []).map(String),
+        enrollments: nextRows.length ? nextRows : [fallback],
       });
       onClose();
     } catch (err: unknown) {
@@ -175,7 +244,7 @@ export default function ChangeChildLessonDialog({
       setError(
         data?.error ||
         (Array.isArray(lessonErr) ? lessonErr[0] : lessonErr) ||
-        'לא ניתן להחליף שיעור',
+        'לא ניתן להחליף חוג',
       );
     } finally {
       setSaving(false);
@@ -183,12 +252,16 @@ export default function ChangeChildLessonDialog({
   };
 
   const currentLabel = enrollment
-    ? lessonLabel({
-        course_name: enrollment.course_name,
-        day_of_week: enrollment.day_of_week,
-        start_time: enrollment.start_time,
-        end_time: enrollment.end_time,
-      })
+    ? courseUnitLabel(
+        enrollment.course_name,
+        slots.map((slot) => ({
+          id: slot.lesson_id,
+          course_name: slot.course_name,
+          day_of_week: slot.day_of_week,
+          start_time: slot.start_time,
+          end_time: slot.end_time,
+        })),
+      )
     : '';
 
   return (
@@ -198,13 +271,13 @@ export default function ChangeChildLessonDialog({
           <DialogCloseButton />
         </div>
         <DialogHeader className="px-5 pt-5 pe-12 sm:px-6 sm:pt-6">
-          <DialogTitle className="text-lg">החלפת שיעור</DialogTitle>
+          <DialogTitle className="text-lg">החלפת חוג</DialogTitle>
           <p className="mt-1 text-sm text-muted-foreground">{childName}</p>
         </DialogHeader>
 
         <div className="px-5 sm:px-6 pb-4 space-y-3">
           <p className="text-sm text-muted-foreground">
-            המחיר החודשי לא משתנה. רק השיעור שאליו הילד רשום.
+            המחיר החודשי לא משתנה. מחליפים את כל החוג, כולל כל הימים בשבוע.
           </p>
           {currentLabel ? (
             <p className="text-sm">
@@ -216,7 +289,7 @@ export default function ChangeChildLessonDialog({
           <input
             type="search"
             className="input w-full"
-            placeholder="חיפוש שיעור..."
+            placeholder="חיפוש חוג..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
@@ -258,25 +331,25 @@ export default function ChangeChildLessonDialog({
           </div>
 
           {loading ? (
-            <p className="text-sm text-muted-foreground">טוען שיעורים…</p>
+            <p className="text-sm text-muted-foreground">טוען חוגים…</p>
           ) : (
             <div className="max-h-[min(48vh,360px)] space-y-3 overflow-y-auto pe-1">
               {grouped.length === 0 ? (
-                <p className="text-sm text-muted-foreground">לא נמצאו שיעורים.</p>
+                <p className="text-sm text-muted-foreground">לא נמצאו חוגים.</p>
               ) : grouped.map((group) => (
                 <section key={group.id} className="space-y-2">
                   <h3 className="sticky top-0 z-[1] bg-white py-1 text-xs font-semibold text-muted-foreground">
                     {group.name}
                   </h3>
-                  {group.rows.map(({ lesson, label }) => {
-                    const active = selectedId === lesson.id;
-                    const isCurrent = lesson.id === enrollment?.lesson_id;
-                    const ageLabel = formatAgeRange(lesson.min_age, lesson.max_age);
+                  {group.rows.map((unit) => {
+                    const active = selectedCourseId === unit.id;
+                    const isCurrent = unit.id === enrollment?.course_id;
+                    const ageLabel = formatAgeRange(unit.min_age, unit.max_age);
                     return (
                       <button
-                        key={lesson.id}
+                        key={unit.id}
                         type="button"
-                        onClick={() => setSelectedId(lesson.id)}
+                        onClick={() => setSelectedCourseId(unit.id)}
                         className={`flex w-full items-center justify-between gap-3 rounded-xl border px-3 py-3 text-right transition-colors ${
                           active
                             ? 'border-primary bg-primary/5 shadow-sm'
@@ -292,10 +365,22 @@ export default function ChangeChildLessonDialog({
                             {active ? <Check className="h-3 w-3" /> : null}
                           </span>
                           <span className="min-w-0">
-                            <span className="block font-medium leading-snug">{label}</span>
-                            {ageLabel || lesson.course_type_name ? (
+                            <span className="block font-medium leading-snug">{unit.name}</span>
+                            <span className="mt-0.5 block text-[11px] text-muted-foreground">
+                              {unit.lessons
+                                .slice()
+                                .sort((a, b) => (a.day_of_week ?? 0) - (b.day_of_week ?? 0))
+                                .map((lesson) => {
+                                  const day = lesson.day_name || getDayName(lesson.day_of_week);
+                                  const time = slotTime(lesson.start_time);
+                                  return [day, time].filter(Boolean).join(' ');
+                                })
+                                .filter(Boolean)
+                                .join(' · ')}
+                            </span>
+                            {ageLabel || unit.course_type_name ? (
                               <span className="mt-0.5 block text-[11px] text-muted-foreground">
-                                {[lesson.course_type_name, ageLabel].filter(Boolean).join(' · ')}
+                                {[unit.course_type_name, ageLabel].filter(Boolean).join(' · ')}
                               </span>
                             ) : null}
                           </span>
@@ -320,10 +405,10 @@ export default function ChangeChildLessonDialog({
           <button
             type="button"
             className="btn-primary flex-1"
-            disabled={saving || loading || !selectedId || selectedId === enrollment?.lesson_id}
+            disabled={saving || loading || !selectedCourseId || selectedCourseId === enrollment?.course_id}
             onClick={handleSave}
           >
-            {saving ? 'שומר...' : 'החלף שיעור'}
+            {saving ? 'שומר...' : 'החלף חוג'}
           </button>
         </div>
       </DialogContent>

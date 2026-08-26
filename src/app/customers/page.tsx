@@ -12,7 +12,8 @@ import { filterBranchesForUser, unwrapApiList } from '@/lib/scopedFilters';
 import { ChildWithDetails, CustomerFilters, Branch, Course, Instructor, EnrollmentDetail } from '@/types/customer';
 import { 
   getCustomerTableStatus,
-  getDayName,
+  formatEnrollmentSlot,
+  groupEnrollmentsForTable,
   isTrialEnrollment,
   formatWhatsAppLink
 } from '@/lib/customerUtils';
@@ -92,6 +93,7 @@ export default function CustomersPage() {
   const [trialDateDialogOpen, setTrialDateDialogOpen] = useState(false);
   const [changeLessonDialogOpen, setChangeLessonDialogOpen] = useState(false);
   const [changingEnrollment, setChangingEnrollment] = useState<EnrollmentDetail | null>(null);
+  const [changingSlots, setChangingSlots] = useState<EnrollmentDetail[]>([]);
   const [editingTrialEnrollment, setEditingTrialEnrollment] = useState<EnrollmentDetail | null>(null);
 
   // Load filter options
@@ -241,18 +243,21 @@ export default function CustomersPage() {
     setTrialDateDialogOpen(true);
   };
 
-  const handleChangeLesson = (child: ChildWithDetails, enrollment: EnrollmentDetail) => {
+  const handleChangeLesson = (child: ChildWithDetails, slots: EnrollmentDetail[]) => {
     setSelectedChild(child);
-    setChangingEnrollment(enrollment);
+    setChangingSlots(slots);
+    setChangingEnrollment(slots[0] || null);
     setChangeLessonDialogOpen(true);
   };
 
-  const handleEnrollmentEdit = (child: ChildWithDetails, enrollment: EnrollmentDetail) => {
-    if (isTrialEnrollment(enrollment)) {
-      handleEditTrialDate(child, enrollment);
+  const handleEnrollmentEdit = (child: ChildWithDetails, slots: EnrollmentDetail[]) => {
+    const first = slots[0];
+    if (!first) return;
+    if (isTrialEnrollment(first)) {
+      handleEditTrialDate(child, first);
       return;
     }
-    handleChangeLesson(child, enrollment);
+    handleChangeLesson(child, slots);
   };
 
   const formatTrialDate = (value?: string | null) => {
@@ -498,7 +503,7 @@ export default function CustomersPage() {
                 <tbody>
                   {children.map((child, index) => {
                     const status = getCustomerTableStatus(child);
-                    const courses = child.enrollments ?? [];
+                    const courses = groupEnrollmentsForTable(child.enrollments ?? []);
                     const whatsappLink = formatWhatsAppLink(child.parent_phone);
                     
                     return (
@@ -557,13 +562,12 @@ export default function CustomersPage() {
                         <td>
                           <div className="flex flex-wrap gap-1.5">
                             {courses.length > 0 ? (
-                              courses.map((enrollment) => {
-                                const trial = isTrialEnrollment(enrollment);
-                                const day = enrollment.day_of_week != null ? getDayName(enrollment.day_of_week) : '';
+                              courses.map((group) => {
+                                const trial = group.trial;
                                 return (
                                   <div
-                                    key={enrollment.enrollment_id || enrollment.lesson_id || enrollment.course_id}
-                                    className={`inline-flex max-w-full items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs ${
+                                    key={group.key}
+                                    className={`inline-flex max-w-full flex-wrap items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs ${
                                       trial
                                         ? 'border-orange-200 bg-orange-50 text-orange-950'
                                         : 'border-sky-200 bg-sky-50 text-sky-950'
@@ -571,13 +575,39 @@ export default function CustomersPage() {
                                     onClick={(e) => e.stopPropagation()}
                                   >
                                     <span className="min-w-0 truncate font-medium">
-                                      {enrollment.course_name}
+                                      {group.courseName}
                                     </span>
-                                    {day ? (
-                                      <span className="hidden whitespace-nowrap opacity-70 sm:inline">
-                                        {day}
-                                        {enrollment.start_time ? ` ${enrollment.start_time}` : ''}
-                                      </span>
+                                    {group.slots.map((enrollment) => {
+                                      const slotLabel = formatEnrollmentSlot(enrollment);
+                                      return (
+                                        <span
+                                          key={enrollment.enrollment_id || enrollment.lesson_id}
+                                          className="inline-flex items-center gap-1"
+                                        >
+                                          {slotLabel ? (
+                                            <span className="whitespace-nowrap opacity-70">
+                                              {slotLabel}
+                                            </span>
+                                          ) : null}
+                                          {trial && enrollment.trial_lesson_date ? (
+                                            <span className="whitespace-nowrap tabular-nums opacity-70">
+                                              {formatTrialDate(enrollment.trial_lesson_date)}
+                                            </span>
+                                          ) : null}
+                                        </span>
+                                      );
+                                    })}
+                                    {group.slots.some((enrollment) => enrollment.lesson_id || enrollment.enrollment_id) ? (
+                                      <button
+                                        type="button"
+                                        className="rounded-full bg-white/80 px-1.5 py-0.5 text-[11px] font-semibold shadow-sm hover:bg-white"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handleEnrollmentEdit(child, group.slots);
+                                        }}
+                                      >
+                                        ערוך
+                                      </button>
                                     ) : null}
                                     <span
                                       className={`whitespace-nowrap rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${
@@ -586,23 +616,6 @@ export default function CustomersPage() {
                                     >
                                       {trial ? 'ניסיון' : 'רגיל'}
                                     </span>
-                                    {trial && enrollment.trial_lesson_date ? (
-                                      <span className="whitespace-nowrap tabular-nums opacity-70">
-                                        {formatTrialDate(enrollment.trial_lesson_date)}
-                                      </span>
-                                    ) : null}
-                                    {enrollment.lesson_id ? (
-                                      <button
-                                        type="button"
-                                        className="rounded-full bg-white/80 px-1.5 py-0.5 text-[11px] font-semibold shadow-sm hover:bg-white"
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          handleEnrollmentEdit(child, enrollment);
-                                        }}
-                                      >
-                                        ערוך
-                                      </button>
-                                    ) : null}
                                   </div>
                                 );
                               })
@@ -712,24 +725,31 @@ export default function CustomersPage() {
 
       <ChangeChildLessonDialog
         enrollment={changingEnrollment}
+        unitSlots={changingSlots}
         childName={selectedChild?.full_name ?? ''}
         isOpen={changeLessonDialogOpen}
         onClose={() => {
           setChangeLessonDialogOpen(false);
           setChangingEnrollment(null);
+          setChangingSlots([]);
         }}
-        onSaved={(enrollmentId, nextEnrollment) => {
-          const apply = (row: ChildWithDetails): ChildWithDetails => ({
-            ...row,
-            enrollments: (row.enrollments ?? []).map((item) =>
-              item.enrollment_id === enrollmentId ? { ...item, ...nextEnrollment } : item,
-            ),
-          });
+        onSaved={({ removedEnrollmentIds, enrollments: nextEnrollments }) => {
+          const removed = new Set(removedEnrollmentIds);
+          const oldCourseId = changingEnrollment?.course_id;
+          const apply = (row: ChildWithDetails): ChildWithDetails => {
+            const kept = (row.enrollments ?? []).filter((item) => {
+              if (removed.has(item.enrollment_id)) return false;
+              if (oldCourseId && item.course_id === oldCourseId && !item.trial_lesson_date) return false;
+              return true;
+            });
+            return { ...row, enrollments: [...kept, ...nextEnrollments] };
+          };
           setSelectedChild((prev) => (prev ? apply(prev) : prev));
           setChildren((prev) =>
             prev.map((row) => (row.id === selectedChild?.id ? apply(row) : row)),
           );
-          setChangingEnrollment(nextEnrollment);
+          setChangingEnrollment(nextEnrollments[0] || null);
+          setChangingSlots(nextEnrollments);
         }}
       />
 
