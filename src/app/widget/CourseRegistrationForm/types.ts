@@ -77,6 +77,14 @@ export interface LookupResult {
   discount_question: string | null;
 }
 
+export interface AppliedDiscount {
+  name: string;
+  type?: string;
+  value?: number;
+  amount?: number;
+  reason?: string;
+}
+
 export interface PaymentResponse {
   payment_id: string;
   child_id?: string;
@@ -89,5 +97,5 @@ export interface PaymentResponse {
   monthly_amount?: number;
   /** Set when monthly billing only starts later — nothing but דמי רישום is charged now. */
   subscription_start_date?: string | null;
-  discounts_applied: Array<{ name: string; amount: number }>;
+  discounts_applied: AppliedDiscount[];
 }

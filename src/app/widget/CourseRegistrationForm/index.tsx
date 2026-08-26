@@ -15,7 +15,7 @@ import AdditionalChildSection, {
 } from './AdditionalChildSection';
 import ExtraLessonPicker from './ExtraLessonPicker';
 import SelectedLessonCard from './SelectedLessonCard';
-import type { Props, Step, LookupResult, PaymentResponse, TrialOccurrence } from './types';
+import type { AppliedDiscount, Props, Step, LookupResult, PaymentResponse, TrialOccurrence } from './types';
 
 export type { CourseLesson } from './types';
 
@@ -68,6 +68,57 @@ function emailFieldError(value: string): string | null {
     return 'כתובת דוא"ל לא תקינה';
   }
   return null;
+}
+
+function formatShekel(value: number): string {
+  return `₪${Number(value).toFixed(2)}`;
+}
+
+function withHanahatPrefix(label: string): string {
+  if (!label || label === 'הנחה' || /^הנח[הת]/.test(label)) return label;
+  return `הנחת ${label}`;
+}
+
+function discountLineLabel(discount: AppliedDiscount): string {
+  const name = (discount.name || '').trim();
+  const type = (discount.type || '').toLowerCase();
+  const reason = (discount.reason || '').trim();
+
+  if (type === 'early_signup' || /רישום מוקדם/.test(name)) {
+    return withHanahatPrefix(name || 'רישום מוקדם');
+  }
+  if (type === 'second_child' || /ילד שני|הנחת אחים/.test(name)) {
+    return withHanahatPrefix(name || 'ילד שני');
+  }
+  if (type === 'additional_lesson' || /שיעור נוסף/.test(name)) {
+    return withHanahatPrefix(name || 'שיעור נוסף');
+  }
+  return withHanahatPrefix(name || reason || 'הנחה');
+}
+
+function formatStandingOrderStart(isoDate: string): string {
+  const [yearPart, monthPart, dayPart] = isoDate.split('T')[0].split('-');
+  const day = Number(dayPart);
+  const month = Number(monthPart);
+  if (!day || !month) return isoDate;
+  return `${day}.${month}`;
+}
+
+function groupedDiscountLines(
+  discounts: AppliedDiscount[] | undefined,
+  fallbackAmount: number,
+): Array<{ label: string; amount: number }> {
+  const items = discounts ?? [];
+  if (items.length === 0) {
+    return fallbackAmount > 0 ? [{ label: 'הנחה', amount: fallbackAmount }] : [];
+  }
+  const grouped = new Map<string, number>();
+  for (const discount of items) {
+    const label = discountLineLabel(discount);
+    const amount = Number(discount.value ?? discount.amount ?? 0);
+    grouped.set(label, (grouped.get(label) ?? 0) + amount);
+  }
+  return [...grouped.entries()].map(([label, amount]) => ({ label, amount }));
 }
 
 export default function CourseRegistrationForm({
@@ -322,7 +373,7 @@ export default function CourseRegistrationForm({
         monthly_amount: res.data.monthly_amount,
         subscription_start_date: res.data.subscription_start_date,
         discounts_applied: res.data.payments.flatMap(
-          (payment: { discounts_applied?: Array<{ name: string; amount: number }> }) => payment.discounts_applied ?? [],
+          (payment: { discounts_applied?: AppliedDiscount[] }) => payment.discounts_applied ?? [],
         ),
       };
     }
@@ -1342,6 +1393,13 @@ export default function CourseRegistrationForm({
   }
 
   if (step === 'payment' && paymentData) {
+    const baseAmount = Number(paymentData.base_amount);
+    const discountAmount = Number(paymentData.discount_amount);
+    const priceAfterDiscount = Math.max(0, baseAmount - discountAmount);
+    const discountLines = groupedDiscountLines(paymentData.discounts_applied, discountAmount);
+    const hasDiscount = discountAmount > 0;
+    const monthlyAmount = Number(paymentData.monthly_amount ?? priceAfterDiscount);
+
     return (
       <div className={styles.paymentContainer} dir="rtl">
         <h3 className={styles.title}>
@@ -1357,34 +1415,51 @@ export default function CourseRegistrationForm({
                 : (isTrial ? 'תשלום לשיעור ניסיון' : 'סיכום תשלום')}
           </p>
           <div className={styles.summaryRow}>
-            <span>מחיר בסיס</span>
-            <span>₪{Number(paymentData.base_amount).toFixed(2)}</span>
+            <span>{hasDiscount ? 'מחיר לפני הנחה' : 'מחיר בסיס'}</span>
+            <span className={hasDiscount ? styles.priceBefore : undefined}>{formatShekel(baseAmount)}</span>
           </div>
-          {paymentData.discount_amount > 0 && (
-            <div className={styles.discountRow}>
-              <span>הנחה</span>
-              <span>-₪{Number(paymentData.discount_amount).toFixed(2)}</span>
+          {discountLines.map((line) => (
+            <div key={line.label} className={styles.discountRow}>
+              <span>{line.label}</span>
+              <span>-{formatShekel(line.amount)}</span>
             </div>
+          ))}
+          {hasDiscount && (
+            <>
+              <hr className={styles.discountDivider} />
+              <div className={styles.afterDiscountRow}>
+                <span>מחיר אחרי הנחה</span>
+                <span>{formatShekel(priceAfterDiscount)}</span>
+              </div>
+            </>
           )}
           {(paymentData.prorated_amount ?? 0) > 0 && (
             <div className={styles.summaryRow}>
               <span>מנוי חודשי (יחסי)</span>
-              <span>₪{Number(paymentData.prorated_amount).toFixed(2)}</span>
+              <span>{formatShekel(Number(paymentData.prorated_amount))}</span>
             </div>
           )}
           {(paymentData.registration_fee ?? 0) > 0 && (
             <div className={styles.summaryRow}>
               <span>דמי רישום (חד-פעמי)</span>
-              <span>₪{Number(paymentData.registration_fee).toFixed(2)}</span>
+              <span>{formatShekel(Number(paymentData.registration_fee))}</span>
             </div>
           )}
-          <div className={styles.totalRow}>
-            <span>לתשלום כעת</span>
-            <span className={styles.totalAmount}>₪{Number(paymentData.final_amount).toFixed(2)}</span>
+          <div className={styles.totalBlock}>
+            <div className={styles.totalRow}>
+              <span>תשלום כעת</span>
+              <span className={styles.totalAmount}>{formatShekel(Number(paymentData.final_amount))}</span>
+            </div>
+            {!isTrial && monthlyAmount > 0 && (
+              <div className={styles.totalRow}>
+                <span>תשלום חודשי</span>
+                <span className={styles.totalAmount}>{formatShekel(monthlyAmount)}</span>
+              </div>
+            )}
           </div>
           {!isTrial && paymentData.subscription_start_date && (
             <p className={styles.billingNote}>
-              דמי רישום יגבו עכשיו והוראת קבע תתחיל ב-1.9
+              דמי רישום יגבו עכשיו והוראת קבע תתחיל ב-{formatStandingOrderStart(paymentData.subscription_start_date)}
             </p>
           )}
         </div>
