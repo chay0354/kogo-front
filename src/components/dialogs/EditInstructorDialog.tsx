@@ -157,7 +157,7 @@ export default function EditInstructorDialog({ instructor, isOpen, onClose, onSa
         </div>
 
         {/* Form */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-6">
+        <form noValidate onSubmit={handleSubmit} className="p-6 space-y-6">
           {errors.general && (
             <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-lg">
               {errors.general}
@@ -223,12 +223,15 @@ export default function EditInstructorDialog({ instructor, isOpen, onClose, onSa
                 <label className="block text-sm font-medium mb-2">שם משתמש</label>
                 <input
                   type="text"
+                  name="instructor_username"
+                  inputMode="text"
+                  autoComplete="off"
                   value={formData.email}
                   onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                   className={`input ${errors.email ? 'border-red-500' : ''}`}
                   placeholder="למשל alegria"
-                  autoComplete="username"
                 />
+                <p className="text-muted-foreground text-xs mt-1">לא חובה, ולא צריך מייל — אפשר כל שם להתחברות</p>
                 {errors.email && (
                   <p className="text-red-500 text-xs mt-1">{errors.email}</p>
                 )}
