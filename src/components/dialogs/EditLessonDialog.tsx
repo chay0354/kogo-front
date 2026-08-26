@@ -5,6 +5,7 @@ import api, { fetchInstructorsDropdown } from '@/lib/api';
 import { LessonFormData, Lesson } from '@/types/course';
 import { addMinutesToTime, normalizeTimeValue } from '@/lib/timeUtils';
 import { TimeField } from '@/components/ui/time-picker';
+import InstructorSelect from '@/components/InstructorSelect';
 
 interface InstructorOption {
   id: string;
@@ -208,28 +209,16 @@ export default function EditLessonDialog({
               <label htmlFor="instructor" className="block text-sm font-medium text-gray-700 mb-1">
                 מדריך
               </label>
-              <select
+              <InstructorSelect
                 id="instructor"
                 value={formData.instructor || ''}
-                onChange={(e) => setFormData({ ...formData, instructor: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 disabled:bg-gray-100"
+                onChange={(instructor) => setFormData({ ...formData, instructor })}
+                instructors={instructors}
+                extraOptions={currentInstructorOption ? [currentInstructorOption] : []}
                 disabled={loadingInstructors}
-              >
-                <option value="">
-                  {loadingInstructors ? 'טוען מדריכים...' : 'בחר מדריך'}
-                </option>
-                {currentInstructorOption &&
-                  !instructors.some((row) => row.id === currentInstructorOption.id) && (
-                    <option value={currentInstructorOption.id}>
-                      {currentInstructorOption.full_name}
-                    </option>
-                  )}
-                {instructors.map((instructor) => (
-                  <option key={instructor.id} value={instructor.id}>
-                    {instructor.full_name}
-                  </option>
-                ))}
-              </select>
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 disabled:bg-gray-100 text-right"
+                placeholder={loadingInstructors ? 'טוען מדריכים...' : 'בחר מדריך'}
+              />
             </div>
 
             <div>

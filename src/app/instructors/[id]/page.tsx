@@ -172,12 +172,16 @@ export default function InstructorDetailPage() {
               {instructor.email && (
                 <div className="flex items-start">
                   <Mail className="w-4 h-4 text-muted-foreground ml-2 mt-0.5" />
-                  <a 
-                    href={`mailto:${instructor.email}`}
-                    className="text-sm text-black hover:underline break-all"
-                  >
-                    {instructor.email}
-                  </a>
+                  {instructor.email.includes('@') ? (
+                    <a 
+                      href={`mailto:${instructor.email}`}
+                      className="text-sm text-black hover:underline break-all"
+                    >
+                      {instructor.email}
+                    </a>
+                  ) : (
+                    <span className="text-sm text-black break-all">{instructor.email}</span>
+                  )}
                 </div>
               )}
               

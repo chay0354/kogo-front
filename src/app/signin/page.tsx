@@ -56,18 +56,18 @@ function SignInInner() {
   return (
     <AuthScreen
       title="ברוכים השבים"
-      subtitle="התחבר/י עם האימייל והסיסמה שקיבלת מהנהלת קוגומלו"
+      subtitle="התחבר/י עם שם המשתמש או האימייל והסיסמה שקיבלת מהנהלת קוגומלו"
     >
       {error && <AuthAlert variant="error">{error}</AuthAlert>}
 
       <form onSubmit={onSubmit} className={authStyles.form}>
         <AuthField
           id="email"
-          label="אימייל"
-          type="email"
+          label="שם משתמש או אימייל"
+          type="text"
           value={email}
           onChange={setEmail}
-          autoComplete="email"
+          autoComplete="username"
           required
         />
 

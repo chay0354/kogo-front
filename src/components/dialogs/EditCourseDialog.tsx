@@ -21,6 +21,7 @@ import {
   LESSONS_PER_MONTH,
 } from '@/lib/courseUtils';
 import LessonPriceOptionsEditor from '@/components/dialogs/LessonPriceOptionsEditor';
+import InstructorSelect from '@/components/InstructorSelect';
 import styles from './EditCourseDialog.module.css';
 
 interface Branch {
@@ -498,23 +499,16 @@ export default function EditCourseDialog({
                 <label htmlFor="instructor" className="block text-sm font-medium text-gray-700 mb-1">
                   מדריך <span className="text-red-500">*</span>
                 </label>
-                <select
+                <InstructorSelect
                   id="instructor"
                   value={instructorId}
-                  onChange={(e) => setInstructorId(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 disabled:bg-gray-100"
-                  required
+                  onChange={setInstructorId}
+                  instructors={instructors}
                   disabled={loadingInstructors}
-                >
-                  <option value="">
-                    {loadingInstructors ? 'טוען מדריכים...' : 'בחר מדריך'}
-                  </option>
-                  {instructors.map((instructor) => (
-                    <option key={instructor.id} value={instructor.id}>
-                      {instructor.full_name}
-                    </option>
-                  ))}
-                </select>
+                  required
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 disabled:bg-gray-100 text-right"
+                  placeholder={loadingInstructors ? 'טוען מדריכים...' : 'בחר מדריך'}
+                />
               </div>
               <div>
                 <label htmlFor="instructor_salary_override" className="block text-sm font-medium text-gray-700 mb-1">

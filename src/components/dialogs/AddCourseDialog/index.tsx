@@ -10,6 +10,7 @@ import { Branch, Room, Instructor, AddCourseDialogProps } from './types';
 import { AGE_OPTIONS, DAYS_OF_WEEK } from './constants';
 import { calcEndTime, buildDefaultCourseData, buildDefaultLessonTemplate, buildDuplicateFormState } from './utils';
 import { TimePicker } from '@/components/ui/time-picker';
+import InstructorSelect from '@/components/InstructorSelect';
 
 export default function AddCourseDialog({
   courseTypeId,
@@ -391,20 +392,15 @@ export default function AddCourseDialog({
                 <label htmlFor="instructor" className={styles.label}>
                   מדריך <span className={styles.required}>*</span>
                 </label>
-                <select
+                <InstructorSelect
                   id="instructor"
                   value={courseData.instructor || ''}
-                  onChange={(e) => setCourseData({ ...courseData, instructor: e.target.value })}
-                  className={styles.select}
+                  onChange={(instructor) => setCourseData({ ...courseData, instructor })}
+                  instructors={instructors}
                   required
-                >
-                  <option value="">בחר מדריך</option>
-                  {instructors.map((instructor) => (
-                    <option key={instructor.id} value={instructor.id}>
-                      {instructor.full_name}
-                    </option>
-                  ))}
-                </select>
+                  className={styles.select}
+                  placeholder="בחר מדריך"
+                />
               </div>
               <div>
                 <label htmlFor="course_salary_override" className={styles.label}>

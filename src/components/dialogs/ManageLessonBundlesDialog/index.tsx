@@ -14,6 +14,7 @@ import type {
   RoomOption,
 } from './types';
 import { emptyFormState } from './types';
+import InstructorSelect from '@/components/InstructorSelect';
 import styles from './index.module.css';
 
 function lessonInstructorId(lesson: Lesson): string {
@@ -346,18 +347,13 @@ export default function ManageLessonBundlesDialog({
                           <div className={styles.slotFields}>
                             <label className={styles.slotField}>
                               <span className={styles.slotLabel}>מדריך</span>
-                              <select
+                              <InstructorSelect
                                 value={form.instructorsByLesson[lesson.id] || ''}
-                                onChange={(e) => setLessonInstructor(lesson.id, e.target.value)}
+                                onChange={(instructor) => setLessonInstructor(lesson.id, instructor)}
+                                instructors={instructors}
                                 className={styles.slotSelect}
-                              >
-                                <option value="">בחר מדריך</option>
-                                {instructors.map((instructor) => (
-                                  <option key={instructor.id} value={instructor.id}>
-                                    {instructor.full_name}
-                                  </option>
-                                ))}
-                              </select>
+                                placeholder="בחר מדריך"
+                              />
                             </label>
                             <label className={styles.slotField}>
                               <span className={styles.slotLabel}>סטודיו</span>

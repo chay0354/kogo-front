@@ -173,7 +173,7 @@ export default function SettingsPage() {
               <table className="min-w-full text-sm">
                 <thead>
                   <tr className="border-b">
-                    <th className="text-right py-2">אימייל</th>
+                    <th className="text-right py-2">שם משתמש</th>
                     <th className="text-right py-2">שם</th>
                     <th className="text-right py-2">תפקיד</th>
                     <th className="text-right py-2">סטטוס</th>
@@ -228,13 +228,14 @@ export default function SettingsPage() {
             )}
 
             <div>
-              <label className="block text-sm font-medium mb-1">אימייל</label>
+              <label className="block text-sm font-medium mb-1">שם משתמש / אימייל</label>
               <input
-                type="email"
+                type="text"
                 className="w-full rounded-lg border border-gray-200 px-3 py-2 bg-white"
                 value={formEmail}
                 onChange={(e) => setFormEmail(e.target.value)}
                 required
+                autoComplete="username"
               />
             </div>
 

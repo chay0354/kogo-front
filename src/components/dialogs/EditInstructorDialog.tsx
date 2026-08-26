@@ -91,18 +91,10 @@ export default function EditInstructorDialog({ instructor, isOpen, onClose, onSa
       newErrors.first_name = 'שדה חובה';
     }
     
-    if (!formData.last_name.trim()) {
-      newErrors.last_name = 'שדה חובה';
-    }
-    
     if (!formData.phone.trim()) {
       newErrors.phone = 'שדה חובה';
     } else if (!validatePhoneNumber(formData.phone)) {
       newErrors.phone = 'מספר טלפון לא תקין (10 ספרות, מתחיל ב-0)';
-    }
-    
-    if (formData.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
-      newErrors.email = 'כתובת מייל לא תקינה';
     }
     
     if (formData.salary_model_type === 'fixed_per_lesson' && formData.fixed_salary_per_lesson < 1) {
@@ -195,7 +187,7 @@ export default function EditInstructorDialog({ instructor, isOpen, onClose, onSa
 
               <div>
                 <label className="block text-sm font-medium mb-2">
-                  שם משפחה <span className="text-red-500">*</span>
+                  שם משפחה
                 </label>
                 <input
                   type="text"
@@ -228,13 +220,14 @@ export default function EditInstructorDialog({ instructor, isOpen, onClose, onSa
               </div>
 
               <div>
-                <label className="block text-sm font-medium mb-2">אימייל</label>
+                <label className="block text-sm font-medium mb-2">שם משתמש</label>
                 <input
-                  type="email"
+                  type="text"
                   value={formData.email}
                   onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                   className={`input ${errors.email ? 'border-red-500' : ''}`}
-                  placeholder="email@example.com"
+                  placeholder="למשל alegria"
+                  autoComplete="username"
                 />
                 {errors.email && (
                   <p className="text-red-500 text-xs mt-1">{errors.email}</p>
