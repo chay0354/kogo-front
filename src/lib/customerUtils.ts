@@ -2,7 +2,7 @@
  * Customer/Child utility functions
  */
 
-import { ChildWithDetails } from '@/types/customer';
+import { ChildWithDetails, EnrollmentDetail } from '@/types/customer';
 
 export interface ChildStatus {
   color: 'black' | 'red' | 'orange' | 'green' | 'blue';
@@ -78,6 +78,37 @@ export function getChildStatus(child: ChildWithDetails): ChildStatus {
         hebrewStatus: 'לא מוגדר'
       };
   }
+}
+
+const STATUS_OVERRIDE_KEEP = new Set([
+  'payment_problem',
+  'not_paid',
+  'ghost',
+  'inactive',
+]);
+
+/**
+ * Customers-table status: trial-only kids stay נרשם לניסיון.
+ * Any regular (paid) lesson, or both regular and trial, shows as פעיל.
+ */
+export function getCustomerTableStatus(child: ChildWithDetails): ChildStatus {
+  if (STATUS_OVERRIDE_KEEP.has(child.status)) {
+    return getChildStatus(child);
+  }
+  const enrollments = child.enrollments ?? [];
+  const hasRegular = enrollments.some((row) => !row.trial_lesson_date);
+  const hasTrial = enrollments.some((row) => Boolean(row.trial_lesson_date));
+  if (hasRegular) {
+    return getChildStatus({ ...child, status: 'active' });
+  }
+  if (hasTrial) {
+    return getChildStatus({ ...child, status: 'trial_signed' });
+  }
+  return getChildStatus(child);
+}
+
+export function isTrialEnrollment(enrollment: EnrollmentDetail): boolean {
+  return Boolean(enrollment.trial_lesson_date);
 }
 
 /**

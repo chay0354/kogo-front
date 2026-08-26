@@ -667,7 +667,7 @@ export default function CourseRegistrationForm({
     setErrorMsg('');
 
     const discountConfirmed = (lookup as (LookupResult & { _confirmed?: boolean }) | null)?._confirmed ?? false;
-    const existingChildId = discountConfirmed ? (lookup?.child_id ?? '') : '';
+    const existingChildId = lookup?.child_id ?? '';
 
     const registerChildFirstName = selfRegistering ? parentFirstName : childFirstName;
     const registerChildLastName = selfRegistering ? parentLastName : childLastName;
@@ -768,7 +768,7 @@ export default function CourseRegistrationForm({
 
       for (const child of additionalChildren) {
         const childDiscountConfirmed = (child.lookup as (LookupResult & { _confirmed?: boolean }) | null)?._confirmed ?? false;
-        const childExistingId = childDiscountConfirmed ? (child.lookup?.child_id ?? '') : '';
+        const childExistingId = child.lookup?.child_id ?? '';
         const selections = childLessonSelections(child);
         if (selections.length === 0) {
           throw new Error('חסרה בחירת חוג לילד נוסף');

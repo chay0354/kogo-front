@@ -11,7 +11,9 @@ import { useAuth } from '@/components/AuthProvider';
 import { filterBranchesForUser, unwrapApiList } from '@/lib/scopedFilters';
 import { ChildWithDetails, CustomerFilters, Branch, Course, Instructor, EnrollmentDetail } from '@/types/customer';
 import { 
-  getChildStatus, 
+  getCustomerTableStatus,
+  getDayName,
+  isTrialEnrollment,
   formatWhatsAppLink
 } from '@/lib/customerUtils';
 import { sortWidgetCourseTypes } from '@/app/widget/courseTypeOrder';
@@ -90,6 +92,7 @@ export default function CustomersPage() {
   const [trialDateDialogOpen, setTrialDateDialogOpen] = useState(false);
   const [changeLessonDialogOpen, setChangeLessonDialogOpen] = useState(false);
   const [changingEnrollment, setChangingEnrollment] = useState<EnrollmentDetail | null>(null);
+  const [editingTrialEnrollment, setEditingTrialEnrollment] = useState<EnrollmentDetail | null>(null);
 
   // Load filter options
   useEffect(() => {
@@ -232,8 +235,9 @@ export default function CustomersPage() {
     setStatusDialogOpen(true);
   };
 
-  const handleEditTrialDate = (child: ChildWithDetails) => {
+  const handleEditTrialDate = (child: ChildWithDetails, enrollment: EnrollmentDetail) => {
     setSelectedChild(child);
+    setEditingTrialEnrollment(enrollment);
     setTrialDateDialogOpen(true);
   };
 
@@ -241,6 +245,14 @@ export default function CustomersPage() {
     setSelectedChild(child);
     setChangingEnrollment(enrollment);
     setChangeLessonDialogOpen(true);
+  };
+
+  const handleEnrollmentEdit = (child: ChildWithDetails, enrollment: EnrollmentDetail) => {
+    if (isTrialEnrollment(enrollment)) {
+      handleEditTrialDate(child, enrollment);
+      return;
+    }
+    handleChangeLesson(child, enrollment);
   };
 
   const formatTrialDate = (value?: string | null) => {
@@ -485,7 +497,7 @@ export default function CustomersPage() {
                 </thead>
                 <tbody>
                   {children.map((child, index) => {
-                    const status = getChildStatus(child);
+                    const status = getCustomerTableStatus(child);
                     const courses = child.enrollments ?? [];
                     const whatsappLink = formatWhatsAppLink(child.parent_phone);
                     
@@ -543,29 +555,57 @@ export default function CustomersPage() {
                         
                         {/* Courses */}
                         <td>
-                          <div className="flex flex-wrap gap-1">
+                          <div className="flex flex-wrap gap-1.5">
                             {courses.length > 0 ? (
-                              courses.map((enrollment) => (
-                                <span
-                                  key={enrollment.enrollment_id || enrollment.lesson_id || enrollment.course_id}
-                                  className="badge badge-info text-xs inline-flex items-center gap-1"
-                                  onClick={(e) => e.stopPropagation()}
-                                >
-                                  {enrollment.course_name}
-                                  {enrollment.lesson_id ? (
-                                    <button
-                                      type="button"
-                                      className="rounded-full bg-white/70 px-1.5 py-0.5 text-[11px] font-semibold hover:bg-white"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        handleChangeLesson(child, enrollment);
-                                      }}
+                              courses.map((enrollment) => {
+                                const trial = isTrialEnrollment(enrollment);
+                                const day = enrollment.day_of_week != null ? getDayName(enrollment.day_of_week) : '';
+                                return (
+                                  <div
+                                    key={enrollment.enrollment_id || enrollment.lesson_id || enrollment.course_id}
+                                    className={`inline-flex max-w-full items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs ${
+                                      trial
+                                        ? 'border-orange-200 bg-orange-50 text-orange-950'
+                                        : 'border-sky-200 bg-sky-50 text-sky-950'
+                                    }`}
+                                    onClick={(e) => e.stopPropagation()}
+                                  >
+                                    <span className="min-w-0 truncate font-medium">
+                                      {enrollment.course_name}
+                                    </span>
+                                    {day ? (
+                                      <span className="hidden whitespace-nowrap opacity-70 sm:inline">
+                                        {day}
+                                        {enrollment.start_time ? ` ${enrollment.start_time}` : ''}
+                                      </span>
+                                    ) : null}
+                                    <span
+                                      className={`whitespace-nowrap rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${
+                                        trial ? 'bg-orange-200/80 text-orange-900' : 'bg-sky-200/80 text-sky-900'
+                                      }`}
                                     >
-                                      ערוך
-                                    </button>
-                                  ) : null}
-                                </span>
-                              ))
+                                      {trial ? 'ניסיון' : 'רגיל'}
+                                    </span>
+                                    {trial && enrollment.trial_lesson_date ? (
+                                      <span className="whitespace-nowrap tabular-nums opacity-70">
+                                        {formatTrialDate(enrollment.trial_lesson_date)}
+                                      </span>
+                                    ) : null}
+                                    {enrollment.lesson_id ? (
+                                      <button
+                                        type="button"
+                                        className="rounded-full bg-white/80 px-1.5 py-0.5 text-[11px] font-semibold shadow-sm hover:bg-white"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handleEnrollmentEdit(child, enrollment);
+                                        }}
+                                      >
+                                        ערוך
+                                      </button>
+                                    ) : null}
+                                  </div>
+                                );
+                              })
                             ) : (
                               <span className="text-muted-foreground">-</span>
                             )}
@@ -574,39 +614,21 @@ export default function CustomersPage() {
                         
                         {/* Status */}
                         <td onClick={(e) => e.stopPropagation()}>
-                          <div
-                            className={`inline-flex items-center gap-1.5 max-w-full px-3 py-1 rounded-full text-xs font-medium ${
-                              status.color === 'green' ? 'bg-green-100 text-green-800 border border-green-300' :
-                              status.color === 'red' ? 'bg-red-100 text-red-800 border border-red-300' :
-                              status.color === 'orange' ? 'bg-orange-100 text-orange-800 border border-orange-300' :
-                              status.color === 'blue' ? 'bg-blue-100 text-blue-800 border border-blue-300' :
-                              status.color === 'black' ? 'bg-gray-100 text-gray-800 border border-gray-300' :
-                              'bg-gray-100 text-gray-600 border border-gray-300'
+                          <button
+                            type="button"
+                            title="לחץ לשינוי סטטוס"
+                            onClick={() => handleStatusClick(child)}
+                            className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-medium transition-opacity hover:opacity-80 ${
+                              status.color === 'green' ? 'border-green-300 bg-green-100 text-green-800' :
+                              status.color === 'red' ? 'border-red-300 bg-red-100 text-red-800' :
+                              status.color === 'orange' ? 'border-orange-300 bg-orange-100 text-orange-800' :
+                              status.color === 'blue' ? 'border-blue-300 bg-blue-100 text-blue-800' :
+                              status.color === 'black' ? 'border-gray-300 bg-gray-100 text-gray-800' :
+                              'border-gray-300 bg-gray-100 text-gray-600'
                             }`}
                           >
-                            <button
-                              type="button"
-                              className="hover:opacity-75 transition-opacity whitespace-nowrap"
-                              title="לחץ לשינוי סטטוס"
-                              onClick={() => handleStatusClick(child)}
-                            >
-                              {status.hebrewStatus}
-                            </button>
-                            {child.status === 'trial_signed' && child.trial_enrollment?.trial_lesson_date ? (
-                              <span className="opacity-70 whitespace-nowrap">
-                                {formatTrialDate(child.trial_enrollment.trial_lesson_date)}
-                              </span>
-                            ) : null}
-                            {child.status === 'trial_signed' ? (
-                              <button
-                                type="button"
-                                className="rounded-full bg-white/70 px-1.5 py-0.5 text-[11px] font-semibold hover:bg-white"
-                                onClick={() => handleEditTrialDate(child)}
-                              >
-                                ערוך
-                              </button>
-                            ) : null}
-                          </div>
+                            {status.hebrewStatus}
+                          </button>
                         </td>
                         
                         {/* Actions */}
@@ -712,24 +734,33 @@ export default function CustomersPage() {
       />
 
       <EditTrialLessonDateDialog
-        enrollmentId={selectedChild?.trial_enrollment?.enrollment_id ?? null}
+        enrollmentId={editingTrialEnrollment?.enrollment_id ?? selectedChild?.trial_enrollment?.enrollment_id ?? null}
         childName={selectedChild?.full_name ?? ''}
-        courseName={selectedChild?.trial_enrollment?.course_name}
-        currentDate={selectedChild?.trial_enrollment?.trial_lesson_date}
+        courseName={editingTrialEnrollment?.course_name ?? selectedChild?.trial_enrollment?.course_name}
+        currentDate={editingTrialEnrollment?.trial_lesson_date ?? selectedChild?.trial_enrollment?.trial_lesson_date}
         isOpen={trialDateDialogOpen}
-        onClose={() => setTrialDateDialogOpen(false)}
+        onClose={() => {
+          setTrialDateDialogOpen(false);
+          setEditingTrialEnrollment(null);
+        }}
         onSaved={(nextDate) => {
-          setSelectedChild((prev) =>
-            prev?.trial_enrollment
-              ? { ...prev, trial_enrollment: { ...prev.trial_enrollment, trial_lesson_date: nextDate } }
-              : prev,
-          );
-          setChildren((prev) =>
-            prev.map((row) =>
-              row.id === selectedChild?.id && row.trial_enrollment
-                ? { ...row, trial_enrollment: { ...row.trial_enrollment, trial_lesson_date: nextDate } }
-                : row,
+          const enrollmentId = editingTrialEnrollment?.enrollment_id ?? selectedChild?.trial_enrollment?.enrollment_id;
+          const apply = (row: ChildWithDetails): ChildWithDetails => ({
+            ...row,
+            enrollments: (row.enrollments ?? []).map((item) =>
+              item.enrollment_id === enrollmentId ? { ...item, trial_lesson_date: nextDate } : item,
             ),
+            trial_enrollment:
+              row.trial_enrollment && row.trial_enrollment.enrollment_id === enrollmentId
+                ? { ...row.trial_enrollment, trial_lesson_date: nextDate }
+                : row.trial_enrollment,
+          });
+          setSelectedChild((prev) => (prev ? apply(prev) : prev));
+          setChildren((prev) =>
+            prev.map((row) => (row.id === selectedChild?.id ? apply(row) : row)),
+          );
+          setEditingTrialEnrollment((prev) =>
+            prev ? { ...prev, trial_lesson_date: nextDate } : prev,
           );
         }}
       />

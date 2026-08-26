@@ -14,6 +14,7 @@ export interface EnrollmentDetail {
   branch_name: string | null;
   instructor_name: string | null;
   status: string;
+  trial_lesson_date?: string | null;
 }
 
 export interface ChildWithDetails {
