@@ -51,7 +51,7 @@ export function ConfirmDialog({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="max-w-md" overlayClassName="z-[60]">
         <DialogHeader>
           <div className="flex justify-center mb-4">
             {icons[type]}

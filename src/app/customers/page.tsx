@@ -24,7 +24,6 @@ import ChildProfileDialog from '@/components/dialogs/ChildProfileDialog';
 import EditChildDialog from '@/components/dialogs/EditChildDialog';
 import DeleteChildDialog from '@/components/dialogs/DeleteChildDialog';
 import EnrollToLessonDialog from '@/components/dialogs/EnrollToLessonDialog';
-import EditTrialLessonDateDialog from '@/components/dialogs/EditTrialLessonDateDialog';
 import ChangeChildLessonDialog from '@/components/dialogs/ChangeChildLessonDialog';
 
 type CourseTypeOption = { id: string; name: string };
@@ -90,11 +89,9 @@ export default function CustomersPage() {
   const [statusDialogOpen, setStatusDialogOpen] = useState(false);
   const [statusDialogValue, setStatusDialogValue] = useState('');
   const [statusSaving, setStatusSaving] = useState(false);
-  const [trialDateDialogOpen, setTrialDateDialogOpen] = useState(false);
   const [changeLessonDialogOpen, setChangeLessonDialogOpen] = useState(false);
   const [changingEnrollment, setChangingEnrollment] = useState<EnrollmentDetail | null>(null);
   const [changingSlots, setChangingSlots] = useState<EnrollmentDetail[]>([]);
-  const [editingTrialEnrollment, setEditingTrialEnrollment] = useState<EnrollmentDetail | null>(null);
 
   // Load filter options
   useEffect(() => {
@@ -237,12 +234,6 @@ export default function CustomersPage() {
     setStatusDialogOpen(true);
   };
 
-  const handleEditTrialDate = (child: ChildWithDetails, enrollment: EnrollmentDetail) => {
-    setSelectedChild(child);
-    setEditingTrialEnrollment(enrollment);
-    setTrialDateDialogOpen(true);
-  };
-
   const handleChangeLesson = (child: ChildWithDetails, slots: EnrollmentDetail[]) => {
     setSelectedChild(child);
     setChangingSlots(slots);
@@ -253,10 +244,6 @@ export default function CustomersPage() {
   const handleEnrollmentEdit = (child: ChildWithDetails, slots: EnrollmentDetail[]) => {
     const first = slots[0];
     if (!first) return;
-    if (isTrialEnrollment(first)) {
-      handleEditTrialDate(child, first);
-      return;
-    }
     handleChangeLesson(child, slots);
   };
 
@@ -698,6 +685,23 @@ export default function CustomersPage() {
               setProfileDialogOpen(false);
               setEnrollDialogOpen(true);
             }}
+            onEditEnrollment={(slots) => handleEnrollmentEdit(selectedChild, slots)}
+            onRemovedFromCourse={({ removedEnrollmentIds, childStatus }) => {
+              const removed = new Set(removedEnrollmentIds);
+              const apply = (row: ChildWithDetails): ChildWithDetails => ({
+                ...row,
+                enrollments: (row.enrollments ?? []).filter((item) => !removed.has(item.enrollment_id)),
+                status: (childStatus as ChildWithDetails['status']) || row.status,
+                trial_enrollment:
+                  row.trial_enrollment && removed.has(row.trial_enrollment.enrollment_id)
+                    ? null
+                    : row.trial_enrollment,
+              });
+              setSelectedChild((prev) => (prev ? apply(prev) : prev));
+              setChildren((prev) =>
+                prev.map((row) => (row.id === selectedChild.id ? apply(row) : row)),
+              );
+            }}
           />
           
           <EditChildDialog
@@ -736,13 +740,31 @@ export default function CustomersPage() {
         onSaved={({ removedEnrollmentIds, enrollments: nextEnrollments }) => {
           const removed = new Set(removedEnrollmentIds);
           const oldCourseId = changingEnrollment?.course_id;
+          const isTrial = Boolean(changingEnrollment?.trial_lesson_date);
+          const replacedIds = new Set(
+            [changingEnrollment?.enrollment_id, ...nextEnrollments.map((item) => item.enrollment_id)]
+              .filter(Boolean) as string[],
+          );
           const apply = (row: ChildWithDetails): ChildWithDetails => {
             const kept = (row.enrollments ?? []).filter((item) => {
-              if (removed.has(item.enrollment_id)) return false;
-              if (oldCourseId && item.course_id === oldCourseId && !item.trial_lesson_date) return false;
+              if (removed.has(item.enrollment_id) || replacedIds.has(item.enrollment_id)) return false;
+              if (!isTrial && oldCourseId && item.course_id === oldCourseId && !item.trial_lesson_date) return false;
               return true;
             });
-            return { ...row, enrollments: [...kept, ...nextEnrollments] };
+            const enrollments = [...kept, ...nextEnrollments];
+            const nextTrial = enrollments.find((item) => item.trial_lesson_date);
+            return {
+              ...row,
+              enrollments,
+              trial_enrollment: nextTrial
+                ? {
+                    enrollment_id: nextTrial.enrollment_id,
+                    lesson_id: nextTrial.lesson_id,
+                    course_name: nextTrial.course_name,
+                    trial_lesson_date: nextTrial.trial_lesson_date || null,
+                  }
+                : row.trial_enrollment,
+            };
           };
           setSelectedChild((prev) => (prev ? apply(prev) : prev));
           setChildren((prev) =>
@@ -750,38 +772,6 @@ export default function CustomersPage() {
           );
           setChangingEnrollment(nextEnrollments[0] || null);
           setChangingSlots(nextEnrollments);
-        }}
-      />
-
-      <EditTrialLessonDateDialog
-        enrollmentId={editingTrialEnrollment?.enrollment_id ?? selectedChild?.trial_enrollment?.enrollment_id ?? null}
-        childName={selectedChild?.full_name ?? ''}
-        courseName={editingTrialEnrollment?.course_name ?? selectedChild?.trial_enrollment?.course_name}
-        currentDate={editingTrialEnrollment?.trial_lesson_date ?? selectedChild?.trial_enrollment?.trial_lesson_date}
-        isOpen={trialDateDialogOpen}
-        onClose={() => {
-          setTrialDateDialogOpen(false);
-          setEditingTrialEnrollment(null);
-        }}
-        onSaved={(nextDate) => {
-          const enrollmentId = editingTrialEnrollment?.enrollment_id ?? selectedChild?.trial_enrollment?.enrollment_id;
-          const apply = (row: ChildWithDetails): ChildWithDetails => ({
-            ...row,
-            enrollments: (row.enrollments ?? []).map((item) =>
-              item.enrollment_id === enrollmentId ? { ...item, trial_lesson_date: nextDate } : item,
-            ),
-            trial_enrollment:
-              row.trial_enrollment && row.trial_enrollment.enrollment_id === enrollmentId
-                ? { ...row.trial_enrollment, trial_lesson_date: nextDate }
-                : row.trial_enrollment,
-          });
-          setSelectedChild((prev) => (prev ? apply(prev) : prev));
-          setChildren((prev) =>
-            prev.map((row) => (row.id === selectedChild?.id ? apply(row) : row)),
-          );
-          setEditingTrialEnrollment((prev) =>
-            prev ? { ...prev, trial_lesson_date: nextDate } : prev,
-          );
         }}
       />
 

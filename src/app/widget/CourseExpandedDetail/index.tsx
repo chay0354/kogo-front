@@ -202,7 +202,11 @@ export default function CourseExpandedDetail({
           <p className={styles.priceTrack}>מסלול שנתי • תשלום חודשי</p>
         </div>
         <p className={styles.priceNote}>מנוי שנתי עד חודש יולי. ניתן לבטל מנוי עד חודש אפריל</p>
-        <p className={styles.priceNoteHighlight}>דמי רישום יגבו עכשיו והוראת קבע תתחיל ב-1.9</p>
+        {course.charge_standing_order_immediately ? (
+          <p className={styles.priceNoteHighlight}>דמי רישום יגבו עכשיו והוראת הקבע תחויב מיד</p>
+        ) : (
+          <p className={styles.priceNoteHighlight}>דמי רישום יגבו עכשיו והוראת קבע תתחיל ב-1.9</p>
+        )}
 
         {selectionFull ? (
           <div className={styles.fullSection}>

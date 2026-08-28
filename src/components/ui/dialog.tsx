@@ -37,10 +37,12 @@ export function Dialog({
 
 export function DialogContent({
   className = '',
+  overlayClassName = '',
   dir = 'rtl',
   children,
 }: {
   className?: string;
+  overlayClassName?: string;
   dir?: 'rtl' | 'ltr';
   children: React.ReactNode;
 }) {
@@ -50,7 +52,7 @@ export function DialogContent({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 animate-fade-in p-0 sm:p-4"
+      className={`fixed inset-0 ${overlayClassName || 'z-50'} flex items-end sm:items-center justify-center bg-black/50 animate-fade-in p-0 sm:p-4`}
       onMouseDown={() => ctx.onOpenChange(false)}
     >
       <div

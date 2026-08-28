@@ -69,6 +69,7 @@ export interface Course {
   must_attend_all_lessons: boolean;
   trial_lesson_is_paid: boolean;
   trial_lesson_price: number | null;
+  charge_standing_order_immediately?: boolean;
   external_link: string;
   lessons_count: number;
   lessons: CourseLesson[];

@@ -14,6 +14,7 @@ export interface EnrollmentDetail {
   branch_name: string | null;
   instructor_name: string | null;
   status: string;
+  bundle_id?: string | null;
   trial_lesson_date?: string | null;
 }
 

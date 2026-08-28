@@ -12,6 +12,7 @@ import {
   Loader2,
   Mail,
   MapPin,
+  Pencil,
   Plus,
   RefreshCw,
   Trash2,
@@ -19,12 +20,13 @@ import {
   Users,
 } from 'lucide-react';
 
-import { ChildWithDetails, AbsenceRecord } from '@/types/customer';
-import { formatWhatsAppLink, formatHebrewDate, getDayName, getAttendanceColor } from '@/lib/customerUtils';
+import { ChildWithDetails, AbsenceRecord, EnrollmentDetail } from '@/types/customer';
+import { formatWhatsAppLink, formatHebrewDate, formatEnrollmentSlot, groupEnrollmentsForTable } from '@/lib/customerUtils';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogCloseButton } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { GroupIdBadge } from '@/components/GroupIdBadge/GroupIdBadge';
 import api from '@/lib/api';
 import RefundDialog from '@/components/dialogs/RefundDialog';
@@ -34,6 +36,11 @@ interface ChildProfileDialogProps {
   isOpen: boolean;
   onClose: () => void;
   onOpenEnroll?: () => void;
+  onEditEnrollment?: (slots: EnrollmentDetail[]) => void;
+  onRemovedFromCourse?: (payload: {
+    removedEnrollmentIds: string[];
+    childStatus?: string;
+  }) => void;
 }
 
 function daysUntil(dateString: string | null): number | null {
@@ -117,6 +124,8 @@ export default function ChildProfileDialog({
   isOpen,
   onClose,
   onOpenEnroll,
+  onEditEnrollment,
+  onRemovedFromCourse,
 }: ChildProfileDialogProps) {
   const [absences, setAbsences] = useState<AbsenceRecord[]>([]);
   const [loadingAbsences, setLoadingAbsences] = useState(false);
@@ -135,6 +144,12 @@ export default function ChildProfileDialog({
     description: string;
   } | null>(null);
   const [refundLoading, setRefundLoading] = useState(false);
+  const [dropGroup, setDropGroup] = useState<{
+    courseName: string;
+    slots: EnrollmentDetail[];
+    trial: boolean;
+  } | null>(null);
+  const [dropLoading, setDropLoading] = useState(false);
   
   const genderText = child.gender === 'male' ? 'בן' : child.gender === 'female' ? 'בת' : 'בן/בת';
   const whatsapp = formatWhatsAppLink(child.parent_phone);
@@ -272,6 +287,34 @@ export default function ChildProfileDialog({
       setRefundLoading(false);
     }
   };
+
+  const handleDropConfirm = async (confirmed: boolean) => {
+    if (!confirmed || !dropGroup) return;
+    const enrollmentId = dropGroup.slots[0]?.enrollment_id;
+    if (!enrollmentId) return;
+    setDropLoading(true);
+    try {
+      const res = await api.post(`/enrollments/lesson-enrollments/${enrollmentId}/drop-course/`, {
+        cancellation_reason: dropGroup.trial ? 'בוטל שיעור ניסיון' : 'הוסר מהחוג',
+      });
+      onRemovedFromCourse?.({
+        removedEnrollmentIds: (res.data?.removed_enrollment_ids || []).map(String),
+        childStatus: res.data?.child_status,
+      });
+      setDropGroup(null);
+    } catch (error: unknown) {
+      const data = (error as { response?: { data?: { error?: string } } })?.response?.data;
+      alert(data?.error || 'שגיאה בהסרה מהחוג');
+      throw error;
+    } finally {
+      setDropLoading(false);
+    }
+  };
+
+  const courseGroups = useMemo(
+    () => groupEnrollmentsForTable(child.enrollments ?? []),
+    [child.enrollments],
+  );
 
   const oneTimeCharges = useMemo(() => {
     const fromPayments = payments
@@ -522,43 +565,77 @@ export default function ChildProfileDialog({
                       <thead className="bg-muted/50">
                         <tr>
                           <th>חוג</th>
-                          <th>יום</th>
-                          <th>שעה</th>
+                          <th>ימים ושעות</th>
                           <th>סניף</th>
                           <th>מדריך</th>
                           <th>פעולות</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {child.enrollments.length === 0 ? (
+                        {courseGroups.length === 0 ? (
                           <tr>
-                            <td colSpan={6} className="text-center py-8 text-muted-foreground">
+                            <td colSpan={5} className="text-center py-8 text-muted-foreground">
                               אין רישומים פעילים
                             </td>
                           </tr>
                         ) : (
-                          child.enrollments.map((en) => (
-                            <tr key={en.enrollment_id}>
+                          courseGroups.map((group) => {
+                            const first = group.slots[0];
+                            return (
+                            <tr key={group.key}>
                               <td className="font-medium">
-                                {en.course_name}
-                                <GroupIdBadge displayId={en.course_display_id} />
+                                <div className="flex flex-wrap items-center gap-1.5">
+                                  <span>{group.courseName}</span>
+                                  <GroupIdBadge displayId={first?.course_display_id} />
+                                  <span
+                                    className={`inline-flex rounded-full px-2 py-0.5 text-[11px] font-semibold ${
+                                      group.trial
+                                        ? 'bg-orange-100 text-orange-800'
+                                        : 'bg-sky-100 text-sky-800'
+                                    }`}
+                                  >
+                                    {group.trial ? 'ניסיון' : 'רגיל'}
+                                    {group.trial && first?.trial_lesson_date
+                                      ? ` · ${first.trial_lesson_date.split('-').reverse().join('/')}`
+                                      : ''}
+                                  </span>
+                                </div>
                               </td>
-                              <td>{getDayName(en.day_of_week)}</td>
-                              <td>{en.start_time}</td>
-                              <td>{en.branch_name || '-'}</td>
-                              <td>{en.instructor_name || '-'}</td>
+                              <td>{group.slots.map((slot) => formatEnrollmentSlot(slot)).filter(Boolean).join(' · ') || '-'}</td>
+                              <td>{first?.branch_name || '-'}</td>
+                              <td>{first?.instructor_name || '-'}</td>
                               <td>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  className="gap-1 text-destructive hover:text-destructive"
-                                  onClick={() => alert('הסר - יתווסף בהמשך')}
-                                >
-                                  <Trash2 className="h-3 w-3" /> הסר
-                                </Button>
+                                <div className="flex flex-wrap items-center gap-1">
+                                  {first?.lesson_id ? (
+                                    <>
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        className="gap-1"
+                                        onClick={() => onEditEnrollment?.(group.slots)}
+                                      >
+                                        <Pencil className="h-3 w-3" /> ערוך
+                                      </Button>
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        className="gap-1 text-destructive hover:text-destructive"
+                                        disabled={dropLoading}
+                                        onClick={() => setDropGroup({
+                                      courseName: group.courseName,
+                                      slots: group.slots,
+                                      trial: group.trial,
+                                    })}
+                                      >
+                                        <Trash2 className="h-3 w-3" /> הסר
+                                      </Button>
+                                    </>
+                                  ) : null}
+                                </div>
                               </td>
                             </tr>
-                          ))
+                            );
+                          })
                         )}
                       </tbody>
                     </table>
@@ -785,6 +862,22 @@ export default function ChildProfileDialog({
         loading={refundLoading}
       />
     )}
+    <ConfirmDialog
+      isOpen={Boolean(dropGroup)}
+      onClose={() => { if (!dropLoading) setDropGroup(null); }}
+      onConfirm={handleDropConfirm}
+      type="warning"
+      title={dropGroup?.trial ? 'ביטול שיעור ניסיון' : 'הסרה מהחוג'}
+      message={
+        dropGroup
+          ? dropGroup.trial
+            ? `${child.first_name} ${child.last_name} יוסר/י משיעור הניסיון ב${dropGroup.courseName}.\nהרישום לניסיון יבוטל.`
+            : `${child.first_name} ${child.last_name} יוסר/י מ${dropGroup.courseName}.\nהוראת הקבע לחוג זה תיעצר ולא יגבו תשלומים נוספים מהחודש הבא.`
+          : ''
+      }
+      confirmText={dropGroup?.trial ? 'כן, בטל' : 'כן, הסר'}
+      cancelText="ביטול"
+    />
   </>
   );
 }
