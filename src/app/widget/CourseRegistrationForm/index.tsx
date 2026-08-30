@@ -1248,9 +1248,14 @@ export default function CourseRegistrationForm({
 
         {errorMsg && <p className={styles.errorText}>{errorMsg}</p>}
 
-        <button type="submit" className={styles.submitButton} disabled={lookingUp}>
-          {lookingUp ? <span className={styles.spinner} /> : 'המשך'}
-        </button>
+        <div className={styles.formActions}>
+          <button type="submit" className={styles.submitButton} disabled={lookingUp}>
+            {lookingUp ? <span className={styles.spinner} /> : 'המשך'}
+          </button>
+          <button type="button" className={styles.backPageButton} onClick={onBack} disabled={lookingUp}>
+            חזרה לעמוד הקודם
+          </button>
+        </div>
       </form>
     );
   }

@@ -9,7 +9,7 @@ import CourseExpandedDetail from './CourseExpandedDetail/index';
 import { CourseList } from './CourseList/CourseList';
 import type { Branch, Course, CourseBundle, CourseLesson, CourseLessonPriceOption } from './types';
 import type { SavedParentDetails } from './CourseRegistrationForm/types';
-import { STATIC_CITIES, normalizeExternalLink } from './page.utils';
+import { STATIC_CITIES, normalizeExternalLink, hideSeptemberStandingOrderNote } from './page.utils';
 import { isCourseVisibleInWidgetCatalog } from './lessonVisibility';
 import { AGE_OPTIONS, formatAge } from '@/lib/courseUtils';
 import { findWidgetAlternatives, isWidgetSelectionFull, type WidgetAlternative } from './alternativeLessons';
@@ -700,6 +700,11 @@ export default function WidgetPage() {
               selectionFull={detailSelectionFull}
               alternatives={detailAlternatives}
               onSelectAlternative={handleSelectAlternative}
+              hideSeptemberStandingOrderNote={hideSeptemberStandingOrderNote(
+                cities.find((c) => c.id === selectedCity)?.name,
+                allBranches.find((b) => b.id === selectedBranch)?.name
+                  ?? detailCourse.branch_name,
+              )}
               onClose={() => { setDetailCourse(null); setDetailBundle(null); setDetailLesson(null); setDetailPriceOption(null); }}
               onEnroll={() => handleEnrollClick(false)}
               onBundleEnroll={detailBundleForLesson ? handleBundleEnrollClick : undefined}

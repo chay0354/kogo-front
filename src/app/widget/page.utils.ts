@@ -1,5 +1,30 @@
 import type { City } from './types';
 
+/** These cities do not show the "standing order starts 1.9" widget note. */
+export const HIDE_SEPTEMBER_STANDING_ORDER_NOTE_CITIES = [
+  'יהוד',
+  'אור יהודה',
+  'רמת גן',
+  'פתח תקווה',
+] as const;
+
+/** Branch name fragments that also hide that note (e.g. Kfar Ganim in Petah Tikva). */
+export const HIDE_SEPTEMBER_STANDING_ORDER_NOTE_BRANCH_FRAGMENTS = ['כפר גנים', 'מרכז זמיר'] as const;
+
+export function hideSeptemberStandingOrderNote(
+  cityName?: string | null,
+  branchName?: string | null,
+): boolean {
+  const city = (cityName || '').trim();
+  if ((HIDE_SEPTEMBER_STANDING_ORDER_NOTE_CITIES as readonly string[]).includes(city)) {
+    return true;
+  }
+  const branch = (branchName || '').trim();
+  return (HIDE_SEPTEMBER_STANDING_ORDER_NOTE_BRANCH_FRAGMENTS as readonly string[]).some(
+    (fragment) => branch.includes(fragment),
+  );
+}
+
 export const CITY_DISPLAY_ORDER = [
   'פתח תקווה',
   'ראש העין',
@@ -9,6 +34,8 @@ export const CITY_DISPLAY_ORDER = [
   'אור יהודה',
   'רמת גן',
   'רמלה',
+  'הוד השרון',
+  'עפולה',
   'האלה',
 ];
 
@@ -25,6 +52,8 @@ export const STATIC_CITIES: City[] = [
   { id: '02a051cc-75ac-4237-89ce-1a1a81625efb', name: 'אור יהודה' },
   { id: '211afb74-f3a7-4872-aa3d-2e2764ade514', name: 'רמת גן' },
   { id: 'a1a2126a-743f-48c3-b25c-a6937c25c0a3', name: 'רמלה' },
+  { id: 'e893378c-d588-43a8-8584-097afebb2eb8', name: 'הוד השרון' },
+  { id: 'cf06a03f-2901-43bb-8be3-180a6ed11d93', name: 'עפולה' },
 ];
 
 export function sortCitiesByFixedOrder(cities: City[]): City[] {

@@ -498,6 +498,36 @@
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: #8b90c9 #eef0fb;
+}
+
+.dropdownPanel::-webkit-scrollbar {
+  width: 6px;
+}
+
+.dropdownPanel::-webkit-scrollbar-button {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
+.dropdownPanel::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+.dropdownPanel::-webkit-scrollbar-track {
+  background: transparent;
+  margin-block: 10px;
+}
+
+.dropdownPanel::-webkit-scrollbar-thumb {
+  background: #9aa0d4;
+  border-radius: 999px;
+}
+
+.dropdownPanel::-webkit-scrollbar-thumb:hover {
+  background: #2b3090;
 }
 
 @media (prefers-reduced-motion: no-preference) {

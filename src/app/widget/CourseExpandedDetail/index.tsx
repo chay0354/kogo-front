@@ -92,6 +92,7 @@ interface CourseExpandedDetailProps {
   onBundleEnroll?: () => void;
   onTrialEnroll: () => void;
   onClose: () => void;
+  hideSeptemberStandingOrderNote?: boolean;
 }
 
 export default function CourseExpandedDetail({
@@ -105,6 +106,7 @@ export default function CourseExpandedDetail({
   onEnroll,
   onTrialEnroll,
   onClose,
+  hideSeptemberStandingOrderNote = false,
 }: CourseExpandedDetailProps) {
   const instructorName = resolveInstructorName(course, lesson, bundleOffer);
 
@@ -204,7 +206,7 @@ export default function CourseExpandedDetail({
         <p className={styles.priceNote}>מנוי שנתי עד חודש יולי. ניתן לבטל מנוי עד חודש אפריל</p>
         {course.charge_standing_order_immediately ? (
           <p className={styles.priceNoteHighlight}>דמי רישום יגבו עכשיו והוראת הקבע תחויב מיד</p>
-        ) : (
+        ) : hideSeptemberStandingOrderNote ? null : (
           <p className={styles.priceNoteHighlight}>דמי רישום יגבו עכשיו והוראת קבע תתחיל ב-1.9</p>
         )}
 
