@@ -1,0 +1,47 @@
+.bars {
+  display: flex;
+  align-items: flex-end;
+  min-width: 0;
+}
+.col {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  height: 100%;
+  min-width: 0;
+}
+.bar {
+  width: 100%;
+  border-radius: 7px 7px 3px 3px;
+  background: linear-gradient(180deg, #5b54d6, #2b2585);
+  transform-origin: bottom;
+  animation: grow 0.7s cubic-bezier(0.32, 0.72, 0, 1) both;
+}
+.hot {
+  background: linear-gradient(180deg, #ffd75e, #e0a81f);
+}
+.dim {
+  background: linear-gradient(180deg, #c9c5ea, #aea9dc);
+}
+@keyframes grow {
+  from {
+    transform: scaleY(0);
+  }
+}
+.axis {
+  display: flex;
+  margin-top: 8px;
+}
+.axis span {
+  flex: 1;
+  text-align: center;
+  font-size: 11px;
+  font-weight: 700;
+  color: #8b88b6;
+  min-width: 0;
+  line-height: 1.35;
+}
+.dense span {
+  font-size: 10px;
+}

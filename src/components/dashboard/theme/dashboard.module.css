@@ -1,0 +1,436 @@
+/*
+ * Dashboard v5 design tokens and shared primitives.
+ *
+ * The mockup ("Ethereal Dawn") uses its own palette. To avoid a regression in
+ * the other 90+ components, every token here is scoped under .scope and never
+ * touches the global tokens in globals.css. Components import this module and
+ * wrap their subtree in a .scope element.
+ */
+
+.scope {
+  --kg-bg: #f1effb;
+  --kg-card: #ffffff;
+  --kg-ink: #231f6e;
+  --kg-ink2: #4a4599;
+  --kg-muted: #8b88b6;
+  --kg-line: #eae7f8;
+  --kg-line-soft: #f5f3fc;
+  --kg-amber: #f7c948;
+  --kg-amber-d: #e0a81f;
+  --kg-bar-a: #5b54d6;
+  --kg-bar-b: #2b2585;
+  --kg-pos: #0fa45c;
+  --kg-neg: #e5484d;
+  --kg-r: 18px;
+  --kg-sh: 0 1px 3px rgba(43, 37, 133, 0.04), 0 6px 20px rgba(43, 37, 133, 0.06);
+
+  color: var(--kg-ink);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- cards ---- */
+.card {
+  background: var(--kg-card);
+  border-radius: var(--kg-r);
+  padding: 18px 20px;
+  box-shadow: var(--kg-sh);
+  min-width: 0;
+}
+.cardTitle {
+  font-size: 17px;
+  font-weight: 900;
+  margin: 0;
+}
+.cardSub {
+  color: var(--kg-muted);
+  font-size: 12px;
+  font-weight: 600;
+  margin: 2px 0 14px;
+}
+
+/* ---- grids ---- */
+.grid {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+.g2 {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.g3 {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.g4 {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+.g23 {
+  grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr);
+}
+.mt {
+  margin-top: 12px;
+}
+
+/* ---- hero (main tab) ---- */
+.hero {
+  background: linear-gradient(135deg, #312a9e, #231f6e 55%, #1b1755);
+  border-radius: var(--kg-r);
+  padding: 20px 22px;
+  color: #fff;
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 10px 28px rgba(35, 31, 110, 0.24);
+}
+.hero::after {
+  content: '';
+  position: absolute;
+  inset-inline-start: -50px;
+  top: -70px;
+  width: 250px;
+  height: 250px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(247, 201, 72, 0.28), transparent 68%);
+}
+.heroLbl {
+  font-size: 12px;
+  font-weight: 700;
+  opacity: 0.72;
+}
+.heroBig {
+  font-size: 42px;
+  font-weight: 900;
+  line-height: 1;
+  margin: 5px 0 9px;
+  letter-spacing: -1.5px;
+}
+.heroRow {
+  display: flex;
+  gap: 18px;
+  flex-wrap: wrap;
+  margin-top: 16px;
+  position: relative;
+  z-index: 1;
+}
+.heroRow > div {
+  border-inline-start: 1px solid rgba(255, 255, 255, 0.2);
+  padding-inline-start: 14px;
+}
+.heroRow > div:first-child {
+  border: 0;
+  padding: 0;
+}
+.heroRow span {
+  display: block;
+  font-size: 11px;
+  opacity: 0.7;
+  font-weight: 700;
+}
+.heroRow b {
+  font-size: 17px;
+  font-weight: 800;
+}
+
+/* ---- kpi ---- */
+.kpi {
+  background: #fff;
+  border-radius: var(--kg-r);
+  padding: 14px 16px;
+  box-shadow: var(--kg-sh);
+  min-width: 0;
+}
+.kpiLbl {
+  font-size: 11.5px;
+  color: var(--kg-muted);
+  font-weight: 700;
+}
+.kpiVal {
+  font-size: 25px;
+  font-weight: 900;
+  line-height: 1.15;
+  margin: 3px 0 2px;
+  letter-spacing: -0.7px;
+}
+.kpiValS {
+  font-size: 21px;
+}
+.kpiFoot {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--kg-muted);
+}
+.up {
+  color: var(--kg-pos);
+}
+.down {
+  color: var(--kg-neg);
+}
+
+/* ---- counts strip ---- */
+.counts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0;
+  background: #fff;
+  border-radius: var(--kg-r);
+  box-shadow: var(--kg-sh);
+  padding: 12px 0;
+}
+.counts > div {
+  flex: 1;
+  min-width: 110px;
+  text-align: center;
+  padding: 2px 10px;
+  border-inline-start: 1px solid var(--kg-line);
+}
+.counts > div:first-child {
+  border: 0;
+}
+.counts b {
+  display: block;
+  font-size: 20px;
+  font-weight: 900;
+  line-height: 1.2;
+}
+.counts span {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--kg-muted);
+}
+
+/* ---- horizontal bars ---- */
+.hbar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px 10px;
+  align-items: center;
+  margin-bottom: 11px;
+}
+.hbar:last-child {
+  margin-bottom: 0;
+}
+.hbarName {
+  font-size: 13px;
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.hbarNum {
+  font-size: 13px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+.track {
+  grid-column: 1 / -1;
+  height: 9px;
+  border-radius: 99px;
+  background: #efedfa;
+  overflow: hidden;
+  margin-top: -5px;
+}
+.fill {
+  height: 100%;
+  border-radius: 99px;
+  background: linear-gradient(90deg, var(--kg-bar-b), var(--kg-bar-a));
+  animation: wide 0.75s cubic-bezier(0.32, 0.72, 0, 1) both;
+}
+.fillAmber {
+  background: linear-gradient(90deg, var(--kg-amber-d), #ffd75e);
+}
+.fillRed {
+  background: linear-gradient(90deg, #c93b40, #f0666a);
+}
+.fillGreen {
+  background: linear-gradient(90deg, #0b8a4c, #2fc77e);
+}
+@keyframes wide {
+  from {
+    width: 0 !important;
+  }
+}
+
+/* ---- legend / notes ---- */
+.legend {
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--kg-ink2);
+  margin-bottom: 12px;
+}
+.legend i {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  border-radius: 3px;
+  margin-inline-end: 5px;
+}
+.note {
+  font-size: 11.5px;
+  color: var(--kg-muted);
+  font-weight: 600;
+  margin-top: 11px;
+  line-height: 1.6;
+}
+
+/* ---- table ---- */
+.tableScroll {
+  overflow-x: auto;
+  margin: 0 -20px;
+  padding: 0 20px;
+}
+.table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.table th {
+  text-align: start;
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--kg-muted);
+  padding: 0 8px 9px;
+  border-bottom: 1px solid var(--kg-line);
+  white-space: nowrap;
+}
+.table td {
+  padding: 11px 8px;
+  border-bottom: 1px solid var(--kg-line-soft);
+  font-size: 13px;
+  font-weight: 700;
+}
+.table tr:last-child td {
+  border-bottom: 0;
+}
+.table tbody tr:hover {
+  background: #faf9fe;
+}
+.n {
+  text-align: end;
+}
+.name {
+  font-weight: 800;
+}
+.rank {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 6px;
+  background: #efedfa;
+  color: var(--kg-ink2);
+  font-size: 11px;
+  font-weight: 900;
+  margin-inline-end: 7px;
+}
+.rankTop {
+  background: var(--kg-amber);
+  color: #4a3400;
+}
+.mini {
+  display: inline-block;
+  width: 44px;
+  height: 6px;
+  border-radius: 99px;
+  background: #efedfa;
+  overflow: hidden;
+  vertical-align: middle;
+  margin-inline-start: 6px;
+}
+.mini i {
+  display: block;
+  height: 100%;
+  border-radius: 99px;
+  background: linear-gradient(90deg, var(--kg-bar-b), var(--kg-bar-a));
+}
+.miniW {
+  background: linear-gradient(90deg, #d98a16, #f7c948) !important;
+}
+.miniB {
+  background: linear-gradient(90deg, #c93b40, #f0666a) !important;
+}
+.tfootRow td {
+  border-top: 2px solid var(--kg-line);
+  font-weight: 900;
+  font-size: 13.5px;
+  background: #fbfafe;
+}
+.tag {
+  display: inline-block;
+  padding: 3px 8px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 800;
+}
+.tagOff {
+  background: #f2f1f7;
+  color: #9996b8;
+}
+.tagOk {
+  background: #e6f7ee;
+  color: #0b8a4c;
+}
+.tagLow {
+  background: #fdecec;
+  color: #c93b40;
+}
+.tagType {
+  background: #efedfa;
+  color: var(--kg-ink2);
+}
+
+/* ---- page header ---- */
+.ph {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin: 4px 0 14px;
+}
+.phTitle {
+  font-size: 27px;
+  font-weight: 900;
+  letter-spacing: -0.4px;
+  line-height: 1.1;
+  margin: 0;
+}
+.phSub {
+  color: var(--kg-muted);
+  font-weight: 600;
+  font-size: 13px;
+  margin: 3px 0 0;
+}
+.chip {
+  background: #fff;
+  border: 1px solid var(--kg-line);
+  border-radius: 999px;
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--kg-ink2);
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.chip b {
+  color: var(--kg-ink);
+}
+
+@media (max-width: 880px) {
+  .g4,
+  .g3,
+  .g23,
+  .g2 {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .phTitle {
+    font-size: 23px;
+  }
+  .heroBig {
+    font-size: 34px;
+  }
+  .counts > div {
+    min-width: 33%;
+  }
+}
