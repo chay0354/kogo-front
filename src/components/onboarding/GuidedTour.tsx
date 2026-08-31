@@ -35,6 +35,10 @@ interface Step {
   /** Flip the attendance marks green for the length of this step, to show what
    *  filling in attendance looks like. Purely visual — nothing is saved. */
   demoStatus?: boolean;
+  /** Open a lesson for this step. The mark and add-student controls only exist
+   *  inside one, and a step whose target is absent falls back to a centred card
+   *  that points at nothing. */
+  needsLesson?: boolean;
   title: string;
   body: string;
   icon: string;
@@ -42,9 +46,9 @@ interface Step {
 
 /**
  * The tour walks the instructor's own screen in the order they meet it: what
- * the screen already shows, how to change it, the lesson cubes, then the list.
- * The attendance steps only light up once a lesson is open — until then their
- * targets are absent and the card centres itself instead.
+ * the screen already shows, how to change it, the lesson cubes, the list, then
+ * their own numbers. The last two steps open a real lesson first, because the
+ * controls they describe only exist inside one.
  */
 const STEPS: Step[] = [
   {
@@ -90,16 +94,24 @@ const STEPS: Step[] = [
     body: 'למטה אותם שיעורים בדיוק, רק בתצוגת רשימה — נוח יותר להיכנס מכאן.',
   },
   {
+    selector: '[data-tour="dashboard"]',
+    icon: '📊',
+    title: 'הנתונים שלכם',
+    body: 'כאן יוצגו הנתונים שלכם: כמה תלמידים פעילים יש בכל קבוצה, איך המספר משתנה לאורך החודשים, ובאילו שיעורים עוד לא נרשמה נוכחות. לחיצה על שיעור ברשימה תיקח אתכם ישר אליו.',
+  },
+  {
     selector: '[data-tour-mark]',
+    needsLesson: true,
     icon: '✔️',
     title: 'סימון נוכחות',
     body: 'בתוך שיעור מסמנים לכל ילד: ✓ הגיע, ✗ לא הגיע. חשוב לסמן גם ✗ — ככה המערכת עוקבת אחרי ילד שמפסיק להגיע.',
   },
   {
     selector: '[data-tour="add-student"]',
+    needsLesson: true,
     icon: '➕',
     title: 'ילד שהגיע ואינו ברשימה',
-    body: 'הגיע ילד שאינו רשום? מוסיפים אותו כאן כדי שיהיה במערכת ואפשר יהיה לעקוב אחריו.',
+    body: 'הגיע ילד שאינו רשום? מוסיפים אותו כאן בשם ובטלפון, והוא נכנס לרשימה של השיעור הזה כדי שתוכלו לסמן לו נוכחות. זו אינה הרשמה — המשרד משלים אותה.',
   },
   {
     icon: '🎉',
@@ -175,8 +187,15 @@ export default function GuidedTour({ forceOpen = false, onClose }: Props) {
         return;
       }
       const el = document.querySelector<HTMLElement>(sel);
-      // offsetParent is null for a hidden element — a collapsed sidebar, say.
-      if (!el || el.offsetParent === null) {
+      if (!el) {
+        setRect(null);
+        return;
+      }
+      // offsetParent is null for anything position:fixed as well as for hidden
+      // elements, so it cannot be the visibility test — the floating dashboard
+      // button is fixed, and using it silently skipped that whole step.
+      const cs = window.getComputedStyle(el);
+      if (cs.display === 'none' || cs.visibility === 'hidden' || cs.opacity === '0') {
         setRect(null);
         return;
       }
@@ -236,6 +255,21 @@ export default function GuidedTour({ forceOpen = false, onClose }: Props) {
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [open, canSkip, finish]);
+
+  // The attendance steps need a lesson open. Ask the screen to open one, and
+  // to close it again as soon as the tour moves on or finishes.
+  useEffect(() => {
+    if (!open) return;
+    const needs = Boolean(STEPS[step]?.needsLesson);
+    window.dispatchEvent(
+      new CustomEvent(needs ? 'kogo:tour-open-lesson' : 'kogo:tour-close-lesson'),
+    );
+  }, [open, step]);
+
+  useEffect(() => {
+    if (open) return;
+    window.dispatchEvent(new CustomEvent('kogo:tour-close-lesson'));
+  }, [open]);
 
   // Flip the cubes' marks green while the demo step is on screen, then put
   // them back. Nothing is written — this only shows what a filled-in lesson

@@ -109,6 +109,8 @@ export type LessonFilters = {
   city_id?: string;
   instructor_id?: string;
   status?: LessonStatus;
+  /** View a linked colleague's register instead of your own. */
+  as_user?: string;
 };
 
 export type WeeklyDayTime = {

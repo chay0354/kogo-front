@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { Calendar, Check, ChevronDown, ChevronRight, Clock, Plus, X } from 'lucide-react';
-import { fetchLessonDetail, formatTime, markAttendance } from '@/lib/scheduleUtils';
+import { addWalkInStudent, fetchLessonDetail, formatTime, markAttendance } from '@/lib/scheduleUtils';
 import type { AttendanceStatus, Lesson, LessonDetail } from '@/types/schedule';
 import { hebrewDayLetter, lessonTitle } from './instructorUtils';
 import styles from './InstructorAttendance.module.css';
@@ -23,6 +23,9 @@ export default function InstructorAttendance({ lesson, onBack, embedded = false 
   const [error, setError] = useState('');
   const [expanded, setExpanded] = useState(false);
   const [toast, setToast] = useState('');
+  const [addOpen, setAddOpen] = useState(false);
+  const [addForm, setAddForm] = useState({ first_name: '', last_name: '', phone: '' });
+  const [isAdding, setIsAdding] = useState(false);
 
   const occurrenceDate = lesson.lesson_date || '';
 
@@ -92,6 +95,40 @@ export default function InstructorAttendance({ lesson, onBack, embedded = false 
     }
   };
 
+  /**
+   * A child who turned up unregistered. Added to this lesson only, so the
+   * instructor can mark them and the office can follow up — it is not a
+   * registration, and the row fades out on its own after a few weeks.
+   */
+  const handleAddWalkIn = async () => {
+    if (!addForm.first_name.trim() || !addForm.last_name.trim()) {
+      setToast('נדרשים שם פרטי ושם משפחה');
+      return;
+    }
+    setIsAdding(true);
+    try {
+      const added = await addWalkInStudent(lesson.id, occurrenceDate, {
+        first_name: addForm.first_name.trim(),
+        last_name: addForm.last_name.trim(),
+        phone: addForm.phone.trim(),
+      });
+      setDetail((prev) =>
+        prev
+          ? { ...prev, enrollments: [...prev.enrollments.filter((s) => s.id !== added.id), added] }
+          : prev,
+      );
+      setExpanded(true);
+      setAddForm({ first_name: '', last_name: '', phone: '' });
+      setAddOpen(false);
+      setToast(`${added.child_name} נוסף לרשימה`);
+    } catch (err) {
+      console.error(err);
+      setToast('לא הצלחנו להוסיף את התלמיד');
+    } finally {
+      setIsAdding(false);
+    }
+  };
+
   return (
     <div className={embedded ? styles.panel : styles.page} dir={embedded ? undefined : 'rtl'}>
       <div className={embedded ? styles.panelShell : styles.shell}>
@@ -146,7 +183,12 @@ export default function InstructorAttendance({ lesson, onBack, embedded = false 
                 <div className={styles.cardTop}>
                   <div className={styles.index}>{index + 1}</div>
                   <div className={styles.identity}>
-                    <div className={styles.name}>{student.child_name}</div>
+                    <div className={styles.name}>
+                      {student.child_name}
+                      {student.child_status === 'ghost' && (
+                        <span className={styles.walkInTag}>הגיע ללא רישום</span>
+                      )}
+                    </div>
                     <div className={styles.phone}>{student.child_phone || '—'}</div>
                   </div>
                 </div>
@@ -177,11 +219,62 @@ export default function InstructorAttendance({ lesson, onBack, embedded = false 
           })}
         </section>
 
+        {addOpen && (
+          <div className={styles.addForm}>
+            <div className={styles.addTitle}>הוספת תלמיד שהגיע</div>
+            <p className={styles.addHint}>
+              נרשם לשיעור הזה בלבד כדי שתוכלו לסמן נוכחות. המשרד ישלים את ההרשמה.
+            </p>
+            <div className={styles.addFields}>
+              <input
+                className={styles.addInput}
+                placeholder="שם פרטי"
+                value={addForm.first_name}
+                onChange={(e) => setAddForm((p) => ({ ...p, first_name: e.target.value }))}
+                autoFocus
+              />
+              <input
+                className={styles.addInput}
+                placeholder="שם משפחה"
+                value={addForm.last_name}
+                onChange={(e) => setAddForm((p) => ({ ...p, last_name: e.target.value }))}
+              />
+              <input
+                className={styles.addInput}
+                placeholder="טלפון (לא חובה)"
+                inputMode="tel"
+                value={addForm.phone}
+                onChange={(e) => setAddForm((p) => ({ ...p, phone: e.target.value }))}
+              />
+            </div>
+            <div className={styles.addActions}>
+              <button
+                type="button"
+                className={styles.addSave}
+                onClick={handleAddWalkIn}
+                disabled={isAdding}
+              >
+                {isAdding ? 'מוסיף…' : 'הוסף'}
+              </button>
+              <button
+                type="button"
+                className={styles.addCancel}
+                onClick={() => setAddOpen(false)}
+                disabled={isAdding}
+              >
+                ביטול
+              </button>
+            </div>
+          </div>
+        )}
+
         <footer className={styles.footer} data-tour="add-student">
           <button
             type="button"
             className={styles.addBtn}
-            onClick={() => setToast('להוספת תלמיד פנו למשרד')}
+            onClick={() => setAddOpen((v) => !v)}
+            aria-expanded={addOpen}
+            disabled={isCancelled}
           >
             <Plus size={18} strokeWidth={3} />
             הוסף לקוח

@@ -549,3 +549,115 @@
   .skeletonText,
   .skeletonPill { animation: none; background: #f1effb; }
 }
+
+/* --- הוספת תלמיד שהגיע ללא רישום --- */
+
+.addForm {
+  margin: 12px 0 4px;
+  padding: 14px;
+  border-radius: 16px;
+  background: #fff;
+  border: 1px solid rgba(30, 42, 110, 0.12);
+  box-shadow: 0 6px 18px rgba(30, 42, 110, 0.08);
+  animation: addFormIn 0.18s ease-out;
+}
+
+@keyframes addFormIn {
+  from { opacity: 0; transform: translateY(-6px); }
+  to { opacity: 1; transform: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .addForm { animation: none; }
+}
+
+.addTitle {
+  font-weight: 800;
+  font-size: 15px;
+  color: #1e2a6e;
+}
+
+.addHint {
+  margin: 4px 0 12px;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: rgba(30, 42, 110, 0.62);
+}
+
+.addFields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+/* The phone is optional, so it takes the full width on its own row. */
+.addFields .addInput:last-child {
+  grid-column: 1 / -1;
+}
+
+.addInput {
+  width: 100%;
+  padding: 11px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(30, 42, 110, 0.18);
+  background: #fbfbfe;
+  font: inherit;
+  font-size: 15px; /* 16px-ish keeps iOS from zooming the page on focus */
+  color: #1e2a6e;
+}
+
+.addInput:focus-visible {
+  outline: none;
+  border-color: #f5c518;
+  box-shadow: 0 0 0 3px rgba(245, 197, 24, 0.28);
+}
+
+.addActions {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.addSave {
+  flex: 1;
+  border: 0;
+  border-radius: 999px;
+  padding: 11px 18px;
+  background: #f5c518;
+  color: #1e2a6e;
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.addSave:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.addCancel {
+  border: 1px solid rgba(30, 42, 110, 0.18);
+  border-radius: 999px;
+  padding: 11px 18px;
+  background: transparent;
+  color: rgba(30, 42, 110, 0.72);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.walkInTag {
+  display: inline-block;
+  margin-inline-start: 8px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(245, 197, 24, 0.22);
+  color: #8a6d00;
+  font-size: 11px;
+  font-weight: 700;
+  vertical-align: middle;
+}
+
+@media (max-width: 400px) {
+  .addFields { grid-template-columns: 1fr; }
+}

@@ -1,0 +1,537 @@
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  background: rgba(15, 20, 60, 0.44);
+  backdrop-filter: blur(3px);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  animation: overlayIn 0.2s ease-out;
+}
+
+.sheet {
+  width: min(560px, 100%);
+  max-height: 92vh;
+  display: flex;
+  flex-direction: column;
+  background: #f4f5fb;
+  border-radius: 24px 24px 0 0;
+  box-shadow: 0 -10px 40px rgba(15, 20, 60, 0.28);
+  animation: sheetIn 0.26s cubic-bezier(0.22, 1, 0.36, 1);
+  overflow: hidden;
+}
+
+@keyframes overlayIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes sheetIn {
+  from { transform: translateY(22px); opacity: 0; }
+  to { transform: none; opacity: 1; }
+}
+
+.header {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px 56px 12px;
+  background: #1e2a6e;
+  color: #fff;
+  flex: none;
+}
+
+.title {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 800;
+}
+
+.closeBtn {
+  position: absolute;
+  inset-inline-start: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  border: 0;
+  background: rgba(255, 255, 255, 0.14);
+  color: #fff;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+
+/* --- branch switcher --- */
+
+.island {
+  display: flex;
+  gap: 4px;
+  padding: 6px;
+  margin: 12px 14px 0;
+  background: rgba(30, 42, 110, 0.07);
+  border-radius: 999px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  flex: none;
+}
+
+.island::-webkit-scrollbar {
+  display: none;
+}
+
+.islandBtn,
+.islandOn {
+  border: 0;
+  border-radius: 999px;
+  padding: 8px 14px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color 160ms ease, color 160ms ease, box-shadow 160ms ease;
+}
+
+.islandBtn {
+  background: transparent;
+  color: rgba(30, 42, 110, 0.66);
+}
+
+.islandOn {
+  background: #fff;
+  color: #1e2a6e;
+  box-shadow: 0 2px 8px rgba(30, 42, 110, 0.14);
+}
+
+/* --- body --- */
+
+.body {
+  padding: 14px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  -webkit-overflow-scrolling: touch;
+}
+
+.card {
+  background: #fff;
+  border-radius: 18px;
+  padding: 16px;
+  border: 1px solid rgba(30, 42, 110, 0.07);
+  box-shadow: 0 3px 12px rgba(30, 42, 110, 0.05);
+}
+
+.cardHead {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.cardTitle {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 15px;
+  font-weight: 800;
+  color: #1e2a6e;
+}
+
+.bigLabel {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: rgba(30, 42, 110, 0.6);
+}
+
+.big {
+  font-size: 34px;
+  font-weight: 900;
+  line-height: 1.1;
+  color: #1e2a6e;
+}
+
+.note {
+  margin: 6px 0 0;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: rgba(30, 42, 110, 0.58);
+}
+
+.badge {
+  margin-inline-start: auto;
+  background: rgba(30, 42, 110, 0.09);
+  color: #1e2a6e;
+  border-radius: 999px;
+  padding: 2px 10px;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+/* --- range picker --- */
+
+.ranges {
+  display: flex;
+  gap: 4px;
+  background: rgba(30, 42, 110, 0.06);
+  border-radius: 999px;
+  padding: 4px;
+}
+
+.rangeBtn,
+.rangeOn {
+  border: 0;
+  border-radius: 999px;
+  padding: 6px 11px;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.rangeBtn {
+  background: transparent;
+  color: rgba(30, 42, 110, 0.62);
+}
+
+.rangeOn {
+  background: #1e2a6e;
+  color: #fff;
+}
+
+.chart {
+  height: 200px;
+  margin-top: 14px;
+}
+
+/* --- low-headcount alert --- */
+
+.alertCard {
+  border-color: rgba(229, 72, 77, 0.3);
+  background: linear-gradient(180deg, rgba(229, 72, 77, 0.05), #fff 60%);
+  animation: alertPulse 1.9s ease-in-out infinite;
+}
+
+@keyframes alertPulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(229, 72, 77, 0.16); }
+  50% { box-shadow: 0 0 0 7px rgba(229, 72, 77, 0); }
+}
+
+.alertHead {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14.5px;
+  font-weight: 800;
+  color: #c2333a;
+}
+
+.alertList {
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  /* Scrolls inside its own box: an instructor with many small groups should
+     still be able to reach the sections below without a long scroll. */
+  max-height: 232px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  padding-inline-end: 4px;
+}
+
+.alertRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(229, 72, 77, 0.07);
+}
+
+.alertName {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.alertName span {
+  font-size: 14px;
+  font-weight: 700;
+  color: #1e2a6e;
+  overflow-wrap: anywhere;
+}
+
+.alertName small {
+  font-size: 11.5px;
+  color: rgba(30, 42, 110, 0.55);
+}
+
+.alertCount {
+  flex: none;
+  min-width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: #e5484d;
+  color: #fff;
+  font-weight: 900;
+  font-size: 14px;
+}
+
+/* --- unmarked attendance --- */
+
+.missList {
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 276px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  padding-inline-end: 4px;
+}
+
+/* A thin rail, so the box reads as scrollable without a heavy scrollbar. */
+.alertList::-webkit-scrollbar,
+.missList::-webkit-scrollbar {
+  width: 5px;
+}
+
+.alertList::-webkit-scrollbar-thumb,
+.missList::-webkit-scrollbar-thumb {
+  background: rgba(30, 42, 110, 0.22);
+  border-radius: 999px;
+}
+
+.alertList,
+.missList {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(30, 42, 110, 0.22) transparent;
+}
+
+.missRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 11px 12px;
+  border: 1px solid rgba(30, 42, 110, 0.08);
+  border-radius: 12px;
+  background: #fbfbfe;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+  transition: background-color 150ms ease, transform 150ms ease;
+}
+
+.missRow:hover,
+.missRow:focus-visible {
+  background: #f2f3fc;
+  outline: none;
+  transform: translateX(-2px);
+}
+
+.missChev {
+  flex: none;
+  color: rgba(30, 42, 110, 0.4);
+}
+
+.missName {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.missName span {
+  font-size: 14px;
+  font-weight: 700;
+  color: #1e2a6e;
+  overflow-wrap: anywhere;
+}
+
+.missName small {
+  font-size: 11.5px;
+  color: rgba(30, 42, 110, 0.55);
+}
+
+.missCount {
+  flex: none;
+  min-width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: rgba(245, 197, 24, 0.28);
+  color: #8a6d00;
+  font-weight: 800;
+  font-size: 13px;
+}
+
+/* --- per-group chips --- */
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-top: 12px;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  padding: 6px 12px 6px 8px;
+  border-radius: 999px;
+  background: rgba(30, 42, 110, 0.06);
+  color: #1e2a6e;
+  font-size: 12.5px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chip b {
+  display: grid;
+  place-items: center;
+  min-width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #1e2a6e;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 800;
+  flex: none;
+}
+
+.chipLow {
+  background: rgba(229, 72, 77, 0.1);
+}
+
+.chipLow b {
+  background: #e5484d;
+}
+
+/* --- states --- */
+
+.skeletons {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.blockSkeleton {
+  height: 120px;
+  border-radius: 18px;
+  background: linear-gradient(180deg, #fff, rgba(30, 42, 110, 0.07));
+  animation: dashSkeleton 1.25s ease-in-out infinite;
+}
+
+@keyframes dashSkeleton {
+  0%, 100% { opacity: 0.5; }
+  50% { opacity: 0.9; }
+}
+
+.error,
+.empty {
+  padding: 22px 16px;
+  border-radius: 16px;
+  background: #fff;
+  text-align: center;
+  font-size: 14px;
+  color: rgba(30, 42, 110, 0.62);
+}
+
+.error {
+  color: #c2333a;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .overlay,
+  .sheet,
+  .alertCard,
+  .blockSkeleton {
+    animation: none;
+  }
+  .missRow {
+    transition: none;
+  }
+}
+
+@media (min-width: 620px) {
+  .overlay {
+    align-items: center;
+  }
+  .sheet {
+    border-radius: 24px;
+    max-height: 88vh;
+  }
+}
+
+/* --- מחליף מדריך --- */
+
+.teacherRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 12px 14px 0;
+  padding: 8px 12px;
+  border-radius: 12px;
+  background: rgba(30, 42, 110, 0.07);
+  color: #1e2a6e;
+  flex: none;
+}
+
+.teacherSelect {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  font-size: 13.5px;
+  font-weight: 700;
+  color: #1e2a6e;
+  flex: 1;
+  min-width: 0;
+  cursor: pointer;
+}
+
+/* --- יציאה --- */
+
+.overlayOut {
+  animation: overlayOut 0.22s ease-in forwards;
+}
+
+.sheetOut {
+  animation: sheetOut 0.22s cubic-bezier(0.4, 0, 1, 1) forwards;
+}
+
+@keyframes overlayOut {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+@keyframes sheetOut {
+  from { transform: none; opacity: 1; }
+  to { transform: translateY(26px) scale(0.985); opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .overlayOut,
+  .sheetOut {
+    animation: none;
+  }
+}

@@ -303,6 +303,43 @@ export const fetchMyBranches = async (): Promise<Array<{ id: string; name: strin
   return response.data?.branches ?? [];
 };
 
+export interface LinkedUser {
+  id: string;
+  name: string;
+  username: string;
+  email: string;
+  role: string | null;
+}
+
+/**
+ * Accounts the signed-in user may also look at — colleagues a manager linked to
+ * them. Empty for almost everyone; the switcher only appears when it is not.
+ */
+export const fetchLinkedUsers = async (
+  userId?: string,
+): Promise<{ user: LinkedUser; linked_users: LinkedUser[] }> => {
+  const response = await api.get(
+    `/core/auth/linked-users/${userId ? `?user_id=${encodeURIComponent(userId)}` : ''}`,
+  );
+  return response.data;
+};
+
+/** Grant one account access to another. Manager only — the server re-checks. */
+export const linkUserAccount = async (userId: string, linkedUserId: string) => {
+  const response = await api.post('/core/auth/linked-users/', {
+    user_id: userId,
+    linked_user_id: linkedUserId,
+  });
+  return response.data;
+};
+
+/** Revoke a link. Access closes on the next request. */
+export const unlinkUserAccount = async (userId: string, linkedUserId: string) => {
+  await api.delete(
+    `/core/auth/linked-users/?user_id=${encodeURIComponent(userId)}&linked_user_id=${encodeURIComponent(linkedUserId)}`,
+  );
+};
+
 export const refreshCurrentMonthSnapshots = async () => {
   const response = await api.post('/core/dashboard/refresh-current-month/');
   return response.data;

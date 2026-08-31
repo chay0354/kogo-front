@@ -816,3 +816,123 @@
   .slotStatus[data-tour-demo='on'] { transition: none; }
   .slotStatus[data-tour-demo='on'] svg { animation: none; }
 }
+
+/* --- שלד טעינה במעבר בין תאריכים --- */
+
+@keyframes instructorSkeletonPulse {
+  0%, 100% { opacity: 0.45; }
+  50% { opacity: 0.85; }
+}
+
+.slotSkeleton {
+  width: clamp(90px, 24vw, 104px);
+  min-height: 116px;
+  border-radius: 14px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.9), rgba(30, 42, 110, 0.07));
+  animation: instructorSkeletonPulse 1.25s ease-in-out infinite;
+}
+
+.rowSkeletons {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.rowSkeleton {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 14px;
+  border-radius: 16px;
+  background: #fff;
+  border: 1px solid rgba(30, 42, 110, 0.08);
+  animation: instructorSkeletonPulse 1.25s ease-in-out infinite;
+}
+
+.rowSkeletonTime {
+  width: 46px;
+  height: 18px;
+  border-radius: 6px;
+  background: rgba(30, 42, 110, 0.14);
+  flex: none;
+}
+
+.rowSkeletonText {
+  flex: 1;
+  height: 14px;
+  border-radius: 7px;
+  background: rgba(30, 42, 110, 0.11);
+}
+
+.rowSkeletonPill {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: rgba(30, 42, 110, 0.11);
+  flex: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .slotSkeleton,
+  .rowSkeleton {
+    animation: none;
+    opacity: 0.6;
+  }
+}
+
+/* --- כפתור צף: הנתונים שלי --- */
+
+.dashFab {
+  position: fixed;
+  /* The screen is RTL, so the right-hand side is the inline start. */
+  inset-inline-start: 18px;
+  bottom: calc(18px + env(safe-area-inset-bottom, 0px));
+  z-index: 40;
+  width: 56px;
+  height: 56px;
+  border: 0;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: #1e2a6e;
+  color: #f5c518;
+  cursor: pointer;
+  box-shadow: 0 8px 22px rgba(30, 42, 110, 0.36);
+  transition: transform 180ms cubic-bezier(0.22, 1, 0.36, 1), box-shadow 180ms ease;
+}
+
+.dashFab:hover,
+.dashFab:focus-visible {
+  transform: translateY(-2px) scale(1.04);
+  box-shadow: 0 12px 28px rgba(30, 42, 110, 0.42);
+  outline: none;
+}
+
+.dashFab:active {
+  transform: scale(0.96);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dashFab {
+    transition: none;
+  }
+  .dashFab:hover,
+  .dashFab:focus-visible {
+    transform: none;
+  }
+}
+
+/* --- מחליף מדריך (למשתמשים מקושרים בלבד) --- */
+
+.teacherWrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  position: relative;
+  color: #f5c518;
+  max-width: 46%;
+}
+
+.teacherWrap .branchSelect {
+  color: #f5c518;
+}

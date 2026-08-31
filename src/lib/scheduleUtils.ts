@@ -13,6 +13,9 @@ export async function fetchLessons(filters?: LessonFilters): Promise<Lesson[]> {
   if (filters?.city_id) params.append('city_id', filters.city_id);
   if (filters?.instructor_id) params.append('instructor_id', filters.instructor_id);
   if (filters?.status) params.append('status', filters.status);
+  // A linked colleague's register. The server re-checks the link; sending an id
+  // it has no row for is refused rather than quietly falling back.
+  if (filters?.as_user) params.append('as_user', filters.as_user);
   
   const url = `/scheduling/lessons/${params.toString() ? `?${params.toString()}` : ''}`;
   const res = await api.get(url, { timeout: 45000 });
@@ -57,6 +60,21 @@ export async function fetchLessonAttendance(lessonId: string, date: string): Pro
  */
 export async function markAttendance(lessonId: string, date: string, attendance: AttendanceMark[]): Promise<void> {
   await api.post(`/scheduling/lessons/${lessonId}/mark_attendance/`, { date, attendance });
+}
+
+/**
+ * Add a child who turned up without being registered.
+ *
+ * Created as a walk-in: on the roster so attendance can be marked, but outside
+ * capacity, billing and messaging until the office registers them properly.
+ */
+export async function addWalkInStudent(
+  lessonId: string,
+  date: string,
+  student: { first_name: string; last_name: string; phone?: string },
+): Promise<LessonDetail['enrollments'][number]> {
+  const res = await api.post(`/scheduling/lessons/${lessonId}/add-walkin/`, { date, ...student });
+  return res.data as LessonDetail['enrollments'][number];
 }
 
 /**
@@ -296,3 +314,50 @@ export function getHebrewMonth(month: number): string {
   return months[month - 1] || '';
 }
 
+
+export interface InstructorDashboard {
+  branches: Array<{ id: string; name: string }>;
+  monthly_trend: Array<{ month: string; students: number }>;
+  groups: Array<{
+    lesson_id: string;
+    course_name: string;
+    branch_name: string;
+    day_of_week: number;
+    start_time: string;
+    active_students: number;
+    is_low: boolean;
+  }>;
+  unmarked_lessons: Array<{
+    lesson_id: string;
+    date: string;
+    course_name: string;
+    branch_name: string;
+    start_time: string;
+    missing: number;
+  }>;
+  unmarked_total: number;
+  total_active_students: number;
+  low_group_threshold: number;
+  date_from: string;
+  date_to: string;
+  subject: { id: string; name: string; is_self: boolean };
+}
+
+/**
+ * The signed-in instructor's own numbers — headcount trend, group sizes and
+ * which occurrences still need attendance marked.
+ */
+export async function fetchInstructorDashboard(params: {
+  date_from?: string;
+  date_to?: string;
+  branch_id?: string;
+  as_user?: string;
+}): Promise<InstructorDashboard> {
+  const query = new URLSearchParams();
+  if (params.date_from) query.append('date_from', params.date_from);
+  if (params.date_to) query.append('date_to', params.date_to);
+  if (params.branch_id && params.branch_id !== 'all') query.append('branch_id', params.branch_id);
+  if (params.as_user) query.append('as_user', params.as_user);
+  const res = await api.get(`/instructors/my-dashboard/${query.toString() ? `?${query}` : ''}`);
+  return res.data as InstructorDashboard;
+}

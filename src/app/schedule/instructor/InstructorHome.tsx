@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
+  BarChart3,
   Calendar,
   Check,
   ChevronDown,
@@ -12,14 +13,16 @@ import {
   FlaskConical,
   LogOut,
   MapPin,
+  UserCog,
   Users,
   X,
 } from 'lucide-react';
 import { useAuth } from '@/components/AuthProvider';
 import { fetchLessons, formatDateISO, formatTime } from '@/lib/scheduleUtils';
-import { fetchMyBranches } from '@/lib/api';
+import { fetchLinkedUsers, fetchMyBranches, type LinkedUser } from '@/lib/api';
 import type { Lesson } from '@/types/schedule';
 import InstructorAttendance from './InstructorAttendance';
+import InstructorDashboard from './InstructorDashboard';
 import { INSTRUCTOR_MOTION_MS, resolveInstructorMotionDelay } from './instructorMotion';
 import GuidedTour from '@/components/onboarding/GuidedTour';
 import {
@@ -45,6 +48,12 @@ export default function InstructorHome() {
   const [isClosingAttendance, setIsClosingAttendance] = useState(false);
   const [isReturning, setIsReturning] = useState(false);
   const [isLeaving, setIsLeaving] = useState(false);
+  const [dashboardOpen, setDashboardOpen] = useState(false);
+  const [pendingLesson, setPendingLesson] = useState<{ id: string; date: string } | null>(null);
+  // Colleagues this account was linked to by a manager. Almost always empty,
+  // and the switcher only appears when it is not.
+  const [linkedUsers, setLinkedUsers] = useState<LinkedUser[]>([]);
+  const [viewAs, setViewAs] = useState('self');
   const carouselRef = useRef<HTMLDivElement>(null);
   const transitionLockRef = useRef(false);
   const returnTimerRef = useRef<number | null>(null);
@@ -57,7 +66,11 @@ export default function InstructorHome() {
       setIsLoading(true);
       setError('');
       try {
-        const data = await fetchLessons({ start_date: dateIso, end_date: dateIso });
+        const data = await fetchLessons({
+          start_date: dateIso,
+          end_date: dateIso,
+          as_user: viewAs === 'self' ? undefined : viewAs,
+        });
         if (cancelled) return;
         const sorted = [...data].sort((a, b) => a.start_time.localeCompare(b.start_time));
         setLessons(sorted);
@@ -74,7 +87,7 @@ export default function InstructorHome() {
     return () => {
       cancelled = true;
     };
-  }, [dateIso]);
+  }, [dateIso, viewAs]);
 
   useEffect(() => {
     setSelectedLesson(null);
@@ -94,6 +107,20 @@ export default function InstructorHome() {
   // them from today's lessons hid any branch that happened to be quiet today,
   // which is exactly when someone needs to switch to it.
   const [assignedBranches, setAssignedBranches] = useState<Array<{ id: string; name: string }>>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchLinkedUsers()
+      .then((res) => {
+        if (!cancelled) setLinkedUsers(res.linked_users ?? []);
+      })
+      .catch(() => {
+        /* no links, or the endpoint is unavailable — the switcher stays hidden */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -183,7 +210,11 @@ export default function InstructorHome() {
 
   const reload = async () => {
     try {
-      const data = await fetchLessons({ start_date: dateIso, end_date: dateIso });
+      const data = await fetchLessons({
+        start_date: dateIso,
+        end_date: dateIso,
+        as_user: viewAs === 'self' ? undefined : viewAs,
+      });
       setLessons([...data].sort((a, b) => a.start_time.localeCompare(b.start_time)));
     } catch (err) {
       console.error(err);
@@ -207,6 +238,50 @@ export default function InstructorHome() {
       transitionLockRef.current = false;
     }
   };
+
+  /**
+   * Jump from the dashboard to a lesson on another day. The day has to load
+   * first, so the id is parked and an effect opens it once that day's lessons
+   * arrive.
+   */
+  const openLessonFromDashboard = (lessonId: string, date: string) => {
+    setDashboardOpen(false);
+    setPendingLesson({ id: lessonId, date });
+    setSelectedDate(new Date(`${date}T00:00:00`));
+  };
+
+  useEffect(() => {
+    if (!pendingLesson || isLoading) return;
+    if (dateIso !== pendingLesson.date) return;
+    const match = lessons.find((l) => l.id === pendingLesson.id);
+    setPendingLesson(null);
+    if (match) void openLesson(match);
+    // openLesson is stable enough for this one-shot handoff; re-running on it
+    // would reopen the lesson every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingLesson, lessons, isLoading, dateIso]);
+
+  // The tour lights up controls that live inside a lesson, so it asks the
+  // screen to open one for those steps and to close it afterwards.
+  useEffect(() => {
+    const openForTour = () => {
+      if (selectedLesson || openingLesson) return;
+      const first = visibleLessons[0];
+      if (first) void openLesson(first);
+    };
+    const closeForTour = () => {
+      setSelectedLesson(null);
+      setOpeningLesson(null);
+      transitionLockRef.current = false;
+    };
+    window.addEventListener('kogo:tour-open-lesson', openForTour);
+    window.addEventListener('kogo:tour-close-lesson', closeForTour);
+    return () => {
+      window.removeEventListener('kogo:tour-open-lesson', openForTour);
+      window.removeEventListener('kogo:tour-close-lesson', closeForTour);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visibleLessons, selectedLesson, openingLesson]);
 
   const closeAttendance = async () => {
     if (transitionLockRef.current || !selectedLesson) return;
@@ -239,11 +314,54 @@ export default function InstructorHome() {
   return (
     <div className={styles.page} dir="rtl">
       <GuidedTour />
+
+      {/* The instructor's own numbers. Hidden while attendance is open so it
+          never covers the mark buttons. */}
+      {!selectedLesson && (
+        <button
+          type="button"
+          className={styles.dashFab}
+          onClick={() => setDashboardOpen(true)}
+          aria-label="הנתונים שלי"
+          data-tour="dashboard"
+        >
+          <BarChart3 size={24} strokeWidth={2.6} />
+        </button>
+      )}
+
+      {dashboardOpen && (
+        <InstructorDashboard
+          onClose={() => setDashboardOpen(false)}
+          onOpenLesson={openLessonFromDashboard}
+        />
+      )}
+
       <div
         className={`${styles.shell} ${selectedLesson ? styles.hasAttendance : ''} ${openingLesson ? styles.openingAttendance : ''} ${isReturning ? styles.returningFromAttendance : ''} ${isLeaving ? styles.shellLeaving : ''}`}
       >
         <header className={styles.header}>
           <div className={styles.topBar}>
+            {/* Only for someone a manager linked to colleagues; everyone else
+                never sees a control with one option in it. */}
+            {linkedUsers.length > 0 && (
+              <div className={styles.teacherWrap} data-tour="teacher">
+                <UserCog size={18} />
+                <select
+                  className={styles.branchSelect}
+                  value={viewAs}
+                  onChange={(event) => setViewAs(event.target.value)}
+                  aria-label="בחירת מדריך"
+                >
+                  <option value="self">היומן שלי</option>
+                  {linkedUsers.map((u) => (
+                    <option key={u.id} value={u.id}>
+                      {u.name}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown className={styles.branchChevron} size={16} />
+              </div>
+            )}
             <div className={styles.branchWrap} data-tour="branch">
               <MapPin size={18} />
               {branches.length > 1 ? (
@@ -309,6 +427,14 @@ export default function InstructorHome() {
               </button>
             )}
             <div className={styles.carousel} ref={carouselRef}>
+              {/* Switching day refetches, so hold the shape of the strip rather
+                  than collapsing it — the header must not jump. */}
+              {isLoading &&
+                Array.from({ length: 4 }).map((_, i) => (
+                  <div className={styles.slotWrap} key={`slot-skeleton-${i}`} aria-hidden="true">
+                    <div className={styles.slotSkeleton} style={{ animationDelay: `${i * 90}ms` }} />
+                  </div>
+                ))}
               {visibleLessons.map((lesson) => {
                 const isCurrent = isLessonNow(lesson, selectedDate);
                 const complete = Boolean(lesson.attendance_complete);
@@ -365,7 +491,17 @@ export default function InstructorHome() {
 
         <div className={styles.body}>
           <section className={styles.list} data-tour="list">
-            {isLoading && <div className={styles.loading}>טוען שיעורים...</div>}
+            {isLoading && (
+              <div className={styles.rowSkeletons} aria-busy="true" aria-label="טוען שיעורים">
+                {Array.from({ length: 4 }).map((_, i) => (
+                  <div className={styles.rowSkeleton} key={i} style={{ animationDelay: `${i * 90}ms` }}>
+                    <span className={styles.rowSkeletonTime} />
+                    <span className={styles.rowSkeletonText} />
+                    <span className={styles.rowSkeletonPill} />
+                  </div>
+                ))}
+              </div>
+            )}
             {error && <div className={styles.error}>{error}</div>}
             {!isLoading && !error && visibleLessons.length === 0 && (
               <div className={styles.empty}>אין שיעורים ביום זה</div>
