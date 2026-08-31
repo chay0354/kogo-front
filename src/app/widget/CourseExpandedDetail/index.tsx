@@ -344,6 +344,7 @@ export default function CourseExpandedDetail({
                   alt=""
                   className={styles.avatarPhoto}
                   decoding="async"
+                  fetchPriority="high"
                   onLoad={() => setPhotoLoaded(true)}
                   onError={() => setPhotoLoaded(true)}
                 />

@@ -14,6 +14,7 @@ import { isCourseVisibleInWidgetCatalog } from './lessonVisibility';
 import { AGE_OPTIONS, formatAge, isInstructorsCourse, INSTRUCTORS_TRACK_TITLE } from '@/lib/courseUtils';
 import { findWidgetAlternatives, isWidgetSelectionFull, type WidgetAlternative } from './alternativeLessons';
 import { sortWidgetCourseTypes } from './courseTypeOrder';
+import { preloadInstructorPhotos } from './instructorPhotoPreload';
 import styles from './page.module.css';
 
 const OPTION_HEIGHT = 44;
@@ -564,6 +565,7 @@ export default function WidgetPage() {
       .then((res) => {
         if (cancelled) return;
         const courses = Array.isArray(res.data) ? res.data : (res.data.results ?? []) as Course[];
+        preloadInstructorPhotos(courses);
         loadedBranchCoursesRef.current.add(selectedBranch);
         setCoursesByBranch((prev) => ({ ...prev, [selectedBranch]: courses }));
       })
