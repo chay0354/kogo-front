@@ -17,6 +17,7 @@ import { useAuth } from '@/components/AuthProvider';
 import { fetchLessons, formatDateISO, formatTime } from '@/lib/scheduleUtils';
 import type { Lesson } from '@/types/schedule';
 import InstructorAttendance from './InstructorAttendance';
+import { INSTRUCTOR_MOTION_MS, resolveInstructorMotionDelay } from './instructorMotion';
 import {
   findCurrentOrNextLessonId,
   isLessonNow,
@@ -36,7 +37,13 @@ export default function InstructorHome() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
   const [selectedLesson, setSelectedLesson] = useState<Lesson | null>(null);
+  const [openingLesson, setOpeningLesson] = useState<Lesson | null>(null);
+  const [isClosingAttendance, setIsClosingAttendance] = useState(false);
+  const [isReturning, setIsReturning] = useState(false);
+  const [isLeaving, setIsLeaving] = useState(false);
   const carouselRef = useRef<HTMLDivElement>(null);
+  const transitionLockRef = useRef(false);
+  const returnTimerRef = useRef<number | null>(null);
 
   const dateIso = formatDateISO(selectedDate);
 
@@ -67,7 +74,17 @@ export default function InstructorHome() {
 
   useEffect(() => {
     setSelectedLesson(null);
+    setOpeningLesson(null);
+    setIsClosingAttendance(false);
+    setIsReturning(false);
+    transitionLockRef.current = false;
   }, [dateIso]);
+
+  useEffect(() => () => {
+    if (returnTimerRef.current !== null) {
+      window.clearTimeout(returnTimerRef.current);
+    }
+  }, []);
 
   const branches = useMemo(() => {
     const map = new Map<string, string>();
@@ -110,9 +127,33 @@ export default function InstructorHome() {
     branches[0]?.name ||
     'הסניף שלי';
 
+  const motionDelay = (duration: number, mobileOnly = false) => {
+    if (typeof window === 'undefined') return 0;
+    return resolveInstructorMotionDelay({
+      duration,
+      reduceMotion: window.matchMedia('(prefers-reduced-motion: reduce)').matches,
+      mobileOnly,
+      isMobile: window.matchMedia('(max-width: 1023px)').matches,
+    });
+  };
+
+  const waitForMotion = (duration: number, mobileOnly = false) => {
+    const delay = motionDelay(duration, mobileOnly);
+    if (delay === 0) return Promise.resolve();
+    return new Promise<void>((resolve) => window.setTimeout(resolve, delay));
+  };
+
   const handleLogout = async () => {
-    await logout();
-    router.replace('/signin');
+    if (transitionLockRef.current || isLeaving) return;
+    transitionLockRef.current = true;
+    setIsLeaving(true);
+    try {
+      await waitForMotion(INSTRUCTOR_MOTION_MS.logout);
+      await logout();
+      router.replace('/signin');
+    } finally {
+      transitionLockRef.current = false;
+    }
   };
 
   const reload = async () => {
@@ -124,14 +165,57 @@ export default function InstructorHome() {
     }
   };
 
-  const isSelected = (lesson: Lesson) =>
-    selectedLesson?.id === lesson.id && selectedLesson.lesson_date === lesson.lesson_date;
+  const visualLesson = selectedLesson || openingLesson;
 
-  const openLesson = (lesson: Lesson) => setSelectedLesson(lesson);
+  const isSelected = (lesson: Lesson) =>
+    visualLesson?.id === lesson.id && visualLesson.lesson_date === lesson.lesson_date;
+
+  const openLesson = async (lesson: Lesson) => {
+    if (transitionLockRef.current || isLeaving) return;
+    transitionLockRef.current = true;
+    setOpeningLesson(lesson);
+    try {
+      await waitForMotion(INSTRUCTOR_MOTION_MS.openLesson, true);
+      setSelectedLesson(lesson);
+    } finally {
+      setOpeningLesson(null);
+      transitionLockRef.current = false;
+    }
+  };
+
+  const closeAttendance = async () => {
+    if (transitionLockRef.current || !selectedLesson) return;
+    transitionLockRef.current = true;
+    setIsClosingAttendance(true);
+    try {
+      await waitForMotion(INSTRUCTOR_MOTION_MS.closeAttendance);
+      setSelectedLesson(null);
+      setIsClosingAttendance(false);
+      setIsReturning(true);
+
+      if (returnTimerRef.current !== null) {
+        window.clearTimeout(returnTimerRef.current);
+      }
+      const returnDelay = motionDelay(INSTRUCTOR_MOTION_MS.returnHome);
+      if (returnDelay === 0) {
+        setIsReturning(false);
+      } else {
+        returnTimerRef.current = window.setTimeout(() => {
+          setIsReturning(false);
+          returnTimerRef.current = null;
+        }, returnDelay);
+      }
+      void reload();
+    } finally {
+      transitionLockRef.current = false;
+    }
+  };
 
   return (
     <div className={styles.page} dir="rtl">
-      <div className={`${styles.shell} ${selectedLesson ? styles.hasAttendance : ''}`}>
+      <div
+        className={`${styles.shell} ${selectedLesson ? styles.hasAttendance : ''} ${openingLesson ? styles.openingAttendance : ''} ${isReturning ? styles.returningFromAttendance : ''} ${isLeaving ? styles.shellLeaving : ''}`}
+      >
         <header className={styles.header}>
           <div className={styles.topBar}>
             <div className={styles.branchWrap}>
@@ -158,7 +242,13 @@ export default function InstructorHome() {
               )}
             </div>
             <div className={styles.topActions}>
-              <button type="button" className={styles.iconBtn} onClick={handleLogout} aria-label="התנתק">
+              <button
+                type="button"
+                className={styles.iconBtn}
+                onClick={handleLogout}
+                disabled={isLeaving}
+                aria-label="התנתק"
+              >
                 <LogOut size={18} />
               </button>
               <label className={styles.iconBtn} title="בחירת תאריך">
@@ -270,15 +360,16 @@ export default function InstructorHome() {
             ))}
           </section>
 
-          <aside className={styles.attendancePane} aria-label="נוכחות">
+          <aside
+            className={`${styles.attendancePane} ${isClosingAttendance ? styles.attendancePaneLeaving : ''}`}
+            aria-label="נוכחות"
+          >
             {selectedLesson ? (
               <InstructorAttendance
+                key={`${selectedLesson.id}-${selectedLesson.lesson_date}`}
                 embedded
                 lesson={selectedLesson}
-                onBack={() => {
-                  setSelectedLesson(null);
-                  reload();
-                }}
+                onBack={closeAttendance}
               />
             ) : (
               <div className={styles.pickHint}>
