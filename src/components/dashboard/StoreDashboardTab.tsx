@@ -1,16 +1,22 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { DollarSign, ShoppingBag, AlertTriangle, Package, Trophy, TrendingUp, ExternalLink } from 'lucide-react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { fetchAnalytics } from '@/lib/storeApi';
 import { format } from 'date-fns';
+import {
+  CartesianGrid,
+  Line,
+  LineChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from 'recharts';
+import { fetchAnalytics } from '@/lib/storeApi';
 import type { DateRange } from './GlobalDateFilter';
 import type { StoreAnalytics } from '@/types/store';
+import { formatCurrency } from './format';
+import theme from './theme/dashboard.module.css';
 
 const EMPTY: StoreAnalytics = {
   total_revenue: 0,
@@ -35,6 +41,11 @@ interface Props {
   globalDateRange?: DateRange;
 }
 
+/**
+ * "חנות" — sales, margin and what needs restocking.
+ *
+ * Built on the shared dashboard theme so it matches the other tabs.
+ */
 export default function StoreDashboardTab({ globalDateRange }: Props) {
   const [analytics, setAnalytics] = useState<StoreAnalytics>(EMPTY);
   const [isLoading, setIsLoading] = useState(true);
@@ -54,220 +65,231 @@ export default function StoreDashboardTab({ globalDateRange }: Props) {
   }, [days, dateFrom, dateTo]);
 
   if (isLoading) {
-    return <div className="p-8 text-gray-500">טוען נתוני חנות...</div>;
+    return <div className={theme.scope}><div className={theme.card}>טוען נתוני חנות…</div></div>;
   }
 
+  const revenue = Number(analytics.total_revenue ?? 0);
+  const profit = Number(analytics.net_profit ?? 0);
+  const margin = revenue > 0 ? (profit / revenue) * 100 : 0;
+  const salesByProduct = analytics.sales_by_product ?? [];
+  const maxProduct = Math.max(...salesByProduct.map((p) => Number(p.revenue) || 0), 1);
+  const trend = (analytics.monthly_revenue ?? []).map((r) => ({
+    month: r.month,
+    revenue: Number(r.revenue ?? 0),
+  }));
+
   return (
-    <div className="space-y-6">
-      {/* Header controls */}
-      <div className="flex items-center justify-between">
-        {/* The tab's own day window is only offered when the dashboard is not
-            already driving the period from its global filter. */}
-        <div className="flex gap-2">
-          {!globalDateRange
-            ? [7, 30, 90].map((d) => (
-                <button
-                  key={d}
-                  onClick={() => setDays(d)}
-                  className={`px-3 py-1.5 text-sm rounded-md border transition-colors ${
-                    days === d
-                      ? 'bg-teal-600 text-white border-teal-600'
-                      : 'border-gray-300 text-gray-600 hover:bg-gray-50'
-                  }`}
-                >
-                  {d} ימים
-                </button>
-              ))
-            : null}
+    <div className={theme.scope}>
+      {/* headline */}
+      <div className={theme.hero}>
+        <div className={theme.heroLbl}>הכנסות החנות בתקופה שנבחרה</div>
+        <div className={theme.heroBig}>{formatCurrency(revenue)}</div>
+        <div className={theme.heroRow}>
+          <div>
+            <span>רווח נקי</span>
+            <b>{formatCurrency(profit)}</b>
+          </div>
+          <div>
+            <span>שיעור רווח</span>
+            <b>{revenue > 0 ? `${margin.toFixed(1)}%` : '—'}</b>
+          </div>
+          <div>
+            <span>מכירות</span>
+            <b>{Number(analytics.total_sales_count ?? 0)}</b>
+          </div>
         </div>
-        <Link
-          href="/store/dashboard"
-          className="flex items-center gap-1.5 text-sm text-teal-600 hover:text-teal-700"
-        >
-          <ExternalLink className="h-4 w-4" />
-          דוח מלא
-        </Link>
       </div>
+
+      {/* own window, only when the dashboard is not driving the period */}
+      {!globalDateRange ? (
+        <div className={`${theme.card} ${theme.mt}`}>
+          <div className={theme.kpiLbl}>טווח</div>
+          <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+            {[7, 30, 90].map((d) => (
+              <button
+                key={d}
+                onClick={() => setDays(d)}
+                className={`${theme.chip} ${days === d ? theme.rankTop : ''}`}
+                style={{ cursor: 'pointer', border: 0, font: 'inherit', fontWeight: 800 }}
+              >
+                {d} ימים
+              </button>
+            ))}
+          </div>
+        </div>
+      ) : null}
 
       {/* KPI row */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3">
-        <Card>
-          <CardContent className="p-4">
-            <p className="text-xs text-gray-500">הכנסות</p>
-            <p className="text-xl font-bold text-green-600 mt-1">
-              ₪{analytics.total_revenue.toLocaleString('he-IL', { maximumFractionDigits: 0 })}
-            </p>
-            <DollarSign className="h-6 w-6 text-green-400 opacity-60 mt-1" />
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-4">
-            <p className="text-xs text-gray-500">רווח נקי</p>
-            <p className="text-xl font-bold text-blue-600 mt-1">
-              ₪{analytics.net_profit.toLocaleString('he-IL', { maximumFractionDigits: 0 })}
-            </p>
-            <TrendingUp className="h-6 w-6 text-blue-400 opacity-60 mt-1" />
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-4">
-            <p className="text-xs text-gray-500">מכירות</p>
-            <p className="text-xl font-bold text-teal-600 mt-1">{analytics.total_sales_count}</p>
-            <ShoppingBag className="h-6 w-6 text-teal-400 opacity-60 mt-1" />
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-4">
-            <p className="text-xs text-gray-500">שווי מלאי</p>
-            <p className="text-xl font-bold text-purple-600 mt-1">
-              ₪{(analytics.inventory_value ?? 0).toLocaleString('he-IL', { maximumFractionDigits: 0 })}
-            </p>
-            <Package className="h-6 w-6 text-purple-400 opacity-60 mt-1" />
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-4">
-            <p className="text-xs text-gray-500">מוצר מוביל</p>
-            {analytics.top_product ? (
-              <>
-                <p className="text-sm font-bold text-amber-600 mt-1 truncate">{analytics.top_product.name}</p>
-                <p className="text-xs text-gray-400">{analytics.top_product.quantity} יח׳</p>
-              </>
-            ) : (
-              <p className="text-gray-400 mt-1 text-sm">—</p>
-            )}
-            <Trophy className="h-6 w-6 text-amber-400 opacity-60 mt-1" />
-          </CardContent>
-        </Card>
-
-        <Card className={analytics.low_stock_count > 0 ? 'border-red-400' : ''}>
-          <CardContent className="p-4">
-            <p className="text-xs text-gray-500">מלאי נמוך</p>
-            <p className={`text-xl font-bold mt-1 ${analytics.low_stock_count > 0 ? 'text-red-600' : 'text-gray-400'}`}>
-              {analytics.low_stock_count}
-            </p>
-            <AlertTriangle className={`h-6 w-6 opacity-60 mt-1 ${analytics.low_stock_count > 0 ? 'text-red-400' : 'text-gray-300'}`} />
-          </CardContent>
-        </Card>
+      <div className={theme.mt}>
+        <h2 className={theme.cardTitle}>סיכום חנות</h2>
+        <p className={theme.cardSub}>מכירות ומלאי בתקופה שנבחרה</p>
+        <div className={`${theme.grid} ${theme.g4}`}>
+          <div className={theme.kpi}>
+            <div className={theme.kpiLbl}>שווי מלאי</div>
+            <div className={theme.kpiVal}>{formatCurrency(analytics.inventory_value)}</div>
+            <div className={theme.kpiFoot}>לפי מחיר עלות</div>
+          </div>
+          <div className={theme.kpi}>
+            <div className={theme.kpiLbl}>מכירות</div>
+            <div className={theme.kpiVal}>{Number(analytics.total_sales_count ?? 0)}</div>
+            <div className={theme.kpiFoot}>עסקאות שהושלמו</div>
+          </div>
+          <div className={theme.kpi}>
+            <div className={theme.kpiLbl}>מוצר מוביל</div>
+            <div className={`${theme.kpiVal} ${theme.kpiValS}`}>
+              {analytics.top_product?.name ?? '—'}
+            </div>
+            <div className={theme.kpiFoot}>
+              {analytics.top_product ? `${analytics.top_product.quantity} יח׳ נמכרו` : 'אין מכירות בתקופה'}
+            </div>
+          </div>
+          <div className={theme.kpi}>
+            <div className={theme.kpiLbl}>מלאי נמוך</div>
+            <div className={`${theme.kpiVal} ${Number(analytics.low_stock_count ?? 0) > 0 ? theme.down : ''}`}>
+              {Number(analytics.low_stock_count ?? 0)}
+            </div>
+            <div className={theme.kpiFoot}>מוצרים מתחת לסף</div>
+          </div>
+        </div>
       </div>
 
-      {/* Trend chart */}
-      {analytics.monthly_revenue.length > 1 && (
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base">מגמת הכנסות</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={180}>
-              <LineChart data={analytics.monthly_revenue} margin={{ top: 5, right: 16, left: 0, bottom: 5 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+      {/* revenue trend — a line needs at least two points */}
+      {trend.length === 1 ? (
+        <div className={`${theme.card} ${theme.mt}`}>
+          <h2 className={theme.cardTitle}>מגמת הכנסות</h2>
+          <p className={theme.cardSub}>{trend[0].month} · בחרו טווח רחב יותר כדי לראות מגמה</p>
+          <div className={theme.counts} style={{ marginTop: 0 }}>
+            <div>
+              <b className={theme.up}>{formatCurrency(trend[0].revenue)}</b>
+              <span>הכנסות</span>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {trend.length > 1 ? (
+        <div className={`${theme.card} ${theme.mt}`}>
+          <h2 className={theme.cardTitle}>מגמת הכנסות</h2>
+          <p className={theme.cardSub}>הכנסות החנות לאורך זמן</p>
+          <div style={{ height: 260 }}>
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={trend} margin={{ top: 8, right: 12, left: 4, bottom: 4 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
                 <XAxis dataKey="month" tick={{ fontSize: 11 }} />
-                <YAxis tickFormatter={(v) => `₪${Number(v).toLocaleString()}`} tick={{ fontSize: 10 }} width={60} />
-                <Tooltip formatter={(value) => [`₪${Number(value).toLocaleString('he-IL', { minimumFractionDigits: 0 })}`, 'הכנסות']} />
-                <Line type="monotone" dataKey="revenue" stroke="#14b8a6" strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 5 }} />
+                <YAxis tick={{ fontSize: 11 }} width={72} />
+                <Tooltip formatter={(v: any) => formatCurrency(Number(v))} />
+                <Line
+                  type="monotone"
+                  dataKey="revenue"
+                  name="הכנסות"
+                  stroke="hsl(var(--success))"
+                  strokeWidth={2.5}
+                  dot={{ r: 3 }}
+                />
               </LineChart>
             </ResponsiveContainer>
-          </CardContent>
-        </Card>
-      )}
+          </div>
+        </div>
+      ) : null}
 
-      {/* Bottom: top products + shrinkage side by side */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {analytics.sales_by_product.length > 0 && (
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-base">מכירות לפי מוצר</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>מוצר</TableHead>
-                    <TableHead>כמות</TableHead>
-                    <TableHead>הכנסה</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {analytics.sales_by_product.slice(0, 5).map((item, i) => (
-                    <TableRow key={i}>
-                      <TableCell className="font-medium">{item.product}</TableCell>
-                      <TableCell><Badge variant="outline">{item.quantity}</Badge></TableCell>
-                      <TableCell className="text-teal-600">₪{item.revenue.toLocaleString('he-IL', { maximumFractionDigits: 0 })}</TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
-        )}
+      {/* sales by product */}
+      {salesByProduct.length > 0 ? (
+        <div className={`${theme.card} ${theme.mt}`}>
+          <h2 className={theme.cardTitle}>מכירות לפי מוצר</h2>
+          <p className={theme.cardSub}>הכנסה לכל מוצר</p>
+          {salesByProduct.slice(0, 8).map((p, i, arr) => (
+            <div
+              className={theme.hbar}
+              key={p.product + i}
+              style={i === Math.min(arr.length, 8) - 1 ? { marginBottom: 0 } : undefined}
+            >
+              <div className={theme.hbarName}>{p.product}</div>
+              <div className={theme.hbarNum}>
+                {formatCurrency(p.revenue)} · {Number(p.quantity ?? 0)} יח׳
+              </div>
+              <div className={theme.track}>
+                <div
+                  className={theme.fill}
+                  style={{ width: `${(Number(p.revenue) / maxProduct) * 100}%` }}
+                />
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : null}
 
-        {analytics.shrinkage_by_reason && analytics.shrinkage_by_reason.length > 0 && (
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-base text-orange-600">📉 הפחת</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>סיבה</TableHead>
-                    <TableHead>יחידות</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {analytics.shrinkage_by_reason.map((row) => (
-                    <TableRow key={row.reason}>
-                      <TableCell className="font-medium">{row.reason_label}</TableCell>
-                      <TableCell><Badge variant="destructive">{row.total_units}</Badge></TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
-        )}
-      </div>
-
-      {/* Which products actually need reordering. The API already returns the
-          list; only the count was being shown. */}
-      {(analytics.low_stock_products?.length ?? 0) > 0 && (
-        <Card className="border-red-300">
-          <CardHeader>
-            <CardTitle className="text-base text-red-600">מוצרים שדורשים חידוש מלאי</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>מוצר</TableHead>
-                  <TableHead>סניף</TableHead>
-                  <TableHead>יחידות שנותרו</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
+      {/* restock */}
+      {(analytics.low_stock_products?.length ?? 0) > 0 ? (
+        <div className={`${theme.card} ${theme.mt}`}>
+          <h2 className={theme.cardTitle}>מוצרים שדורשים חידוש מלאי</h2>
+          <p className={theme.cardSub}>מתחת לסף שהוגדר</p>
+          <div className={theme.tableScroll}>
+            <table className={theme.table}>
+              <thead>
+                <tr>
+                  <th>מוצר</th>
+                  <th>סניף</th>
+                  <th className={theme.n}>יחידות שנותרו</th>
+                </tr>
+              </thead>
+              <tbody>
                 {analytics.low_stock_products.slice(0, 10).map((p: any) => (
-                  <TableRow key={p.id ?? p.name}>
-                    <TableCell className="font-medium">{p.name}</TableCell>
-                    <TableCell className="text-muted-foreground">{p.branch_name || '—'}</TableCell>
-                    <TableCell>
-                      <Badge variant="destructive">{p.stock_quantity}</Badge>
-                    </TableCell>
-                  </TableRow>
+                  <tr key={p.id ?? p.name}>
+                    <td className={theme.name}>{p.name}</td>
+                    <td style={{ color: 'var(--kg-muted)', fontSize: 12 }}>{p.branch_name || '—'}</td>
+                    <td className={theme.n}>
+                      <span className={`${theme.tag} ${theme.tagLow}`}>{p.stock_quantity}</span>
+                    </td>
+                  </tr>
                 ))}
-              </TableBody>
-            </Table>
-            {analytics.low_stock_products.length > 10 ? (
-              <p className="text-xs text-muted-foreground mt-3">
-                ועוד {analytics.low_stock_products.length - 10} מוצרים
-              </p>
-            ) : null}
-          </CardContent>
-        </Card>
-      )}
+              </tbody>
+            </table>
+          </div>
+          {analytics.low_stock_products.length > 10 ? (
+            <p className={theme.note}>ועוד {analytics.low_stock_products.length - 10} מוצרים</p>
+          ) : null}
+        </div>
+      ) : null}
+
+      {/* shrinkage */}
+      {(analytics.shrinkage_by_reason?.length ?? 0) > 0 ? (
+        <div className={`${theme.card} ${theme.mt}`}>
+          <h2 className={theme.cardTitle}>פחת</h2>
+          <p className={theme.cardSub}>יחידות שיצאו מהמלאי שלא במכירה</p>
+          <div className={theme.tableScroll}>
+            <table className={theme.table}>
+              <thead>
+                <tr>
+                  <th>סיבה</th>
+                  <th className={theme.n}>יחידות</th>
+                </tr>
+              </thead>
+              <tbody>
+                {analytics.shrinkage_by_reason.map((r) => (
+                  <tr key={r.reason}>
+                    <td className={theme.name}>{r.reason_label}</td>
+                    <td className={theme.n}>
+                      <span className={`${theme.tag} ${theme.tagLow}`}>{r.total_units}</span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      ) : null}
+
+      {revenue === 0 && salesByProduct.length === 0 ? (
+        <div className={`${theme.card} ${theme.mt}`}>
+          <div className={theme.kpiFoot}>אין מכירות בתקופה שנבחרה</div>
+        </div>
+      ) : null}
+
+      <div className={theme.mt}>
+        <Link href="/store/dashboard" className={theme.chip} style={{ textDecoration: 'none' }}>
+          לדוח החנות המלא →
+        </Link>
+      </div>
     </div>
   );
 }

@@ -5,20 +5,20 @@ import styles from './Reveal.module.css';
 
 interface Props {
   children: ReactNode;
-  /** Re-run when this changes (e.g. the active tab). */
+  /** Re-arm when this changes (e.g. the active tab). */
   resetKey?: string;
 }
 
 /**
  * Gives every card in a section its own entrance as it scrolls into view.
  *
- * Works by adding a class to elements that are already there rather than
- * wrapping them, so the five pre-existing section components keep their exact
- * DOM and their grid layouts are untouched — nothing about their markup had to
- * change for this.
+ * Adds a class to elements that are already there rather than wrapping them,
+ * so each section keeps its own DOM and grid layout untouched.
  *
- * Elements are revealed in document order with a small stagger, capped so a
- * long list never ends up waiting seconds for the last row.
+ * A section renders a loading card first and swaps in its real content once the
+ * query resolves, so a single pass at mount would only ever see the placeholder.
+ * A MutationObserver therefore keeps arming cards as they appear, and stops once
+ * the subtree settles.
  */
 export default function RevealChildren({ children, resetKey }: Props) {
   const ref = useRef<HTMLDivElement | null>(null);
@@ -31,60 +31,89 @@ export default function RevealChildren({ children, resetKey }: Props) {
       typeof window !== 'undefined' &&
       window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
 
-    // Section children, plus one level into grid/flex wrappers so individual
-    // cards animate rather than the whole row at once.
-    const targets = Array.from(
-      root.querySelectorAll<HTMLElement>(':scope > * > *, :scope > * > * > *'),
-    ).filter((el) => {
-      const r = el.getBoundingClientRect();
-      // skip inline bits and zero-size nodes; only animate real blocks
-      return r.height > 24 && el.offsetParent !== null;
-    });
+    const supported = typeof IntersectionObserver !== 'undefined';
 
-    if (!targets.length) return;
+    // Cards live one or two levels inside the section wrapper.
+    const collect = () =>
+      Array.from(root.querySelectorAll<HTMLElement>(':scope > * > *, :scope > * > * > *')).filter(
+        (el) => {
+          if (el.dataset.revealArmed === '1') return false;
+          const r = el.getBoundingClientRect();
+          return r.height > 24 && el.offsetParent !== null;
+        },
+      );
 
-    if (reduced || typeof IntersectionObserver === 'undefined') {
-      targets.forEach((el) => el.classList.add(styles.shown));
+    const showNow = (el: HTMLElement) => {
+      el.dataset.revealArmed = '1';
+      el.classList.add(styles.shown);
+    };
+
+    if (reduced || !supported) {
+      collect().forEach(showNow);
       return;
     }
 
-    targets.forEach((el) => {
-      el.classList.add(styles.reveal);
-    });
+    let burst = 0;
+    let burstTimer: ReturnType<typeof setTimeout> | null = null;
 
-    let revealed = 0;
-    const observer = new IntersectionObserver(
+    const io = new IntersectionObserver(
       (entries) => {
         entries.forEach((entry) => {
           if (!entry.isIntersecting) return;
           const el = entry.target as HTMLElement;
-          // stagger within a burst, but never more than ~240ms of waiting
-          el.style.transitionDelay = `${Math.min(revealed, 4) * 60}ms`;
-          revealed += 1;
+          el.style.transitionDelay = `${Math.min(burst, 4) * 60}ms`;
+          burst += 1;
           el.classList.add(styles.shown);
-          observer.unobserve(el);
+          io.unobserve(el);
         });
-        // reset the burst counter once this batch is done
-        revealed = 0;
+        // Reset the stagger between bursts so a long scroll never accumulates delay.
+        if (burstTimer) clearTimeout(burstTimer);
+        burstTimer = setTimeout(() => {
+          burst = 0;
+        }, 220);
       },
       { rootMargin: '0px 0px -40px 0px', threshold: 0.04 },
     );
 
-    targets.forEach((el) => observer.observe(el));
+    // The failsafe is re-armed on every batch. A single timer set at mount
+    // would already have fired by the time late content is armed, leaving it
+    // invisible — which is the one outcome that must never happen.
+    let failsafe: ReturnType<typeof setTimeout> | null = null;
+    const armFailsafe = () => {
+      if (failsafe) clearTimeout(failsafe);
+      failsafe = setTimeout(() => {
+        root
+          .querySelectorAll<HTMLElement>(`.${styles.reveal}`)
+          .forEach((el) => el.classList.add(styles.shown));
+      }, 2500);
+    };
 
-    // Safety net: if anything is still hidden shortly after mount (an observer
-    // that never fired, a hidden-then-shown container), show it. Content must
-    // never be left invisible.
-    const failsafe = setTimeout(() => {
-      targets.forEach((el) => el.classList.add(styles.shown));
-    }, 2500);
+    const arm = () => {
+      const found = collect();
+      if (!found.length) return;
+      found.forEach((el) => {
+        el.dataset.revealArmed = '1';
+        el.classList.add(styles.reveal);
+        io.observe(el);
+      });
+      armFailsafe();
+    };
+
+    arm();
+
+    // Content arrives after the query resolves, so keep arming what appears.
+    const mo = new MutationObserver(() => arm());
+    mo.observe(root, { childList: true, subtree: true });
 
     return () => {
-      observer.disconnect();
-      clearTimeout(failsafe);
-      targets.forEach((el) => {
+      io.disconnect();
+      mo.disconnect();
+      if (burstTimer) clearTimeout(burstTimer);
+      if (failsafe) clearTimeout(failsafe);
+      root.querySelectorAll<HTMLElement>(`.${styles.reveal}`).forEach((el) => {
         el.classList.remove(styles.reveal);
         el.style.transitionDelay = '';
+        delete el.dataset.revealArmed;
       });
     };
   }, [resetKey]);
