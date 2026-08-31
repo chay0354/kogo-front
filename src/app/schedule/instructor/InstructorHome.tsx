@@ -13,7 +13,7 @@ import {
   FlaskConical,
   LogOut,
   MapPin,
-  UserCog,
+  UserRound,
   Users,
   X,
 } from 'lucide-react';
@@ -54,6 +54,8 @@ export default function InstructorHome() {
   // and the switcher only appears when it is not.
   const [linkedUsers, setLinkedUsers] = useState<LinkedUser[]>([]);
   const [viewAs, setViewAs] = useState('self');
+  const [teacherPickerOpen, setTeacherPickerOpen] = useState(false);
+  const [confirmLogout, setConfirmLogout] = useState(false);
   const carouselRef = useRef<HTMLDivElement>(null);
   const transitionLockRef = useRef(false);
   const returnTimerRef = useRef<number | null>(null);
@@ -329,6 +331,102 @@ export default function InstructorHome() {
         </button>
       )}
 
+      {/* Only for an account a manager linked to colleagues. Mirrored to the
+          left so it never sits under the data button. */}
+      {!selectedLesson && linkedUsers.length > 0 && (
+        <button
+          type="button"
+          className={styles.teacherFab}
+          onClick={() => setTeacherPickerOpen((v) => !v)}
+          aria-label="החלפת מדריך"
+          aria-expanded={teacherPickerOpen}
+        >
+          <UserRound size={24} strokeWidth={2.4} />
+          {viewAs !== 'self' && <span className={styles.teacherFabDot} />}
+        </button>
+      )}
+
+      {teacherPickerOpen && (
+        <>
+          <div className={styles.pickerScrim} onClick={() => setTeacherPickerOpen(false)} />
+          <div className={styles.picker} role="menu" aria-label="בחירת מדריך">
+            <div className={styles.pickerTitle}>יומן להצגה</div>
+            <button
+              type="button"
+              role="menuitemradio"
+              aria-checked={viewAs === 'self'}
+              className={`${styles.pickerItem} ${viewAs === 'self' ? styles.pickerItemOn : ''}`}
+              onClick={() => {
+                setViewAs('self');
+                setTeacherPickerOpen(false);
+              }}
+            >
+              היומן שלי
+            </button>
+            {linkedUsers.map((u) => (
+              <button
+                key={u.id}
+                type="button"
+                role="menuitemradio"
+                aria-checked={viewAs === u.id}
+                className={`${styles.pickerItem} ${viewAs === u.id ? styles.pickerItemOn : ''}`}
+                onClick={() => {
+                  setViewAs(u.id);
+                  setTeacherPickerOpen(false);
+                }}
+              >
+                {u.name}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+
+      {/* Signing out mid-lesson loses the register you were filling, and the
+          button sits next to the date picker — so it asks first. */}
+      {confirmLogout && (
+        <div
+          className={styles.confirmScrim}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="logout-title"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setConfirmLogout(false);
+          }}
+        >
+          <div className={styles.confirmBox}>
+            <div className={styles.confirmIcon} aria-hidden>
+              <LogOut size={22} />
+            </div>
+            <h2 id="logout-title" className={styles.confirmTitle}>
+              לצאת מהמערכת?
+            </h2>
+            <p className={styles.confirmBody}>תצטרכו להתחבר מחדש בפעם הבאה.</p>
+            <div className={styles.confirmActions}>
+              <button
+                type="button"
+                className={styles.confirmGo}
+                onClick={() => {
+                  setConfirmLogout(false);
+                  void handleLogout();
+                }}
+                disabled={isLeaving}
+              >
+                {isLeaving ? 'יוצא…' : 'כן, צא'}
+              </button>
+              <button
+                type="button"
+                className={styles.confirmStay}
+                onClick={() => setConfirmLogout(false)}
+                autoFocus
+              >
+                הישאר
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {dashboardOpen && (
         <InstructorDashboard
           onClose={() => setDashboardOpen(false)}
@@ -341,27 +439,6 @@ export default function InstructorHome() {
       >
         <header className={styles.header}>
           <div className={styles.topBar}>
-            {/* Only for someone a manager linked to colleagues; everyone else
-                never sees a control with one option in it. */}
-            {linkedUsers.length > 0 && (
-              <div className={styles.teacherWrap} data-tour="teacher">
-                <UserCog size={18} />
-                <select
-                  className={styles.branchSelect}
-                  value={viewAs}
-                  onChange={(event) => setViewAs(event.target.value)}
-                  aria-label="בחירת מדריך"
-                >
-                  <option value="self">היומן שלי</option>
-                  {linkedUsers.map((u) => (
-                    <option key={u.id} value={u.id}>
-                      {u.name}
-                    </option>
-                  ))}
-                </select>
-                <ChevronDown className={styles.branchChevron} size={16} />
-              </div>
-            )}
             <div className={styles.branchWrap} data-tour="branch">
               <MapPin size={18} />
               {branches.length > 1 ? (
@@ -385,16 +462,9 @@ export default function InstructorHome() {
                 <span>{selectedBranchName}</span>
               )}
             </div>
+            {/* RTL row: the first child sits furthest right. Sign-out is last
+                so it ends up on the far left, with the date picker beside it. */}
             <div className={styles.topActions}>
-              <button
-                type="button"
-                className={styles.iconBtn}
-                onClick={handleLogout}
-                disabled={isLeaving}
-                aria-label="התנתק"
-              >
-                <LogOut size={18} />
-              </button>
               <label className={styles.iconBtn} title="בחירת תאריך" data-tour="date">
                 <Calendar size={18} />
                 <input
@@ -408,6 +478,15 @@ export default function InstructorHome() {
                   aria-label="בחירת תאריך"
                 />
               </label>
+              <button
+                type="button"
+                className={styles.iconBtn}
+                onClick={() => setConfirmLogout(true)}
+                disabled={isLeaving}
+                aria-label="התנתק"
+              >
+                <LogOut size={18} />
+              </button>
             </div>
           </div>
 

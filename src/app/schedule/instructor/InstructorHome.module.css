@@ -924,15 +924,217 @@
 
 /* --- מחליף מדריך (למשתמשים מקושרים בלבד) --- */
 
-.teacherWrap {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  position: relative;
-  color: #f5c518;
-  max-width: 46%;
+/* Mirrors .dashFab across the screen: in an RTL page inline-end is the left. */
+.teacherFab {
+  position: fixed;
+  inset-inline-end: 18px;
+  bottom: calc(18px + env(safe-area-inset-bottom, 0px));
+  z-index: 40;
+  width: 56px;
+  height: 56px;
+  border: 0;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: #fff;
+  color: #1e2a6e;
+  cursor: pointer;
+  box-shadow: 0 8px 22px rgba(30, 42, 110, 0.26);
+  transition: transform 180ms cubic-bezier(0.22, 1, 0.36, 1), box-shadow 180ms ease;
 }
 
-.teacherWrap .branchSelect {
-  color: #f5c518;
+.teacherFab:hover,
+.teacherFab:focus-visible {
+  transform: translateY(-2px) scale(1.04);
+  box-shadow: 0 12px 28px rgba(30, 42, 110, 0.34);
+  outline: none;
+}
+
+.teacherFab:active {
+  transform: scale(0.96);
+}
+
+/* Marks that a colleague's calendar is on screen, not your own. */
+.teacherFabDot {
+  position: absolute;
+  top: 6px;
+  inset-inline-end: 6px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #f5c518;
+  border: 2px solid #fff;
+}
+
+.pickerScrim {
+  position: fixed;
+  inset: 0;
+  z-index: 41;
+  background: rgba(15, 20, 60, 0.28);
+  animation: pickerFade 0.16s ease-out;
+}
+
+.picker {
+  position: fixed;
+  inset-inline-end: 18px;
+  bottom: calc(84px + env(safe-area-inset-bottom, 0px));
+  z-index: 42;
+  min-width: 208px;
+  max-width: calc(100vw - 36px);
+  padding: 8px;
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: 0 12px 34px rgba(15, 20, 60, 0.24);
+  animation: pickerIn 0.18s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes pickerFade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes pickerIn {
+  from { opacity: 0; transform: translateY(8px) scale(0.97); }
+  to { opacity: 1; transform: none; }
+}
+
+.pickerTitle {
+  padding: 6px 10px 8px;
+  font-size: 12px;
+  font-weight: 700;
+  color: rgba(30, 42, 110, 0.55);
+}
+
+.pickerItem {
+  display: block;
+  width: 100%;
+  padding: 10px 12px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  color: #1e2a6e;
+  text-align: start;
+  cursor: pointer;
+}
+
+.pickerItem:hover,
+.pickerItem:focus-visible {
+  background: rgba(30, 42, 110, 0.06);
+  outline: none;
+}
+
+.pickerItemOn {
+  background: #1e2a6e;
+  color: #fff;
+}
+
+.pickerItemOn:hover,
+.pickerItemOn:focus-visible {
+  background: #1e2a6e;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .teacherFab,
+  .pickerScrim,
+  .picker {
+    transition: none;
+    animation: none;
+  }
+  .teacherFab:hover,
+  .teacherFab:focus-visible {
+    transform: none;
+  }
+}
+
+/* --- אישור יציאה --- */
+
+.confirmScrim {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(15, 20, 60, 0.46);
+  backdrop-filter: blur(2px);
+  animation: pickerFade 0.16s ease-out;
+}
+
+.confirmBox {
+  width: min(340px, 100%);
+  padding: 22px 20px 18px;
+  border-radius: 20px;
+  background: #fff;
+  text-align: center;
+  box-shadow: 0 18px 44px rgba(15, 20, 60, 0.3);
+  animation: pickerIn 0.2s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.confirmIcon {
+  width: 48px;
+  height: 48px;
+  margin: 0 auto 12px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: rgba(30, 42, 110, 0.08);
+  color: #1e2a6e;
+}
+
+.confirmTitle {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 800;
+  color: #1e2a6e;
+}
+
+.confirmBody {
+  margin: 6px 0 18px;
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: rgba(30, 42, 110, 0.6);
+}
+
+.confirmActions {
+  display: flex;
+  gap: 8px;
+}
+
+.confirmStay,
+.confirmGo {
+  flex: 1;
+  border-radius: 999px;
+  padding: 12px 16px;
+  font: inherit;
+  font-weight: 800;
+  font-size: 14.5px;
+  cursor: pointer;
+}
+
+/* Staying is the safe choice, so it carries the solid button. */
+.confirmStay {
+  border: 0;
+  background: #f5c518;
+  color: #1e2a6e;
+}
+
+.confirmGo {
+  border: 1px solid rgba(30, 42, 110, 0.2);
+  background: transparent;
+  color: rgba(30, 42, 110, 0.75);
+}
+
+.confirmGo:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .confirmScrim,
+  .confirmBox {
+    animation: none;
+  }
 }

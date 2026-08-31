@@ -17,7 +17,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { useAuth } from '@/components/AuthProvider';
-import LinkedUsersDialog from './LinkedUsersDialog';
+import LinkedUsersSection from './LinkedUsersSection';
 
 type UserRole = 'manager' | 'worker' | 'partner';
 
@@ -45,8 +45,6 @@ export default function SettingsPage() {
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<ManagedUser | null>(null);
-  // Which account's linked colleagues are being edited, if any.
-  const [linkingUser, setLinkingUser] = useState<ManagedUser | null>(null);
 
   const [formEmail, setFormEmail] = useState('');
   const [formFirst, setFormFirst] = useState('');
@@ -191,14 +189,9 @@ export default function SettingsPage() {
                       <td className="py-2">{roleLabel(u.role_display)}</td>
                       <td className="py-2">{u.is_active ? 'פעיל' : 'מושבת'}</td>
                       <td className="py-2 text-left">
-                        <div className="flex justify-end gap-2">
-                          <Button variant="ghost" size="sm" onClick={() => setLinkingUser(u)}>
-                            משתמשים מקושרים
-                          </Button>
-                          <Button variant="outline" size="sm" onClick={() => openEdit(u)}>
-                            ערוך
-                          </Button>
-                        </div>
+                        <Button variant="outline" size="sm" onClick={() => openEdit(u)}>
+                          ערוך
+                        </Button>
                       </td>
                     </tr>
                   ))}
@@ -215,12 +208,6 @@ export default function SettingsPage() {
           </>
         )}
       </div>
-
-      <LinkedUsersDialog
-        user={linkingUser}
-        allUsers={users}
-        onClose={() => setLinkingUser(null)}
-      />
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="max-w-lg">
@@ -308,6 +295,8 @@ export default function SettingsPage() {
                 placeholder={editing ? 'השאר ריק כדי לא לשנות' : ''}
               />
             </div>
+
+            <LinkedUsersSection user={editing} allUsers={users} />
 
             <div className="flex justify-end gap-2 pt-2">
               <Button variant="outline" onClick={() => setDialogOpen(false)} disabled={saving}>
