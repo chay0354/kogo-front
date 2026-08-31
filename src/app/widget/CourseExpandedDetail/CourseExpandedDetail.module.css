@@ -203,6 +203,7 @@
      the face to read at arm's length. */
   width: clamp(190px, 58vw, 240px);
   height: clamp(190px, 58vw, 240px);
+  align-self: center;
   overflow: visible;
   border-radius: 0;
   background: none;
@@ -647,5 +648,31 @@
   .enrollButton,
   .trialButton {
     padding: 9px 12px;
+  }
+}
+
+
+/* On a phone the row stacks, so the photo has the card's whole width instead of
+   whatever is left after the name. Sharing the row is what kept it small. */
+@media (max-width: 640px) {
+  .instructorBoxWithPhoto {
+    flex-direction: column;
+    gap: 4px;
+    padding-block: 8px;
+    padding-inline: 12px;
+  }
+
+  .instructorBoxWithPhoto .instructorAvatarPhoto {
+    width: min(72vw, 300px);
+    height: min(72vw, 300px);
+  }
+
+  .instructorBoxWithPhoto .instructorDivider {
+    display: none;
+  }
+
+  .instructorBoxWithPhoto .instructorInfo {
+    align-items: center;
+    text-align: center;
   }
 }
