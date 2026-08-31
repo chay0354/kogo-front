@@ -56,6 +56,27 @@ function formatShekel(value: number | string | null | undefined): string {
   return `₪${formatAmount(n)}`;
 }
 
+/**
+ * The ages that apply to what the parent is actually looking at.
+ *
+ * A price option or a combined package can narrow the course's own range, and
+ * the card already reads its price and its title from the offer rather than the
+ * course. Ages come from the same place, or the card claims a range the offer
+ * does not sell.
+ */
+function resolveAges(
+  course: Course,
+  priceOption?: CourseLessonPriceOption,
+  bundleOffer?: CourseBundle,
+): [number | null | undefined, number | null | undefined] {
+  for (const source of [bundleOffer, priceOption]) {
+    if (source && (source.min_age || source.max_age)) {
+      return [source.min_age, source.max_age];
+    }
+  }
+  return [course.min_age, course.max_age];
+}
+
 function formatAgesCompact(minAge?: number | null, maxAge?: number | null): string {
   if (!minAge && !maxAge) return '—';
   const minLabel = minAge ? formatAge(minAge) : '';
@@ -72,15 +93,21 @@ function formatAgesCompact(minAge?: number | null, maxAge?: number | null): stri
  * who it is for, what it costs, and that the cost comes back off the first payment.
  * The API sends trial_lesson_price as a decimal string, hence the Number().
  */
-function paidTrialNoticeRows(course: Course): NoticeRow[] {
+function paidTrialNoticeRows(course: Course, ages: string): NoticeRow[] {
   if (!course.trial_lesson_is_paid || course.trial_lesson_price == null) return [];
   const price = Number(course.trial_lesson_price);
   if (!Number.isFinite(price)) return [];
 
   const rows: NoticeRow[] = [];
-  const ages = formatAgesCompact(course.min_age, course.max_age);
   if (ages !== '—') {
-    rows.push({ icon: Users, text: `שיעור הניסיון מיועד לילדים עד ${ages}.` });
+    // "up to" reads as a single bound, so a range is stated as one.
+    const isRange = ages.includes('-');
+    rows.push({
+      icon: Users,
+      text: isRange
+        ? `שיעור הניסיון מיועד לילדים ב${ages}.`
+        : `שיעור הניסיון מיועד לילדים עד ${ages}.`,
+    });
   }
   rows.push({ icon: Coins, text: `עלות שיעור הניסיון היא ${formatAmount(price)} ₪.` });
   rows.push({ icon: BadgePercent, text: TRIAL_CREDIT_NOTICE_BODY });
@@ -166,7 +193,8 @@ export default function CourseExpandedDetail({
   const [pendingAction, setPendingAction] = useState<'enroll' | 'trial' | null>(null);
   const instructorName = resolveInstructorName(course, lesson, bundleOffer);
 
-  const ageLabel = formatAgesCompact(course.min_age, course.max_age);
+  const [minAge, maxAge] = resolveAges(course, priceOption, bundleOffer);
+  const ageLabel = formatAgesCompact(minAge, maxAge);
   const scheduleLessons = resolveScheduleLessons(course, lesson, bundleOffer);
   const timesPerWeek = bundleOffer
     ? bundleOffer.lessons.length
@@ -183,7 +211,7 @@ export default function CourseExpandedDetail({
   const displayTitle = stripWidgetApprovalPhrase(priceOption?.display_title ?? course.name);
   const noticeBody = noticeBodyFor(course, displayTitle);
   const showAuditionNotice = Boolean(noticeBody);
-  const trialNoticeRows = paidTrialNoticeRows(course);
+  const trialNoticeRows = paidTrialNoticeRows(course, ageLabel);
   const showTrialNotice = trialNoticeRows.length > 0;
   // The paid-trial rows belong to the trial button only; both notices share one dialog.
   const noticeRows = pendingAction === 'trial' ? trialNoticeRows : [];
