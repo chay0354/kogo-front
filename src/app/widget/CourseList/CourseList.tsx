@@ -214,6 +214,7 @@ export function CourseList({
   onSelect,
 }: CourseListProps) {
   const rows = buildCatalogRows(filteredCourses, selectedAge).filter((row) => {
+    if (isInstructorsAgeGroup(selectedAge) && timesPerWeek(row) < 2) return false;
     if (!excludedSelectionKeys?.size) return true;
     const key = enrollmentSelectionKey({
       courseId: row.course.id,

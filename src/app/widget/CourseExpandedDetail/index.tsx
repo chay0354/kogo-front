@@ -1,3 +1,7 @@
+'use client';
+
+import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import {
   getDayName,
   formatTimeRange,
@@ -14,15 +18,29 @@ import styles from './CourseExpandedDetail.module.css';
 
 const WIDGET_SUPPORT_PHONE = '0509424755';
 const APPROVAL_PHRASE = 'מותנה באישור קוגומלו בלבד';
+const UNDERLINED_TITLE_PHRASES = [APPROVAL_PHRASE];
+const AUDITION_NOTICE_BODY = 'ההשתתפות במסלול מותנית באודישן ובאישור מנהלת המחול.';
+
+function requiresAuditionNotice(title: string): boolean {
+  return title.includes('מסלול להקה תחרותי');
+}
 
 function TitleWithApprovalUnderline({ title }: { title: string }) {
-  const index = title.indexOf(APPROVAL_PHRASE);
-  if (index === -1) return <>{title}</>;
+  let matchIndex = -1;
+  let matchPhrase = '';
+  for (const phrase of UNDERLINED_TITLE_PHRASES) {
+    const index = title.indexOf(phrase);
+    if (index !== -1 && (matchIndex === -1 || index < matchIndex)) {
+      matchIndex = index;
+      matchPhrase = phrase;
+    }
+  }
+  if (matchIndex === -1) return <>{title}</>;
   return (
     <>
-      {title.slice(0, index)}
-      <span className={styles.approvalUnderline}>{APPROVAL_PHRASE}</span>
-      {title.slice(index + APPROVAL_PHRASE.length)}
+      {title.slice(0, matchIndex)}
+      <span className={styles.approvalUnderline}>{matchPhrase}</span>
+      <TitleWithApprovalUnderline title={title.slice(matchIndex + matchPhrase.length)} />
     </>
   );
 }
@@ -128,6 +146,7 @@ export default function CourseExpandedDetail({
   onClose,
   hideSeptemberStandingOrderNote = false,
 }: CourseExpandedDetailProps) {
+  const [pendingAction, setPendingAction] = useState<'enroll' | 'trial' | null>(null);
   const instructorName = resolveInstructorName(course, lesson, bundleOffer);
 
   const ageLabel = formatAgesCompact(course.min_age, course.max_age);
@@ -145,6 +164,32 @@ export default function CourseExpandedDetail({
     ?? (lesson?.price != null ? Number(lesson.price) : null)
     ?? course.price;
   const displayTitle = priceOption?.display_title ?? course.name;
+  const showAuditionNotice = requiresAuditionNotice(displayTitle) || requiresAuditionNotice(course.name);
+
+  const closeNotice = () => setPendingAction(null);
+  const confirmNotice = () => {
+    const action = pendingAction;
+    setPendingAction(null);
+    if (action === 'trial') onTrialEnroll();
+    else if (action === 'enroll') onEnroll();
+  };
+  const requestEnroll = () => {
+    if (showAuditionNotice) setPendingAction('enroll');
+    else onEnroll();
+  };
+  const requestTrial = () => {
+    if (showAuditionNotice) setPendingAction('trial');
+    else onTrialEnroll();
+  };
+
+  useEffect(() => {
+    if (!pendingAction) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') closeNotice();
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [pendingAction]);
 
   return (
     <div className={styles.card} dir="rtl">
@@ -262,10 +307,10 @@ export default function CourseExpandedDetail({
           </div>
         ) : (
           <div className={styles.actions}>
-            <button type="button" onClick={onEnroll} className={styles.enrollButton}>
+            <button type="button" onClick={requestEnroll} className={styles.enrollButton}>
               הירשם לחוג
             </button>
-            <button type="button" onClick={onTrialEnroll} className={styles.trialButton}>
+            <button type="button" onClick={requestTrial} className={styles.trialButton}>
               {course.trial_lesson_is_paid && course.trial_lesson_price != null
                 ? `הרשמה לניסיון (₪${Number(course.trial_lesson_price).toFixed(0)})`
                 : 'הרשמה לניסיון'}
@@ -273,6 +318,45 @@ export default function CourseExpandedDetail({
           </div>
         )}
       </div>
+
+      {pendingAction && typeof document !== 'undefined'
+        ? createPortal(
+            <div className={styles.noticeRoot} dir="rtl">
+              <div className={styles.noticeBackdrop} onClick={closeNotice} />
+              <div
+                className={styles.noticeCard}
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="audition-notice-title"
+              >
+                {timesPerWeekLabel ? (
+                  <span className={styles.noticeBadge}>{timesPerWeekLabel}</span>
+                ) : null}
+                <button
+                  type="button"
+                  className={styles.noticeClose}
+                  onClick={closeNotice}
+                  aria-label="סגור"
+                >
+                  <X size={16} strokeWidth={2.4} />
+                </button>
+                <div className={styles.noticeIconRow} aria-hidden>
+                  <span className={styles.noticeGoldLine} />
+                  <span className={styles.noticeInfoIcon}>i</span>
+                  <span className={styles.noticeGoldLine} />
+                </div>
+                <h3 id="audition-notice-title" className={styles.noticeTitle}>
+                  חשוב לדעת
+                </h3>
+                <p className={styles.noticeBody}>{AUDITION_NOTICE_BODY}</p>
+                <button type="button" className={styles.noticeConfirm} onClick={confirmNotice}>
+                  הבנתי
+                </button>
+              </div>
+            </div>,
+            document.body,
+          )
+        : null}
     </div>
   );
 }

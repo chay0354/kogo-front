@@ -104,12 +104,12 @@ export function buildCatalogRows(courses: Course[], selectedAge?: number | null)
     const bundles = course.bundles ?? [];
     const courseAgeMatches = selectedAgeMatches(course.min_age, course.max_age, selectedAge);
 
-    const hideSingleLessons = isInstructorsCourse(course) && bundles.length > 0;
+    const hideOnceAWeek = isInstructorsCourse(course);
 
     if (course.lessons && course.lessons.length > 0) {
       for (const lesson of course.lessons) {
         if (!isLessonVisibleInCatalog(lesson)) continue;
-        if (courseAgeMatches && !hideSingleLessons) {
+        if (courseAgeMatches && !hideOnceAWeek) {
           rows.push({
             course,
             lesson,
@@ -119,19 +119,21 @@ export function buildCatalogRows(courses: Course[], selectedAge?: number | null)
             displayPrice: formatListPrice(lesson.price ?? course.price),
           });
         }
-        for (const priceOption of lesson.price_options ?? []) {
-          if (!priceOptionMatchesAge(priceOption, course, selectedAge)) continue;
-          rows.push({
-            course,
-            lesson,
-            bundle: null,
-            priceOption,
-            displayTitle: priceOption.display_title,
-            displayPrice: formatListPrice(priceOption.monthly_price),
-          });
+        if (!hideOnceAWeek) {
+          for (const priceOption of lesson.price_options ?? []) {
+            if (!priceOptionMatchesAge(priceOption, course, selectedAge)) continue;
+            rows.push({
+              course,
+              lesson,
+              bundle: null,
+              priceOption,
+              displayTitle: priceOption.display_title,
+              displayPrice: formatListPrice(priceOption.monthly_price),
+            });
+          }
         }
       }
-    } else if (bundles.length === 0 && courseAgeMatches) {
+    } else if (!hideOnceAWeek && bundles.length === 0 && courseAgeMatches) {
       rows.push({
         course,
         lesson: null,
@@ -144,6 +146,7 @@ export function buildCatalogRows(courses: Course[], selectedAge?: number | null)
 
     const seenBundles = new Set<string>();
     for (const bundle of bundles) {
+      if (hideOnceAWeek && (bundle.lessons?.length ?? 0) < 2) continue;
       if (!bundleMatchesAge(bundle, course, selectedAge)) continue;
       const key = bundleDedupeKey(bundle);
       if (seenBundles.has(key)) continue;

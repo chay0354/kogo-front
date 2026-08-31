@@ -73,14 +73,18 @@ describe('buildCatalogRows instructors track', () => {
     expect(rows[0].lesson).toBeNull();
   });
 
-  test('בוגרים see twice-weekly 330 plus single-day 230 options', () => {
+  test('בוגרים see only the twice-weekly 330 track, not once-a-week 230 rows', () => {
     const rows = buildCatalogRows([instructorsCourse()], ADULTS_AGE_GROUP);
-    expect(rows.filter((row) => row.bundle).map((row) => [row.displayTitle, row.displayPrice])).toEqual([
-      ['קבוצת בוגרים', 330],
+    expect(rows.map((row) => [row.displayTitle, row.displayPrice, row.lesson?.id ?? null])).toEqual([
+      ['קבוצת בוגרים', 330, null],
     ]);
-    expect(rows.filter((row) => row.lesson).map((row) => [row.displayTitle, row.displayPrice])).toEqual([
-      ['קבוצת בוגרים', 230],
-      ['קבוצת בוגרים', 230],
-    ]);
+  });
+
+  test('מדריכים once-a-week course is hidden from the widget', () => {
+    const rows = buildCatalogRows(
+      [instructorsCourse({ lessons: [lesson({ id: 'only-mon' })], bundles: [] })],
+      INSTRUCTORS_AGE_GROUP,
+    );
+    expect(rows).toHaveLength(0);
   });
 });
