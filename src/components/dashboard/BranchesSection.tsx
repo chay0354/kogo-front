@@ -1,360 +1,370 @@
 'use client';
 
-import { useState, useMemo, useEffect } from 'react';
+import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
-import { fetchBranchesData, fetchCoursesList } from '@/lib/api';
-import { useScopedBranches } from '@/hooks/useScopedBranches';
-import { filterBranchesByCity } from '@/lib/scopedFilters';
-import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Users, Download, Tags } from 'lucide-react';
+import { format } from 'date-fns';
 import {
-  Tooltip,
-  ResponsiveContainer,
-  PieChart,
-  Pie,
-  Cell,
-  BarChart,
   Bar,
+  BarChart,
+  CartesianGrid,
+  Cell,
+  Legend,
+  Pie,
+  PieChart,
+  ResponsiveContainer,
+  Tooltip,
   XAxis,
   YAxis,
-  CartesianGrid,
-  Legend,
 } from 'recharts';
-import { format } from 'date-fns';
-import { toast } from 'sonner';
-import { BranchFinancialDonut } from '@/components/branches/BranchFinancialDonut/BranchFinancialDonut';
-import { BranchesSummaryBar } from '@/components/branches/BranchesSummaryBar/BranchesSummaryBar';
-import { sumTotalIncome, sumTotalExpenses } from '@/components/branches/BranchesSummaryBar/BranchesSummaryBar.utils';
+import { fetchBranchesData } from '@/lib/api';
+import { useScopedBranches } from '@/hooks/useScopedBranches';
+import { filterBranchesByCity } from '@/lib/scopedFilters';
 import type { DateRange } from './GlobalDateFilter';
+import { formatCurrency, formatPercent } from './format';
+import theme from './theme/dashboard.module.css';
 
 interface Props {
   globalDateRange: DateRange;
 }
 
-interface LocalFilters {
-  branch_id: string;
-  city_id: string;
-}
+const DISCOUNT_COLORS = [
+  'hsl(var(--primary))',
+  'hsl(var(--info))',
+  'hsl(var(--success))',
+  'hsl(var(--warning))',
+];
 
+/**
+ * "סניפים" — every branch, then the comparison across them.
+ *
+ * Uses the shared dashboard theme so the tab matches the overview. Each branch
+ * leads with its own profit ring, and the cross-branch chart sits underneath.
+ */
 export default function BranchesSection({ globalDateRange }: Props) {
-  const [filters, setFilters] = useState<LocalFilters>({
-    branch_id: 'all',
-    city_id: 'all',
-  });
+  const router = useRouter();
+  const { branches: scopedBranches, cities } = useScopedBranches();
+  const [cityId, setCityId] = useState('all');
+  const [branchId, setBranchId] = useState('all');
 
-  const { branches: branchOptions, cities } = useScopedBranches();
-
-  const branchesForFilter = useMemo(
-    () => filterBranchesByCity(branchOptions, filters.city_id),
-    [branchOptions, filters.city_id],
+  const apiFilters = useMemo(
+    () => ({
+      city_id: cityId,
+      branch_id: branchId,
+      date_from: format(globalDateRange.date_from, 'yyyy-MM-dd'),
+      date_to: format(globalDateRange.date_to, 'yyyy-MM-dd'),
+    }),
+    [cityId, branchId, globalDateRange],
   );
-
-  useEffect(() => {
-    if (filters.branch_id === 'all') return;
-    if (!branchesForFilter.some((b) => b.id === filters.branch_id)) {
-      setFilters((prev) => ({ ...prev, branch_id: 'all' }));
-    }
-  }, [filters.branch_id, branchesForFilter]);
-
-  const apiFilters = useMemo(() => ({
-    branch_id: filters.branch_id,
-    city_id: filters.city_id,
-    date_from: format(globalDateRange.date_from, 'yyyy-MM-dd'),
-    date_to: format(globalDateRange.date_to, 'yyyy-MM-dd'),
-  }), [filters, globalDateRange]);
 
   const { data, isLoading } = useQuery({
     queryKey: ['dashboard-branches', apiFilters],
     queryFn: () => fetchBranchesData(apiFilters),
   });
 
-  const router = useRouter();
+  const kpis = data?.kpis ?? {};
+  const branchList: any[] = data?.branch_list ?? [];
+  const discountBreakdown: any[] = data?.discount_breakdown ?? [];
 
-  const handleExport = () => {
-    toast.success('מייצא נתונים...');
-  };
-
-  const kpis = data?.kpis || {};
-  const branchList = data?.branch_list || [];
-  const discountBreakdown = data?.discount_breakdown || [];
-
-  const gridBranches = filters.branch_id === 'all'
-    ? branchesForFilter
-    : branchesForFilter.filter((b) => b.id === filters.branch_id);
-
-  const branchFinancials = new Map<string, { revenue: number; spending: number; profit: number }>(
-    branchList.map((row: any) => [
-      row.branch_id,
-      { revenue: row.revenue || 0, spending: row.spending || 0, profit: row.profit || 0 },
-    ])
+  const branchesForFilter = useMemo(
+    () => filterBranchesByCity(scopedBranches, cityId),
+    [scopedBranches, cityId],
   );
 
-  // Sorted by profit so the table reads as a ranking, and the headline totals
-  // are summed from the same rows the table shows.
-  const branchRows = [...branchList].sort(
-    (a: any, b: any) => Number(b.profit ?? 0) - Number(a.profit ?? 0),
-  );
-  const branchTotals = branchList.reduce(
-    (acc: any, b: any) => {
-      const rev = Number(b.revenue ?? 0);
-      acc.revenue += rev;
-      acc.profit += Number(b.profit ?? 0);
-      if (rev > 0) acc.active += 1;
-      return acc;
-    },
-    { revenue: 0, profit: 0, active: 0 },
+  // Ranked by profit, and the headline totals are summed from the same rows.
+  const rows = useMemo(
+    () =>
+      [...branchList]
+        .filter((b) => (branchId === 'all' ? true : String(b.branch_id) === String(branchId)))
+        .sort((a, b) => Number(b.profit ?? 0) - Number(a.profit ?? 0)),
+    [branchList, branchId],
   );
 
-  const handleCardClick = (branchId: string) => {
-    router.push(`/branches/${branchId}`);
-  };
+  const totals = useMemo(
+    () =>
+      rows.reduce(
+        (acc, b) => {
+          acc.revenue += Number(b.revenue ?? 0);
+          acc.spending += Number(b.spending ?? 0);
+          acc.profit += Number(b.profit ?? 0);
+          acc.students += Number(b.students ?? 0);
+          return acc;
+        },
+        { revenue: 0, spending: 0, profit: 0, students: 0 },
+      ),
+    [rows],
+  );
 
-  // Discount type colors
-  const DISCOUNT_COLORS = [
-    'hsl(262, 83%, 58%)',  // Purple - Early signup
-    'hsl(221, 83%, 53%)',  // Blue - Second child
-    'hsl(142, 71%, 45%)',  // Green - Additional lesson
-    'hsl(25, 95%, 53%)',   // Orange - Fixed price
-  ];
+  const margin = totals.revenue > 0 ? (totals.profit / totals.revenue) * 100 : 0;
+
+  if (isLoading) {
+    return <div className={theme.scope}><div className={theme.card}>טוען נתוני סניפים…</div></div>;
+  }
 
   return (
-    <div className="space-y-6">
-      {/* Local Filters (without date selection) */}
-      <div className="rounded-xl bg-card p-4 shadow-md border border-border/50">
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="flex-1 min-w-[180px]">
-            <label className="text-sm font-medium mb-1 block">עיר</label>
+    <div className={theme.scope}>
+      {/* filters */}
+      <div className={theme.card}>
+        <div className={`${theme.grid} ${theme.g2}`}>
+          <div>
+            <label className={theme.kpiLbl} htmlFor="br-city">עיר</label>
             <select
-              value={filters.city_id}
-              onChange={(e) => setFilters({ ...filters, city_id: e.target.value })}
-              className="w-full h-10 px-3 py-2 text-sm rounded-md border border-input bg-background"
+              id="br-city"
+              value={cityId}
+              onChange={(e) => {
+                setCityId(e.target.value);
+                setBranchId('all');
+              }}
+              style={selectStyle}
             >
               <option value="all">כל הערים</option>
-              {cities.map((city: any) => (
-                <option key={city.id} value={city.id}>
-                  {city.name}
-                </option>
+              {cities.map((c: any) => (
+                <option key={c.id} value={c.id}>{c.name}</option>
               ))}
             </select>
           </div>
-
-          <div className="flex-1 min-w-[180px]">
-            <label className="text-sm font-medium mb-1 block">סניף</label>
+          <div>
+            <label className={theme.kpiLbl} htmlFor="br-branch">סניף</label>
             <select
-              value={filters.branch_id}
-              onChange={(e) => setFilters({ ...filters, branch_id: e.target.value })}
-              className="w-full h-10 px-3 py-2 text-sm rounded-md border border-input bg-background"
+              id="br-branch"
+              value={branchId}
+              onChange={(e) => setBranchId(e.target.value)}
+              style={selectStyle}
             >
               <option value="all">כל הסניפים</option>
-              {branchesForFilter.map((branch) => (
-                <option key={branch.id} value={branch.id}>
-                  {branch.name}
-                </option>
+              {branchesForFilter.map((b) => (
+                <option key={b.id} value={b.id}>{b.name}</option>
               ))}
             </select>
           </div>
-
-          <Button variant="ghost" size="sm" onClick={handleExport} className="gap-1 mt-auto">
-            <Download className="h-4 w-4" />
-            ייצוא
-          </Button>
         </div>
       </div>
 
-      {/* KPI row — the four headline branch figures, per the dashboard spec */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <Card className="rounded-xl bg-card shadow-md border border-border/50">
-          <CardContent className="p-5">
-            <p className="text-sm text-muted-foreground">הכנסות סניפים</p>
-            <p className="text-2xl font-bold text-success">₪{branchTotals.revenue.toLocaleString('he-IL', { maximumFractionDigits: 0 })}</p>
-            <p className="text-xs text-muted-foreground mt-1">סך ההכנסות בתקופה</p>
-          </CardContent>
-        </Card>
-
-        <Card className="rounded-xl bg-card shadow-md border border-border/50">
-          <CardContent className="p-5">
-            <p className="text-sm text-muted-foreground">רווח סניפים</p>
-            <p className={`text-2xl font-bold ${branchTotals.profit >= 0 ? 'text-success' : 'text-destructive'}`}>
-              ₪{branchTotals.profit.toLocaleString('he-IL', { maximumFractionDigits: 0 })}
-            </p>
-            <p className="text-xs text-muted-foreground mt-1">
-              שיעור רווח {branchTotals.revenue > 0 ? ((branchTotals.profit / branchTotals.revenue) * 100).toFixed(1) : '0.0'}%
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card className="rounded-xl bg-card shadow-md border border-border/50">
-          <CardContent className="p-5">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">סה"כ תלמידים</p>
-                <p className="text-2xl font-bold text-success">{kpis.total_students || 0}</p>
-              </div>
-              <div className="h-10 w-10 rounded-full bg-success/10 flex items-center justify-center">
-                <Users className="h-5 w-5 text-success" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+      {/* KPI row */}
+      <div className={`${theme.grid} ${theme.g3} ${theme.mt}`}>
+        <div className={theme.kpi}>
+          <div className={theme.kpiLbl}>הכנסות סניפים</div>
+          <div className={`${theme.kpiVal} ${theme.up}`}>{formatCurrency(totals.revenue)}</div>
+          <div className={theme.kpiFoot}>סך ההכנסות בתקופה</div>
+        </div>
+        <div className={theme.kpi}>
+          <div className={theme.kpiLbl}>רווח סניפים</div>
+          <div className={`${theme.kpiVal} ${totals.profit >= 0 ? theme.up : theme.down}`}>
+            {formatCurrency(totals.profit)}
+          </div>
+          <div className={theme.kpiFoot}>שיעור רווח {formatPercent(margin, 1)}</div>
+        </div>
+        <div className={theme.kpi}>
+          <div className={theme.kpiLbl}>סה״כ תלמידים</div>
+          <div className={theme.kpiVal}>{Number(kpis.total_students ?? 0)}</div>
+          <div className={theme.kpiFoot}>{rows.length} סניפים מוצגים</div>
+        </div>
       </div>
 
-      {/* ביצועי סניפים — each branch first, comparison chart underneath */}
-      <div>
-        <h2 className="text-xl font-bold mb-1">ביצועי סניפים</h2>
-        <p className="text-sm text-muted-foreground mb-4">הכנסות, הוצאות ורווח לכל סניף</p>
-      </div>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {gridBranches.map((branch) => {
-          const financials = branchFinancials.get(branch.id);
-
-          return (
-            <div
-              key={branch.id}
-              className="card hover:shadow-lg transition-all duration-300 cursor-pointer border border-border/50"
-              onClick={() => handleCardClick(branch.id)}
-              role="button"
-              tabIndex={0}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' || e.key === ' ') {
-                  e.preventDefault();
-                  handleCardClick(branch.id);
-                }
-              }}
-            >
-              <h3 className="text-xl font-bold mb-4">{branch.name}</h3>
-              <BranchFinancialDonut
-                branchName={branch.name}
-                revenue={financials?.revenue || 0}
-                spending={financials?.spending || 0}
-                profit={financials?.profit || 0}
-                isLoading={isLoading}
+      {/* each branch */}
+      <div className={theme.mt}>
+        <h2 className={theme.cardTitle}>ביצועי סניפים</h2>
+        <p className={theme.cardSub}>הכנסות, הוצאות ורווח לכל סניף</p>
+        {rows.length > 0 ? (
+          <div className={`${theme.grid} ${theme.g3}`}>
+            {rows.map((b) => (
+              <BranchCard
+                key={b.branch_id}
+                branch={b}
+                onOpen={() => router.push(`/branches/${b.branch_id}`)}
               />
-            </div>
-          );
-        })}
+            ))}
+          </div>
+        ) : (
+          <div className={theme.card}>אין סניפים שתואמים לסינון</div>
+        )}
       </div>
-      
-      {/* Comparison across branches, drawn from the same rows as the cards */}
-      {branchRows.length > 0 && (
-        <Card className="rounded-xl bg-card shadow-md border border-border/50">
-          <CardHeader>
-            <CardTitle>השוואה בין סניפים</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="h-[320px] w-full">
+
+      {/* comparison */}
+      {rows.length > 1 ? (
+        <div className={`${theme.card} ${theme.mt}`}>
+          <h2 className={theme.cardTitle}>השוואה בין סניפים</h2>
+          <p className={theme.cardSub}>הכנסות מול רווח</p>
+          <div style={{ height: 320 }}>
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={rows} margin={{ top: 8, right: 12, left: 4, bottom: 56 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+                <XAxis
+                  dataKey="name"
+                  tick={{ fontSize: 11 }}
+                  interval={0}
+                  angle={-20}
+                  textAnchor="end"
+                  height={64}
+                />
+                <YAxis tick={{ fontSize: 11 }} width={72} />
+                <Tooltip formatter={(v: any) => formatCurrency(Number(v))} />
+                <Legend />
+                <Bar dataKey="revenue" name="הכנסות" fill="hsl(var(--success))" radius={[6, 6, 0, 0]} />
+                <Bar dataKey="profit" name="רווח" fill="hsl(var(--primary))" radius={[6, 6, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      ) : null}
+
+      {/* discounts */}
+      {discountBreakdown.length > 0 ? (
+        <div className={`${theme.card} ${theme.mt}`}>
+          <h2 className={theme.cardTitle}>פילוח הנחות שניתנו</h2>
+          <p className={theme.cardSub}>לפי סוג הנחה</p>
+          <div className={`${theme.grid} ${theme.g2}`}>
+            <div style={{ height: 260 }}>
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={branchRows} margin={{ top: 8, right: 8, left: 8, bottom: 8 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
-                  <XAxis
-                    dataKey="name"
-                    tick={{ fontSize: 11 }}
-                    interval={0}
-                    height={64}
-                    angle={-20}
-                    textAnchor="end"
-                  />
-                  <YAxis tick={{ fontSize: 11 }} width={70} />
-                  <Tooltip
-                    formatter={(v: any) => `₪${Number(v).toLocaleString('he-IL', { maximumFractionDigits: 0 })}`}
-                  />
-                  <Legend />
-                  <Bar dataKey="revenue" name="הכנסות" fill="hsl(var(--success))" radius={[6, 6, 0, 0]} />
-                  <Bar dataKey="profit" name="רווח" fill="hsl(var(--primary))" radius={[6, 6, 0, 0]} />
-                </BarChart>
+                <PieChart>
+                  <Pie
+                    data={discountBreakdown}
+                    dataKey="amount"
+                    nameKey="type"
+                    innerRadius={60}
+                    outerRadius={95}
+                    paddingAngle={2}
+                  >
+                    {discountBreakdown.map((_, i) => (
+                      <Cell key={i} fill={DISCOUNT_COLORS[i % DISCOUNT_COLORS.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip formatter={(v: any) => formatCurrency(Number(v))} />
+                </PieChart>
               </ResponsiveContainer>
             </div>
-          </CardContent>
-        </Card>
-      )}
-
-      <BranchesSummaryBar
-        totalProfit={kpis.total_profit || 0}
-        totalExpenses={sumTotalExpenses(branchList)}
-        totalIncome={sumTotalIncome(branchList)}
-        isLoading={isLoading}
-      />
-
-      {/* Discount Breakdown Chart */}
-      {discountBreakdown.length > 0 && (
-        <Card className="rounded-xl bg-card shadow-md border border-border/50">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Tags className="h-5 w-5 text-purple-500" />
-              פילוח הנחות שניתנו
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* Pie Chart */}
-              <div className="h-80">
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={discountBreakdown}
-                      dataKey="amount"
-                      nameKey="type"
-                      cx="50%"
-                      cy="50%"
-                      outerRadius={100}
-                      label={(props: any) => `${props.type}: ₪${props.amount.toLocaleString()}`}
-                      labelLine={{ stroke: 'hsl(var(--foreground))', strokeWidth: 1 }}
-                    >
-                      {discountBreakdown.map((entry: any, index: number) => (
-                        <Cell key={`cell-${index}`} fill={DISCOUNT_COLORS[index % DISCOUNT_COLORS.length]} />
-                      ))}
-                    </Pie>
-                    <Tooltip
-                      contentStyle={{
-                        backgroundColor: "hsl(var(--card))",
-                        border: "2px solid hsl(var(--border))",
-                        borderRadius: "12px",
-                        direction: "rtl",
+            <div>
+              {discountBreakdown.map((d: any, i: number) => (
+                <div
+                  className={theme.hbar}
+                  key={d.type}
+                  style={i === discountBreakdown.length - 1 ? { marginBottom: 0 } : undefined}
+                >
+                  <div className={theme.hbarName}>{d.type}</div>
+                  <div className={theme.hbarNum}>
+                    {formatCurrency(d.amount)} · {d.count}
+                  </div>
+                  <div className={theme.track}>
+                    <div
+                      className={theme.fill}
+                      style={{
+                        width: `${
+                          (Number(d.amount) /
+                            Math.max(...discountBreakdown.map((x: any) => Number(x.amount) || 1))) *
+                          100
+                        }%`,
                       }}
-                      formatter={(value: any) => [`₪${value.toLocaleString()}`, 'סכום']}
                     />
-                  </PieChart>
-                </ResponsiveContainer>
-              </div>
-
-              {/* Legend with totals */}
-              <div className="space-y-3">
-                <h3 className="font-semibold text-lg mb-4">סיכום הנחות</h3>
-                {discountBreakdown.map((item: any, index: number) => (
-                  <div key={item.type} className="flex items-center justify-between p-3 bg-muted/30 rounded-lg">
-                    <div className="flex items-center gap-3">
-                      <div
-                        className="w-4 h-4 rounded"
-                        style={{ backgroundColor: DISCOUNT_COLORS[index % DISCOUNT_COLORS.length] }}
-                      />
-                      <div className="flex flex-col">
-                        <span className="font-medium">{item.type}</span>
-                        <span className="text-xs text-muted-foreground">
-                          {item.count || 0} {item.count === 1 ? 'הנחה' : 'הנחות'}
-                        </span>
-                      </div>
-                    </div>
-                    <span className="font-bold text-lg">₪{item.amount.toLocaleString()}</span>
                   </div>
-                ))}
-                <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg border-2 border-border mt-4">
-                  <div className="flex flex-col">
-                    <span className="font-bold text-foreground">סה״כ הנחות</span>
-                    <span className="text-xs text-muted-foreground">
-                      {discountBreakdown.reduce((sum: number, d: any) => sum + (d.count || 0), 0)} הנחות בסך הכל
-                    </span>
-                  </div>
-                  <span className="font-bold text-xl text-foreground">
-                    ₪{discountBreakdown.reduce((sum: number, d: any) => sum + d.amount, 0).toLocaleString()}
-                  </span>
                 </div>
-              </div>
+              ))}
             </div>
-          </CardContent>
-        </Card>
-      )}
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
 
+const selectStyle: React.CSSProperties = {
+  display: 'block',
+  marginTop: 6,
+  width: '100%',
+  padding: '8px 10px',
+  borderRadius: 10,
+  border: '1px solid hsl(var(--border))',
+  background: 'hsl(var(--card))',
+  font: 'inherit',
+  fontWeight: 700,
+};
+
+/** One branch: its profit ring, then revenue / cost / students underneath. */
+function BranchCard({ branch, onOpen }: { branch: any; onOpen: () => void }) {
+  const revenue = Number(branch.revenue ?? 0);
+  const spending = Number(branch.spending ?? 0);
+  const profit = Number(branch.profit ?? 0);
+  const margin = revenue > 0 ? Math.round((profit / revenue) * 100) : 0;
+
+  // Ring shows the share of revenue kept as profit; nothing to show without revenue.
+  const pct = revenue > 0 ? Math.max(0, Math.min(100, margin)) : 0;
+  const R = 38;
+  const C = 2 * Math.PI * R;
+  const dash = (C * pct) / 100;
+  const ringColor =
+    profit <= 0 ? 'hsl(var(--destructive))' : margin >= 33 ? 'hsl(var(--success))' : 'hsl(var(--warning))';
+
+  return (
+    <div
+      className={theme.card}
+      role="button"
+      tabIndex={0}
+      onClick={onOpen}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          onOpen();
+        }
+      }}
+      style={{ cursor: 'pointer', textAlign: 'center' }}
+    >
+      <div className={theme.cardTitle} style={{ fontSize: 14, minHeight: 38 }}>
+        {branch.name}
+      </div>
+
+      <div style={{ position: 'relative', width: 104, height: 104, margin: '10px auto' }}>
+        <svg width="104" height="104" viewBox="0 0 104 104" style={{ transform: 'rotate(-90deg)' }}>
+          <circle cx="52" cy="52" r={R} fill="none" stroke="hsl(var(--muted))" strokeWidth="13" />
+          {revenue > 0 ? (
+            <circle
+              cx="52"
+              cy="52"
+              r={R}
+              fill="none"
+              stroke={ringColor}
+              strokeWidth="13"
+              strokeLinecap="round"
+              strokeDasharray={`${dash.toFixed(1)} ${C.toFixed(1)}`}
+            />
+          ) : null}
+        </svg>
+        <div
+          style={{
+            position: 'absolute',
+            inset: 0,
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          {revenue > 0 ? (
+            <>
+              <b style={{ fontSize: 16, fontWeight: 900 }}>{formatCurrency(profit)}</b>
+              <span style={{ fontSize: 10, color: 'var(--kg-muted)', fontWeight: 700 }}>רווח</span>
+              <i style={{ fontStyle: 'normal', fontSize: 11, fontWeight: 900, color: ringColor }}>
+                {margin}%
+              </i>
+            </>
+          ) : (
+            <b style={{ fontSize: 13, color: 'var(--kg-muted)' }}>ללא פעילות</b>
+          )}
+        </div>
+      </div>
+
+      <div className={theme.counts} style={{ marginTop: 0, boxShadow: 'none', padding: '10px 0' }}>
+        <div>
+          <b style={{ fontSize: 14 }} className={theme.up}>{formatCurrency(revenue)}</b>
+          <span>הכנסות</span>
+        </div>
+        <div>
+          <b style={{ fontSize: 14 }} className={theme.down}>{formatCurrency(spending)}</b>
+          <span>הוצאות</span>
+        </div>
+        <div>
+          <b style={{ fontSize: 14 }}>{Number(branch.students ?? 0)}</b>
+          <span>תלמידים</span>
+        </div>
+      </div>
     </div>
   );
 }
