@@ -431,6 +431,11 @@
     padding: 12px 16px 10px;
   }
 
+  .instructorBoxWithPhoto .instructorAvatarPhoto {
+    width: clamp(145px, 43vw, 180px);
+    height: clamp(145px, 43vw, 180px);
+  }
+
   .title {
     font-size: 1.4rem;
   }
