@@ -198,11 +198,12 @@
    more room, since it is the one thing on the card a parent recognises. */
 .instructorAvatarPhoto {
   position: relative;
-  /* The files carry transparent margins of their own, so the figure inside is
-     always smaller than the box it is given — the box has to be generous for
-     the face to read at arm's length. */
-  width: clamp(190px, 58vw, 240px);
-  height: clamp(190px, 58vw, 240px);
+  /* The files carry transparent margins of their own, so the figure inside always
+     renders smaller than the box holding it — the box has to be generous for the
+     face to read at arm's length. */
+  width: clamp(150px, 46vw, 190px);
+  height: clamp(150px, 46vw, 190px);
+  flex: none;
   align-self: center;
   overflow: visible;
   border-radius: 0;
@@ -260,6 +261,7 @@
 .instructorInfo {
   display: flex;
   flex: 1;
+  min-width: 0;
   flex-direction: column;
   gap: 2px;
   direction: rtl;
@@ -632,7 +634,10 @@
     margin-bottom: 6px;
   }
 
-  .instructorAvatar {
+  /* Only the placeholder shrinks on a short screen. Left unscoped this also
+     caught a real photo, and being later in the file it won — which is why the
+     face stayed small however generously it was sized. */
+  .instructorAvatar:not(.instructorAvatarPhoto) {
     width: 60px;
     height: 60px;
   }
@@ -648,31 +653,5 @@
   .enrollButton,
   .trialButton {
     padding: 9px 12px;
-  }
-}
-
-
-/* On a phone the row stacks, so the photo has the card's whole width instead of
-   whatever is left after the name. Sharing the row is what kept it small. */
-@media (max-width: 640px) {
-  .instructorBoxWithPhoto {
-    flex-direction: column;
-    gap: 4px;
-    padding-block: 8px;
-    padding-inline: 12px;
-  }
-
-  .instructorBoxWithPhoto .instructorAvatarPhoto {
-    width: min(72vw, 300px);
-    height: min(72vw, 300px);
-  }
-
-  .instructorBoxWithPhoto .instructorDivider {
-    display: none;
-  }
-
-  .instructorBoxWithPhoto .instructorInfo {
-    align-items: center;
-    text-align: center;
   }
 }
