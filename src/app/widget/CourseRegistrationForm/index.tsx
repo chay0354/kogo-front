@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { ChevronDown, ChevronRight, FileText } from 'lucide-react';
 import api from '@/lib/api';
 import SignatureCanvas from '../SignatureCanvas';
 import styles from './index.module.css';
@@ -171,10 +172,13 @@ export default function CourseRegistrationForm({
   const [healthConsent, setHealthConsent] = useState(false);
   const [termsConsent, setTermsConsent] = useState(false);
   const [termsReadComplete, setTermsReadComplete] = useState(false);
+  const [termsOpenedOnce, setTermsOpenedOnce] = useState(false);
   const [termsScrolledToEnd, setTermsScrolledToEnd] = useState(false);
+  const [termsCanJumpToEnd, setTermsCanJumpToEnd] = useState(false);
   const [signature, setSignature] = useState<string | null>(null);
   const [consentErrors, setConsentErrors] = useState<Partial<Record<ConsentFieldKey, string>>>({});
-  const termsBodyRef = useRef<HTMLDivElement>(null);
+  const termsBodyRef = useRef<HTMLDivElement | null>(null);
+  const termsResizeRef = useRef<ResizeObserver | null>(null);
 
   // Payment step
   const [paymentData, setPaymentData] = useState<PaymentResponse | null>(null);
@@ -273,30 +277,56 @@ export default function CourseRegistrationForm({
   const updateTermsScrollState = useCallback(() => {
     const el = termsBodyRef.current;
     if (!el) return;
+    const scrollable = el.scrollHeight > el.clientHeight + 1;
     const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 24;
     if (atBottom) setTermsScrolledToEnd(true);
+    setTermsCanJumpToEnd(scrollable && !atBottom);
   }, []);
+
+  /**
+   * Measured through a callback ref so the document is sized the moment it
+   * mounts, and watched afterwards because its real height only lands once the
+   * fonts and markup have settled.
+   */
+  const attachTermsBody = useCallback((el: HTMLDivElement | null) => {
+    termsResizeRef.current?.disconnect();
+    termsResizeRef.current = null;
+    termsBodyRef.current = el;
+    if (!el) return;
+    updateTermsScrollState();
+    if (typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(() => updateTermsScrollState());
+    observer.observe(el);
+    if (el.firstElementChild) observer.observe(el.firstElementChild);
+    termsResizeRef.current = observer;
+  }, [updateTermsScrollState]);
 
   useEffect(() => {
     if (!showTerms || loadingTerms) return;
-    const frame = requestAnimationFrame(() => {
-      updateTermsScrollState();
-      const el = termsBodyRef.current;
-      if (!el) return;
-      if (el.scrollHeight <= el.clientHeight + 1) {
-        setTermsScrolledToEnd(true);
-      } else if (!termsReadComplete) {
-        setTermsScrolledToEnd(false);
-      }
-    });
-    return () => cancelAnimationFrame(frame);
+    const el = termsBodyRef.current;
+    if (!el) return;
+    updateTermsScrollState();
+    if (el.scrollHeight <= el.clientHeight + 1) {
+      setTermsScrolledToEnd(true);
+    } else if (!termsReadComplete) {
+      setTermsScrolledToEnd(false);
+    }
   }, [showTerms, loadingTerms, termsContent, termsReadComplete, updateTermsScrollState]);
 
   const openTermsModal = () => {
     setShowTerms(true);
+    setTermsOpenedOnce(true);
     if (!termsReadComplete) {
       setTermsScrolledToEnd(false);
     }
+  };
+
+  /** Long documents on a phone are a lot of thumb work — offer the shortcut. */
+  const jumpToTermsEnd = () => {
+    const el = termsBodyRef.current;
+    if (!el) return;
+    const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    el.scrollTo({ top: el.scrollHeight, behavior: reduced ? 'auto' : 'smooth' });
   };
 
   const confirmTermsRead = () => {
@@ -685,9 +715,28 @@ export default function CourseRegistrationForm({
       return;
     }
 
-    setDiscountQueue([]);
-    setDiscountQueueIndex(0);
+    // The queue stays put — it is the step back out of the consents screen.
     setStep('consents');
+  };
+
+  /**
+   * One step back through the flow the parent actually walked. The step before
+   * the first one is the expanded course card, which the page reopens for us.
+   */
+  const goBackOneStep = () => {
+    if (step === 'consents' || step === 'error') {
+      setStep(discountQueue.length > 0 ? 'discount_confirm' : 'details');
+      return;
+    }
+    if (step === 'discount_confirm') {
+      if (discountQueueIndex > 0) {
+        setDiscountQueueIndex((index) => index - 1);
+        return;
+      }
+      setStep('details');
+      return;
+    }
+    onBack();
   };
 
   const handleFinalSubmit = async (e: React.FormEvent) => {
@@ -906,10 +955,12 @@ export default function CourseRegistrationForm({
     <div className={styles.header}>
       <button
         type="button"
-        onClick={step === 'consents' || step === 'discount_confirm' ? () => setStep('details') : onBack}
-        className={styles.backLink}
+        onClick={goBackOneStep}
+        className={styles.backButton}
+        aria-label="חזרה לשלב הקודם"
       >
-        ← חזרה
+        <ChevronRight size={16} aria-hidden="true" />
+        חזרה
       </button>
       <h3 className={styles.title}>{isTrial ? `הרשמה לשיעור ניסיון: ${courseName}` : `הרשמה לחוג: ${courseName}`}</h3>
     </div>
@@ -1313,6 +1364,24 @@ export default function CourseRegistrationForm({
           <p className={styles.fieldError}>{consentErrors.health}</p>
         ) : null}
 
+        <div className={`${styles.termsGate}${termsReadComplete ? ` ${styles.termsGateDone}` : ''}`}>
+          <div className={styles.termsGateHead}>
+            <span className={styles.termsGateMark} aria-hidden="true">{termsReadComplete ? '✓' : '1'}</span>
+            <span className={styles.termsGateTitle}>קריאת התקנון והנהלים</span>
+          </div>
+          <button type="button" className={styles.termsOpenButton} onClick={openTermsModal}>
+            <FileText size={18} aria-hidden="true" />
+            {termsReadComplete ? 'פתחו שוב את התקנון' : 'פתחו את התקנון והנהלים'}
+          </button>
+          <p className={styles.termsGateNote}>
+            {termsReadComplete
+              ? 'קראתם את התקנון — אפשר לאשר ולחתום'
+              : termsOpenedOnce
+                ? 'גללו עד סוף התקנון ואשרו כדי להמשיך'
+                : 'האישור והחתימה ייפתחו אחרי קריאת התקנון'}
+          </p>
+        </div>
+
         <div className={styles.termsConsentBlock}>
           <label className={`${styles.consentLabel} ${!termsReadComplete ? styles.consentLabelDisabled : ''}`}>
             <input type="checkbox" checked={termsConsent}
@@ -1331,7 +1400,7 @@ export default function CourseRegistrationForm({
             </span>
           </label>
           {!termsReadComplete ? (
-            <p className={styles.helperText}>יש לפתוח את התקנון ולגלול עד הסוף לפני האישור</p>
+            <p className={styles.lockedNote}>האישור ייפתח אחרי קריאת התקנון</p>
           ) : null}
           {consentErrors.terms ? (
             <p className={styles.fieldError}>{consentErrors.terms}</p>
@@ -1340,10 +1409,18 @@ export default function CourseRegistrationForm({
 
         <div className={`${styles.signatureWrapper}${consentErrors.signature ? ` ${styles.signatureInvalid}` : ''}`}>
           <label className={styles.label}>חתימה *</label>
-          <SignatureCanvas onChange={(value) => {
-            setSignature(value);
-            if (value) clearConsentError('signature');
-          }} />
+          <div
+            className={`${styles.signatureArea}${!termsReadComplete ? ` ${styles.signatureAreaLocked}` : ''}`}
+            aria-disabled={!termsReadComplete}
+          >
+            <SignatureCanvas onChange={(value) => {
+              setSignature(value);
+              if (value) clearConsentError('signature');
+            }} />
+          </div>
+          {!termsReadComplete ? (
+            <p className={styles.lockedNote}>החתימה תיפתח אחרי קריאת התקנון</p>
+          ) : null}
           {consentErrors.signature ? (
             <p className={styles.fieldError}>{consentErrors.signature}</p>
           ) : null}
@@ -1356,18 +1433,33 @@ export default function CourseRegistrationForm({
                 <span className={styles.termsModalTitle}>תקנון ונהלים</span>
                 <button type="button" className={styles.termsClose} onClick={() => setShowTerms(false)}>✕</button>
               </div>
-              <div
-                ref={termsBodyRef}
-                className={styles.termsBody}
-                onScroll={updateTermsScrollState}
-              >
-                {loadingTerms ? (
-                  <p>טוען תקנון...</p>
-                ) : termsContent ? (
-                  <div dangerouslySetInnerHTML={{ __html: termsContent }} />
-                ) : (
-                  <p>לא ניתן לטעון את התקנון. נסו שוב מאוחר יותר.</p>
-                )}
+              <div className={styles.termsBodyWrap}>
+                <div
+                  ref={attachTermsBody}
+                  className={styles.termsBody}
+                  onScroll={updateTermsScrollState}
+                >
+                  {loadingTerms ? (
+                    <p>טוען תקנון...</p>
+                  ) : termsContent ? (
+                    <div dangerouslySetInnerHTML={{ __html: termsContent }} />
+                  ) : (
+                    <p>לא ניתן לטעון את התקנון. נסו שוב מאוחר יותר.</p>
+                  )}
+                </div>
+                {termsCanJumpToEnd ? (
+                  <>
+                    <span className={styles.termsJumpFade} aria-hidden="true" />
+                    <button
+                      type="button"
+                      className={styles.termsJumpButton}
+                      onClick={jumpToTermsEnd}
+                      aria-label="דילוג לסוף התקנון"
+                    >
+                      <ChevronDown size={18} aria-hidden="true" />
+                    </button>
+                  </>
+                ) : null}
               </div>
               <div className={styles.termsFooter}>
                 {!termsScrolledToEnd && !loadingTerms && termsContent ? (
@@ -1560,7 +1652,7 @@ export default function CourseRegistrationForm({
           >
             בדקו שוב
           </button>
-          <button type="button" onClick={onBack} className={styles.outlineButton}>
+          <button type="button" onClick={onComplete} className={styles.outlineButton}>
             סגור
           </button>
         </div>
@@ -1582,7 +1674,7 @@ export default function CourseRegistrationForm({
           >
             נסה שנית
           </button>
-          <button type="button" onClick={onBack} className={styles.outlineButton}>
+          <button type="button" onClick={onComplete} className={styles.outlineButton}>
             סגור
           </button>
         </div>

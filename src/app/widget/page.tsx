@@ -21,6 +21,15 @@ const MAX_PANEL_HEIGHT = 240;
 const MIN_PANEL_HEIGHT = 132;
 const PANEL_GAP = 8;
 
+/** Exit durations — keep in step with the closing animations in page.module.css. */
+const DETAIL_EXIT_MS = 280;
+const DRAWER_EXIT_MS = 200;
+
+function prefersReducedMotion() {
+  return typeof window !== 'undefined'
+    && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true;
+}
+
 function panelHeightForOptions(optionCount: number) {
   return Math.min(MAX_PANEL_HEIGHT, Math.max(optionCount, 1) * OPTION_HEIGHT + 8);
 }
@@ -150,6 +159,14 @@ function WidgetPortal({ children }: { children: React.ReactNode }) {
 }
 
 const WIDGET_SUPPORT_PHONE = '0509424755';
+
+/** The expanded card a registration was started from — the drawer steps back to it. */
+type DrawerOrigin = {
+  course: Course;
+  bundle: CourseBundle | null;
+  lesson: CourseLesson | null;
+  priceOption: CourseLessonPriceOption | null;
+};
 
 function NoMatchingCoursesMessage() {
   return (
@@ -345,9 +362,68 @@ export default function WidgetPage() {
   const [drawerLesson, setDrawerLesson] = useState<CourseLesson | null>(null);
   const [drawerPriceOption, setDrawerPriceOption] = useState<CourseLessonPriceOption | null>(null);
   const [drawerIsTrial, setDrawerIsTrial] = useState(false);
+  const [drawerOrigin, setDrawerOrigin] = useState<DrawerOrigin | null>(null);
+  const [detailClosing, setDetailClosing] = useState(false);
+  const [drawerClosing, setDrawerClosing] = useState(false);
   const [savedParent, setSavedParent] = useState<SavedParentDetails | null>(null);
   const [addingAnotherChild, setAddingAnotherChild] = useState(false);
   const pageRef = useRef<HTMLDivElement>(null);
+  const detailExitRef = useRef<number | null>(null);
+  const drawerExitRef = useRef<number | null>(null);
+
+  const clearDetail = () => {
+    setDetailCourse(null);
+    setDetailBundle(null);
+    setDetailLesson(null);
+    setDetailPriceOption(null);
+  };
+
+  /**
+   * An overlay leaves the DOM only once its exit animation has played — dropping
+   * the state on the click is what made it blink out. Reduced motion has no
+   * animation to wait for, so it unmounts straight away.
+   */
+  const closeDetail = () => {
+    if (prefersReducedMotion()) {
+      clearDetail();
+      return;
+    }
+    setDetailClosing(true);
+    detailExitRef.current = window.setTimeout(() => {
+      setDetailClosing(false);
+      clearDetail();
+    }, DETAIL_EXIT_MS);
+  };
+
+  const dismissDrawer = (origin: DrawerOrigin | null) => {
+    const finish = () => {
+      setDrawerCourse(null);
+      setDrawerBundle(null);
+      setDrawerLesson(null);
+      setDrawerPriceOption(null);
+      setDrawerIsTrial(false);
+      setDrawerOrigin(null);
+      if (!origin) return;
+      setDetailCourse(origin.course);
+      setDetailBundle(origin.bundle);
+      setDetailLesson(origin.lesson);
+      setDetailPriceOption(origin.priceOption);
+    };
+    if (prefersReducedMotion()) {
+      finish();
+      return;
+    }
+    setDrawerClosing(true);
+    drawerExitRef.current = window.setTimeout(() => {
+      setDrawerClosing(false);
+      finish();
+    }, DRAWER_EXIT_MS);
+  };
+
+  useEffect(() => () => {
+    if (detailExitRef.current) window.clearTimeout(detailExitRef.current);
+    if (drawerExitRef.current) window.clearTimeout(drawerExitRef.current);
+  }, []);
 
   const toggleDetail = (
     course: Course,
@@ -360,10 +436,14 @@ export default function WidgetPage() {
       detailBundle?.id === bundle?.id &&
       detailLesson?.id === lesson?.id &&
       detailPriceOption?.id === priceOption?.id;
-    setDetailCourse(isSame ? null : course);
-    setDetailBundle(isSame ? null : (bundle ?? null));
-    setDetailLesson(isSame ? null : (lesson ?? null));
-    setDetailPriceOption(isSame ? null : (priceOption ?? null));
+    if (isSame) {
+      closeDetail();
+      return;
+    }
+    setDetailCourse(course);
+    setDetailBundle(bundle ?? null);
+    setDetailLesson(lesson ?? null);
+    setDetailPriceOption(priceOption ?? null);
   };
 
   const detailBundleForLesson = detailCourse && detailLesson
@@ -540,10 +620,7 @@ export default function WidgetPage() {
     const externalLink = detailCourse?.external_link || branch?.external_link;
     if (branch?.is_external && externalLink) {
       window.open(normalizeExternalLink(externalLink), '_blank', 'noopener,noreferrer');
-      setDetailCourse(null);
-      setDetailBundle(null);
-      setDetailLesson(null);
-      setDetailPriceOption(null);
+      closeDetail();
       return;
     }
     setDrawerCourse(detailCourse);
@@ -551,10 +628,18 @@ export default function WidgetPage() {
     setDrawerLesson(detailLesson);
     setDrawerPriceOption(detailPriceOption);
     setDrawerIsTrial(isTrial);
-    setDetailCourse(null);
-    setDetailBundle(null);
-    setDetailLesson(null);
-    setDetailPriceOption(null);
+    // Remember the card as the parent left it, so back reopens the same one.
+    setDrawerOrigin(
+      detailCourse
+        ? {
+          course: detailCourse,
+          bundle: detailBundle,
+          lesson: detailLesson,
+          priceOption: detailPriceOption,
+        }
+        : null,
+    );
+    clearDetail();
   };
 
   const handleTrialEnrollClick = () => handleEnrollClick(true);
@@ -583,13 +668,10 @@ export default function WidgetPage() {
     setDetailPriceOption(null);
   };
 
-  const closeDrawer = () => {
-    setDrawerCourse(null);
-    setDrawerBundle(null);
-    setDrawerLesson(null);
-    setDrawerPriceOption(null);
-    setDrawerIsTrial(false);
-  };
+  const closeDrawer = () => dismissDrawer(null);
+
+  /** Back out of the first drawer step — the expanded card is the step before it. */
+  const backToCourseDetail = () => dismissDrawer(drawerOrigin);
 
   const finishFamilyRegistration = () => {
     closeDrawer();
@@ -690,8 +772,8 @@ export default function WidgetPage() {
       {/* Course detail overlay — portaled so mobile fixed layout stays viewport-aligned */}
       {detailCourse && (
         <WidgetPortal>
-          <div className={styles.detailOverlay} onClick={() => { setDetailCourse(null); setDetailBundle(null); setDetailLesson(null); setDetailPriceOption(null); }} />
-          <div className={styles.detailPanel}>
+          <div className={`${styles.detailOverlay}${detailClosing ? ` ${styles.detailOverlayClosing}` : ''}`} onClick={closeDetail} />
+          <div className={`${styles.detailPanel}${detailClosing ? ` ${styles.detailPanelClosing}` : ''}`}>
             <CourseExpandedDetail
               course={detailCourse}
               lesson={detailLesson ?? undefined}
@@ -705,7 +787,7 @@ export default function WidgetPage() {
                 allBranches.find((b) => b.id === selectedBranch)?.name
                   ?? detailCourse.branch_name,
               )}
-              onClose={() => { setDetailCourse(null); setDetailBundle(null); setDetailLesson(null); setDetailPriceOption(null); }}
+              onClose={closeDetail}
               onEnroll={() => handleEnrollClick(false)}
               onBundleEnroll={detailBundleForLesson ? handleBundleEnrollClick : undefined}
               onTrialEnroll={handleTrialEnrollClick}
@@ -717,8 +799,8 @@ export default function WidgetPage() {
       {/* Enrollment side drawer */}
       {drawerCourse && (
         <WidgetPortal>
-          <div className={styles.drawerOverlay} onClick={closeDrawer} />
-          <div className={styles.drawerPanel}>
+          <div className={`${styles.drawerOverlay}${drawerClosing ? ` ${styles.drawerOverlayClosing}` : ''}`} onClick={closeDrawer} />
+          <div className={`${styles.drawerPanel}${drawerClosing ? ` ${styles.drawerPanelClosing}` : ''}`}>
             {allBranches.find((b) => b.id === selectedBranch)?.is_external ? (
               <div className={styles.externalBranchMessage}>
                 {(() => {
@@ -757,7 +839,7 @@ export default function WidgetPage() {
                 }
                 catalogDefaultFilters={catalogDefaultFilters}
                 initialParent={addingAnotherChild ? savedParent : null}
-                onBack={closeDrawer}
+                onBack={backToCourseDetail}
                 onComplete={finishFamilyRegistration}
                 onRegisterAnother={handleRegisterAnother}
               />

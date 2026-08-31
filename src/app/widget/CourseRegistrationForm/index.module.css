@@ -83,12 +83,25 @@
 .header {
   @apply flex items-center gap-3 mb-4;
 }
-.backLink {
-  @apply text-sm underline;
+.backButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+  height: 36px;
+  padding-inline: 10px 14px;
+  border-radius: 999px;
+  border: 1.5px solid rgba(43, 48, 144, 0.35);
+  background: #fff;
   color: #2B3090;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
 }
-.backLink:hover {
-  color: #1e2570;
+.backButton:hover {
+  background: #eef0fb;
+  border-color: #2B3090;
 }
 .title {
   @apply text-base font-semibold;
@@ -272,8 +285,112 @@
   @apply mt-0.5;
   accent-color: #2B3090;
 }
+
+/* Reading the terms is the gate for everything under it — say so out loud. */
+.termsGate {
+  border: 2px solid #2B3090;
+  border-radius: 16px;
+  background: #FBF7EC;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  text-align: right;
+}
+.termsGateDone {
+  border-color: rgba(43, 48, 144, 0.25);
+  background: #F3F5FD;
+}
+.termsGateHead {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.termsGateMark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  border-radius: 999px;
+  background: #F5C518;
+  color: #2B3090;
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1;
+}
+.termsGateDone .termsGateMark {
+  background: #2B3090;
+  color: #F5C518;
+}
+.termsGateTitle {
+  font-size: 15px;
+  font-weight: 700;
+  color: #2B3090;
+}
+.termsOpenButton {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 48px;
+  padding: 0 16px;
+  border: none;
+  border-radius: 12px;
+  background: #2B3090;
+  color: #fff;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.termsOpenButton:hover {
+  background: #1e2570;
+}
+.termsGateDone .termsOpenButton {
+  border: 2px solid #2B3090;
+  background: #fff;
+  color: #2B3090;
+}
+.termsGateDone .termsOpenButton:hover {
+  background: #eef0fb;
+}
+.termsGateNote {
+  margin: 0;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #2B3090;
+  line-height: 1.4;
+}
+.lockedNote {
+  margin: 0;
+  font-size: 12px;
+  color: #6b7280;
+  text-align: right;
+  line-height: 1.4;
+}
+
 .signatureWrapper {
   @apply w-full;
+}
+.signatureArea {
+  border-radius: 10px;
+}
+.signatureAreaLocked {
+  position: relative;
+  pointer-events: none;
+  user-select: none;
+}
+
+/* An empty canvas dimmed alone still looks writable — cover it so it reads shut. */
+.signatureAreaLocked::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 10px;
+  border: 1.5px dashed rgba(43, 48, 144, 0.35);
+  background: rgba(43, 48, 144, 0.07);
 }
 .signatureInvalid :global(canvas) {
   border-color: #dc2626;
@@ -540,14 +657,52 @@
   margin-top: 12px;
   text-align: center;
 }
+.termsBodyWrap {
+  position: relative;
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
 .termsBody {
   padding: 20px;
   overflow-y: auto;
   flex: 1;
+  min-height: 0;
   direction: rtl;
   font-size: 14px;
   color: #333;
   line-height: 1.7;
+}
+
+/* The shortcut sits over the last lines, so fade them out under it. */
+.termsJumpFade {
+  position: absolute;
+  inset-inline: 0;
+  inset-block-end: 0;
+  height: 72px;
+  background: linear-gradient(to top, #fff 30%, rgba(255, 255, 255, 0));
+  pointer-events: none;
+}
+.termsJumpButton {
+  position: absolute;
+  inset-inline: 0;
+  inset-block-end: 12px;
+  width: 40px;
+  height: 40px;
+  margin-inline: auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1.5px solid #2B3090;
+  border-radius: 999px;
+  background: #fff;
+  color: #2B3090;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(43, 48, 144, 0.22);
+}
+.termsJumpButton:hover {
+  background: #2B3090;
+  color: #F5C518;
 }
 .termsBody :global(.terms-badge) {
   display: block;

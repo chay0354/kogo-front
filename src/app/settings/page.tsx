@@ -19,6 +19,7 @@ import {
 import { useAuth } from '@/components/AuthProvider';
 import LinkedUsersSection from './LinkedUsersSection';
 import InstructorLoginDiagnostics from './InstructorLoginDiagnostics';
+import IntegrationCredentials from './IntegrationCredentials';
 
 type UserRole = 'manager' | 'worker' | 'partner';
 
@@ -264,6 +265,8 @@ export default function SettingsPage() {
           </>
         )}
       </div>
+
+      {isManager && <IntegrationCredentials />}
 
       {isManager && <InstructorLoginDiagnostics />}
 

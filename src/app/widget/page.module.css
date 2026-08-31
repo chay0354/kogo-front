@@ -78,6 +78,54 @@
   }
 }
 
+/* Each exit below is the mirror of the entrance above it, so the two read as a pair. */
+
+@keyframes widgetOverlayOut {
+  from {
+    opacity: 1;
+  }
+
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes widgetModalOut {
+  from {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+
+  to {
+    opacity: 0;
+    transform: translate(-50%, calc(-50% + 18px)) scale(0.94);
+  }
+}
+
+@keyframes widgetSheetOut {
+  from {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  to {
+    opacity: 0.4;
+    transform: translateY(32%);
+  }
+}
+
+@keyframes widgetSlideOutToRight {
+  from {
+    opacity: 1;
+    transform: translateX(0);
+  }
+
+  to {
+    opacity: 0;
+    transform: translateX(100%);
+  }
+}
+
 /* FilterSelect */
 
 .filterWrapper {
@@ -428,9 +476,29 @@
   }
 }
 
+/* While it plays out the panel is on its way off screen — nothing left to press. */
+.detailOverlayClosing,
+.detailPanelClosing {
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .detailOverlay.detailOverlayClosing {
+    animation: widgetOverlayOut 280ms ease-in both;
+  }
+
+  .detailPanel.detailPanelClosing {
+    animation: widgetModalOut 280ms cubic-bezier(0.32, 0.72, 0, 1) both;
+  }
+}
+
 @media (max-width: 640px) and (prefers-reduced-motion: no-preference) {
   .detailPanel {
     animation: widgetSheetIn 460ms cubic-bezier(0.32, 0.72, 0, 1) both;
+  }
+
+  .detailPanel.detailPanelClosing {
+    animation: widgetSheetOut 280ms cubic-bezier(0.32, 0.72, 0, 1) both;
   }
 }
 
@@ -463,6 +531,11 @@
   -webkit-overflow-scrolling: touch;
 }
 
+.drawerOverlayClosing,
+.drawerPanelClosing {
+  pointer-events: none;
+}
+
 @media (prefers-reduced-motion: no-preference) {
   .drawerOverlay {
     animation: widgetFadeIn 200ms ease-out;
@@ -470,6 +543,14 @@
 
   .drawerPanel {
     animation: widgetSlideInFromRight 200ms ease-out;
+  }
+
+  .drawerOverlay.drawerOverlayClosing {
+    animation: widgetOverlayOut 200ms ease-in both;
+  }
+
+  .drawerPanel.drawerPanelClosing {
+    animation: widgetSlideOutToRight 200ms ease-in both;
   }
 }
 
