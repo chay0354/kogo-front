@@ -50,6 +50,8 @@ export interface CourseBundle {
   id: string;
   name: string;
   combined_price: number;
+  min_age?: number | null;
+  max_age?: number | null;
   lessons: CourseBundleLesson[];
   is_full?: boolean;
 }

@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { ChevronDown } from 'lucide-react';
-import { getDayName, formatTimeRange } from '@/lib/courseUtils';
+import { getDayName, formatTimeRange, isInstructorsAgeGroup, INSTRUCTORS_TRACK_TITLE } from '@/lib/courseUtils';
 import { GroupIdBadge } from '@/components/GroupIdBadge/GroupIdBadge';
 import type { Course, CourseLesson, CourseBundle, CourseLessonPriceOption } from '../types';
 import {
@@ -138,7 +138,7 @@ function TrackSection({
     <section className={styles.section} aria-label={title}>
       <div className={styles.trackHeader}>
         <h3 className={styles.trackTitle}>{title}</h3>
-        <p className={styles.trackSubtitle}>{subtitle}</p>
+        {subtitle ? <p className={styles.trackSubtitle}>{subtitle}</p> : null}
       </div>
       <div role="list" className={styles.sectionList}>
         {rows.map((row, index) => (
@@ -223,6 +223,20 @@ export function CourseList({
     });
     return !excludedSelectionKeys.has(key);
   });
+  if (isInstructorsAgeGroup(selectedAge)) {
+    if (!rows.length) return <div className={`${styles.list} ${compact ? styles.listCompact : ''}`} />;
+    return (
+      <div className={`${styles.list} ${compact ? styles.listCompact : ''}`}>
+        <TrackSection
+          title={INSTRUCTORS_TRACK_TITLE}
+          subtitle=""
+          rows={rows}
+          onSelect={onSelect}
+        />
+      </div>
+    );
+  }
+
   const groups = FREQUENCY_GROUPS
     .map((group) => ({
       title: group.title,

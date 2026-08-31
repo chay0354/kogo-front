@@ -1,4 +1,4 @@
-import { getDayName, formatTimeRange } from '@/lib/courseUtils';
+import { getDayName, formatTimeRange, isInstructorsCourse, INSTRUCTORS_TRACK_TITLE } from '@/lib/courseUtils';
 import { isCourseVisibleInWidgetCatalog } from './lessonVisibility';
 import type { Course, CourseBundle, CourseLesson } from './types';
 
@@ -80,7 +80,7 @@ export function findWidgetAlternatives(
       alternatives.push({
         course,
         bundle,
-        label: `${course.name} (${bundle.name || 'פעמיים בשבוע'}) — ${schedule}`,
+        label: `${course.name} (${bundle.name || (isInstructorsCourse(course) ? INSTRUCTORS_TRACK_TITLE : 'פעמיים בשבוע')}) — ${schedule}`,
       });
     }
   }

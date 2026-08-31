@@ -185,6 +185,23 @@ export const AGE_GROUP_LABELS = [
  */
 export const AGE_OPTIONS = AGE_GROUP_LABELS.map((_, i) => i + 1);
 
+/** 1-based age-group values for בוגרים / מדריכים in AGE_GROUP_LABELS. */
+export const ADULTS_AGE_GROUP = AGE_GROUP_LABELS.indexOf('בוגרים') + 1;
+export const INSTRUCTORS_AGE_GROUP = AGE_GROUP_LABELS.indexOf('מדריכים') + 1;
+
+export const INSTRUCTORS_TRACK_TITLE = 'מסלול מדריכים - פתוח לכל השיעורים';
+
+export function isInstructorsAgeGroup(age?: number | null): boolean {
+  return age === INSTRUCTORS_AGE_GROUP;
+}
+
+export function isInstructorsCourse(course: {
+  min_age?: number | null;
+  max_age?: number | null;
+}): boolean {
+  return course.min_age === INSTRUCTORS_AGE_GROUP && course.max_age === INSTRUCTORS_AGE_GROUP;
+}
+
 /**
  * Format age range for display (handles preschool and grades)
  */

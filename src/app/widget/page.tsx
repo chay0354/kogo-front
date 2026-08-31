@@ -11,7 +11,7 @@ import type { Branch, Course, CourseBundle, CourseLesson, CourseLessonPriceOptio
 import type { SavedParentDetails } from './CourseRegistrationForm/types';
 import { STATIC_CITIES, normalizeExternalLink, hideSeptemberStandingOrderNote } from './page.utils';
 import { isCourseVisibleInWidgetCatalog } from './lessonVisibility';
-import { AGE_OPTIONS, formatAge } from '@/lib/courseUtils';
+import { AGE_OPTIONS, formatAge, isInstructorsCourse, INSTRUCTORS_TRACK_TITLE } from '@/lib/courseUtils';
 import { findWidgetAlternatives, isWidgetSelectionFull, type WidgetAlternative } from './alternativeLessons';
 import { sortWidgetCourseTypes } from './courseTypeOrder';
 import styles from './page.module.css';
@@ -740,7 +740,7 @@ export default function WidgetPage() {
                   drawerPriceOption
                     ? drawerPriceOption.display_title
                     : drawerBundle
-                      ? `${drawerCourse.name} #${drawerCourse.display_id} (${drawerBundle.name || 'פעמיים בשבוע'})`
+                      ? `${drawerCourse.name} #${drawerCourse.display_id} (${drawerBundle.name || (isInstructorsCourse(drawerCourse) ? INSTRUCTORS_TRACK_TITLE : 'פעמיים בשבוע')})`
                       : `${drawerCourse.name} #${drawerCourse.display_id}`
                 }
                 isAdult={drawerCourse.is_adult ?? false}

@@ -1,4 +1,9 @@
-import { getDayName, formatTimeRange } from '@/lib/courseUtils';
+import {
+  getDayName,
+  formatTimeRange,
+  isInstructorsCourse,
+  INSTRUCTORS_TRACK_TITLE,
+} from '@/lib/courseUtils';
 import type { Course, CourseLesson, CourseBundle, CourseLessonPriceOption } from './types';
 import { isLessonVisibleInCatalog } from './lessonVisibility';
 
@@ -22,7 +27,18 @@ export interface EnrollmentSelection {
   displayPrice: number | null;
 }
 
-const GENERIC_BUNDLE_NAMES = new Set(['', 'מסלול משולב', 'פעמיים בשבוע', 'שלוש פעמים בשבוע']);
+const GENERIC_BUNDLE_NAMES = new Set([
+  '',
+  'מסלול משולב',
+  'פעמיים בשבוע',
+  'שלוש פעמים בשבוע',
+  INSTRUCTORS_TRACK_TITLE,
+]);
+
+function bundleDedupeKey(bundle: CourseBundle): string {
+  const lessonIds = [...bundle.lessons.map((lesson) => lesson.id)].sort().join(',');
+  return `${lessonIds}:${bundle.combined_price}`;
+}
 
 export function formatListPrice(value: number | string | null | undefined): number | null {
   if (value == null || value === '') return null;
@@ -70,6 +86,17 @@ function priceOptionMatchesAge(
   return selectedAgeMatches(course.min_age, course.max_age, selectedAge);
 }
 
+function bundleMatchesAge(
+  bundle: CourseBundle,
+  course: Course,
+  selectedAge: number | null | undefined,
+): boolean {
+  if (bundle.min_age != null || bundle.max_age != null) {
+    return selectedAgeMatches(bundle.min_age, bundle.max_age, selectedAge);
+  }
+  return selectedAgeMatches(course.min_age, course.max_age, selectedAge);
+}
+
 export function buildCatalogRows(courses: Course[], selectedAge?: number | null): CatalogRow[] {
   const rows: CatalogRow[] = [];
 
@@ -77,10 +104,12 @@ export function buildCatalogRows(courses: Course[], selectedAge?: number | null)
     const bundles = course.bundles ?? [];
     const courseAgeMatches = selectedAgeMatches(course.min_age, course.max_age, selectedAge);
 
+    const hideSingleLessons = isInstructorsCourse(course) && bundles.length > 0;
+
     if (course.lessons && course.lessons.length > 0) {
       for (const lesson of course.lessons) {
         if (!isLessonVisibleInCatalog(lesson)) continue;
-        if (courseAgeMatches) {
+        if (courseAgeMatches && !hideSingleLessons) {
           rows.push({
             course,
             lesson,
@@ -113,17 +142,20 @@ export function buildCatalogRows(courses: Course[], selectedAge?: number | null)
       });
     }
 
-    if (courseAgeMatches) {
-      for (const bundle of bundles) {
-        rows.push({
-          course,
-          lesson: null,
-          bundle,
-          priceOption: null,
-          displayTitle: bundleDisplayTitle(course, bundle),
-          displayPrice: formatListPrice(bundle.combined_price),
-        });
-      }
+    const seenBundles = new Set<string>();
+    for (const bundle of bundles) {
+      if (!bundleMatchesAge(bundle, course, selectedAge)) continue;
+      const key = bundleDedupeKey(bundle);
+      if (seenBundles.has(key)) continue;
+      seenBundles.add(key);
+      rows.push({
+        course,
+        lesson: null,
+        bundle,
+        priceOption: null,
+        displayTitle: bundleDisplayTitle(course, bundle),
+        displayPrice: formatListPrice(bundle.combined_price),
+      });
     }
   }
 
