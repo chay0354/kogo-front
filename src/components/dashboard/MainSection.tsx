@@ -10,10 +10,13 @@ import {
   fetchInstructorsData,
   fetchBranchesData,
   fetchActivityData,
+  fetchInvoicingData,
 } from '@/lib/api';
 import type { DateRange } from './GlobalDateFilter';
 import { formatCurrency, formatPercent } from './format';
 import EmptyState from './EmptyState';
+import KpiCard from './KpiCard';
+import { deriveTrends } from './trends';
 import CssBars from './charts/CssBars';
 import theme from './theme/dashboard.module.css';
 
@@ -63,6 +66,11 @@ export default function MainSection({ globalDateRange }: Props) {
     queryFn: () => fetchBranchesData(apiFilters),
   });
 
+  const invoicing = useQuery({
+    queryKey: ['dashboard-invoicing', apiFilters],
+    queryFn: () => fetchInvoicingData(apiFilters),
+  });
+
   const activity = useQuery({
     queryKey: ['dashboard-activity', apiFilters.branch_id],
     queryFn: () => fetchActivityData({ branch_id: 'all' }),
@@ -85,6 +93,9 @@ export default function MainSection({ globalDateRange }: Props) {
   const weakBranch = [...branchList]
     .filter((b) => Number(b.revenue ?? 0) > 0)
     .sort((a, b) => Number(a.profit ?? 0) - Number(b.profit ?? 0))[0];
+
+  const trends = deriveTrends(financial.data?.monthly_trends);
+  const inv = invoicing.data;
 
   const lowOccupancy = Number(crs.low_occupancy ?? 0);
   const creditProblems = Number(stu.credit_problems ?? 0);
@@ -113,34 +124,36 @@ export default function MainSection({ globalDateRange }: Props) {
         <h2 className={theme.cardTitle}>סקירה כללית</h2>
         <p className={theme.cardSub}>מבט מהיר על ביצועי העסק בתקופה שנבחרה</p>
         <div className={`${theme.grid} ${theme.g4}`}>
-          <div className={theme.kpi}>
-            <div className={theme.kpiLbl}>הכנסות</div>
-            <div className={`${theme.kpiVal} ${theme.up}`}>{formatCurrency(revenue)}</div>
-            <div className={theme.kpiFoot}>
-              {Number(fin.registration_fees_collected ?? 0) > 0
-                ? `מתוכם ${formatCurrency(fin.registration_fees_collected)} דמי רישום`
-                : 'מרישום לשיעורים'}
-            </div>
-          </div>
-          <div className={theme.kpi}>
-            <div className={theme.kpiLbl}>רווח נקי</div>
-            <div className={`${theme.kpiVal} ${profit >= 0 ? theme.up : theme.down}`}>
-              {formatCurrency(profit)}
-            </div>
-            <div className={theme.kpiFoot}>שיעור רווח {formatPercent(margin, 1)}</div>
-          </div>
-          <div className={theme.kpi}>
-            <div className={theme.kpiLbl}>תלמידים פעילים</div>
-            <div className={theme.kpiVal}>{Number(stu.active_students ?? 0)}</div>
-            <div className={theme.kpiFoot}>
-              {Number(stu.signed_for_trial ?? 0)} נרשמו לניסיון · {Number(stu.done_trial ?? 0)} ביצעו
-            </div>
-          </div>
-          <div className={theme.kpi}>
-            <div className={theme.kpiLbl}>מדריכים פעילים</div>
-            <div className={theme.kpiVal}>{Number(ins.active_instructors ?? 0)}</div>
-            <div className={theme.kpiFoot}>שכר {formatCurrency(ins.total_salary)}</div>
-          </div>
+          <KpiCard
+            label="הכנסות"
+            value={formatCurrency(revenue)}
+            tone="up"
+            delta={trends.revenueDelta}
+            series={trends.revenue}
+            foot={
+              Number(fin.registration_fees_collected ?? 0) > 0
+                ? `כולל ${formatCurrency(fin.registration_fees_collected)} דמי רישום`
+                : undefined
+            }
+          />
+          <KpiCard
+            label="רווח נקי"
+            value={formatCurrency(profit)}
+            tone={profit >= 0 ? 'up' : 'down'}
+            delta={trends.profitDelta}
+            series={trends.profit}
+            foot={`${formatPercent(margin, 1)} מרווח`}
+          />
+          <KpiCard
+            label="תלמידים פעילים"
+            value={String(Number(stu.active_students ?? 0))}
+            foot={`${Number(stu.signed_for_trial ?? 0)} בניסיון · ${Number(stu.done_trial ?? 0)} ביצעו`}
+          />
+          <KpiCard
+            label="מדריכים פעילים"
+            value={String(Number(ins.active_instructors ?? 0))}
+            foot={`שכר ${formatCurrency(ins.total_salary)}`}
+          />
         </div>
       </div>
 
@@ -172,6 +185,12 @@ export default function MainSection({ globalDateRange }: Props) {
             <b>{ghosts}</b>
             <span>תלמידי רפאים</span>
           </div>
+          {Number(inv?.documents ?? 0) > 0 ? (
+            <div>
+              <b>{formatCurrency(inv.open_balance)}</b>
+              <span>חוב פתוח</span>
+            </div>
+          ) : null}
         </div>
       </div>
 

@@ -20,6 +20,8 @@ import { useScopedBranches } from '@/hooks/useScopedBranches';
 import type { DateRange } from './GlobalDateFilter';
 import { MONTHS } from './filters/monthYearUtils';
 import { formatCurrency, formatPercent } from './format';
+import KpiCard from './KpiCard';
+import { deriveTrends } from './trends';
 import theme from './theme/dashboard.module.css';
 
 interface Props {
@@ -103,6 +105,8 @@ export default function FinancialSection({ globalDateRange }: Props) {
   const revenue = Number(kpis.total_revenue ?? 0);
   const profit = Number(kpis.net_profit ?? 0);
   const margin = revenue > 0 ? (profit / revenue) * 100 : 0;
+
+  const trends = deriveTrends(data?.monthly_trends);
 
   const monthlyTrends = useMemo(
     () =>
@@ -195,38 +199,38 @@ export default function FinancialSection({ globalDateRange }: Props) {
           {scopeLabel} · {periodLabel}
         </p>
         <div className={`${theme.grid} ${theme.g4}`}>
-          <div className={theme.kpi}>
-            <div className={theme.kpiLbl}>הכנסות</div>
-            <div className={`${theme.kpiVal} ${theme.up}`}>{formatCurrency(revenue)}</div>
-            <div className={theme.kpiFoot}>
-              {Number(kpis.registration_fees_collected ?? 0) > 0
-                ? `מתוכם ${formatCurrency(kpis.registration_fees_collected)} דמי רישום`
-                : 'מרישום לשיעורים'}
-            </div>
-          </div>
-          <div className={theme.kpi}>
-            <div className={theme.kpiLbl}>רווח נקי</div>
-            <div className={`${theme.kpiVal} ${profit >= 0 ? theme.up : theme.down}`}>
-              {formatCurrency(profit)}
-            </div>
-            <div className={theme.kpiFoot}>לתקופה שנבחרה</div>
-          </div>
-          <div className={theme.kpi}>
-            <div className={theme.kpiLbl}>שיעור רווח</div>
-            <div className={`${theme.kpiVal} ${margin >= 0 ? theme.up : theme.down}`}>
-              {revenue > 0 ? formatPercent(margin, 1) : '—'}
-            </div>
-            <div className={theme.kpiFoot}>רווח מתוך ההכנסות</div>
-          </div>
-          <div className={theme.kpi}>
-            <div className={theme.kpiLbl}>נגבה בפועל</div>
-            <div className={`${theme.kpiVal} ${theme.up}`}>
-              {hasInvoices ? formatCurrency(inv.collected) : '—'}
-            </div>
-            <div className={theme.kpiFoot}>
-              {hasInvoices ? `שיעור גבייה ${inv.collection_rate}%` : 'אין חשבוניות בתקופה'}
-            </div>
-          </div>
+          <KpiCard
+            label="הכנסות"
+            value={formatCurrency(revenue)}
+            tone="up"
+            delta={trends.revenueDelta}
+            series={trends.revenue}
+            foot={
+              Number(kpis.registration_fees_collected ?? 0) > 0
+                ? `כולל ${formatCurrency(kpis.registration_fees_collected)} דמי רישום`
+                : undefined
+            }
+          />
+          <KpiCard
+            label="רווח נקי"
+            value={formatCurrency(profit)}
+            tone={profit >= 0 ? 'up' : 'down'}
+            delta={trends.profitDelta}
+            series={trends.profit}
+          />
+          <KpiCard
+            label="שיעור רווח"
+            value={revenue > 0 ? formatPercent(margin, 1) : '—'}
+            tone={margin >= 0 ? 'up' : 'down'}
+            delta={trends.marginDelta}
+            foot="רווח מתוך ההכנסות"
+          />
+          <KpiCard
+            label="נגבה בפועל"
+            value={hasInvoices ? formatCurrency(inv.collected) : '—'}
+            tone="up"
+            foot={hasInvoices ? `שיעור גבייה ${inv.collection_rate}%` : 'אין חשבוניות בתקופה'}
+          />
         </div>
       </div>
 
@@ -320,6 +324,34 @@ export default function FinancialSection({ globalDateRange }: Props) {
           <div className={theme.kpiFoot}>לא הופקו חשבוניות בתקופה שנבחרה</div>
         )}
       </div>
+
+      {hasInvoices && (inv.by_source ?? []).length > 0 ? (
+        <div className={`${theme.card} ${theme.mt}`}>
+          <h2 className={theme.cardTitle}>פירוט הכנסות לפי מקור</h2>
+          <p className={theme.cardSub}>מתוך {formatCurrency(inv.invoiced)} שחויבו</p>
+          {[...inv.by_source]
+            .sort((a: any, b: any) => Number(b.invoiced) - Number(a.invoiced))
+            .map((row: any, i: number, arr: any[]) => {
+              const share = Number(inv.invoiced) > 0 ? (Number(row.invoiced) / Number(inv.invoiced)) * 100 : 0;
+              const max = Math.max(...arr.map((r: any) => Number(r.invoiced) || 1));
+              return (
+                <div
+                  className={theme.hbar}
+                  key={row.source}
+                  style={i === arr.length - 1 ? { marginBottom: 0 } : undefined}
+                >
+                  <div className={theme.hbarName}>{SOURCE_LABELS[row.source] ?? row.source}</div>
+                  <div className={theme.hbarNum}>
+                    {formatCurrency(row.invoiced)} · {formatPercent(share, 1)}
+                  </div>
+                  <div className={theme.track}>
+                    <div className={theme.fill} style={{ width: `${(Number(row.invoiced) / max) * 100}%` }} />
+                  </div>
+                </div>
+              );
+            })}
+        </div>
+      ) : null}
 
       {/* by branch */}
       {revenueByBranch.length > 0 ? (
