@@ -79,6 +79,22 @@ export default function BranchesSection({ globalDateRange }: Props) {
     ])
   );
 
+  // Sorted by profit so the table reads as a ranking, and the headline totals
+  // are summed from the same rows the table shows.
+  const branchRows = [...branchList].sort(
+    (a: any, b: any) => Number(b.profit ?? 0) - Number(a.profit ?? 0),
+  );
+  const branchTotals = branchList.reduce(
+    (acc: any, b: any) => {
+      const rev = Number(b.revenue ?? 0);
+      acc.revenue += rev;
+      acc.profit += Number(b.profit ?? 0);
+      if (rev > 0) acc.active += 1;
+      return acc;
+    },
+    { revenue: 0, profit: 0, active: 0 },
+  );
+
   const handleCardClick = (branchId: string) => {
     router.push(`/branches/${branchId}`);
   };
@@ -135,8 +151,39 @@ export default function BranchesSection({ globalDateRange }: Props) {
         </div>
       </div>
 
-      {/* KPI Cards - Only 1 KPI (profit total now lives in BranchesSummaryBar below) */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      {/* KPI row — the four headline branch figures, per the dashboard spec */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <Card className="rounded-xl bg-card shadow-md border border-border/50">
+          <CardContent className="p-5">
+            <p className="text-sm text-muted-foreground">סניפים פעילים</p>
+            <p className="text-2xl font-bold text-primary">
+              {branchTotals.active}
+              <span className="text-sm font-bold text-muted-foreground"> / {branchList.length}</span>
+            </p>
+            <p className="text-xs text-muted-foreground mt-1">סניפים עם פעילות בתקופה</p>
+          </CardContent>
+        </Card>
+
+        <Card className="rounded-xl bg-card shadow-md border border-border/50">
+          <CardContent className="p-5">
+            <p className="text-sm text-muted-foreground">הכנסות סניפים</p>
+            <p className="text-2xl font-bold text-success">₪{branchTotals.revenue.toLocaleString('he-IL', { maximumFractionDigits: 0 })}</p>
+            <p className="text-xs text-muted-foreground mt-1">סך ההכנסות בתקופה</p>
+          </CardContent>
+        </Card>
+
+        <Card className="rounded-xl bg-card shadow-md border border-border/50">
+          <CardContent className="p-5">
+            <p className="text-sm text-muted-foreground">רווח סניפים</p>
+            <p className={`text-2xl font-bold ${branchTotals.profit >= 0 ? 'text-success' : 'text-destructive'}`}>
+              ₪{branchTotals.profit.toLocaleString('he-IL', { maximumFractionDigits: 0 })}
+            </p>
+            <p className="text-xs text-muted-foreground mt-1">
+              שיעור רווח {branchTotals.revenue > 0 ? ((branchTotals.profit / branchTotals.revenue) * 100).toFixed(1) : '0.0'}%
+            </p>
+          </CardContent>
+        </Card>
+
         <Card className="rounded-xl bg-card shadow-md border border-border/50">
           <CardContent className="p-5">
             <div className="flex items-center justify-between">
@@ -151,6 +198,53 @@ export default function BranchesSection({ globalDateRange }: Props) {
           </CardContent>
         </Card>
       </div>
+
+      {/* Branch performance table — revenue, cost, profit and margin per branch */}
+      {branchList.length > 0 && (
+        <Card className="rounded-xl bg-card shadow-md border border-border/50">
+          <CardHeader>
+            <CardTitle>ביצועי סניפים</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-muted-foreground text-xs">
+                    <th className="text-start font-bold pb-2 px-2">סניף</th>
+                    <th className="text-end font-bold pb-2 px-2">הכנסות</th>
+                    <th className="text-end font-bold pb-2 px-2">הוצאות</th>
+                    <th className="text-end font-bold pb-2 px-2">רווח</th>
+                    <th className="text-end font-bold pb-2 px-2">שיעור רווח</th>
+                    <th className="text-end font-bold pb-2 px-2">תלמידים</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {branchRows.map((row: any, i: number) => (
+                    <tr key={row.branch_id ?? i} className="border-t border-border/60">
+                      <td className="py-3 px-2 font-bold">{row.name}</td>
+                      <td className="py-3 px-2 text-end text-success font-bold">
+                        ₪{Number(row.revenue || 0).toLocaleString('he-IL', { maximumFractionDigits: 0 })}
+                      </td>
+                      <td className="py-3 px-2 text-end text-warning font-bold">
+                        ₪{Number(row.spending || 0).toLocaleString('he-IL', { maximumFractionDigits: 0 })}
+                      </td>
+                      <td className={`py-3 px-2 text-end font-bold ${Number(row.profit || 0) >= 0 ? 'text-success' : 'text-destructive'}`}>
+                        ₪{Number(row.profit || 0).toLocaleString('he-IL', { maximumFractionDigits: 0 })}
+                      </td>
+                      <td className="py-3 px-2 text-end font-bold">
+                        {Number(row.revenue || 0) > 0
+                          ? `${((Number(row.profit || 0) / Number(row.revenue)) * 100).toFixed(1)}%`
+                          : '—'}
+                      </td>
+                      <td className="py-3 px-2 text-end font-bold">{Number(row.students || 0)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Branch Cards - same grid/card pattern as the Branches page */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

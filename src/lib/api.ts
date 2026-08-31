@@ -268,6 +268,14 @@ export const fetchBranchesData = async (filters: BranchesFilters) => {
  * Refresh current month snapshots
  * Recalculates all dashboard data for the current month and saves it
  */
+/**
+ * When the week's lessons happen: counts per weekday and per start hour.
+ */
+export const fetchActivityData = async (filters?: { branch_id?: string; city_id?: string }) => {
+  const response = await api.get('/core/dashboard/activity/', { params: filters });
+  return response.data;
+};
+
 export const refreshCurrentMonthSnapshots = async () => {
   const response = await api.post('/core/dashboard/refresh-current-month/');
   return response.data;
