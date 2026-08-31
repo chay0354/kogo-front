@@ -10,6 +10,7 @@ import { refreshCurrentMonthSnapshots } from '@/lib/api';
 import { toast } from 'sonner';
 import GlobalDateFilter, { getDefaultDateRange, type DateRange } from '@/components/dashboard/GlobalDateFilter';
 import FloatingIsland, { type DashTab } from '@/components/dashboard/nav/FloatingIsland';
+import theme from '@/components/dashboard/theme/dashboard.module.css';
 
 // Dashboard section components
 import MainSection from '@/components/dashboard/MainSection';
@@ -47,7 +48,10 @@ export default function HomePage() {
 
   return (
     <AppLayout>
-      <div dir="rtl" className="space-y-6">
+      {/* .tokens re-maps the Tailwind colour tokens to the v5 palette for the
+          dashboard subtree only — the sidebar and every other page keep the
+          original globals.css values. */}
+      <div dir="rtl" className={`space-y-6 ${theme.tokens}`}>
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <PageHeader title="לוח בקרה" description="סקירה כללית של הנתונים העסקיים" />
           <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center shrink-0">

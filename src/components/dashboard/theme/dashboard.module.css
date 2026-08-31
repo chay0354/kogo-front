@@ -434,3 +434,100 @@
     min-width: 33%;
   }
 }
+
+/* ==========================================================================
+   Tailwind token bridge
+   --------------------------------------------------------------------------
+   The five pre-existing section components style themselves with the project's
+   Tailwind colour classes (bg-card, text-success, border-border/50, ...), and
+   tailwind.config maps every one of those to hsl(var(--token)).
+
+   Re-declaring those same tokens on a wrapper therefore re-tints all of them
+   to the v5 palette without editing a single line of their JSX — no risk to
+   the data expressions, and no change to the global tokens in globals.css that
+   the other 26 pages rely on.
+
+   Values are the mockup's hex palette converted to the "H S% L%" triplet form
+   the config expects.
+   ========================================================================== */
+.tokens {
+  --background: 250 60% 96%;      /* #F1EFFB */
+  --foreground: 243 56% 28%;      /* #231F6E */
+  --card: 0 0% 100%;              /* #FFFFFF — unchanged */
+  --card-foreground: 243 56% 28%;
+  --primary: 242 61% 58%;         /* #5B54D6 */
+  --primary-foreground: 0 0% 100%;
+  --secondary: 250 55% 97%;
+  --secondary-foreground: 243 56% 28%;
+  --accent: 44 92% 63%;           /* #F7C948 */
+  --accent-foreground: 38 60% 15%;
+  --muted: 249 47% 96%;
+  --muted-foreground: 244 24% 62%; /* #8B88B6 */
+  --success: 151 83% 35%;         /* #0FA45C */
+  --warning: 40 83% 50%;          /* #E0A81F */
+  --info: 242 61% 58%;
+  --destructive: 358 75% 59%;     /* #E5484D */
+  --destructive-foreground: 0 0% 100%;
+  --border: 251 55% 94%;          /* #EAE7F8 */
+  --input: 251 55% 94%;
+  --ring: 242 61% 58%;
+  --radius: 18px;
+
+  background: hsl(var(--background));
+  color: hsl(var(--foreground));
+}
+
+/* Cards inside the bridged scope pick up the mockup's softer elevation. */
+.tokens :global(.rounded-xl) {
+  border-radius: var(--kg-r);
+}
+
+/* --------------------------------------------------------------------------
+   Card / typography feel
+
+   The sections build their cards from the shared shadcn <Card> plus Tailwind
+   utilities. Rather than rewriting their JSX, these scoped rules give those
+   same utilities the mockup's softer elevation and tighter numeric type inside
+   the dashboard only.
+   -------------------------------------------------------------------------- */
+.tokens :global(.shadow-md) {
+  box-shadow: var(--kg-sh);
+}
+
+.tokens :global(.shadow-md):hover {
+  box-shadow: 0 2px 6px rgba(43, 37, 133, 0.06), 0 10px 28px rgba(43, 37, 133, 0.09);
+}
+
+/* Big KPI numbers: the mockup sets them tighter and heavier than the default. */
+.tokens :global(.text-2xl) {
+  font-size: 25px;
+  font-weight: 900;
+  letter-spacing: -0.7px;
+  line-height: 1.15;
+}
+
+.tokens :global(.text-lg) {
+  letter-spacing: -0.3px;
+}
+
+/* Section titles */
+.tokens :global(.text-xl) {
+  font-weight: 900;
+  letter-spacing: -0.4px;
+}
+
+/* Tables: the mockup uses a lighter row rule and a tinted hover. */
+.tokens :global(table) {
+  font-variant-numeric: tabular-nums;
+}
+
+.tokens :global(thead) :global(th) {
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--kg-muted);
+  letter-spacing: 0;
+}
+
+.tokens :global(tbody) :global(tr):hover {
+  background: #faf9fe;
+}
