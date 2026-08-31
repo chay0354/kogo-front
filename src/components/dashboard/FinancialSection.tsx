@@ -16,7 +16,7 @@ import {
   YAxis,
 } from 'recharts';
 import { Loader2, TrendingDown, TrendingUp, Wallet } from 'lucide-react';
-import { fetchFinancialData } from '@/lib/api';
+import { fetchFinancialData, fetchInvoicingData } from '@/lib/api';
 import { useScopedBranches } from '@/hooks/useScopedBranches';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import type { DateRange } from './GlobalDateFilter';
@@ -84,6 +84,13 @@ function profitClass(value: number): string {
   return styles.neutral;
 }
 
+const SOURCE_LABELS: Record<string, string> = {
+  crm: 'חוגים והרשמות',
+  store: 'חנות',
+  formal: 'מסמכים פורמליים',
+  tranzila: 'Tranzila',
+};
+
 export default function FinancialSection({ globalDateRange }: Props) {
   const [branchId, setBranchId] = useState('all');
   const [instructorMetric, setInstructorMetric] = useState<InstructorMetric>('revenue');
@@ -103,6 +110,14 @@ export default function FinancialSection({ globalDateRange }: Props) {
   const { data, isLoading, error } = useQuery({
     queryKey: ['dashboard-financial', apiFilters],
     queryFn: () => fetchFinancialData(apiFilters),
+  });
+
+  // Invoiced revenue and open balance, from the local documents the invoices
+  // page merges. Its own query so a slow or empty invoicing read never blocks
+  // the rest of the financial summary.
+  const invoicing = useQuery({
+    queryKey: ['dashboard-invoicing', apiFilters],
+    queryFn: () => fetchInvoicingData(apiFilters),
   });
 
   const scopeLabel =
@@ -293,6 +308,65 @@ export default function FinancialSection({ globalDateRange }: Props) {
         </Card>
       ) : null}
 
+
+      {invoicing.data ? (
+        <Card className={styles.panel}>
+          <CardHeader className={styles.panelHeader}>
+            <CardTitle className={styles.panelTitle}>חשבוניות וגבייה</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {Number(invoicing.data.documents ?? 0) > 0 ? (
+              <>
+                <div className={styles.expenseGrid}>
+                  <div className={styles.expenseItem}>
+                    <span>סך שחויב</span>
+                    <strong>{formatCurrency(invoicing.data.invoiced)}</strong>
+                  </div>
+                  <div className={styles.expenseItem}>
+                    <span>נגבה בפועל</span>
+                    <strong>{formatCurrency(invoicing.data.collected)}</strong>
+                  </div>
+                  <div className={styles.expenseItem}>
+                    <span>יתרה פתוחה</span>
+                    <strong>{formatCurrency(invoicing.data.open_balance)}</strong>
+                  </div>
+                </div>
+                <p className={styles.kpiHint} style={{ marginTop: 12 }}>
+                  {invoicing.data.documents} מסמכים · שיעור גבייה {invoicing.data.collection_rate}%
+                </p>
+                {(invoicing.data.by_source ?? []).length > 0 ? (
+                  <div className={styles.tableWrap} style={{ marginTop: 14 }}>
+                    <table className={styles.table}>
+                      <thead>
+                        <tr>
+                          <th>מקור</th>
+                          <th>מסמכים</th>
+                          <th>חויב</th>
+                          <th>נגבה</th>
+                          <th>פתוח</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {invoicing.data.by_source.map((row: any) => (
+                          <tr key={row.source}>
+                            <td>{SOURCE_LABELS[row.source] ?? row.source}</td>
+                            <td>{row.documents}</td>
+                            <td>{formatCurrency(row.invoiced)}</td>
+                            <td>{formatCurrency(row.collected)}</td>
+                            <td>{formatCurrency(row.open)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : null}
+              </>
+            ) : (
+              <p className={styles.kpiHint}>לא הופקו חשבוניות בתקופה שנבחרה</p>
+            )}
+          </CardContent>
+        </Card>
+      ) : null}
 
       {revenueByBranch.length > 0 ? (
         <Card className={styles.panel}>

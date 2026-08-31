@@ -276,6 +276,15 @@ export const fetchActivityData = async (filters?: { branch_id?: string; city_id?
   return response.data;
 };
 
+/**
+ * Revenue as invoiced, and what is still open, aggregated from the local
+ * documents/invoices the ledger merges. Does not call Tranzila.
+ */
+export const fetchInvoicingData = async (filters: { date_from?: string; date_to?: string; branch_id?: string }) => {
+  const response = await api.get('/core/dashboard/invoicing/', { params: filters });
+  return response.data;
+};
+
 export const refreshCurrentMonthSnapshots = async () => {
   const response = await api.post('/core/dashboard/refresh-current-month/');
   return response.data;
