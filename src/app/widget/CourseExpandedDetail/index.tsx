@@ -1,4 +1,11 @@
-import { getDayName, formatTimeRange, formatAge, formatAgeRange } from '@/lib/courseUtils';
+import {
+  getDayName,
+  formatTimeRange,
+  formatAge,
+  formatAgeRange,
+  isInstructorsCourse,
+  INSTRUCTORS_TRACK_TITLE,
+} from '@/lib/courseUtils';
 import type { Course, CourseBundle, CourseLesson, CourseLessonPriceOption } from '../types';
 import type { WidgetAlternative } from '../alternativeLessons';
 import { MapPin, Users, CalendarDays, X } from 'lucide-react';
@@ -117,7 +124,9 @@ export default function CourseExpandedDetail({
     : lesson
       ? 1
       : course.lessons_count || course.lessons?.length || 0;
-  const timesPerWeekLabel = formatTimesPerWeek(timesPerWeek);
+  const timesPerWeekLabel = isInstructorsCourse(course)
+    ? INSTRUCTORS_TRACK_TITLE
+    : formatTimesPerWeek(timesPerWeek);
   const displayPrice = bundleOffer?.combined_price
     ?? (priceOption ? Number(priceOption.monthly_price) : null)
     ?? (lesson?.price != null ? Number(lesson.price) : null)
