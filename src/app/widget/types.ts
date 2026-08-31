@@ -19,6 +19,8 @@ export interface CourseLesson {
   start_time: string;
   end_time: string;
   instructor_name: string | null;
+  /** Served from its own cached endpoint; null falls back to the placeholder. */
+  instructor_photo_url?: string | null;
   price?: string | null;
   lesson_date?: string | null;
   is_recurring?: boolean;
@@ -44,6 +46,8 @@ export interface CourseBundleLesson {
   start_time: string;
   end_time: string;
   instructor_name?: string | null;
+  /** Served from its own cached endpoint; null falls back to the placeholder. */
+  instructor_photo_url?: string | null;
 }
 
 export interface CourseBundle {

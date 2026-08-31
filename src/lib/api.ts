@@ -435,6 +435,24 @@ export const fetchInstructorsList = async () => {
   return fetchInstructorsDropdown();
 };
 
+/**
+ * Upload the instructor's photo. It is stored server-side and served from its
+ * own endpoint, so what comes back is only the URL to show it from.
+ */
+export const uploadInstructorPhoto = async (instructorId: string, file: File): Promise<string> => {
+  const body = new FormData();
+  body.append('photo', file);
+  const response = await api.post(`/instructors/${instructorId}/photo/`, body, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  });
+  return response.data?.photo_url ?? '';
+};
+
+/** Remove the instructor's photo, so the widget falls back to the placeholder. */
+export const deleteInstructorPhoto = async (instructorId: string): Promise<void> => {
+  await api.delete(`/instructors/${instructorId}/photo/`);
+};
+
 export const searchBusinessCustomers = async (query: string): Promise<BusinessCustomer[]> => {
   const res = await api.get('/customers/business-customers/', { params: { search: query } });
   return res.data?.results ?? res.data ?? [];

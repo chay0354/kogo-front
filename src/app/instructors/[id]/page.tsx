@@ -1,13 +1,14 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
-import { 
-  ArrowRight, Phone, Mail, MapPin, Edit, Gift, Award, Building2, BookOpen, Calendar, List
+import {
+  ArrowRight, Phone, Mail, MapPin, Edit, Gift, Award, Building2, BookOpen, Calendar, List,
+  User, Upload, Trash2
 } from 'lucide-react';
 import AppLayout from '@/components/AppLayout';
 import { GroupIdBadge } from '@/components/GroupIdBadge/GroupIdBadge';
-import api from '@/lib/api';
+import api, { deleteInstructorPhoto, uploadInstructorPhoto } from '@/lib/api';
 import {
   InstructorDetail,
   LessonWithStudents,
@@ -25,18 +26,28 @@ import InstructorWeeklySchedule from '@/components/instructors/InstructorWeeklyS
 type LessonFilter = 'all' | 'profitable' | 'loss';
 type LessonsView = 'table' | 'schedule';
 
+/** The API serves the photo from its own endpoint and returns only its URL. */
+type InstructorWithPhoto = InstructorDetail & { photo_url?: string | null };
+
+// Matches the server-side cap, so an obviously oversized file is refused before
+// it is uploaded at all.
+const PHOTO_MAX_BYTES = 2 * 1024 * 1024;
+
 export default function InstructorDetailPage() {
   const router = useRouter();
   const params = useParams();
   const instructorId = params.id as string;
-  
-  const [instructor, setInstructor] = useState<InstructorDetail | null>(null);
+
+  const [instructor, setInstructor] = useState<InstructorWithPhoto | null>(null);
   const [loading, setLoading] = useState(true);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [lessonFilter, setLessonFilter] = useState<LessonFilter>('all');
   const [lessonsView, setLessonsView] = useState<LessonsView>('table');
   const [addBonusDialogOpen, setAddBonusDialogOpen] = useState(false);
-  
+  const [photoBusy, setPhotoBusy] = useState(false);
+  const [photoError, setPhotoError] = useState('');
+  const photoInputRef = useRef<HTMLInputElement>(null);
+
   const fetchInstructor = async () => {
     setLoading(true);
     try {
@@ -58,7 +69,50 @@ export default function InstructorDetailPage() {
   const handleBack = () => {
     router.push('/instructors');
   };
-  
+
+  const handlePhotoSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    // Cleared so that picking the same file again still fires a change event.
+    e.target.value = '';
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      setPhotoError('הקובץ שנבחר אינו תמונה');
+      return;
+    }
+
+    if (file.size > PHOTO_MAX_BYTES) {
+      setPhotoError('הקובץ גדול מדי. ניתן להעלות תמונה של עד 2MB');
+      return;
+    }
+
+    setPhotoError('');
+    setPhotoBusy(true);
+    try {
+      await uploadInstructorPhoto(instructorId, file);
+      await fetchInstructor();
+    } catch (error: any) {
+      console.error('Error uploading instructor photo:', error);
+      setPhotoError(error.response?.data?.error || 'שגיאה בהעלאת התמונה. נסה שוב.');
+    } finally {
+      setPhotoBusy(false);
+    }
+  };
+
+  const handlePhotoRemove = async () => {
+    setPhotoError('');
+    setPhotoBusy(true);
+    try {
+      await deleteInstructorPhoto(instructorId);
+      await fetchInstructor();
+    } catch (error: any) {
+      console.error('Error removing instructor photo:', error);
+      setPhotoError(error.response?.data?.error || 'שגיאה בהסרת התמונה. נסה שוב.');
+    } finally {
+      setPhotoBusy(false);
+    }
+  };
+
   
   if (loading) {
     return (
@@ -143,13 +197,68 @@ export default function InstructorDetailPage() {
           <ArrowRight className="w-4 h-4 ml-2" />
         </button>
         
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <h1 className="text-2xl font-bold">{instructor.full_name}</h1>
-            <p className="text-sm text-muted-foreground">פרטי מדריך</p>
+        <div className="flex items-start justify-between gap-4 mb-4">
+          <div className="flex items-start gap-4">
+            {instructor.photo_url ? (
+              /* eslint-disable-next-line @next/next/no-img-element */
+              <img
+                src={instructor.photo_url}
+                alt={instructor.full_name}
+                className="w-20 h-20 rounded-full object-cover border border-gray-200 bg-gray-50"
+              />
+            ) : (
+              <div className="w-20 h-20 rounded-full border border-gray-200 bg-gray-50 flex items-center justify-center">
+                <User className="w-8 h-8 text-muted-foreground opacity-30" />
+              </div>
+            )}
+
+            <div>
+              <h1 className="text-2xl font-bold">{instructor.full_name}</h1>
+              <p className="text-sm text-muted-foreground">פרטי מדריך</p>
+
+              <div className="flex flex-wrap items-center gap-2 mt-2">
+                <input
+                  ref={photoInputRef}
+                  type="file"
+                  onChange={handlePhotoSelected}
+                  className="hidden"
+                  accept="image/png,image/jpeg,image/webp"
+                  disabled={photoBusy}
+                />
+                <button
+                  type="button"
+                  onClick={() => photoInputRef.current?.click()}
+                  className="btn-secondary btn-sm inline-flex items-center gap-2 whitespace-nowrap"
+                  disabled={photoBusy}
+                >
+                  <Upload className="w-4 h-4" />
+                  {instructor.photo_url ? 'החלפת תמונה' : 'העלאת תמונה'}
+                </button>
+
+                {instructor.photo_url && (
+                  <button
+                    type="button"
+                    onClick={handlePhotoRemove}
+                    className="btn-secondary btn-sm inline-flex items-center gap-2 whitespace-nowrap"
+                    disabled={photoBusy}
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    הסרת תמונה
+                  </button>
+                )}
+              </div>
+
+              {photoError ? (
+                <p className="text-red-500 text-xs mt-2">{photoError}</p>
+              ) : (
+                <p className="text-xs text-muted-foreground mt-2">
+                  מוצגת בווידג׳ט ההרשמה בכל החוגים של המדריך. עד 2MB.
+                </p>
+              )}
+            </div>
           </div>
-          
-          <button 
+
+          <button
             className="btn-primary inline-flex items-center gap-2 whitespace-nowrap"
             onClick={() => setEditDialogOpen(true)}
           >
