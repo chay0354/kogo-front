@@ -165,7 +165,26 @@ export default function StudentsSection({ globalDateRange }: Props) {
       </div>
 
       {/* attendance trend */}
-      {attendance.length > 0 ? (
+      {attendance.length === 1 ? (
+        <div className={`${theme.card} ${theme.mt}`}>
+          <h2 className={theme.cardTitle}>מגמת נוכחות</h2>
+          <p className={theme.cardSub}>
+            {attendance[0].label} · בחרו טווח של יותר מחודש כדי לראות מגמה
+          </p>
+          <div className={theme.counts} style={{ marginTop: 0 }}>
+            <div>
+              <b>{formatPercent(attendance[0].rate, 1)}</b>
+              <span>אחוז נוכחות</span>
+            </div>
+            <div>
+              <b>{attendance[0].present} / {attendance[0].total}</b>
+              <span>נכחו מתוך רישומים</span>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {attendance.length > 1 ? (
         <div className={`${theme.card} ${theme.mt}`}>
           <h2 className={theme.cardTitle}>מגמת נוכחות</h2>
           <p className={theme.cardSub}>אחוז נוכחות חודשי</p>

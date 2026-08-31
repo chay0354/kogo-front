@@ -234,12 +234,34 @@ export default function FinancialSection({ globalDateRange }: Props) {
         </div>
       </div>
 
-      {/* trend */}
-      {monthlyTrends.length > 0 ? (
+      {/* trend — a line needs at least two months; one month is shown as
+          figures rather than two lonely dots on an empty axis */}
+      {monthlyTrends.length === 1 ? (
+        <div className={`${theme.card} ${theme.mt}`}>
+          <h2 className={theme.cardTitle}>מגמת הכנסות ורווח</h2>
+          <p className={theme.cardSub}>
+            {monthlyTrends[0].monthLabel} · בחרו טווח של יותר מחודש כדי לראות מגמה
+          </p>
+          <div className={theme.counts} style={{ marginTop: 0 }}>
+            <div>
+              <b className={theme.up}>{formatCurrency(monthlyTrends[0].revenue)}</b>
+              <span>הכנסות</span>
+            </div>
+            <div>
+              <b className={monthlyTrends[0].profit >= 0 ? theme.up : theme.down}>
+                {formatCurrency(monthlyTrends[0].profit)}
+              </b>
+              <span>רווח</span>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {monthlyTrends.length > 1 ? (
         <div className={`${theme.card} ${theme.mt}`}>
           <h2 className={theme.cardTitle}>מגמת הכנסות ורווח</h2>
           <p className={theme.cardSub}>{scopeLabel}</p>
-          <div style={{ height: 300 }}>
+          <div style={{ height: 260 }}>
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={monthlyTrends} margin={{ top: 8, right: 12, left: 4, bottom: 4 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
