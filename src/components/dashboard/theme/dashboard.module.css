@@ -531,3 +531,71 @@
 .tokens :global(tbody) :global(tr):hover {
   background: #faf9fe;
 }
+
+/* --------------------------------------------------------------------------
+   Mobile refinements
+
+   The 880px rule above collapses every grid to a single column. These rules
+   handle phone widths specifically: the hero and KPI type step down so long
+   Hebrew labels do not wrap mid-word, tables gain edge-to-edge horizontal
+   scrolling instead of squeezing, and touch targets stay at least 44px.
+   -------------------------------------------------------------------------- */
+@media (max-width: 560px) {
+  .hero {
+    padding: 16px 16px;
+  }
+  .heroBig {
+    font-size: 30px;
+    letter-spacing: -1px;
+  }
+  .heroRow {
+    gap: 12px;
+  }
+  .heroRow > div {
+    padding-inline-start: 10px;
+  }
+  .heroRow b {
+    font-size: 15px;
+  }
+
+  .card {
+    padding: 15px 14px;
+  }
+  .kpi {
+    padding: 13px 14px;
+  }
+  .kpiVal {
+    font-size: 22px;
+  }
+
+  /* counts strip: two per row instead of a cramped single line */
+  .counts > div {
+    min-width: 50%;
+    padding: 6px 8px;
+  }
+
+  /* tables scroll rather than compress unreadably */
+  .tableScroll {
+    margin-inline: -14px;
+    padding-inline: 14px;
+  }
+}
+
+/* Touch targets: anything clickable inside the dashboard on a touch device. */
+@media (hover: none) and (pointer: coarse) {
+  .tokens :global(button),
+  .tokens :global(select),
+  .tokens :global(a[role='button']) {
+    min-height: 44px;
+  }
+}
+
+/* AppLayout renders the sidebar toggle as `fixed top-3 right-3`. In RTL the
+   page title starts at that same right edge, so on phones the button sits on
+   top of it. Reserve the space instead of moving the button, which other
+   pages also rely on. */
+@media (max-width: 1023px) {
+  .tokens > :first-child {
+    padding-inline-end: 52px;
+  }
+}

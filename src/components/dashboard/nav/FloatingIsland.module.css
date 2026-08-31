@@ -9,6 +9,10 @@
     inset 0 1px 0 rgba(255, 255, 255, 0.95);
   border-radius: 999px;
   position: relative;
+  /* The rail scrolls internally, so the glass shell must never be wider than
+     its parent — otherwise it pushes the page out on narrow screens. */
+  max-width: 100%;
+  min-width: 0;
 }
 .glass::before {
   content: '';
@@ -78,4 +82,43 @@
 .tab:focus-visible {
   outline: 2px solid #5b54d6;
   outline-offset: 2px;
+}
+
+/* --------------------------------------------------------------------------
+   Mobile
+
+   Seven tabs cannot fit a phone width, so the rail scrolls horizontally (see
+   overflow-x on .rail). These rules tighten each tab so more of them are
+   visible before the user has to scroll, and enlarge the touch target rather
+   than shrinking it — 44px minimum height is kept.
+   -------------------------------------------------------------------------- */
+@media (max-width: 880px) {
+  .rail {
+    padding: 4px;
+    /* let the rail use the full width of the phone */
+    width: 100%;
+    scroll-snap-type: x proximity;
+    /* fade the right edge so it reads as scrollable */
+    -webkit-mask-image: linear-gradient(to left, transparent 0, #000 18px);
+    mask-image: linear-gradient(to left, transparent 0, #000 18px);
+  }
+  .tab {
+    padding: 10px 12px;
+    font-size: 12.5px;
+    gap: 5px;
+    scroll-snap-align: center;
+    min-height: 44px;
+  }
+  .tab .icon {
+    width: 14px;
+    height: 14px;
+  }
+}
+
+/* Very narrow phones: drop to icon + short label so all seven are reachable. */
+@media (max-width: 420px) {
+  .tab {
+    padding: 10px 9px;
+    font-size: 12px;
+  }
 }

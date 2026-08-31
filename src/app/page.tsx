@@ -63,7 +63,7 @@ export default function HomePage() {
           </div>
         </div>
 
-        <div className="flex justify-center">
+        <div className="flex justify-center min-w-0 max-w-full overflow-hidden">
           <FloatingIsland value={activeTab} onChange={setActiveTab} />
         </div>
 
