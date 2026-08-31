@@ -13,6 +13,19 @@ import { GroupIdBadge } from '@/components/GroupIdBadge/GroupIdBadge';
 import styles from './CourseExpandedDetail.module.css';
 
 const WIDGET_SUPPORT_PHONE = '0509424755';
+const APPROVAL_PHRASE = 'מותנה באישור קוגומלו בלבד';
+
+function TitleWithApprovalUnderline({ title }: { title: string }) {
+  const index = title.indexOf(APPROVAL_PHRASE);
+  if (index === -1) return <>{title}</>;
+  return (
+    <>
+      {title.slice(0, index)}
+      <span className={styles.approvalUnderline}>{APPROVAL_PHRASE}</span>
+      {title.slice(index + APPROVAL_PHRASE.length)}
+    </>
+  );
+}
 
 function formatTimesPerWeek(count: number): string {
   if (count === 1) return 'פעם בשבוע';
@@ -142,7 +155,7 @@ export default function CourseExpandedDetail({
       <div className={styles.scrollArea}>
         <div className={styles.header}>
           <h2 className={styles.title}>
-            {displayTitle}
+            <TitleWithApprovalUnderline title={displayTitle} />
             <GroupIdBadge displayId={course.display_id} />
           </h2>
           {timesPerWeek > 0 ? (
