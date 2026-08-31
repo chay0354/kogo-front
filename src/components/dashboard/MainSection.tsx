@@ -264,7 +264,7 @@ export default function MainSection({ globalDateRange }: Props) {
           <EmptyState
             title="מקורות הכנסה"
             icon="💰"
-            reason="ה־API מפרק היום הוצאות בלבד. פילוח הכנסות דורש תוספת ב־Backend"
+            reason="פילוח ההכנסות לפי מקור דורש תוספת ב־Backend"
           />
         </div>
       </div>

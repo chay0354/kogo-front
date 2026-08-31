@@ -85,12 +85,11 @@ export default function BranchesSection({ globalDateRange }: Props) {
       rows.reduce(
         (acc, b) => {
           acc.revenue += Number(b.revenue ?? 0);
-          acc.spending += Number(b.spending ?? 0);
           acc.profit += Number(b.profit ?? 0);
           acc.students += Number(b.students ?? 0);
           return acc;
         },
-        { revenue: 0, spending: 0, profit: 0, students: 0 },
+        { revenue: 0, profit: 0, students: 0 },
       ),
     [rows],
   );
@@ -164,7 +163,7 @@ export default function BranchesSection({ globalDateRange }: Props) {
       {/* each branch */}
       <div className={theme.mt}>
         <h2 className={theme.cardTitle}>ביצועי סניפים</h2>
-        <p className={theme.cardSub}>הכנסות, הוצאות ורווח לכל סניף</p>
+        <p className={theme.cardSub}>הכנסות ורווח לכל סניף</p>
         {rows.length > 0 ? (
           <div className={`${theme.grid} ${theme.g2}`}>
             {rows.map((b) => (
@@ -281,7 +280,6 @@ const selectStyle: React.CSSProperties = {
 /** One branch: its profit ring, then revenue / cost / students underneath. */
 function BranchCard({ branch, onOpen }: { branch: any; onOpen: () => void }) {
   const revenue = Number(branch.revenue ?? 0);
-  const spending = Number(branch.spending ?? 0);
   const profit = Number(branch.profit ?? 0);
   const margin = revenue > 0 ? Math.round((profit / revenue) * 100) : 0;
 
@@ -355,10 +353,6 @@ function BranchCard({ branch, onOpen }: { branch: any; onOpen: () => void }) {
         <div>
           <b style={{ fontSize: 15 }} className={theme.up}>{formatCurrency(revenue)}</b>
           <span>הכנסות</span>
-        </div>
-        <div>
-          <b style={{ fontSize: 15 }} className={theme.down}>{formatCurrency(spending)}</b>
-          <span>הוצאות</span>
         </div>
         <div>
           <b style={{ fontSize: 15 }}>{Number(branch.students ?? 0)}</b>
