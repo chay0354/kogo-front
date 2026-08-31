@@ -798,3 +798,21 @@
     transition: none;
   }
 }
+
+/* The tour flips these green for one step to show what a lesson looks like
+   once attendance has been filled in. Visual only — nothing is saved. */
+.slotStatus[data-tour-demo='on'] {
+  background: #12b76a !important;
+  color: #fff !important;
+  transition: background 0.45s ease, color 0.45s ease;
+}
+.slotStatus[data-tour-demo='on'] svg {
+  animation: tourTick 0.45s cubic-bezier(0.32, 0.72, 0, 1) both;
+}
+@keyframes tourTick {
+  from { transform: scale(0.4) rotate(-25deg); opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .slotStatus[data-tour-demo='on'] { transition: none; }
+  .slotStatus[data-tour-demo='on'] svg { animation: none; }
+}

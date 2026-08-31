@@ -294,6 +294,15 @@ export const completeTour = async () => {
   return response.data;
 };
 
+/**
+ * Branches the signed-in user may work in. For an instructor these are their
+ * actual assignments, not merely the branches with a lesson today.
+ */
+export const fetchMyBranches = async (): Promise<Array<{ id: string; name: string; city: string }>> => {
+  const response = await api.get('/instructors/my-branches/');
+  return response.data?.branches ?? [];
+};
+
 export const refreshCurrentMonthSnapshots = async () => {
   const response = await api.post('/core/dashboard/refresh-current-month/');
   return response.data;

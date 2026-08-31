@@ -17,9 +17,11 @@ import {
 } from 'lucide-react';
 import { useAuth } from '@/components/AuthProvider';
 import { fetchLessons, formatDateISO, formatTime } from '@/lib/scheduleUtils';
+import { fetchMyBranches } from '@/lib/api';
 import type { Lesson } from '@/types/schedule';
 import InstructorAttendance from './InstructorAttendance';
 import { INSTRUCTOR_MOTION_MS, resolveInstructorMotionDelay } from './instructorMotion';
+import GuidedTour from '@/components/onboarding/GuidedTour';
 import {
   findCurrentOrNextLessonId,
   isLessonNow,
@@ -88,15 +90,36 @@ export default function InstructorHome() {
     }
   }, []);
 
+  // Branches the instructor is actually assigned to, from the server. Deriving
+  // them from today's lessons hid any branch that happened to be quiet today,
+  // which is exactly when someone needs to switch to it.
+  const [assignedBranches, setAssignedBranches] = useState<Array<{ id: string; name: string }>>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchMyBranches()
+      .then((list) => {
+        if (!cancelled) setAssignedBranches(list.map((b) => ({ id: b.id, name: b.name })));
+      })
+      .catch(() => {
+        /* falls back to the branches seen in today's lessons */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const branches = useMemo(() => {
     const map = new Map<string, string>();
+    // Assignments first so the order is stable regardless of today's schedule.
+    assignedBranches.forEach((b) => map.set(b.id, b.name));
     lessons.forEach((lesson) => {
       if (lesson.branch_id && lesson.branch_name) {
         map.set(lesson.branch_id, lesson.branch_name);
       }
     });
     return [...map.entries()].map(([id, name]) => ({ id, name }));
-  }, [lessons]);
+  }, [assignedBranches, lessons]);
 
   useEffect(() => {
     if (branchId !== 'all' && !branches.some((branch) => branch.id === branchId)) {
@@ -215,12 +238,13 @@ export default function InstructorHome() {
 
   return (
     <div className={styles.page} dir="rtl">
+      <GuidedTour />
       <div
         className={`${styles.shell} ${selectedLesson ? styles.hasAttendance : ''} ${openingLesson ? styles.openingAttendance : ''} ${isReturning ? styles.returningFromAttendance : ''} ${isLeaving ? styles.shellLeaving : ''}`}
       >
         <header className={styles.header}>
           <div className={styles.topBar}>
-            <div className={styles.branchWrap}>
+            <div className={styles.branchWrap} data-tour="branch">
               <MapPin size={18} />
               {branches.length > 1 ? (
                 <>
@@ -253,7 +277,7 @@ export default function InstructorHome() {
               >
                 <LogOut size={18} />
               </button>
-              <label className={styles.iconBtn} title="בחירת תאריך">
+              <label className={styles.iconBtn} title="בחירת תאריך" data-tour="date">
                 <Calendar size={18} />
                 <input
                   type="date"
@@ -269,11 +293,11 @@ export default function InstructorHome() {
             </div>
           </div>
 
-          <div className={styles.dayTitleWrap}>
+          <div className={styles.dayTitleWrap} data-tour="day">
             <div className={styles.dayTitle}>{hebrewDayTitle(selectedDate)}</div>
           </div>
 
-          <div className={styles.carouselRow}>
+          <div className={styles.carouselRow} data-tour="lessons">
             {visibleLessons.length > 1 && (
               <button
                 type="button"
@@ -316,7 +340,7 @@ export default function InstructorHome() {
                           {trialStudentCount}
                         </span>
                       </div>
-                      <div className={`${styles.slotStatus} ${complete ? styles.ok : styles.miss}`}>
+                      <div className={`${styles.slotStatus} ${complete ? styles.ok : styles.miss}`} data-tour-status>
                         {complete ? <Check size={18} strokeWidth={3} /> : <X size={18} strokeWidth={3} />}
                       </div>
                     </button>
@@ -340,7 +364,7 @@ export default function InstructorHome() {
         </header>
 
         <div className={styles.body}>
-          <section className={styles.list}>
+          <section className={styles.list} data-tour="list">
             {isLoading && <div className={styles.loading}>טוען שיעורים...</div>}
             {error && <div className={styles.error}>{error}</div>}
             {!isLoading && !error && visibleLessons.length === 0 && (

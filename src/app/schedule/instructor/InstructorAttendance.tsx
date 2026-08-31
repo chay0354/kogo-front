@@ -116,7 +116,20 @@ export default function InstructorAttendance({ lesson, onBack, embedded = false 
         </header>
 
         <section className={styles.list}>
-          {isLoading && <div className={styles.loading}>טוען תלמידים...</div>}
+          {isLoading && (
+            /* Skeleton rather than a "loading" line: the rows land in the same
+               place the real ones will, so the list does not jump when it
+               arrives. */
+            <div className={styles.skeletonList} aria-busy="true" aria-label="טוען תלמידים">
+              {Array.from({ length: 5 }).map((_, i) => (
+                <div className={styles.skeletonRow} key={i} style={{ animationDelay: `${i * 80}ms` }}>
+                  <span className={styles.skeletonAvatar} />
+                  <span className={styles.skeletonText} />
+                  <span className={styles.skeletonPill} />
+                </div>
+              ))}
+            </div>
+          )}
           {error && <div className={styles.error}>{error}</div>}
           {isCancelled && <div className={styles.cancelled}>לא ניתן לסמן נוכחות בשיעור מבוטל</div>}
           {!isLoading && !error && students.length === 0 && (
@@ -140,7 +153,7 @@ export default function InstructorAttendance({ lesson, onBack, embedded = false 
                 <div className={styles.toggle}>
                   <button
                     type="button"
-                    className={status === 'present' ? styles.presentOn : ''}
+                    data-tour-mark className={status === 'present' ? styles.presentOn : ''}
                     disabled={isCancelled}
                     onClick={() => handleToggle(student.child_id, 'present')}
                     aria-label={`נוכח: ${student.child_name}`}
@@ -164,7 +177,7 @@ export default function InstructorAttendance({ lesson, onBack, embedded = false 
           })}
         </section>
 
-        <footer className={styles.footer}>
+        <footer className={styles.footer} data-tour="add-student">
           <button
             type="button"
             className={styles.addBtn}
