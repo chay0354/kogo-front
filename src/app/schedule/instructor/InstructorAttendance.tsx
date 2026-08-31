@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Calendar, Check, ChevronDown, ChevronRight, Clock, Plus, X } from 'lucide-react';
+import { Calendar, Check, ChevronDown, ChevronRight, Clock, MessageCircle, Phone, Plus, X } from 'lucide-react';
 import { addWalkInStudent, fetchLessonDetail, formatTime, markAttendance } from '@/lib/scheduleUtils';
 import type { AttendanceStatus, Lesson, LessonDetail } from '@/types/schedule';
 import { hebrewDayLetter, lessonTitle } from './instructorUtils';
@@ -9,6 +9,20 @@ import styles from './InstructorAttendance.module.css';
 
 const INITIAL_VISIBLE = 8;
 const ISSUE_STATUSES = new Set(['payment_problem', 'not_paid', 'trial_signed', 'trial_completed']);
+
+/**
+ * The number in the form wa.me expects: country code, no plus, no separators.
+ *
+ * Numbers are stored as they were typed — 052-123-4567, +972 52 123 4567, and
+ * everything between — so a local leading zero becomes 972 and anything already
+ * carrying the country code is left alone.
+ */
+function whatsappNumber(raw: string): string {
+  const digits = raw.replace(/\D/g, '');
+  if (digits.startsWith('972')) return digits;
+  if (digits.startsWith('0')) return `972${digits.slice(1)}`;
+  return digits;
+}
 
 type InstructorAttendanceProps = {
   lesson: Lesson;
@@ -35,6 +49,8 @@ export default function InstructorAttendance({
   const [addOpen, setAddOpen] = useState(false);
   const [addForm, setAddForm] = useState({ first_name: '', last_name: '', phone: '' });
   const [isAdding, setIsAdding] = useState(false);
+  // The parent an instructor tapped, while the two ways to reach them are open.
+  const [contact, setContact] = useState<{ name: string; phone: string } | null>(null);
   const addFormRef = useRef<HTMLDivElement>(null);
 
   const occurrenceDate = lesson.lesson_date || '';
@@ -216,7 +232,20 @@ export default function InstructorAttendance({
                         <span className={styles.walkInTag}>הגיע ללא רישום</span>
                       )}
                     </div>
-                    <div className={styles.phone}>{student.child_phone || '—'}</div>
+                    {student.child_phone ? (
+                      <button
+                        type="button"
+                        className={styles.phoneBtn}
+                        onClick={() =>
+                          setContact({ name: student.child_name, phone: student.child_phone as string })
+                        }
+                        aria-label={`יצירת קשר עם ${student.child_name}`}
+                      >
+                        {student.child_phone}
+                      </button>
+                    ) : (
+                      <div className={styles.phone}>—</div>
+                    )}
                   </div>
                 </div>
                 <div className={styles.toggle}>
@@ -325,6 +354,48 @@ export default function InstructorAttendance({
           </button>
         </footer>
       </div>
+      {contact && (
+        <div
+          className={styles.contactScrim}
+          role="dialog"
+          aria-modal="true"
+          aria-label={`יצירת קשר עם ${contact.name}`}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setContact(null);
+          }}
+        >
+          <div className={styles.contactBox}>
+            <div className={styles.contactName}>{contact.name}</div>
+            <div className={styles.contactPhone}>{contact.phone}</div>
+            <div className={styles.contactActions}>
+              {/* Opens WhatsApp with the conversation ready. It never sends
+                  anything on its own — the instructor writes and sends. */}
+              <a
+                className={`${styles.contactAction} ${styles.contactWhatsapp}`}
+                href={`https://wa.me/${whatsappNumber(contact.phone)}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={() => setContact(null)}
+              >
+                <MessageCircle size={26} strokeWidth={2.2} />
+                <span>וואטסאפ</span>
+              </a>
+              <a
+                className={`${styles.contactAction} ${styles.contactCall}`}
+                href={`tel:${contact.phone.replace(/[^\d+]/g, '')}`}
+                onClick={() => setContact(null)}
+              >
+                <Phone size={26} strokeWidth={2.2} />
+                <span>שיחה</span>
+              </a>
+            </div>
+            <button type="button" className={styles.contactCancel} onClick={() => setContact(null)}>
+              ביטול
+            </button>
+          </div>
+        </div>
+      )}
+
       {toast && <div className={styles.toast}>{toast}</div>}
     </div>
   );

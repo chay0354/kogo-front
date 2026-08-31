@@ -721,3 +721,124 @@
 @media (max-width: 400px) {
   .addFields { grid-template-columns: 1fr; }
 }
+
+/* --- יצירת קשר מהירה מהמספר --- */
+
+.phoneBtn {
+  border: 0;
+  background: transparent;
+  padding: 2px 0;
+  font: inherit;
+  font-size: 13px;
+  color: #2b3090;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-color: rgba(43, 48, 144, 0.35);
+  cursor: pointer;
+  /* A phone number is a small target; give the thumb something to hit. */
+  min-height: 28px;
+  display: inline-flex;
+  align-items: center;
+}
+
+.phoneBtn:hover,
+.phoneBtn:focus-visible {
+  text-decoration-color: currentColor;
+  outline: none;
+}
+
+.contactScrim {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  display: grid;
+  place-items: end center;
+  padding: 20px;
+  background: rgba(15, 20, 60, 0.46);
+  backdrop-filter: blur(2px);
+  animation: contactFade 0.16s ease-out;
+}
+
+.contactBox {
+  width: min(360px, 100%);
+  margin-bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+  padding: 20px 18px 14px;
+  border-radius: 22px;
+  background: #fff;
+  text-align: center;
+  box-shadow: 0 18px 44px rgba(15, 20, 60, 0.3);
+  animation: contactIn 0.2s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.contactName {
+  font-size: 16px;
+  font-weight: 800;
+  color: #1e2a6e;
+}
+
+.contactPhone {
+  margin-top: 2px;
+  font-size: 13px;
+  color: rgba(30, 42, 110, 0.6);
+  direction: ltr;
+}
+
+.contactActions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin: 16px 0 12px;
+}
+
+.contactAction {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 16px 8px;
+  border-radius: 16px;
+  font-size: 13.5px;
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.contactWhatsapp {
+  background: rgba(37, 211, 102, 0.14);
+  color: #128c4a;
+}
+
+.contactCall {
+  background: rgba(30, 42, 110, 0.09);
+  color: #1e2a6e;
+}
+
+.contactCancel {
+  width: 100%;
+  border: 0;
+  border-radius: 999px;
+  padding: 11px;
+  background: transparent;
+  font: inherit;
+  font-weight: 700;
+  font-size: 14px;
+  color: rgba(30, 42, 110, 0.6);
+  cursor: pointer;
+}
+
+@keyframes contactFade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes contactIn {
+  from { opacity: 0; transform: translateY(14px); }
+  to { opacity: 1; transform: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .contactScrim,
+  .contactBox {
+    animation: none;
+  }
+}
