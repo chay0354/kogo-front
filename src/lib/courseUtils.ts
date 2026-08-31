@@ -190,6 +190,17 @@ export const ADULTS_AGE_GROUP = AGE_GROUP_LABELS.indexOf('בוגרים') + 1;
 export const INSTRUCTORS_AGE_GROUP = AGE_GROUP_LABELS.indexOf('מדריכים') + 1;
 
 export const INSTRUCTORS_TRACK_TITLE = 'מסלול מדריכים - פתוח לכל השיעורים';
+export const COGOMELO_APPROVAL_PHRASE = 'מותנה באישור קוגומלו בלבד';
+
+export function stripWidgetApprovalPhrase(title: string): string {
+  return title
+    .replace(COGOMELO_APPROVAL_PHRASE, '')
+    .replace(/\s*[-–—]\s*[-–—]\s*/g, ' - ')
+    .replace(/\s{2,}/g, ' ')
+    .replace(/\s*-\s*$/g, '')
+    .replace(/^\s*-\s*/g, '')
+    .trim();
+}
 
 export function isInstructorsAgeGroup(age?: number | null): boolean {
   return age === INSTRUCTORS_AGE_GROUP;
