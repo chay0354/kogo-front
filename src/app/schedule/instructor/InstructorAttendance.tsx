@@ -14,9 +14,18 @@ type InstructorAttendanceProps = {
   lesson: Lesson;
   onBack: () => void;
   embedded?: boolean;
+  /** Set when this register belongs to a linked colleague, not the signed-in
+   *  user. Every call about the lesson has to carry it or the server cannot
+   *  reach the lesson at all. */
+  asUser?: string;
 };
 
-export default function InstructorAttendance({ lesson, onBack, embedded = false }: InstructorAttendanceProps) {
+export default function InstructorAttendance({
+  lesson,
+  onBack,
+  embedded = false,
+  asUser,
+}: InstructorAttendanceProps) {
   const [detail, setDetail] = useState<LessonDetail | null>(null);
   const [attendance, setAttendance] = useState<Record<string, AttendanceStatus>>({});
   const [isLoading, setIsLoading] = useState(true);
@@ -40,7 +49,7 @@ export default function InstructorAttendance({ lesson, onBack, embedded = false 
       setIsLoading(true);
       setError('');
       try {
-        const data = await fetchLessonDetail(lesson.id, occurrenceDate);
+        const data = await fetchLessonDetail(lesson.id, occurrenceDate, asUser);
         if (cancelled) return;
         setDetail(data);
         const next: Record<string, AttendanceStatus> = {};
@@ -61,7 +70,7 @@ export default function InstructorAttendance({ lesson, onBack, embedded = false 
     return () => {
       cancelled = true;
     };
-  }, [lesson.id, occurrenceDate]);
+  }, [lesson.id, occurrenceDate, asUser]);
 
   useEffect(() => {
     if (!toast) return;
@@ -87,7 +96,7 @@ export default function InstructorAttendance({ lesson, onBack, embedded = false 
     const previous = current;
     setAttendance((prev) => ({ ...prev, [childId]: status }));
     try {
-      await markAttendance(lesson.id, occurrenceDate, [{ child_id: childId, status }]);
+      await markAttendance(lesson.id, occurrenceDate, [{ child_id: childId, status }], asUser);
     } catch (err) {
       console.error(err);
       setAttendance((prev) => ({ ...prev, [childId]: previous }));
@@ -107,11 +116,16 @@ export default function InstructorAttendance({ lesson, onBack, embedded = false 
     }
     setIsAdding(true);
     try {
-      const added = await addWalkInStudent(lesson.id, occurrenceDate, {
-        first_name: addForm.first_name.trim(),
-        last_name: addForm.last_name.trim(),
-        phone: addForm.phone.trim(),
-      });
+      const added = await addWalkInStudent(
+        lesson.id,
+        occurrenceDate,
+        {
+          first_name: addForm.first_name.trim(),
+          last_name: addForm.last_name.trim(),
+          phone: addForm.phone.trim(),
+        },
+        asUser,
+      );
       setDetail((prev) =>
         prev
           ? { ...prev, enrollments: [...prev.enrollments.filter((s) => s.id !== added.id), added] }

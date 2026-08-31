@@ -742,6 +742,7 @@ export default function InstructorHome() {
                 embedded
                 lesson={selectedLesson}
                 onBack={closeAttendance}
+                asUser={viewAs === 'self' ? undefined : viewAs}
               />
             ) : (
               <div className={styles.pickHint}>

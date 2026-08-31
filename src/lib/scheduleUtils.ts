@@ -25,9 +25,18 @@ export async function fetchLessons(filters?: LessonFilters): Promise<Lesson[]> {
 /**
  * Fetch a single lesson with details
  */
-export async function fetchLessonDetail(lessonId: string, date?: string): Promise<LessonDetail> {
-  const url = date ? `/scheduling/lessons/${lessonId}/?date=${encodeURIComponent(date)}` : `/scheduling/lessons/${lessonId}/`;
-  const res = await api.get(url);
+export async function fetchLessonDetail(
+  lessonId: string,
+  date?: string,
+  asUser?: string,
+): Promise<LessonDetail> {
+  const params = new URLSearchParams();
+  if (date) params.append('date', date);
+  // A linked colleague's register. The lesson is only reachable through their
+  // scope, so this has to travel with every call about it — not just the list.
+  if (asUser) params.append('as_user', asUser);
+  const query = params.toString();
+  const res = await api.get(`/scheduling/lessons/${lessonId}/${query ? `?${query}` : ''}`);
   return res.data as LessonDetail;
 }
 
@@ -58,8 +67,16 @@ export async function fetchLessonAttendance(lessonId: string, date: string): Pro
 /**
  * Mark attendance for a lesson
  */
-export async function markAttendance(lessonId: string, date: string, attendance: AttendanceMark[]): Promise<void> {
-  await api.post(`/scheduling/lessons/${lessonId}/mark_attendance/`, { date, attendance });
+export async function markAttendance(
+  lessonId: string,
+  date: string,
+  attendance: AttendanceMark[],
+  asUser?: string,
+): Promise<void> {
+  // as_user rides in the query string: the scope is resolved from there before
+  // the body is looked at.
+  const suffix = asUser ? `?as_user=${encodeURIComponent(asUser)}` : '';
+  await api.post(`/scheduling/lessons/${lessonId}/mark_attendance/${suffix}`, { date, attendance });
 }
 
 /**
@@ -72,8 +89,13 @@ export async function addWalkInStudent(
   lessonId: string,
   date: string,
   student: { first_name: string; last_name: string; phone?: string },
+  asUser?: string,
 ): Promise<LessonDetail['enrollments'][number]> {
-  const res = await api.post(`/scheduling/lessons/${lessonId}/add-walkin/`, { date, ...student });
+  const suffix = asUser ? `?as_user=${encodeURIComponent(asUser)}` : '';
+  const res = await api.post(`/scheduling/lessons/${lessonId}/add-walkin/${suffix}`, {
+    date,
+    ...student,
+  });
   return res.data as LessonDetail['enrollments'][number];
 }
 
