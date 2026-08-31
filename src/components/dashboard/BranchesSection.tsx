@@ -166,7 +166,7 @@ export default function BranchesSection({ globalDateRange }: Props) {
         <h2 className={theme.cardTitle}>ביצועי סניפים</h2>
         <p className={theme.cardSub}>הכנסות, הוצאות ורווח לכל סניף</p>
         {rows.length > 0 ? (
-          <div className={`${theme.grid} ${theme.g3}`}>
+          <div className={`${theme.grid} ${theme.g2}`}>
             {rows.map((b) => (
               <BranchCard
                 key={b.branch_id}
@@ -287,7 +287,7 @@ function BranchCard({ branch, onOpen }: { branch: any; onOpen: () => void }) {
 
   // Ring shows the share of revenue kept as profit; nothing to show without revenue.
   const pct = revenue > 0 ? Math.max(0, Math.min(100, margin)) : 0;
-  const R = 38;
+  const R = 52;
   const C = 2 * Math.PI * R;
   const dash = (C * pct) / 100;
   const ringColor =
@@ -307,21 +307,21 @@ function BranchCard({ branch, onOpen }: { branch: any; onOpen: () => void }) {
       }}
       style={{ cursor: 'pointer', textAlign: 'center' }}
     >
-      <div className={theme.cardTitle} style={{ fontSize: 14, minHeight: 38 }}>
+      <div className={theme.cardTitle} style={{ fontSize: 16, minHeight: 44, lineHeight: 1.35, overflowWrap: 'anywhere' }}>
         {branch.name}
       </div>
 
-      <div style={{ position: 'relative', width: 104, height: 104, margin: '10px auto' }}>
-        <svg width="104" height="104" viewBox="0 0 104 104" style={{ transform: 'rotate(-90deg)' }}>
-          <circle cx="52" cy="52" r={R} fill="none" stroke="hsl(var(--muted))" strokeWidth="13" />
+      <div style={{ position: 'relative', width: 140, height: 140, margin: '14px auto' }}>
+        <svg width="140" height="140" viewBox="0 0 140 140" style={{ transform: 'rotate(-90deg)' }}>
+          <circle cx="70" cy="70" r={R} fill="none" stroke="hsl(var(--muted))" strokeWidth="15" />
           {revenue > 0 ? (
             <circle
-              cx="52"
-              cy="52"
+              cx="70"
+              cy="70"
               r={R}
               fill="none"
               stroke={ringColor}
-              strokeWidth="13"
+              strokeWidth="15"
               strokeLinecap="round"
               strokeDasharray={`${dash.toFixed(1)} ${C.toFixed(1)}`}
             />
@@ -339,29 +339,29 @@ function BranchCard({ branch, onOpen }: { branch: any; onOpen: () => void }) {
         >
           {revenue > 0 ? (
             <>
-              <b style={{ fontSize: 16, fontWeight: 900 }}>{formatCurrency(profit)}</b>
-              <span style={{ fontSize: 10, color: 'var(--kg-muted)', fontWeight: 700 }}>רווח</span>
-              <i style={{ fontStyle: 'normal', fontSize: 11, fontWeight: 900, color: ringColor }}>
+              <b style={{ fontSize: 21, fontWeight: 900, letterSpacing: '-0.5px' }}>{formatCurrency(profit)}</b>
+              <span style={{ fontSize: 12, color: 'var(--kg-muted)', fontWeight: 700, marginTop: 2 }}>רווח</span>
+              <i style={{ fontStyle: 'normal', fontSize: 14, fontWeight: 900, color: ringColor, marginTop: 3 }}>
                 {margin}%
               </i>
             </>
           ) : (
-            <b style={{ fontSize: 13, color: 'var(--kg-muted)' }}>ללא פעילות</b>
+            <b style={{ fontSize: 15, color: 'var(--kg-muted)', fontWeight: 800 }}>ללא פעילות</b>
           )}
         </div>
       </div>
 
       <div className={theme.counts} style={{ marginTop: 0, boxShadow: 'none', padding: '10px 0' }}>
         <div>
-          <b style={{ fontSize: 14 }} className={theme.up}>{formatCurrency(revenue)}</b>
+          <b style={{ fontSize: 15 }} className={theme.up}>{formatCurrency(revenue)}</b>
           <span>הכנסות</span>
         </div>
         <div>
-          <b style={{ fontSize: 14 }} className={theme.down}>{formatCurrency(spending)}</b>
+          <b style={{ fontSize: 15 }} className={theme.down}>{formatCurrency(spending)}</b>
           <span>הוצאות</span>
         </div>
         <div>
-          <b style={{ fontSize: 14 }}>{Number(branch.students ?? 0)}</b>
+          <b style={{ fontSize: 15 }}>{Number(branch.students ?? 0)}</b>
           <span>תלמידים</span>
         </div>
       </div>

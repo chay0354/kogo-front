@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { format } from 'date-fns';
-import { fetchCoursesData } from '@/lib/api';
+import { fetchCoursesData, fetchCourseTypesList } from '@/lib/api';
 import { useScopedBranches } from '@/hooks/useScopedBranches';
 import { filterBranchesByCity } from '@/lib/scopedFilters';
 import type { DateRange } from './GlobalDateFilter';
@@ -25,21 +25,36 @@ export default function CoursesSection({ globalDateRange }: Props) {
   const { branches: scopedBranches, cities } = useScopedBranches();
   const [cityId, setCityId] = useState('all');
   const [branchId, setBranchId] = useState('all');
+  const [courseTypeId, setCourseTypeId] = useState('all');
 
   const apiFilters = useMemo(
     () => ({
       city_id: cityId,
       branch_id: branchId,
+      course_type_id: courseTypeId,
       date_from: format(globalDateRange.date_from, 'yyyy-MM-dd'),
       date_to: format(globalDateRange.date_to, 'yyyy-MM-dd'),
     }),
-    [cityId, branchId, globalDateRange],
+    [cityId, branchId, courseTypeId, globalDateRange],
   );
 
   const { data, isLoading } = useQuery({
     queryKey: ['dashboard-courses', apiFilters],
     queryFn: () => fetchCoursesData(apiFilters),
   });
+
+  // Disciplines for the filter. Only active ones — the table carries retired
+  // and test entries that would clutter the list.
+  const { data: courseTypesRaw } = useQuery({
+    queryKey: ['course-types-list'],
+    queryFn: fetchCourseTypesList,
+  });
+  const courseTypes = useMemo(() => {
+    const list = Array.isArray(courseTypesRaw)
+      ? courseTypesRaw
+      : (courseTypesRaw as any)?.results ?? [];
+    return list.filter((t: any) => t?.is_active !== false);
+  }, [courseTypesRaw]);
 
   const kpis = data?.kpis ?? {};
   const courseList: any[] = data?.course_list ?? [];
@@ -78,7 +93,7 @@ export default function CoursesSection({ globalDateRange }: Props) {
     <div className={theme.scope}>
       {/* filters */}
       <div className={theme.card}>
-        <div className={`${theme.grid} ${theme.g2}`}>
+        <div className={`${theme.grid} ${theme.g3}`}>
           <div>
             <label className={theme.kpiLbl} htmlFor="cl-city">עיר</label>
             <select
@@ -89,6 +104,20 @@ export default function CoursesSection({ globalDateRange }: Props) {
             >
               <option value="all">כל הערים</option>
               {cities.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className={theme.kpiLbl} htmlFor="cl-type">תחום</label>
+            <select
+              id="cl-type"
+              value={courseTypeId}
+              onChange={(e) => setCourseTypeId(e.target.value)}
+              style={selectStyle}
+            >
+              <option value="all">כל התחומים</option>
+              {courseTypes.map((t: any) => (
+                <option key={t.id} value={t.id}>{t.name}</option>
+              ))}
             </select>
           </div>
           <div>
@@ -213,6 +242,7 @@ export default function CoursesSection({ globalDateRange }: Props) {
               <thead>
                 <tr>
                   <th>חוג</th>
+                  <th>תחום</th>
                   <th>סניף</th>
                   <th className={theme.n}>שיעורים</th>
                   <th className={theme.n}>תלמידים</th>
@@ -231,6 +261,9 @@ export default function CoursesSection({ globalDateRange }: Props) {
                         <td className={theme.name}>
                           <span className={`${theme.rank} ${i === 0 ? theme.rankTop : ''}`}>{i + 1}</span>
                           {c.name}
+                        </td>
+                        <td>
+                          {c.course_type ? <span className={theme.tagType}>{c.course_type}</span> : '—'}
                         </td>
                         <td style={{ color: 'var(--kg-muted)', fontSize: 12 }}>{c.branch || '—'}</td>
                         <td className={theme.n}>{Number(c.lessons ?? 0)}</td>
