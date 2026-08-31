@@ -461,12 +461,11 @@
     max-width: none;
     margin: 0;
     border-radius: 20px 20px 0 0;
-    /* Tall enough that the instructor's photo has somewhere to go, and short
-       enough to stay clear of the site's own header above it. */
-    height: 82vh;
-    height: 82dvh;
-    max-height: 82vh;
-    max-height: 82dvh;
+    /* Sized to what it holds, capped short of the site's own header. Pinning it
+       to a share of the screen left white space under the buttons whenever the
+       card was shorter than that. */
+    max-height: 86vh;
+    max-height: 86dvh;
     padding-top: 6px;
   }
 
