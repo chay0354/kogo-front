@@ -74,7 +74,6 @@ export default function MainSection({ globalDateRange }: Props) {
   const ins = instructors.data?.kpis ?? {};
 
   const revenue = Number(fin.total_revenue ?? 0);
-  const expenses = Number(fin.total_expenses ?? 0);
   const profit = Number(fin.net_profit ?? 0);
   const margin = revenue > 0 ? (profit / revenue) * 100 : 0;
 
@@ -98,10 +97,6 @@ export default function MainSection({ globalDateRange }: Props) {
         <div className={theme.heroLbl}>הכנסות בתקופה שנבחרה</div>
         <div className={theme.heroBig}>{formatCurrency(revenue)}</div>
         <div className={theme.heroRow}>
-          <div>
-            <span>הוצאות</span>
-            <b>{formatCurrency(expenses)}</b>
-          </div>
           <div>
             <span>רווח נקי</span>
             <b>{formatCurrency(profit)}</b>
@@ -216,18 +211,7 @@ export default function MainSection({ globalDateRange }: Props) {
         </div>
       ) : null}
 
-      {/* ---------- 5 · פירוט ההוצאות ---------- */}
-      <div className={`${theme.card} ${theme.mt}`}>
-        <h2 className={theme.cardTitle}>לאן הולכות ההוצאות</h2>
-        <p className={theme.cardSub}>פילוח {formatCurrency(expenses)}</p>
-        {expenses > 0 ? (
-          <ExpenseBars breakdown={financial.data?.expense_breakdown ?? {}} total={expenses} />
-        ) : (
-          <div className={theme.kpiFoot}>אין הוצאות רשומות לתקופה שנבחרה</div>
-        )}
-      </div>
-
-      {/* ---------- 6 · מתי השבוע עמוס ---------- */}
+      {/* ---------- 5 · מתי השבוע עמוס ---------- */}
       <div className={`${theme.grid} ${theme.g2} ${theme.mt}`}>
         <div className={theme.card}>
           <h2 className={theme.cardTitle}>הימים החזקים בשבוע</h2>
@@ -241,14 +225,14 @@ export default function MainSection({ globalDateRange }: Props) {
         </div>
       </div>
 
-      {/* ---------- 7 · החוגים הכי נכנסים ---------- */}
+      {/* ---------- 6 · החוגים הכי נכנסים ---------- */}
       <div className={`${theme.card} ${theme.mt}`}>
         <h2 className={theme.cardTitle}>החוגים — הכי נכנסים</h2>
         <p className={theme.cardSub}>מספר תלמידים משלמים לחוג</p>
         <TopCourses rows={courses.data?.course_list ?? []} />
       </div>
 
-      {/* ---------- 8 · לא קיים ב-API ---------- */}
+      {/* ---------- 7 · לא קיים ב-API ---------- */}
       <div className={`${theme.grid} ${theme.g2} ${theme.mt}`}>
         <div className={theme.card}>
           <h2 className={theme.cardTitle}>בריאות העסק</h2>
@@ -266,36 +250,6 @@ export default function MainSection({ globalDateRange }: Props) {
         </div>
       </div>
     </div>
-  );
-}
-
-/** Expense split as labelled bars, largest first. */
-function ExpenseBars({ breakdown, total }: { breakdown: any; total: number }) {
-  const rows = [
-    { label: 'שכר מדריכים', value: Number(breakdown.instructor_salaries ?? 0) },
-    { label: 'בונוסים למדריכים', value: Number(breakdown.instructor_bonuses ?? 0) },
-    { label: 'עלויות תפעול (סניף)', value: Number(breakdown.operational_costs ?? 0) },
-  ]
-    .filter((r) => r.value > 0)
-    .sort((a, b) => b.value - a.value);
-
-  if (!rows.length) return <div className={theme.kpiFoot}>אין פירוט הוצאות לתקופה</div>;
-
-  const max = rows[0].value;
-  return (
-    <>
-      {rows.map((r, i) => (
-        <div className={theme.hbar} key={r.label} style={i === rows.length - 1 ? { marginBottom: 0 } : undefined}>
-          <div className={theme.hbarName}>{r.label}</div>
-          <div className={theme.hbarNum}>
-            {formatCurrency(r.value)} · {((r.value / total) * 100).toFixed(1)}%
-          </div>
-          <div className={theme.track}>
-            <div className={theme.fill} style={{ width: `${(r.value / max) * 100}%` }} />
-          </div>
-        </div>
-      ))}
-    </>
   );
 }
 

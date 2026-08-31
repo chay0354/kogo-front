@@ -9,7 +9,19 @@ import { filterBranchesByCity } from '@/lib/scopedFilters';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Users, Download, Tags } from 'lucide-react';
-import { Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
+import {
+  Tooltip,
+  ResponsiveContainer,
+  PieChart,
+  Pie,
+  Cell,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Legend,
+} from 'recharts';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
 import { BranchFinancialDonut } from '@/components/branches/BranchFinancialDonut/BranchFinancialDonut';
@@ -152,18 +164,7 @@ export default function BranchesSection({ globalDateRange }: Props) {
       </div>
 
       {/* KPI row — the four headline branch figures, per the dashboard spec */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card className="rounded-xl bg-card shadow-md border border-border/50">
-          <CardContent className="p-5">
-            <p className="text-sm text-muted-foreground">סניפים פעילים</p>
-            <p className="text-2xl font-bold text-primary">
-              {branchTotals.active}
-              <span className="text-sm font-bold text-muted-foreground"> / {branchList.length}</span>
-            </p>
-            <p className="text-xs text-muted-foreground mt-1">סניפים עם פעילות בתקופה</p>
-          </CardContent>
-        </Card>
-
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <Card className="rounded-xl bg-card shadow-md border border-border/50">
           <CardContent className="p-5">
             <p className="text-sm text-muted-foreground">הכנסות סניפים</p>
@@ -199,54 +200,11 @@ export default function BranchesSection({ globalDateRange }: Props) {
         </Card>
       </div>
 
-      {/* Branch performance table — revenue, cost, profit and margin per branch */}
-      {branchList.length > 0 && (
-        <Card className="rounded-xl bg-card shadow-md border border-border/50">
-          <CardHeader>
-            <CardTitle>ביצועי סניפים</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="text-muted-foreground text-xs">
-                    <th className="text-start font-bold pb-2 px-2">סניף</th>
-                    <th className="text-end font-bold pb-2 px-2">הכנסות</th>
-                    <th className="text-end font-bold pb-2 px-2">הוצאות</th>
-                    <th className="text-end font-bold pb-2 px-2">רווח</th>
-                    <th className="text-end font-bold pb-2 px-2">שיעור רווח</th>
-                    <th className="text-end font-bold pb-2 px-2">תלמידים</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {branchRows.map((row: any, i: number) => (
-                    <tr key={row.branch_id ?? i} className="border-t border-border/60">
-                      <td className="py-3 px-2 font-bold">{row.name}</td>
-                      <td className="py-3 px-2 text-end text-success font-bold">
-                        ₪{Number(row.revenue || 0).toLocaleString('he-IL', { maximumFractionDigits: 0 })}
-                      </td>
-                      <td className="py-3 px-2 text-end text-warning font-bold">
-                        ₪{Number(row.spending || 0).toLocaleString('he-IL', { maximumFractionDigits: 0 })}
-                      </td>
-                      <td className={`py-3 px-2 text-end font-bold ${Number(row.profit || 0) >= 0 ? 'text-success' : 'text-destructive'}`}>
-                        ₪{Number(row.profit || 0).toLocaleString('he-IL', { maximumFractionDigits: 0 })}
-                      </td>
-                      <td className="py-3 px-2 text-end font-bold">
-                        {Number(row.revenue || 0) > 0
-                          ? `${((Number(row.profit || 0) / Number(row.revenue)) * 100).toFixed(1)}%`
-                          : '—'}
-                      </td>
-                      <td className="py-3 px-2 text-end font-bold">{Number(row.students || 0)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Branch Cards - same grid/card pattern as the Branches page */}
+      {/* ביצועי סניפים — each branch first, comparison chart underneath */}
+      <div>
+        <h2 className="text-xl font-bold mb-1">ביצועי סניפים</h2>
+        <p className="text-sm text-muted-foreground mb-4">הכנסות, הוצאות ורווח לכל סניף</p>
+      </div>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {gridBranches.map((branch) => {
           const financials = branchFinancials.get(branch.id);
@@ -278,6 +236,39 @@ export default function BranchesSection({ globalDateRange }: Props) {
         })}
       </div>
       
+      {/* Comparison across branches, drawn from the same rows as the cards */}
+      {branchRows.length > 0 && (
+        <Card className="rounded-xl bg-card shadow-md border border-border/50">
+          <CardHeader>
+            <CardTitle>השוואה בין סניפים</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="h-[320px] w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={branchRows} margin={{ top: 8, right: 8, left: 8, bottom: 8 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+                  <XAxis
+                    dataKey="name"
+                    tick={{ fontSize: 11 }}
+                    interval={0}
+                    height={64}
+                    angle={-20}
+                    textAnchor="end"
+                  />
+                  <YAxis tick={{ fontSize: 11 }} width={70} />
+                  <Tooltip
+                    formatter={(v: any) => `₪${Number(v).toLocaleString('he-IL', { maximumFractionDigits: 0 })}`}
+                  />
+                  <Legend />
+                  <Bar dataKey="revenue" name="הכנסות" fill="hsl(var(--success))" radius={[6, 6, 0, 0]} />
+                  <Bar dataKey="profit" name="רווח" fill="hsl(var(--primary))" radius={[6, 6, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       <BranchesSummaryBar
         totalProfit={kpis.total_profit || 0}
         totalExpenses={sumTotalExpenses(branchList)}

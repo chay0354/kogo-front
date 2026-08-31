@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import AppLayout from '@/components/AppLayout';
-import PageHeader from '@/components/PageHeader';
 import { Button } from '@/components/ui/button';
 import { RefreshCw } from 'lucide-react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
@@ -96,8 +95,6 @@ export default function HomePage() {
             </Button>
           </div>
         </div>
-
-        <PageHeader title="לוח בקרה" description="סקירה כללית של הנתונים העסקיים" />
 
         {/* keyed on the tab so switching replays the entrance motion, and each
             card inside gets its own as it scrolls into view */}

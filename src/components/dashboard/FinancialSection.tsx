@@ -209,18 +209,6 @@ export default function FinancialSection({ globalDateRange }: Props) {
         <Card className={styles.kpiCard}>
           <CardContent className={styles.kpiContent}>
             <div>
-              <p className={styles.kpiLabel}>סה״כ הוצאות</p>
-              <p className={`${styles.kpiValue} ${styles.warning}`}>{formatCurrency(kpis.total_expenses)}</p>
-            </div>
-            <div className={`${styles.kpiIcon} ${styles.kpiIconWarning}`}>
-              <TrendingDown className="h-5 w-5" />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className={styles.kpiCard}>
-          <CardContent className={styles.kpiContent}>
-            <div>
               <p className={styles.kpiLabel}>רווח נקי</p>
               <p className={`${styles.kpiValue} ${profitClass(Number(kpis.net_profit ?? 0))}`}>
                 {formatCurrency(kpis.net_profit)}
@@ -290,14 +278,7 @@ export default function FinancialSection({ globalDateRange }: Props) {
                   strokeWidth={2}
                   dot={{ r: 4 }}
                 />
-                <Line
-                  type="monotone"
-                  dataKey="expenses"
-                  name="הוצאות"
-                  stroke="hsl(var(--warning))"
-                  strokeWidth={2}
-                  dot={{ r: 4 }}
-                />
+                
                 <Line
                   type="monotone"
                   dataKey="profit"
@@ -312,25 +293,6 @@ export default function FinancialSection({ globalDateRange }: Props) {
         </Card>
       ) : null}
 
-      <Card className={styles.panel}>
-        <CardHeader className={styles.panelHeader}>
-          <CardTitle className={styles.panelTitle}>פירוט הוצאות</CardTitle>
-        </CardHeader>
-        <CardContent className={styles.expenseGrid}>
-          <div className={styles.expenseItem}>
-            <span>שכר מדריכים</span>
-            <strong>{formatCurrency(expenseBreakdown.instructor_salaries)}</strong>
-          </div>
-          <div className={styles.expenseItem}>
-            <span>בונוסים</span>
-            <strong>{formatCurrency(expenseBreakdown.instructor_bonuses)}</strong>
-          </div>
-          <div className={styles.expenseItem}>
-            <span>עלויות תפעול (סניף)</span>
-            <strong>{formatCurrency(expenseBreakdown.operational_costs)}</strong>
-          </div>
-        </CardContent>
-      </Card>
 
       {revenueByBranch.length > 0 ? (
         <Card className={styles.panel}>
@@ -343,7 +305,6 @@ export default function FinancialSection({ globalDateRange }: Props) {
                 <tr>
                   <th>סניף</th>
                   <th>הכנסות</th>
-                  <th>הוצאות</th>
                   <th>רווח</th>
                   <th>שולי רווח</th>
                 </tr>
@@ -356,7 +317,6 @@ export default function FinancialSection({ globalDateRange }: Props) {
                     <tr key={row.branch_id}>
                       <td>{row.branch_name}</td>
                       <td>{formatCurrency(row.revenue)}</td>
-                      <td>{formatCurrency(row.expenses)}</td>
                       <td className={profitClass(row.profit)}>{formatCurrency(row.profit)}</td>
                       <td>{margin}%</td>
                     </tr>
