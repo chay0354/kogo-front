@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Calendar, Check, ChevronDown, ChevronRight, Clock, Plus, X } from 'lucide-react';
 import { addWalkInStudent, fetchLessonDetail, formatTime, markAttendance } from '@/lib/scheduleUtils';
 import type { AttendanceStatus, Lesson, LessonDetail } from '@/types/schedule';
@@ -35,6 +35,7 @@ export default function InstructorAttendance({
   const [addOpen, setAddOpen] = useState(false);
   const [addForm, setAddForm] = useState({ first_name: '', last_name: '', phone: '' });
   const [isAdding, setIsAdding] = useState(false);
+  const addFormRef = useRef<HTMLDivElement>(null);
 
   const occurrenceDate = lesson.lesson_date || '';
 
@@ -77,6 +78,18 @@ export default function InstructorAttendance({
     const timer = window.setTimeout(() => setToast(''), 2800);
     return () => window.clearTimeout(timer);
   }, [toast]);
+
+  /* The form is revealed below a list that can be longer than the screen. The
+     layout keeps it on screen on its own, but a short phone with a long header
+     can still leave the last field under the fold, so pull it back into view
+     rather than leaving the instructor to hunt for it. */
+  useEffect(() => {
+    if (!addOpen) return;
+    const node = addFormRef.current;
+    if (!node) return;
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    node.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'nearest' });
+  }, [addOpen]);
 
   const students = detail?.enrollments ?? [];
   const visibleStudents = expanded ? students : students.slice(0, INITIAL_VISIBLE);
@@ -234,32 +247,43 @@ export default function InstructorAttendance({
         </section>
 
         {addOpen && (
-          <div className={styles.addForm}>
+          /* No autofocus anywhere in here: the instructor opens this while the
+             children are still arriving, and a keyboard that springs up over
+             the register hides the rows they are in the middle of marking. */
+          <div className={styles.addForm} ref={addFormRef}>
             <div className={styles.addTitle}>הוספת תלמיד שהגיע</div>
             <p className={styles.addHint}>
               נרשם לשיעור הזה בלבד כדי שתוכלו לסמן נוכחות. המשרד ישלים את ההרשמה.
             </p>
             <div className={styles.addFields}>
-              <input
-                className={styles.addInput}
-                placeholder="שם פרטי"
-                value={addForm.first_name}
-                onChange={(e) => setAddForm((p) => ({ ...p, first_name: e.target.value }))}
-                autoFocus
-              />
-              <input
-                className={styles.addInput}
-                placeholder="שם משפחה"
-                value={addForm.last_name}
-                onChange={(e) => setAddForm((p) => ({ ...p, last_name: e.target.value }))}
-              />
-              <input
-                className={styles.addInput}
-                placeholder="טלפון (לא חובה)"
-                inputMode="tel"
-                value={addForm.phone}
-                onChange={(e) => setAddForm((p) => ({ ...p, phone: e.target.value }))}
-              />
+              <label className={styles.addField}>
+                <span className={styles.addLabel}>שם פרטי</span>
+                <input
+                  className={styles.addInput}
+                  value={addForm.first_name}
+                  onChange={(e) => setAddForm((p) => ({ ...p, first_name: e.target.value }))}
+                />
+              </label>
+              <label className={styles.addField}>
+                <span className={styles.addLabel}>שם משפחה</span>
+                <input
+                  className={styles.addInput}
+                  value={addForm.last_name}
+                  onChange={(e) => setAddForm((p) => ({ ...p, last_name: e.target.value }))}
+                />
+              </label>
+              <label className={`${styles.addField} ${styles.addFieldWide}`}>
+                <span className={styles.addLabel}>
+                  טלפון
+                  <span className={styles.addOptional}>לא חובה</span>
+                </span>
+                <input
+                  className={styles.addInput}
+                  inputMode="tel"
+                  value={addForm.phone}
+                  onChange={(e) => setAddForm((p) => ({ ...p, phone: e.target.value }))}
+                />
+              </label>
             </div>
             <div className={styles.addActions}>
               <button
@@ -283,6 +307,12 @@ export default function InstructorAttendance({
         )}
 
         <footer className={styles.footer} data-tour="add-student">
+          {hiddenCount > 0 && !expanded && (
+            <button type="button" className={styles.moreBtn} onClick={() => setExpanded(true)}>
+              <span>עוד {hiddenCount} ילדים</span>
+              <ChevronDown size={18} />
+            </button>
+          )}
           <button
             type="button"
             className={styles.addBtn}
@@ -293,14 +323,6 @@ export default function InstructorAttendance({
             <Plus size={18} strokeWidth={3} />
             הוסף לקוח
           </button>
-          {hiddenCount > 0 && !expanded ? (
-            <button type="button" className={styles.moreBtn} onClick={() => setExpanded(true)}>
-              <span>עוד {hiddenCount} ילדים</span>
-              <ChevronDown size={18} />
-            </button>
-          ) : (
-            <span />
-          )}
         </footer>
       </div>
       {toast && <div className={styles.toast}>{toast}</div>}

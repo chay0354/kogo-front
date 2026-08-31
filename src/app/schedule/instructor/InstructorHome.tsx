@@ -35,8 +35,8 @@ import {
 } from './instructorUtils';
 import styles from './InstructorHome.module.css';
 
-/** How far either side of the shown day the tour looks for a real lesson. */
-const TOUR_LESSON_SEARCH_DAYS = 14;
+/** How far ahead to look for the instructor's next teaching day. */
+const LESSON_SEARCH_DAYS = 30;
 
 export default function InstructorHome() {
   const { logout } = useAuth();
@@ -59,6 +59,8 @@ export default function InstructorHome() {
   const [viewAs, setViewAs] = useState('self');
   const [teacherPickerOpen, setTeacherPickerOpen] = useState(false);
   const [confirmLogout, setConfirmLogout] = useState(false);
+  // Set when the screen moved itself off an empty day, so it can say so.
+  const [autoAdvanced, setAutoAdvanced] = useState(false);
   const carouselRef = useRef<HTMLDivElement>(null);
   const transitionLockRef = useRef(false);
   const returnTimerRef = useRef<number | null>(null);
@@ -71,6 +73,9 @@ export default function InstructorHome() {
   const tourRunningRef = useRef(false);
   const tourSearchedRef = useRef(false);
   const tourBorrowRef = useRef<(() => Promise<void>) | null>(null);
+  // Which calendar the screen has already advanced for, so picking a date by
+  // hand is never overridden.
+  const autoAdvancedForRef = useRef<string | null>(null);
 
   const dateIso = formatDateISO(selectedDate);
 
@@ -286,41 +291,71 @@ export default function InstructorHome() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visibleLessons, isLoading, selectedLesson, openingLesson]);
 
+  /**
+   * The soonest day from `anchor` onwards that this instructor actually
+   * teaches, or null if there is none within the window.
+   *
+   * Always forward. Landing someone on a day behind them is worse than the
+   * empty day it replaced — the next lesson is the one they need.
+   */
+  const nextTeachingDay = async (anchor: Date, who: string) => {
+    const to = new Date(anchor);
+    to.setDate(to.getDate() + LESSON_SEARCH_DAYS);
+    const ahead = await fetchLessons({
+      start_date: formatDateISO(anchor),
+      end_date: formatDateISO(to),
+      as_user: who === 'self' ? undefined : who,
+    });
+    const dates = ahead
+      .map((l) => l.lesson_date)
+      .filter((d): d is string => Boolean(d))
+      .sort();
+    return dates.length ? new Date(`${dates[0]}T00:00:00`) : null;
+  };
+
+  // An empty day tells an instructor nothing. When the screen opens on one —
+  // or they switch to a colleague who is not teaching today — it moves to
+  // their next teaching day instead.
+  //
+  // Only on arrival and on switching: once someone picks a date themselves
+  // that is the day they asked for, empty or not.
+  useEffect(() => {
+    if (isLoading || visibleLessons.length) return;
+    if (autoAdvancedForRef.current === viewAs) return;
+    autoAdvancedForRef.current = viewAs;
+
+    let cancelled = false;
+    (async () => {
+      try {
+        const day = await nextTeachingDay(selectedDate, viewAs);
+        if (cancelled || !day) return;
+        if (formatDateISO(day) === formatDateISO(selectedDate)) return;
+        setAutoAdvanced(true);
+        setSelectedDate(day);
+      } catch {
+        /* leave the empty day rather than guess */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isLoading, visibleLessons.length, viewAs]);
+
   // Most of the tour points at the day's lessons — the cubes, the list, then a
   // register. On a day the instructor does not teach there is nothing to point
   // at, so it moves to the nearest day that does have lessons and puts the day
   // back when it ends. Real lessons from their own timetable; nothing invented.
   useEffect(() => {
-    const nearestDayWithLessons = async () => {
-      const asUser = viewAs === 'self' ? undefined : viewAs;
-      const from = new Date(selectedDate);
-      from.setDate(from.getDate() - TOUR_LESSON_SEARCH_DAYS);
-      const to = new Date(selectedDate);
-      to.setDate(to.getDate() + TOUR_LESSON_SEARCH_DAYS);
-      const nearby = await fetchLessons({
-        start_date: formatDateISO(from),
-        end_date: formatDateISO(to),
-        as_user: asUser,
-      });
-      const dated = nearby.filter((l) => l.lesson_date);
-      if (!dated.length) return null;
-      const anchor = selectedDate.getTime();
-      return dated.reduce((best, l) => {
-        const gap = Math.abs(new Date(`${l.lesson_date}T00:00:00`).getTime() - anchor);
-        const bestGap = Math.abs(new Date(`${best.lesson_date}T00:00:00`).getTime() - anchor);
-        return gap < bestGap ? l : best;
-      });
-    };
-
     const borrowADay = async () => {
       if (isLoading || visibleLessons.length) return;
       try {
-        const nearest = await nearestDayWithLessons();
-        if (!nearest?.lesson_date) return; // genuinely nothing; steps centre
+        const nextDay = await nextTeachingDay(selectedDate, viewAs);
+        if (!nextDay) return; // genuinely nothing ahead; the steps centre
         if (tourOriginalDateRef.current === null) {
           tourOriginalDateRef.current = selectedDate;
         }
-        setSelectedDate(new Date(`${nearest.lesson_date}T00:00:00`));
+        setSelectedDate(nextDay);
       } catch {
         /* the steps fall back to centred cards */
       }
@@ -576,6 +611,8 @@ export default function InstructorHome() {
                   value={dateIso}
                   onChange={(event) => {
                     if (!event.target.value) return;
+                    setAutoAdvanced(false);
+                    autoAdvancedForRef.current = viewAs;
                     setSelectedDate(new Date(`${event.target.value}T00:00:00`));
                   }}
                   aria-label="בחירת תאריך"
@@ -667,6 +704,12 @@ export default function InstructorHome() {
               </button>
             )}
           </div>
+
+          {/* Say so plainly rather than leaving someone to wonder why the
+              screen is not on today. */}
+          {autoAdvanced && (
+            <div className={styles.movedNote}>אין שיעורים היום — מוצג היום הקרוב</div>
+          )}
 
           <div className={styles.sectionLabel}>השיעורים היום</div>
         </header>

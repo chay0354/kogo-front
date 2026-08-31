@@ -42,6 +42,13 @@ export default function InstructorDashboard({ onClose, onOpenLesson }: Props) {
   const [error, setError] = useState('');
   const [range, setRange] = useState<RangeKey>('6m');
   const [branchId, setBranchId] = useState('all');
+  /**
+   * Every branch this teacher works in, not merely the ones left in the answer
+   * on screen. A filtered answer names only the branch it was filtered to, so
+   * reading the options off it would collapse the row to a single branch the
+   * moment one is picked, with no way back to "הכל".
+   */
+  const [branchOptions, setBranchOptions] = useState<Data['branches']>([]);
   const [linkedUsers, setLinkedUsers] = useState<LinkedUser[]>([]);
   const [viewAs, setViewAs] = useState('self');
   const [isClosing, setIsClosing] = useState(false);
@@ -71,6 +78,7 @@ export default function InstructorDashboard({ onClose, onOpenLesson }: Props) {
   // keeping the old id would filter to a branch they do not work in.
   useEffect(() => {
     setBranchId('all');
+    setBranchOptions([]);
   }, [viewAs]);
 
   useEffect(() => {
@@ -84,7 +92,11 @@ export default function InstructorDashboard({ onClose, onOpenLesson }: Props) {
       as_user: viewAs === 'self' ? undefined : viewAs,
     })
       .then((res) => {
-        if (!cancelled) setData(res);
+        if (cancelled) return;
+        setData(res);
+        // Only an unfiltered answer names every branch, so the options come
+        // from that one and are kept while a branch is selected.
+        if (branchId === 'all') setBranchOptions(res.branches ?? []);
       })
       .catch((err) => {
         if (cancelled) return;
@@ -128,7 +140,8 @@ export default function InstructorDashboard({ onClose, onOpenLesson }: Props) {
   );
   const lowGroups = (data?.groups ?? []).filter((g) => g.is_low);
   const threshold = data?.low_group_threshold ?? 8;
-  const branches = data?.branches ?? [];
+  // Fall back to the answer only until the first unfiltered one has landed.
+  const branches = branchOptions.length ? branchOptions : data?.branches ?? [];
 
   return (
     <div

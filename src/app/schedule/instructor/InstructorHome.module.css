@@ -1138,3 +1138,19 @@
     animation: none;
   }
 }
+
+/* --- הודעה על מעבר ליום הקרוב --- */
+
+.movedNote {
+  margin: 10px auto 0;
+  width: fit-content;
+  max-width: calc(100% - 32px);
+  padding: 6px 14px;
+  border-radius: 999px;
+  background: rgba(245, 197, 24, 0.18);
+  color: #f5c518;
+  font-size: 12.5px;
+  font-weight: 700;
+  text-align: center;
+  line-height: 1.4;
+}

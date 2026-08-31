@@ -42,6 +42,18 @@
   animation: attendanceShellEnter 400ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
+/* Below the desktop breakpoint the register owns the whole screen, so bind the
+   column to the viewport. Without it every ancestor is content-sized: revealing
+   the add form grows the page past the fold and pushes the footer — the one
+   button the instructor needs — off the bottom of the screen. Bound, the list
+   is the only part that scrolls and the actions stay put. */
+@media (max-width: 1023.98px) {
+  .shell,
+  .panel {
+    max-height: 100dvh;
+  }
+}
+
 .header {
   background: #2b3090;
   color: #fff;
@@ -134,7 +146,7 @@
 
 .list {
   flex: 1;
-  padding: 18px 16px 110px;
+  padding: 18px 16px 20px;
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -263,14 +275,23 @@
   color: #fff !important;
 }
 
+/* Two things eat the bottom of this screen on a phone: iOS reserves the strip
+   under the home indicator, and the screen floats 56px round buttons 18px in
+   from both bottom corners. A corner-aligned row 20px off the bottom lands
+   under both. Stacking the actions and reserving the corner bands as inline
+   padding puts them in the middle of the screen, where a thumb reaches. */
 .footer {
+  /* 18px inset + a 56px floating button. */
+  --fabBand: 74px;
+
   position: sticky;
   bottom: 0;
   display: flex;
+  flex-direction: column;
   align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 12px 16px 20px;
+  gap: 2px;
+  padding-inline: var(--fabBand);
+  padding-block: 10px calc(18px + env(safe-area-inset-bottom, 0px));
   background: linear-gradient(180deg, rgba(247, 247, 251, 0) 0%, #f7f7fb 28%);
   margin-top: auto;
   animation: attendanceFooterEnter 380ms 180ms cubic-bezier(0.22, 1, 0.36, 1) both;
@@ -296,11 +317,13 @@
   font-weight: 800;
   font-size: 15px;
   border-radius: 999px;
-  padding: 12px 18px;
+  padding: 12px 22px;
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 6px;
   cursor: pointer;
+  white-space: nowrap;
   box-shadow: 0 4px 12px rgba(245, 197, 24, 0.35);
 }
 
@@ -347,11 +370,11 @@
   }
 
   .list {
-    padding: 22px 24px 110px;
+    padding: 22px 24px 24px;
   }
 
   .footer {
-    padding: 12px 24px 24px;
+    padding-block: 12px calc(22px + env(safe-area-inset-bottom, 0px));
   }
 }
 
@@ -390,8 +413,11 @@
     padding: 20px 20px 24px;
   }
 
+  /* The register is a side pane here, not the whole screen: nothing floats over
+     its corners and there is no home indicator to clear. */
   .footer {
-    padding: 12px 20px 18px;
+    padding-inline: 20px;
+    padding-block: 12px 18px;
   }
 
   .title {
@@ -553,7 +579,7 @@
 /* --- הוספת תלמיד שהגיע ללא רישום --- */
 
 .addForm {
-  margin: 12px 0 4px;
+  margin: 10px 16px 0;
   padding: 14px;
   border-radius: 16px;
   background: #fff;
@@ -584,20 +610,50 @@
   color: rgba(30, 42, 110, 0.62);
 }
 
+/* The two names share a row so the whole form clears the fold on a phone
+   instead of running three fields deep. */
 .addFields {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 8px;
+  gap: 10px 8px;
 }
 
-/* The phone is optional, so it takes the full width on its own row. */
-.addFields .addInput:last-child {
+.addField {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+/* The phone is optional, so it gets its own full-width row rather than being
+   paired off against a required field. */
+.addFieldWide {
   grid-column: 1 / -1;
+}
+
+/* Standing labels, not placeholders: the hint that the phone can be left empty
+   has to survive the instructor starting to type. */
+.addLabel {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  color: rgba(30, 42, 110, 0.68);
+}
+
+.addOptional {
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: rgba(30, 42, 110, 0.08);
+  color: rgba(30, 42, 110, 0.58);
+  font-size: 10.5px;
+  font-weight: 700;
 }
 
 .addInput {
   width: 100%;
-  padding: 11px 12px;
+  padding: 10px 12px;
   border-radius: 12px;
   border: 1px solid rgba(30, 42, 110, 0.18);
   background: #fbfbfe;
@@ -614,18 +670,21 @@
 
 .addActions {
   display: flex;
+  align-items: center;
   gap: 8px;
-  margin-top: 12px;
+  margin-top: 14px;
 }
 
+/* Sized to its label, at the scale of every other pill on the screen: stretched
+   across the card it read as the loudest thing in the register. */
 .addSave {
-  flex: 1;
   border: 0;
   border-radius: 999px;
-  padding: 11px 18px;
+  padding: 10px 24px;
   background: #f5c518;
   color: #1e2a6e;
   font: inherit;
+  font-size: 14px;
   font-weight: 800;
   cursor: pointer;
 }
@@ -638,10 +697,11 @@
 .addCancel {
   border: 1px solid rgba(30, 42, 110, 0.18);
   border-radius: 999px;
-  padding: 11px 18px;
+  padding: 10px 18px;
   background: transparent;
   color: rgba(30, 42, 110, 0.72);
   font: inherit;
+  font-size: 14px;
   font-weight: 700;
   cursor: pointer;
 }

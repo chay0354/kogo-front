@@ -103,6 +103,86 @@
 .title { font-size: 19px; font-weight: 900; color: #231f6e; letter-spacing: -0.3px; }
 .body { font-size: 14.5px; line-height: 1.6; color: #5b5980; margin-top: 8px; }
 
+/* The stand-in drawn while the real thing is not on screen. Dashed, flat grey
+   and tagged, so it reads as a drawing of the screen and never as the
+   instructor's own lessons. */
+.mock {
+  position: relative;
+  margin-top: 14px;
+  padding: 28px 12px 14px;
+  border: 1.5px dashed #d9d6ee;
+  border-radius: 14px;
+  background: #fbfbff;
+  text-align: initial;
+}
+.mockTag {
+  position: absolute;
+  top: 8px;
+  inset-inline-start: 10px;
+  font-size: 10.5px;
+  font-weight: 800;
+  color: #8b88b6;
+  background: #efeefb;
+  border-radius: 999px;
+  padding: 3px 9px;
+}
+
+.mockCol { display: flex; flex-direction: column; gap: 9px; }
+.mockRow { display: flex; align-items: center; gap: 8px; }
+.mockRowFlow { display: flex; gap: 8px; }
+
+/* Every piece of "text" is a bar. Nothing here may be read as a value. */
+.mockBar {
+  flex: 1;
+  height: 8px;
+  border-radius: 999px;
+  background: #e2dff3;
+}
+.mockBarShort { width: 34%; height: 8px; border-radius: 999px; background: #d5d1ec; }
+.mockHeadBar { width: 58%; height: 11px; border-radius: 999px; background: #d5d1ec; }
+.mockTime { width: 30px; height: 8px; border-radius: 999px; background: #d5d1ec; flex: none; }
+.mockPill { width: 26px; height: 14px; border-radius: 999px; background: #e9e6f7; flex: none; }
+.mockAvatar { width: 18px; height: 18px; border-radius: 50%; background: #e2dff3; flex: none; }
+.mockChip { flex: 1; height: 22px; border-radius: 7px; background: #ebe8f8; }
+
+.mockCube {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 8px;
+  border-radius: 10px;
+  background: #f2f0fc;
+}
+
+/* The marks stay in their real colours: what they mean is the lesson being
+   taught, and a grey tick would teach the wrong thing. */
+.mockOk, .mockMiss {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 900;
+  line-height: 1;
+}
+.mockOk { background: #d8f3e2; color: #1f7a4d; }
+.mockMiss { background: #fbdfe2; color: #a12b3c; }
+
+.mockChart {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  height: 78px;
+  padding-top: 4px;
+  border-bottom: 1.5px solid #e6e3f5;
+}
+.mockColumn { flex: 1; border-radius: 6px 6px 0 0; background: #ddd9f0; }
+
 .dots { display: flex; gap: 6px; margin: 16px 0 4px; }
 .cardCentred .dots { justify-content: center; }
 .dot { width: 7px; height: 7px; border-radius: 50%; background: #ddd9f0; transition: all 0.25s; }
@@ -152,6 +232,11 @@
   .title { font-size: 17.5px; }
   .body { font-size: 14px; }
   .skip { float: none; display: block; width: 100%; margin-bottom: 10px; }
+  /* The card has to hold its buttons on a short phone before it holds a
+     drawing, so the drawing is what gives way. */
+  .mock { padding: 26px 10px 12px; }
+  .mockChart { height: 62px; }
+  .mockCube { padding: 8px 6px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
