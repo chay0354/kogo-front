@@ -122,3 +122,51 @@
     font-size: 12px;
   }
 }
+
+/* --------------------------------------------------------------------------
+   Compact form
+
+   Applied once the page is scrolled. The island tightens slightly so it takes
+   less of the viewport while it rides along at the top. The pill is
+   re-measured after the transition (see the compact effect in the component)
+   because the tab widths change here.
+   -------------------------------------------------------------------------- */
+.compact .rail {
+  padding: 3px 4px;
+}
+.compact .tab {
+  padding: 7px 12px;
+  font-size: 12.5px;
+  gap: 5px;
+}
+.compact .tab .icon {
+  width: 14px;
+  height: 14px;
+}
+.compact .glide {
+  top: 3px;
+  bottom: 3px;
+}
+.glass,
+.rail,
+.tab {
+  transition:
+    padding 0.3s cubic-bezier(0.32, 0.72, 0, 1),
+    font-size 0.3s cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+@media (max-width: 880px) {
+  .compact .tab {
+    padding: 8px 10px;
+    min-height: 40px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .glass,
+  .rail,
+  .tab,
+  .glide {
+    transition: none;
+  }
+}

@@ -19,9 +19,11 @@ export const DASH_TABS: { key: DashTab; label: string; Icon: typeof Home }[] = [
 interface Props {
   value: DashTab;
   onChange: (t: DashTab) => void;
+  /** Compact form used once the page has been scrolled. */
+  compact?: boolean;
 }
 
-export default function FloatingIsland({ value, onChange }: Props) {
+export default function FloatingIsland({ value, onChange, compact = false }: Props) {
   const railRef = useRef<HTMLDivElement>(null);
   const btnRefs = useRef<Record<string, HTMLButtonElement | null>>({});
   const [glide, setGlide] = useState<{ left: number; width: number }>({ left: 0, width: 0 });
@@ -39,6 +41,15 @@ export default function FloatingIsland({ value, onChange }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [value]);
 
+  // The compact form changes tab padding, so the pill has to be re-measured
+  // after that transition or it ends up under the wrong tab.
+  useEffect(() => {
+    moveGlide();
+    const t = setTimeout(moveGlide, 260);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [compact]);
+
   useEffect(() => {
     const t = setTimeout(moveGlide, 350);
     window.addEventListener('resize', moveGlide);
@@ -50,7 +61,7 @@ export default function FloatingIsland({ value, onChange }: Props) {
   }, []);
 
   return (
-    <div className={styles.glass}>
+    <div className={`${styles.glass} ${compact ? styles.compact : ''}`}>
       <div className={styles.rail} ref={railRef} role="tablist" aria-label="ניווט לוח בקרה">
         <div className={styles.glide} style={{ left: glide.left, width: glide.width }} aria-hidden />
         {DASH_TABS.map(({ key, label, Icon }) => (
