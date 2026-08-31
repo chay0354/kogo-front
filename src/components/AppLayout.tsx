@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import GuidedTour from '@/components/onboarding/GuidedTour';
 import { usePathname, useRouter } from 'next/navigation';
 import { Loader2, PanelRightOpen } from 'lucide-react';
 import Sidebar from './Sidebar';
@@ -146,6 +147,11 @@ export default function AppLayout({ children }: AppLayoutProps) {
           {children}
         </div>
       </main>
+
+      {/* Guided tour. Decides for itself whether to open, from the sign-in
+          count on the account — mandatory on the first, skippable on the next
+          two, silent from the fourth. */}
+      <GuidedTour />
     </div>
   );
 }

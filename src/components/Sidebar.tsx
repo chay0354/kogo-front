@@ -117,6 +117,22 @@ export default function Sidebar({ open = true, onToggle, onNavigate }: SidebarPr
         </ul>
       </nav>
 
+      {/* Reopen the guided tour. It stops opening on its own after the third
+          sign-in, so this is how anyone gets back to it. */}
+      {user ? (
+        <button
+          type="button"
+          onClick={() => {
+            onNavigate?.();
+            window.dispatchEvent(new CustomEvent('kogo:open-tour'));
+          }}
+          className="mx-4 mb-2 flex items-center justify-center gap-2 rounded-lg border border-sidebar-accent px-3 py-2 text-xs font-bold text-sidebar-foreground/80 hover:bg-sidebar-accent transition-colors"
+        >
+          <span aria-hidden>❓</span>
+          הדרכה
+        </button>
+      ) : null}
+
       <div className="h-16 border-t border-sidebar-accent flex items-center justify-center px-4">
         {user ? (
           <Button

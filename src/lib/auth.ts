@@ -11,6 +11,10 @@ export type CurrentUser = {
   is_superuser: boolean;
   role: UserRole | null;
   branch_ids?: string[];
+  /** How many times this account has signed in; drives the guided tour. */
+  login_count?: number;
+  /** True once the tour was finished or skipped. */
+  tour_completed?: boolean;
 };
 
 export async function login(email: string, password: string): Promise<CurrentUser> {

@@ -1,0 +1,120 @@
+.backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(16, 18, 40, 0.55);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  animation: fade 0.25s ease both;
+}
+@keyframes fade { from { opacity: 0 } }
+
+.card {
+  position: relative;
+  width: 100%;
+  max-width: 460px;
+  background: #fff;
+  border-radius: 20px;
+  padding: 28px 24px 20px;
+  text-align: center;
+  box-shadow: 0 24px 60px rgba(16, 18, 40, 0.3);
+  animation: rise 0.3s cubic-bezier(0.32, 0.72, 0, 1) both;
+}
+@keyframes rise { from { opacity: 0; transform: translateY(14px) scale(0.98) } }
+
+/* Skip is deliberately large and obvious — the owner asked for it to be easy
+   to find from the second sign-in onward. */
+.skip {
+  position: absolute;
+  top: 14px;
+  inset-inline-start: 14px;
+  border: 1px solid #e5e7f0;
+  background: #f6f7fb;
+  color: #4a4599;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 800;
+  padding: 10px 16px;
+  border-radius: 999px;
+  cursor: pointer;
+  min-height: 44px;
+  transition: background 0.2s, border-color 0.2s;
+}
+.skip:hover { background: #ecebf6; border-color: #d7d5ee; }
+.skip:disabled { opacity: 0.6; cursor: default; }
+
+/* First sign-in: no skip, so say why rather than leaving a dead corner. */
+.mandatory {
+  display: inline-block;
+  background: #fff5e0;
+  color: #8a5a00;
+  font-size: 12.5px;
+  font-weight: 800;
+  padding: 6px 14px;
+  border-radius: 999px;
+  margin-bottom: 6px;
+}
+
+.icon { font-size: 44px; line-height: 1; margin: 10px 0 6px; }
+.title { font-size: 21px; font-weight: 900; color: #231f6e; letter-spacing: -0.3px; }
+.body { font-size: 15px; line-height: 1.6; color: #5b5980; margin-top: 8px; }
+
+.dots { display: flex; justify-content: center; gap: 6px; margin: 18px 0 4px; }
+.dot { width: 7px; height: 7px; border-radius: 50%; background: #ddd9f0; transition: all 0.25s; }
+.dotOn { background: #5b54d6; width: 20px; border-radius: 999px; }
+
+.actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 14px;
+}
+.next {
+  flex: 1;
+  border: 0;
+  background: #231f6e;
+  color: #fff;
+  font: inherit;
+  font-size: 15px;
+  font-weight: 800;
+  padding: 13px 20px;
+  border-radius: 12px;
+  cursor: pointer;
+  min-height: 48px;
+}
+.next:hover { background: #312a9e; }
+.next:disabled { opacity: 0.7; cursor: default; }
+.back {
+  border: 1px solid #e5e7f0;
+  background: #fff;
+  color: #4a4599;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 800;
+  padding: 12px 18px;
+  border-radius: 12px;
+  cursor: pointer;
+  min-height: 48px;
+}
+.back:hover { background: #f6f7fb; }
+
+.counter { font-size: 12px; font-weight: 700; color: #8b88b6; margin-top: 12px; }
+
+@media (max-width: 560px) {
+  .card { padding: 24px 18px 16px; border-radius: 18px; }
+  .title { font-size: 19px; }
+  .body { font-size: 14.5px; }
+  .icon { font-size: 38px; }
+  /* Keep the skip clear of the icon on a narrow screen. */
+  .skip { position: static; display: block; margin: 0 auto 12px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .backdrop, .card { animation: none; }
+  .dot { transition: none; }
+}

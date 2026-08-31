@@ -285,6 +285,15 @@ export const fetchInvoicingData = async (filters: { date_from?: string; date_to?
   return response.data;
 };
 
+/**
+ * Mark the guided tour as finished for the signed-in user, so it stops opening
+ * automatically. Stored on the account, not in the browser.
+ */
+export const completeTour = async () => {
+  const response = await api.post('/core/auth/complete-tour/');
+  return response.data;
+};
+
 export const refreshCurrentMonthSnapshots = async () => {
   const response = await api.post('/core/dashboard/refresh-current-month/');
   return response.data;
