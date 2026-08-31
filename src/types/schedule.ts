@@ -20,6 +20,10 @@ export type Lesson = {
   lesson_date: string | null;
   status: LessonStatus;
   enrollment_count: number;
+  /** תלמידים שמופיעים בפועל ברשימת הנוכחות של המופע הזה. */
+  student_count?: number;
+  /** תלמידי ניסיון שמופיעים רק במופע הניסיון שנקבע להם. */
+  trial_student_count?: number;
   notes: string;
   is_recurring: boolean;
   attendance_complete?: boolean;
@@ -162,4 +166,3 @@ export type ScheduleEventFilters = {
   /** When true, only studio rentals (שכירויות) are returned */
   studio_rental?: boolean;
 };
-

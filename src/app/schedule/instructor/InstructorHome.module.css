@@ -172,18 +172,19 @@
   position: absolute;
   top: 50%;
   z-index: 3;
-  width: 30px;
-  height: 64px;
+  width: 44px;
+  height: 44px;
   border: 0;
-  background: rgba(43, 48, 144, 0.72);
+  background: transparent;
   color: #fff;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 0;
-  transform: translateY(-42%);
-  transition: background-color 160ms ease, transform 160ms ease;
+  transform: translateY(-50%);
+  transition: color 160ms ease, transform 160ms ease;
+  filter: drop-shadow(0 1px 2px rgba(30, 42, 110, 0.45));
 }
 
 .carouselArrow:first-child {
@@ -196,12 +197,12 @@
 
 .carouselArrow:hover,
 .carouselArrow:focus-visible {
-  background: rgba(43, 48, 144, 0.96);
+  color: #f5c518;
   outline: none;
 }
 
 .carouselArrow:active {
-  transform: translateY(-42%) scale(0.92);
+  transform: translateY(-50%) scale(0.9);
 }
 
 .carousel {
@@ -263,7 +264,7 @@
 
 .slot {
   width: clamp(90px, 24vw, 104px);
-  min-height: 100px;
+  min-height: 116px;
   background: #fff;
   border: 2px solid transparent;
   border-radius: 14px;
@@ -313,6 +314,33 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.slotCounts {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  color: #48536f;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.slotCounts span,
+.cardCounts span {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  white-space: nowrap;
+}
+
+.slotTrial {
+  color: #a56700;
+}
+
+.slotTrialEmpty {
+  color: #9ca3af;
 }
 
 .slotStatus {
@@ -461,6 +489,36 @@
   color: #6b7280;
   font-size: 13px;
   font-weight: 500;
+}
+
+.cardMetaRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  margin-top: 4px;
+}
+
+.cardMetaRow .cardTime {
+  margin-top: 0;
+}
+
+.cardCounts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 5px 9px;
+  color: #53607d;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.trialCount {
+  color: #a56700;
+}
+
+.trialCountEmpty {
+  color: #9ca3af;
 }
 
 .statusCol {

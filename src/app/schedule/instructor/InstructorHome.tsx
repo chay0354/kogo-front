@@ -9,8 +9,10 @@ import {
   ChevronLeft,
   ChevronRight,
   Clock,
+  FlaskConical,
   LogOut,
   MapPin,
+  Users,
   X,
 } from 'lucide-react';
 import { useAuth } from '@/components/AuthProvider';
@@ -288,6 +290,8 @@ export default function InstructorHome() {
                 const complete = Boolean(lesson.attendance_complete);
                 const highlighted = highlightId === lesson.id;
                 const selected = isSelected(lesson);
+                const studentCount = lesson.student_count ?? lesson.enrollment_count;
+                const trialStudentCount = lesson.trial_student_count ?? 0;
                 return (
                   <div
                     key={`${lesson.id}-${lesson.lesson_date}`}
@@ -302,6 +306,16 @@ export default function InstructorHome() {
                     >
                       <div className={styles.slotTime}>{formatTime(lesson.start_time)}</div>
                       <div className={styles.slotGroup}>{shortGroupLabel(lesson)}</div>
+                      <div className={styles.slotCounts} aria-label={`${studentCount} תלמידים, ${trialStudentCount} תלמידי ניסיון`}>
+                        <span title="תלמידים">
+                          <Users size={13} aria-hidden="true" />
+                          {studentCount}
+                        </span>
+                        <span className={trialStudentCount > 0 ? styles.slotTrial : styles.slotTrialEmpty} title="תלמידי ניסיון">
+                          <FlaskConical size={12} aria-hidden="true" />
+                          {trialStudentCount}
+                        </span>
+                      </div>
                       <div className={`${styles.slotStatus} ${complete ? styles.ok : styles.miss}`}>
                         {complete ? <Check size={18} strokeWidth={3} /> : <X size={18} strokeWidth={3} />}
                       </div>
@@ -332,32 +346,48 @@ export default function InstructorHome() {
             {!isLoading && !error && visibleLessons.length === 0 && (
               <div className={styles.empty}>אין שיעורים ביום זה</div>
             )}
-            {visibleLessons.map((lesson) => (
-              <button
-                key={`${lesson.id}-${lesson.lesson_date}-row`}
-                type="button"
-                className={`${styles.card} ${lesson.status === 'cancelled' ? styles.cardCancelled : ''} ${isSelected(lesson) ? styles.cardSelected : ''}`}
-                onClick={() => openLesson(lesson)}
-              >
-                <div className={styles.cardMain}>
-                  <ChevronRight className={styles.cardChevron} size={22} strokeWidth={2.5} />
-                  <div className={styles.cardText}>
-                    <div className={styles.cardTitle}>{lessonTitle(lesson)}</div>
-                    <div className={styles.cardTime}>
-                      <Clock size={14} />
-                      <span>{lessonTimeRange(lesson)}</span>
+            {visibleLessons.map((lesson) => {
+              const studentCount = lesson.student_count ?? lesson.enrollment_count;
+              const trialStudentCount = lesson.trial_student_count ?? 0;
+              return (
+                <button
+                  key={`${lesson.id}-${lesson.lesson_date}-row`}
+                  type="button"
+                  className={`${styles.card} ${lesson.status === 'cancelled' ? styles.cardCancelled : ''} ${isSelected(lesson) ? styles.cardSelected : ''}`}
+                  onClick={() => openLesson(lesson)}
+                >
+                  <div className={styles.cardMain}>
+                    <ChevronRight className={styles.cardChevron} size={22} strokeWidth={2.5} />
+                    <div className={styles.cardText}>
+                      <div className={styles.cardTitle}>{lessonTitle(lesson)}</div>
+                      <div className={styles.cardMetaRow}>
+                        <div className={styles.cardTime}>
+                          <Clock size={14} />
+                          <span>{lessonTimeRange(lesson)}</span>
+                        </div>
+                        <div className={styles.cardCounts} aria-label={`${studentCount} תלמידים, ${trialStudentCount} תלמידי ניסיון`}>
+                          <span title="תלמידים">
+                            <Users size={15} aria-hidden="true" />
+                            {studentCount} תלמידים
+                          </span>
+                          <span className={trialStudentCount > 0 ? styles.trialCount : styles.trialCountEmpty} title="תלמידי ניסיון">
+                            <FlaskConical size={14} aria-hidden="true" />
+                            {trialStudentCount} ניסיון
+                          </span>
+                        </div>
+                      </div>
                     </div>
                   </div>
-                </div>
-                <div className={styles.statusCol}>
-                  {lesson.attendance_complete ? (
-                    <Check className={styles.ok} size={26} strokeWidth={3} />
-                  ) : (
-                    <ChevronRight className={styles.cardChevron} size={22} strokeWidth={2.5} />
-                  )}
-                </div>
-              </button>
-            ))}
+                  <div className={styles.statusCol}>
+                    {lesson.attendance_complete ? (
+                      <Check className={styles.ok} size={26} strokeWidth={3} />
+                    ) : (
+                      <ChevronRight className={styles.cardChevron} size={22} strokeWidth={2.5} />
+                    )}
+                  </div>
+                </button>
+              );
+            })}
           </section>
 
           <aside
