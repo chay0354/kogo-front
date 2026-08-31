@@ -172,6 +172,13 @@
   direction: ltr;
 }
 
+/* Only the row holding a real photo grows; the placeholder keeps the compact
+   height the card was tuned for. */
+.instructorBoxWithPhoto {
+  padding-block: 0;
+  padding-inline-start: 4px;
+}
+
 /* Sized for a real instructor photo, which drops in place of the inline placeholder. */
 .instructorAvatar {
   flex-shrink: 0;
@@ -183,14 +190,26 @@
   box-shadow: 0 0 0 3px #F5C518;
 }
 
-/* The photos are cut-outs with no background of their own, so the gold circle
-   behind them is what they sit on. Anchored to the top so a head is never the
-   part that gets cropped. */
+/* A real photo stands on its own: the gold disc and its ring are there to give
+   the placeholder figure something to sit on, and a cut-out with no background
+   of its own looks pasted onto a badge if it keeps them. It is also given far
+   more room, since it is the one thing on the card a parent recognises. */
+.instructorAvatarPhoto {
+  width: 132px;
+  height: 132px;
+  overflow: visible;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+}
+
+/* Contained, not cropped — the whole figure is the point, and it stands on the
+   bottom edge so a person never floats. */
 .avatarPhoto {
   width: 100%;
   height: 100%;
-  object-fit: cover;
-  object-position: top center;
+  object-fit: contain;
+  object-position: bottom center;
   display: block;
 }
 

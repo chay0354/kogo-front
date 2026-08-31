@@ -320,8 +320,13 @@ export default function CourseExpandedDetail({
           </div>
         </div>
 
-        <div className={styles.instructorBox}>
-          <div className={styles.instructorAvatar} aria-hidden>
+        <div
+          className={`${styles.instructorBox} ${instructorPhoto ? styles.instructorBoxWithPhoto : ''}`}
+        >
+          <div
+            className={`${styles.instructorAvatar} ${instructorPhoto ? styles.instructorAvatarPhoto : ''}`}
+            aria-hidden
+          >
             {instructorPhoto ? (
               /* Served from storage with a versioned URL, so it is cached for as
                  long as it stays the same photo. */
