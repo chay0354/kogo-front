@@ -35,6 +35,9 @@ import {
 } from './instructorUtils';
 import styles from './InstructorHome.module.css';
 
+/** How far either side of the shown day the tour looks for a real lesson. */
+const TOUR_LESSON_SEARCH_DAYS = 14;
+
 export default function InstructorHome() {
   const { logout } = useAuth();
   const router = useRouter();
@@ -59,6 +62,10 @@ export default function InstructorHome() {
   const carouselRef = useRef<HTMLDivElement>(null);
   const transitionLockRef = useRef(false);
   const returnTimerRef = useRef<number | null>(null);
+  // The day the tour started on, while it is borrowing another one.
+  const tourOriginalDateRef = useRef<Date | null>(null);
+  // Set while the tour is waiting for a lesson to become available to open.
+  const tourWantsLessonRef = useRef(false);
 
   const dateIso = formatDateISO(selectedDate);
 
@@ -263,19 +270,81 @@ export default function InstructorHome() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pendingLesson, lessons, isLoading, dateIso]);
 
+  // Whenever the tour is waiting for a lesson and one is on screen, open it.
+  // Tying this to an id handed over before the day reloaded was fragile: the
+  // day's request had to land in exactly the right order for it to fire.
+  useEffect(() => {
+    if (!tourWantsLessonRef.current) return;
+    if (isLoading || selectedLesson || openingLesson) return;
+    const first = visibleLessons[0];
+    if (first) void openLesson(first);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visibleLessons, isLoading, selectedLesson, openingLesson]);
+
   // The tour lights up controls that live inside a lesson, so it asks the
   // screen to open one for those steps and to close it afterwards.
+  //
+  // A new instructor often signs in on a day they do not teach. Rather than
+  // showing those steps against an empty screen — or inventing a lesson — the
+  // tour borrows the nearest real one from their own timetable and puts the day
+  // back when it moves on.
   useEffect(() => {
-    const openForTour = () => {
+    const openForTour = async () => {
+      tourWantsLessonRef.current = true;
       if (selectedLesson || openingLesson) return;
+
       const first = visibleLessons[0];
-      if (first) void openLesson(first);
+      if (first) {
+        void openLesson(first);
+        return;
+      }
+
+      const asUser = viewAs === 'self' ? undefined : viewAs;
+      const from = new Date(selectedDate);
+      from.setDate(from.getDate() - TOUR_LESSON_SEARCH_DAYS);
+      const to = new Date(selectedDate);
+      to.setDate(to.getDate() + TOUR_LESSON_SEARCH_DAYS);
+
+      try {
+        const nearby = await fetchLessons({
+          start_date: formatDateISO(from),
+          end_date: formatDateISO(to),
+          as_user: asUser,
+        });
+        const dated = nearby.filter((l) => l.lesson_date);
+        if (!dated.length) return; // genuinely nothing to show; the card centres
+
+        const anchor = selectedDate.getTime();
+        const nearest = dated.reduce((best, l) => {
+          const gap = Math.abs(new Date(`${l.lesson_date}T00:00:00`).getTime() - anchor);
+          const bestGap = Math.abs(new Date(`${best.lesson_date}T00:00:00`).getTime() - anchor);
+          return gap < bestGap ? l : best;
+        });
+
+        if (tourOriginalDateRef.current === null) {
+          tourOriginalDateRef.current = selectedDate;
+        }
+        // The effect above opens whatever lands on that day.
+        setSelectedDate(new Date(`${nearest.lesson_date}T00:00:00`));
+      } catch {
+        /* the step falls back to a centred card */
+      }
     };
+
     const closeForTour = () => {
+      tourWantsLessonRef.current = false;
       setSelectedLesson(null);
       setOpeningLesson(null);
+      setPendingLesson(null);
       transitionLockRef.current = false;
+      // Put the day back if the tour moved it to find a lesson.
+      if (tourOriginalDateRef.current !== null) {
+        const original = tourOriginalDateRef.current;
+        tourOriginalDateRef.current = null;
+        setSelectedDate(original);
+      }
     };
+
     window.addEventListener('kogo:tour-open-lesson', openForTour);
     window.addEventListener('kogo:tour-close-lesson', closeForTour);
     return () => {
@@ -283,7 +352,7 @@ export default function InstructorHome() {
       window.removeEventListener('kogo:tour-close-lesson', closeForTour);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [visibleLessons, selectedLesson, openingLesson]);
+  }, [visibleLessons, selectedLesson, openingLesson, selectedDate, viewAs]);
 
   const closeAttendance = async () => {
     if (transitionLockRef.current || !selectedLesson) return;

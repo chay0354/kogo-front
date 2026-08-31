@@ -24,11 +24,32 @@ type UserRole = 'manager' | 'worker' | 'partner';
 type ManagedUser = {
   id: string;
   email: string;
+  username?: string;
   first_name: string;
   last_name: string;
   is_active: boolean;
   role_display: UserRole | null;
 };
+
+/**
+ * A sentence a manager can act on.
+ *
+ * DRF answers field errors as {field: ["message"]}, which used to be shown
+ * through JSON.stringify — so a plain "username already taken" arrived on
+ * screen as {"email":["..."]}.
+ */
+function readableError(e: any): string {
+  const data = e?.response?.data;
+  if (!data) return 'שמירה נכשלה';
+  if (typeof data === 'string') return data;
+  if (data.detail) return String(data.detail);
+  if (data.error) return String(data.error);
+  const messages = Object.values(data)
+    .flatMap((v) => (Array.isArray(v) ? v : [v]))
+    .map((v) => String(v))
+    .filter(Boolean);
+  return messages.length ? messages.join(' · ') : 'שמירה נכשלה';
+}
 
 function roleLabel(role: UserRole | null | undefined) {
   if (role === 'manager') return 'Manager';
@@ -43,6 +64,7 @@ export default function SettingsPage() {
   const [users, setUsers] = useState<ManagedUser[]>([]);
   const [error, setError] = useState<string | null>(null);
 
+  const [search, setSearch] = useState('');
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<ManagedUser | null>(null);
 
@@ -60,9 +82,23 @@ export default function SettingsPage() {
     setError(null);
     setLoading(true);
     try {
-      const res = await api.get('/core/users/');
-      const list = Array.isArray(res.data) ? res.data : res.data?.results;
-      setUsers((list || []) as ManagedUser[]);
+      // The endpoint paginates at 20. Reading only the first page hid every
+      // user past the twentieth — they looked absent here while still blocking
+      // their own username at creation, and they could not be linked either.
+      const all: ManagedUser[] = [];
+      let page = 1;
+      for (;;) {
+        const res = await api.get(`/core/users/?page=${page}`);
+        if (Array.isArray(res.data)) {
+          all.push(...(res.data as ManagedUser[]));
+          break;
+        }
+        all.push(...((res.data?.results || []) as ManagedUser[]));
+        if (!res.data?.next) break;
+        page += 1;
+        if (page > 50) break; // a guard, not an expected limit
+      }
+      setUsers(all);
     } catch (e: any) {
       setError(e?.response?.data?.detail || 'שגיאה בטעינת משתמשים');
     } finally {
@@ -119,18 +155,23 @@ export default function SettingsPage() {
       setDialogOpen(false);
       await loadUsers();
     } catch (e: any) {
-      const msg =
-        e?.response?.data?.detail ||
-        e?.response?.data?.error ||
-        (typeof e?.response?.data === 'object' ? JSON.stringify(e.response.data) : null) ||
-        'שמירה נכשלה';
-      setError(msg);
+      setError(readableError(e));
     } finally {
       setSaving(false);
     }
   };
 
   const title = useMemo(() => 'הגדרות', []);
+
+  const shown = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return users;
+    return users.filter((u) =>
+      [u.email, u.username, u.first_name, u.last_name]
+        .filter(Boolean)
+        .some((v) => String(v).toLowerCase().includes(q)),
+    );
+  }, [users, search]);
 
   return (
     <AppLayout>
@@ -170,6 +211,20 @@ export default function SettingsPage() {
               </div>
             )}
 
+            <div className="mb-3 flex items-center gap-3">
+              <input
+                type="search"
+                className="h-9 w-full max-w-xs rounded-lg border border-gray-200 bg-white px-3 text-sm"
+                placeholder="חיפוש לפי שם או שם משתמש"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                aria-label="חיפוש משתמשים"
+              />
+              <span className="text-xs text-muted-foreground">
+                {search ? `${shown.length} מתוך ${users.length}` : `${users.length} משתמשים`}
+              </span>
+            </div>
+
             <div className="overflow-x-auto">
               <table className="min-w-full text-sm">
                 <thead>
@@ -182,9 +237,9 @@ export default function SettingsPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {users.map((u) => (
+                  {shown.map((u) => (
                     <tr key={u.id} className="border-b">
-                      <td className="py-2">{u.email}</td>
+                      <td className="py-2">{u.email || u.username || '—'}</td>
                       <td className="py-2">{`${u.first_name || ''} ${u.last_name || ''}`.trim() || '—'}</td>
                       <td className="py-2">{roleLabel(u.role_display)}</td>
                       <td className="py-2">{u.is_active ? 'פעיל' : 'מושבת'}</td>
@@ -195,7 +250,7 @@ export default function SettingsPage() {
                       </td>
                     </tr>
                   ))}
-                  {users.length === 0 && (
+                  {shown.length === 0 && (
                     <tr>
                       <td className="py-4 text-muted-foreground" colSpan={5}>
                         אין משתמשים להצגה

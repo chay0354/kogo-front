@@ -44,6 +44,10 @@
   position: fixed;
   z-index: 1;
   width: min(420px, calc(100vw - 32px));
+  /* Last-resort guard: however it is placed, the card stays on screen and
+     scrolls itself rather than pushing its buttons out of reach. */
+  max-height: calc(100dvh - 32px);
+  overflow-y: auto;
   background: #fff;
   border-radius: 18px;
   padding: 20px 20px 14px;

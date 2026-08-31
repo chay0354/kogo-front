@@ -355,19 +355,34 @@ function TourCard({
   onNext: () => void;
   onFinish: () => void;
 }) {
-  // Sit below the lit element, or above it when there is no room below.
-  const style = useMemo<React.CSSProperties>(() => {
-    if (!rect || typeof window === 'undefined') return {};
-    const CARD_H = 250;
-    const roomBelow = window.innerHeight - (rect.top + rect.height);
-    const placeBelow = roomBelow > CARD_H || rect.top < CARD_H;
-    return placeBelow
-      ? { top: rect.top + rect.height + 14 }
-      : { bottom: window.innerHeight - rect.top + 14 };
+  // Sit below the lit element, or above it. When the lit element is tall enough
+  // that neither side has room — a full lesson list on a phone — the card
+  // centres itself over the dimming instead. It previously anchored below
+  // regardless, which pushed "next" off the bottom of the screen with no way
+  // back: the tour is mandatory on the first sign-in, so that was a dead end.
+  const CARD_H = 260;
+  const GAP = 14;
+
+  const placement = useMemo(() => {
+    if (!rect || typeof window === 'undefined') return 'centre' as const;
+    const roomBelow = window.innerHeight - (rect.top + rect.height) - GAP;
+    if (roomBelow >= CARD_H) return 'below' as const;
+    if (rect.top - GAP >= CARD_H) return 'above' as const;
+    return 'centre' as const;
   }, [rect]);
 
+  const style = useMemo<React.CSSProperties>(() => {
+    if (!rect || placement === 'centre') return {};
+    return placement === 'below'
+      ? { top: rect.top + rect.height + GAP }
+      : { bottom: window.innerHeight - rect.top + GAP };
+  }, [rect, placement]);
+
   return (
-    <div className={`${styles.card} ${rect ? styles.cardAnchored : styles.cardCentred}`} style={style}>
+    <div
+      className={`${styles.card} ${placement === 'centre' ? styles.cardCentred : styles.cardAnchored}`}
+      style={style}
+    >
       {canSkip ? (
         <button type="button" className={styles.skip} onClick={onFinish} disabled={saving}>
           דלג על ההדרכה
