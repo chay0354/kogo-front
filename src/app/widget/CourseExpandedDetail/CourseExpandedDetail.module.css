@@ -51,6 +51,13 @@
   line-height: 1.2;
 }
 
+.approvalUnderline {
+  text-decoration: underline;
+  text-decoration-color: #e11d2e;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 3px;
+}
+
 .badgeRow {
   display: flex;
   align-items: center;
