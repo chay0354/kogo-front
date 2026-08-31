@@ -198,8 +198,11 @@
    more room, since it is the one thing on the card a parent recognises. */
 .instructorAvatarPhoto {
   position: relative;
-  width: clamp(150px, 44vw, 200px);
-  height: clamp(150px, 44vw, 200px);
+  /* The files carry transparent margins of their own, so the figure inside is
+     always smaller than the box it is given — the box has to be generous for
+     the face to read at arm's length. */
+  width: clamp(190px, 58vw, 240px);
+  height: clamp(190px, 58vw, 240px);
   overflow: visible;
   border-radius: 0;
   background: none;
