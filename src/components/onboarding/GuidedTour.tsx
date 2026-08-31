@@ -256,8 +256,21 @@ export default function GuidedTour({ forceOpen = false, onClose }: Props) {
     return () => window.removeEventListener('keydown', onKey);
   }, [open, canSkip, finish]);
 
-  // The attendance steps need a lesson open. Ask the screen to open one, and
-  // to close it again as soon as the tour moves on or finishes.
+  // Half the tour points at the day's lessons, so it asks the screen for a day
+  // that actually has some before the first of those steps — otherwise it
+  // narrates cubes and a list that are not there. The day is put back at the
+  // end.
+  useEffect(() => {
+    if (!open) return;
+    window.dispatchEvent(new CustomEvent('kogo:tour-start'));
+    return () => {
+      window.dispatchEvent(new CustomEvent('kogo:tour-close-lesson'));
+      window.dispatchEvent(new CustomEvent('kogo:tour-end'));
+    };
+  }, [open]);
+
+  // The attendance steps additionally need a lesson open. Ask the screen to
+  // open one, and to close it again as soon as the tour moves on.
   useEffect(() => {
     if (!open) return;
     const needs = Boolean(STEPS[step]?.needsLesson);
@@ -265,11 +278,6 @@ export default function GuidedTour({ forceOpen = false, onClose }: Props) {
       new CustomEvent(needs ? 'kogo:tour-open-lesson' : 'kogo:tour-close-lesson'),
     );
   }, [open, step]);
-
-  useEffect(() => {
-    if (open) return;
-    window.dispatchEvent(new CustomEvent('kogo:tour-close-lesson'));
-  }, [open]);
 
   // Flip the cubes' marks green while the demo step is on screen, then put
   // them back. Nothing is written — this only shows what a filled-in lesson
