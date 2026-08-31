@@ -164,9 +164,18 @@ export async function fetchAnalytics(params?: {
   days?: number;
   branch?: string;
   city?: string;
+  /** Explicit window; takes precedence over `days` when both are given. */
+  date_from?: string;
+  date_to?: string;
 }): Promise<StoreAnalytics> {
-  const { days = 30, branch, city } = params || {};
-  const queryParams: Record<string, string | number> = { days };
+  const { days = 30, branch, city, date_from, date_to } = params || {};
+  const queryParams: Record<string, string | number> = {};
+  if (date_from && date_to) {
+    queryParams.date_from = date_from;
+    queryParams.date_to = date_to;
+  } else {
+    queryParams.days = days;
+  }
   if (branch && branch !== 'all') queryParams.branch = branch;
   if (city && city !== 'all') queryParams.city = city;
   const { data } = await api.get('/store/sales/analytics/', { params: queryParams });

@@ -105,7 +105,7 @@ export default function HomePage() {
           {activeTab === 'students' && <StudentsSection globalDateRange={globalDateRange} />}
           {activeTab === 'courses' && <CoursesSection globalDateRange={globalDateRange} />}
           {activeTab === 'instructors' && <InstructorsSection globalDateRange={globalDateRange} />}
-          {activeTab === 'store' && <StoreDashboardTab />}
+          {activeTab === 'store' && <StoreDashboardTab globalDateRange={globalDateRange} />}
         </RevealChildren>
       </div>
     </AppLayout>

@@ -8,6 +8,8 @@ import { Badge } from '@/components/ui/badge';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { fetchAnalytics } from '@/lib/storeApi';
+import { format } from 'date-fns';
+import type { DateRange } from './GlobalDateFilter';
 import type { StoreAnalytics } from '@/types/store';
 
 const EMPTY: StoreAnalytics = {
@@ -27,20 +29,29 @@ const EMPTY: StoreAnalytics = {
   recent_sales: [],
 };
 
-export default function StoreDashboardTab() {
+interface Props {
+  /** The dashboard's global period. When present the tab follows it instead of
+   *  its own day window, so the store agrees with every other tab. */
+  globalDateRange?: DateRange;
+}
+
+export default function StoreDashboardTab({ globalDateRange }: Props) {
   const [analytics, setAnalytics] = useState<StoreAnalytics>(EMPTY);
   const [isLoading, setIsLoading] = useState(true);
   const [days, setDays] = useState(30);
 
+  const dateFrom = globalDateRange ? format(globalDateRange.date_from, 'yyyy-MM-dd') : undefined;
+  const dateTo = globalDateRange ? format(globalDateRange.date_to, 'yyyy-MM-dd') : undefined;
+
   useEffect(() => {
     let cancelled = false;
     setIsLoading(true);
-    fetchAnalytics({ days })
+    fetchAnalytics(dateFrom && dateTo ? { date_from: dateFrom, date_to: dateTo } : { days })
       .then((data) => { if (!cancelled) setAnalytics(data); })
       .catch(() => { if (!cancelled) setAnalytics(EMPTY); })
       .finally(() => { if (!cancelled) setIsLoading(false); });
     return () => { cancelled = true; };
-  }, [days]);
+  }, [days, dateFrom, dateTo]);
 
   if (isLoading) {
     return <div className="p-8 text-gray-500">טוען נתוני חנות...</div>;
@@ -50,20 +61,24 @@ export default function StoreDashboardTab() {
     <div className="space-y-6">
       {/* Header controls */}
       <div className="flex items-center justify-between">
+        {/* The tab's own day window is only offered when the dashboard is not
+            already driving the period from its global filter. */}
         <div className="flex gap-2">
-          {[7, 30, 90].map((d) => (
-            <button
-              key={d}
-              onClick={() => setDays(d)}
-              className={`px-3 py-1.5 text-sm rounded-md border transition-colors ${
-                days === d
-                  ? 'bg-teal-600 text-white border-teal-600'
-                  : 'border-gray-300 text-gray-600 hover:bg-gray-50'
-              }`}
-            >
-              {d} ימים
-            </button>
-          ))}
+          {!globalDateRange
+            ? [7, 30, 90].map((d) => (
+                <button
+                  key={d}
+                  onClick={() => setDays(d)}
+                  className={`px-3 py-1.5 text-sm rounded-md border transition-colors ${
+                    days === d
+                      ? 'bg-teal-600 text-white border-teal-600'
+                      : 'border-gray-300 text-gray-600 hover:bg-gray-50'
+                  }`}
+                >
+                  {d} ימים
+                </button>
+              ))
+            : null}
         </div>
         <Link
           href="/store/dashboard"
@@ -216,6 +231,43 @@ export default function StoreDashboardTab() {
           </Card>
         )}
       </div>
+
+      {/* Which products actually need reordering. The API already returns the
+          list; only the count was being shown. */}
+      {(analytics.low_stock_products?.length ?? 0) > 0 && (
+        <Card className="border-red-300">
+          <CardHeader>
+            <CardTitle className="text-base text-red-600">מוצרים שדורשים חידוש מלאי</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>מוצר</TableHead>
+                  <TableHead>סניף</TableHead>
+                  <TableHead>יחידות שנותרו</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {analytics.low_stock_products.slice(0, 10).map((p: any) => (
+                  <TableRow key={p.id ?? p.name}>
+                    <TableCell className="font-medium">{p.name}</TableCell>
+                    <TableCell className="text-muted-foreground">{p.branch_name || '—'}</TableCell>
+                    <TableCell>
+                      <Badge variant="destructive">{p.stock_quantity}</Badge>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+            {analytics.low_stock_products.length > 10 ? (
+              <p className="text-xs text-muted-foreground mt-3">
+                ועוד {analytics.low_stock_products.length - 10} מוצרים
+              </p>
+            ) : null}
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }
