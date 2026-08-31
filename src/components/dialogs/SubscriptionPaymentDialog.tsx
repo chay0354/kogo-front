@@ -90,9 +90,11 @@ export default function SubscriptionPaymentDialog({
     setLoading(true);
     setError('');
     try {
-      const responses = await Promise.all(
-        (bundleId ? lessons.slice(0, 1) : lessons).map((l) =>
-          api.post('/customers/payments/initiate_subscription/', {
+      const lessonsToPrice = bundleId ? lessons.slice(0, 1) : lessons;
+      const responses = [];
+      for (const l of lessonsToPrice) {
+        responses.push(
+          await api.post('/customers/payments/initiate_subscription/', {
             child_id: child.id,
             lesson_id: l.id,
             bundle_id: bundleId,
@@ -100,8 +102,8 @@ export default function SubscriptionPaymentDialog({
             include_registration_fee: true,
             include_monthly_amount: true,
           })
-        )
-      );
+        );
+      }
       if (reqId !== requestSeqRef.current) return;
       setPaymentDataList(responses.map((r) => r.data));
     } catch (err: any) {

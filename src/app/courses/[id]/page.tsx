@@ -7,7 +7,7 @@ import { GroupIdBadge } from '@/components/GroupIdBadge/GroupIdBadge';
 import api from '@/lib/api';
 import { CourseTypeDetails, CourseWithLessons, Lesson, AgeFilter, } from '@/types/course';
 import { filterCourses, formatCurrency, formatAgeRange, formatTimeRange, getDayName, } from '@/lib/courseUtils';
-import { Loader2 } from 'lucide-react';
+import { Eye, EyeOff, Loader2 } from 'lucide-react';
 import AddCourseDialog from '@/components/dialogs/AddCourseDialog';
 import AddLessonDialog from '@/components/dialogs/AddLessonDialog';
 import EditCourseDialog from '@/components/dialogs/EditCourseDialog';
@@ -38,6 +38,7 @@ export default function CourseTypeDetailsPage() {
   const [courseToDuplicate, setCourseToDuplicate] = useState<CourseWithLessons | null>(null);
   const [selectedLesson, setSelectedLesson] = useState<Lesson | null>(null);
   const [deletingCourseId, setDeletingCourseId] = useState<string | null>(null);
+  const [togglingWidgetId, setTogglingWidgetId] = useState<string | null>(null);
   const [deletingLessonId, setDeletingLessonId] = useState<string | null>(null);
   const [bundlesCourse, setBundlesCourse] = useState<CourseWithLessons | null>(null);
   const [priceOptionsLesson, setPriceOptionsLesson] = useState<{ lesson: Lesson; course: CourseWithLessons } | null>(null);
@@ -165,6 +166,28 @@ export default function CourseTypeDetailsPage() {
     setShowEditCourseDialog(false);
     setSelectedCourse(null);
     fetchCourseTypeDetails();
+  };
+
+  const handleToggleWidgetVisibility = async (course: CourseWithLessons) => {
+    const nextVisible = course.show_in_widget === false;
+    setTogglingWidgetId(course.id);
+    try {
+      await api.patch(`/courses/courses/${course.id}/`, { show_in_widget: nextVisible });
+      setCourseTypeDetails((prev) =>
+        prev
+          ? {
+              ...prev,
+              courses: prev.courses.map((item) =>
+                item.id === course.id ? { ...item, show_in_widget: nextVisible } : item,
+              ),
+            }
+          : prev,
+      );
+    } catch (err: any) {
+      alert(err.response?.data?.error || err.response?.data?.detail || 'שגיאה בעדכון התצוגה בווידג׳ט');
+    } finally {
+      setTogglingWidgetId(null);
+    }
   };
 
   const handleDeleteCourse = async (course: CourseWithLessons) => {
@@ -413,7 +436,10 @@ export default function CourseTypeDetailsPage() {
                 const enrollmentDisplay = studentsDisplay;
 
                 return (
-                  <div key={course.id} className={styles.courseCard}>
+                  <div
+                    key={course.id}
+                    className={`${styles.courseCard}${course.show_in_widget === false ? ` ${styles.courseCardHidden}` : ''}`}
+                  >
                     <div
                       onClick={() => toggleCourseExpanded(course.id)}
                       className={styles.courseCardHeader}
@@ -433,8 +459,25 @@ export default function CourseTypeDetailsPage() {
                           {course.must_attend_all_lessons && (
                             <span className={styles.mustAttendBadge}>מחוייב בכל השיעורים</span>
                           )}
+                          {course.show_in_widget === false && (
+                            <span className={styles.hiddenFromWidgetBadge}>מוסתר מהווידג׳ט</span>
+                          )}
                         </div>
                         <div className={styles.courseActions} onClick={(e) => e.stopPropagation()}>
+                          <button
+                            onClick={() => handleToggleWidgetVisibility(course)}
+                            className={`${styles.actionButton} ${styles.hideWidgetButton}`}
+                            title={course.show_in_widget === false ? 'הצג בווידג׳ט' : 'הסתר מהווידג׳ט'}
+                            disabled={togglingWidgetId === course.id}
+                          >
+                            {togglingWidgetId === course.id ? (
+                              <Loader2 className={styles.hideWidgetIconSpinning} />
+                            ) : course.show_in_widget === false ? (
+                              <Eye className={styles.hideWidgetIcon} />
+                            ) : (
+                              <EyeOff className={styles.hideWidgetIcon} />
+                            )}
+                          </button>
                           <button
                             onClick={() => handleEditCourse(course)}
                             className={`${styles.actionButton} ${styles.editButton}`}
