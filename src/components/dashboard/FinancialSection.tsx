@@ -123,6 +123,11 @@ export default function FinancialSection({ globalDateRange }: Props) {
     }));
   }, [data?.monthly_trends]);
 
+  const profitMargin =
+    Number(kpis.total_revenue ?? 0) > 0
+      ? (Number(kpis.net_profit ?? 0) / Number(kpis.total_revenue ?? 0)) * 100
+      : 0;
+
   const hasData =
     Number(kpis.total_revenue ?? 0) > 0 ||
     Number(kpis.total_expenses ?? 0) > 0 ||
@@ -226,63 +231,22 @@ export default function FinancialSection({ globalDateRange }: Props) {
             </div>
           </CardContent>
         </Card>
-      </div>
 
-      <Card className={styles.panel}>
-        <CardHeader className={styles.panelHeader}>
-          <CardTitle className={styles.panelTitle}>פירוט הוצאות</CardTitle>
-        </CardHeader>
-        <CardContent className={styles.expenseGrid}>
-          <div className={styles.expenseItem}>
-            <span>שכר מדריכים</span>
-            <strong>{formatCurrency(expenseBreakdown.instructor_salaries)}</strong>
-          </div>
-          <div className={styles.expenseItem}>
-            <span>בונוסים</span>
-            <strong>{formatCurrency(expenseBreakdown.instructor_bonuses)}</strong>
-          </div>
-          <div className={styles.expenseItem}>
-            <span>עלויות תפעול (סניף)</span>
-            <strong>{formatCurrency(expenseBreakdown.operational_costs)}</strong>
-          </div>
-        </CardContent>
-      </Card>
-
-      {revenueByBranch.length > 0 ? (
-        <Card className={styles.panel}>
-          <CardHeader className={styles.panelHeader}>
-            <CardTitle className={styles.panelTitle}>השוואה לפי סניף</CardTitle>
-          </CardHeader>
-          <CardContent className={styles.tableWrap}>
-            <table className={styles.table}>
-              <thead>
-                <tr>
-                  <th>סניף</th>
-                  <th>הכנסות</th>
-                  <th>הוצאות</th>
-                  <th>רווח</th>
-                  <th>שולי רווח</th>
-                </tr>
-              </thead>
-              <tbody>
-                {revenueByBranch.map((row) => {
-                  const margin =
-                    row.revenue > 0 ? Math.round((row.profit / row.revenue) * 100) : 0;
-                  return (
-                    <tr key={row.branch_id}>
-                      <td>{row.branch_name}</td>
-                      <td>{formatCurrency(row.revenue)}</td>
-                      <td>{formatCurrency(row.expenses)}</td>
-                      <td className={profitClass(row.profit)}>{formatCurrency(row.profit)}</td>
-                      <td>{margin}%</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+        <Card className={styles.kpiCard}>
+          <CardContent className={styles.kpiContent}>
+            <div>
+              <p className={styles.kpiLabel}>שיעור רווח</p>
+              <p className={`${styles.kpiValue} ${profitClass(profitMargin)}`}>
+                {Number(kpis.total_revenue ?? 0) > 0 ? `${profitMargin.toFixed(1)}%` : '—'}
+              </p>
+              <p className={styles.kpiHint}>רווח מתוך ההכנסות</p>
+            </div>
+            <div className={`${styles.kpiIcon} ${styles.kpiIconPrimary}`}>
+              <TrendingUp className="h-5 w-5" />
+            </div>
           </CardContent>
         </Card>
-      ) : null}
+      </div>
 
       {monthlyTrends.length > 0 ? (
         <Card className={styles.panel}>
@@ -344,6 +308,62 @@ export default function FinancialSection({ globalDateRange }: Props) {
                 />
               </LineChart>
             </ResponsiveContainer>
+          </CardContent>
+        </Card>
+      ) : null}
+
+      <Card className={styles.panel}>
+        <CardHeader className={styles.panelHeader}>
+          <CardTitle className={styles.panelTitle}>פירוט הוצאות</CardTitle>
+        </CardHeader>
+        <CardContent className={styles.expenseGrid}>
+          <div className={styles.expenseItem}>
+            <span>שכר מדריכים</span>
+            <strong>{formatCurrency(expenseBreakdown.instructor_salaries)}</strong>
+          </div>
+          <div className={styles.expenseItem}>
+            <span>בונוסים</span>
+            <strong>{formatCurrency(expenseBreakdown.instructor_bonuses)}</strong>
+          </div>
+          <div className={styles.expenseItem}>
+            <span>עלויות תפעול (סניף)</span>
+            <strong>{formatCurrency(expenseBreakdown.operational_costs)}</strong>
+          </div>
+        </CardContent>
+      </Card>
+
+      {revenueByBranch.length > 0 ? (
+        <Card className={styles.panel}>
+          <CardHeader className={styles.panelHeader}>
+            <CardTitle className={styles.panelTitle}>השוואה לפי סניף</CardTitle>
+          </CardHeader>
+          <CardContent className={styles.tableWrap}>
+            <table className={styles.table}>
+              <thead>
+                <tr>
+                  <th>סניף</th>
+                  <th>הכנסות</th>
+                  <th>הוצאות</th>
+                  <th>רווח</th>
+                  <th>שולי רווח</th>
+                </tr>
+              </thead>
+              <tbody>
+                {revenueByBranch.map((row) => {
+                  const margin =
+                    row.revenue > 0 ? Math.round((row.profit / row.revenue) * 100) : 0;
+                  return (
+                    <tr key={row.branch_id}>
+                      <td>{row.branch_name}</td>
+                      <td>{formatCurrency(row.revenue)}</td>
+                      <td>{formatCurrency(row.expenses)}</td>
+                      <td className={profitClass(row.profit)}>{formatCurrency(row.profit)}</td>
+                      <td>{margin}%</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </CardContent>
         </Card>
       ) : null}
