@@ -461,13 +461,12 @@
     max-width: none;
     margin: 0;
     border-radius: 20px 20px 0 0;
-    /* A fixed tall sheet rather than one sized to its content: on a phone the
-       card is the whole screen, and the instructor's photo is what the extra
-       room is for. */
-    height: 92vh;
-    height: 92dvh;
-    max-height: 100vh;
-    max-height: 100dvh;
+    /* Tall enough that the instructor's photo has somewhere to go, and short
+       enough to stay clear of the site's own header above it. */
+    height: 82vh;
+    height: 82dvh;
+    max-height: 82vh;
+    max-height: 82dvh;
     padding-top: 6px;
   }
 

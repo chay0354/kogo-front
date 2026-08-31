@@ -227,27 +227,16 @@
   }
 }
 
-/* Faded in, so a photo that arrives late does not appear as a jolt. */
-.avatarPhotoReady {
-  opacity: 1;
-}
-
 /* Contained, not cropped — the whole figure is the point, and it stands on the
    bottom edge so a person never floats. */
 .avatarPhoto {
+  position: relative;
+  z-index: 1;
   width: 100%;
   height: 100%;
   object-fit: contain;
   object-position: bottom center;
   display: block;
-  opacity: 0;
-  transition: opacity 220ms ease;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .avatarPhoto {
-    transition: none;
-  }
 }
 
 .avatarPlaceholder {

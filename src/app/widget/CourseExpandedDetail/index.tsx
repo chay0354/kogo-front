@@ -342,7 +342,7 @@ export default function CourseExpandedDetail({
                 <img
                   src={instructorPhoto}
                   alt=""
-                  className={`${styles.avatarPhoto} ${photoLoaded ? styles.avatarPhotoReady : ''}`}
+                  className={styles.avatarPhoto}
                   decoding="async"
                   onLoad={() => setPhotoLoaded(true)}
                   onError={() => setPhotoLoaded(true)}
