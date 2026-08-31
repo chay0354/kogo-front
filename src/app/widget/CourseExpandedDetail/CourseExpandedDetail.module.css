@@ -461,8 +461,8 @@
   }
 
   .instructorBoxWithPhoto .instructorAvatarPhoto {
-    width: clamp(135px, 40vw, 168px);
-    height: clamp(135px, 40vw, 168px);
+    width: clamp(125px, 37vw, 156px);
+    height: clamp(125px, 37vw, 156px);
   }
 
   .instructorBoxWithPhoto .instructorName {
