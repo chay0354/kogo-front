@@ -431,9 +431,43 @@
     padding: 12px 16px 10px;
   }
 
+  .infoRow {
+    padding: 17px 6px;
+  }
+
+  .infoPill {
+    gap: 5px;
+    padding: 5px 3px;
+  }
+
+  .infoIcon {
+    margin-bottom: 4px;
+  }
+
+  .infoValue {
+    font-size: 0.78rem;
+  }
+
+  .scheduleValue {
+    font-size: 0.72rem;
+  }
+
+  .instructorBoxWithPhoto {
+    gap: 8px;
+    margin-bottom: 6px;
+    padding-inline-start: 2px;
+    padding-inline-end: 10px;
+    border-radius: 12px;
+  }
+
   .instructorBoxWithPhoto .instructorAvatarPhoto {
-    width: clamp(145px, 43vw, 180px);
-    height: clamp(145px, 43vw, 180px);
+    width: clamp(125px, 37vw, 156px);
+    height: clamp(125px, 37vw, 156px);
+  }
+
+  .instructorBoxWithPhoto .instructorName {
+    font-size: 0.9rem;
+    line-height: 1.25;
   }
 
   .title {
