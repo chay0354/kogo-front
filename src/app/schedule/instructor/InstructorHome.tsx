@@ -151,7 +151,7 @@ export default function InstructorHome() {
                       </option>
                     ))}
                   </select>
-                  <ChevronDown size={16} />
+                  <ChevronDown className={styles.branchChevron} size={16} />
                 </>
               ) : (
                 <span>{selectedBranchName}</span>

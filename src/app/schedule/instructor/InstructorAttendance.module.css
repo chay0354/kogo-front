@@ -1,12 +1,22 @@
 .page {
   min-height: 100dvh;
+  width: 100%;
+  max-width: 100vw;
+  overflow-x: hidden;
   background: #eef0f6;
+}
+
+.page,
+.page * {
+  box-sizing: border-box;
 }
 
 .shell {
   width: 100%;
+  max-width: 100%;
   margin: 0 auto;
   min-height: 100dvh;
+  overflow-x: clip;
   background: #f7f7fb;
   display: flex;
   flex-direction: column;
@@ -21,9 +31,15 @@
   flex: 1;
   min-height: 0;
   width: 100%;
+  max-width: 100%;
+  overflow-x: clip;
   background: #f7f7fb;
   font-family: Heebo, sans-serif;
   color: #1e2a6e;
+}
+
+.panelShell {
+  animation: attendanceShellEnter 400ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
 .header {
@@ -33,6 +49,7 @@
   border-bottom-left-radius: 32px;
   border-bottom-right-radius: 32px;
   position: relative;
+  animation: attendanceHeaderEnter 380ms 40ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
 .panel .header,
@@ -55,6 +72,7 @@
   justify-content: center;
   cursor: pointer;
   padding: 0;
+  transition: transform 160ms ease, background-color 160ms ease;
 }
 
 .backBtn:hover,
@@ -62,6 +80,10 @@
   background: rgba(255, 255, 255, 0.08);
   border-radius: 10px;
   outline: none;
+}
+
+.backBtn:active {
+  transform: scale(0.9);
 }
 
 .title {
@@ -118,6 +140,7 @@
   gap: 12px;
   overflow-y: auto;
   min-height: 0;
+  min-width: 0;
 }
 
 .card {
@@ -126,6 +149,24 @@
   border-radius: 18px;
   padding: 12px 14px 12px;
   box-shadow: 0 1px 2px rgba(30, 42, 110, 0.04);
+  animation: attendanceCardEnter 360ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  transition: transform 160ms ease, border-color 160ms ease, box-shadow 160ms ease;
+}
+
+.card:nth-child(2) {
+  animation-delay: 45ms;
+}
+
+.card:nth-child(3) {
+  animation-delay: 90ms;
+}
+
+.card:nth-child(4) {
+  animation-delay: 135ms;
+}
+
+.card:nth-child(n + 5) {
+  animation-delay: 180ms;
 }
 
 .cardAlert {
@@ -194,6 +235,7 @@
   align-items: center;
   justify-content: center;
   padding: 0;
+  transition: color 160ms ease, background-color 160ms ease, transform 140ms ease;
 }
 
 .toggle button:hover:not(:disabled),
@@ -205,6 +247,10 @@
 .toggle button:disabled {
   cursor: not-allowed;
   opacity: 0.6;
+}
+
+.toggle button:active:not(:disabled) {
+  transform: scale(0.94);
 }
 
 .presentOn {
@@ -227,6 +273,7 @@
   padding: 12px 16px 20px;
   background: linear-gradient(180deg, rgba(247, 247, 251, 0) 0%, #f7f7fb 28%);
   margin-top: auto;
+  animation: attendanceFooterEnter 380ms 180ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
 .moreBtn {
@@ -387,5 +434,64 @@
   .panelShell .backBtn {
     color: #2b3090;
     top: 12px;
+  }
+}
+
+@keyframes attendanceShellEnter {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes attendanceHeaderEnter {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes attendanceCardEnter {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes attendanceFooterEnter {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .panelShell,
+  .header,
+  .card,
+  .footer {
+    animation: none;
+  }
+
+  .backBtn,
+  .card,
+  .toggle button {
+    transition: none;
   }
 }
