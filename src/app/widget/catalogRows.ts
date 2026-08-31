@@ -3,6 +3,7 @@ import {
   formatTimeRange,
   isInstructorsCourse,
   INSTRUCTORS_TRACK_TITLE,
+  stripWidgetApprovalPhrase,
 } from '@/lib/courseUtils';
 import type { Course, CourseLesson, CourseBundle, CourseLessonPriceOption } from './types';
 import { isLessonVisibleInCatalog } from './lessonVisibility';
@@ -52,7 +53,8 @@ export function formatPriceLabel(value: number): string {
 
 function bundleDisplayTitle(course: Course, bundle: CourseBundle): string {
   const name = (bundle.name || '').trim();
-  return name && !GENERIC_BUNDLE_NAMES.has(name) ? name : course.name;
+  const title = name && !GENERIC_BUNDLE_NAMES.has(name) ? name : course.name;
+  return stripWidgetApprovalPhrase(title);
 }
 
 function rowSortKey(row: CatalogRow): { day: number; time: string; type: string; name: string; price: number } {
@@ -115,7 +117,7 @@ export function buildCatalogRows(courses: Course[], selectedAge?: number | null)
             lesson,
             bundle: null,
             priceOption: null,
-            displayTitle: course.name,
+            displayTitle: stripWidgetApprovalPhrase(course.name),
             displayPrice: formatListPrice(lesson.price ?? course.price),
           });
         }
@@ -127,7 +129,7 @@ export function buildCatalogRows(courses: Course[], selectedAge?: number | null)
               lesson,
               bundle: null,
               priceOption,
-              displayTitle: priceOption.display_title,
+              displayTitle: stripWidgetApprovalPhrase(priceOption.display_title),
               displayPrice: formatListPrice(priceOption.monthly_price),
             });
           }
@@ -139,7 +141,7 @@ export function buildCatalogRows(courses: Course[], selectedAge?: number | null)
         lesson: null,
         bundle: null,
         priceOption: null,
-        displayTitle: course.name,
+        displayTitle: stripWidgetApprovalPhrase(course.name),
         displayPrice: formatListPrice(course.price),
       });
     }
@@ -247,7 +249,7 @@ export function selectionFromCatalogPick(
     bundleId: bundle?.id,
     lessonId: lesson?.id,
     priceOptionId: priceOption?.id,
-    displayTitle: course.name,
+    displayTitle: stripWidgetApprovalPhrase(course.name),
     displaySchedule: scheduleLabel(lesson ?? null, bundle ?? null),
     displayPrice: formatListPrice(lesson?.price ?? course.price),
   };

@@ -9,6 +9,7 @@ import {
   formatAgeRange,
   isInstructorsCourse,
   INSTRUCTORS_TRACK_TITLE,
+  stripWidgetApprovalPhrase,
 } from '@/lib/courseUtils';
 import type { Course, CourseBundle, CourseLesson, CourseLessonPriceOption } from '../types';
 import type { WidgetAlternative } from '../alternativeLessons';
@@ -17,32 +18,19 @@ import { GroupIdBadge } from '@/components/GroupIdBadge/GroupIdBadge';
 import styles from './CourseExpandedDetail.module.css';
 
 const WIDGET_SUPPORT_PHONE = '0509424755';
-const APPROVAL_PHRASE = 'מותנה באישור קוגומלו בלבד';
-const UNDERLINED_TITLE_PHRASES = [APPROVAL_PHRASE];
 const AUDITION_NOTICE_BODY = 'ההשתתפות במסלול מותנית באודישן ובאישור מנהלת המחול.';
+const INSTRUCTORS_NOTICE_BODY = 'רישום למסלול מדריכים מותנה באישור קוגומלו בלבד!';
 
-function requiresAuditionNotice(title: string): boolean {
+function isCompetitiveTroupeTitle(title: string): boolean {
   return title.includes('מסלול להקה תחרותי');
 }
 
-function TitleWithApprovalUnderline({ title }: { title: string }) {
-  let matchIndex = -1;
-  let matchPhrase = '';
-  for (const phrase of UNDERLINED_TITLE_PHRASES) {
-    const index = title.indexOf(phrase);
-    if (index !== -1 && (matchIndex === -1 || index < matchIndex)) {
-      matchIndex = index;
-      matchPhrase = phrase;
-    }
+function noticeBodyFor(course: Course, title: string): string | null {
+  if (isInstructorsCourse(course)) return INSTRUCTORS_NOTICE_BODY;
+  if (isCompetitiveTroupeTitle(title) || isCompetitiveTroupeTitle(course.name)) {
+    return AUDITION_NOTICE_BODY;
   }
-  if (matchIndex === -1) return <>{title}</>;
-  return (
-    <>
-      {title.slice(0, matchIndex)}
-      <span className={styles.approvalUnderline}>{matchPhrase}</span>
-      <TitleWithApprovalUnderline title={title.slice(matchIndex + matchPhrase.length)} />
-    </>
-  );
+  return null;
 }
 
 function formatTimesPerWeek(count: number): string {
@@ -163,8 +151,9 @@ export default function CourseExpandedDetail({
     ?? (priceOption ? Number(priceOption.monthly_price) : null)
     ?? (lesson?.price != null ? Number(lesson.price) : null)
     ?? course.price;
-  const displayTitle = priceOption?.display_title ?? course.name;
-  const showAuditionNotice = requiresAuditionNotice(displayTitle) || requiresAuditionNotice(course.name);
+  const displayTitle = stripWidgetApprovalPhrase(priceOption?.display_title ?? course.name);
+  const noticeBody = noticeBodyFor(course, displayTitle);
+  const showAuditionNotice = Boolean(noticeBody);
 
   const closeNotice = () => setPendingAction(null);
   const confirmNotice = () => {
@@ -200,7 +189,7 @@ export default function CourseExpandedDetail({
       <div className={styles.scrollArea}>
         <div className={styles.header}>
           <h2 className={styles.title}>
-            <TitleWithApprovalUnderline title={displayTitle} />
+            {displayTitle}
             <GroupIdBadge displayId={course.display_id} />
           </h2>
           {timesPerWeek > 0 ? (
@@ -348,7 +337,7 @@ export default function CourseExpandedDetail({
                 <h3 id="audition-notice-title" className={styles.noticeTitle}>
                   חשוב לדעת
                 </h3>
-                <p className={styles.noticeBody}>{AUDITION_NOTICE_BODY}</p>
+                <p className={styles.noticeBody}>{noticeBody}</p>
                 <button type="button" className={styles.noticeConfirm} onClick={confirmNotice}>
                   הבנתי
                 </button>
