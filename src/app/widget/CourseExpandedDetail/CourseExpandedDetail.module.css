@@ -30,11 +30,12 @@
   background: #d7def5;
 }
 
+/* Top padding only has to clear the close button (2px + 36px), which frees height for the instructor box. */
 .scrollArea {
   flex: 0 0 auto;
   min-height: auto;
   overflow: visible;
-  padding: 56px 16px 12px;
+  padding: 44px 16px 12px;
 }
 
 .header {
@@ -159,18 +160,19 @@
   display: flex;
   flex-direction: row;
   align-items: center;
-  gap: 12px;
+  gap: 14px;
   margin-bottom: 8px;
-  padding: 8px 14px;
+  padding: 12px 14px;
   border-radius: 14px;
   background: #f7f1e4;
   direction: ltr;
 }
 
+/* Sized for a real instructor photo, which drops in place of the inline placeholder. */
 .instructorAvatar {
   flex-shrink: 0;
-  width: 56px;
-  height: 56px;
+  width: 72px;
+  height: 72px;
   overflow: hidden;
   border-radius: 50%;
   background: #F5C518;
@@ -203,8 +205,9 @@
 .instructorName {
   margin: 0;
   color: #2B3090;
-  font-size: 0.9375rem;
+  font-size: 1rem;
   font-weight: 800;
+  line-height: 1.35;
 }
 
 .priceCard {
@@ -358,7 +361,7 @@
 
 @media (max-width: 640px) {
   .scrollArea {
-    padding: 54px 16px 10px;
+    padding: 42px 16px 10px;
   }
 
   .title {
@@ -484,6 +487,49 @@
   line-height: 1.55;
 }
 
+/* Tightens the gap only when the icon rows follow, so a lone notice keeps its spacing. */
+.noticeBody:has(+ .noticeList) {
+  margin-bottom: 14px;
+}
+
+.noticeList {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0 0 22px;
+  padding: 0;
+  list-style: none;
+  text-align: start;
+}
+
+.noticeRow {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  color: #2B3090;
+  font-size: 0.9375rem;
+  font-weight: 500;
+  line-height: 1.5;
+}
+
+.noticeRowIcon {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: #f7f1e4;
+  color: #2B3090;
+}
+
+.noticeRowText {
+  flex: 1;
+  min-width: 0;
+  padding-block-start: 3px;
+}
+
 .noticeConfirm {
   display: inline-block;
   border: none;
@@ -501,7 +547,7 @@
 
 @media (max-height: 760px) {
   .scrollArea {
-    padding-top: 54px;
+    padding-top: 42px;
     padding-bottom: 8px;
   }
 
@@ -522,8 +568,8 @@
   }
 
   .instructorAvatar {
-    width: 48px;
-    height: 48px;
+    width: 60px;
+    height: 60px;
   }
 
   .priceAmount {

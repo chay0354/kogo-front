@@ -13,13 +13,18 @@ import {
 } from '@/lib/courseUtils';
 import type { Course, CourseBundle, CourseLesson, CourseLessonPriceOption } from '../types';
 import type { WidgetAlternative } from '../alternativeLessons';
-import { MapPin, Users, CalendarDays, X } from 'lucide-react';
+import { MapPin, Users, CalendarDays, Coins, BadgePercent, X } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import { GroupIdBadge } from '@/components/GroupIdBadge/GroupIdBadge';
 import styles from './CourseExpandedDetail.module.css';
 
 const WIDGET_SUPPORT_PHONE = '0509424755';
 const AUDITION_NOTICE_BODY = 'ההשתתפות במסלול מותנית באודישן ובאישור מנהלת המחול.';
 const INSTRUCTORS_NOTICE_BODY = 'רישום למסלול מדריכים מותנה באישור קוגומלו בלבד!';
+const TRIAL_CREDIT_NOTICE_BODY = 'אם תבחרו להירשם לחוג, הסכום יקוזז במלואו מהתשלום הראשון.';
+
+/** One line of the notice dialog: a short sentence with its own icon. */
+type NoticeRow = { icon: LucideIcon; text: string };
 
 function isCompetitiveTroupeTitle(title: string): boolean {
   return title.includes('מסלול להקה תחרותי');
@@ -40,11 +45,15 @@ function formatTimesPerWeek(count: number): string {
   return '—';
 }
 
+function formatAmount(value: number): string {
+  return Number.isInteger(value) ? String(value) : value.toFixed(2);
+}
+
 function formatShekel(value: number | string | null | undefined): string {
   if (value == null || value === '') return '—';
   const n = Number(value);
   if (!Number.isFinite(n)) return '—';
-  return `₪${Number.isInteger(n) ? n : n.toFixed(2)}`;
+  return `₪${formatAmount(n)}`;
 }
 
 function formatAgesCompact(minAge?: number | null, maxAge?: number | null): string {
@@ -56,6 +65,26 @@ function formatAgesCompact(minAge?: number | null, maxAge?: number | null): stri
     return `כיתות ${minLabel.slice(5)} - ${maxLabel.slice(5)}`;
   }
   return formatAgeRange(minAge, maxAge) || '—';
+}
+
+/**
+ * A paid trial has to be spelled out before the parent reaches the details form —
+ * who it is for, what it costs, and that the cost comes back off the first payment.
+ * The API sends trial_lesson_price as a decimal string, hence the Number().
+ */
+function paidTrialNoticeRows(course: Course): NoticeRow[] {
+  if (!course.trial_lesson_is_paid || course.trial_lesson_price == null) return [];
+  const price = Number(course.trial_lesson_price);
+  if (!Number.isFinite(price)) return [];
+
+  const rows: NoticeRow[] = [];
+  const ages = formatAgesCompact(course.min_age, course.max_age);
+  if (ages !== '—') {
+    rows.push({ icon: Users, text: `שיעור הניסיון מיועד לילדים עד ${ages}.` });
+  }
+  rows.push({ icon: Coins, text: `עלות שיעור הניסיון היא ${formatAmount(price)} ₪.` });
+  rows.push({ icon: BadgePercent, text: TRIAL_CREDIT_NOTICE_BODY });
+  return rows;
 }
 
 function resolveInstructorName(
@@ -154,6 +183,10 @@ export default function CourseExpandedDetail({
   const displayTitle = stripWidgetApprovalPhrase(priceOption?.display_title ?? course.name);
   const noticeBody = noticeBodyFor(course, displayTitle);
   const showAuditionNotice = Boolean(noticeBody);
+  const trialNoticeRows = paidTrialNoticeRows(course);
+  const showTrialNotice = trialNoticeRows.length > 0;
+  // The paid-trial rows belong to the trial button only; both notices share one dialog.
+  const noticeRows = pendingAction === 'trial' ? trialNoticeRows : [];
 
   const closeNotice = () => setPendingAction(null);
   const confirmNotice = () => {
@@ -167,7 +200,7 @@ export default function CourseExpandedDetail({
     else onEnroll();
   };
   const requestTrial = () => {
-    if (showAuditionNotice) setPendingAction('trial');
+    if (showAuditionNotice || showTrialNotice) setPendingAction('trial');
     else onTrialEnroll();
   };
 
@@ -301,7 +334,7 @@ export default function CourseExpandedDetail({
             </button>
             <button type="button" onClick={requestTrial} className={styles.trialButton}>
               {course.trial_lesson_is_paid && course.trial_lesson_price != null
-                ? `הרשמה לניסיון (₪${Number(course.trial_lesson_price).toFixed(0)})`
+                ? `הרשמה לניסיון (${formatShekel(course.trial_lesson_price)})`
                 : 'הרשמה לניסיון'}
             </button>
           </div>
@@ -316,7 +349,7 @@ export default function CourseExpandedDetail({
                 className={styles.noticeCard}
                 role="dialog"
                 aria-modal="true"
-                aria-labelledby="audition-notice-title"
+                aria-labelledby="widget-notice-title"
               >
                 {timesPerWeekLabel ? (
                   <span className={styles.noticeBadge}>{timesPerWeekLabel}</span>
@@ -334,12 +367,24 @@ export default function CourseExpandedDetail({
                   <span className={styles.noticeInfoIcon}>i</span>
                   <span className={styles.noticeGoldLine} />
                 </div>
-                <h3 id="audition-notice-title" className={styles.noticeTitle}>
-                  חשוב לדעת
+                <h3 id="widget-notice-title" className={styles.noticeTitle}>
+                  {noticeRows.length ? 'שימו לב' : 'חשוב לדעת'}
                 </h3>
-                <p className={styles.noticeBody}>{noticeBody}</p>
+                {noticeBody ? <p className={styles.noticeBody}>{noticeBody}</p> : null}
+                {noticeRows.length ? (
+                  <ul className={styles.noticeList}>
+                    {noticeRows.map(({ icon: RowIcon, text }) => (
+                      <li key={text} className={styles.noticeRow}>
+                        <span className={styles.noticeRowIcon} aria-hidden>
+                          <RowIcon size={16} strokeWidth={2.2} />
+                        </span>
+                        <span className={styles.noticeRowText}>{text}</span>
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
                 <button type="button" className={styles.noticeConfirm} onClick={confirmNotice}>
-                  הבנתי
+                  {noticeRows.length ? 'הבנתי, המשך להרשמה' : 'הבנתי'}
                 </button>
               </div>
             </div>,
