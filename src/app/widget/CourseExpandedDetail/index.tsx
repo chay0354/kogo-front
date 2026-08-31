@@ -212,8 +212,13 @@ export default function CourseExpandedDetail({
   hideSeptemberStandingOrderNote = false,
 }: CourseExpandedDetailProps) {
   const [pendingAction, setPendingAction] = useState<'enroll' | 'trial' | null>(null);
+  const [photoLoaded, setPhotoLoaded] = useState(false);
   const instructorName = resolveInstructorName(course, lesson, bundleOffer);
   const instructorPhoto = resolveInstructorPhoto(course, lesson, bundleOffer);
+
+  useEffect(() => {
+    setPhotoLoaded(false);
+  }, [instructorPhoto]);
 
   const [minAge, maxAge] = resolveAges(course, priceOption, bundleOffer);
   const ageLabel = formatAgesCompact(minAge, maxAge);
@@ -329,14 +334,20 @@ export default function CourseExpandedDetail({
           >
             {instructorPhoto ? (
               /* Served from storage with a versioned URL, so it is cached for as
-                 long as it stays the same photo. */
-              <img
-                src={instructorPhoto}
-                alt=""
-                className={styles.avatarPhoto}
-                loading="lazy"
-                decoding="async"
-              />
+                 long as it stays the same photo. Until the first load lands the
+                 space holds a shape rather than collapsing, so the card does not
+                 jump when the face arrives. */
+              <>
+                {!photoLoaded && <span className={styles.avatarLoading} aria-hidden />}
+                <img
+                  src={instructorPhoto}
+                  alt=""
+                  className={`${styles.avatarPhoto} ${photoLoaded ? styles.avatarPhotoReady : ''}`}
+                  decoding="async"
+                  onLoad={() => setPhotoLoaded(true)}
+                  onError={() => setPhotoLoaded(true)}
+                />
+              </>
             ) : (
               <svg viewBox="0 0 64 64" className={styles.avatarPlaceholder}>
                 <rect width="64" height="64" fill="#F5C518" />

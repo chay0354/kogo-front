@@ -153,7 +153,13 @@
 }
 
 .filterWrapperActive .filterFace {
-  border: 4px solid #1e9eff;
+  border: 4px solid #F5C518;
+}
+
+/* Where the keyboard is, in the widget's own gold rather than the browser's blue. */
+.filterWrapper:focus-visible {
+  outline: 3px solid #F5C518;
+  outline-offset: 2px;
 }
 
 .filterWrapperActive .filterDisplayText {
@@ -180,11 +186,6 @@
 .filterIconBox {
   @apply h-10 w-10 flex-shrink-0 flex items-center justify-center cursor-pointer;
   background-color: #F5C518;
-}
-
-.filterSpinner {
-  @apply animate-spin;
-  color: #1a1a5e;
 }
 
 .filterChevron {
@@ -460,6 +461,11 @@
     max-width: none;
     margin: 0;
     border-radius: 20px 20px 0 0;
+    /* A fixed tall sheet rather than one sized to its content: on a phone the
+       card is the whole screen, and the instructor's photo is what the extra
+       room is for. */
+    height: 92vh;
+    height: 92dvh;
     max-height: 100vh;
     max-height: 100dvh;
     padding-top: 6px;
@@ -666,6 +672,47 @@
   color: #6b7280;
   cursor: default;
   border-radius: 15px;
+}
+
+/* Scroll cue */
+
+@keyframes widgetScrollCueBob {
+
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+
+  50% {
+    transform: translateY(4px);
+  }
+}
+
+/* Built like the shortcut inside the terms document so the widget has one way of
+   saying "there is more below"; it only ever says it, so nothing can be pressed
+   here and it never swallows a tap meant for the card underneath. */
+.scrollCue {
+  position: fixed;
+  inset-inline: 0;
+  margin-inline: auto;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1.5px solid #2B3090;
+  border-radius: 999px;
+  background: #fff;
+  color: #2B3090;
+  box-shadow: 0 4px 12px rgba(43, 48, 144, 0.22);
+  pointer-events: none;
+  z-index: 480;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .scrollCue {
+    animation: widgetScrollCueBob 1.8s ease-in-out infinite;
+  }
 }
 
 .externalBranchMessage {
