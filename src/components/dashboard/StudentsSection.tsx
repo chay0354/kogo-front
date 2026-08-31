@@ -286,6 +286,69 @@ export default function StudentsSection({ globalDateRange }: Props) {
         </Card>
       </div>
 
+      <Card className="rounded-xl bg-card shadow-md border border-border/50">
+        <CardHeader>
+          <CardTitle>מגמת נוכחות — {currentYear}</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="h-80">
+            {attendanceByMonth.length > 0 ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart
+                  data={attendanceByMonth}
+                  margin={{ top: 8, right: 16, left: 8, bottom: 8 }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                  <XAxis
+                    dataKey="month_label"
+                    stroke="hsl(var(--muted-foreground))"
+                    tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }}
+                    interval={0}
+                  />
+                  <YAxis
+                    stroke="hsl(var(--muted-foreground))"
+                    tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }}
+                    domain={[0, 100]}
+                    tickFormatter={(value: number) => `${value}%`}
+                    width={48}
+                  />
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: 'hsl(var(--card))',
+                      border: '1px solid hsl(var(--border))',
+                      borderRadius: '8px',
+                      direction: 'rtl',
+                      color: 'hsl(var(--foreground))',
+                    }}
+                    formatter={(value, _name, props: any) => {
+                      const payload = props?.payload;
+                      const records = payload?.total_records ?? 0;
+                      const present = payload?.present_count ?? 0;
+                      return [`${value}% (${present}/${records})`, 'נוכחות'];
+                    }}
+                    labelFormatter={(label) => String(label)}
+                  />
+                  <Legend wrapperStyle={{ direction: 'rtl', paddingTop: '10px' }} />
+                  <Line
+                    type="monotone"
+                    dataKey="attendance_rate"
+                    name="אחוז נוכחות"
+                    stroke="hsl(var(--primary))"
+                    strokeWidth={2}
+                    dot={{ fill: 'hsl(var(--primary))' }}
+                    activeDot={{ r: 6 }}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="flex items-center justify-center h-full text-muted-foreground">
+                אין נתוני נוכחות להצגה
+              </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Abnormal Attendance, Quit Percentage & Quit By Course Type */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <Card className="rounded-xl bg-card shadow-md border border-border/50">
@@ -472,68 +535,6 @@ export default function StudentsSection({ globalDateRange }: Props) {
       </div>
 
       {/* Monthly attendance trend (year to date) */}
-      <Card className="rounded-xl bg-card shadow-md border border-border/50">
-        <CardHeader>
-          <CardTitle>מגמת נוכחות — {currentYear}</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="h-80">
-            {attendanceByMonth.length > 0 ? (
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart
-                  data={attendanceByMonth}
-                  margin={{ top: 8, right: 16, left: 8, bottom: 8 }}
-                >
-                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                  <XAxis
-                    dataKey="month_label"
-                    stroke="hsl(var(--muted-foreground))"
-                    tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }}
-                    interval={0}
-                  />
-                  <YAxis
-                    stroke="hsl(var(--muted-foreground))"
-                    tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }}
-                    domain={[0, 100]}
-                    tickFormatter={(value: number) => `${value}%`}
-                    width={48}
-                  />
-                  <Tooltip
-                    contentStyle={{
-                      backgroundColor: 'hsl(var(--card))',
-                      border: '1px solid hsl(var(--border))',
-                      borderRadius: '8px',
-                      direction: 'rtl',
-                      color: 'hsl(var(--foreground))',
-                    }}
-                    formatter={(value, _name, props: any) => {
-                      const payload = props?.payload;
-                      const records = payload?.total_records ?? 0;
-                      const present = payload?.present_count ?? 0;
-                      return [`${value}% (${present}/${records})`, 'נוכחות'];
-                    }}
-                    labelFormatter={(label) => String(label)}
-                  />
-                  <Legend wrapperStyle={{ direction: 'rtl', paddingTop: '10px' }} />
-                  <Line
-                    type="monotone"
-                    dataKey="attendance_rate"
-                    name="אחוז נוכחות"
-                    stroke="hsl(var(--primary))"
-                    strokeWidth={2}
-                    dot={{ fill: 'hsl(var(--primary))' }}
-                    activeDot={{ r: 6 }}
-                  />
-                </LineChart>
-              </ResponsiveContainer>
-            ) : (
-              <div className="flex items-center justify-center h-full text-muted-foreground">
-                אין נתוני נוכחות להצגה
-              </div>
-            )}
-          </div>
-        </CardContent>
-      </Card>
 
       {/* Quit Details Modal */}
       <Dialog open={isQuitModalOpen} onOpenChange={setIsQuitModalOpen}>
