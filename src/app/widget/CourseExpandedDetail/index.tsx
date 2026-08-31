@@ -227,9 +227,9 @@ export default function CourseExpandedDetail({
         </div>
         <p className={styles.priceNote}>מנוי שנתי עד חודש יולי. ניתן לבטל מנוי עד חודש אפריל</p>
         {course.charge_standing_order_immediately ? (
-          <p className={styles.priceNoteHighlight}>דמי רישום יגבו עכשיו והוראת הקבע תחויב מיד</p>
+          <p className={styles.priceNoteHighlight}>דמי רישום פעם אחת לכל ילד. הוראת הקבע תחויב מיד</p>
         ) : hideSeptemberStandingOrderNote ? null : (
-          <p className={styles.priceNoteHighlight}>דמי רישום יגבו עכשיו והוראת קבע תתחיל ב-1.9</p>
+          <p className={styles.priceNoteHighlight}>דמי רישום פעם אחת לכל ילד. הוראת קבע תתחיל ב-1.9</p>
         )}
 
         {selectionFull ? (

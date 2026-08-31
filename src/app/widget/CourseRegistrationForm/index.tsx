@@ -1464,7 +1464,9 @@ export default function CourseRegistrationForm({
           </div>
           {!isTrial && paymentData.subscription_start_date && (
             <p className={styles.billingNote}>
-              דמי רישום יגבו עכשיו והוראת קבע תתחיל ב-{formatStandingOrderStart(paymentData.subscription_start_date)}
+              {(paymentData.registration_fee ?? 0) > 0
+                ? `דמי רישום יגבו עכשיו והוראת קבע תתחיל ב-${formatStandingOrderStart(paymentData.subscription_start_date)}`
+                : `הוראת קבע תתחיל ב-${formatStandingOrderStart(paymentData.subscription_start_date)}`}
             </p>
           )}
         </div>

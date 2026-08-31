@@ -64,6 +64,7 @@ export interface Course {
   min_age?: number | null;
   max_age?: number | null;
   is_active: boolean;
+  show_in_widget?: boolean;
   is_adult: boolean;
   must_attend_all_lessons: boolean;
   trial_lesson_is_paid?: boolean;
@@ -163,6 +164,7 @@ export interface CourseWithLessons {
   monthly_profit: number;
   lessons: Lesson[];
   is_active: boolean;
+  show_in_widget?: boolean;
   is_adult?: boolean;
   must_attend_all_lessons?: boolean;
   trial_lesson_is_paid?: boolean;

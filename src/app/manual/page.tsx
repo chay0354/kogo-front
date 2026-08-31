@@ -274,8 +274,8 @@ export default function ManualPage() {
               <div className={styles.termRow}>
                 <span className={styles.termName}>דמי רישום</span>
                 <span className={styles.termDef}>
-                  סכום חד-פעמי הנגבה תמיד באופן מיידי עם הרשמה חדשה לחוג, בנפרד מהמנוי החודשי
-                  עצמו.
+                  סכום חד-פעמי לכל ילד, נגבה פעם אחת בהרשמה הראשונה בלבד (גם אם נרשם
+                  לכמה חוגים), בנפרד מהמנוי החודשי עצמו.
                 </span>
               </div>
               <div className={styles.termRow}>
