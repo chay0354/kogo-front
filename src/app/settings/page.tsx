@@ -18,6 +18,7 @@ import {
 } from '@/components/ui/dialog';
 import { useAuth } from '@/components/AuthProvider';
 import LinkedUsersSection from './LinkedUsersSection';
+import InstructorLoginDiagnostics from './InstructorLoginDiagnostics';
 
 type UserRole = 'manager' | 'worker' | 'partner';
 
@@ -263,6 +264,8 @@ export default function SettingsPage() {
           </>
         )}
       </div>
+
+      {isManager && <InstructorLoginDiagnostics />}
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="max-w-lg">

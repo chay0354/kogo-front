@@ -13,6 +13,13 @@ interface AppLayoutProps {
   children: React.ReactNode;
 }
 
+/**
+ * Roles that may see the office screens at all. Anything else — a worker, an
+ * account whose profile was never created, a role added server-side that this
+ * build predates — gets the instructor screen and nothing more.
+ */
+const CRM_ROLES = new Set(['manager', 'partner']);
+
 export default function AppLayout({ children }: AppLayoutProps) {
   const { user, loading } = useAuth();
   const router = useRouter();
@@ -71,7 +78,12 @@ export default function AppLayout({ children }: AppLayoutProps) {
       return;
     }
 
-    if (user.role === 'worker' && pathname !== '/schedule') {
+    // Default deny. Only a role that is explicitly allowed the office screens
+    // gets them: an account with no profile, or one carrying a role this build
+    // does not know, previously fell through every check and was handed the
+    // whole CRM shell. The server refuses the data either way, but the shell
+    // itself must never open for anyone but staff.
+    if (!CRM_ROLES.has(user.role as string) && pathname !== '/schedule') {
       router.replace('/schedule');
       return;
     }
@@ -96,9 +108,9 @@ export default function AppLayout({ children }: AppLayoutProps) {
   }
 
   if (!user) return null;
-  if (user.role === 'worker' && pathname !== '/schedule') return null;
+  if (!CRM_ROLES.has(user.role as string) && pathname !== '/schedule') return null;
 
-  const showSidebar = user.role !== 'worker';
+  const showSidebar = CRM_ROLES.has(user.role as string);
 
   return (
     <div className="min-h-screen bg-background">

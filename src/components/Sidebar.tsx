@@ -44,14 +44,21 @@ const PARTNER_MENU = MANAGER_MENU.filter(
   (item) => !['/partners', '/settings', '/whatsapp', '/credit-cards'].includes(item.href)
 );
 
+const INSTRUCTOR_MENU = [{ name: 'לוח זמנים', href: '/schedule', icon: Calendar }];
+
+/**
+ * Default deny: the manager menu is returned only for an explicit manager.
+ * It used to be the fallback, so an account with no profile — or a role this
+ * build does not know — was shown every office screen in the sidebar.
+ */
 function getMenuItems(role: UserRole | null | undefined) {
-  if (role === 'worker') {
-    return [{ name: 'לוח זמנים', href: '/schedule', icon: Calendar }];
+  if (role === 'manager') {
+    return MANAGER_MENU;
   }
   if (role === 'partner') {
     return PARTNER_MENU;
   }
-  return MANAGER_MENU;
+  return INSTRUCTOR_MENU;
 }
 
 interface SidebarProps {
