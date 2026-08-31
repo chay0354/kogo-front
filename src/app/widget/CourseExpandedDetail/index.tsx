@@ -142,6 +142,27 @@ function resolveInstructorName(
   return names.length ? names.join(' ו') : null;
 }
 
+/**
+ * The photo to show beside the instructor's name.
+ *
+ * Only used when a single instructor teaches what the parent is looking at:
+ * a combined package taught by two people has one circle and no way to say
+ * whose face it is, so it keeps the placeholder rather than picking one.
+ */
+function resolveInstructorPhoto(
+  course: Course,
+  lesson?: CourseLesson,
+  bundleOffer?: CourseBundle,
+): string | null {
+  if (lesson) return lesson.instructor_photo_url ?? null;
+
+  const slots = bundleOffer?.lessons?.length ? bundleOffer.lessons : course.lessons ?? [];
+  const photos = new Set(
+    slots.map((slot) => slot.instructor_photo_url).filter((url): url is string => Boolean(url)),
+  );
+  return photos.size === 1 ? [...photos][0] : null;
+}
+
 type ScheduleSlot = Pick<CourseLesson, 'day_of_week' | 'start_time' | 'end_time'>;
 
 function resolveScheduleLessons(
@@ -192,6 +213,7 @@ export default function CourseExpandedDetail({
 }: CourseExpandedDetailProps) {
   const [pendingAction, setPendingAction] = useState<'enroll' | 'trial' | null>(null);
   const instructorName = resolveInstructorName(course, lesson, bundleOffer);
+  const instructorPhoto = resolveInstructorPhoto(course, lesson, bundleOffer);
 
   const [minAge, maxAge] = resolveAges(course, priceOption, bundleOffer);
   const ageLabel = formatAgesCompact(minAge, maxAge);
@@ -300,11 +322,23 @@ export default function CourseExpandedDetail({
 
         <div className={styles.instructorBox}>
           <div className={styles.instructorAvatar} aria-hidden>
-            <svg viewBox="0 0 64 64" className={styles.avatarPlaceholder}>
-              <rect width="64" height="64" fill="#F5C518" />
-              <circle cx="32" cy="24" r="11" fill="#2B3090" opacity="0.35" />
-              <path d="M12 58c2-13 11-21 20-21s18 8 20 21" fill="#2B3090" opacity="0.35" />
-            </svg>
+            {instructorPhoto ? (
+              /* Served from storage with a versioned URL, so it is cached for as
+                 long as it stays the same photo. */
+              <img
+                src={instructorPhoto}
+                alt=""
+                className={styles.avatarPhoto}
+                loading="lazy"
+                decoding="async"
+              />
+            ) : (
+              <svg viewBox="0 0 64 64" className={styles.avatarPlaceholder}>
+                <rect width="64" height="64" fill="#F5C518" />
+                <circle cx="32" cy="24" r="11" fill="#2B3090" opacity="0.35" />
+                <path d="M12 58c2-13 11-21 20-21s18 8 20 21" fill="#2B3090" opacity="0.35" />
+              </svg>
+            )}
           </div>
           <div className={styles.instructorDivider} />
           <div className={styles.instructorInfo}>

@@ -183,6 +183,17 @@
   box-shadow: 0 0 0 3px #F5C518;
 }
 
+/* The photos are cut-outs with no background of their own, so the gold circle
+   behind them is what they sit on. Anchored to the top so a head is never the
+   part that gets cropped. */
+.avatarPhoto {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: top center;
+  display: block;
+}
+
 .avatarPlaceholder {
   display: block;
   width: 100%;
