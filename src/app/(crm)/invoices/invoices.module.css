@@ -479,6 +479,41 @@
   color: hsl(var(--muted-foreground));
 }
 
+.pager {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  border-top: 1px solid hsl(var(--border));
+}
+
+.pagerBtn {
+  height: 2.25rem;
+  padding: 0 0.875rem;
+  border: 1px solid hsl(var(--border));
+  border-radius: calc(var(--radius) - 4px);
+  background: hsl(var(--card));
+  color: hsl(var(--foreground));
+  font-size: 0.8125rem;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.pagerBtn:hover:not(:disabled) {
+  background: hsl(var(--secondary));
+}
+
+.pagerBtn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.pagerStatus {
+  font-size: 0.8125rem;
+  color: hsl(var(--muted-foreground));
+}
+
 /* Aging buckets row */
 .agingRow {
   display: grid;

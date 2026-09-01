@@ -81,28 +81,47 @@ export async function fetchTranzilaTransactions(params?: {
   return res.data;
 }
 
+export const PAYMENTS_PAGE_SIZE = 20;
+
 export async function fetchPaymentLedger(params?: {
+  page?: number;
+  page_size?: number;
   start_date?: string;
   end_date?: string;
-}): Promise<PaymentLedgerItem[]> {
-  const items: PaymentLedgerItem[] = [];
-  let page = 1;
-  while (page <= 5) {
-    const res = await api.get('/customers/payments/ledger/', {
-      params: { page, page_size: 100, ordering: '-created_at', ...params },
-      timeout: 20000,
-    });
-    const data = res.data;
-    if (Array.isArray(data)) {
-      items.push(...data);
-      break;
-    }
-    const batch = Array.isArray(data?.results) ? data.results : [];
-    items.push(...batch);
-    if (!data?.next || batch.length === 0) break;
-    page += 1;
+  search?: string;
+  status?: string;
+  kind?: string;
+  branch?: string;
+}): Promise<{
+  results: PaymentLedgerItem[];
+  count: number;
+  month_total: number;
+  pending_count: number;
+}> {
+  const res = await api.get('/customers/payments/ledger/', {
+    params: {
+      page: 1,
+      page_size: PAYMENTS_PAGE_SIZE,
+      ordering: '-created_at',
+      ...params,
+    },
+    timeout: 15000,
+  });
+  const data = res.data;
+  if (Array.isArray(data)) {
+    return {
+      results: data,
+      count: data.length,
+      month_total: 0,
+      pending_count: 0,
+    };
   }
-  return items;
+  return {
+    results: Array.isArray(data?.results) ? data.results : [],
+    count: Number(data?.count ?? 0),
+    month_total: Number(data?.month_total ?? 0),
+    pending_count: Number(data?.pending_count ?? 0),
+  };
 }
 
 export async function fetchDocument(id: string): Promise<FormalDocument> {

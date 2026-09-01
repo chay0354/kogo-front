@@ -10,7 +10,7 @@ import RefundDialog from '@/components/dialogs/RefundDialog';
 import { GroupIdBadge } from '@/components/GroupIdBadge/GroupIdBadge';
 import { TableSkeleton } from '@/components/ui/skeleton';
 import { fetchAllInvoices, downloadStoreInvoicePdf } from '@/lib/storeApi';
-import { sendDocumentReminder, fetchTranzilaDocuments, fetchPaymentLedger } from '@/lib/documentsApi';
+import { sendDocumentReminder, fetchTranzilaDocuments, fetchPaymentLedger, PAYMENTS_PAGE_SIZE } from '@/lib/documentsApi';
 import api from '@/lib/api';
 import { useAuth } from '@/components/AuthProvider';
 import { filterBranchesForUser, unwrapApiList } from '@/lib/scopedFilters';
@@ -73,7 +73,10 @@ export default function InvoicesPage() {
   const [payments, setPayments] = useState<PaymentRecord[]>([]);
   const [paymentsError, setPaymentsError] = useState('');
   const [paymentsLoading, setPaymentsLoading] = useState(false);
-  const [paymentsLoaded, setPaymentsLoaded] = useState(false);
+  const [paymentPage, setPaymentPage] = useState(1);
+  const [paymentTotalCount, setPaymentTotalCount] = useState(0);
+  const [paymentMonthTotal, setPaymentMonthTotal] = useState(0);
+  const [paymentPendingCount, setPaymentPendingCount] = useState(0);
   const [paymentKindFilter, setPaymentKindFilter] = useState('');
   const [paymentStatusFilter, setPaymentStatusFilter] = useState('');
   const [paymentSearch, setPaymentSearch] = useState('');
@@ -161,23 +164,55 @@ export default function InvoicesPage() {
     void refreshTranzilaDocuments(range);
   }
 
-  async function loadPayments(force = false) {
-    if (paymentsLoaded && !force) return;
+  useEffect(() => {
+    if (activeTab !== 'תשלומים' || paymentKindFilter === 'store') {
+      return;
+    }
+    let cancelled = false;
     setPaymentsLoading(true);
     setPaymentsError('');
-    try {
-      const range = documentDateRange();
-      const crmPayments = await fetchPaymentLedger(range);
-      setPayments(crmPayments.map(paymentToLedgerRow));
-    } catch (error) {
-      console.error('Error loading payments:', error);
-      setPayments([]);
-      setPaymentsError('שגיאה בטעינת התשלומים');
-    } finally {
-      setPaymentsLoading(false);
-      setPaymentsLoaded(true);
-    }
-  }
+    const range = documentDateRange();
+    fetchPaymentLedger({
+      page: paymentPage,
+      page_size: PAYMENTS_PAGE_SIZE,
+      ...range,
+      search: paymentSearch.trim() || undefined,
+      status: paymentStatusFilter || undefined,
+      kind: paymentKindFilter || undefined,
+      branch: primaryFilter || undefined,
+    })
+      .then((data) => {
+        if (cancelled) return;
+        setPayments(data.results.map(paymentToLedgerRow));
+        setPaymentTotalCount(data.count);
+        setPaymentMonthTotal(data.month_total);
+        setPaymentPendingCount(data.pending_count);
+      })
+      .catch((error) => {
+        console.error('Error loading payments:', error);
+        if (cancelled) return;
+        setPayments([]);
+        setPaymentTotalCount(0);
+        setPaymentMonthTotal(0);
+        setPaymentPendingCount(0);
+        setPaymentsError('שגיאה בטעינת התשלומים');
+      })
+      .finally(() => {
+        if (!cancelled) setPaymentsLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    activeTab,
+    paymentPage,
+    paymentKindFilter,
+    paymentStatusFilter,
+    paymentSearch,
+    dateFrom,
+    dateTo,
+    primaryFilter,
+  ]);
 
   async function handleRefundConfirm(amount: number | null, reason: string) {
     if (!refundTarget) return;
@@ -305,45 +340,44 @@ export default function InvoicesPage() {
 
   function handleTabChange(tab: ActiveTab) {
     setActiveTab(tab);
-    if (tab === 'תשלומים' && !paymentsLoaded) {
-      loadPayments();
-    }
     if (tab === 'הוראת קבע' && !recurringLoaded) {
       loadRecurringPayments();
     }
   }
 
-  const ledgerPayments: PaymentRecord[] = [
-    ...payments,
-    ...invoices
-      .filter((inv) => {
-        const day = (inv.issue_date || inv.created_at || '').slice(0, 10);
-        if (dateFrom && day && day < dateFrom) return false;
-        if (dateTo && day && day > dateTo) return false;
-        return true;
-      })
-      .map(storeInvoiceToLedgerRow),
-  ];
-  const pendingCount = ledgerPayments.filter(
-    (p) => p.status === 'pending' || p.status === 'processing',
-  ).length;
-  const monthTotal = getCurrentMonthTotal(ledgerPayments);
-  const filteredPayments = ledgerPayments.filter((p) => {
-    if (primaryFilter && p.branch_id !== primaryFilter) return false;
-    if (paymentKindFilter && p.kind !== paymentKindFilter) return false;
-    if (paymentStatusFilter && p.status !== paymentStatusFilter) return false;
-    const q = paymentSearch.trim().toLowerCase();
-    if (!q) return true;
-    return (
-      p.customer_name.toLowerCase().includes(q)
-      || p.description.toLowerCase().includes(q)
-      || p.kind_label.toLowerCase().includes(q)
-      || (p.transaction_reference || '').toLowerCase().includes(q)
-    );
-  });
-  const sortedPayments = [...filteredPayments].sort(
-    (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+  const storeLedger = invoices
+    .filter((inv) => {
+      const day = (inv.issue_date || inv.created_at || '').slice(0, 10);
+      if (dateFrom && day && day < dateFrom) return false;
+      if (dateTo && day && day > dateTo) return false;
+      if (primaryFilter && inv.branch !== primaryFilter) return false;
+      return true;
+    })
+    .map(storeInvoiceToLedgerRow)
+    .filter((row) => {
+      if (paymentStatusFilter && row.status !== paymentStatusFilter) return false;
+      const q = paymentSearch.trim().toLowerCase();
+      if (!q) return true;
+      return (
+        row.customer_name.toLowerCase().includes(q)
+        || row.description.toLowerCase().includes(q)
+        || (row.transaction_reference || '').toLowerCase().includes(q)
+      );
+    })
+    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+
+  const showingStore = paymentKindFilter === 'store';
+  const pagedStore = storeLedger.slice(
+    (paymentPage - 1) * PAYMENTS_PAGE_SIZE,
+    paymentPage * PAYMENTS_PAGE_SIZE,
   );
+  const sortedPayments = showingStore ? pagedStore : payments;
+  const paymentCount = showingStore ? storeLedger.length : paymentTotalCount;
+  const pendingCount = showingStore
+    ? storeLedger.filter((p) => p.status === 'pending' || p.status === 'processing').length
+    : paymentPendingCount;
+  const monthTotal = showingStore ? getCurrentMonthTotal(storeLedger) : paymentMonthTotal;
+  const paymentPageCount = Math.max(1, Math.ceil(paymentCount / PAYMENTS_PAGE_SIZE));
 
   const filtered = documents.filter(doc => {
     if (docTypeFilter && getLedgerDocType(doc) !== docTypeFilter) return false;
@@ -666,7 +700,7 @@ export default function InvoicesPage() {
                   <DollarSign size={18} />
                 </div>
                 <div className={styles.statCardBody}>
-                  <span className={styles.statCardValue}>{ledgerPayments.length}</span>
+                  <span className={styles.statCardValue}>{paymentCount}</span>
                   <span className={styles.statCardLabel}>סה&quot;כ חיובים</span>
                 </div>
               </div>
@@ -696,7 +730,7 @@ export default function InvoicesPage() {
               <select
                 className={styles.filterSelect}
                 value={paymentKindFilter}
-                onChange={(e) => setPaymentKindFilter(e.target.value)}
+                onChange={(e) => { setPaymentKindFilter(e.target.value); setPaymentPage(1); }}
                 aria-label="סינון לפי סוג חיוב"
               >
                 <option value="">כל סוגי החיוב</option>
@@ -707,7 +741,7 @@ export default function InvoicesPage() {
               <select
                 className={styles.filterSelect}
                 value={paymentStatusFilter}
-                onChange={(e) => setPaymentStatusFilter(e.target.value)}
+                onChange={(e) => { setPaymentStatusFilter(e.target.value); setPaymentPage(1); }}
                 aria-label="סינון לפי סטטוס"
               >
                 <option value="">כל הסטטוסים</option>
@@ -723,7 +757,7 @@ export default function InvoicesPage() {
                   className={styles.searchInput}
                   placeholder="חיפוש לפי לקוח, חוג, הסבר..."
                   value={paymentSearch}
-                  onChange={(e) => setPaymentSearch(e.target.value)}
+                  onChange={(e) => { setPaymentSearch(e.target.value); setPaymentPage(1); }}
                   aria-label="חיפוש חיובים"
                 />
               </div>
@@ -797,6 +831,31 @@ export default function InvoicesPage() {
                     })}
                   </tbody>
                 </table>
+              )}
+              {paymentCount > 0 && (
+                <div className={styles.pager}>
+                  <button
+                    type="button"
+                    className={styles.pagerBtn}
+                    disabled={paymentPage <= 1 || paymentsLoading}
+                    onClick={() => setPaymentPage((page) => Math.max(1, page - 1))}
+                  >
+                    הקודם
+                  </button>
+                  <span className={styles.pagerStatus}>
+                    עמוד {Math.min(paymentPage, paymentPageCount)} מתוך {paymentPageCount}
+                    {' · '}
+                    {paymentCount} חיובים
+                  </span>
+                  <button
+                    type="button"
+                    className={styles.pagerBtn}
+                    disabled={paymentPage >= paymentPageCount || paymentsLoading}
+                    onClick={() => setPaymentPage((page) => page + 1)}
+                  >
+                    הבא
+                  </button>
+                </div>
               )}
             </div>
           </>
