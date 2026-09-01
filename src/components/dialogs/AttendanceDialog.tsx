@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Lesson, AttendanceRecord, AttendanceMark, AttendanceStatus } from '@/types/schedule';
 import { fetchLessonAttendance, markAttendance } from '@/lib/scheduleUtils';
 import { GroupIdBadge } from '@/components/GroupIdBadge/GroupIdBadge';
+import { Skeleton } from '@/components/ui/skeleton';
 
 type AttendanceDialogProps = {
   lesson: Lesson | null;
@@ -122,7 +123,18 @@ export default function AttendanceDialog({
         )}
 
         {isLoading ? (
-          <div className="text-center py-8">טוען...</div>
+          <div className="mb-4 space-y-2" aria-busy="true" aria-label="טוען נוכחות">
+            {Array.from({ length: 6 }).map((_, row) => (
+              <div key={row} className="flex items-center justify-between p-3 border rounded-lg">
+                <Skeleton className="h-4 w-32" />
+                <div className="flex gap-2">
+                  <Skeleton className="h-[26px] w-14 rounded" />
+                  <Skeleton className="h-[26px] w-14 rounded" />
+                  <Skeleton className="h-[26px] w-16 rounded" />
+                </div>
+              </div>
+            ))}
+          </div>
         ) : (
           <form onSubmit={handleSubmit}>
             <div className="mb-4">

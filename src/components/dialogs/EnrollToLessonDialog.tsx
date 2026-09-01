@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { ChildWithDetails } from '@/types/customer';
 import { X } from 'lucide-react';
+import { Skeleton } from '@/components/ui/skeleton';
 import api from '@/lib/api';
 import SubscriptionPaymentDialog from './SubscriptionPaymentDialog';
 
@@ -393,7 +394,7 @@ export default function EnrollToLessonDialog({ child, isOpen, onClose, onEnroll 
                   בחר תחום <span className="text-red-500">*</span>
                 </label>
                 {loadingCourseTypes ? (
-                  <div className="text-sm text-muted-foreground">טוען תחומים...</div>
+                  <Skeleton className="h-10 w-full rounded-lg" />
                 ) : (
                   <select
                     value={selectedCourseType}
@@ -416,7 +417,7 @@ export default function EnrollToLessonDialog({ child, isOpen, onClose, onEnroll 
                     בחר קבוצה <span className="text-red-500">*</span>
                   </label>
                   {loadingCourses ? (
-                    <div className="text-sm text-muted-foreground">טוען קבוצות...</div>
+                    <Skeleton className="h-10 w-full rounded-lg" />
                   ) : courses.length === 0 ? (
                     <div className="text-sm text-muted-foreground">אין קבוצות זמינות בתחום זה</div>
                   ) : (
@@ -452,7 +453,7 @@ export default function EnrollToLessonDialog({ child, isOpen, onClose, onEnroll 
                     בחר שיעור לניסיון <span className="text-red-500">*</span>
                   </label>
                   {loadingLessons ? (
-                    <div className="text-sm text-muted-foreground">טוען שיעורים...</div>
+                    <Skeleton className="h-10 w-full rounded-lg" />
                   ) : (
                     <select
                       value={selectedTrialLesson}
@@ -482,7 +483,11 @@ export default function EnrollToLessonDialog({ child, isOpen, onClose, onEnroll 
               {selectedCourse && !trialPickerOpen && (
                 <div className="text-sm text-muted-foreground">
                   {loadingLessons ? (
-                    <div>טוען מועדים...</div>
+                    <div className="space-y-1">
+                      <Skeleton className="h-4 w-3/4" />
+                      <Skeleton className="h-4 w-2/3" />
+                      <Skeleton className="h-4 w-1/2" />
+                    </div>
                   ) : lessons.length === 0 ? (
                     <div className="text-red-600">לקבוצה זו אין שיעורים — יש להוסיף שיעור לפני רישום</div>
                   ) : bundles.length > 0 ? (

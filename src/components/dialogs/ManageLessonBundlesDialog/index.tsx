@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { X, Check, Pencil, Trash2 } from 'lucide-react';
+import { ListSkeleton } from '@/components/ui/skeleton';
 import api, { fetchInstructorsDropdown } from '@/lib/api';
 import { getDayName, formatTimeRange } from '@/lib/courseUtils';
 import { GroupIdBadge } from '@/components/GroupIdBadge/GroupIdBadge';
@@ -265,7 +266,9 @@ export default function ManageLessonBundlesDialog({
 
         <div className={styles.body}>
           {loading ? (
-            <p className={styles.emptyState}>טוען מסלולים...</p>
+            /* Three rows, the shape a bundle takes, so the list does not jump
+               when it arrives. */
+            <ListSkeleton rows={3} label="טוען מסלולים" />
           ) : bundles.length === 0 && !showForm ? (
             <p className={styles.emptyState}>אין מסלולים משולבים לחוג זה</p>
           ) : (

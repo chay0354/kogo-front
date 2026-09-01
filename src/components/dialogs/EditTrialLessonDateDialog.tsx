@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { CalendarDays, Check } from 'lucide-react';
 import api from '@/lib/api';
 import { Dialog, DialogCloseButton, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Skeleton } from '@/components/ui/skeleton';
 
 type TrialDateOption = {
   date: string;
@@ -138,7 +139,14 @@ export default function EditTrialLessonDateDialog({
           ) : null}
 
           {loading ? (
-            <p className="text-sm text-muted-foreground">טוען תאריכים…</p>
+            <div aria-busy="true" aria-label="טוען תאריכים">
+              <Skeleton className="mb-2 h-4 w-20" />
+              <div className="max-h-[min(48vh,360px)] space-y-2 overflow-hidden pe-1">
+                {Array.from({ length: 5 }).map((_, row) => (
+                  <Skeleton key={row} className="h-[50px] rounded-xl" />
+                ))}
+              </div>
+            </div>
           ) : dates.length === 0 ? (
             <p className="text-sm text-muted-foreground">אין תאריכי שיעור זמינים.</p>
           ) : (

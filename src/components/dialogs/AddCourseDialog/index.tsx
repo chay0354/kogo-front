@@ -11,6 +11,7 @@ import { AGE_OPTIONS, DAYS_OF_WEEK } from './constants';
 import { calcEndTime, buildDefaultCourseData, buildDefaultLessonTemplate, buildDuplicateFormState } from './utils';
 import { TimePicker } from '@/components/ui/time-picker';
 import InstructorSelect from '@/components/InstructorSelect';
+import { Skeleton } from '@/components/ui/skeleton';
 
 export default function AddCourseDialog({
   courseTypeId,
@@ -333,7 +334,7 @@ export default function AddCourseDialog({
                   סניף <span className={styles.required}>*</span>
                 </label>
                 {loadingData ? (
-                  <div className={styles.loadingText}>טוען נתונים...</div>
+                  <Skeleton className="h-[34px] rounded-[3px]" />
                 ) : (
                   <select id="course_branch" value={courseData.branch} onChange={(e) => { setCourseData({ ...courseData, branch: e.target.value }); setLessonTemplates((prev) => prev.map((lesson) => ({ ...lesson, room: '' }))); }} className={styles.select} required>
                     <option value="">בחר סניף</option>
@@ -349,7 +350,7 @@ export default function AddCourseDialog({
                   סטודיו / חדר <span className={styles.required}>*</span>
                 </label>
                 {loadingData ? (
-                  <div className={styles.loadingText}>טוען נתונים...</div>
+                  <Skeleton className="h-[34px] rounded-[3px]" />
                 ) : (
                   <>
                     <select id="course_room" value={lessonTemplates[0]?.room || ''} onChange={(e) => updateLessonTemplate(0, { room: e.target.value })} className={styles.select} disabled={!courseData.branch} required>
@@ -474,7 +475,14 @@ export default function AddCourseDialog({
                 )}
 
                 {loadingData ? (
-                  <div className={styles.loadingText}>טוען נתונים...</div>
+                  <div className="flex flex-col gap-3" aria-busy="true" aria-label="טוען נתונים">
+                    <Skeleton className="h-3 w-20" />
+                    <Skeleton className="h-[34px] rounded-[3px]" />
+                    <div className={styles.grid2}>
+                      <Skeleton className="h-[34px] rounded-[3px]" />
+                      <Skeleton className="h-[34px] rounded-[3px]" />
+                    </div>
+                  </div>
                 ) : (
                   <>
                     {lessonTemplates.map((lessonTemplate, lessonIndex) => (

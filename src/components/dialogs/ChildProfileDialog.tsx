@@ -27,6 +27,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
+import { Skeleton } from '@/components/ui/skeleton';
 import { GroupIdBadge } from '@/components/GroupIdBadge/GroupIdBadge';
 import api from '@/lib/api';
 import RefundDialog from '@/components/dialogs/RefundDialog';
@@ -654,11 +655,13 @@ export default function ChildProfileDialog({
                         </thead>
                         <tbody>
                           {loadingAbsences ? (
-                            <tr>
-                              <td colSpan={3} className="text-center py-8 text-muted-foreground">
-                                טוען...
-                              </td>
-                            </tr>
+                            Array.from({ length: 4 }).map((_, row) => (
+                              <tr key={row} aria-busy="true">
+                                <td><Skeleton className="h-4 w-24" /></td>
+                                <td><Skeleton className="h-4 w-40" /></td>
+                                <td><Skeleton className="h-4 w-32" /></td>
+                              </tr>
+                            ))
                           ) : absences.length === 0 ? (
                             <tr>
                               <td colSpan={3} className="text-center py-8 text-muted-foreground">

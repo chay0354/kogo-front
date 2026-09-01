@@ -1,0 +1,33 @@
+/*
+ * Entrance motion for dashboard content.
+ *
+ * Deliberately small: a short lift and fade. Anything larger reads as sluggish
+ * on a phone, and the dashboard shows many cards at once.
+ */
+.reveal {
+  opacity: 0;
+  transform: translateY(14px);
+  transition:
+    opacity 0.5s cubic-bezier(0.32, 0.72, 0, 1),
+    transform 0.5s cubic-bezier(0.32, 0.72, 0, 1);
+  /* keep the element in normal flow so grids are unaffected */
+  min-width: 0;
+}
+
+.shown {
+  opacity: 1;
+  transform: none;
+}
+
+/* A reveal wrapper must not break the grid it sits in. */
+.reveal > * {
+  min-width: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reveal {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+}

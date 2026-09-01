@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { Check, Pencil, Trash2 } from 'lucide-react';
+import { ListSkeleton } from '@/components/ui/skeleton';
 import api from '@/lib/api';
 import { AGE_OPTIONS, formatAge, formatAgeRange } from '@/lib/courseUtils';
 import styles from './index.module.css';
@@ -207,7 +208,9 @@ export default function LessonPriceOptionsEditor({
       </div>
 
       {loading ? (
-        <p className={styles.loading}>טוען...</p>
+        /* The same row shape the list becomes, so the dialog does not resize
+           under the pointer when the prices land. */
+        <ListSkeleton rows={3} label="טוען מחירים" />
       ) : (
         <>
           <div className={styles.list}>

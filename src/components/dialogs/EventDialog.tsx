@@ -5,6 +5,7 @@ import { initialWeeklyRepeatDays, lessonDayOfWeekFromISODate } from '@/lib/sched
 import api, { fetchInstructorsDropdown } from '@/lib/api';
 import { TimeField } from '@/components/ui/time-picker';
 import CitySelectField from '@/components/dialogs/CitySelectField';
+import { Skeleton } from '@/components/ui/skeleton';
 
 type Branch = {
   id: string;
@@ -48,6 +49,9 @@ export default function EventDialog({ event, onClose, onSuccess, initialDate }: 
   const [branches, setBranches] = useState<Branch[]>([]);
   const [rooms, setRooms] = useState<Room[]>([]);
   const [instructors, setInstructors] = useState<Instructor[]>([]);
+  // An empty list is a real answer here — a branch may have no instructors yet —
+  // so the placeholder needs its own flag rather than reading it off the count.
+  const [loadingInstructors, setLoadingInstructors] = useState(true);
   const [filteredRooms, setFilteredRooms] = useState<Room[]>([]);
   
   // Form state
@@ -130,6 +134,8 @@ export default function EventDialog({ event, onClose, onSuccess, initialDate }: 
       setInstructors(instructorList);
     } catch (err) {
       console.error('Error loading instructors:', err);
+    } finally {
+      setLoadingInstructors(false);
     }
   };
 
@@ -385,8 +391,17 @@ export default function EventDialog({ event, onClose, onSuccess, initialDate }: 
           <div>
             <label className="block text-sm font-medium mb-1">שיוך מדריכים</label>
             <div className="border rounded-lg p-3 max-h-48 overflow-y-auto bg-gray-50">
-              {instructors.length === 0 ? (
-                <p className="text-sm text-gray-500">טוען מדריכים...</p>
+              {loadingInstructors ? (
+                <div className="space-y-2" aria-busy="true" aria-label="טוען מדריכים">
+                  {Array.from({ length: 4 }).map((_, row) => (
+                    <div key={row} className="flex items-center gap-2 p-1">
+                      <Skeleton className="h-4 w-4 rounded" />
+                      <Skeleton className="h-4 w-32" />
+                    </div>
+                  ))}
+                </div>
+              ) : instructors.length === 0 ? (
+                <p className="text-sm text-gray-500">אין מדריכים להצגה</p>
               ) : (
                 <div className="space-y-2">
                   {instructors.map((instructor: any) => (

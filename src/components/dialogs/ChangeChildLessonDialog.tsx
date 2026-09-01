@@ -7,6 +7,7 @@ import { AGE_OPTIONS, formatAge, formatAgeRange, getDayName } from '@/lib/course
 import { sortWidgetCourseTypes } from '@/app/widget/courseTypeOrder';
 import { unwrapApiList } from '@/lib/scopedFilters';
 import { Dialog, DialogCloseButton, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Skeleton } from '@/components/ui/skeleton';
 import type { EnrollmentDetail } from '@/types/customer';
 
 type LessonOption = {
@@ -557,7 +558,16 @@ export default function ChangeChildLessonDialog({
           </div>
 
           {loading ? (
-            <p className="text-sm text-muted-foreground">טוען חוגים…</p>
+            <div className="max-h-[min(48vh,360px)] space-y-3 overflow-hidden pe-1" aria-busy="true" aria-label="טוען חוגים">
+              {Array.from({ length: 2 }).map((_, group) => (
+                <section key={group} className="space-y-3">
+                  <Skeleton className="h-3 w-24" />
+                  <Skeleton className="h-4 w-32" />
+                  <Skeleton className="h-[68px] rounded-xl" />
+                  <Skeleton className="h-[68px] rounded-xl" />
+                </section>
+              ))}
+            </div>
           ) : (
             <div className="max-h-[min(48vh,360px)] space-y-3 overflow-y-auto pe-1">
               {grouped.length === 0 ? (
@@ -624,7 +634,11 @@ export default function ChangeChildLessonDialog({
             <div className="space-y-2 border-t pt-3">
               <p className="text-sm font-medium">תאריך שיעור ניסיון</p>
               {loadingDates ? (
-                <p className="text-sm text-muted-foreground">טוען תאריכים…</p>
+                <div className="grid grid-cols-2 gap-2" aria-busy="true" aria-label="טוען תאריכים">
+                  {Array.from({ length: 4 }).map((_, slot) => (
+                    <Skeleton key={slot} className="h-[38px] rounded-xl" />
+                  ))}
+                </div>
               ) : trialDates.length === 0 ? (
                 <p className="text-sm text-muted-foreground">אין תאריכים פנויים לשיעור שנבחר.</p>
               ) : (
