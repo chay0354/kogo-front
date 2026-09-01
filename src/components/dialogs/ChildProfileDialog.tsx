@@ -325,7 +325,10 @@ export default function ChildProfileDialog({
         kind: 'payment' as const,
         date: payment.payment_date || payment.created_at || null,
         description: oneTimePaymentLabel(payment),
-        amount: Number(payment.final_amount || 0),
+        amount:
+          Number(payment.registration_fee || 0) > 0
+            ? Number(payment.registration_fee)
+            : Number(payment.final_amount || 0),
         status: payment.status as string,
         canRefund: payment.status === 'completed' && Number(payment.final_amount || 0) > 0,
         raw: payment,

@@ -68,6 +68,8 @@ export interface Payment {
   base_amount: number;
   discount_amount: number;
   final_amount: number;
+  registration_fee?: number;
+  trial_lesson_date?: string | null;
   description: string;
   payment_date: string | null;
   failure_reason: string;
