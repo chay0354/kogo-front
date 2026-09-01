@@ -179,6 +179,7 @@ export default function EditLessonDialog({
     slots: [
       {
         roomId: formData.room,
+        instructorId: formData.instructor,
         dayOfWeek: formData.day_of_week,
         startTime: formData.start_time,
         endTime: formData.end_time,

@@ -211,6 +211,7 @@ export default function AddCourseDialog({
     open,
     slots: lessonTemplates.map((lesson) => ({
       roomId: lesson.room,
+      instructorId: courseData.instructor,
       dayOfWeek: lesson.day_of_week,
       startTime: lesson.start_time,
       endTime: lesson.end_time,

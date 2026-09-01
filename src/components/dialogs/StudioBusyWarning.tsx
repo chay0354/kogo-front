@@ -6,6 +6,7 @@ import styles from './StudioBusyWarning.module.css';
 
 export type StudioBusySlot = {
   roomId?: string | null;
+  instructorId?: string | null;
   dayOfWeek: number;
   startTime: string;
   endTime: string;
@@ -25,6 +26,11 @@ function occupantKey(row: Occupant) {
 
 function formatOccupant(row: Occupant) {
   const when = [row.day_name, `${row.start_time}–${row.end_time}`].filter(Boolean).join(' ');
+  if (row.kind === 'instructor') {
+    return when
+      ? `המדריך תפוס ביום ${when} בחוג ${row.name}`
+      : `המדריך תפוס בחוג ${row.name}`;
+  }
   const prefix = row.kind === 'event' ? 'אירוע/שכירות' : 'החוג';
   return when
     ? `הסטודיו תפוס ביום ${when} על ידי ${prefix} ${row.name}`
@@ -48,6 +54,7 @@ export function useStudioBusyConflicts({
       JSON.stringify({
         slots: slots.map((s) => ({
           roomId: s.roomId || '',
+          instructorId: s.instructorId || '',
           dayOfWeek: s.dayOfWeek,
           startTime: (s.startTime || '').slice(0, 5),
           endTime: (s.endTime || '').slice(0, 5),
@@ -64,12 +71,16 @@ export function useStudioBusyConflicts({
       return;
     }
     const parsed = JSON.parse(slotKey) as {
-      slots: { roomId: string; dayOfWeek: number; startTime: string; endTime: string }[];
+      slots: { roomId: string; instructorId: string; dayOfWeek: number; startTime: string; endTime: string }[];
       excludeCourseId: string;
       excludeLessonIds: string[];
     };
     const valid = parsed.slots.filter(
-      (s) => s.roomId && s.startTime && s.endTime && Number.isInteger(s.dayOfWeek)
+      (s) =>
+        (s.roomId || s.instructorId) &&
+        s.startTime &&
+        s.endTime &&
+        Number.isInteger(s.dayOfWeek)
     );
     if (valid.length === 0) {
       setConflicts([]);
@@ -83,7 +94,8 @@ export function useStudioBusyConflicts({
           api
             .get('/courses/lessons/room-conflicts/', {
               params: {
-                room: slot.roomId,
+                room: slot.roomId || undefined,
+                instructor: slot.instructorId || undefined,
                 day_of_week: slot.dayOfWeek,
                 start_time: slot.startTime,
                 end_time: slot.endTime,

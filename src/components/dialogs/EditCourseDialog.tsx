@@ -257,6 +257,7 @@ export default function EditCourseDialog({
     open,
     slots: scheduledLessons.map((lesson) => ({
       roomId,
+      instructorId,
       dayOfWeek: lesson.day_of_week,
       startTime: lesson.start_time,
       endTime: lesson.end_time,
