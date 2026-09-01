@@ -990,7 +990,12 @@ export default function CourseRegistrationForm({
         <div className={styles.section}>
           <div className={styles.sectionTitle}>
             <span className={styles.sectionTitleLine} />
-            <span className={styles.sectionTitleText}>פרטי הורה</span>
+            {/* Someone enrolling themselves is filling in their own details, and being
+                  asked for a parent's is what makes them hesitate over whose
+                  identity number belongs in the field below. */}
+              <span className={styles.sectionTitleText}>
+                {selfRegistering ? 'הפרטים שלי' : 'פרטי הורה'}
+              </span>
             <span className={styles.sectionTitleLine} />
           </div>
           <div className={styles.grid2}>
@@ -1013,7 +1018,9 @@ export default function CourseRegistrationForm({
               ) : null}
             </div>
             <div>
-              <label className={styles.label}>ת.ז. הורה *</label>
+              <label className={styles.label}>
+                {selfRegistering ? 'תעודת זהות שלי *' : 'ת.ז. הורה *'}
+              </label>
               <input type="text" inputMode="numeric" value={parentIdNumber}
                 onChange={(e) => {
                   setParentIdNumber(sanitizeIsraeliIdInput(e.target.value));
