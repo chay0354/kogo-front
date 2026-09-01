@@ -4,7 +4,7 @@ import type {
   FormalDocumentSummary,
   CreateDocumentPayload,
 } from '@/types/document';
-import type { Payment } from '@/types/payment';
+import type { PaymentLedgerItem } from '@/app/(crm)/invoices/types';
 
 export async function createDocument(payload: CreateDocumentPayload): Promise<FormalDocument> {
   const res = await api.post('/documents/documents/create-document/', payload);
@@ -25,6 +25,7 @@ export async function fetchDocuments(params?: {
 export async function fetchTranzilaDocuments(params?: {
   start_date?: string;
   end_date?: string;
+  local_only?: string;
 }): Promise<{
   documents: Array<{
     id: string;
@@ -80,12 +81,16 @@ export async function fetchTranzilaTransactions(params?: {
   return res.data;
 }
 
-export async function fetchAllCustomerPayments(): Promise<Payment[]> {
-  const items: Payment[] = [];
+export async function fetchPaymentLedger(params?: {
+  start_date?: string;
+  end_date?: string;
+}): Promise<PaymentLedgerItem[]> {
+  const items: PaymentLedgerItem[] = [];
   let page = 1;
-  while (page <= 100) {
-    const res = await api.get('/customers/payments/', {
-      params: { page, page_size: 200, ordering: '-created_at' },
+  while (page <= 5) {
+    const res = await api.get('/customers/payments/ledger/', {
+      params: { page, page_size: 100, ordering: '-created_at', ...params },
+      timeout: 20000,
     });
     const data = res.data;
     if (Array.isArray(data)) {

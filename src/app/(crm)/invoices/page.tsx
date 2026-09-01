@@ -10,7 +10,7 @@ import RefundDialog from '@/components/dialogs/RefundDialog';
 import { GroupIdBadge } from '@/components/GroupIdBadge/GroupIdBadge';
 import { TableSkeleton } from '@/components/ui/skeleton';
 import { fetchAllInvoices, downloadStoreInvoicePdf } from '@/lib/storeApi';
-import { sendDocumentReminder, fetchTranzilaDocuments, fetchAllCustomerPayments } from '@/lib/documentsApi';
+import { sendDocumentReminder, fetchTranzilaDocuments, fetchPaymentLedger } from '@/lib/documentsApi';
 import api from '@/lib/api';
 import { useAuth } from '@/components/AuthProvider';
 import { filterBranchesForUser, unwrapApiList } from '@/lib/scopedFilters';
@@ -38,6 +38,8 @@ import {
   getRecurringStatusClass,
   paymentToLedgerRow,
   storeInvoiceToLedgerRow,
+  localISODate,
+  daysAgoLocalISO,
 } from './utils';
 import styles from './invoices.module.css';
 
@@ -63,8 +65,9 @@ export default function InvoicesPage() {
   const [docTypeFilter, setDocTypeFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [branchFilter, setBranchFilter] = useState('');
-  const [dateFrom, setDateFrom] = useState('');
-  const [dateTo, setDateTo] = useState('');
+  const [dateFrom, setDateFrom] = useState(() => daysAgoLocalISO(90));
+  const [dateTo, setDateTo] = useState(() => localISODate());
+  const [documentsRefreshing, setDocumentsRefreshing] = useState(false);
 
   // Payments tab state — CRM charges (signup + standing order) and store invoices
   const [payments, setPayments] = useState<PaymentRecord[]>([]);
@@ -102,16 +105,35 @@ export default function InvoicesPage() {
     loadInvoiceData();
   }, []);
 
+  function documentDateRange() {
+    return {
+      start_date: dateFrom || daysAgoLocalISO(90),
+      end_date: dateTo || localISODate(),
+    };
+  }
+
+  async function refreshTranzilaDocuments(range: { start_date: string; end_date: string }) {
+    setDocumentsRefreshing(true);
+    try {
+      const ledger = await fetchTranzilaDocuments(range);
+      setDocuments(Array.isArray(ledger.documents) ? ledger.documents : []);
+      if (ledger.error && (!ledger.documents || ledger.documents.length === 0)) {
+        setDocumentsError('לא ניתן לטעון מסמכים מטרנזילה כרגע.');
+      }
+    } catch (error) {
+      console.error('Error refreshing Tranzila documents:', error);
+    } finally {
+      setDocumentsRefreshing(false);
+    }
+  }
+
   async function loadInvoiceData() {
     setIsLoading(true);
     setDocumentsError('');
+    const range = documentDateRange();
     try {
-      const dateParams = {
-        ...(dateFrom ? { start_date: dateFrom } : {}),
-        ...(dateTo ? { end_date: dateTo } : {}),
-      };
       const [ledger, invoicesData, branchesResponse] = await Promise.all([
-        fetchTranzilaDocuments(dateParams),
+        fetchTranzilaDocuments({ ...range, local_only: '1' }),
         fetchAllInvoices(),
         api.get('/core/branches/'),
       ]);
@@ -136,6 +158,7 @@ export default function InvoicesPage() {
     } finally {
       setIsLoading(false);
     }
+    void refreshTranzilaDocuments(range);
   }
 
   async function loadPayments(force = false) {
@@ -143,7 +166,8 @@ export default function InvoicesPage() {
     setPaymentsLoading(true);
     setPaymentsError('');
     try {
-      const crmPayments = await fetchAllCustomerPayments();
+      const range = documentDateRange();
+      const crmPayments = await fetchPaymentLedger(range);
       setPayments(crmPayments.map(paymentToLedgerRow));
     } catch (error) {
       console.error('Error loading payments:', error);
@@ -291,7 +315,14 @@ export default function InvoicesPage() {
 
   const ledgerPayments: PaymentRecord[] = [
     ...payments,
-    ...invoices.map(storeInvoiceToLedgerRow),
+    ...invoices
+      .filter((inv) => {
+        const day = (inv.issue_date || inv.created_at || '').slice(0, 10);
+        if (dateFrom && day && day < dateFrom) return false;
+        if (dateTo && day && day > dateTo) return false;
+        return true;
+      })
+      .map(storeInvoiceToLedgerRow),
   ];
   const pendingCount = ledgerPayments.filter(
     (p) => p.status === 'pending' || p.status === 'processing',
@@ -535,6 +566,9 @@ export default function InvoicesPage() {
               </div>
             </div>
 
+            {documentsRefreshing && (
+              <p className={styles.emptyState} style={{ padding: '8px 0' }}>מעדכן מסמכים מטרנזילה…</p>
+            )}
             {documentsError && (
               <p className={styles.emptyState} style={{ padding: '8px 0' }}>{documentsError}</p>
             )}

@@ -95,8 +95,10 @@ export async function fetchInvoices(params?: {
 export async function fetchAllInvoices(): Promise<StoreInvoice[]> {
   const items: StoreInvoice[] = [];
   let page = 1;
-  while (page <= 50) {
-    const { data } = await api.get('/store/invoices/', { params: { page } });
+  while (page <= 10) {
+    const { data } = await api.get('/store/invoices/', {
+      params: { page, page_size: 100 },
+    });
     if (Array.isArray(data)) {
       return data;
     }

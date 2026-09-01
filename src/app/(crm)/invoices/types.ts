@@ -27,6 +27,25 @@ export interface DocumentRow {
   branch_id?: string | null;
 }
 
+export interface PaymentLedgerItem {
+  id: string;
+  child_name: string;
+  family_name: string;
+  branch: string | null;
+  branch_name?: string | null;
+  lesson_name?: string | null;
+  payment_type: string;
+  status: string;
+  final_amount: number;
+  registration_fee?: number;
+  trial_lesson_date?: string | null;
+  description: string;
+  payment_date: string | null;
+  created_at: string;
+  tranzila_transaction_id?: string | null;
+  tranzila_confirmation_code?: string | null;
+}
+
 export type ChargeKind = 'standing_order' | 'registration' | 'trial' | 'store' | 'one_time';
 export type ChargeSource = 'payment' | 'store';
 
