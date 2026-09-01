@@ -59,6 +59,7 @@ export default function InvoicesPage() {
   const [documents, setDocuments] = useState<DocumentRow[]>([]);
   const [documentsError, setDocumentsError] = useState('');
   const [invoices, setInvoices] = useState<StoreInvoice[]>([]);
+  const [invoicesLoaded, setInvoicesLoaded] = useState(false);
   const [branches, setBranches] = useState<Branch[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -67,7 +68,6 @@ export default function InvoicesPage() {
   const [branchFilter, setBranchFilter] = useState('');
   const [dateFrom, setDateFrom] = useState(() => daysAgoLocalISO(90));
   const [dateTo, setDateTo] = useState(() => localISODate());
-  const [documentsRefreshing, setDocumentsRefreshing] = useState(false);
 
   // Payments tab state — CRM charges (signup + standing order) and store invoices
   const [payments, setPayments] = useState<PaymentRecord[]>([]);
@@ -102,6 +102,7 @@ export default function InvoicesPage() {
     queryKey: ['children'],
     queryFn: () => api.get('/customers/children/').then(r => r.data?.results ?? r.data),
     staleTime: 5 * 60 * 1000,
+    enabled: activeTab === 'גבייה',
   });
 
   useEffect(() => {
@@ -115,18 +116,16 @@ export default function InvoicesPage() {
     };
   }
 
-  async function refreshTranzilaDocuments(range: { start_date: string; end_date: string }) {
-    setDocumentsRefreshing(true);
+  async function loadStoreInvoices() {
+    if (invoicesLoaded) return;
     try {
-      const ledger = await fetchTranzilaDocuments(range);
-      setDocuments(Array.isArray(ledger.documents) ? ledger.documents : []);
-      if (ledger.error && (!ledger.documents || ledger.documents.length === 0)) {
-        setDocumentsError('לא ניתן לטעון מסמכים מטרנזילה כרגע.');
-      }
+      const invoicesData = await fetchAllInvoices();
+      setInvoices(Array.isArray(invoicesData) ? invoicesData : []);
     } catch (error) {
-      console.error('Error refreshing Tranzila documents:', error);
+      console.error('Error loading store invoices:', error);
+      setInvoices([]);
     } finally {
-      setDocumentsRefreshing(false);
+      setInvoicesLoaded(true);
     }
   }
 
@@ -135,16 +134,14 @@ export default function InvoicesPage() {
     setDocumentsError('');
     const range = documentDateRange();
     try {
-      const [ledger, invoicesData, branchesResponse] = await Promise.all([
+      const [ledger, branchesResponse] = await Promise.all([
         fetchTranzilaDocuments({ ...range, local_only: '1' }),
-        fetchAllInvoices(),
         api.get('/core/branches/'),
       ]);
       setDocuments(Array.isArray(ledger.documents) ? ledger.documents : []);
       if (ledger.error && (!ledger.documents || ledger.documents.length === 0)) {
         setDocumentsError('לא ניתן לטעון מסמכים מטרנזילה כרגע.');
       }
-      setInvoices(Array.isArray(invoicesData) ? invoicesData : []);
       const branchList = branchesResponse.data?.results ?? branchesResponse.data;
       setBranches(
         filterBranchesForUser(
@@ -155,13 +152,11 @@ export default function InvoicesPage() {
     } catch (error) {
       console.error('Error loading invoices:', error);
       setDocuments([]);
-      setInvoices([]);
       setBranches([]);
       setDocumentsError('שגיאה בטעינת המסמכים');
     } finally {
       setIsLoading(false);
     }
-    void refreshTranzilaDocuments(range);
   }
 
   useEffect(() => {
@@ -170,6 +165,7 @@ export default function InvoicesPage() {
     }
     if (paymentKindFilter === 'store') {
       setPaymentsLoading(false);
+      void loadStoreInvoices();
       return;
     }
     let cancelled = false;
@@ -344,6 +340,9 @@ export default function InvoicesPage() {
 
   function handleTabChange(tab: ActiveTab) {
     setActiveTab(tab);
+    if (tab === 'גבייה') {
+      void loadStoreInvoices();
+    }
     if (tab === 'הוראת קבע' && !recurringLoaded) {
       loadRecurringPayments();
     }
@@ -604,9 +603,6 @@ export default function InvoicesPage() {
               </div>
             </div>
 
-            {documentsRefreshing && (
-              <p className={styles.emptyState} style={{ padding: '8px 0' }}>מעדכן מסמכים מטרנזילה…</p>
-            )}
             {documentsError && (
               <p className={styles.emptyState} style={{ padding: '8px 0' }}>{documentsError}</p>
             )}
@@ -1082,7 +1078,7 @@ export default function InvoicesPage() {
 
             {/* Collection table */}
             <div className={styles.tableCard}>
-              {isLoading ? (
+              {!invoicesLoaded ? (
                 <TableSkeleton
                   columns={10}
                   tableClassName={`${styles.invoiceTable} ${styles.collectionTable}`}
