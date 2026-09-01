@@ -28,18 +28,24 @@ function AuthProviderInner({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [user, setUser] = React.useState<CurrentUser | null>(null);
   const [loading, setLoading] = React.useState(true);
+  const answered = React.useRef(false);
+
+  const settle = React.useCallback(() => {
+    answered.current = true;
+    setLoading(false);
+  }, []);
 
   const refresh = React.useCallback(async () => {
     if (typeof window !== 'undefined') {
       if (isPublicPath(pathname)) {
         setUser(null);
-        setLoading(false);
+        settle();
         return;
       }
       const token = window.localStorage.getItem(AUTH_TOKEN_STORAGE_KEY);
       if (!token) {
         setUser(null);
-        setLoading(false);
+        settle();
         return;
       }
     }
@@ -54,12 +60,18 @@ function AuthProviderInner({ children }: { children: React.ReactNode }) {
       }
       setUser(null);
     } finally {
-      setLoading(false);
+      settle();
     }
-  }, [pathname]);
+  }, [pathname, settle]);
 
   React.useEffect(() => {
-    setLoading(true);
+    // The account is re-checked on every route change, but only the very first
+    // check may hold the screen. Going back to "loading" mid-session made the
+    // layout swap itself for the verifying screen on each navigation, so the
+    // sidebar was torn down and rebuilt every time a page opened.
+    if (!answered.current) {
+      setLoading(true);
+    }
     refresh();
   }, [refresh]);
 

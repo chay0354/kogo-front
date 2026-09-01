@@ -2,12 +2,23 @@
 
 import { useEffect, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
-import { Loader2, PanelRightOpen } from 'lucide-react';
+import { PanelRightOpen } from 'lucide-react';
 import Sidebar from './Sidebar';
 import { useAuth } from './AuthProvider';
+import { Skeleton } from '@/components/ui/skeleton';
 import { LG_MEDIA_QUERY, useMediaQuery } from '@/hooks/useMediaQuery';
 
 const SIDEBAR_STORAGE_KEY = 'kogo-sidebar-open';
+
+/**
+ * The menu state, kept outside React because every page renders its own copy of
+ * this layout: on each navigation the component is torn down and built again,
+ * and reading the preference back in an effect left the sidebar missing — and
+ * the page shifted across to fill its place — for the first frame of every
+ * screen. Both stay unset on the server and through hydration.
+ */
+let lastSidebarOpen: boolean | null = null;
+let lastSidebarReady = false;
 
 interface AppLayoutProps {
   children: React.ReactNode;
@@ -25,21 +36,24 @@ export default function AppLayout({ children }: AppLayoutProps) {
   const router = useRouter();
   const pathname = usePathname();
   const isDesktop = useMediaQuery(LG_MEDIA_QUERY);
-  const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [sidebarReady, setSidebarReady] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(() => lastSidebarOpen ?? false);
+  const [sidebarReady, setSidebarReady] = useState(lastSidebarReady);
 
   useEffect(() => {
     if (isDesktop) {
       const stored = localStorage.getItem(SIDEBAR_STORAGE_KEY);
-      setSidebarOpen(stored === null ? true : stored === 'true');
+      lastSidebarOpen = stored === null ? true : stored === 'true';
     } else {
-      setSidebarOpen(false);
+      lastSidebarOpen = false;
     }
+    setSidebarOpen(lastSidebarOpen);
+    lastSidebarReady = true;
     setSidebarReady(true);
   }, [isDesktop]);
 
   useEffect(() => {
     if (!isDesktop) {
+      lastSidebarOpen = false;
       setSidebarOpen(false);
     }
   }, [pathname, isDesktop]);
@@ -54,17 +68,17 @@ export default function AppLayout({ children }: AppLayoutProps) {
   }, [isDesktop, sidebarOpen]);
 
   const toggleSidebar = () => {
-    setSidebarOpen((prev) => {
-      const next = !prev;
-      if (isDesktop) {
-        localStorage.setItem(SIDEBAR_STORAGE_KEY, String(next));
-      }
-      return next;
-    });
+    const next = !sidebarOpen;
+    if (isDesktop) {
+      localStorage.setItem(SIDEBAR_STORAGE_KEY, String(next));
+    }
+    lastSidebarOpen = next;
+    setSidebarOpen(next);
   };
 
   const closeSidebar = () => {
     if (!isDesktop) {
+      lastSidebarOpen = false;
       setSidebarOpen(false);
     }
   };
@@ -96,12 +110,19 @@ export default function AppLayout({ children }: AppLayoutProps) {
     }
   }, [loading, user, router, pathname]);
 
+  // Only reached on a cold load. The menu is withheld until the role is known,
+  // because a manager and an instructor do not get the same one.
   if (loading) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="flex items-center gap-2 text-muted-foreground">
-          <Loader2 className="h-5 w-5 animate-spin" />
-          <p>מאמת משתמש...</p>
+      <div className="min-h-screen bg-background">
+        <div
+          className="container mx-auto px-4 py-4 sm:px-6 sm:py-8 max-w-full"
+          aria-busy="true"
+          aria-label="מאמת משתמש"
+        >
+          <Skeleton className="h-8 w-56" />
+          <Skeleton className="mt-3 h-4 w-72" />
+          <Skeleton className="mt-8 h-64 rounded-lg" />
         </div>
       </div>
     );

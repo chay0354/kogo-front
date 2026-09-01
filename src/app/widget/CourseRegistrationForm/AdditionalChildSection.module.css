@@ -90,7 +90,10 @@
   box-sizing: border-box;
 }
 
+/* Gold reads as the widget's own, navy behind it keeps the ring off the white. */
 .input:focus {
+  outline: 3px solid #F5C518;
+  outline-offset: -1px;
   box-shadow: 0 0 0 2px #2B3090;
 }
 

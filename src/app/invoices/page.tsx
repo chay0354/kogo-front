@@ -7,6 +7,7 @@ import AppLayout from '@/components/AppLayout';
 import PageFilters from '@/components/PageFilters';
 import NewDocumentDialog from '@/components/dialogs/NewDocumentDialog';
 import { GroupIdBadge } from '@/components/GroupIdBadge/GroupIdBadge';
+import { TableSkeleton } from '@/components/ui/skeleton';
 import { fetchAllInvoices, downloadStoreInvoicePdf } from '@/lib/storeApi';
 import { sendDocumentReminder, fetchTranzilaDocuments, fetchTranzilaTransactions } from '@/lib/documentsApi';
 import api from '@/lib/api';
@@ -481,7 +482,7 @@ export default function InvoicesPage() {
             {/* Table */}
             <div className={styles.tableCard}>
               {isLoading ? (
-                <div className={styles.loadingWrapper}>טוען...</div>
+                <TableSkeleton columns={9} tableClassName={styles.invoiceTable} label="טוען מסמכים" />
               ) : filtered.length === 0 ? (
                 <div className={styles.emptyState}>לא נמצאו מסמכים</div>
               ) : (
@@ -636,7 +637,11 @@ export default function InvoicesPage() {
             {/* Payments table */}
             <div className={styles.tableCard}>
               {paymentsLoading ? (
-                <div className={styles.loadingWrapper}>טוען...</div>
+                <TableSkeleton
+                  columns={7}
+                  tableClassName={`${styles.invoiceTable} ${styles.paymentsTable}`}
+                  label="טוען תשלומים"
+                />
               ) : sortedPayments.length === 0 ? (
                 <div className={styles.emptyState}>לא נמצאו תשלומים</div>
               ) : (
@@ -757,7 +762,11 @@ export default function InvoicesPage() {
 
             <div className={styles.tableCard}>
               {recurringLoading ? (
-                <div className={styles.loadingWrapper}>טוען...</div>
+                <TableSkeleton
+                  columns={10}
+                  tableClassName={`${styles.invoiceTable} ${styles.paymentsTable}`}
+                  label="טוען הוראות קבע"
+                />
               ) : sortedRecurring.length === 0 ? (
                 <div className={styles.emptyState}>לא נמצאו הוראות קבע</div>
               ) : (
@@ -895,7 +904,11 @@ export default function InvoicesPage() {
             {/* Collection table */}
             <div className={styles.tableCard}>
               {isLoading ? (
-                <div className={styles.loadingWrapper}>טוען...</div>
+                <TableSkeleton
+                  columns={10}
+                  tableClassName={`${styles.invoiceTable} ${styles.collectionTable}`}
+                  label="טוען חובות פתוחים"
+                />
               ) : sortedCollectionInvoices.length === 0 ? (
                 <div className={styles.emptyState}>לא נמצאו חובות פתוחים</div>
               ) : (

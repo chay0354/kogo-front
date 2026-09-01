@@ -15,12 +15,19 @@ import { AGE_OPTIONS, formatAge, isInstructorsCourse, INSTRUCTORS_TRACK_TITLE } 
 import { findWidgetAlternatives, isWidgetSelectionFull, type WidgetAlternative } from './alternativeLessons';
 import { sortWidgetCourseTypes } from './courseTypeOrder';
 import { preloadInstructorPhotos } from './instructorPhotoPreload';
+import { SkeletonCourseList, SkeletonFilterField } from './WidgetSkeletons/WidgetSkeletons';
 import styles from './page.module.css';
 
 const OPTION_HEIGHT = 44;
 const MAX_PANEL_HEIGHT = 240;
 const MIN_PANEL_HEIGHT = 132;
 const PANEL_GAP = 8;
+
+const SCROLL_CUE_SIZE = 40;
+const SCROLL_CUE_INSET = 12;
+/** Less than this left to travel and the reader has arrived — the same slack the
+    shortcut inside the terms document allows itself. */
+const SCROLL_CUE_SLACK = 24;
 
 /** Exit durations — keep in step with the closing animations in page.module.css. */
 const DETAIL_EXIT_MS = 280;
@@ -159,6 +166,54 @@ function WidgetPortal({ children }: { children: React.ReactNode }) {
   return ReactDOM.createPortal(children, document.body);
 }
 
+/**
+ * A sign that the page carries on below the fold, and nothing more: embedded,
+ * the host owns the scrolling, so there is no scroll of ours to offer on a press.
+ * The fold is the bottom of the slice actually on screen — the band the host
+ * reports when embedded — which is also where the arrow is placed.
+ */
+function ScrollCue() {
+  const [cueTop, setCueTop] = useState<number | null>(null);
+
+  const measure = useCallback(() => {
+    const band = visibleBand();
+    const seenBottom = readScrollY() + band.bottom;
+    const moreBelow = document.documentElement.scrollHeight - seenBottom > SCROLL_CUE_SLACK;
+    setCueTop(moreBelow ? band.bottom - SCROLL_CUE_SIZE - SCROLL_CUE_INSET : null);
+  }, []);
+
+  useEffect(() => {
+    ensureHostBandBridge();
+    measure();
+    bandSubscribers.add(measure);
+    window.addEventListener('scroll', measure, { passive: true });
+    window.addEventListener('resize', measure);
+    window.visualViewport?.addEventListener('resize', measure);
+    window.visualViewport?.addEventListener('scroll', measure);
+    // Branches, courses and open accordions all change how far down the page runs.
+    const observer = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(measure) : null;
+    observer?.observe(document.body);
+    return () => {
+      bandSubscribers.delete(measure);
+      window.removeEventListener('scroll', measure);
+      window.removeEventListener('resize', measure);
+      window.visualViewport?.removeEventListener('resize', measure);
+      window.visualViewport?.removeEventListener('scroll', measure);
+      observer?.disconnect();
+    };
+  }, [measure]);
+
+  if (cueTop == null) return null;
+
+  return (
+    <WidgetPortal>
+      <span className={styles.scrollCue} style={{ top: `${cueTop}px` }} aria-hidden="true">
+        <ChevronDown size={18} />
+      </span>
+    </WidgetPortal>
+  );
+}
+
 const WIDGET_SUPPORT_PHONE = '0509424755';
 
 /** The expanded card a registration was started from — the drawer steps back to it. */
@@ -222,7 +277,7 @@ const FilterSelect = React.memo(function FilterSelect({
   }, [desiredHeight]);
 
   const openPanel = () => {
-    if (disabled || loading || typeof window === 'undefined') return;
+    if (disabled || typeof window === 'undefined') return;
     ensureHostBandBridge();
     requestHostBand();
     openedAtRef.current = Date.now();
@@ -268,12 +323,19 @@ const FilterSelect = React.memo(function FilterSelect({
     };
   }, [isOpen, syncHeight]);
 
-  const chevronIcon = loading ? (
-    <svg className={styles.filterSpinner} width="16" height="16" viewBox="0 0 24 24" fill="none">
-      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
-    </svg>
-  ) : isOpen ? (
+  /**
+   * A field whose options are still on the way shows the shape it is about to
+   * be, at the size it will be, so the strip does not shuffle when they land.
+   */
+  if (loading) {
+    return (
+      <div className={styles.filterWrapper}>
+        <SkeletonFilterField />
+      </div>
+    );
+  }
+
+  const chevronIcon = isOpen ? (
     <ChevronUp size={16} className={styles.filterChevron} />
   ) : value ? (
     <span className={styles.filterCheckBadge}>
@@ -318,12 +380,12 @@ const FilterSelect = React.memo(function FilterSelect({
           }
         }}
         role="button"
-        tabIndex={disabled || loading ? -1 : 0}
+        tabIndex={disabled ? -1 : 0}
         aria-haspopup="listbox"
         aria-expanded={isOpen}
       >
         <div className={styles.filterFace}>
-          <select value={value} onChange={(e) => onChange(e.target.value)} disabled={disabled || loading} className={styles.filterSelect}>
+          <select value={value} onChange={(e) => onChange(e.target.value)} disabled={disabled} className={styles.filterSelect}>
             <option value="">{placeholder}</option>
             {options.map((opt) => (
               <option key={opt.value} value={opt.value}>{opt.label}</option>
@@ -733,7 +795,7 @@ export default function WidgetPage() {
 
         <FilterSelect value={selectedCity} onChange={handleCityChange} placeholder="בחרו עיר" options={cityOptions} selectedLabel={cities.find((c) => c.id === selectedCity)?.name} active={activeField === 'city'} />
 
-        <FilterSelect value={selectedBranch} onChange={handleBranchChange} disabled={!selectedCity} placeholder="בחרו סניף" options={branchOptions} selectedLabel={filteredBranches.find((b) => b.id === selectedBranch)?.name} active={activeField === 'branch'} />
+        <FilterSelect value={selectedBranch} onChange={handleBranchChange} disabled={!selectedCity} loading={loadingBranches} placeholder="בחרו סניף" options={branchOptions} selectedLabel={filteredBranches.find((b) => b.id === selectedBranch)?.name} active={activeField === 'branch'} />
 
         <FilterSelect value={selectedCourseType} onChange={handleCourseTypeChange} disabled={!selectedBranch} loading={loadingCourseTypes && courseTypes.length === 0} placeholder="בחרו חוג" options={courseTypeOptions} selectedLabel={courseTypes.find((t) => t.id === selectedCourseType)?.name} active={activeField === 'courseType'} />
 
@@ -762,7 +824,7 @@ export default function WidgetPage() {
       {showNoMatchingCoursesMessage ? (
         <NoMatchingCoursesMessage />
       ) : showCourseListLoading ? (
-        <p className={styles.emptyMessage}>טוען חוגים...</p>
+        <SkeletonCourseList />
       ) : showTable ? (
         <CourseList
           filteredCourses={filteredCourses}
@@ -770,6 +832,9 @@ export default function WidgetPage() {
           onSelect={toggleDetail}
         />
       ) : null}
+
+      {/* An overlay covers the page, so there is nothing left below its own fold to point at. */}
+      {!detailCourse && !drawerCourse ? <ScrollCue /> : null}
 
       {/* Course detail overlay — portaled so mobile fixed layout stays viewport-aligned */}
       {detailCourse && (

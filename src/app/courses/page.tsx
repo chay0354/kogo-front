@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import AppLayout from '@/components/AppLayout';
 import PageHeader from '@/components/PageHeader';
 import PageFilters from '@/components/PageFilters';
+import { CardGridSkeleton } from '@/components/ui/skeleton';
 import api from '@/lib/api';
 import { CourseTypeWithStats } from '@/types/course';
 import AddCourseTypeDialog from '@/components/dialogs/AddCourseTypeDialog';
@@ -131,9 +132,7 @@ export default function CoursesPage() {
 
         {/* Course Types Grid */}
         {loading ? (
-          <div className="card">
-            <p className="text-muted-foreground text-center">טוען נתונים...</p>
-          </div>
+          <CardGridSkeleton cards={6} />
         ) : filteredCourseTypes.length === 0 ? (
           <div className="card">
             <div className="text-center py-12">

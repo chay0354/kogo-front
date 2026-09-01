@@ -15,3 +15,14 @@ body {
 body {
   min-height: 100%;
 }
+
+/*
+ * A parent navigating by keyboard has to see where they are. This is the widget's
+ * gold in place of the browser's own light blue, at zero specificity so anything
+ * that draws its own ring — the fields, the course rows, the form inputs — still
+ * wins here.
+ */
+:where(a, button, input, select, textarea, [role='button'], [tabindex]):focus-visible {
+  outline: 3px solid #F5C518;
+  outline-offset: 2px;
+}

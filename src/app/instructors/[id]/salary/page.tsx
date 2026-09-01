@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import AppLayout from '@/components/AppLayout';
 import PageHeader from '@/components/PageHeader';
+import { Skeleton } from '@/components/ui/skeleton';
 import { useAuth } from '@/components/AuthProvider';
 import { InstructorSalary, SalaryHistory } from '@/types/schedule';
 import { fetchCurrentSalary, fetchSalaryHistory, getHebrewMonth } from '@/lib/scheduleUtils';
@@ -101,8 +102,10 @@ export default function InstructorSalaryPage() {
 
         {/* Loading State */}
         {isLoading ? (
-          <div className="card text-center py-12">
-            <div className="text-lg text-gray-600">טוען נתוני שכר...</div>
+          <div className="card space-y-4" aria-busy="true" aria-label="טוען נתוני שכר">
+            <Skeleton className="h-6 w-40" />
+            <Skeleton className="h-24 rounded-lg" />
+            <Skeleton className="h-48 rounded-lg" />
           </div>
         ) : (
           <>

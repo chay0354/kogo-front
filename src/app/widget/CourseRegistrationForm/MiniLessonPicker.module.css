@@ -59,6 +59,13 @@
   border-color: transparent;
 }
 
+/* The field already reserves this border, so the gold ring costs no layout; the
+   navy behind it is what keeps it visible against the pale blue face. */
+.filterControl:focus-within {
+  border-color: #F5C518;
+  box-shadow: 0 0 0 2px #2B3090;
+}
+
 .filterSelect {
   display: block;
   width: 100%;

@@ -9,6 +9,7 @@ import { filterBranchesByCity } from '@/lib/scopedFilters';
 import type { DateRange } from './GlobalDateFilter';
 import { formatCurrency, formatPercent } from './format';
 import theme from './theme/dashboard.module.css';
+import { SectionSkeleton } from './SectionSkeleton';
 
 interface Props {
   globalDateRange: DateRange;
@@ -84,7 +85,7 @@ export default function CoursesSection({ globalDateRange }: Props) {
   );
 
   if (isLoading) {
-    return <div className={theme.scope}><div className={theme.card}>טוען נתוני חוגים…</div></div>;
+    return <SectionSkeleton label="טוען נתוני חוגים" />;
   }
 
   const maxStudents = byStudents.length ? Number(byStudents[0].students) : 1;

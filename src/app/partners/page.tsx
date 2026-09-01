@@ -5,6 +5,7 @@ import { Users2, Plus, Edit, Trash2, Loader2 } from 'lucide-react';
 import AppLayout from '@/components/AppLayout';
 import PageHeader from '@/components/PageHeader';
 import { Button } from '@/components/ui/button';
+import { TableSkeleton } from '@/components/ui/skeleton';
 import api from '@/lib/api';
 import { Branch } from '@/types/customer';
 import {
@@ -119,7 +120,7 @@ export default function PartnersPage() {
 
       <div className="card overflow-x-auto">
         {loading ? (
-          <p className="text-muted-foreground py-8 text-center">טוען שותפים...</p>
+          <TableSkeleton columns={6} rows={5} label="טוען שותפים" />
         ) : (
           <table className="min-w-full text-sm">
             <thead>

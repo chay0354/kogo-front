@@ -16,6 +16,7 @@ import AdditionalChildSection, {
 } from './AdditionalChildSection';
 import ExtraLessonPicker from './ExtraLessonPicker';
 import SelectedLessonCard from './SelectedLessonCard';
+import { SkeletonLessonOptions, SkeletonTextLines } from '../WidgetSkeletons/WidgetSkeletons';
 import type { AppliedDiscount, Props, Step, LookupResult, PaymentResponse, TrialOccurrence } from './types';
 
 export type { CourseLesson } from './types';
@@ -1262,7 +1263,7 @@ export default function CourseRegistrationForm({
             {trialLessonIds.length === 0 ? (
               <p className={styles.helperText}>לא נבחר שיעור — חזרו ובחרו מפגש מהרשימה.</p>
             ) : loadingTrialDates ? (
-              <p className={styles.helperText}>טוען תאריכים זמינים...</p>
+              <SkeletonLessonOptions />
             ) : trialOccurrences.length === 0 ? (
               <p className={styles.errorText}>אין תאריכים פנויים לשיעור ניסיון כרגע.</p>
             ) : (
@@ -1440,7 +1441,7 @@ export default function CourseRegistrationForm({
                   onScroll={updateTermsScrollState}
                 >
                   {loadingTerms ? (
-                    <p>טוען תקנון...</p>
+                    <SkeletonTextLines label="טוען תקנון..." />
                   ) : termsContent ? (
                     <div dangerouslySetInnerHTML={{ __html: termsContent }} />
                   ) : (

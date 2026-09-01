@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
+import { ListSkeleton } from '@/components/ui/skeleton';
 import api, {
   fetchLinkedUsers,
   fetchMyBranches,
@@ -166,7 +167,7 @@ export default function LinkedUsersSection({ user, allUsers }: Props) {
       )}
 
       {loading ? (
-        <p className="text-sm text-muted-foreground">טוען...</p>
+        <ListSkeleton rows={2} label="טוען משתמשים מקושרים" />
       ) : (
         <>
           <div className="space-y-2">

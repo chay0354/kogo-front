@@ -6,6 +6,7 @@ import AppLayout from '@/components/AppLayout';
 import PageHeader from '@/components/PageHeader';
 import PageSearchBar from '@/components/PageSearchBar';
 import PageFilters from '@/components/PageFilters';
+import { TableSkeleton } from '@/components/ui/skeleton';
 import RentalDialog from '@/components/dialogs/RentalDialog';
 import { useAuth } from '@/components/AuthProvider';
 import { ScheduleEvent, DAY_NAMES, type WeekDay } from '@/types/schedule';
@@ -120,7 +121,7 @@ export default function RentalsPage() {
         {error && <p className="text-destructive text-sm">{error}</p>}
 
         {loading ? (
-          <p className="text-muted-foreground">טוען...</p>
+          <TableSkeleton columns={10} label="טוען שכירויות" />
         ) : items.length === 0 ? (
           <p className="text-muted-foreground">אין שכירויות. לחץ על &quot;הוסף שכירות&quot; כדי להתחיל.</p>
         ) : (

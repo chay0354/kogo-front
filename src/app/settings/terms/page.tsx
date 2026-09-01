@@ -6,6 +6,7 @@ import Link from 'next/link';
 import AppLayout from '@/components/AppLayout';
 import PageHeader from '@/components/PageHeader';
 import { Button } from '@/components/ui/button';
+import { Skeleton } from '@/components/ui/skeleton';
 import { useAuth } from '@/components/AuthProvider';
 import api from '@/lib/api';
 
@@ -77,7 +78,11 @@ export default function TermsEditorPage() {
         {!isManager ? (
           <p className="text-muted-foreground">אין הרשאה</p>
         ) : loading ? (
-          <p className="text-muted-foreground">טוען...</p>
+          <div className="space-y-4" aria-busy="true" aria-label="טוען תקנון">
+            <Skeleton className="h-4 w-24" />
+            <Skeleton className="h-[420px] rounded-lg" />
+            <Skeleton className="h-10 w-32 rounded-lg" />
+          </div>
         ) : (
           <div className="space-y-4">
             {error && (

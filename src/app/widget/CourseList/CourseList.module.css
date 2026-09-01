@@ -156,9 +156,12 @@
   background-color: #DDE0F5;
 }
 
+/* Gold is the widget's colour for a chosen thing, but it is pale against a white
+   card — the navy edge outside it is what carries the ring across the boundary. */
 .row:focus-visible {
-  outline: 2px solid #1e9eff;
-  outline-offset: -2px;
+  outline: 3px solid #F5C518;
+  outline-offset: -3px;
+  box-shadow: 0 0 0 2px #2B3090, 1px 3px 3px rgba(0, 0, 0, 0.07);
 }
 
 .nameZone {

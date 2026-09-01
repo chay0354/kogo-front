@@ -8,6 +8,7 @@ import AppLayout from '@/components/AppLayout';
 import PageHeader from '@/components/PageHeader';
 import api from '@/lib/api';
 import { Button } from '@/components/ui/button';
+import { TableSkeleton } from '@/components/ui/skeleton';
 import {
   Dialog,
   DialogCloseButton,
@@ -204,7 +205,7 @@ export default function SettingsPage() {
         {!isManager ? (
           <p className="text-muted-foreground">אין הרשאה</p>
         ) : loading ? (
-          <p className="text-muted-foreground">טוען...</p>
+          <TableSkeleton columns={5} rows={6} tableClassName="min-w-full text-sm" label="טוען משתמשים" />
         ) : (
           <>
             {error && (

@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import AppLayout from '@/components/AppLayout';
 import { GroupIdBadge } from '@/components/GroupIdBadge/GroupIdBadge';
+import { Skeleton, StatCardsSkeleton, TableSkeleton } from '@/components/ui/skeleton';
 import api, { deleteInstructorPhoto, uploadInstructorPhoto } from '@/lib/api';
 import {
   InstructorDetail,
@@ -117,11 +118,16 @@ export default function InstructorDetailPage() {
   if (loading) {
     return (
       <AppLayout>
-        <div className="flex items-center justify-center min-h-[60vh]">
-          <div className="text-center">
-            <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-primary mb-4"></div>
-            <p className="text-muted-foreground">טוען פרטי מדריך...</p>
+        <div className="space-y-6" aria-busy="true" aria-label="טוען פרטי מדריך">
+          <div className="flex items-start gap-4">
+            <Skeleton className="h-16 w-16 rounded-full" />
+            <div className="flex-1 space-y-2">
+              <Skeleton className="h-6 w-48" />
+              <Skeleton className="h-4 w-64" />
+            </div>
           </div>
+          <StatCardsSkeleton cards={4} />
+          <TableSkeleton columns={7} />
         </div>
       </AppLayout>
     );

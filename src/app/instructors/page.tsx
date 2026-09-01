@@ -7,6 +7,7 @@ import AppLayout from '@/components/AppLayout';
 import PageHeader from '@/components/PageHeader';
 import PageSearchBar from '@/components/PageSearchBar';
 import PageFilters from '@/components/PageFilters';
+import { TableSkeleton } from '@/components/ui/skeleton';
 import api from '@/lib/api';
 import { useAuth } from '@/components/AuthProvider';
 import { filterBranchesForUser, unwrapApiList } from '@/lib/scopedFilters';
@@ -359,10 +360,7 @@ export default function InstructorsPage() {
       {/* Instructors Table */}
       <div className="card animate-fade-in">
         {loading ? (
-          <div className="text-center py-12">
-            <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-            <p className="text-muted-foreground mt-4">טוען נתונים...</p>
-          </div>
+          <TableSkeleton columns={11} />
         ) : sortedInstructors.length === 0 ? (
           <div className="text-center py-12">
             <Users className="w-16 h-16 text-muted mx-auto mb-4 opacity-20" />

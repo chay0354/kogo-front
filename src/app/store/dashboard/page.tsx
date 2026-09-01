@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Select } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
+import { CardGridSkeleton, Skeleton, StatCardsSkeleton } from '@/components/ui/skeleton';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogCloseButton } from '@/components/ui/dialog';
 import { fetchAnalytics } from '@/lib/storeApi';
@@ -116,7 +117,18 @@ export default function StoreDashboard() {
   if (isLoading || !analytics) {
     return (
       <AppLayout>
-        <div className="p-8">טוען...</div>
+        <div className="p-6 space-y-6" aria-busy="true" aria-label="טוען דוחות תנועה">
+          <Skeleton className="h-9 w-40" />
+          <StatCardsSkeleton
+            cards={4}
+            gridClassName="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4"
+          />
+          <CardGridSkeleton
+            cards={2}
+            gridClassName="grid grid-cols-1 lg:grid-cols-2 gap-6"
+            cardClassName="h-72"
+          />
+        </div>
       </AppLayout>
     );
   }

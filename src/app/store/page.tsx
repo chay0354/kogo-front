@@ -7,7 +7,7 @@ import { Package, ShoppingCart, TrendingUp, AlertTriangle, Plus, Search, Edit, R
 import AppLayout from '@/components/AppLayout';
 import PageFilters from '@/components/PageFilters';
 import { useAuth } from '@/components/AuthProvider';
-import { Card, CardContent, CardHeader, CardTitle, Button, Input, Select, Badge, Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui';
+import { Card, CardContent, CardHeader, CardTitle, Button, Input, Select, Badge, Table, TableHeader, TableBody, TableRow, TableHead, TableCell, Skeleton, StatCardsSkeleton, TableSkeleton } from '@/components/ui';
 import { fetchProducts, syncWebsiteProducts, deleteProduct } from '@/lib/storeApi';
 import { getProductStockLocationLabels } from '@/lib/storeProductDisplay';
 import api from '@/lib/api';
@@ -266,7 +266,14 @@ export default function StorePage() {
   if (isLoading) {
     return (
       <AppLayout>
-        <div className="p-8">טוען...</div>
+        <div className="p-6 space-y-6" aria-busy="true" aria-label="טוען חנות">
+          <Skeleton className="h-9 w-32" />
+          <StatCardsSkeleton
+            cards={4}
+            gridClassName="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4"
+          />
+          <TableSkeleton columns={6} />
+        </div>
       </AppLayout>
     );
   }

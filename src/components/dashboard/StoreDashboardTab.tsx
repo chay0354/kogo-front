@@ -17,6 +17,7 @@ import type { DateRange } from './GlobalDateFilter';
 import type { StoreAnalytics } from '@/types/store';
 import { formatCurrency } from './format';
 import theme from './theme/dashboard.module.css';
+import { SectionSkeleton } from './SectionSkeleton';
 
 const EMPTY: StoreAnalytics = {
   total_revenue: 0,
@@ -65,7 +66,7 @@ export default function StoreDashboardTab({ globalDateRange }: Props) {
   }, [days, dateFrom, dateTo]);
 
   if (isLoading) {
-    return <div className={theme.scope}><div className={theme.card}>טוען נתוני חנות…</div></div>;
+    return <SectionSkeleton label="טוען נתוני חנות" hero />;
   }
 
   const revenue = Number(analytics.total_revenue ?? 0);

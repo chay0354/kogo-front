@@ -6,6 +6,7 @@ import AppLayout from '@/components/AppLayout';
 import PageHeader from '@/components/PageHeader';
 import PageSearchBar from '@/components/PageSearchBar';
 import PageFilters from '@/components/PageFilters';
+import { CardGridSkeleton, StatCardsSkeleton } from '@/components/ui/skeleton';
 import EditEarlySignupDiscountDialog from '@/components/dialogs/EditEarlySignupDiscountDialog';
 import EditSecondChildDiscountDialog from '@/components/dialogs/EditSecondChildDiscountDialog';
 import EditAdditionalLessonDiscountDialog from '@/components/dialogs/EditAdditionalLessonDiscountDialog';
@@ -138,7 +139,12 @@ export default function DiscountsPage() {
     return (
       <AppLayout>
         <PageHeader title="הנחות" />
-        <div className="text-center py-12 text-muted-foreground">טוען הנחות...</div>
+        <CardGridSkeleton
+          cards={3}
+          gridClassName="space-y-8"
+          cardClassName="h-56"
+          label="טוען הנחות"
+        />
       </AppLayout>
     );
   }
@@ -329,9 +335,10 @@ export default function DiscountsPage() {
                 )}
               </div>
             ) : (
-              <div className="text-center py-12 text-muted-foreground">
-                טוען נתונים...
-              </div>
+              <StatCardsSkeleton
+                cards={2}
+                gridClassName="grid grid-cols-1 md:grid-cols-2 gap-6"
+              />
             )}
           </div>
         </section>
@@ -395,9 +402,10 @@ export default function DiscountsPage() {
                 )}
               </div>
             ) : (
-              <div className="text-center py-12 text-muted-foreground">
-                טוען נתונים...
-              </div>
+              <StatCardsSkeleton
+                cards={2}
+                gridClassName="grid grid-cols-1 md:grid-cols-2 gap-6"
+              />
             )}
           </div>
         </section>

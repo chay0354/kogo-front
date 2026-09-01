@@ -9,6 +9,7 @@ import { STATIC_CITIES } from '../page.utils';
 import { selectionFromCatalogPick, type EnrollmentSelection } from '../catalogRows';
 import { sortWidgetCourseTypes } from '../courseTypeOrder';
 import type { Branch, Course, CourseBundle, CourseLesson, CourseLessonPriceOption } from '../types';
+import { SkeletonCourseList, SkeletonFilterField } from '../WidgetSkeletons/WidgetSkeletons';
 import styles from './MiniLessonPicker.module.css';
 
 export interface WidgetFilterDefaults {
@@ -29,6 +30,7 @@ function MiniFilterField({
   value,
   onChange,
   disabled,
+  loading,
   options,
   placeholder,
 }: {
@@ -36,9 +38,20 @@ function MiniFilterField({
   value: string;
   onChange: (value: string) => void;
   disabled?: boolean;
+  loading?: boolean;
   options: Array<{ value: string; label: string }>;
   placeholder: string;
 }) {
+  // Its own shape at its own size, so the grid holds still when the options land.
+  if (loading) {
+    return (
+      <div className={styles.filterField}>
+        <span className={styles.filterLabel}>{label}</span>
+        <SkeletonFilterField compact />
+      </div>
+    );
+  }
+
   return (
     <label className={styles.filterField}>
       <span className={styles.filterLabel}>{label}</span>
@@ -195,6 +208,8 @@ export default function MiniLessonPicker({
 
   const showCourseList = Boolean(selectedCity && selectedBranch && selectedCourseType && selectedAge);
   const parsedAge = selectedAge ? parseInt(selectedAge, 10) : null;
+  // Course types ride along with the branches, so both fields wait on that call.
+  const branchesPending = loadingBranches && allBranches.length === 0;
 
   const handleCityChange = (cityId: string) => {
     setSelectedCity(cityId);
@@ -251,6 +266,7 @@ export default function MiniLessonPicker({
           value={selectedBranch}
           onChange={handleBranchChange}
           disabled={!selectedCity || loadingBranches}
+          loading={branchesPending}
           placeholder="בחרו סניף"
           options={filteredBranches.map((branch) => ({ value: branch.id, label: branch.name }))}
         />
@@ -259,6 +275,7 @@ export default function MiniLessonPicker({
           value={selectedCourseType}
           onChange={handleCourseTypeChange}
           disabled={!selectedBranch || loadingCourseTypes}
+          loading={branchesPending || (loadingCourseTypes && courseTypes.length === 0)}
           placeholder="בחרו חוג"
           options={courseTypes.map((type) => ({ value: type.id, label: type.name }))}
         />
@@ -281,7 +298,9 @@ export default function MiniLessonPicker({
                   : 'השלימו את הבחירות למעלה'}
         </p>
       ) : loadingCourses && branchCourses.length === 0 ? (
-        <p className={styles.helperText}>טוען חוגים...</p>
+        <div className={styles.listWrap}>
+          <SkeletonCourseList compact />
+        </div>
       ) : filteredCourses.length === 0 ? (
         <p className={styles.helperText}>אין חוגים מתאימים לבחירה זו.</p>
       ) : (

@@ -142,13 +142,39 @@
   .animate-fade-in {
     animation: fadeIn 0.3s ease-in;
   }
-  
+
   .animate-slide-up {
     animation: slideUp 0.3s ease-out;
   }
-  
+
   .animate-scale-in {
     animation: scaleIn 0.2s ease-out;
+  }
+
+  /* The one skeleton fill every loading placeholder in the office screens uses,
+     so a table, a card grid and a form all shimmer at the same rate. */
+  .skeleton-block {
+    background: linear-gradient(
+      90deg,
+      hsl(var(--muted)) 25%,
+      hsl(var(--secondary)) 37%,
+      hsl(var(--muted)) 63%
+    );
+    background-size: 400% 100%;
+    animation: skeletonShimmer 1.4s ease-in-out infinite;
+  }
+}
+
+@keyframes skeletonShimmer {
+  from { background-position: 100% 50%; }
+  to { background-position: 0 50%; }
+}
+
+/* A reader who asked for less motion gets the same grey shape, held still. */
+@media (prefers-reduced-motion: reduce) {
+  .skeleton-block {
+    animation: none;
+    background: hsl(var(--muted));
   }
 }
 

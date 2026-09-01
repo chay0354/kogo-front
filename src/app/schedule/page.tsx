@@ -11,6 +11,7 @@ import EventDetailsDialog from '@/components/dialogs/EventDetailsDialog';
 import { Lesson, LessonFilters, ScheduleEvent } from '@/types/schedule';
 import { fetchLessons, getWeekDates, formatDateISO, groupLessonsByDate, formatTime } from '@/lib/scheduleUtils';
 import ScheduleLessonCard from '@/components/schedule/ScheduleLessonCard';
+import { CardGridSkeleton } from '@/components/ui/skeleton';
 import { fetchEvents } from '@/lib/eventUtils';
 import { useAuth } from '@/components/AuthProvider';
 import { RefreshCw, Plus, ChevronRight, ChevronLeft, Calendar as CalendarIcon, LogOut } from 'lucide-react';
@@ -443,9 +444,12 @@ function StaffSchedulePage() {
 
           {/* Tab Content */}
           {isLoading ? (
-            <div className="text-center py-12">
-              <div className="text-lg text-gray-600">טוען שיעורים...</div>
-            </div>
+            <CardGridSkeleton
+              cards={6}
+              gridClassName="flex gap-3 overflow-hidden"
+              cardClassName="h-[420px] w-56 shrink-0"
+              label="טוען שיעורים"
+            />
           ) : activeTab === 'weekly' ? (
             <WeeklyView
               weekDates={dates}

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Calendar as CalendarIcon, ChevronLeft, ChevronRight } from 'lucide-react';
 import { fetchLessons, formatDateISO, getWeekDates, groupLessonsByDate } from '@/lib/scheduleUtils';
 import ScheduleLessonCard from '@/components/schedule/ScheduleLessonCard';
+import { CardGridSkeleton } from '@/components/ui/skeleton';
 import type { Lesson } from '@/types/schedule';
 
 interface InstructorWeeklyScheduleProps {
@@ -102,7 +103,12 @@ export default function InstructorWeeklySchedule({ instructorId }: InstructorWee
       )}
 
       {loading ? (
-        <div className="text-center py-10 text-muted-foreground">טוען לוח שבועי...</div>
+        <CardGridSkeleton
+          cards={6}
+          gridClassName="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2"
+          cardClassName="h-48"
+          label="טוען לוח שבועי"
+        />
       ) : (
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2">
           {workDays.map((date, index) => {

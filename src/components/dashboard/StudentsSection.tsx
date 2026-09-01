@@ -20,6 +20,7 @@ import type { DateRange } from './GlobalDateFilter';
 import { MONTHS } from './filters/monthYearUtils';
 import { formatPercent } from './format';
 import theme from './theme/dashboard.module.css';
+import { SectionSkeleton } from './SectionSkeleton';
 
 interface Props {
   globalDateRange: DateRange;
@@ -76,7 +77,7 @@ export default function StudentsSection({ globalDateRange }: Props) {
   );
 
   if (isLoading) {
-    return <div className={theme.scope}><div className={theme.card}>טוען נתוני תלמידים…</div></div>;
+    return <SectionSkeleton label="טוען נתוני תלמידים" />;
   }
 
   const maxAbnormal = Math.max(...abnormalByBranch.map((b: any) => Number(b.count) || 0), 1);

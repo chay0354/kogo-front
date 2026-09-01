@@ -8,6 +8,7 @@ import AppLayout from '@/components/AppLayout';
 import PageHeader from '@/components/PageHeader';
 import PageSearchBar from '@/components/PageSearchBar';
 import PageFilters from '@/components/PageFilters';
+import { CardGridSkeleton } from '@/components/ui/skeleton';
 import AddBranchDialog from '@/components/dialogs/AddBranchDialog';
 import { BranchFinancialDonut } from '@/components/branches/BranchFinancialDonut/BranchFinancialDonut';
 import { BranchesSummaryBar } from '@/components/branches/BranchesSummaryBar/BranchesSummaryBar';
@@ -84,9 +85,11 @@ export default function BranchesPage() {
           title="ניהול סניפים"
           description="ניהול סניפים, צוות ומשאבים"
         />
-        <div className="card animate-fade-in">
-          <p className="text-muted-foreground">טוען נתונים...</p>
-        </div>
+        <CardGridSkeleton
+          cards={4}
+          gridClassName="grid grid-cols-1 md:grid-cols-2 gap-6"
+          cardClassName="h-56"
+        />
       </AppLayout>
     );
   }

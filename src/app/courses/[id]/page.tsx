@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import AppLayout from '@/components/AppLayout';
 import { GroupIdBadge } from '@/components/GroupIdBadge/GroupIdBadge';
+import { CardGridSkeleton, Skeleton, StatCardsSkeleton, TableSkeleton } from '@/components/ui/skeleton';
 import api from '@/lib/api';
 import { CourseTypeDetails, CourseWithLessons, Lesson, AgeFilter, } from '@/types/course';
 import { filterCourses, formatCurrency, formatAgeRange, formatTimeRange, getDayName, } from '@/lib/courseUtils';
@@ -240,8 +241,13 @@ export default function CourseTypeDetailsPage() {
   if (loading) {
     return (
       <AppLayout>
-        <div className="card">
-          <p className="text-muted-foreground text-center">טוען נתונים...</p>
+        <div className="space-y-6" aria-busy="true" aria-label="טוען נתונים">
+          <div className="space-y-2">
+            <Skeleton className="h-7 w-56" />
+            <Skeleton className="h-4 w-80" />
+          </div>
+          <StatCardsSkeleton cards={4} />
+          <CardGridSkeleton cards={3} gridClassName="space-y-4" cardClassName="h-32" />
         </div>
       </AppLayout>
     );
@@ -558,7 +564,12 @@ export default function CourseTypeDetailsPage() {
                     {isExpanded && (
                       <div className={styles.lessonsBody}>
                         {isLoadingLessons ? (
-                          <p className={`text-muted-foreground ${styles.lessonsEmptyState}`}>טוען שיעורים...</p>
+                          <TableSkeleton
+                            columns={3}
+                            rows={3}
+                            tableClassName={styles.lessonsTable}
+                            label="טוען שיעורים"
+                          />
                         ) : course.lessons.length === 0 ? (
                           <p className={`text-muted-foreground ${styles.lessonsEmptyState}`}>אין שיעורים בחוג זה</p>
                         ) : (

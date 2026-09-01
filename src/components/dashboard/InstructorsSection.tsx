@@ -18,6 +18,7 @@ import { useScopedBranches } from '@/hooks/useScopedBranches';
 import type { DateRange } from './GlobalDateFilter';
 import { formatCurrency, formatPercent } from './format';
 import theme from './theme/dashboard.module.css';
+import { SectionSkeleton } from './SectionSkeleton';
 
 interface Props {
   globalDateRange: DateRange;
@@ -59,7 +60,7 @@ export default function InstructorsSection({ globalDateRange }: Props) {
   const payShare = totalRevenue > 0 ? (salary / totalRevenue) * 100 : 0;
 
   if (isLoading) {
-    return <div className={theme.scope}><div className={theme.card}>טוען נתוני מדריכים…</div></div>;
+    return <SectionSkeleton label="טוען נתוני מדריכים" />;
   }
 
   return (

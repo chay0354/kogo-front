@@ -23,6 +23,7 @@ import { filterBranchesByCity } from '@/lib/scopedFilters';
 import type { DateRange } from './GlobalDateFilter';
 import { formatCurrency, formatPercent } from './format';
 import theme from './theme/dashboard.module.css';
+import { SectionSkeleton } from './SectionSkeleton';
 
 interface Props {
   globalDateRange: DateRange;
@@ -97,7 +98,7 @@ export default function BranchesSection({ globalDateRange }: Props) {
   const margin = totals.revenue > 0 ? (totals.profit / totals.revenue) * 100 : 0;
 
   if (isLoading) {
-    return <div className={theme.scope}><div className={theme.card}>טוען נתוני סניפים…</div></div>;
+    return <SectionSkeleton label="טוען נתוני סניפים" />;
   }
 
   return (

@@ -23,6 +23,7 @@ import { formatCurrency, formatPercent } from './format';
 import KpiCard from './KpiCard';
 import { deriveTrends } from './trends';
 import theme from './theme/dashboard.module.css';
+import { SectionSkeleton } from './SectionSkeleton';
 
 interface Props {
   globalDateRange: DateRange;
@@ -122,7 +123,7 @@ export default function FinancialSection({ globalDateRange }: Props) {
     branchId === 'all' ? 'כל הסניפים' : branches.find((b) => b.id === branchId)?.name ?? 'סניף';
 
   if (isLoading) {
-    return <div className={theme.scope}><div className={theme.card}>טוען נתונים כספיים…</div></div>;
+    return <SectionSkeleton label="טוען נתונים כספיים" hero />;
   }
   if (error) {
     return (

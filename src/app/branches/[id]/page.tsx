@@ -8,6 +8,7 @@ import EditBranchDialog from '@/components/dialogs/EditBranchDialog';
 import CourseDetailsDialog from '@/components/dialogs/CourseDetailsDialog';
 import { GroupIdBadge } from '@/components/GroupIdBadge/GroupIdBadge';
 import BranchSectionFilters from '@/components/branches/BranchSectionFilters';
+import { Skeleton, StatCardsSkeleton } from '@/components/ui/skeleton';
 import api from '@/lib/api';
 import { BranchDetail, BranchStatistics } from '@/types/branch';
 import { formatCurrency, getBranchStatusBadge } from '@/lib/branchUtils';
@@ -182,8 +183,16 @@ export default function BranchDetailsPage() {
   if (isLoading) {
     return (
       <AppLayout>
-        <div className="card animate-fade-in">
-          <p className="text-muted-foreground">טוען נתונים...</p>
+        <div className="space-y-6" aria-busy="true" aria-label="טוען נתוני סניף">
+          <div className="flex items-start gap-4">
+            <Skeleton className="h-14 w-14 rounded-xl" />
+            <div className="flex-1 space-y-2">
+              <Skeleton className="h-6 w-56" />
+              <Skeleton className="h-4 w-72" />
+            </div>
+          </div>
+          <StatCardsSkeleton cards={4} />
+          <Skeleton className="h-72 rounded-lg" />
         </div>
       </AppLayout>
     );

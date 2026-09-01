@@ -6,6 +6,7 @@ import AppLayout from '@/components/AppLayout';
 import PageHeader from '@/components/PageHeader';
 import PageSearchBar from '@/components/PageSearchBar';
 import PageFilters from '@/components/PageFilters';
+import { TableSkeleton } from '@/components/ui/skeleton';
 import api, { fetchInstructorsDropdown } from '@/lib/api';
 import { useAuth } from '@/components/AuthProvider';
 import { filterBranchesForUser, unwrapApiList } from '@/lib/scopedFilters';
@@ -435,10 +436,7 @@ export default function CustomersPage() {
       <div className="mb-6 animate-slide-up">
         <div className="card animate-slide-up">
           {loading ? (
-            <div className="text-center py-12">
-              <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-              <p className="mt-4 text-muted-foreground">טוען נתונים...</p>
-            </div>
+            <TableSkeleton columns={6} />
           ) : children.length === 0 ? (
             <div className="text-center py-12">
               <Users className="w-12 h-12 mx-auto text-muted-foreground mb-4" />

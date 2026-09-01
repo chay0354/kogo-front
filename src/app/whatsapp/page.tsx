@@ -5,6 +5,7 @@ import AppLayout from '@/components/AppLayout';
 import PageHeader from '@/components/PageHeader';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { ListSkeleton, Skeleton } from '@/components/ui/skeleton';
 import {
   bulkSendWhatsAppAutomation,
   fetchWhatsAppAutomations,
@@ -301,7 +302,10 @@ export default function WhatsAppPage() {
             <h2 className="text-lg font-semibold">1. בחר אוטומציה</h2>
           </div>
           {loadingAutomations ? (
-            <p className="text-sm text-muted-foreground">טוען אוטומציות...</p>
+            <div className="space-y-3" aria-busy="true" aria-label="טוען אוטומציות">
+              <Skeleton className="h-3 w-56" />
+              <Skeleton className="h-11 rounded-md" />
+            </div>
           ) : automations.length === 0 ? (
             <p className="text-sm text-muted-foreground">
               לא נמצאו אוטומציות פעילות ב-ManyChat. ודא שהן מוגדרות ב-.env או שמותיהן תואמים.
@@ -425,7 +429,7 @@ export default function WhatsAppPage() {
 
           <div className="max-h-[320px] overflow-y-auto divide-y">
             {loadingContacts ? (
-              <p className="p-4 text-sm text-muted-foreground">טוען...</p>
+              <ListSkeleton rows={5} className="p-3" label="טוען אנשי קשר" />
             ) : contacts.length === 0 ? (
               <p className="p-4 text-sm text-muted-foreground">לא נמצאו אנשי קשר עם טלפון</p>
             ) : (

@@ -15,6 +15,15 @@ export type { InputProps } from './input';
 
 export { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from './select';
 
+export {
+  Skeleton,
+  TableSkeleton,
+  CardGridSkeleton,
+  FormSkeleton,
+  ListSkeleton,
+  StatCardsSkeleton,
+} from './skeleton';
+
 export { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from './table';
 
 export { Tabs, TabsList, TabsTrigger, TabsContent } from './tabs';
