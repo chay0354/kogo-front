@@ -31,6 +31,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { GroupIdBadge } from '@/components/GroupIdBadge/GroupIdBadge';
 import api from '@/lib/api';
 import RefundDialog from '@/components/dialogs/RefundDialog';
+import EditStandingOrderDialog from '@/components/dialogs/EditStandingOrderDialog';
 import { upcomingCharges } from '@/components/dialogs/upcomingCharges';
 
 interface ChildProfileDialogProps {
@@ -146,6 +147,7 @@ export default function ChildProfileDialog({
     description: string;
   } | null>(null);
   const [refundLoading, setRefundLoading] = useState(false);
+  const [editingStandingOrder, setEditingStandingOrder] = useState<any | null>(null);
   const [dropGroup, setDropGroup] = useState<{
     courseName: string;
     slots: EnrollmentDetail[];
@@ -219,25 +221,6 @@ export default function ChildProfileDialog({
     } catch (error) {
       console.error('Error cancelling recurring payment:', error);
       alert('שגיאה בביטול המנוי');
-    } finally {
-      setActionLoading(null);
-    }
-  };
-  
-  const handleUpdateRecurring = async (recurringId: string) => {
-    const newAmount = prompt('הזן סכום חדש למנוי (יחול מהחודש הבא):');
-    if (!newAmount) return;
-    
-    setActionLoading(recurringId);
-    try {
-      await api.post(`/customers/recurring-payments/${recurringId}/schedule-amount/`, {
-        amount: parseFloat(newAmount),
-      });
-      alert('הסכום החדש נקבע לחודש הבא');
-      fetchPaymentData();
-    } catch (error) {
-      console.error('Error updating recurring payment:', error);
-      alert('שגיאה בעדכון המנוי');
     } finally {
       setActionLoading(null);
     }
@@ -814,16 +797,11 @@ export default function ChildProfileDialog({
                                           <Button
                                             size="sm"
                                             variant="outline"
-                                            onClick={() => handleUpdateRecurring(recurring.id)}
-                                            disabled={actionLoading === recurring.id}
-                                            title="עדכן סכום מנוי"
+                                            onClick={() => setEditingStandingOrder(recurring)}
+                                            title="ערוך הוראת קבע"
                                           >
-                                            {actionLoading === recurring.id ? (
-                                              <Loader2 className="h-3 w-3 ml-1 animate-spin" />
-                                            ) : (
-                                              <RefreshCw className="h-3 w-3 ml-1" />
-                                            )}
-                                            עדכן
+                                            <Pencil className="h-3 w-3 ml-1" />
+                                            ערוך
                                           </Button>
                                           <Button
                                             size="sm"
@@ -910,6 +888,12 @@ export default function ChildProfileDialog({
         loading={refundLoading}
       />
     )}
+    <EditStandingOrderDialog
+      order={editingStandingOrder}
+      isOpen={Boolean(editingStandingOrder)}
+      onClose={() => setEditingStandingOrder(null)}
+      onSaved={fetchPaymentData}
+    />
     <ConfirmDialog
       isOpen={Boolean(dropGroup)}
       onClose={() => { if (!dropLoading) setDropGroup(null); }}
