@@ -16,6 +16,7 @@ import type { WidgetAlternative } from '../alternativeLessons';
 import { MapPin, Users, CalendarDays, Coins, BadgePercent, X } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { GroupIdBadge } from '@/components/GroupIdBadge/GroupIdBadge';
+import { widgetBundlePrice } from '../catalogRows';
 import { WIDGET_MOTION_MS, prefersReducedMotion } from '../widgetMotion';
 import styles from './CourseExpandedDetail.module.css';
 
@@ -246,10 +247,12 @@ export default function CourseExpandedDetail({
   const timesPerWeekLabel = isInstructorsCourse(course)
     ? INSTRUCTORS_TRACK_TITLE
     : formatTimesPerWeek(timesPerWeek);
-  const displayPrice = bundleOffer?.combined_price
-    ?? (priceOption ? Number(priceOption.monthly_price) : null)
-    ?? (lesson?.price != null ? Number(lesson.price) : null)
-    ?? course.price;
+  const displayPrice = priceOption
+    ? Number(priceOption.monthly_price)
+    : bundleOffer
+      ? widgetBundlePrice(course, bundleOffer)
+      : (lesson?.price != null ? Number(lesson.price) : null)
+        ?? course.price;
   const displayTitle = stripWidgetApprovalPhrase(priceOption?.display_title ?? course.name);
   const noticeBody = noticeBodyFor(course, displayTitle, minAge, maxAge);
   const showAuditionNotice = Boolean(noticeBody);

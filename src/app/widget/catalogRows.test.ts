@@ -80,6 +80,28 @@ describe('buildCatalogRows instructors track', () => {
     ]);
   });
 
+  test('required multi-day track uses the course monthly price, not a stale bundle', () => {
+    const rows = buildCatalogRows([
+      instructorsCourse({
+        must_attend_all_lessons: true,
+        price: 455,
+        min_age: 15,
+        max_age: 18,
+        bundles: [{
+          id: 'bundle-stale',
+          name: 'שלוש פעמים בשבוע',
+          combined_price: 415,
+          min_age: 15,
+          max_age: 18,
+          lessons: [lesson({ id: 'sun' }), lesson({ id: 'wed', day_of_week: 3 }), lesson({ id: 'thu', day_of_week: 4 })],
+        }],
+        lessons: [lesson({ id: 'sun' }), lesson({ id: 'wed', day_of_week: 3 }), lesson({ id: 'thu', day_of_week: 4 })],
+      }),
+    ]);
+    const bundleRow = rows.find((row) => row.bundle?.id === 'bundle-stale');
+    expect(bundleRow?.displayPrice).toBe(455);
+  });
+
   test('מדריכים once-a-week course is hidden from the widget', () => {
     const rows = buildCatalogRows(
       [instructorsCourse({ lessons: [lesson({ id: 'only-mon' })], bundles: [] })],

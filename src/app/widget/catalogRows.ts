@@ -47,6 +47,14 @@ export function formatListPrice(value: number | string | null | undefined): numb
   return Number.isFinite(n) ? n : null;
 }
 
+/** Required multi-day tracks show the course monthly price from EditCourseDialog. */
+export function widgetBundlePrice(course: Course, bundle: CourseBundle): number | null {
+  if (course.must_attend_all_lessons) {
+    return formatListPrice(course.price);
+  }
+  return formatListPrice(bundle.combined_price);
+}
+
 export function formatPriceLabel(value: number): string {
   return `₪${Math.round(value)}`;
 }
@@ -159,7 +167,7 @@ export function buildCatalogRows(courses: Course[], selectedAge?: number | null)
         bundle,
         priceOption: null,
         displayTitle: bundleDisplayTitle(course, bundle),
-        displayPrice: formatListPrice(bundle.combined_price),
+        displayPrice: widgetBundlePrice(course, bundle),
       });
     }
   }
