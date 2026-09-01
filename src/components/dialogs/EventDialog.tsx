@@ -6,6 +6,8 @@ import api, { fetchInstructorsDropdown } from '@/lib/api';
 import { TimeField } from '@/components/ui/time-picker';
 import CitySelectField from '@/components/dialogs/CitySelectField';
 import { Skeleton } from '@/components/ui/skeleton';
+import dialogMotion from '@/components/ui/motion.module.css';
+import { useDialogExit } from '@/components/ui/motion';
 
 type Branch = {
   id: string;
@@ -42,7 +44,8 @@ const COLOR_PRESETS = [
   { color: '#14b8a6', name: 'טורקיז' },
 ] as const;
 
-export default function EventDialog({ event, onClose, onSuccess, initialDate }: EventDialogProps) {
+export default function EventDialog({ event, onClose: dismiss, onSuccess, initialDate }: EventDialogProps) {
+  const { closing, requestClose: onClose } = useDialogExit(dismiss);
   const isEditMode = !!event;
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
@@ -210,11 +213,11 @@ export default function EventDialog({ event, onClose, onSuccess, initialDate }: 
 
   return (
     <div 
-      className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" 
+      className={`fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 ${dialogMotion.overlay} ${closing ? dialogMotion.overlayClosing : ''}`} 
       onClick={onClose}
     >
       <div 
-        className="bg-white rounded-lg p-6 max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto" 
+        className={`bg-white rounded-lg p-6 max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto ${dialogMotion.panel} ${closing ? dialogMotion.panelClosing : ''}`} 
         onClick={(e) => e.stopPropagation()}
         dir="rtl"
       >

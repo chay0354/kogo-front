@@ -16,6 +16,7 @@ import ManageLessonBundlesDialog from '@/components/dialogs/ManageLessonBundlesD
 import ManageLessonPriceOptionsDialog from '@/components/dialogs/ManageLessonPriceOptionsDialog';
 import styles from './page.module.css';
 import { AGE_FILTER_OPTIONS } from './constants';
+import CrossFade from '@/components/ui/CrossFade';
 
 export default function CourseTypeDetailsPage() {
   const router = useRouter();
@@ -561,7 +562,7 @@ export default function CourseTypeDetailsPage() {
                     </div>
 
                     {isExpanded && (
-                      <div className={styles.lessonsBody}>
+                      <CrossFade swapKey={isLoadingLessons ? 'loading' : 'ready'} className={styles.lessonsBody}>
                         {isLoadingLessons ? (
                           <TableSkeleton
                             columns={3}
@@ -662,7 +663,7 @@ export default function CourseTypeDetailsPage() {
                             <span>רווח: <span className={`${styles.statValue} ${courseFinancials.monthlyProfit >= 0 ? styles.profit : styles.loss}`}>{formatCurrency(courseFinancials.monthlyProfit)}</span></span>
                           </div>
                         </div>
-                      </div>
+                      </CrossFade>
                     )}
                   </div>
                 );

@@ -6,8 +6,11 @@ import api from '@/lib/api';
 import { AddBranchDialogProps } from './types';
 import styles from './index.module.css';
 import CitySelectField from '@/components/dialogs/CitySelectField';
+import dialogMotion from '@/components/ui/motion.module.css';
+import { useDialogExit } from '@/components/ui/motion';
 
-export default function AddBranchDialog({ isOpen, onClose, onSuccess }: AddBranchDialogProps) {
+export default function AddBranchDialog({ isOpen, onClose: dismiss, onSuccess }: AddBranchDialogProps) {
+  const { closing, requestClose: onClose } = useDialogExit(dismiss);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -146,8 +149,8 @@ export default function AddBranchDialog({ isOpen, onClose, onSuccess }: AddBranc
   if (!isOpen) return null;
 
   return (
-    <div className={styles.overlay}>
-      <div className={styles.panel}>
+    <div className={`${styles.overlay} ${dialogMotion.overlay} ${closing ? dialogMotion.overlayClosing : ''}`}>
+      <div className={`${styles.panel} ${dialogMotion.panel} ${closing ? dialogMotion.panelClosing : ''}`}>
         <div className={styles.header}>
           <h2 className={styles.title}>הוספת סניף חדש<span style={{ fontSize: '10px', color: 'white', userSelect: 'none' }}> #1</span></h2>
           <button onClick={handleClose} className={styles.closeButton}>

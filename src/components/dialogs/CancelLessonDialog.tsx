@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { Lesson } from '@/types/schedule';
 import { cancelLesson } from '@/lib/scheduleUtils';
 import { GroupIdBadge } from '@/components/GroupIdBadge/GroupIdBadge';
+import dialogMotion from '@/components/ui/motion.module.css';
+import { useDialogExit } from '@/components/ui/motion';
 
 type CancelLessonDialogProps = {
   lesson: Lesson | null;
@@ -11,9 +13,10 @@ type CancelLessonDialogProps = {
 
 export default function CancelLessonDialog({
   lesson,
-  onClose,
+  onClose: dismiss,
   onSuccess,
 }: CancelLessonDialogProps) {
+  const { closing, requestClose: onClose } = useDialogExit(dismiss);
   const [reason, setReason] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
@@ -41,8 +44,8 @@ export default function CancelLessonDialog({
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+    <div className={`fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 ${dialogMotion.overlay} ${closing ? dialogMotion.overlayClosing : ''}`}>
+      <div className={`bg-white rounded-lg p-6 max-w-md w-full mx-4 ${dialogMotion.panel} ${closing ? dialogMotion.panelClosing : ''}`}>
         <h2 className="text-xl font-bold mb-4">ביטול שיעור<span style={{ fontSize: '10px', color: 'white', userSelect: 'none' }}> #10</span></h2>
 
         <div className="mb-4 p-3 bg-gray-50 rounded">

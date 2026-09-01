@@ -5,6 +5,8 @@ import { X } from 'lucide-react';
 import api from '@/lib/api';
 import { Branch } from '@/types/customer';
 import { PartnerFormData } from '@/types/partner';
+import dialogMotion from '@/components/ui/motion.module.css';
+import { useDialogExit } from '@/components/ui/motion';
 
 interface AddPartnerDialogProps {
   isOpen: boolean;
@@ -35,7 +37,8 @@ export function normalizePartnerErrors(data: unknown): Record<string, string> {
   return Object.keys(result).length ? result : { general: 'שגיאה בשמירה' };
 }
 
-export default function AddPartnerDialog({ isOpen, onClose, onSave }: AddPartnerDialogProps) {
+export default function AddPartnerDialog({ isOpen, onClose: dismiss, onSave }: AddPartnerDialogProps) {
+  const { closing, requestClose: onClose } = useDialogExit(dismiss);
   const [branches, setBranches] = useState<Branch[]>([]);
   const [formData, setFormData] = useState<PartnerFormData>(emptyForm);
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -85,8 +88,8 @@ export default function AddPartnerDialog({ isOpen, onClose, onSave }: AddPartner
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+    <div className={`fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 ${dialogMotion.overlay} ${closing ? dialogMotion.overlayClosing : ''}`}>
+      <div className={`bg-white rounded-lg shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto ${dialogMotion.panel} ${closing ? dialogMotion.panelClosing : ''}`}>
         <div className="flex items-center justify-between p-6 border-b">
           <h2 className="text-xl font-bold">הוספת שותף</h2>
           <button onClick={onClose} className="text-gray-500 hover:text-gray-700">

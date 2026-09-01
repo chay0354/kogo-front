@@ -25,6 +25,7 @@ import EditChildDialog from '@/components/dialogs/EditChildDialog';
 import DeleteChildDialog from '@/components/dialogs/DeleteChildDialog';
 import EnrollToLessonDialog from '@/components/dialogs/EnrollToLessonDialog';
 import ChangeChildLessonDialog from '@/components/dialogs/ChangeChildLessonDialog';
+import CrossFade from '@/components/ui/CrossFade';
 
 type CourseTypeOption = { id: string; name: string };
 
@@ -433,7 +434,7 @@ export default function CustomersPage() {
 
       {/* Children Table */}
       <div className="mb-6 animate-slide-up">
-        <div className="card animate-slide-up">
+        <CrossFade swapKey={loading ? 'loading' : 'ready'} className="card animate-slide-up">
           {loading ? (
             <TableSkeleton columns={6} />
           ) : children.length === 0 ? (
@@ -668,7 +669,7 @@ export default function CustomersPage() {
             </div>
             </>
           )}
-        </div>
+        </CrossFade>
       </div>
       
       {/* Dialogs */}

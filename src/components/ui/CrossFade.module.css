@@ -1,0 +1,52 @@
+/*
+ * The dissolve between a placeholder and the content that replaces it.
+ *
+ * Both sit in the same grid cell so the one on its way out stays in place
+ * while the new one comes up underneath it, rather than the page collapsing
+ * and springing back. The skeletons are already built to the shape of what
+ * replaces them, so the cell barely changes height across the swap.
+ */
+.stack {
+  display: grid;
+  min-width: 0;
+}
+
+.stack > * {
+  grid-area: 1 / 1;
+  min-width: 0;
+}
+
+/* The outgoing copy is a picture of what was there — not something to press. */
+.leaving {
+  pointer-events: none;
+}
+
+@keyframes crossFadeIn {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes crossFadeOut {
+  from {
+    opacity: 1;
+  }
+
+  to {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .entering {
+    animation: crossFadeIn 200ms ease-out both;
+  }
+
+  .leaving {
+    animation: crossFadeOut 200ms ease-in both;
+  }
+}

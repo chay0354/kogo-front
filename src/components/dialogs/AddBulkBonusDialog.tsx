@@ -8,6 +8,8 @@ import {
   BulkBonusFormData
 } from '@/types/instructor';
 import { formatCurrency, getLastNMonths } from '@/lib/instructorUtils';
+import dialogMotion from '@/components/ui/motion.module.css';
+import { useDialogExit } from '@/components/ui/motion';
 
 interface AddBulkBonusDialogProps {
   isOpen: boolean;
@@ -15,7 +17,8 @@ interface AddBulkBonusDialogProps {
   onSave: () => void;
 }
 
-export default function AddBulkBonusDialog({ isOpen, onClose, onSave }: AddBulkBonusDialogProps) {
+export default function AddBulkBonusDialog({ isOpen, onClose: dismiss, onSave }: AddBulkBonusDialogProps) {
+  const { closing, requestClose: onClose } = useDialogExit(dismiss);
   const [instructors, setInstructors] = useState<InstructorListItem[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [formData, setFormData] = useState<BulkBonusFormData>({
@@ -149,9 +152,9 @@ export default function AddBulkBonusDialog({ isOpen, onClose, onSave }: AddBulkB
   const totalAmount = formData.instructor_ids.length * formData.amount;
   
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 animate-fade-in" onClick={onClose}>
+    <div className={`fixed inset-0 z-50 flex items-center justify-center bg-black/50 ${dialogMotion.overlay} ${closing ? dialogMotion.overlayClosing : ''}`} onClick={onClose}>
       <div 
-        className="bg-white rounded-lg shadow-xl w-full max-w-3xl animate-scale-in m-4 max-h-[90vh] overflow-hidden flex flex-col"
+        className={`bg-white rounded-lg shadow-xl w-full max-w-3xl m-4 max-h-[90vh] overflow-hidden flex flex-col ${dialogMotion.panel} ${closing ? dialogMotion.panelClosing : ''}`}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}

@@ -25,6 +25,7 @@ import {
 import AddInstructorDialog from '@/components/dialogs/AddInstructorDialog';
 import AddBulkBonusDialog from '@/components/dialogs/AddBulkBonusDialog';
 import DeleteInstructorDialog from '@/components/dialogs/DeleteInstructorDialog';
+import CrossFade from '@/components/ui/CrossFade';
 
 type SortField = 'full_name' | 'lessons_count' | 'students_count' | 'revenue' | 'salary' | 'profit';
 type SortDirection = 'asc' | 'desc';
@@ -357,7 +358,7 @@ export default function InstructorsPage() {
       />
 
       {/* Instructors Table */}
-      <div className="card animate-fade-in">
+      <CrossFade swapKey={loading ? 'loading' : 'ready'} className="card animate-fade-in">
         {loading ? (
           <TableSkeleton columns={11} />
         ) : sortedInstructors.length === 0 ? (
@@ -507,7 +508,7 @@ export default function InstructorsPage() {
             </table>
           </div>
         )}
-      </div>
+      </CrossFade>
       
       {/* Dialogs */}
       <AddInstructorDialog

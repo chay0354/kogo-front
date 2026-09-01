@@ -21,6 +21,7 @@ import LinkedUsersSection from './LinkedUsersSection';
 import InstructorLoginDiagnostics from './InstructorLoginDiagnostics';
 import IntegrationCredentials from './IntegrationCredentials';
 import PartnersSection from './PartnersSection';
+import CrossFade from '@/components/ui/CrossFade';
 
 type UserRole = 'manager' | 'worker' | 'partner';
 
@@ -198,7 +199,7 @@ export default function SettingsPage() {
         }
       />
 
-      <div className="card">
+      <CrossFade swapKey={!isManager ? 'denied' : loading ? 'loading' : 'ready'} className="card">
         {!isManager ? (
           <p className="text-muted-foreground">אין הרשאה</p>
         ) : loading ? (
@@ -262,7 +263,7 @@ export default function SettingsPage() {
             </div>
           </>
         )}
-      </div>
+      </CrossFade>
 
       {isManager && <PartnersSection />}
 

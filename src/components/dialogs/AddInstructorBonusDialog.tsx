@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { X } from 'lucide-react';
 import api from '@/lib/api';
+import dialogMotion from '@/components/ui/motion.module.css';
+import { useDialogExit } from '@/components/ui/motion';
 
 interface AddInstructorBonusDialogProps {
   instructorId: string;
@@ -22,9 +24,10 @@ function todayISO(): string {
 export default function AddInstructorBonusDialog({
   instructorId,
   isOpen,
-  onClose,
+  onClose: dismiss,
   onSaved,
 }: AddInstructorBonusDialogProps) {
+  const { closing, requestClose: onClose } = useDialogExit(dismiss);
   const defaultDate = useMemo(() => todayISO(), []);
 
   const [amount, setAmount] = useState<number>(0);
@@ -87,11 +90,11 @@ export default function AddInstructorBonusDialog({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 animate-fade-in"
+      className={`fixed inset-0 z-50 flex items-center justify-center bg-black/50 ${dialogMotion.overlay} ${closing ? dialogMotion.overlayClosing : ''}`}
       onClick={onClose}
     >
       <div
-        className="bg-white rounded-lg shadow-xl w-full max-w-lg animate-scale-in m-4"
+        className={`bg-white rounded-lg shadow-xl w-full max-w-lg m-4 ${dialogMotion.panel} ${closing ? dialogMotion.panelClosing : ''}`}
         onClick={(e) => e.stopPropagation()}
         dir="rtl"
       >

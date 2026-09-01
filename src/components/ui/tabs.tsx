@@ -1,6 +1,7 @@
 'use client';
 
 import * as React from 'react';
+import motion from './motion.module.css';
 
 type TabsContextValue = {
   value: string;
@@ -90,7 +91,7 @@ export function TabsContent({
   const ctx = React.useContext(TabsContext);
   if (!ctx) throw new Error('TabsContent must be used within Tabs');
   if (ctx.value !== value) return null;
-  return <div className={className}>{children}</div>;
+  return <div key={value} className={`${motion.tabPanel} ${className}`}>{children}</div>;
 }
 
 

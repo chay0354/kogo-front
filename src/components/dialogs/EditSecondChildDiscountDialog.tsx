@@ -3,6 +3,8 @@
 import { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
 import { SecondChildDiscount, SecondChildDiscountFormData } from '@/types/discount';
+import dialogMotion from '@/components/ui/motion.module.css';
+import { useDialogExit } from '@/components/ui/motion';
 
 interface EditSecondChildDiscountDialogProps {
   isOpen: boolean;
@@ -14,11 +16,12 @@ interface EditSecondChildDiscountDialogProps {
 
 export default function EditSecondChildDiscountDialog({
   isOpen,
-  onClose,
+  onClose: dismiss,
   onSuccess,
   discount,
   onSave,
 }: EditSecondChildDiscountDialogProps) {
+  const { closing, requestClose: onClose } = useDialogExit(dismiss);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -84,8 +87,8 @@ export default function EditSecondChildDiscountDialog({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-background rounded-lg shadow-xl max-w-lg w-full">
+    <div className={`fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 ${dialogMotion.overlay} ${closing ? dialogMotion.overlayClosing : ''}`}>
+      <div className={`bg-background rounded-lg shadow-xl max-w-lg w-full ${dialogMotion.panel} ${closing ? dialogMotion.panelClosing : ''}`}>
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-border">
           <h2 className="text-2xl font-bold">עריכת הנחת ילד נוסף<span style={{ fontSize: '10px', color: 'white', userSelect: 'none' }}> #22</span></h2>

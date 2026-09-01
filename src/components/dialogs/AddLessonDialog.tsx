@@ -6,6 +6,8 @@ import { LessonFormData } from '@/types/course';
 import { addMinutesToTime } from '@/lib/timeUtils';
 import { TimeField } from '@/components/ui/time-picker';
 import StudioBusyWarning, { useStudioBusyConflicts } from '@/components/dialogs/StudioBusyWarning';
+import dialogMotion from '@/components/ui/motion.module.css';
+import { useDialogExit } from '@/components/ui/motion';
 
 interface Room {
   id: string;
@@ -27,9 +29,10 @@ export default function AddLessonDialog({
   branchId,
   teamRoomId,
   open,
-  onClose,
+  onClose: dismiss,
   onSuccess,
 }: AddLessonDialogProps) {
+  const { closing, requestClose: onClose } = useDialogExit(dismiss);
   const [formData, setFormData] = useState<LessonFormData>({
     course: courseId,
     room: teamRoomId || '',
@@ -143,8 +146,8 @@ export default function AddLessonDialog({
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" dir="rtl">
-      <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+    <div className={`fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 ${dialogMotion.overlay} ${closing ? dialogMotion.overlayClosing : ''}`} dir="rtl">
+      <div className={`bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto ${dialogMotion.panel} ${closing ? dialogMotion.panelClosing : ''}`}>
         <div className="p-6">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-2xl font-semibold text-gray-900">הוספת שיעור חדש</h2>

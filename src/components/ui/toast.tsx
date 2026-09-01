@@ -2,6 +2,8 @@
 
 import { createContext, useContext, useState, useCallback, ReactNode } from 'react';
 import { X, CheckCircle, AlertCircle, Info } from 'lucide-react';
+import motion from './motion.module.css';
+import { DIALOG_EXIT_MS, prefersReducedMotion } from './motion';
 
 type ToastType = 'success' | 'error' | 'info';
 
@@ -10,6 +12,8 @@ interface Toast {
   message: string;
   type: ToastType;
   duration?: number;
+  /** Set while the message is playing its exit and is no longer to be pressed. */
+  leaving?: boolean;
 }
 
 interface ToastContextType {
@@ -29,6 +33,22 @@ export function useToast() {
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([]);
 
+  /**
+   * A message leaves the stack only once its exit has played. Dropping it on
+   * the click, or on the tick of its own timer, is what made it vanish between
+   * two frames. Reduced motion has no exit to wait for.
+   */
+  const dismissToast = useCallback((id: string) => {
+    if (prefersReducedMotion()) {
+      setToasts(prev => prev.filter(t => t.id !== id));
+      return;
+    }
+    setToasts(prev => prev.map(t => (t.id === id ? { ...t, leaving: true } : t)));
+    setTimeout(() => {
+      setToasts(prev => prev.filter(t => t.id !== id));
+    }, DIALOG_EXIT_MS);
+  }, []);
+
   const showToast = useCallback((message: string, type: ToastType, duration: number = 4000) => {
     const id = Math.random().toString(36).substring(7);
     const newToast: Toast = { id, message, type, duration };
@@ -38,14 +58,10 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     // Auto dismiss after duration
     if (duration > 0) {
       setTimeout(() => {
-        setToasts(prev => prev.filter(t => t.id !== id));
+        dismissToast(id);
       }, duration);
     }
-  }, []);
-
-  const dismissToast = useCallback((id: string) => {
-    setToasts(prev => prev.filter(t => t.id !== id));
-  }, []);
+  }, [dismissToast]);
 
   return (
     <ToastContext.Provider value={{ showToast }}>
@@ -86,8 +102,8 @@ function ToastNotification({ toast, onDismiss }: { toast: Toast; onDismiss: () =
         min-w-[320px] max-w-[500px]
         border-2 rounded-lg shadow-lg
         p-4 pr-12
-        animate-in slide-in-from-top-2 duration-300
         relative
+        ${motion.toast} ${toast.leaving ? motion.toastLeaving : ''}
       `}
       role="alert"
     >

@@ -13,14 +13,17 @@ import { TimePicker } from '@/components/ui/time-picker';
 import InstructorSelect from '@/components/InstructorSelect';
 import { Skeleton } from '@/components/ui/skeleton';
 import StudioBusyWarning, { useStudioBusyConflicts } from '@/components/dialogs/StudioBusyWarning';
+import dialogMotion from '@/components/ui/motion.module.css';
+import { useDialogExit } from '@/components/ui/motion';
 
 export default function AddCourseDialog({
   courseTypeId,
   open,
-  onClose,
+  onClose: dismiss,
   onSuccess,
   duplicateFrom = null,
 }: AddCourseDialogProps) {
+  const { closing, requestClose: onClose } = useDialogExit(dismiss);
   const isDuplicateMode = Boolean(duplicateFrom);
 
   const [courseData, setCourseData] = useState<CourseFormData>(() =>
@@ -221,8 +224,8 @@ export default function AddCourseDialog({
   if (!open) return null;
 
   return (
-    <div className={styles.overlay} dir="rtl">
-      <div className={styles.dialog}>
+    <div className={`${styles.overlay} ${dialogMotion.overlay} ${closing ? dialogMotion.overlayClosing : ''}`} dir="rtl">
+      <div className={`${styles.dialog} ${dialogMotion.panel} ${closing ? dialogMotion.panelClosing : ''}`}>
         <div className={styles.dialogBody}>
           <div className={styles.header}>
             <h2 className={styles.title}>

@@ -1,4 +1,5 @@
 import AppLayout from '@/components/AppLayout';
+import PageTransition from '@/components/PageTransition';
 import RevealChildren from '@/components/RevealChildren';
 
 /**
@@ -12,11 +13,17 @@ import RevealChildren from '@/components/RevealChildren';
  * The entrance motion is applied here too, so a page written from now on gets
  * it without having to ask. A page's own blocks sit one level below the wrapper
  * and the cards of a grid one below that.
+ *
+ * The dissolve between screens wraps the reveal rather than sitting inside it,
+ * so the reveal's root stays the direct parent of the page and the depths it
+ * counts down from are the ones the pages were written against.
  */
 export default function CrmLayout({ children }: { children: React.ReactNode }) {
   return (
     <AppLayout>
-      <RevealChildren depths={[1, 2]}>{children}</RevealChildren>
+      <PageTransition>
+        <RevealChildren depths={[1, 2]}>{children}</RevealChildren>
+      </PageTransition>
     </AppLayout>
   );
 }

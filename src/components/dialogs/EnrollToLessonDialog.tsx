@@ -6,6 +6,8 @@ import { X } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import api from '@/lib/api';
 import SubscriptionPaymentDialog from './SubscriptionPaymentDialog';
+import dialogMotion from '@/components/ui/motion.module.css';
+import { useDialogExit } from '@/components/ui/motion';
 
 interface EnrollToLessonDialogProps {
   child: ChildWithDetails;
@@ -86,7 +88,8 @@ const lessonSeatsLeft = (lesson: Lesson) => {
 const formatLessonSchedule = (lesson: Pick<Lesson, 'day_of_week' | 'start_time' | 'end_time'>) =>
   `${DAY_NAMES[lesson.day_of_week]} ${lesson.start_time.slice(0, 5)} - ${lesson.end_time.slice(0, 5)}`;
 
-export default function EnrollToLessonDialog({ child, isOpen, onClose, onEnroll }: EnrollToLessonDialogProps) {
+export default function EnrollToLessonDialog({ child, isOpen, onClose: dismiss, onEnroll }: EnrollToLessonDialogProps) {
+  const { closing, requestClose: onClose } = useDialogExit(dismiss);
   const [courseTypes, setCourseTypes] = useState<CourseType[]>([]);
   const [courses, setCourses] = useState<Course[]>([]);
   const [lessons, setLessons] = useState<Lesson[]>([]);
@@ -354,9 +357,9 @@ export default function EnrollToLessonDialog({ child, isOpen, onClose, onEnroll 
 
   return (
     <>
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 animate-fade-in" onClick={onClose}>
+      <div className={`fixed inset-0 z-50 flex items-center justify-center bg-black/50 ${dialogMotion.overlay} ${closing ? dialogMotion.overlayClosing : ''}`} onClick={onClose}>
         <div
-          className="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto animate-scale-in"
+          className={`bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto ${dialogMotion.panel} ${closing ? dialogMotion.panelClosing : ''}`}
           onClick={(e) => e.stopPropagation()}
         >
           <div className="flex items-center justify-between px-6 py-4 border-b sticky top-0 bg-white z-10">

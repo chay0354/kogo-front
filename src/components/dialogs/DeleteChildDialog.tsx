@@ -2,6 +2,8 @@
 
 import { ChildWithDetails } from '@/types/customer';
 import { X, AlertTriangle } from 'lucide-react';
+import dialogMotion from '@/components/ui/motion.module.css';
+import { useDialogExit } from '@/components/ui/motion';
 
 interface DeleteChildDialogProps {
   child: ChildWithDetails;
@@ -10,13 +12,14 @@ interface DeleteChildDialogProps {
   onConfirm: () => void;
 }
 
-export default function DeleteChildDialog({ child, isOpen, onClose, onConfirm }: DeleteChildDialogProps) {
+export default function DeleteChildDialog({ child, isOpen, onClose: dismiss, onConfirm }: DeleteChildDialogProps) {
+  const { closing, requestClose: onClose } = useDialogExit(dismiss);
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 animate-fade-in" onClick={onClose}>
+    <div className={`fixed inset-0 z-50 flex items-center justify-center bg-black/50 ${dialogMotion.overlay} ${closing ? dialogMotion.overlayClosing : ''}`} onClick={onClose}>
       <div 
-        className="bg-white rounded-lg shadow-xl w-full max-w-md animate-scale-in"
+        className={`bg-white rounded-lg shadow-xl w-full max-w-md ${dialogMotion.panel} ${closing ? dialogMotion.panelClosing : ''}`}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}

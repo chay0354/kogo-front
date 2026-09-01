@@ -4,6 +4,8 @@ import { useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import api from '@/lib/api';
 import { CourseTypeFormData } from '@/types/course';
+import dialogMotion from '@/components/ui/motion.module.css';
+import { useDialogExit } from '@/components/ui/motion';
 
 interface AddCourseTypeDialogProps {
   open: boolean;
@@ -13,9 +15,10 @@ interface AddCourseTypeDialogProps {
 
 export default function AddCourseTypeDialog({
   open,
-  onClose,
+  onClose: dismiss,
   onSuccess,
 }: AddCourseTypeDialogProps) {
+  const { closing, requestClose: onClose } = useDialogExit(dismiss);
   const [formData, setFormData] = useState<CourseTypeFormData>({
     name: '',
     description: '',
@@ -46,8 +49,8 @@ export default function AddCourseTypeDialog({
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" dir="rtl">
-      <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4">
+    <div className={`fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 ${dialogMotion.overlay} ${closing ? dialogMotion.overlayClosing : ''}`} dir="rtl">
+      <div className={`bg-white rounded-lg shadow-xl max-w-md w-full mx-4 ${dialogMotion.panel} ${closing ? dialogMotion.panelClosing : ''}`}>
         <div className="p-6">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-2xl font-semibold text-gray-900">הוספת תחום חדש<span style={{ fontSize: '10px', color: 'white' }}> #4</span></h2>

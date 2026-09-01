@@ -4,6 +4,8 @@ import { formatTime } from '@/lib/scheduleUtils';
 import { useAuth } from '@/components/AuthProvider';
 import EventDialog from './EventDialog';
 import RentalDialog from './RentalDialog';
+import dialogMotion from '@/components/ui/motion.module.css';
+import { useDialogExit } from '@/components/ui/motion';
 
 type EventDetailsDialogProps = {
   event: ScheduleEvent;
@@ -11,7 +13,8 @@ type EventDetailsDialogProps = {
   onSuccess?: () => void;
 };
 
-export default function EventDetailsDialog({ event, onClose, onSuccess }: EventDetailsDialogProps) {
+export default function EventDetailsDialog({ event, onClose: dismiss, onSuccess }: EventDetailsDialogProps) {
+  const { closing, requestClose: onClose } = useDialogExit(dismiss);
   const { user } = useAuth();
   const isManager = user?.role === 'manager';
   const bgColor = event.color || '#9333ea';
@@ -19,11 +22,11 @@ export default function EventDetailsDialog({ event, onClose, onSuccess }: EventD
 
   return (
     <div 
-      className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" 
+      className={`fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 ${dialogMotion.overlay} ${closing ? dialogMotion.overlayClosing : ''}`} 
       onClick={onClose}
     >
       <div 
-        className="bg-white rounded-lg p-6 max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto" 
+        className={`bg-white rounded-lg p-6 max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto ${dialogMotion.panel} ${closing ? dialogMotion.panelClosing : ''}`} 
         onClick={(e) => e.stopPropagation()}
         dir="rtl"
       >

@@ -13,6 +13,7 @@ import {
 } from '@/types/partner';
 import AddPartnerDialog from '@/components/dialogs/AddPartnerDialog';
 import EditPartnerDialog from '@/components/dialogs/EditPartnerDialog';
+import CrossFade from '@/components/ui/CrossFade';
 
 /**
  * Partner users, managed from within הגדרות.
@@ -122,7 +123,7 @@ export default function PartnersSection() {
         </div>
       </div>
 
-      <div className="mt-4 overflow-x-auto">
+      <CrossFade swapKey={loading ? 'loading' : 'ready'} className="mt-4 overflow-x-auto">
         {loading ? (
           <TableSkeleton columns={6} rows={5} label="טוען שותפים" />
         ) : (
@@ -185,7 +186,7 @@ export default function PartnersSection() {
             </tbody>
           </table>
         )}
-      </div>
+      </CrossFade>
 
       <AddPartnerDialog
         isOpen={addDialogOpen}

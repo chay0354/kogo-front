@@ -11,6 +11,8 @@ import {
 } from '@/types/instructor';
 import { validatePhoneNumber } from '@/lib/instructorUtils';
 import SalaryTiersEditor from '@/components/instructors/SalaryTiersEditor';
+import dialogMotion from '@/components/ui/motion.module.css';
+import { useDialogExit } from '@/components/ui/motion';
 
 interface AddInstructorDialogProps {
   isOpen: boolean;
@@ -18,7 +20,8 @@ interface AddInstructorDialogProps {
   onSave: () => void;
 }
 
-export default function AddInstructorDialog({ isOpen, onClose, onSave }: AddInstructorDialogProps) {
+export default function AddInstructorDialog({ isOpen, onClose: dismiss, onSave }: AddInstructorDialogProps) {
+  const { closing, requestClose: onClose } = useDialogExit(dismiss);
   const [branches, setBranches] = useState<Branch[]>([]);
   const [formData, setFormData] = useState<InstructorFormData>({
     first_name: '',
@@ -145,9 +148,9 @@ export default function AddInstructorDialog({ isOpen, onClose, onSave }: AddInst
   };
   
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 animate-fade-in overflow-y-auto py-8" onClick={onClose}>
+    <div className={`fixed inset-0 z-50 flex items-center justify-center bg-black/50 overflow-y-auto py-8 ${dialogMotion.overlay} ${closing ? dialogMotion.overlayClosing : ''}`} onClick={onClose}>
       <div 
-        className="bg-white rounded-lg shadow-xl w-full max-w-2xl animate-scale-in m-4 max-h-[90vh] overflow-y-auto"
+        className={`bg-white rounded-lg shadow-xl w-full max-w-2xl m-4 max-h-[90vh] overflow-y-auto ${dialogMotion.panel} ${closing ? dialogMotion.panelClosing : ''}`}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}

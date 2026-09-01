@@ -17,6 +17,8 @@ import type {
 import { emptyFormState } from './types';
 import InstructorSelect from '@/components/InstructorSelect';
 import styles from './index.module.css';
+import dialogMotion from '@/components/ui/motion.module.css';
+import { useDialogExit } from '@/components/ui/motion';
 
 function lessonInstructorId(lesson: Lesson): string {
   if (!lesson.instructor) return '';
@@ -32,7 +34,7 @@ function lessonRoomId(lesson: Lesson): string {
 
 export default function ManageLessonBundlesDialog({
   isOpen,
-  onClose,
+  onClose: dismiss,
   courseId,
   courseName,
   courseDisplayId,
@@ -40,6 +42,7 @@ export default function ManageLessonBundlesDialog({
   branchId,
   onSaved,
 }: ManageLessonBundlesDialogProps) {
+  const { closing, requestClose: onClose } = useDialogExit(dismiss);
   const [bundles, setBundles] = useState<LessonBundle[]>([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -252,8 +255,8 @@ export default function ManageLessonBundlesDialog({
   if (!isOpen) return null;
 
   return (
-    <div className={styles.overlay} onClick={onClose}>
-      <div className={styles.panel} onClick={(e) => e.stopPropagation()}>
+    <div className={`${styles.overlay} ${dialogMotion.overlay} ${closing ? dialogMotion.overlayClosing : ''}`} onClick={onClose}>
+      <div className={`${styles.panel} ${dialogMotion.panel} ${closing ? dialogMotion.panelClosing : ''}`} onClick={(e) => e.stopPropagation()}>
         <div className={styles.header}>
           <h2 className={styles.title}>
             ניהול מסלולים משולבים — {courseName}

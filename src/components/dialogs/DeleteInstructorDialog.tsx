@@ -1,6 +1,8 @@
 'use client';
 
 import { AlertTriangle, X } from 'lucide-react';
+import dialogMotion from '@/components/ui/motion.module.css';
+import { useDialogExit } from '@/components/ui/motion';
 
 type InstructorLike = {
   id: string;
@@ -19,18 +21,19 @@ export default function DeleteInstructorDialog({
   instructor,
   isOpen,
   isDeleting = false,
-  onClose,
+  onClose: dismiss,
   onConfirm,
 }: DeleteInstructorDialogProps) {
+  const { closing, requestClose: onClose } = useDialogExit(dismiss);
   if (!isOpen || !instructor) return null;
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 animate-fade-in"
+      className={`fixed inset-0 z-50 flex items-center justify-center bg-black/50 ${dialogMotion.overlay} ${closing ? dialogMotion.overlayClosing : ''}`}
       onClick={onClose}
     >
       <div
-        className="bg-white rounded-lg shadow-xl w-full max-w-md animate-scale-in"
+        className={`bg-white rounded-lg shadow-xl w-full max-w-md ${dialogMotion.panel} ${closing ? dialogMotion.panelClosing : ''}`}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}

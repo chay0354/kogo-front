@@ -3,6 +3,8 @@ import { Lesson, AttendanceRecord, AttendanceMark, AttendanceStatus } from '@/ty
 import { fetchLessonAttendance, markAttendance } from '@/lib/scheduleUtils';
 import { GroupIdBadge } from '@/components/GroupIdBadge/GroupIdBadge';
 import { Skeleton } from '@/components/ui/skeleton';
+import dialogMotion from '@/components/ui/motion.module.css';
+import { useDialogExit } from '@/components/ui/motion';
 
 type AttendanceDialogProps = {
   lesson: Lesson | null;
@@ -12,9 +14,10 @@ type AttendanceDialogProps = {
 
 export default function AttendanceDialog({
   lesson,
-  onClose,
+  onClose: dismiss,
   onSuccess,
 }: AttendanceDialogProps) {
+  const { closing, requestClose: onClose } = useDialogExit(dismiss);
   const [attendance, setAttendance] = useState<Record<string, AttendanceStatus>>({});
   const [enrollments, setEnrollments] = useState<Array<{ child_id: string; child_name: string }>>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -93,8 +96,8 @@ export default function AttendanceDialog({
   const isCancelled = lesson.status === 'cancelled';
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg p-6 max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+    <div className={`fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 ${dialogMotion.overlay} ${closing ? dialogMotion.overlayClosing : ''}`}>
+      <div className={`bg-white rounded-lg p-6 max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto ${dialogMotion.panel} ${closing ? dialogMotion.panelClosing : ''}`}>
         <h2 className="text-xl font-bold mb-4">סימון נוכחות<span style={{ fontSize: '10px', color: 'white', userSelect: 'none' }}> #9</span></h2>
 
         <div className="mb-4 p-3 bg-gray-50 rounded">

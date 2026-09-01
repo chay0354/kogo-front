@@ -2,10 +2,16 @@
 
 import * as React from 'react';
 import { X } from 'lucide-react';
+import motion from './motion.module.css';
+import { useDialogExit, useExitTransition } from './motion';
 
 type DialogContextValue = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /** True while the exit animation is playing and the dialog is on its way out. */
+  closing: boolean;
+  /** Dismiss with the exit animation, rather than on the spot. */
+  requestClose: () => void;
 };
 
 const DialogContext = React.createContext<DialogContextValue | null>(null);
@@ -19,17 +25,20 @@ export function Dialog({
   onOpenChange: (open: boolean) => void;
   children: React.ReactNode;
 }) {
+  const close = React.useCallback(() => onOpenChange(false), [onOpenChange]);
+  const { closing, requestClose } = useDialogExit(close);
+
   React.useEffect(() => {
     if (!open) return;
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onOpenChange(false);
+      if (e.key === 'Escape') requestClose();
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [open, onOpenChange]);
+  }, [open, requestClose]);
 
   return (
-    <DialogContext.Provider value={{ open, onOpenChange }}>
+    <DialogContext.Provider value={{ open, onOpenChange, closing, requestClose }}>
       {children}
     </DialogContext.Provider>
   );
@@ -47,20 +56,28 @@ export function DialogContent({
   children: React.ReactNode;
 }) {
   const ctx = React.useContext(DialogContext);
+  const { rendered, closing: flagClosing } = useExitTransition(ctx?.open ?? false);
+  // A caller that closes by dropping its own state leaves nothing to render on
+  // the way out. Hold the last tree it gave us for the length of the exit.
+  const lastChildren = React.useRef(children);
+  if (ctx?.open) lastChildren.current = children;
+
   if (!ctx) throw new Error('DialogContent must be used within Dialog');
-  if (!ctx.open) return null;
+  if (!rendered) return null;
+
+  const closing = flagClosing || ctx.closing;
 
   return (
     <div
-      className={`fixed inset-0 ${overlayClassName || 'z-50'} flex items-end sm:items-center justify-center bg-black/50 animate-fade-in p-0 sm:p-4`}
-      onMouseDown={() => ctx.onOpenChange(false)}
+      className={`fixed inset-0 ${overlayClassName || 'z-50'} flex items-end sm:items-center justify-center bg-black/50 p-0 sm:p-4 ${motion.overlay} ${closing ? motion.overlayClosing : ''}`}
+      onMouseDown={() => ctx.requestClose()}
     >
       <div
         dir={dir}
-        className={`relative w-full sm:w-[calc(100%-2rem)] max-h-[92vh] sm:max-h-[90vh] overflow-y-auto bg-white rounded-t-2xl sm:rounded-lg shadow-xl animate-scale-in ${className}`}
+        className={`relative w-full sm:w-[calc(100%-2rem)] max-h-[92vh] sm:max-h-[90vh] overflow-y-auto bg-white rounded-t-2xl sm:rounded-lg shadow-xl ${motion.panel} ${motion.sheet} ${closing ? motion.panelClosing : ''} ${className}`}
         onMouseDown={(e) => e.stopPropagation()}
       >
-        {children}
+        {ctx.open ? children : lastChildren.current}
       </div>
     </div>
   );
@@ -126,7 +143,7 @@ export function DialogCloseButton() {
   return (
     <button
       type="button"
-      onClick={() => ctx.onOpenChange(false)}
+      onClick={() => ctx.requestClose()}
       className="p-2 rounded-lg hover:bg-muted/40 transition-colors"
       aria-label="Close"
     >

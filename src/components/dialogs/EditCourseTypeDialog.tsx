@@ -5,6 +5,8 @@ import { Loader2 } from 'lucide-react';
 import api from '@/lib/api';
 import { CourseTypeWithStats } from '@/types/course';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
+import dialogMotion from '@/components/ui/motion.module.css';
+import { useDialogExit } from '@/components/ui/motion';
 
 interface EditCourseTypeDialogProps {
   courseType: CourseTypeWithStats;
@@ -16,9 +18,10 @@ interface EditCourseTypeDialogProps {
 export default function EditCourseTypeDialog({
   courseType,
   open,
-  onClose,
+  onClose: dismiss,
   onSuccess,
 }: EditCourseTypeDialogProps) {
+  const { closing, requestClose: onClose } = useDialogExit(dismiss);
   const [formData, setFormData] = useState({
     name: courseType.name,
     description: courseType.description ?? '',
@@ -69,8 +72,8 @@ export default function EditCourseTypeDialog({
 
   return (
     <>
-      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-end sm:items-center justify-center z-50 p-0 sm:p-4" dir="rtl">
-        <div className="bg-white rounded-t-2xl sm:rounded-lg shadow-xl max-w-md w-full max-h-[92vh] overflow-y-auto">
+      <div className={`fixed inset-0 bg-black bg-opacity-50 flex items-end sm:items-center justify-center z-50 p-0 sm:p-4 ${dialogMotion.overlay} ${closing ? dialogMotion.overlayClosing : ''}`} dir="rtl">
+        <div className={`bg-white rounded-t-2xl sm:rounded-lg shadow-xl max-w-md w-full max-h-[92vh] overflow-y-auto ${dialogMotion.panel} ${dialogMotion.sheet} ${closing ? dialogMotion.panelClosing : ''}`}>
           <div className="p-4 sm:p-6">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-2xl font-semibold text-gray-900">עריכת תחום</h2>

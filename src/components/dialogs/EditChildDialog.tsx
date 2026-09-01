@@ -3,6 +3,8 @@
 import { useState, useEffect } from 'react';
 import { ChildWithDetails } from '@/types/customer';
 import { X, Loader2 } from 'lucide-react';
+import dialogMotion from '@/components/ui/motion.module.css';
+import { useDialogExit } from '@/components/ui/motion';
 
 interface EditChildDialogProps {
   child: ChildWithDetails;
@@ -11,7 +13,8 @@ interface EditChildDialogProps {
   onSave: (data: any) => Promise<void>;
 }
 
-export default function EditChildDialog({ child, isOpen, onClose, onSave }: EditChildDialogProps) {
+export default function EditChildDialog({ child, isOpen, onClose: dismiss, onSave }: EditChildDialogProps) {
+  const { closing, requestClose: onClose } = useDialogExit(dismiss);
   const [formData, setFormData] = useState({
     first_name: child.first_name,
     last_name: child.last_name,
@@ -51,9 +54,9 @@ export default function EditChildDialog({ child, isOpen, onClose, onSave }: Edit
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 animate-fade-in" onClick={onClose}>
+    <div className={`fixed inset-0 z-50 flex items-center justify-center bg-black/50 ${dialogMotion.overlay} ${closing ? dialogMotion.overlayClosing : ''}`} onClick={onClose}>
       <div 
-        className="bg-white rounded-lg shadow-xl w-full max-w-md animate-scale-in"
+        className={`bg-white rounded-lg shadow-xl w-full max-w-md ${dialogMotion.panel} ${closing ? dialogMotion.panelClosing : ''}`}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}

@@ -11,6 +11,8 @@ import { TimeField } from '@/components/ui/time-picker';
 import { WeeklyDayTimesField, type DayTimeValue } from '@/components/dialogs/WeeklyDayTimesField';
 import CitySelectField from '@/components/dialogs/CitySelectField';
 import styles from './RentalDialog.module.css';
+import dialogMotion from '@/components/ui/motion.module.css';
+import { useDialogExit } from '@/components/ui/motion';
 
 type Branch = {
   id: string;
@@ -39,7 +41,8 @@ const COLOR_PRESETS = [
 
 const ALL_WEEK_DAYS: WeekDay[] = [0, 1, 2, 3, 4, 5, 6];
 
-export default function RentalDialog({ event, onClose, onSuccess }: RentalDialogProps) {
+export default function RentalDialog({ event, onClose: dismiss, onSuccess }: RentalDialogProps) {
+  const { closing, requestClose: onClose } = useDialogExit(dismiss);
   const isEditMode = !!event;
   const [isLoading, setIsLoading] = useState(false);
   const [error, setErrorState] = useState('');
@@ -322,8 +325,8 @@ export default function RentalDialog({ event, onClose, onSuccess }: RentalDialog
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onClick={savedEvent ? handleCloseAfterSuccess : onClose}>
-      <div ref={panelRef} className="bg-white rounded-lg p-6 max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()} dir="rtl">
+    <div className={`fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 ${dialogMotion.overlay} ${closing ? dialogMotion.overlayClosing : ''}`} onClick={savedEvent ? handleCloseAfterSuccess : onClose}>
+      <div ref={panelRef} className={`bg-white rounded-lg p-6 max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto ${dialogMotion.panel} ${closing ? dialogMotion.panelClosing : ''}`} onClick={(e) => e.stopPropagation()} dir="rtl">
         <div className="flex justify-between items-start mb-6">
           <h2 className="text-2xl font-bold">{isEditMode ? 'ערוך שכירות' : 'הוסף שכירות סטודיו'}<span style={{ fontSize: '10px', color: 'white', userSelect: 'none' }}> #29</span></h2>
           <button type="button" onClick={savedEvent ? handleCloseAfterSuccess : onClose} className="text-gray-400 hover:text-gray-600 text-2xl" aria-label="סגור">

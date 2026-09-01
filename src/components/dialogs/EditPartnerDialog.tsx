@@ -6,6 +6,8 @@ import api from '@/lib/api';
 import { Branch } from '@/types/customer';
 import { PartnerFormData, PartnerListItem } from '@/types/partner';
 import { normalizePartnerErrors } from './AddPartnerDialog';
+import dialogMotion from '@/components/ui/motion.module.css';
+import { useDialogExit } from '@/components/ui/motion';
 
 interface EditPartnerDialogProps {
   isOpen: boolean;
@@ -14,7 +16,8 @@ interface EditPartnerDialogProps {
   onSave: () => void;
 }
 
-export default function EditPartnerDialog({ isOpen, onClose, partner, onSave }: EditPartnerDialogProps) {
+export default function EditPartnerDialog({ isOpen, onClose: dismiss, partner, onSave }: EditPartnerDialogProps) {
+  const { closing, requestClose: onClose } = useDialogExit(dismiss);
   const [branches, setBranches] = useState<Branch[]>([]);
   const [formData, setFormData] = useState<PartnerFormData>({
     email: '',
@@ -79,8 +82,8 @@ export default function EditPartnerDialog({ isOpen, onClose, partner, onSave }: 
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+    <div className={`fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 ${dialogMotion.overlay} ${closing ? dialogMotion.overlayClosing : ''}`}>
+      <div className={`bg-white rounded-lg shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto ${dialogMotion.panel} ${closing ? dialogMotion.panelClosing : ''}`}>
         <div className="flex items-center justify-between p-6 border-b">
           <h2 className="text-xl font-bold">עריכת שותף</h2>
           <button onClick={onClose} className="text-gray-500 hover:text-gray-700">

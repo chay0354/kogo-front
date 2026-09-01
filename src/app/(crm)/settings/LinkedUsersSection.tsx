@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { ListSkeleton } from '@/components/ui/skeleton';
+import CrossFade from '@/components/ui/CrossFade';
 import api, {
   fetchLinkedUsers,
   fetchMyBranches,
@@ -166,73 +167,75 @@ export default function LinkedUsersSection({ user, allUsers }: Props) {
         </div>
       )}
 
-      {loading ? (
-        <ListSkeleton rows={2} label="טוען משתמשים מקושרים" />
-      ) : (
-        <>
-          <div className="space-y-2">
-            {linked.length === 0 && (
-              <p className="text-sm text-muted-foreground">אין משתמשים מקושרים</p>
-            )}
-            {linked.map((l) => (
-              <div
-                key={l.id}
-                className="flex items-center justify-between gap-3 rounded-lg border bg-white px-3 py-2"
-              >
-                <div className="min-w-0">
-                  <div className="truncate text-sm font-medium">{l.name}</div>
-                  <div className="truncate text-xs text-muted-foreground">
-                    {l.email || l.username}
-                  </div>
-                  <div className="truncate text-xs text-muted-foreground">
-                    {l.branch_name ? `${l.branch_name} בלבד` : 'כל הסניפים'}
-                  </div>
-                </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={busyId === l.id}
-                  onClick={() => remove(l.id)}
+      <CrossFade swapKey={loading ? 'loading' : 'ready'}>
+        {loading ? (
+          <ListSkeleton rows={2} label="טוען משתמשים מקושרים" />
+        ) : (
+          <>
+            <div className="space-y-2">
+              {linked.length === 0 && (
+                <p className="text-sm text-muted-foreground">אין משתמשים מקושרים</p>
+              )}
+              {linked.map((l) => (
+                <div
+                  key={l.id}
+                  className="flex items-center justify-between gap-3 rounded-lg border bg-white px-3 py-2"
                 >
-                  הסר
-                </Button>
-              </div>
-            ))}
-          </div>
+                  <div className="min-w-0">
+                    <div className="truncate text-sm font-medium">{l.name}</div>
+                    <div className="truncate text-xs text-muted-foreground">
+                      {l.email || l.username}
+                    </div>
+                    <div className="truncate text-xs text-muted-foreground">
+                      {l.branch_name ? `${l.branch_name} בלבד` : 'כל הסניפים'}
+                    </div>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={busyId === l.id}
+                    onClick={() => remove(l.id)}
+                  >
+                    הסר
+                  </Button>
+                </div>
+              ))}
+            </div>
 
-          <div className="flex flex-wrap items-center gap-2">
-            <select
-              className="h-9 min-w-[10rem] flex-1 rounded-lg border border-gray-200 bg-white px-3 text-sm"
-              value={toAdd}
-              onChange={(e) => setToAdd(e.target.value)}
-              aria-label="בחירת משתמש לקישור"
-            >
-              <option value="">בחרו משתמש להוספה…</option>
-              {candidates.map((u) => (
-                <option key={u.id} value={u.id}>
-                  {displayName(u)}
-                </option>
-              ))}
-            </select>
-            <select
-              className="h-9 min-w-[10rem] flex-1 rounded-lg border border-gray-200 bg-white px-3 text-sm"
-              value={toAddBranch}
-              onChange={(e) => setToAddBranch(e.target.value)}
-              aria-label="הגבלת הקישור לסניף"
-            >
-              <option value="">כל הסניפים</option>
-              {branches.map((b) => (
-                <option key={b.id} value={b.id}>
-                  {b.name}
-                </option>
-              ))}
-            </select>
-            <Button onClick={add} disabled={!toAdd || busyId === toAdd}>
-              הוסף
-            </Button>
-          </div>
-        </>
-      )}
+            <div className="flex flex-wrap items-center gap-2">
+              <select
+                className="h-9 min-w-[10rem] flex-1 rounded-lg border border-gray-200 bg-white px-3 text-sm"
+                value={toAdd}
+                onChange={(e) => setToAdd(e.target.value)}
+                aria-label="בחירת משתמש לקישור"
+              >
+                <option value="">בחרו משתמש להוספה…</option>
+                {candidates.map((u) => (
+                  <option key={u.id} value={u.id}>
+                    {displayName(u)}
+                  </option>
+                ))}
+              </select>
+              <select
+                className="h-9 min-w-[10rem] flex-1 rounded-lg border border-gray-200 bg-white px-3 text-sm"
+                value={toAddBranch}
+                onChange={(e) => setToAddBranch(e.target.value)}
+                aria-label="הגבלת הקישור לסניף"
+              >
+                <option value="">כל הסניפים</option>
+                {branches.map((b) => (
+                  <option key={b.id} value={b.id}>
+                    {b.name}
+                  </option>
+                ))}
+              </select>
+              <Button onClick={add} disabled={!toAdd || busyId === toAdd}>
+                הוסף
+              </Button>
+            </div>
+          </>
+        )}
+      </CrossFade>
     </div>
   );
 }
