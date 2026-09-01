@@ -17,6 +17,9 @@ import {
   eventLayerKey,
   layerColor,
   lessonLayerKey,
+  readLayerRailPreference,
+  resolveLayerRailMode,
+  writeLayerRailPreference,
   type LayerDimension,
 } from '@/components/schedule/calendarLayers';
 import styles from '@/components/schedule/theme/calendar.module.css';
@@ -77,7 +80,11 @@ function StaffSchedulePage() {
   const [dimension, setDimension] = useState<LayerDimension>('branch');
   const [search, setSearch] = useState('');
   const [contentFilter, setContentFilter] = useState<ContentFilter>('all');
-  const [showRail, setShowRail] = useState(false);
+
+  // One flag for both widths, the way the office menu keeps one: a desk that
+  // remembers a narrowed picker, and a phone that always starts with the card
+  // put away because there it costs a screen rather than a column.
+  const [railOpen, setRailOpen] = useState(true);
 
   // A layer the office switched off, remembered per dimension. Storing what is
   // hidden rather than what is shown means a branch that appears for the first
@@ -108,6 +115,17 @@ function StaffSchedulePage() {
   useEffect(() => {
     if (!isDesktop) setView('day');
   }, [isDesktop]);
+
+  useEffect(() => {
+    setRailOpen(isDesktop ? readLayerRailPreference(true) : false);
+  }, [isDesktop]);
+
+  const railMode = resolveLayerRailMode(isDesktop, railOpen);
+  const toggleRail = () => {
+    const next = !railOpen;
+    if (isDesktop) writeLayerRailPreference(next);
+    setRailOpen(next);
+  };
 
   useEffect(() => {
     const load = async () => {
@@ -234,6 +252,9 @@ function StaffSchedulePage() {
           year: 'numeric',
         });
 
+  const todayLabel = new Date().toDateString();
+  const showsToday = days.some((day) => day.toDateString() === todayLabel);
+
   const rail = (
     <CalendarLayerPicker
       dimension={dimension}
@@ -243,6 +264,8 @@ function StaffSchedulePage() {
       onToggle={toggleLayer}
       onAll={showAll}
       onNone={showNone}
+      mode={railMode}
+      onToggleMode={toggleRail}
     />
   );
 
@@ -284,7 +307,15 @@ function StaffSchedulePage() {
               <button type="button" className={styles.navBtn} onClick={() => step(-1)} aria-label="הקודם">
                 <ChevronRight size={17} />
               </button>
-              <button type="button" className={styles.today} onClick={() => setCurrentDate(new Date())}>
+              <button
+                type="button"
+                className={`${styles.today} ${showsToday ? styles.todayOn : ''}`}
+                onClick={() => setCurrentDate(new Date())}
+                // The dot is the state and the word is the label, so "you are
+                // already there" is never carried by the tint alone.
+                aria-current={showsToday ? 'date' : undefined}
+              >
+                {showsToday ? <span className={styles.todayDot} aria-hidden /> : null}
                 היום
               </button>
               <button type="button" className={styles.navBtn} onClick={() => step(1)} aria-label="הבא">
@@ -344,10 +375,10 @@ function StaffSchedulePage() {
             {!isDesktop ? (
               <button
                 type="button"
-                onClick={() => setShowRail((v) => !v)}
+                onClick={toggleRail}
                 className={styles.railBtn}
                 style={{ flex: 'none', padding: '7px 12px', display: 'inline-flex', gap: 5, alignItems: 'center' }}
-                aria-expanded={showRail}
+                aria-expanded={railOpen}
               >
                 <SlidersHorizontal size={13} />
                 שכבות
@@ -359,6 +390,7 @@ function StaffSchedulePage() {
             <div className={styles.strip}>
               {weekDays.map((day, index) => {
                 const on = day.toDateString() === currentDate.toDateString();
+                const isToday = day.toDateString() === todayLabel;
                 const dayKey = formatDateISO(day);
                 const hues = Array.from(
                   new Set(
@@ -372,10 +404,18 @@ function StaffSchedulePage() {
                     key={index}
                     type="button"
                     onClick={() => setCurrentDate(new Date(day))}
-                    className={`${styles.stripDay} ${on ? styles.stripOn : ''}`}
+                    className={`${styles.stripDay} ${on ? styles.stripOn : ''} ${
+                      isToday ? styles.stripToday : ''
+                    }`}
+                    // Selected and today are two different things on a strip
+                    // the office taps through all day, and the fill already
+                    // means selected. Today says so in the word where the other
+                    // cells carry their letter, with a ring behind it, so the
+                    // two never have to be told apart by tint.
+                    aria-current={isToday ? 'date' : undefined}
                   >
                     <div className={styles.stripName}>
-                      {day.toLocaleDateString('he-IL', { weekday: 'narrow' })}
+                      {isToday ? 'היום' : day.toLocaleDateString('he-IL', { weekday: 'narrow' })}
                     </div>
                     <div className={styles.stripNum}>{day.getDate()}</div>
                     <div className={styles.stripDots}>
@@ -402,7 +442,7 @@ function StaffSchedulePage() {
             </div>
           ) : null}
 
-          {!isDesktop && showRail ? rail : null}
+          {!isDesktop ? rail : null}
 
           {isLoading ? (
             <CardGridSkeleton
@@ -412,12 +452,16 @@ function StaffSchedulePage() {
               label="טוען שיעורים"
             />
           ) : (
-            <div className={styles.split}>
+            <div
+              className={`${styles.split} ${railMode === 'rail' ? styles.splitNarrow : ''}`}
+            >
               {isDesktop ? rail : null}
               <CalendarGrid
                 days={days}
                 lessons={visibleLessons}
                 events={visibleEvents}
+                weekLessons={inRange}
+                weekEvents={events}
                 dimension={dimension}
                 layers={layers}
                 hourPx={isDesktop ? 96 : 84}

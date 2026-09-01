@@ -41,9 +41,14 @@
   min-width: 0;
 }
 
+/* The board measures what is left under it and publishes it as --kg-board-h.
+   The constant behind it is only what the first paint uses, before the
+   measurement lands — as a standing value it is a guess about how tall the
+   header, the toolbar and the day strip came out, and every layout it guesses
+   wrong leaves a band of dead screen under the grid. */
 .scroller {
   overflow: auto;
-  max-height: calc(100vh - 300px);
+  max-height: var(--kg-board-h, calc(100vh - 300px));
   overscroll-behavior: contain;
 }
 
@@ -90,13 +95,22 @@
   color: #5b54d6;
 }
 
+/* The rule under today's header, drawn as a shadow rather than a thicker border
+   so the cell does not grow by a pixel the other six do not. It rides the
+   sticky header, which is the only part of a column that is on screen whatever
+   hour the board has been scrolled to. */
+.headToday {
+  box-shadow: inset 0 -2px 0 #5b54d6;
+}
+
 .todayPip {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  gap: 4px;
   min-width: 22px;
   height: 22px;
-  padding: 0 6px;
+  padding: 0 8px;
   margin-top: 2px;
   border-radius: 999px;
   background: #5b54d6;
@@ -159,7 +173,7 @@
 }
 
 .todayCol {
-  background: rgba(91, 84, 214, 0.028);
+  background: rgba(91, 84, 214, 0.05);
 }
 
 /* ---- the rooms a day is split into ----
@@ -396,11 +410,109 @@
   min-width: 0;
 }
 
+/* Narrowed to a strip of badges. It keeps its place in the page's columns, so
+   the hours beside it are pushed, never covered. */
+.railNarrow {
+  padding: 10px 6px;
+  text-align: center;
+}
+
+.railHead {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-bottom: 9px;
+}
+
+.railNarrow .railHead {
+  justify-content: center;
+  margin-bottom: 7px;
+}
+
+.railToggle {
+  flex: none;
+  border: 0;
+  background: transparent;
+  border-radius: 8px;
+  width: 26px;
+  height: 26px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--kg-ink2);
+  cursor: pointer;
+}
+
+.railToggle:hover {
+  background: #f4f2fc;
+}
+
+.railToggle:focus-visible {
+  outline: 2px solid #5b54d6;
+  outline-offset: -2px;
+}
+
 .railTitle {
   font-size: 12px;
   font-weight: 800;
   color: var(--kg-muted);
-  margin: 0 0 9px;
+  margin: 0;
+}
+
+/* What the badges below are keyed by, since the three tabs cannot be read at
+   this width and the office re-keys the board far less often than it switches
+   one layer off. */
+.railDim {
+  font-size: 9.5px;
+  font-weight: 800;
+  color: var(--kg-muted);
+  margin: 0 0 8px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.badges {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+/* The same badge the chips on the grid carry, so a strip of them reads as the
+   layers themselves rather than as a legend for them. The letters are what say
+   which layer it is; the fill only says whether it is on. */
+.badge {
+  flex: none;
+  min-width: 28px;
+  padding: 0 4px;
+  height: 28px;
+  border-radius: 9px;
+  border: 2px solid var(--layer-base);
+  background: var(--layer-base);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.2px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Hollow, not faint: a switched-off layer has to be legible enough to find
+   again, and an emptied box is the same "off" the wide list draws. */
+.badgeOff {
+  background: transparent;
+  color: var(--kg-muted);
+  border-style: dashed;
+}
+
+.badge:focus-visible {
+  outline: 2px solid #5b54d6;
+  outline-offset: 1px;
 }
 
 .dims {
@@ -561,6 +673,9 @@
 }
 
 .today {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
   border: 0;
   background: transparent;
   border-radius: 999px;
@@ -574,6 +689,18 @@
 
 .today:hover {
   background: #f4f2fc;
+}
+
+.todayOn {
+  background: #efedfb;
+  color: #3b35a8;
+}
+
+.todayDot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #5b54d6;
 }
 
 .range {
@@ -615,6 +742,18 @@
   gap: 13px;
   align-items: start;
   min-width: 0;
+}
+
+/* The narrowed picker, the same move the office menu makes on the other edge of
+   the screen and on the same curve, so the two read as one behaviour. */
+.splitNarrow {
+  grid-template-columns: 48px minmax(0, 1fr);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .split {
+    transition: grid-template-columns 0.3s cubic-bezier(0.32, 0.72, 0, 1);
+  }
 }
 
 /* ---- phone ----
@@ -666,6 +805,21 @@
   color: rgba(255, 255, 255, 0.82);
 }
 
+/* Today, which is not the same question as which day is open. Drawn as a ring
+   inside the cell so it survives the fill of a selected day and costs no
+   layout; the word in place of the weekday letter is what actually says it. */
+.stripToday {
+  box-shadow: inset 0 0 0 2px #5b54d6;
+}
+
+.stripToday .stripName {
+  color: #5b54d6;
+}
+
+.stripOn.stripToday .stripName {
+  color: rgba(255, 255, 255, 0.92);
+}
+
 .stripDots {
   display: flex;
   justify-content: center;
@@ -690,7 +844,7 @@
   }
 
   .scroller {
-    max-height: calc(100vh - 340px);
+    max-height: var(--kg-board-h, calc(100vh - 340px));
   }
 }
 

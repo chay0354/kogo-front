@@ -1,15 +1,20 @@
 import { describe, expect, it } from 'vitest';
 import {
+  DEFAULT_HOUR_RANGE,
   EVENT_LAYER_KEY,
   NO_STUDIO_KEY,
   NO_STUDIO_LABEL,
   buildLayers,
   buildStudioColumns,
+  distinctInitials,
   eventLayerKey,
   eventStudioKey,
+  hourRange,
   layerInitials,
   layoutOverlaps,
   lessonStudioKey,
+  openingHour,
+  resolveLayerRailMode,
   timeToMinutes,
 } from './calendarLayers';
 import type { Lesson, ScheduleEvent } from '@/types/schedule';
@@ -112,6 +117,25 @@ describe('layerInitials', () => {
 
   it('falls back to the first two characters of a single word', () => {
     expect(layerInitials('ראשל״צ')).toBe('רא');
+  });
+});
+
+describe('distinctInitials', () => {
+  it('leaves badges that already read apart at two letters', () => {
+    expect(distinctInitials(['סניף אלון', 'סניף בזל'])).toEqual(['סא', 'סב']);
+  });
+
+  it('grows only the badges that collide', () => {
+    // Branches are named alike on purpose, and on a short chip the badge is the
+    // whole of what is written — two layers sharing one would leave the hue
+    // telling them apart on its own.
+    const badges = distinctInitials(['סניף רמת אביב', 'סניף ראשון לציון', 'סניף אלון']);
+    expect(new Set(badges).size).toBe(3);
+    expect(badges[2]).toBe('סא');
+  });
+
+  it('keeps a lone label at its two letters', () => {
+    expect(distinctInitials(['סניף רמת אביב'])).toEqual(['סר']);
   });
 });
 
@@ -352,5 +376,79 @@ describe('layoutOverlaps inside a studio column', () => {
       endMin: timeToMinutes(l.end_time),
     }));
     expect(placed.map((p) => p.lanes)).toEqual([2, 2]);
+  });
+});
+
+const span = (start: string, end: string) => ({
+  startMin: timeToMinutes(start),
+  endMin: timeToMinutes(end),
+});
+
+describe('hourRange', () => {
+  it('falls back to a working day when the week holds nothing', () => {
+    expect(hourRange([])).toEqual(DEFAULT_HOUR_RANGE);
+  });
+
+  it('runs from the hour the first item starts in to the hour the last one ends', () => {
+    expect(hourRange([span('07:30', '08:30'), span('16:00', '17:00')])).toEqual({
+      startHour: 7,
+      endHour: 17,
+    });
+  });
+
+  it('gives a week with one short lesson in it an hour to draw', () => {
+    expect(hourRange([span('09:15', '09:45')])).toEqual({ startHour: 9, endHour: 10 });
+  });
+});
+
+describe('openingHour', () => {
+  // The week the office actually has: one branch teaches at 07:30 and
+  // everything else starts in the afternoon.
+  const morning = span('07:30', '08:30');
+  const afternoon = span('16:00', '17:00');
+  const week = [morning, afternoon];
+  const range = hourRange(week);
+
+  it('opens on the first hour that holds something', () => {
+    expect(openingHour(range, week)).toBe(7);
+  });
+
+  it('moves the first hour when the ticked layers change', () => {
+    // The morning branch comes off the rail, so the day now begins at 16:00 —
+    // and begins at 07:00 again the moment it is ticked back on.
+    expect(openingHour(range, [afternoon])).toBe(16);
+    expect(openingHour(range, week)).toBe(7);
+  });
+
+  it('leaves the earlier hours on the board to be scrolled back up to', () => {
+    // The one thing narrowing the range instead would cost. The board is sized
+    // from the week, so with the morning branch off the view opens below hours
+    // that are still drawn above it rather than on a board that starts at 16:00.
+    expect(hourRange(week).startHour).toBe(7);
+    expect(openingHour(range, [afternoon])).toBeGreaterThan(range.startHour);
+  });
+
+  it('holds the first hour of the board when nothing is ticked at all', () => {
+    expect(openingHour(range, [])).toBe(range.startHour);
+  });
+
+  it('never opens past the last hour the board draws', () => {
+    expect(openingHour({ startHour: 8, endHour: 12 }, [span('23:00', '23:30')])).toBe(12);
+  });
+
+  it('never opens above the first hour the board draws', () => {
+    expect(openingHour({ startHour: 10, endHour: 18 }, [span('06:00', '07:00')])).toBe(10);
+  });
+});
+
+describe('resolveLayerRailMode', () => {
+  it('narrows a desk to a rail rather than taking the picker off the page', () => {
+    expect(resolveLayerRailMode(true, true)).toBe('expanded');
+    expect(resolveLayerRailMode(true, false)).toBe('rail');
+  });
+
+  it('gives a phone the card or nothing, having no width to spare for a rail', () => {
+    expect(resolveLayerRailMode(false, true)).toBe('sheet');
+    expect(resolveLayerRailMode(false, false)).toBe('hidden');
   });
 });

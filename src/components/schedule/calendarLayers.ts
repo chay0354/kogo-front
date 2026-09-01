@@ -17,6 +17,52 @@ export const LAYER_DIMENSION_LABELS: Record<LayerDimension, string> = {
 };
 
 /**
+ * How much room the layer picker is taking, in the shape the office menu beside
+ * it already uses.
+ *
+ * `expanded` is the full card, `rail` the same layers narrowed to their badges,
+ * `sheet` the card opened above the grid on a phone and `hidden` that card put
+ * away. A phone has no width to give a rail and a desktop never parks the
+ * picker off screen, so each width has one open state and one closed one — and
+ * the closed desktop state is still a column of the page, never a sheet lying
+ * over the hours.
+ *
+ * Kept out of the component, like the menu's own, so it can be checked without
+ * a DOM.
+ */
+export type LayerRailMode = 'expanded' | 'rail' | 'sheet' | 'hidden';
+
+export function resolveLayerRailMode(isDesktop: boolean, open: boolean): LayerRailMode {
+  if (open) return isDesktop ? 'expanded' : 'sheet';
+  return isDesktop ? 'rail' : 'hidden';
+}
+
+const LAYER_RAIL_STORAGE_KEY = 'kogo-calendar-layers-open';
+
+/**
+ * A locked-down browser throws on the property access itself rather than
+ * handing back null, and a calendar is not worth taking down over a remembered
+ * width, so both directions swallow the refusal — the office still gets a
+ * working picker, only the memory of the choice is lost.
+ */
+export function readLayerRailPreference(fallback: boolean): boolean {
+  try {
+    const stored = window.localStorage.getItem(LAYER_RAIL_STORAGE_KEY);
+    return stored === null ? fallback : stored === 'true';
+  } catch {
+    return fallback;
+  }
+}
+
+export function writeLayerRailPreference(open: boolean): void {
+  try {
+    window.localStorage.setItem(LAYER_RAIL_STORAGE_KEY, String(open));
+  } catch {
+    // Nothing to recover: the picker is already at the width that was asked for.
+  }
+}
+
+/**
  * Rentals and one-off events carry no course and no instructor, so under those
  * two dimensions they have nothing to be keyed by. Rather than dropping them
  * out of the week — the room is genuinely occupied, and that is exactly what
@@ -65,12 +111,46 @@ export function layerColor(colorIndex: number) {
  * A short badge for a layer, so someone who cannot tell two hues apart still
  * reads the chip. Hebrew has no case, so the first letter of each of the first
  * two words carries more than a truncation would.
+ *
+ * `take` is how much of the second word to keep, and exists only for the
+ * collision pass below.
  */
-export function layerInitials(label: string): string {
+export function layerInitials(label: string, take = 1): string {
   const words = label.trim().split(/\s+/).filter(Boolean);
   if (words.length === 0) return '—';
-  if (words.length === 1) return words[0].slice(0, 2);
-  return `${words[0][0]}${words[1][0]}`;
+  if (words.length === 1) return words[0].slice(0, take + 1);
+  return `${words[0][0]}${words[1].slice(0, take)}`;
+}
+
+/** How far a badge may grow before two layers are left to their hues. */
+const MAX_INITIALS_TAKE = 3;
+
+/**
+ * The badges for a whole catalogue, grown until no two of them read alike.
+ *
+ * Branches are named alike on purpose — "סניף רמת אביב" and "סניף ראשון לציון
+ * מערב" both reduce to "סר" — and a badge is the whole of what a short chip
+ * says and the whole of what the narrowed rail shows. Two layers sharing one
+ * puts the hue back in sole charge of telling them apart, which is the one
+ * thing this screen does not do.
+ *
+ * Only the badges that actually collide grow, so the ordinary catalogue keeps
+ * the two letters it reads best at.
+ */
+export function distinctInitials(labels: string[]): string[] {
+  const badges = labels.map((label) => layerInitials(label));
+
+  for (let take = 2; take <= MAX_INITIALS_TAKE; take += 1) {
+    const counts = new Map<string, number>();
+    for (const badge of badges) counts.set(badge, (counts.get(badge) || 0) + 1);
+    if (!Array.from(counts.values()).some((count) => count > 1)) break;
+
+    badges.forEach((badge, index) => {
+      if ((counts.get(badge) || 0) > 1) badges[index] = layerInitials(labels[index], take);
+    });
+  }
+
+  return badges;
 }
 
 /** The key a lesson falls under for a given dimension. */
@@ -133,16 +213,19 @@ export function buildLayers(
     }
   }
 
-  const layers = Array.from(byKey.entries())
+  const sorted = Array.from(byKey.entries())
     .map(([key, value]) => ({ key, ...value }))
-    .sort((a, b) => a.label.localeCompare(b.label, 'he'))
-    .map((entry, index) => ({
-      key: entry.key,
-      label: entry.label,
-      initials: layerInitials(entry.label),
-      colorIndex: index,
-      count: entry.count,
-    }));
+    .sort((a, b) => a.label.localeCompare(b.label, 'he'));
+
+  const badges = distinctInitials(sorted.map((entry) => entry.label));
+
+  const layers = sorted.map((entry, index) => ({
+    key: entry.key,
+    label: entry.label,
+    initials: badges[index],
+    colorIndex: index,
+    count: entry.count,
+  }));
 
   if (dimension === 'branch' ? looseEvents > 0 : events.length > 0) {
     layers.push({
@@ -377,4 +460,63 @@ export function layoutOverlaps<T>(
 export function timeToMinutes(time: string): number {
   const [h = 0, m = 0] = time.split(':').map((n) => parseInt(n, 10) || 0);
   return h * 60 + m;
+}
+
+export type TimeSpan = { startMin: number; endMin: number };
+
+export type HourRange = { startHour: number; endHour: number };
+
+/** The hours a week with nothing in it is drawn at, so the grid is never 0 tall. */
+export const DEFAULT_HOUR_RANGE: HourRange = { startHour: 8, endHour: 20 };
+
+/**
+ * The hours the board draws.
+ *
+ * Taken from everything the week loaded rather than from what the rail happens
+ * to have ticked. Sizing the board to the ticked layers instead looks tidier
+ * for a moment and then costs twice: the morning stops existing, so it cannot
+ * be scrolled back up to, and every remaining lesson slides to a new height the
+ * instant a layer goes off — the week appears to rearrange itself when all that
+ * changed was which of it is shown.
+ *
+ * Which hour the view *opens* at is the ticked layers' question, and that is
+ * `openingHour` below.
+ */
+export function hourRange(spans: ReadonlyArray<TimeSpan>): HourRange {
+  let earliest = Infinity;
+  let latest = -Infinity;
+  for (const span of spans) {
+    earliest = Math.min(earliest, span.startMin);
+    latest = Math.max(latest, span.endMin);
+  }
+  if (!Number.isFinite(earliest)) return DEFAULT_HOUR_RANGE;
+
+  const startHour = Math.max(0, Math.floor(earliest / 60));
+  return {
+    startHour,
+    endHour: Math.min(24, Math.max(startHour + 1, Math.ceil(latest / 60))),
+  };
+}
+
+/**
+ * The hour the view opens at: the first one that actually holds something under
+ * the layers currently ticked.
+ *
+ * A week whose only morning belongs to a branch nobody has ticked opens on the
+ * afternoon that is left, and opens on the morning again the moment that branch
+ * comes back — so this is answered from what is on the board, while the board
+ * keeps the hours `hourRange` gave it and the earlier ones stay a scroll away.
+ *
+ * Nothing ticked at all leaves the range's own first hour: with no content to
+ * point at there is no better answer, and the office is looking at an empty
+ * board either way.
+ */
+export function openingHour(range: HourRange, spans: ReadonlyArray<TimeSpan>): number {
+  let earliest = Infinity;
+  for (const span of spans) earliest = Math.min(earliest, span.startMin);
+  if (!Number.isFinite(earliest)) return range.startHour;
+
+  // Clamped into the drawn range rather than trusted: a span from outside it
+  // would otherwise scroll the board to an hour it has no row for.
+  return Math.min(Math.max(range.startHour, Math.floor(earliest / 60)), range.endHour);
 }

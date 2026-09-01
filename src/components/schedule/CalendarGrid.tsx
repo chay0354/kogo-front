@@ -1,19 +1,23 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Lesson, ScheduleEvent } from '@/types/schedule';
 import { formatDateISO, formatTime } from '@/lib/scheduleUtils';
+import { prefersReducedMotion } from '@/components/ui/motion';
 import {
   buildStudioColumns,
   eventLayerKey,
   eventStudioKey,
+  hourRange,
   layerColor,
   layoutOverlaps,
   lessonLayerKey,
   lessonStudioKey,
+  openingHour,
   timeToMinutes,
   type CalendarLayer,
   type LayerDimension,
+  type TimeSpan,
 } from './calendarLayers';
 import styles from './theme/calendar.module.css';
 
@@ -25,6 +29,11 @@ type Props = {
   days: Date[];
   lessons: Lesson[];
   events: ScheduleEvent[];
+  /** Everything the week loaded, ticked or not. The board is sized from this
+      rather than from what is drawn, so switching a layer off never takes an
+      hour off the grid — see `hourRange`. */
+  weekLessons: Lesson[];
+  weekEvents: ScheduleEvent[];
   dimension: LayerDimension;
   layers: CalendarLayer[];
   onSelectLesson: (lesson: Lesson) => void;
@@ -37,12 +46,22 @@ type Props = {
 /** A lesson runs at least this long on the grid, so a 20-minute slot stays clickable. */
 const MIN_MINUTES = 30;
 
-function itemBounds(item: CalendarItem) {
-  const start = item.kind === 'lesson' ? item.lesson.start_time : item.event.start_time;
-  const end = item.kind === 'lesson' ? item.lesson.end_time : item.event.end_time;
+/** A sliver of the hour above the opening one, so its label is not flush with the header. */
+const OPEN_LEAD_PX = 12;
+
+/** However little is left above it, the board stays tall enough to read a day in. */
+const MIN_BOARD_PX = 280;
+
+function timeSpan(start?: string | null, end?: string | null): TimeSpan {
   const startMin = timeToMinutes(start || '00:00');
   const endMin = Math.max(timeToMinutes(end || start || '00:00'), startMin + MIN_MINUTES);
   return { startMin, endMin };
+}
+
+function itemBounds(item: CalendarItem): TimeSpan {
+  return item.kind === 'lesson'
+    ? timeSpan(item.lesson.start_time, item.lesson.end_time)
+    : timeSpan(item.event.start_time, item.event.end_time);
 }
 
 /**
@@ -57,6 +76,8 @@ export default function CalendarGrid({
   days,
   lessons,
   events,
+  weekLessons,
+  weekEvents,
   dimension,
   layers,
   onSelectLesson,
@@ -133,22 +154,38 @@ export default function CalendarGrid({
     });
   }, [byDay, studioColumns, isSplit]);
 
-  const { startHour, endHour } = useMemo(() => {
-    let earliest = Infinity;
-    let latest = -Infinity;
-    byDay.forEach((items) =>
-      items.forEach((item) => {
-        const { startMin, endMin } = itemBounds(item);
-        earliest = Math.min(earliest, startMin);
-        latest = Math.max(latest, endMin);
-      }),
-    );
-    if (!Number.isFinite(earliest)) return { startHour: 8, endHour: 20 };
-    return {
-      startHour: Math.max(0, Math.floor(earliest / 60)),
-      endHour: Math.min(24, Math.max(Math.floor(earliest / 60) + 1, Math.ceil(latest / 60))),
-    };
-  }, [byDay]);
+  // Only what is on one of the columns counts towards the hours: a lesson on a
+  // day the board is not drawing would otherwise stretch it to an hour nothing
+  // visible ever reaches.
+  const spansOn = useCallback(
+    (dayLessons: Lesson[], dayEvents: ScheduleEvent[]) => {
+      const onBoard = new Set(days.map((day) => formatDateISO(day)));
+      const spans: TimeSpan[] = [];
+      for (const lesson of dayLessons) {
+        if (lesson.lesson_date && onBoard.has(lesson.lesson_date)) {
+          spans.push(timeSpan(lesson.start_time, lesson.end_time));
+        }
+      }
+      for (const event of dayEvents) {
+        if (!event.is_daily_event && onBoard.has(event.event_date)) {
+          spans.push(timeSpan(event.start_time, event.end_time));
+        }
+      }
+      return spans;
+    },
+    [days],
+  );
+
+  const range = useMemo(
+    () => hourRange(spansOn(weekLessons, weekEvents)),
+    [spansOn, weekLessons, weekEvents],
+  );
+  const { startHour, endHour } = range;
+
+  const openHour = useMemo(
+    () => openingHour(range, byDay.flatMap((items) => items.map(itemBounds))),
+    [range, byDay],
+  );
 
   const hours = useMemo(
     () => Array.from({ length: endHour - startHour + 1 }, (_, i) => startHour + i),
@@ -169,22 +206,66 @@ export default function CalendarGrid({
   }, []);
 
   const scrollerRef = useRef<HTMLDivElement>(null);
-  const didScroll = useRef(false);
+  const placed = useRef(false);
   useEffect(() => {
-    // Open on the working day, not on midnight — but only once, so a filter
-    // change does not yank the office back off whatever it was reading.
+    // Open where the day begins for the layers that are ticked, and move again
+    // when that answer changes. The hours above stay on the board and stay a
+    // scroll away; the office is only spared having to make that scroll every
+    // time it looks at a week whose mornings belong to someone else.
     const el = scrollerRef.current;
-    if (!el || didScroll.current || byDay.every((items) => items.length === 0)) return;
-    didScroll.current = true;
-    const target = Math.max(0, (Math.max(startHour, 8) - startHour) * hourPx - 12);
-    el.scrollTop = target;
-  }, [byDay, startHour, hourPx]);
+    if (!el) return;
+    const top = Math.max(0, (openHour - startHour) * hourPx - OPEN_LEAD_PX);
+    // Where the board simply starts is not a journey worth animating; a later
+    // move is, because watching it travel is what says the opening hour changed
+    // rather than the lessons. Counted before the board is asked to move, so a
+    // first hour that happens to already be in place still counts as arrived.
+    const travel = placed.current && !prefersReducedMotion();
+    placed.current = true;
+    if (el.scrollTop === top) return;
+    el.scrollTo({ top, behavior: travel ? 'smooth' : 'auto' });
+  }, [openHour, startHour, hourPx]);
+
+  const boardRef = useRef<HTMLDivElement>(null);
+
+  // The board takes the screen that is actually left under it instead of a
+  // fixed subtraction. What sits above it is not one height — the toolbar
+  // wraps, the phone adds a day strip and a layer card, an error banner comes
+  // and goes — so a constant is right for one layout and leaves a band of dead
+  // screen under the grid on every other. Read in document coordinates, so
+  // scrolling the page cannot feed back into the answer.
+  const measure = useCallback(() => {
+    const board = boardRef.current;
+    if (!board) return;
+
+    const top = board.getBoundingClientRect().top + window.scrollY;
+    let below = 0;
+    for (let node = board.parentElement; node; node = node.parentElement) {
+      const style = getComputedStyle(node);
+      below += (parseFloat(style.paddingBottom) || 0) + (parseFloat(style.borderBottomWidth) || 0);
+      if (node.tagName === 'MAIN' || node === document.body) break;
+    }
+
+    const height = Math.max(MIN_BOARD_PX, window.innerHeight - top - below);
+    board.style.setProperty('--kg-board-h', `${Math.round(height)}px`);
+  }, []);
+
+  // After every render, because everything that moves the board down the page
+  // arrives as one. Watching a box instead is not enough: the shell holds a
+  // screen's height whatever is in it, so opening the layer card above the grid
+  // pushes the board without resizing anything an observer is watching.
+  useEffect(measure);
+
+  useEffect(() => {
+    // A change of window is the one that arrives without a render of its own.
+    window.addEventListener('resize', measure);
+    return () => window.removeEventListener('resize', measure);
+  }, [measure]);
 
   const gridHeight = (endHour - startHour) * hourPx;
   const today = new Date().toDateString();
 
   return (
-    <div className={styles.board}>
+    <div className={styles.board} ref={boardRef}>
       <div className={styles.scroller} ref={scrollerRef}>
         <div
           className={styles.canvas}
@@ -205,13 +286,21 @@ export default function CalendarGrid({
               <div
                 key={index}
                 className={`${styles.headCell} ${isToday ? styles.headToday : ''}`}
+                // The header is the one part of a column that never scrolls
+                // away, so it is where today has to be said. The word carries
+                // it, the pill and the rule under the cell only make it quick
+                // to find: none of the three is a hue doing the work alone.
+                aria-current={isToday ? 'date' : undefined}
               >
                 <div className={styles.headDay}>
                   {day.toLocaleDateString('he-IL', { weekday: 'long' })}
                 </div>
                 {isToday ? (
                   <div className={styles.todayPip}>
-                    {day.toLocaleDateString('he-IL', { day: 'numeric', month: 'numeric' })}
+                    <span>היום</span>
+                    <span className={styles.time}>
+                      {day.toLocaleDateString('he-IL', { day: 'numeric', month: 'numeric' })}
+                    </span>
                   </div>
                 ) : (
                   <div className={styles.headDate}>
