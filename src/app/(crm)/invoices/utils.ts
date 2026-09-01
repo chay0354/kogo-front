@@ -1,6 +1,5 @@
-import type { Payment } from '@/types/payment';
 import type { StoreInvoice } from '@/types/store';
-import type { AgingBucket, ChargeKind, DocType, DocumentRow, PaymentRecord } from './types';
+import type { AgingBucket, ChargeKind, DocType, DocumentRow, PaymentLedgerItem, PaymentRecord } from './types';
 import styles from './invoices.module.css';
 
 const HEBREW_MONTHS = [
@@ -168,6 +167,19 @@ export function getCurrentMonthTotal(payments: PaymentRecord[]): number {
     .reduce((sum, p) => sum + (p.amount ?? 0), 0);
 }
 
+export function localISODate(d = new Date()): string {
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+export function daysAgoLocalISO(days: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() - days);
+  return localISODate(d);
+}
+
 export function formatHebrewMonth(iso: string): string {
   const datePart = (iso || '').slice(0, 10);
   const [year, month] = datePart.split('-').map(Number);
@@ -179,14 +191,14 @@ export function getChargeKindLabel(kind: ChargeKind): string {
   return CHARGE_KIND_LABELS[kind];
 }
 
-export function getPaymentChargeKind(payment: Payment): ChargeKind {
+export function getPaymentChargeKind(payment: PaymentLedgerItem): ChargeKind {
   if (payment.trial_lesson_date) return 'trial';
   if (Number(payment.registration_fee || 0) > 0) return 'registration';
   if (payment.payment_type === 'recurring_subscription') return 'standing_order';
   return 'one_time';
 }
 
-export function getPaymentChargeDescription(payment: Payment): string {
+export function getPaymentChargeDescription(payment: PaymentLedgerItem): string {
   const course = payment.lesson_name || '';
   const child = payment.child_name || '';
   const fee = Number(payment.registration_fee || 0);
@@ -209,9 +221,8 @@ export function getPaymentChargeDescription(payment: Payment): string {
   return ['תשלום חד-פעמי', course, child].filter(Boolean).join(' · ');
 }
 
-export function paymentToLedgerRow(payment: Payment): PaymentRecord {
+export function paymentToLedgerRow(payment: PaymentLedgerItem): PaymentRecord {
   const amount = Number(payment.final_amount || 0);
-  const txn = payment.tranzila_transaction;
   const kind = getPaymentChargeKind(payment);
   return {
     id: payment.id,
@@ -224,13 +235,13 @@ export function paymentToLedgerRow(payment: Payment): PaymentRecord {
     invoice_number: '',
     amount,
     payment_method: 'אשראי',
-    transaction_reference: txn?.transaction_id || '',
+    transaction_reference: payment.tranzila_transaction_id || '',
     status: payment.status,
     branch_id: payment.branch,
     branch_name: payment.branch_name,
     canRefund: payment.status === 'completed'
       && amount > 0
-      && Boolean(txn?.transaction_id && txn?.confirmation_code),
+      && Boolean(payment.tranzila_transaction_id && payment.tranzila_confirmation_code),
   };
 }
 
