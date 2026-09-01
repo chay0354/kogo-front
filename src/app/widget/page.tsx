@@ -14,6 +14,7 @@ import { isCourseVisibleInWidgetCatalog } from './lessonVisibility';
 import { AGE_OPTIONS, formatAge, isInstructorsCourse, INSTRUCTORS_TRACK_TITLE } from '@/lib/courseUtils';
 import { findWidgetAlternatives, isWidgetSelectionFull, type WidgetAlternative } from './alternativeLessons';
 import { sortWidgetCourseTypes } from './courseTypeOrder';
+import { WIDGET_MOTION_MS, prefersReducedMotion } from './widgetMotion';
 import { preloadInstructorPhotos } from './instructorPhotoPreload';
 import { SkeletonCourseList, SkeletonFilterOptions } from './WidgetSkeletons/WidgetSkeletons';
 import styles from './page.module.css';
@@ -26,14 +27,8 @@ const PANEL_GAP = 8;
 /** Less than this left to travel and the reader has arrived — the same slack the
     shortcut inside the terms document allows itself. */
 
-/** Exit durations — keep in step with the closing animations in page.module.css. */
-const DETAIL_EXIT_MS = 280;
-const DRAWER_EXIT_MS = 200;
-
-function prefersReducedMotion() {
-  return typeof window !== 'undefined'
-    && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true;
-}
+const DETAIL_EXIT_MS = WIDGET_MOTION_MS.detailExit;
+const DRAWER_EXIT_MS = WIDGET_MOTION_MS.drawerExit;
 
 function panelHeightForOptions(optionCount: number) {
   return Math.min(MAX_PANEL_HEIGHT, Math.max(optionCount, 1) * OPTION_HEIGHT + 8);
@@ -144,10 +139,21 @@ function writeScrollY(y: number) {
 /**
  * Freeze the currently visible iframe slice in place. Apply once — re-applying
  * when the host later reports a fullscreen band is what made the list jump.
+ *
+ * Only a host that reports a band goes on to stretch this frame across the whole
+ * screen, and only that resize slides the visible slice out from under the
+ * reader. Standing alone, or inside a frame whose host says nothing, the viewport
+ * is the same before and after an overlay opens: there is nothing to answer, and
+ * moving the page would itself be the jump the reader sees.
+ *
+ * The offset is the band's own top. The frame keeps its scroll position across
+ * the host's resize, so that scroll is already where the reader left it.
  */
 function pinVisibleSlice(page: HTMLElement | null) {
+  const band = hostBand;
+  if (!band) return () => { /* nothing was moved, so nothing has to be put back */ };
   const iframeScroll = readScrollY();
-  const shift = Math.max(0, iframeScroll + visibleBand().top);
+  const shift = Math.max(0, band.top);
   bandFrozen = true;
   if (page && shift) page.style.transform = `translateY(-${shift}px)`;
   return () => {
@@ -415,6 +421,9 @@ export default function WidgetPage() {
    * animation to wait for, so it unmounts straight away.
    */
   const closeDetail = () => {
+    // A second close before the first has played out would otherwise leave a
+    // timer that fires over whatever the reader has opened since.
+    if (detailExitRef.current) window.clearTimeout(detailExitRef.current);
     if (prefersReducedMotion()) {
       clearDetail();
       return;
@@ -427,6 +436,7 @@ export default function WidgetPage() {
   };
 
   const dismissDrawer = (origin: DrawerOrigin | null) => {
+    if (drawerExitRef.current) window.clearTimeout(drawerExitRef.current);
     const finish = () => {
       setDrawerCourse(null);
       setDrawerBundle(null);
@@ -435,6 +445,10 @@ export default function WidgetPage() {
       setDrawerIsTrial(false);
       setDrawerOrigin(null);
       if (!origin) return;
+      // The card that opened this drawer may still be seeing itself out. Stop
+      // that timer before reopening it, or it lands on the restored card.
+      if (detailExitRef.current) window.clearTimeout(detailExitRef.current);
+      setDetailClosing(false);
       setDetailCourse(origin.course);
       setDetailBundle(origin.bundle);
       setDetailLesson(origin.lesson);
@@ -671,7 +685,10 @@ export default function WidgetPage() {
         }
         : null,
     );
-    clearDetail();
+    // Every value the drawer needs is already read above, so the card can take
+    // its leave the same way it does everywhere else rather than blinking out
+    // from under the thumb that pressed it.
+    closeDetail();
   };
 
   const handleTrialEnrollClick = () => handleEnrollClick(true);

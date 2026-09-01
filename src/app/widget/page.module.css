@@ -78,6 +78,15 @@
   }
 }
 
+/*
+ * Two curves carry the whole flow, so every step reads as the same hand.
+ * Entrances use cubic-bezier(0.32, 0.72, 0, 1): most of the distance is covered
+ * early and the last stretch is spent settling, which is what makes an overlay
+ * arrive rather than snap into place. Exits use cubic-bezier(0.4, 0, 0.9, 0.6),
+ * which leaves promptly — a parent enrolling three children passes back through
+ * here many times, and an exit as long as its entrance reads as being held up.
+ */
+
 /* Each exit below is the mirror of the entrance above it, so the two read as a pair. */
 
 @keyframes widgetOverlayOut {
@@ -421,7 +430,7 @@
 
 @media (prefers-reduced-motion: no-preference) {
   .detailOverlay {
-    animation: widgetOverlayIn 280ms ease-out both;
+    animation: widgetOverlayIn 320ms cubic-bezier(0.32, 0.72, 0, 1) both;
   }
 }
 
@@ -445,7 +454,7 @@
 
 @media (prefers-reduced-motion: no-preference) {
   .detailPanel {
-    animation: widgetModalIn 420ms cubic-bezier(0.32, 0.72, 0, 1) both;
+    animation: widgetModalIn 440ms cubic-bezier(0.32, 0.72, 0, 1) both;
   }
 }
 
@@ -488,11 +497,11 @@
 
 @media (prefers-reduced-motion: no-preference) {
   .detailOverlay.detailOverlayClosing {
-    animation: widgetOverlayOut 280ms ease-in both;
+    animation: widgetOverlayOut 260ms cubic-bezier(0.4, 0, 0.9, 0.6) both;
   }
 
   .detailPanel.detailPanelClosing {
-    animation: widgetModalOut 280ms cubic-bezier(0.32, 0.72, 0, 1) both;
+    animation: widgetModalOut 260ms cubic-bezier(0.4, 0, 0.9, 0.6) both;
   }
 }
 
@@ -502,7 +511,7 @@
   }
 
   .detailPanel.detailPanelClosing {
-    animation: widgetSheetOut 280ms cubic-bezier(0.32, 0.72, 0, 1) both;
+    animation: widgetSheetOut 260ms cubic-bezier(0.4, 0, 0.9, 0.6) both;
   }
 }
 
@@ -542,19 +551,19 @@
 
 @media (prefers-reduced-motion: no-preference) {
   .drawerOverlay {
-    animation: widgetFadeIn 200ms ease-out;
+    animation: widgetFadeIn 340ms cubic-bezier(0.32, 0.72, 0, 1) both;
   }
 
   .drawerPanel {
-    animation: widgetSlideInFromRight 200ms ease-out;
+    animation: widgetSlideInFromRight 340ms cubic-bezier(0.32, 0.72, 0, 1) both;
   }
 
   .drawerOverlay.drawerOverlayClosing {
-    animation: widgetOverlayOut 200ms ease-in both;
+    animation: widgetOverlayOut 240ms cubic-bezier(0.4, 0, 0.9, 0.6) both;
   }
 
   .drawerPanel.drawerPanelClosing {
-    animation: widgetSlideOutToRight 200ms ease-in both;
+    animation: widgetSlideOutToRight 240ms cubic-bezier(0.4, 0, 0.9, 0.6) both;
   }
 }
 

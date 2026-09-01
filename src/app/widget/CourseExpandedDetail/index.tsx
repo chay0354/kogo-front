@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
   getDayName,
@@ -16,6 +16,7 @@ import type { WidgetAlternative } from '../alternativeLessons';
 import { MapPin, Users, CalendarDays, Coins, BadgePercent, X } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { GroupIdBadge } from '@/components/GroupIdBadge/GroupIdBadge';
+import { WIDGET_MOTION_MS, prefersReducedMotion } from '../widgetMotion';
 import styles from './CourseExpandedDetail.module.css';
 
 const WIDGET_SUPPORT_PHONE = '0509424755';
@@ -224,6 +225,8 @@ export default function CourseExpandedDetail({
   hideSeptemberStandingOrderNote = false,
 }: CourseExpandedDetailProps) {
   const [pendingAction, setPendingAction] = useState<'enroll' | 'trial' | null>(null);
+  const [noticeClosing, setNoticeClosing] = useState(false);
+  const noticeExitRef = useRef<number | null>(null);
   const [photoLoaded, setPhotoLoaded] = useState(false);
   const instructorName = resolveInstructorName(course, lesson, bundleOffer);
   const instructorPhoto = resolveInstructorPhoto(course, lesson, bundleOffer);
@@ -255,12 +258,34 @@ export default function CourseExpandedDetail({
   // The paid-trial rows belong to the trial button only; both notices share one dialog.
   const noticeRows = pendingAction === 'trial' ? trialNoticeRows : [];
 
-  const closeNotice = () => setPendingAction(null);
+  /**
+   * The dialog leaves the DOM only once its exit has played — dropping the state
+   * on the click makes it blink out, and on the confirm path it would also take
+   * the step it hands over to with it. Reduced motion has no animation to wait
+   * for, so it unmounts straight away.
+   */
+  const dismissNotice = (handOver?: () => void) => {
+    if (noticeExitRef.current) window.clearTimeout(noticeExitRef.current);
+    const finish = () => {
+      setNoticeClosing(false);
+      setPendingAction(null);
+      handOver?.();
+    };
+    if (prefersReducedMotion()) {
+      finish();
+      return;
+    }
+    setNoticeClosing(true);
+    noticeExitRef.current = window.setTimeout(finish, WIDGET_MOTION_MS.noticeExit);
+  };
+
+  const closeNotice = () => dismissNotice();
   const confirmNotice = () => {
     const action = pendingAction;
-    setPendingAction(null);
-    if (action === 'trial') onTrialEnroll();
-    else if (action === 'enroll') onEnroll();
+    dismissNotice(() => {
+      if (action === 'trial') onTrialEnroll();
+      else if (action === 'enroll') onEnroll();
+    });
   };
   const requestEnroll = () => {
     if (showAuditionNotice) setPendingAction('enroll');
@@ -279,6 +304,10 @@ export default function CourseExpandedDetail({
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [pendingAction]);
+
+  useEffect(() => () => {
+    if (noticeExitRef.current) window.clearTimeout(noticeExitRef.current);
+  }, []);
 
   return (
     <div className={styles.card} dir="rtl">
@@ -434,10 +463,16 @@ export default function CourseExpandedDetail({
 
       {pendingAction && typeof document !== 'undefined'
         ? createPortal(
-            <div className={styles.noticeRoot} dir="rtl">
-              <div className={styles.noticeBackdrop} onClick={closeNotice} />
+            <div
+              className={`${styles.noticeRoot}${noticeClosing ? ` ${styles.noticeRootClosing}` : ''}`}
+              dir="rtl"
+            >
               <div
-                className={styles.noticeCard}
+                className={`${styles.noticeBackdrop}${noticeClosing ? ` ${styles.noticeBackdropClosing}` : ''}`}
+                onClick={closeNotice}
+              />
+              <div
+                className={`${styles.noticeCard}${noticeClosing ? ` ${styles.noticeCardClosing}` : ''}`}
                 role="dialog"
                 aria-modal="true"
                 aria-labelledby="widget-notice-title"
