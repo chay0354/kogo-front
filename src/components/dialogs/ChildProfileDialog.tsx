@@ -31,6 +31,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { GroupIdBadge } from '@/components/GroupIdBadge/GroupIdBadge';
 import api from '@/lib/api';
 import RefundDialog from '@/components/dialogs/RefundDialog';
+import { upcomingCharges } from '@/components/dialogs/upcomingCharges';
 
 interface ChildProfileDialogProps {
   child: ChildWithDetails;
@@ -364,6 +365,11 @@ export default function ChildProfileDialog({
   const monthlyTotal = standingOrders
     .filter((item) => item.status === 'active')
     .reduce((sum, item) => sum + Number(item.amount || 0), 0);
+
+  const futureCharges = useMemo(
+    () => upcomingCharges(standingOrders),
+    [standingOrders],
+  );
 
   return (
     <>
@@ -837,6 +843,42 @@ export default function ChildProfileDialog({
                                         </div>
                                       )}
                                     </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        )}
+                      </div>
+
+                      <div>
+                        <h3 className="font-semibold text-lg mb-1">תשלומים עתידיים</h3>
+                        <p className="text-sm text-muted-foreground mb-3">10 החיובים הבאים לפי הוראות הקבע</p>
+                        {futureCharges.length === 0 ? (
+                          <div className="border rounded-lg px-4 py-8 text-center text-muted-foreground">
+                            אין חיובים עתידיים
+                          </div>
+                        ) : (
+                          <div className="border rounded-lg overflow-hidden">
+                            <table className="w-full">
+                              <thead className="bg-muted/50">
+                                <tr>
+                                  <th className="p-3 text-right font-medium">תאריך</th>
+                                  <th className="p-3 text-right font-medium">תיאור</th>
+                                  <th className="p-3 text-right font-medium">סכום</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {futureCharges.map((charge) => (
+                                  <tr key={charge.key} className="border-t">
+                                    <td className="p-3 text-sm text-muted-foreground whitespace-nowrap">
+                                      {charge.date.toLocaleDateString('he-IL')}
+                                    </td>
+                                    <td className="p-3">
+                                      {charge.description}
+                                      <GroupIdBadge displayId={charge.courseDisplayId} />
+                                    </td>
+                                    <td className="p-3 font-medium whitespace-nowrap">{formatShekel(charge.amount)}</td>
                                   </tr>
                                 ))}
                               </tbody>
