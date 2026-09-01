@@ -566,19 +566,38 @@
   z-index: 499;
 }
 
-.dropdownPanel {
+/* Holds the list and the cue together: the list scrolls inside, the cue is
+   pinned to an edge that does not move with it. */
+.dropdownShell {
   position: absolute;
   top: calc(100% + 6px);
   left: 0;
   width: 100%;
   z-index: 500;
-  list-style: none;
-  margin: 0;
-  padding: 0;
   background-color: #ffffff;
   border: 1px solid #DDE0F5;
   border-radius: 15px;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.18);
+  overflow: hidden;
+}
+
+/* Small enough to sit between two options without covering either. */
+.dropdownCue {
+  position: absolute;
+  inset-inline: 0;
+  bottom: 2px;
+  display: flex;
+  justify-content: center;
+  color: #2B3090;
+  pointer-events: none;
+  filter: drop-shadow(0 -2px 4px #ffffff) drop-shadow(0 0 6px #ffffff);
+}
+
+.dropdownPanel {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border-radius: inherit;
   max-height: var(--dp-max-height, 240px);
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
@@ -686,45 +705,8 @@
   }
 }
 
-/* Built like the shortcut inside the terms document so the widget has one way of
-   saying "there is more below"; it only ever says it, so nothing can be pressed
-   here and it never swallows a tap meant for the card underneath. */
-.scrollCue {
-  position: fixed;
-  inset-inline: 0;
-  margin-inline: auto;
-  width: 40px;
-  height: 40px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: 1.5px solid #2B3090;
-  border-radius: 999px;
-  background: #fff;
-  color: #2B3090;
-  box-shadow: 0 4px 12px rgba(43, 48, 144, 0.22);
-  pointer-events: none;
-  z-index: 480;
-}
-
-/* The cue lands on whatever line happens to sit at the fold, so the page is
-   faded out beneath it the same way the terms document fades its own last
-   lines — an opaque disc dropped mid-word leaves the heading under it
-   unreadable. The page's own background is what it fades to. */
-.scrollCueFade {
-  position: fixed;
-  inset-inline: 0;
-  height: 72px;
-  background: linear-gradient(to top, hsl(var(--background)) 30%, hsl(var(--background) / 0));
-  pointer-events: none;
-  z-index: 479;
-}
-
 @media (prefers-reduced-motion: no-preference) {
-  .scrollCue {
-    animation: widgetScrollCueBob 1.8s ease-in-out infinite;
   }
-}
 
 .externalBranchMessage {
   display: flex;

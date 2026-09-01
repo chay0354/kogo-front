@@ -23,13 +23,8 @@ const MAX_PANEL_HEIGHT = 240;
 const MIN_PANEL_HEIGHT = 132;
 const PANEL_GAP = 8;
 
-const SCROLL_CUE_SIZE = 40;
-const SCROLL_CUE_INSET = 12;
-/** Height of the wash under the cue — keep in step with .scrollCueFade. */
-const SCROLL_CUE_FADE = 72;
 /** Less than this left to travel and the reader has arrived — the same slack the
     shortcut inside the terms document allows itself. */
-const SCROLL_CUE_SLACK = 24;
 
 /** Exit durations — keep in step with the closing animations in page.module.css. */
 const DETAIL_EXIT_MS = 280;
@@ -168,59 +163,6 @@ function WidgetPortal({ children }: { children: React.ReactNode }) {
   return ReactDOM.createPortal(children, document.body);
 }
 
-/**
- * A sign that the page carries on below the fold, and nothing more: embedded,
- * the host owns the scrolling, so there is no scroll of ours to offer on a press.
- * The fold is the bottom of the slice actually on screen — the band the host
- * reports when embedded — which is also where the arrow is placed.
- */
-function ScrollCue() {
-  const [cueTop, setCueTop] = useState<number | null>(null);
-
-  const measure = useCallback(() => {
-    const band = visibleBand();
-    const seenBottom = readScrollY() + band.bottom;
-    const moreBelow = document.documentElement.scrollHeight - seenBottom > SCROLL_CUE_SLACK;
-    setCueTop(moreBelow ? band.bottom - SCROLL_CUE_SIZE - SCROLL_CUE_INSET : null);
-  }, []);
-
-  useEffect(() => {
-    ensureHostBandBridge();
-    measure();
-    bandSubscribers.add(measure);
-    window.addEventListener('scroll', measure, { passive: true });
-    window.addEventListener('resize', measure);
-    window.visualViewport?.addEventListener('resize', measure);
-    window.visualViewport?.addEventListener('scroll', measure);
-    // Branches, courses and open accordions all change how far down the page runs.
-    const observer = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(measure) : null;
-    observer?.observe(document.body);
-    return () => {
-      bandSubscribers.delete(measure);
-      window.removeEventListener('scroll', measure);
-      window.removeEventListener('resize', measure);
-      window.visualViewport?.removeEventListener('resize', measure);
-      window.visualViewport?.removeEventListener('scroll', measure);
-      observer?.disconnect();
-    };
-  }, [measure]);
-
-  if (cueTop == null) return null;
-
-  return (
-    <WidgetPortal>
-      <span
-        className={styles.scrollCueFade}
-        style={{ top: `${cueTop + SCROLL_CUE_SIZE + SCROLL_CUE_INSET - SCROLL_CUE_FADE}px` }}
-        aria-hidden="true"
-      />
-      <span className={styles.scrollCue} style={{ top: `${cueTop}px` }} aria-hidden="true">
-        <ChevronDown size={18} />
-      </span>
-    </WidgetPortal>
-  );
-}
-
 const WIDGET_SUPPORT_PHONE = '0509424755';
 
 /** The expanded card a registration was started from — the drawer steps back to it. */
@@ -265,6 +207,20 @@ const FilterSelect = React.memo(function FilterSelect({
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const [maxHeight, setMaxHeight] = useState(MAX_PANEL_HEIGHT);
+  const listRef = useRef<HTMLUListElement | null>(null);
+  const [moreToScroll, setMoreToScroll] = useState(false);
+
+  const measureList = useCallback(() => {
+    const el = listRef.current;
+    setMoreToScroll(!!el && el.scrollHeight - el.scrollTop - el.clientHeight > 4);
+  }, []);
+
+  // The list only exists once it opens, and its height is settled a tick later
+  // by the panel sizing above, so measure after that rather than on mount.
+  useLayoutEffect(() => {
+    if (!isOpen) return setMoreToScroll(false);
+    measureList();
+  }, [isOpen, options, maxHeight, measureList]);
   const wrapperRef = useRef<HTMLDivElement>(null);
   const openedAtRef = useRef(0);
   const desiredHeight = panelHeightForOptions(options.length);
@@ -353,21 +309,31 @@ const FilterSelect = React.memo(function FilterSelect({
   );
 
   const panel = isOpen ? (
-    <ul
-      role="listbox"
-      aria-label={placeholder}
-      className={styles.dropdownPanel}
-      style={{ '--dp-max-height': `${maxHeight}px` } as React.CSSProperties}
-      onClick={(e) => e.stopPropagation()}
-    >
-      {options.length === 0 ? (
-        <li className={styles.dropdownEmpty}>אין אפשרויות</li>
-      ) : options.map((opt) => (
-        <li key={opt.value} role="option" aria-selected={opt.value === value} className={`${styles.dropdownOption} ${opt.value === value ? styles.dropdownOptionSelected : ''}`} onClick={() => handleSelect(opt.value)}>
-          {opt.label}
-        </li>
-      ))}
-    </ul>
+    <div className={styles.dropdownShell} onClick={(e) => e.stopPropagation()}>
+      <ul
+        ref={listRef}
+        role="listbox"
+        aria-label={placeholder}
+        className={styles.dropdownPanel}
+        style={{ '--dp-max-height': `${maxHeight}px` } as React.CSSProperties}
+        onScroll={measureList}
+      >
+        {options.length === 0 ? (
+          <li className={styles.dropdownEmpty}>אין אפשרויות</li>
+        ) : options.map((opt) => (
+          <li key={opt.value} role="option" aria-selected={opt.value === value} className={`${styles.dropdownOption} ${opt.value === value ? styles.dropdownOptionSelected : ''}`} onClick={() => handleSelect(opt.value)}>
+            {opt.label}
+          </li>
+        ))}
+      </ul>
+      {/* Only while the list runs past its own bottom edge, and gone once it has
+          been read to the end — a cue that never leaves is not a cue. */}
+      {moreToScroll ? (
+        <span className={styles.dropdownCue} aria-hidden="true">
+          <ChevronDown size={12} />
+        </span>
+      ) : null}
+    </div>
   ) : null;
 
   return (
@@ -841,7 +807,6 @@ export default function WidgetPage() {
       ) : null}
 
       {/* An overlay covers the page, so there is nothing left below its own fold to point at. */}
-      {!detailCourse && !drawerCourse ? <ScrollCue /> : null}
 
       {/* Course detail overlay — portaled so mobile fixed layout stays viewport-aligned */}
       {detailCourse && (
