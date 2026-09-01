@@ -22,6 +22,7 @@ import {
 } from '@/lib/courseUtils';
 import LessonPriceOptionsEditor from '@/components/dialogs/LessonPriceOptionsEditor';
 import InstructorSelect from '@/components/InstructorSelect';
+import StudioBusyWarning, { useStudioBusyConflicts } from '@/components/dialogs/StudioBusyWarning';
 import styles from './EditCourseDialog.module.css';
 
 interface Branch {
@@ -251,6 +252,18 @@ export default function EditCourseDialog({
     }
   };
 
+  const scheduledLessons = (courseWithLessons.lessons || []).filter((l) => l.status === 'scheduled');
+  const studioConflicts = useStudioBusyConflicts({
+    open,
+    slots: scheduledLessons.map((lesson) => ({
+      roomId,
+      dayOfWeek: lesson.day_of_week,
+      startTime: lesson.start_time,
+      endTime: lesson.end_time,
+    })),
+    excludeCourseId: course.id,
+  });
+
   if (!open) return null;
 
   const filteredRooms = branchId
@@ -273,7 +286,6 @@ export default function EditCourseDialog({
       Number(selectedInstructor.fixed_salary_per_lesson) * LESSONS_PER_MONTH * slotCount;
   }
   const hasDefaultMonthlySalary = defaultMonthlySalary > 0;
-  const scheduledLessons = (courseWithLessons.lessons || []).filter((l) => l.status === 'scheduled');
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" dir="rtl">
@@ -626,6 +638,7 @@ export default function EditCourseDialog({
                 <p className="text-sm text-red-600">{error}</p>
               </div>
             )}
+            <StudioBusyWarning conflicts={studioConflicts} />
 
             <div className="flex gap-3 pt-4">
               <button

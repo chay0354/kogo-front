@@ -12,6 +12,7 @@ import { calcEndTime, buildDefaultCourseData, buildDefaultLessonTemplate, buildD
 import { TimePicker } from '@/components/ui/time-picker';
 import InstructorSelect from '@/components/InstructorSelect';
 import { Skeleton } from '@/components/ui/skeleton';
+import StudioBusyWarning, { useStudioBusyConflicts } from '@/components/dialogs/StudioBusyWarning';
 
 export default function AddCourseDialog({
   courseTypeId,
@@ -205,6 +206,16 @@ export default function AddCourseDialog({
       setLoading(false);
     }
   };
+
+  const studioConflicts = useStudioBusyConflicts({
+    open,
+    slots: lessonTemplates.map((lesson) => ({
+      roomId: lesson.room,
+      dayOfWeek: lesson.day_of_week,
+      startTime: lesson.start_time,
+      endTime: lesson.end_time,
+    })),
+  });
 
   if (!open) return null;
 
@@ -582,6 +593,7 @@ export default function AddCourseDialog({
                 <p className={styles.errorText}>{error}</p>
               </div>
             )}
+            <StudioBusyWarning conflicts={studioConflicts} />
 
             {/* Actions */}
             <div className={styles.actions}>

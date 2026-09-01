@@ -1,0 +1,18 @@
+.box {
+  margin-top: 0.25rem;
+  padding: 0.55rem 0.75rem;
+  border: 1px solid #f3d19e;
+  background: #fff8eb;
+  border-radius: 0.5rem;
+}
+
+.line {
+  margin: 0;
+  font-size: 0.75rem;
+  line-height: 1.4;
+  color: #92400e;
+}
+
+.line + .line {
+  margin-top: 0.25rem;
+}

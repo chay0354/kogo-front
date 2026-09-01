@@ -6,6 +6,7 @@ import { LessonFormData, Lesson } from '@/types/course';
 import { addMinutesToTime, normalizeTimeValue } from '@/lib/timeUtils';
 import { TimeField } from '@/components/ui/time-picker';
 import InstructorSelect from '@/components/InstructorSelect';
+import StudioBusyWarning, { useStudioBusyConflicts } from '@/components/dialogs/StudioBusyWarning';
 
 interface InstructorOption {
   id: string;
@@ -173,6 +174,19 @@ export default function EditLessonDialog({
     }
   };
 
+  const studioConflicts = useStudioBusyConflicts({
+    open,
+    slots: [
+      {
+        roomId: formData.room,
+        dayOfWeek: formData.day_of_week,
+        startTime: formData.start_time,
+        endTime: formData.end_time,
+      },
+    ],
+    excludeLessonIds: lesson.id ? [lesson.id] : [],
+  });
+
   if (!open) return null;
 
   const currentInstructorId = lessonInstructorId(lesson);
@@ -307,6 +321,7 @@ export default function EditLessonDialog({
                 <p className="text-sm text-red-600">{error}</p>
               </div>
             )}
+            <StudioBusyWarning conflicts={studioConflicts} />
 
             <div className="flex gap-3 pt-4">
               <button

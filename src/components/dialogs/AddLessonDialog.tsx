@@ -5,6 +5,7 @@ import api from '@/lib/api';
 import { LessonFormData } from '@/types/course';
 import { addMinutesToTime } from '@/lib/timeUtils';
 import { TimeField } from '@/components/ui/time-picker';
+import StudioBusyWarning, { useStudioBusyConflicts } from '@/components/dialogs/StudioBusyWarning';
 
 interface Room {
   id: string;
@@ -126,6 +127,19 @@ export default function AddLessonDialog({
     }
   };
 
+  const studioConflicts = useStudioBusyConflicts({
+    open,
+    slots: [
+      {
+        roomId: formData.room,
+        dayOfWeek: formData.day_of_week,
+        startTime: formData.start_time,
+        endTime: formData.end_time,
+      },
+    ],
+    excludeCourseId: courseId,
+  });
+
   if (!open) return null;
 
   return (
@@ -216,6 +230,7 @@ export default function AddLessonDialog({
                 <p className="text-sm text-red-600">{error}</p>
               </div>
             )}
+            <StudioBusyWarning conflicts={studioConflicts} />
 
             <div className="flex gap-3 pt-4">
               <button
