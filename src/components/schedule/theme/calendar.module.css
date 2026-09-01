@@ -1,0 +1,676 @@
+/*
+ * The week grid's design tokens and primitives.
+ *
+ * The palette, radius and elevation are the dashboard's v5 tokens rather than a
+ * second set invented here, so the two screens read as one product. They are
+ * re-declared on .scope instead of imported because the dashboard scopes its
+ * own to .scope as well, and a calendar rendered outside the dashboard subtree
+ * would otherwise pick up the global tokens.
+ *
+ * Everything horizontal uses logical properties. The grid is read right-to-left
+ * — Sunday sits at the inline start — while a lesson's height still runs top to
+ * bottom, so the two axes must not share a direction assumption.
+ */
+
+.scope {
+  --kg-card: #ffffff;
+  --kg-ink: #231f6e;
+  --kg-ink2: #4a4599;
+  --kg-muted: #8b88b6;
+  --kg-line: #eae7f8;
+  --kg-line-soft: #f5f3fc;
+  --kg-r: 18px;
+  --kg-sh: 0 1px 3px rgba(43, 37, 133, 0.04), 0 6px 20px rgba(43, 37, 133, 0.06);
+
+  --kg-gutter: 3.25rem;
+
+  color: var(--kg-ink);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- shell ---- */
+.board {
+  background: var(--kg-card);
+  border-radius: var(--kg-r);
+  box-shadow: var(--kg-sh);
+  overflow: hidden;
+  min-width: 0;
+}
+
+.scroller {
+  overflow: auto;
+  max-height: calc(100vh - 300px);
+  overscroll-behavior: contain;
+}
+
+.canvas {
+  display: grid;
+  min-width: max-content;
+}
+
+/* ---- day headers ---- */
+.headRow {
+  display: contents;
+}
+
+.headCell {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  background: #fbfaff;
+  border-bottom: 1px solid var(--kg-line);
+  border-inline-start: 1px solid var(--kg-line);
+  padding: 9px 8px 8px;
+  text-align: center;
+}
+
+.headCell:first-child {
+  border-inline-start: 0;
+}
+
+.headDay {
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: -0.2px;
+  line-height: 1.2;
+}
+
+.headDate {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--kg-muted);
+  margin-top: 1px;
+}
+
+.headToday .headDay {
+  color: #5b54d6;
+}
+
+.todayPip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 6px;
+  margin-top: 2px;
+  border-radius: 999px;
+  background: #5b54d6;
+  color: #fff;
+  font-size: 11.5px;
+  font-weight: 800;
+}
+
+/* ---- the hour gutter, pinned to the inline start ---- */
+.gutterHead {
+  position: sticky;
+  top: 0;
+  inset-inline-start: 0;
+  z-index: 4;
+  background: #fbfaff;
+  border-bottom: 1px solid var(--kg-line);
+}
+
+.gutter {
+  position: sticky;
+  inset-inline-start: 0;
+  z-index: 2;
+  background: var(--kg-card);
+  border-inline-end: 1px solid var(--kg-line);
+}
+
+.gutterMark {
+  position: absolute;
+  inset-inline: 0;
+  transform: translateY(-50%);
+  padding-block-start: 0;
+  padding-inline-end: 7px;
+  text-align: end;
+  font-size: 10.5px;
+  font-weight: 700;
+  color: var(--kg-muted);
+}
+
+.gutterFirst {
+  transform: none;
+  padding-block-start: 3px;
+}
+
+/* ---- day body ---- */
+.dayCol {
+  position: relative;
+  border-inline-start: 1px solid var(--kg-line);
+  min-width: 0;
+}
+
+.hourLine {
+  position: absolute;
+  inset-inline: 0;
+  border-top: 1px solid var(--kg-line-soft);
+  pointer-events: none;
+}
+
+.halfLine {
+  border-top-style: dotted;
+}
+
+.todayCol {
+  background: rgba(91, 84, 214, 0.028);
+}
+
+/* The moment the office is standing in. Kept under the chips so it never
+   competes with a lesson for attention. */
+.nowLine {
+  position: absolute;
+  inset-inline: 0;
+  z-index: 1;
+  border-top: 2px solid #e5484d;
+  pointer-events: none;
+}
+
+.nowDot {
+  position: absolute;
+  inset-inline-start: 0;
+  top: -4px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #e5484d;
+}
+
+.empty {
+  position: absolute;
+  inset-inline: 0;
+  top: 14px;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--kg-muted);
+}
+
+/* ---- an item on the grid ---- */
+.slot {
+  position: absolute;
+  padding: 1px 2px;
+  z-index: 2;
+  min-width: 0;
+}
+
+.slot:hover,
+.slot:focus-within {
+  z-index: 6;
+}
+
+.chip {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  height: 100%;
+  min-height: 0;
+  min-width: 0;
+  padding: 3px 7px 3px 5px;
+  border-radius: 8px;
+  border: 1px solid var(--chip-base);
+  /* The hue is carried by a bar at the inline start rather than the whole
+     border, so a chip stays legible when it is only 26px tall. */
+  border-inline-start: 4px solid var(--chip-base);
+  background: var(--chip-tint);
+  color: var(--chip-ink);
+  text-align: start;
+  cursor: pointer;
+  overflow: hidden;
+  transition: box-shadow 0.14s ease, transform 0.14s ease;
+}
+
+.chip:hover {
+  box-shadow: 0 4px 14px rgba(43, 37, 133, 0.16);
+  transform: translateY(-1px);
+}
+
+.chip:focus-visible {
+  outline: 2px solid var(--chip-base);
+  outline-offset: 1px;
+}
+
+.chipTop {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  min-width: 0;
+}
+
+.chipBadge {
+  flex: none;
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: 0.2px;
+  padding: 0 3px;
+  border-radius: 4px;
+  background: var(--chip-base);
+  color: #fff;
+}
+
+.chipTitle {
+  font-size: 11.5px;
+  font-weight: 800;
+  line-height: 1.25;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.chipMeta {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--chip-ink);
+  opacity: 0.78;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chipFoot {
+  margin-top: auto;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10px;
+  font-weight: 700;
+  opacity: 0.85;
+}
+
+/* A time range is a run of Latin digits inside a Hebrew paragraph. Isolating it
+   keeps the dash between the two numbers instead of letting the bidi algorithm
+   push it to an edge when a Hebrew word follows. */
+.time {
+  unicode-bidi: isolate;
+  direction: ltr;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.count {
+  flex: none;
+  padding: 0 4px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.65);
+  font-size: 9.5px;
+  font-weight: 800;
+}
+
+.cancelled {
+  opacity: 0.55;
+}
+
+.cancelled .chipTitle {
+  text-decoration: line-through;
+}
+
+/*
+ * A studio rental. The amber badge the screen already used stays — the office
+ * knows it — and the hatch behind it is what makes a rental readable when the
+ * chip is too short for any text at all. Hue does none of that work: the stripe
+ * angle reads the same to someone who cannot separate amber from teal.
+ */
+.rental {
+  background-image: repeating-linear-gradient(
+    135deg,
+    rgba(224, 168, 31, 0.16) 0,
+    rgba(224, 168, 31, 0.16) 5px,
+    transparent 5px,
+    transparent 11px
+  );
+  border-style: dashed;
+  border-inline-start-style: solid;
+}
+
+.rentalTag {
+  flex: none;
+  padding: 0 4px;
+  border-radius: 4px;
+  background: #f7c948;
+  color: #4a3400;
+  font-size: 9px;
+  font-weight: 900;
+}
+
+/* ---- layer picker ---- */
+.rail {
+  background: var(--kg-card);
+  border-radius: var(--kg-r);
+  box-shadow: var(--kg-sh);
+  padding: 13px 15px;
+  min-width: 0;
+}
+
+.railTitle {
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--kg-muted);
+  margin: 0 0 9px;
+}
+
+.dims {
+  display: flex;
+  gap: 5px;
+  background: #f4f2fc;
+  border-radius: 999px;
+  padding: 3px;
+  margin-bottom: 12px;
+}
+
+.dim {
+  flex: 1;
+  border: 0;
+  border-radius: 999px;
+  padding: 6px 4px;
+  background: transparent;
+  color: var(--kg-ink2);
+  font-size: 12.5px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.dimOn {
+  background: var(--kg-card);
+  color: var(--kg-ink);
+  box-shadow: 0 1px 3px rgba(43, 37, 133, 0.12);
+}
+
+.layers {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.layer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  border: 0;
+  background: transparent;
+  border-radius: 9px;
+  padding: 6px 7px;
+  cursor: pointer;
+  text-align: start;
+  min-width: 0;
+}
+
+.layer:hover {
+  background: #faf9fe;
+}
+
+.layer:focus-visible {
+  outline: 2px solid #5b54d6;
+  outline-offset: -2px;
+}
+
+/* The tick is the state, the fill is the identity. Reading the checkbox never
+   depends on telling this layer's hue from the next one's. */
+.box {
+  flex: none;
+  width: 17px;
+  height: 17px;
+  border-radius: 5px;
+  border: 2px solid var(--layer-base);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+}
+
+.boxOn {
+  background: var(--layer-base);
+}
+
+.layerName {
+  flex: 1;
+  font-size: 12.5px;
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.layerOff .layerName {
+  color: var(--kg-muted);
+}
+
+.layerCount {
+  flex: none;
+  font-size: 10.5px;
+  font-weight: 800;
+  color: var(--kg-muted);
+}
+
+.railActions {
+  display: flex;
+  gap: 7px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--kg-line);
+}
+
+.railBtn {
+  flex: 1;
+  border: 1px solid var(--kg-line);
+  background: var(--kg-card);
+  border-radius: 9px;
+  padding: 6px;
+  font-size: 11.5px;
+  font-weight: 800;
+  color: var(--kg-ink2);
+  cursor: pointer;
+}
+
+.railBtn:hover {
+  background: #faf9fe;
+}
+
+/* ---- toolbar ---- */
+.bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.nav {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  background: var(--kg-card);
+  border-radius: 999px;
+  box-shadow: var(--kg-sh);
+  padding: 3px;
+}
+
+.navBtn {
+  border: 0;
+  background: transparent;
+  border-radius: 999px;
+  width: 30px;
+  height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--kg-ink2);
+  cursor: pointer;
+}
+
+.navBtn:hover {
+  background: #f4f2fc;
+}
+
+.today {
+  border: 0;
+  background: transparent;
+  border-radius: 999px;
+  padding: 0 12px;
+  height: 30px;
+  font-size: 12.5px;
+  font-weight: 800;
+  color: var(--kg-ink2);
+  cursor: pointer;
+}
+
+.today:hover {
+  background: #f4f2fc;
+}
+
+.range {
+  font-size: 15px;
+  font-weight: 900;
+  letter-spacing: -0.3px;
+  min-width: 0;
+}
+
+.views {
+  display: flex;
+  gap: 3px;
+  background: #f4f2fc;
+  border-radius: 999px;
+  padding: 3px;
+}
+
+.view {
+  border: 0;
+  border-radius: 999px;
+  padding: 6px 13px;
+  background: transparent;
+  color: var(--kg-ink2);
+  font-size: 12.5px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.viewOn {
+  background: var(--kg-card);
+  color: var(--kg-ink);
+  box-shadow: 0 1px 3px rgba(43, 37, 133, 0.12);
+}
+
+/* ---- desktop split: grid beside the layer rail ---- */
+.split {
+  display: grid;
+  grid-template-columns: 232px minmax(0, 1fr);
+  gap: 13px;
+  align-items: start;
+  min-width: 0;
+}
+
+/* ---- phone ----
+   Six day columns and a gutter cannot be read on a 375px screen, so the phone
+   shows one day at a time with the week as a strip above it. The grid itself is
+   unchanged; only how many columns it is handed differs. */
+.strip {
+  display: flex;
+  gap: 5px;
+  overflow-x: auto;
+  padding-bottom: 3px;
+  scrollbar-width: none;
+}
+
+.strip::-webkit-scrollbar {
+  display: none;
+}
+
+.stripDay {
+  flex: 1 0 auto;
+  min-width: 46px;
+  border: 1px solid var(--kg-line);
+  background: var(--kg-card);
+  border-radius: 12px;
+  padding: 6px 3px;
+  text-align: center;
+  cursor: pointer;
+}
+
+.stripName {
+  font-size: 10.5px;
+  font-weight: 800;
+  color: var(--kg-muted);
+}
+
+.stripNum {
+  font-size: 14px;
+  font-weight: 900;
+  margin-top: 1px;
+}
+
+.stripOn {
+  background: #5b54d6;
+  border-color: #5b54d6;
+  color: #fff;
+}
+
+.stripOn .stripName {
+  color: rgba(255, 255, 255, 0.82);
+}
+
+.stripDots {
+  display: flex;
+  justify-content: center;
+  gap: 2px;
+  margin-top: 3px;
+  height: 4px;
+}
+
+.stripDot {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+}
+
+.sheetBtn {
+  display: none;
+}
+
+@media (max-width: 1023px) {
+  .split {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .scroller {
+    max-height: calc(100vh - 340px);
+  }
+}
+
+@media (max-width: 640px) {
+  .scope {
+    --kg-gutter: 2.75rem;
+  }
+
+  .rail {
+    padding: 11px 12px;
+  }
+
+  .range {
+    font-size: 13.5px;
+  }
+
+  .canvas {
+    min-width: 0;
+  }
+
+  .sheetBtn {
+    display: inline-flex;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chip {
+    transition: none;
+  }
+
+  .chip:hover {
+    transform: none;
+  }
+}

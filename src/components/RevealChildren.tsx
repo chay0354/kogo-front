@@ -7,6 +7,13 @@ interface Props {
   children: ReactNode;
   /** Re-arm when this changes (e.g. the active tab). */
   resetKey?: string;
+  /**
+   * How far below the wrapper the elements that each get their own entrance
+   * sit. A dashboard section puts its cards two and three levels down, because
+   * the section component brings a container of its own; a page's blocks sit
+   * one level down, with the cards of a grid one below that.
+   */
+  depths?: number[];
 }
 
 /**
@@ -20,8 +27,9 @@ interface Props {
  * A MutationObserver therefore keeps arming cards as they appear, and stops once
  * the subtree settles.
  */
-export default function RevealChildren({ children, resetKey }: Props) {
+export default function RevealChildren({ children, resetKey, depths = [2, 3] }: Props) {
   const ref = useRef<HTMLDivElement | null>(null);
+  const depthKey = depths.join(',');
 
   useEffect(() => {
     const root = ref.current;
@@ -33,15 +41,26 @@ export default function RevealChildren({ children, resetKey }: Props) {
 
     const supported = typeof IntersectionObserver !== 'undefined';
 
-    // Cards live one or two levels inside the section wrapper.
+    const selector = depthKey
+      .split(',')
+      .map((depth) => `:scope${' > *'.repeat(Number(depth))}`)
+      .join(', ');
+
     const collect = () =>
-      Array.from(root.querySelectorAll<HTMLElement>(':scope > * > *, :scope > * > * > *')).filter(
-        (el) => {
-          if (el.dataset.revealArmed === '1') return false;
-          const r = el.getBoundingClientRect();
-          return r.height > 24 && el.offsetParent !== null;
-        },
-      );
+      Array.from(root.querySelectorAll<HTMLElement>(selector)).filter((el) => {
+        if (el.dataset.revealArmed === '1') return false;
+        // A page may hold a reveal of its own — the dashboard keys one on the
+        // open tab so switching replays the motion. Leave that subtree to it,
+        // or the two would arm the same cards and fight over the stagger.
+        if (el.closest('[data-reveal-root]') !== root) return false;
+        const r = el.getBoundingClientRect();
+        if (r.height <= 24 || el.offsetParent === null) return false;
+        // A lifted element establishes a containing block, which drags a
+        // sticky bar out of its scroll parent and pins a fixed one to the
+        // wrapper instead of the viewport.
+        const position = getComputedStyle(el).position;
+        return position !== 'fixed' && position !== 'sticky';
+      });
 
     const showNow = (el: HTMLElement) => {
       el.dataset.revealArmed = '1';
@@ -116,7 +135,11 @@ export default function RevealChildren({ children, resetKey }: Props) {
         delete el.dataset.revealArmed;
       });
     };
-  }, [resetKey]);
+  }, [resetKey, depthKey]);
 
-  return <div ref={ref}>{children}</div>;
+  return (
+    <div ref={ref} data-reveal-root>
+      {children}
+    </div>
+  );
 }
