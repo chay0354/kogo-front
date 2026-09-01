@@ -23,6 +23,10 @@
   --kg-sh: 0 1px 3px rgba(43, 37, 133, 0.04), 0 6px 20px rgba(43, 37, 133, 0.06);
 
   --kg-gutter: 3.25rem;
+  /* The narrowest a room's column may get before the day stops sharing the
+     board's width and starts claiming its own. A course name and a time range
+     are what have to survive at this width. */
+  --kg-studio-min: 104px;
 
   color: var(--kg-ink);
   font-variant-numeric: tabular-nums;
@@ -158,6 +162,49 @@
   background: rgba(91, 84, 214, 0.028);
 }
 
+/* ---- the rooms a day is split into ----
+   The hour lines and the now line stay on the day beneath, so they run
+   unbroken across every room the way the day's own hours do. */
+.studios {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  z-index: 2;
+}
+
+.studioCol {
+  position: relative;
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+/* Dashed, where the day boundary is solid: a room divides a day, it does not
+   end one, and the eye should be able to tell the two apart without reading. */
+.studioCol + .studioCol,
+.studioName + .studioName {
+  border-inline-start: 1px dashed var(--kg-line);
+}
+
+.studioHead {
+  display: flex;
+  margin-top: 4px;
+  padding-top: 3px;
+  border-top: 1px solid var(--kg-line);
+}
+
+.studioName {
+  flex: 1 1 0;
+  min-width: 0;
+  padding: 0 2px;
+  font-size: 9.5px;
+  font-weight: 800;
+  line-height: 1.3;
+  color: var(--kg-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* The moment the office is standing in. Kept under the chips so it never
    competes with a lesson for attention. */
 .nowLine {
@@ -207,6 +254,10 @@
   flex-direction: column;
   gap: 1px;
   height: 100%;
+  /* A button sizes itself to its content, so without this the title's own
+     width wins and a long course name reaches out past the column it belongs
+     to instead of being cut to it. */
+  width: 100%;
   min-height: 0;
   min-width: 0;
   padding: 3px 7px 3px 5px;
@@ -648,6 +699,15 @@
     --kg-gutter: 2.75rem;
   }
 
+  /* The phone shows one day, so the whole screen goes to that day's rooms — two
+     of them land near half a screen each, which is wider than any single column
+     of the desktop week. The floor is not relaxed below the desktop's: a room
+     too narrow to read is worse on a phone, not better, so a third and fourth
+     room scroll sideways instead of shrinking. */
+  .studioName {
+    font-size: 10px;
+  }
+
   .rail {
     padding: 11px 12px;
   }
@@ -656,6 +716,10 @@
     font-size: 13.5px;
   }
 
+  /* Stays 0 with a split too. The room columns carry their own floor, which is
+     what makes the board scroll once they stop fitting; max-content here would
+     instead stretch the day to the longest course name that happens to be in
+     it and scroll a phone that had room to spare. */
   .canvas {
     min-width: 0;
   }

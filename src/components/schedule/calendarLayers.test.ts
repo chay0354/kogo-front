@@ -1,10 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import {
   EVENT_LAYER_KEY,
+  NO_STUDIO_KEY,
+  NO_STUDIO_LABEL,
   buildLayers,
+  buildStudioColumns,
   eventLayerKey,
+  eventStudioKey,
   layerInitials,
   layoutOverlaps,
+  lessonStudioKey,
   timeToMinutes,
 } from './calendarLayers';
 import type { Lesson, ScheduleEvent } from '@/types/schedule';
@@ -161,5 +166,191 @@ describe('buildLayers', () => {
     const layers = buildLayers(lessons, [stray], 'branch');
     expect(layers.some((l) => l.key === EVENT_LAYER_KEY)).toBe(true);
     expect(eventLayerKey(stray, 'branch', layers)).toBe(EVENT_LAYER_KEY);
+  });
+});
+
+describe('buildStudioColumns', () => {
+  it('leaves a week nobody assigned a room to unsplit', () => {
+    // The ordinary week: no lesson names a room, so a split would be two empty
+    // halves rather than information.
+    const columns = buildStudioColumns([lesson({ id: 'a' }), lesson({ id: 'b' })], [], 'branch');
+    expect(columns).toEqual([]);
+  });
+
+  it('splits only under the branch dimension', () => {
+    // A room belongs to a branch. Under "מדריך" the split would also hide the
+    // one overlap that matters there — the same instructor in two rooms at once
+    // is a double-booking, and it has to stay drawn as one.
+    const week = [
+      lesson({ id: 'a', room_name: 'סטודיו 1' }),
+      lesson({ id: 'b', room_name: 'סטודיו 2' }),
+    ];
+    expect(buildStudioColumns(week, [], 'branch')).toHaveLength(2);
+    expect(buildStudioColumns(week, [], 'instructor')).toEqual([]);
+    expect(buildStudioColumns(week, [], 'course')).toEqual([]);
+  });
+
+  it('splits a branch into its own rooms, in name order', () => {
+    const columns = buildStudioColumns(
+      [
+        lesson({ id: 'a', room_name: 'סטודיו 2' }),
+        lesson({ id: 'b', room_name: 'סטודיו 1' }),
+        lesson({ id: 'c', room_name: 'סטודיו 1' }),
+      ],
+      [],
+      'branch',
+    );
+    expect(columns.map((c) => c.label)).toEqual(['סטודיו 1', 'סטודיו 2']);
+  });
+
+  it('keeps a room name that two branches share as two columns', () => {
+    // Rooms hang off a branch and nothing stops both branches naming one
+    // "סטודיו 1". Merging them would draw one branch's morning in the other's.
+    const columns = buildStudioColumns(
+      [
+        lesson({ id: 'a', branch_id: 'b1', branch_name: 'אלון', room_name: 'סטודיו 1' }),
+        lesson({ id: 'b', branch_id: 'b2', branch_name: 'בזל', room_name: 'סטודיו 1' }),
+      ],
+      [],
+      'branch',
+    );
+    expect(columns.map((c) => c.key)).toEqual(['b1:סטודיו 1', 'b2:סטודיו 1']);
+    expect(columns.map((c) => c.label)).toEqual(['סטודיו 1 · אלון', 'סטודיו 1 · בזל']);
+  });
+
+  it('names a room plainly while nothing collides with it', () => {
+    const columns = buildStudioColumns(
+      [
+        lesson({ id: 'a', branch_id: 'b1', branch_name: 'אלון', room_name: 'סטודיו 1' }),
+        lesson({ id: 'b', branch_id: 'b2', branch_name: 'בזל', room_name: 'אולם' }),
+      ],
+      [],
+      'branch',
+    );
+    expect(columns.map((c) => c.label)).toEqual(['סטודיו 1', 'אולם']);
+  });
+
+  it('gives the rooms of one branch to that branch before the next', () => {
+    const columns = buildStudioColumns(
+      [
+        lesson({ id: 'a', branch_id: 'b2', branch_name: 'בזל', room_name: 'ב׳' }),
+        lesson({ id: 'b', branch_id: 'b1', branch_name: 'אלון', room_name: 'ב׳' }),
+        lesson({ id: 'c', branch_id: 'b1', branch_name: 'אלון', room_name: 'א׳' }),
+      ],
+      [],
+      'branch',
+    );
+    expect(columns.map((c) => c.key)).toEqual(['b1:א׳', 'b1:ב׳', 'b2:ב׳']);
+  });
+
+  it('adds a column for the roomless only once a room exists to sit beside', () => {
+    const columns = buildStudioColumns(
+      [lesson({ id: 'a', room_name: 'סטודיו 1' }), lesson({ id: 'b' })],
+      [],
+      'branch',
+    );
+    expect(columns.map((c) => c.key)).toEqual(['b1:סטודיו 1', NO_STUDIO_KEY]);
+    expect(columns[1].label).toBe(NO_STUDIO_LABEL);
+    expect(lessonStudioKey(lesson({ id: 'b' }))).toBe(NO_STUDIO_KEY);
+  });
+
+  it('never leaves a lesson without a column to fall in', () => {
+    const week = [
+      lesson({ id: 'a', room_name: 'סטודיו 1' }),
+      lesson({ id: 'b', room_name: '  ' }),
+      lesson({ id: 'c', branch_id: 'b2', branch_name: 'בזל', room_name: 'סטודיו 1' }),
+    ];
+    const keys = new Set(buildStudioColumns(week, [], 'branch').map((c) => c.key));
+    for (const item of week) expect(keys.has(lessonStudioKey(item))).toBe(true);
+  });
+
+  it('folds a rental into the column of the room it books', () => {
+    // The event list sends a branch name and no id, so the name is the only
+    // join — and a rental holds the room, so it has to share its column.
+    const rental = {
+      id: 'e1',
+      is_studio_rental: true,
+      branch_name: 'אלון',
+      studio_name: 'סטודיו 1',
+    } as ScheduleEvent;
+
+    const columns = buildStudioColumns(
+      [lesson({ id: 'a', branch_id: 'b1', branch_name: 'אלון', room_name: 'סטודיו 1' })],
+      [rental],
+      'branch',
+    );
+    expect(columns.map((c) => c.key)).toEqual(['b1:סטודיו 1']);
+    expect(eventStudioKey(rental, columns)).toBe('b1:סטודיו 1');
+  });
+
+  it('keeps a room only ever rented out on the board', () => {
+    const rental = { id: 'e1', branch_name: 'אלון', studio_name: 'אולם' } as ScheduleEvent;
+    const columns = buildStudioColumns(
+      [lesson({ id: 'a', branch_id: 'b1', branch_name: 'אלון', room_name: 'סטודיו 1' })],
+      [rental],
+      'branch',
+    );
+    expect(columns.map((c) => c.name)).toEqual(['אולם', 'סטודיו 1']);
+    expect(eventStudioKey(rental, columns)).toBe('b1:אולם');
+  });
+
+  it('sends a roomless event to the roomless column', () => {
+    const stray = { id: 'e1', branch_name: 'אלון' } as ScheduleEvent;
+    const columns = buildStudioColumns(
+      [lesson({ id: 'a', branch_id: 'b1', branch_name: 'אלון', room_name: 'סטודיו 1' })],
+      [stray],
+      'branch',
+    );
+    expect(columns.map((c) => c.key)).toEqual(['b1:סטודיו 1', NO_STUDIO_KEY]);
+    expect(eventStudioKey(stray, columns)).toBe(NO_STUDIO_KEY);
+  });
+
+  it('ignores a day-long event, which occupies no hour of a room', () => {
+    const allDay = {
+      id: 'e1',
+      is_daily_event: true,
+      branch_name: 'אלון',
+      studio_name: 'אולם',
+    } as ScheduleEvent;
+    expect(buildStudioColumns([lesson({ id: 'a' })], [allDay], 'branch')).toEqual([]);
+  });
+});
+
+describe('layoutOverlaps inside a studio column', () => {
+  it('stops two rooms at one hour reading as a clash', () => {
+    // The reason for the split: run per room, the two lessons each take their
+    // own column at full width; run per day they would be two half-width lanes,
+    // which is how the grid says one room is booked twice.
+    const week = [
+      lesson({ id: 'a', room_name: 'סטודיו 1', start_time: '09:00', end_time: '10:00' }),
+      lesson({ id: 'b', room_name: 'סטודיו 2', start_time: '09:00', end_time: '10:00' }),
+    ];
+    const columns = buildStudioColumns(week, [], 'branch');
+    const bounds = (l: Lesson) => ({
+      startMin: timeToMinutes(l.start_time),
+      endMin: timeToMinutes(l.end_time),
+    });
+
+    for (const column of columns) {
+      const placed = layoutOverlaps(
+        week.filter((l) => lessonStudioKey(l) === column.key),
+        bounds,
+      );
+      expect(placed.map((p) => p.lanes)).toEqual([1]);
+    }
+
+    expect(layoutOverlaps(week, bounds).map((p) => p.lanes)).toEqual([2, 2]);
+  });
+
+  it('still narrows two bookings of the same room', () => {
+    const week = [
+      lesson({ id: 'a', room_name: 'סטודיו 1', start_time: '09:00', end_time: '10:00' }),
+      lesson({ id: 'b', room_name: 'סטודיו 1', start_time: '09:30', end_time: '10:30' }),
+    ];
+    const placed = layoutOverlaps(week, (l) => ({
+      startMin: timeToMinutes(l.start_time),
+      endMin: timeToMinutes(l.end_time),
+    }));
+    expect(placed.map((p) => p.lanes)).toEqual([2, 2]);
   });
 });

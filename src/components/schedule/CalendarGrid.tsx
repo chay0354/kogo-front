@@ -4,10 +4,13 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Lesson, ScheduleEvent } from '@/types/schedule';
 import { formatDateISO, formatTime } from '@/lib/scheduleUtils';
 import {
+  buildStudioColumns,
   eventLayerKey,
+  eventStudioKey,
   layerColor,
   layoutOverlaps,
   lessonLayerKey,
+  lessonStudioKey,
   timeToMinutes,
   type CalendarLayer,
   type LayerDimension,
@@ -101,6 +104,35 @@ export default function CalendarGrid({
     return buckets;
   }, [days, events]);
 
+  // One set of studio columns for the whole board, not one per day, for the
+  // reason the hour range is shared: a room's column has to sit under the same
+  // heading on Monday as on Sunday or the week cannot be read across.
+  const studioColumns = useMemo(
+    () => buildStudioColumns(lessons, events, dimension),
+    [lessons, events, dimension],
+  );
+  const isSplit = studioColumns.length > 1;
+
+  const studioByDay = useMemo(() => {
+    if (!isSplit) return null;
+    return byDay.map((items) => {
+      const groups = new Map<string, CalendarItem[]>();
+      studioColumns.forEach((column) => groups.set(column.key, []));
+      for (const item of items) {
+        const key =
+          item.kind === 'lesson'
+            ? lessonStudioKey(item.lesson)
+            : eventStudioKey(item.event, studioColumns);
+        // The columns were built from these same items, so the bucket is always
+        // there. The fall back to the last column is the one thing that must not
+        // be a silent drop: a lesson missing from the week reads as a free hour.
+        const bucket = groups.get(key) || groups.get(studioColumns[studioColumns.length - 1].key)!;
+        bucket.push(item);
+      }
+      return groups;
+    });
+  }, [byDay, studioColumns, isSplit]);
+
   const { startHour, endHour } = useMemo(() => {
     let earliest = Infinity;
     let latest = -Infinity;
@@ -157,7 +189,13 @@ export default function CalendarGrid({
         <div
           className={styles.canvas}
           style={{
-            gridTemplateColumns: `var(--kg-gutter) repeat(${days.length}, minmax(0, 1fr))`,
+            // A split day still shares the width it always had until its rooms
+            // would be too thin to read a course name in; past that the day
+            // claims the width it needs and the board scrolls, which is the
+            // only way out that neither hides a room nor squeezes them all.
+            gridTemplateColumns: `var(--kg-gutter) repeat(${days.length}, minmax(${
+              isSplit ? `calc(var(--kg-studio-min) * ${studioColumns.length})` : '0px'
+            }, 1fr))`,
           }}
         >
           <div className={styles.gutterHead} />
@@ -185,6 +223,15 @@ export default function CalendarGrid({
                     {dailyByDay[index].length} אירועי יום
                   </div>
                 ) : null}
+                {isSplit ? (
+                  <div className={styles.studioHead} aria-hidden>
+                    {studioColumns.map((column) => (
+                      <span key={column.key} className={styles.studioName} title={column.label}>
+                        {column.label}
+                      </span>
+                    ))}
+                  </div>
+                ) : null}
               </div>
             );
           })}
@@ -206,10 +253,21 @@ export default function CalendarGrid({
 
           {days.map((day, index) => {
             const items = byDay[index];
-            const placed = layoutOverlaps(items, itemBounds);
             const isToday = day.toDateString() === today;
             const showNow =
               isToday && nowMin != null && nowMin >= startHour * 60 && nowMin <= endHour * 60;
+            const dayName = day.toLocaleDateString('he-IL', { weekday: 'long' });
+
+            const chipProps = {
+              startHour,
+              hourPx,
+              dimension,
+              layers,
+              colorFor,
+              initialsFor,
+              onSelectLesson,
+              onSelectEvent,
+            };
 
             return (
               <div
@@ -242,41 +300,78 @@ export default function CalendarGrid({
                   </div>
                 ) : null}
 
-                {placed.map(({ item, startMin, endMin, lane, lanes }) => {
-                  const top = ((startMin - startHour * 60) / 60) * hourPx;
-                  const height = Math.max(24, ((endMin - startMin) / 60) * hourPx - 2);
-                  const width = 100 / lanes;
-
-                  return (
-                    <div
-                      key={`${item.kind}-${item.id}`}
-                      className={styles.slot}
-                      style={{
-                        top,
-                        height,
-                        insetInlineStart: `${lane * width}%`,
-                        width: `${width}%`,
-                      }}
-                    >
-                      <Chip
-                        item={item}
-                        height={height}
-                        dimension={dimension}
-                        layers={layers}
-                        colorFor={colorFor}
-                        initialsFor={initialsFor}
-                        onSelectLesson={onSelectLesson}
-                        onSelectEvent={onSelectEvent}
-                      />
-                    </div>
-                  );
-                })}
+                {isSplit ? (
+                  <div className={styles.studios}>
+                    {studioColumns.map((column) => (
+                      <div
+                        key={column.key}
+                        className={styles.studioCol}
+                        role="group"
+                        aria-label={`${column.label}, ${dayName}`}
+                      >
+                        <PlacedItems items={studioByDay![index].get(column.key)!} {...chipProps} />
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <PlacedItems items={items} {...chipProps} />
+                )}
               </div>
             );
           })}
         </div>
       </div>
     </div>
+  );
+}
+
+type ChipContext = {
+  startHour: number;
+  hourPx: number;
+  dimension: LayerDimension;
+  layers: CalendarLayer[];
+  colorFor: Map<string, number>;
+  initialsFor: Map<string, string>;
+  onSelectLesson: (lesson: Lesson) => void;
+  onSelectEvent: (event: ScheduleEvent) => void;
+};
+
+/**
+ * One run of items laid out against each other.
+ *
+ * A split day runs this once per room rather than once per day, so the lanes a
+ * chip is squeezed into only ever count bookings of its own room. That is what
+ * makes a narrowed chip mean something: the room is taken twice over.
+ */
+function PlacedItems({
+  items,
+  startHour,
+  hourPx,
+  ...chip
+}: ChipContext & { items: CalendarItem[] }) {
+  return (
+    <>
+      {layoutOverlaps(items, itemBounds).map(({ item, startMin, endMin, lane, lanes }) => {
+        const top = ((startMin - startHour * 60) / 60) * hourPx;
+        const height = Math.max(24, ((endMin - startMin) / 60) * hourPx - 2);
+        const width = 100 / lanes;
+
+        return (
+          <div
+            key={`${item.kind}-${item.id}`}
+            className={styles.slot}
+            style={{
+              top,
+              height,
+              insetInlineStart: `${lane * width}%`,
+              width: `${width}%`,
+            }}
+          >
+            <Chip item={item} height={height} {...chip} />
+          </div>
+        );
+      })}
+    </>
   );
 }
 
