@@ -46,13 +46,17 @@ export default function StudentsSection({ globalDateRange }: Props) {
     [cityId, branchId, globalDateRange],
   );
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, error } = useQuery({
     queryKey: ['dashboard-students', apiFilters],
     queryFn: () => fetchStudentsData(apiFilters),
   });
 
   const kpis = data?.kpis ?? {};
-  const abnormalByBranch: any[] = data?.abnormal_attendance_by_branch ?? [];
+  // The endpoint returns a row per branch whether or not it has anyone; those
+  // rows draw an empty bar next to a zero, which is not the point of the card.
+  const abnormalByBranch: any[] = (data?.abnormal_attendance_by_branch ?? []).filter(
+    (b: any) => Number(b.count ?? 0) > 0,
+  );
   const quit = data?.quit_percentage ?? { total_quit: 0, by_status: [], by_course_type: [], by_course: [] };
   const quitRows: any[] = (quitBy === 'course_type' ? quit.by_course_type : quit.by_course) ?? [];
 
@@ -66,18 +70,31 @@ export default function StudentsSection({ globalDateRange }: Props) {
       (data?.attendance_by_month ?? []).map((row: any) => {
         const [year, month] = String(row.month).split('-');
         const name = MONTHS.find((m) => m.value === Number(month))?.label ?? month;
+        const total = Number(row.total_records ?? 0);
         return {
           label: `${name} ${year}`,
-          rate: Number(row.attendance_rate ?? 0),
+          // The endpoint reports 0 for a month nobody took attendance in. Drawn
+          // as a point that reads "nobody came", which is a different claim, so
+          // months with no records carry no value at all.
+          rate: total > 0 ? Number(row.attendance_rate ?? 0) : null,
           present: Number(row.present_count ?? 0),
-          total: Number(row.total_records ?? 0),
+          total,
         };
       }),
     [data?.attendance_by_month],
   );
 
+  const recorded = useMemo(() => attendance.filter((r: any) => r.rate !== null), [attendance]);
+
   if (isLoading) {
     return <SectionSkeleton label="טוען נתוני תלמידים" />;
+  }
+  if (error) {
+    return (
+      <div className={theme.scope}>
+        <div className={theme.card}>שגיאה בטעינת הנתונים. נסו לרענן את הדף.</div>
+      </div>
+    );
   }
 
   const maxAbnormal = Math.max(...abnormalByBranch.map((b: any) => Number(b.count) || 0), 1);
@@ -165,27 +182,36 @@ export default function StudentsSection({ globalDateRange }: Props) {
         </div>
       </div>
 
-      {/* attendance trend */}
-      {attendance.length === 1 ? (
+      {/* attendance trend — a line needs at least two months that were actually
+          recorded; anything less is shown as figures, or as nothing at all */}
+      {recorded.length === 0 ? (
+        <div className={`${theme.card} ${theme.mt}`}>
+          <h2 className={theme.cardTitle}>מגמת נוכחות</h2>
+          <p className={theme.cardSub}>אחוז נוכחות חודשי</p>
+          <div className={theme.kpiFoot}>לא נרשמה נוכחות בתקופה שנבחרה</div>
+        </div>
+      ) : null}
+
+      {recorded.length === 1 ? (
         <div className={`${theme.card} ${theme.mt}`}>
           <h2 className={theme.cardTitle}>מגמת נוכחות</h2>
           <p className={theme.cardSub}>
-            {attendance[0].label} · בחרו טווח של יותר מחודש כדי לראות מגמה
+            {recorded[0].label} · החודש היחיד שנרשמה בו נוכחות
           </p>
           <div className={theme.counts} style={{ marginTop: 0 }}>
             <div>
-              <b>{formatPercent(attendance[0].rate, 1)}</b>
+              <b>{formatPercent(recorded[0].rate, 1)}</b>
               <span>אחוז נוכחות</span>
             </div>
             <div>
-              <b>{attendance[0].present} / {attendance[0].total}</b>
+              <b>{recorded[0].present} / {recorded[0].total}</b>
               <span>נכחו מתוך רישומים</span>
             </div>
           </div>
         </div>
       ) : null}
 
-      {attendance.length > 1 ? (
+      {recorded.length > 1 ? (
         <div className={`${theme.card} ${theme.mt}`}>
           <h2 className={theme.cardTitle}>מגמת נוכחות</h2>
           <p className={theme.cardSub}>אחוז נוכחות חודשי</p>
@@ -207,6 +233,7 @@ export default function StudentsSection({ globalDateRange }: Props) {
                   stroke="hsl(var(--primary))"
                   strokeWidth={2.5}
                   dot={{ r: 3 }}
+                  connectNulls={false}
                 />
               </LineChart>
             </ResponsiveContainer>

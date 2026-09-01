@@ -16,10 +16,11 @@ import {
   YAxis,
 } from 'recharts';
 import { fetchFinancialData, fetchInvoicingData } from '@/lib/api';
+import { Skeleton } from '@/components/ui/skeleton';
 import { useScopedBranches } from '@/hooks/useScopedBranches';
 import type { DateRange } from './GlobalDateFilter';
 import { MONTHS } from './filters/monthYearUtils';
-import { formatCurrency, formatPercent } from './format';
+import { formatCurrency, formatPercent, SOURCE_LABELS } from './format';
 import KpiCard from './KpiCard';
 import { deriveTrends } from './trends';
 import theme from './theme/dashboard.module.css';
@@ -44,13 +45,6 @@ interface InstructorRow {
   salary: number;
   profit: number;
 }
-
-const SOURCE_LABELS: Record<string, string> = {
-  crm: 'חוגים והרשמות',
-  store: 'חנות',
-  formal: 'מסמכים פורמליים',
-  tranzila: 'Tranzila',
-};
 
 function formatMonthLabel(monthKey: string): string {
   const [year, month] = String(monthKey).split('-');
@@ -230,7 +224,15 @@ export default function FinancialSection({ globalDateRange }: Props) {
             label="נגבה בפועל"
             value={hasInvoices ? formatCurrency(inv.collected) : '—'}
             tone="up"
-            foot={hasInvoices ? `שיעור גבייה ${inv.collection_rate}%` : 'אין חשבוניות בתקופה'}
+            // "no invoices" is only true once the invoicing query has answered;
+            // saying it while it is still in flight states something unknown.
+            foot={
+              hasInvoices
+                ? `שיעור גבייה ${inv.collection_rate}%`
+                : invoicing.isLoading
+                  ? undefined
+                  : 'אין חשבוניות בתקופה'
+            }
           />
         </div>
       </div>
@@ -296,7 +298,9 @@ export default function FinancialSection({ globalDateRange }: Props) {
       <div className={`${theme.card} ${theme.mt}`}>
         <h2 className={theme.cardTitle}>חשבוניות וגבייה</h2>
         <p className={theme.cardSub}>ההכנסה כפי שהיא מדווחת במסמכים</p>
-        {hasInvoices ? (
+        {invoicing.isLoading ? (
+          <Skeleton className="h-16" />
+        ) : hasInvoices ? (
           <>
             <div className={theme.counts} style={{ marginTop: 0 }}>
               <div>
@@ -427,7 +431,7 @@ export default function FinancialSection({ globalDateRange }: Props) {
             <ResponsiveContainer width="100%" height="100%">
               <BarChart
                 data={[...revenueByInstructor].sort((a, b) => Number(b.revenue) - Number(a.revenue)).slice(0, 8)}
-                margin={{ top: 8, right: 12, left: 4, bottom: 40 }}
+                margin={{ top: 8, right: 12, left: 4, bottom: 56 }}
               >
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
                 <XAxis
@@ -436,7 +440,7 @@ export default function FinancialSection({ globalDateRange }: Props) {
                   interval={0}
                   angle={-20}
                   textAnchor="end"
-                  height={56}
+                  height={64}
                 />
                 <YAxis tick={{ fontSize: 11 }} width={72} />
                 <Tooltip formatter={(v: any) => formatCurrency(Number(v))} />

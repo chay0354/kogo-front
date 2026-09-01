@@ -20,3 +20,14 @@ export function formatCompactCurrency(value: number | null | undefined): string 
 export function formatPercent(value: number | null | undefined, digits = 0): string {
   return `${Number(value ?? 0).toFixed(digits)}%`;
 }
+
+/**
+ * Where an invoiced shekel came from, as `invoicing.by_source` names it.
+ * Shared because two tabs show the same breakdown and the wording has to agree.
+ */
+export const SOURCE_LABELS: Record<string, string> = {
+  crm: 'חוגים והרשמות',
+  store: 'חנות',
+  formal: 'מסמכים פורמליים',
+  tranzila: 'Tranzila',
+};

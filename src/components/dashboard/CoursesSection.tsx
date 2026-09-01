@@ -39,7 +39,7 @@ export default function CoursesSection({ globalDateRange }: Props) {
     [cityId, branchId, courseTypeId, globalDateRange],
   );
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, error } = useQuery({
     queryKey: ['dashboard-courses', apiFilters],
     queryFn: () => fetchCoursesData(apiFilters),
   });
@@ -86,6 +86,13 @@ export default function CoursesSection({ globalDateRange }: Props) {
 
   if (isLoading) {
     return <SectionSkeleton label="טוען נתוני חוגים" />;
+  }
+  if (error) {
+    return (
+      <div className={theme.scope}>
+        <div className={theme.card}>שגיאה בטעינת הנתונים. נסו לרענן את הדף.</div>
+      </div>
+    );
   }
 
   const maxStudents = byStudents.length ? Number(byStudents[0].students) : 1;

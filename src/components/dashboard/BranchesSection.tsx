@@ -58,7 +58,7 @@ export default function BranchesSection({ globalDateRange }: Props) {
     [cityId, branchId, globalDateRange],
   );
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, error } = useQuery({
     queryKey: ['dashboard-branches', apiFilters],
     queryFn: () => fetchBranchesData(apiFilters),
   });
@@ -99,6 +99,13 @@ export default function BranchesSection({ globalDateRange }: Props) {
 
   if (isLoading) {
     return <SectionSkeleton label="טוען נתוני סניפים" />;
+  }
+  if (error) {
+    return (
+      <div className={theme.scope}>
+        <div className={theme.card}>שגיאה בטעינת הנתונים. נסו לרענן את הדף.</div>
+      </div>
+    );
   }
 
   return (
@@ -176,7 +183,15 @@ export default function BranchesSection({ globalDateRange }: Props) {
             ))}
           </div>
         ) : (
-          <div className={theme.card}>אין סניפים שתואמים לסינון</div>
+          <div className={theme.card}>
+            {/* An empty payload and an over-narrow filter look the same on
+                screen but are not the same thing to the reader. */}
+            <div className={theme.kpiFoot}>
+              {branchList.length > 0
+                ? 'אין סניפים שתואמים לסינון'
+                : 'אין נתוני סניפים לתקופה שנבחרה'}
+            </div>
+          </div>
         )}
       </div>
 
@@ -313,7 +328,9 @@ function BranchCard({ branch, onOpen }: { branch: any; onOpen: () => void }) {
       <div style={{ position: 'relative', width: 140, height: 140, margin: '14px auto' }}>
         <svg width="140" height="140" viewBox="0 0 140 140" style={{ transform: 'rotate(-90deg)' }}>
           <circle cx="70" cy="70" r={R} fill="none" stroke="hsl(var(--muted))" strokeWidth="15" />
-          {revenue > 0 ? (
+          {/* A branch at or below break-even has no arc to draw. Rendering one
+              anyway leaves the round linecap as a stray dot on the track. */}
+          {pct > 0 ? (
             <circle
               cx="70"
               cy="70"

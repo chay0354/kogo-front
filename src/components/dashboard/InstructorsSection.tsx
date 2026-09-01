@@ -45,7 +45,7 @@ export default function InstructorsSection({ globalDateRange }: Props) {
     [branchId, globalDateRange],
   );
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, error } = useQuery({
     queryKey: ['dashboard-instructors', apiFilters],
     queryFn: () => fetchInstructorsData(apiFilters),
   });
@@ -61,6 +61,13 @@ export default function InstructorsSection({ globalDateRange }: Props) {
 
   if (isLoading) {
     return <SectionSkeleton label="טוען נתוני מדריכים" />;
+  }
+  if (error) {
+    return (
+      <div className={theme.scope}>
+        <div className={theme.card}>שגיאה בטעינת הנתונים. נסו לרענן את הדף.</div>
+      </div>
+    );
   }
 
   return (
@@ -165,6 +172,14 @@ export default function InstructorsSection({ globalDateRange }: Props) {
               </BarChart>
             </ResponsiveContainer>
           </div>
+        </div>
+      ) : null}
+
+      {/* Without snapshot rows the tab ends after the KPI strip, which reads as
+          a page that failed to finish loading. Say why instead. */}
+      {details.length === 0 ? (
+        <div className={`${theme.card} ${theme.mt}`}>
+          <div className={theme.kpiFoot}>אין נתוני מדריכים לתקופה שנבחרה</div>
         </div>
       ) : null}
 

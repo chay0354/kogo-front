@@ -12,13 +12,15 @@ import {
   fetchActivityData,
   fetchInvoicingData,
 } from '@/lib/api';
+import { Skeleton } from '@/components/ui/skeleton';
 import type { DateRange } from './GlobalDateFilter';
-import { formatCurrency, formatPercent } from './format';
+import { formatCurrency, formatPercent, SOURCE_LABELS } from './format';
 import EmptyState from './EmptyState';
 import KpiCard from './KpiCard';
 import { deriveTrends } from './trends';
 import CssBars from './charts/CssBars';
 import theme from './theme/dashboard.module.css';
+import { SectionSkeleton } from './SectionSkeleton';
 
 interface Props {
   globalDateRange: DateRange;
@@ -100,6 +102,30 @@ export default function MainSection({ globalDateRange }: Props) {
   const lowOccupancy = Number(crs.low_occupancy ?? 0);
   const creditProblems = Number(stu.credit_problems ?? 0);
   const ghosts = Number(stu.ghost_students ?? 0);
+
+  // Every headline figure on this tab defaults to zero while its query is in
+  // flight, and a zero here is indistinguishable from a real one. The tab holds
+  // its shape until the five that feed it have landed.
+  const isLoading =
+    financial.isLoading ||
+    students.isLoading ||
+    courses.isLoading ||
+    instructors.isLoading ||
+    branches.isLoading;
+
+  const error =
+    financial.error || students.error || courses.error || instructors.error || branches.error;
+
+  if (isLoading) {
+    return <SectionSkeleton label="טוען נתוני דשבורד" hero />;
+  }
+  if (error) {
+    return (
+      <div className={theme.scope}>
+        <div className={theme.card}>שגיאה בטעינת הנתונים. נסו לרענן את הדף.</div>
+      </div>
+    );
+  }
 
   return (
     <div className={theme.scope}>
@@ -235,12 +261,12 @@ export default function MainSection({ globalDateRange }: Props) {
         <div className={theme.card}>
           <h2 className={theme.cardTitle}>הימים החזקים בשבוע</h2>
           <p className={theme.cardSub}>מספר שיעורים שמתקיימים בכל יום</p>
-          <WeekdayChart data={activity.data} />
+          <WeekdayChart data={activity.data} loading={activity.isLoading} />
         </div>
         <div className={theme.card}>
           <h2 className={theme.cardTitle}>שעות שיא</h2>
           <p className={theme.cardSub}>שיעורים לפי שעת התחלה</p>
-          <HourChart data={activity.data} />
+          <HourChart data={activity.data} loading={activity.isLoading} />
         </div>
       </div>
 
@@ -251,7 +277,7 @@ export default function MainSection({ globalDateRange }: Props) {
         <TopCourses rows={courses.data?.course_list ?? []} />
       </div>
 
-      {/* ---------- 7 · לא קיים ב-API ---------- */}
+      {/* ---------- 7 · בריאות ומקורות ---------- */}
       <div className={`${theme.grid} ${theme.g2} ${theme.mt}`}>
         <div className={theme.card}>
           <h2 className={theme.cardTitle}>בריאות העסק</h2>
@@ -261,14 +287,44 @@ export default function MainSection({ globalDateRange }: Props) {
         <div className={theme.card}>
           <h2 className={theme.cardTitle}>מאיפה מגיע הכסף</h2>
           <p className={theme.cardSub}>פילוח ההכנסות לפי מקור</p>
-          <EmptyState
-            title="מקורות הכנסה"
-            icon="💰"
-            reason="פילוח ההכנסות לפי מקור דורש תוספת ב־Backend"
-          />
+          <RevenueSources data={inv} loading={invoicing.isLoading} />
         </div>
       </div>
     </div>
+  );
+}
+
+/** Invoiced revenue split by the document it came from, as ranked bars. */
+function RevenueSources({ data, loading }: { data: any; loading: boolean }) {
+  if (loading) return <Skeleton className="h-24" />;
+
+  const rows: any[] = data?.by_source ?? [];
+  const invoiced = Number(data?.invoiced ?? 0);
+  if (!rows.length || invoiced <= 0) {
+    return <div className={theme.kpiFoot}>לא הופקו חשבוניות בתקופה שנבחרה</div>;
+  }
+
+  const sorted = [...rows].sort((a, b) => Number(b.invoiced) - Number(a.invoiced));
+  const max = Math.max(...sorted.map((r) => Number(r.invoiced) || 1));
+
+  return (
+    <>
+      {sorted.map((row, i) => (
+        <div
+          className={theme.hbar}
+          key={row.source}
+          style={i === sorted.length - 1 ? { marginBottom: 0 } : undefined}
+        >
+          <div className={theme.hbarName}>{SOURCE_LABELS[row.source] ?? row.source}</div>
+          <div className={theme.hbarNum}>
+            {formatCurrency(row.invoiced)} · {formatPercent((Number(row.invoiced) / invoiced) * 100, 1)}
+          </div>
+          <div className={theme.track}>
+            <div className={theme.fill} style={{ width: `${(Number(row.invoiced) / max) * 100}%` }} />
+          </div>
+        </div>
+      ))}
+    </>
   );
 }
 
@@ -297,12 +353,12 @@ function TopCourses({ rows }: { rows: any[] }) {
         >
           <div className={theme.hbarName}>{c.name}</div>
           <div className={theme.hbarNum}>
-            {c.students} · {c.occupancy}% תפוסה
+            {c.students} · {formatPercent(c.occupancy, 0)} תפוסה
           </div>
           <div className={theme.track}>
             <div
-              className={`${theme.fill} ${c.occupancy >= 85 ? theme.fillAmber : ''} ${
-                c.occupancy < 40 ? theme.fillRed : ''
+              className={`${theme.fill} ${
+                c.occupancy >= 85 ? theme.fillAmber : c.occupancy < 40 ? theme.fillRed : ''
               }`}
               style={{ width: `${(c.students / max) * 100}%` }}
             />
@@ -319,7 +375,10 @@ const WEEKDAY_NAMES = [
 ];
 
 /** Lessons per weekday; the busiest day is highlighted. */
-function WeekdayChart({ data }: { data: any }) {
+function WeekdayChart({ data, loading }: { data: any; loading: boolean }) {
+  // Its own query, so it can still be in flight once the tab has drawn.
+  if (loading) return <Skeleton className="h-[150px]" />;
+
   const rows: any[] = data?.by_weekday ?? [];
   if (!rows.length) return <div className={theme.kpiFoot}>אין שיעורים פעילים להצגה</div>;
 
@@ -349,7 +408,9 @@ function WeekdayChart({ data }: { data: any }) {
 }
 
 /** Lessons per start hour across the day; the peak hour is highlighted. */
-function HourChart({ data }: { data: any }) {
+function HourChart({ data, loading }: { data: any; loading: boolean }) {
+  if (loading) return <Skeleton className="h-[150px]" />;
+
   const rows: any[] = data?.by_hour ?? [];
   if (!rows.length) return <div className={theme.kpiFoot}>אין שיעורים פעילים להצגה</div>;
 

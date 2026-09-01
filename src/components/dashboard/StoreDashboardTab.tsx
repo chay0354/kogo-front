@@ -50,6 +50,7 @@ interface Props {
 export default function StoreDashboardTab({ globalDateRange }: Props) {
   const [analytics, setAnalytics] = useState<StoreAnalytics>(EMPTY);
   const [isLoading, setIsLoading] = useState(true);
+  const [failed, setFailed] = useState(false);
   const [days, setDays] = useState(30);
 
   const dateFrom = globalDateRange ? format(globalDateRange.date_from, 'yyyy-MM-dd') : undefined;
@@ -59,14 +60,23 @@ export default function StoreDashboardTab({ globalDateRange }: Props) {
     let cancelled = false;
     setIsLoading(true);
     fetchAnalytics(dateFrom && dateTo ? { date_from: dateFrom, date_to: dateTo } : { days })
-      .then((data) => { if (!cancelled) setAnalytics(data); })
-      .catch(() => { if (!cancelled) setAnalytics(EMPTY); })
+      .then((data) => { if (!cancelled) { setAnalytics(data); setFailed(false); } })
+      // Falling back to zeros on a failed read presents "the request broke" as
+      // "the shop sold nothing", which are opposite pieces of news.
+      .catch(() => { if (!cancelled) { setAnalytics(EMPTY); setFailed(true); } })
       .finally(() => { if (!cancelled) setIsLoading(false); });
     return () => { cancelled = true; };
   }, [days, dateFrom, dateTo]);
 
   if (isLoading) {
     return <SectionSkeleton label="טוען נתוני חנות" hero />;
+  }
+  if (failed) {
+    return (
+      <div className={theme.scope}>
+        <div className={theme.card}>שגיאה בטעינת הנתונים. נסו לרענן את הדף.</div>
+      </div>
+    );
   }
 
   const revenue = Number(analytics.total_revenue ?? 0);
