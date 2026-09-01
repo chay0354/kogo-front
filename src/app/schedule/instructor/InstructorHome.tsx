@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   BarChart3,
@@ -24,6 +24,7 @@ import type { Lesson } from '@/types/schedule';
 import InstructorAttendance from './InstructorAttendance';
 import InstructorDashboard from './InstructorDashboard';
 import { INSTRUCTOR_MOTION_MS, resolveInstructorMotionDelay } from './instructorMotion';
+import { useInstructorBack, type InstructorBackLayer } from './instructorBack';
 import GuidedTour from '@/components/onboarding/GuidedTour';
 import {
   findCurrentOrNextLessonId,
@@ -61,6 +62,15 @@ export default function InstructorHome() {
   const [confirmLogout, setConfirmLogout] = useState(false);
   // Set when the screen moved itself off an empty day, so it can say so.
   const [autoAdvanced, setAutoAdvanced] = useState(false);
+  const [tourOpen, setTourOpen] = useState(false);
+  // The register's own layers and the numbers sheet each fall away with their
+  // own animation, so each hands up the way to close it rather than being torn
+  // out from here — the phone's back button has to land where their own
+  // controls land.
+  const attendanceOverlayRef = useRef<(() => void) | null>(null);
+  const [attendanceOverlayOpen, setAttendanceOverlayOpen] = useState(false);
+  const dashboardDismissRef = useRef<(() => void) | null>(null);
+  const [dashboardDismissible, setDashboardDismissible] = useState(false);
   const carouselRef = useRef<HTMLDivElement>(null);
   const transitionLockRef = useRef(false);
   const returnTimerRef = useRef<number | null>(null);
@@ -364,6 +374,7 @@ export default function InstructorHome() {
     const onStart = () => {
       tourRunningRef.current = true;
       tourSearchedRef.current = false;
+      setTourOpen(true);
       void maybeBorrow();
     };
 
@@ -398,6 +409,7 @@ export default function InstructorHome() {
     const onEnd = () => {
       tourRunningRef.current = false;
       tourSearchedRef.current = false;
+      setTourOpen(false);
       if (tourOriginalDateRef.current === null) return;
       const original = tourOriginalDateRef.current;
       tourOriginalDateRef.current = null;
@@ -450,6 +462,44 @@ export default function InstructorHome() {
       transitionLockRef.current = false;
     }
   };
+
+  const closeDashboard = useCallback(() => setDashboardOpen(false), []);
+
+  const handleAttendanceOverlay = useCallback((dismiss: (() => void) | null) => {
+    attendanceOverlayRef.current = dismiss;
+    setAttendanceOverlayOpen(dismiss !== null);
+  }, []);
+
+  const handleDashboardDismiss = useCallback((dismiss: (() => void) | null) => {
+    dashboardDismissRef.current = dismiss;
+    setDashboardDismissible(dismiss !== null);
+  }, []);
+
+  // The phone's own back button. It is a second trigger for the controls
+  // already on screen, never a second behaviour: every layer here is closed by
+  // the very function its own control calls.
+  useInstructorBack(
+    {
+      tourOpen,
+      open: {
+        logoutConfirm: confirmLogout,
+        attendanceOverlay: attendanceOverlayOpen,
+        dashboard: dashboardDismissible,
+        teacherPicker: teacherPickerOpen,
+        // From the moment a register is asked for until the moment it starts
+        // animating away, so a press during either of those never falls
+        // through to the browser.
+        attendance: Boolean(visualLesson) && !isClosingAttendance,
+      },
+    },
+    (layer: InstructorBackLayer) => {
+      if (layer === 'logoutConfirm') setConfirmLogout(false);
+      if (layer === 'attendanceOverlay') attendanceOverlayRef.current?.();
+      if (layer === 'dashboard') dashboardDismissRef.current?.();
+      if (layer === 'teacherPicker') setTeacherPickerOpen(false);
+      if (layer === 'attendance') void closeAttendance();
+    },
+  );
 
   return (
     <div className={styles.page} dir="rtl">
@@ -567,8 +617,9 @@ export default function InstructorHome() {
 
       {dashboardOpen && (
         <InstructorDashboard
-          onClose={() => setDashboardOpen(false)}
+          onClose={closeDashboard}
           onOpenLesson={openLessonFromDashboard}
+          onDismissChange={handleDashboardDismiss}
         />
       )}
 
@@ -786,6 +837,7 @@ export default function InstructorHome() {
                 lesson={selectedLesson}
                 onBack={closeAttendance}
                 asUser={viewAs === 'self' ? undefined : viewAs}
+                onOverlayChange={handleAttendanceOverlay}
               />
             ) : (
               <div className={styles.pickHint}>

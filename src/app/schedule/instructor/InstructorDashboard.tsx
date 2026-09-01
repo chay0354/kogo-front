@@ -24,6 +24,9 @@ type Props = {
   onClose: () => void;
   /** Jump to a lesson's attendance on a given date. */
   onOpenLesson: (lessonId: string, date: string) => void;
+  /** Hands up the way to drop the sheet, so the phone's back button lets it
+   *  fall away exactly as the X does. Null once it is already on its way out. */
+  onDismissChange?: (dismiss: (() => void) | null) => void;
 };
 
 function monthLabel(month: string) {
@@ -36,7 +39,7 @@ function monthLabel(month: string) {
  * screen. Everything shown is counted server-side from real enrolments — an
  * empty section means there is nothing to show, never a placeholder figure.
  */
-export default function InstructorDashboard({ onClose, onOpenLesson }: Props) {
+export default function InstructorDashboard({ onClose, onOpenLesson, onDismissChange }: Props) {
   const [data, setData] = useState<Data | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
@@ -133,6 +136,14 @@ export default function InstructorDashboard({ onClose, onOpenLesson }: Props) {
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [close]);
+
+  // A sheet already dropping away is nothing left to close, so it stops
+  // offering itself the moment the exit starts.
+  useEffect(() => {
+    if (!onDismissChange) return;
+    onDismissChange(isClosing ? null : close);
+    return () => onDismissChange(null);
+  }, [isClosing, close, onDismissChange]);
 
   const trend = useMemo(
     () => (data?.monthly_trend ?? []).map((p) => ({ ...p, label: monthLabel(p.month) })),

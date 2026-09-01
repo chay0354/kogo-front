@@ -32,6 +32,11 @@ type InstructorAttendanceProps = {
    *  user. Every call about the lesson has to carry it or the server cannot
    *  reach the lesson at all. */
   asUser?: string;
+  /** Hands up the way to close whichever of the register's own layers is open
+   *  — the contact sheet, or the walk-in form — so the phone's back button
+   *  closes that before it reaches the register underneath. Null when the
+   *  register has nothing of its own open. */
+  onOverlayChange?: (dismiss: (() => void) | null) => void;
 };
 
 export default function InstructorAttendance({
@@ -39,6 +44,7 @@ export default function InstructorAttendance({
   onBack,
   embedded = false,
   asUser,
+  onOverlayChange,
 }: InstructorAttendanceProps) {
   const [detail, setDetail] = useState<LessonDetail | null>(null);
   const [attendance, setAttendance] = useState<Record<string, AttendanceStatus>>({});
@@ -94,6 +100,16 @@ export default function InstructorAttendance({
     const timer = window.setTimeout(() => setToast(''), 2800);
     return () => window.clearTimeout(timer);
   }, [toast]);
+
+  // Nearest the instructor first: the contact sheet is a modal over everything
+  // here, including the walk-in form, so it answers a back press before it.
+  useEffect(() => {
+    if (!onOverlayChange) return;
+    if (contact) onOverlayChange(() => setContact(null));
+    else if (addOpen) onOverlayChange(() => setAddOpen(false));
+    else onOverlayChange(null);
+    return () => onOverlayChange(null);
+  }, [contact, addOpen, onOverlayChange]);
 
   /* The form is revealed below a list that can be longer than the screen. The
      layout keeps it on screen on its own, but a short phone with a long header
@@ -273,86 +289,92 @@ export default function InstructorAttendance({
               </article>
             );
           })}
-        </section>
-
-        {addOpen && (
-          /* No autofocus anywhere in here: the instructor opens this while the
-             children are still arriving, and a keyboard that springs up over
-             the register hides the rows they are in the middle of marking. */
-          <div className={styles.addForm} ref={addFormRef}>
-            <div className={styles.addTitle}>הוספת תלמיד שהגיע</div>
-            <p className={styles.addHint}>
-              נרשם לשיעור הזה בלבד כדי שתוכלו לסמן נוכחות. המשרד ישלים את ההרשמה.
-            </p>
-            <div className={styles.addFields}>
-              <label className={styles.addField}>
-                <span className={styles.addLabel}>שם פרטי</span>
-                <input
-                  className={styles.addInput}
-                  value={addForm.first_name}
-                  onChange={(e) => setAddForm((p) => ({ ...p, first_name: e.target.value }))}
-                />
-              </label>
-              <label className={styles.addField}>
-                <span className={styles.addLabel}>שם משפחה</span>
-                <input
-                  className={styles.addInput}
-                  value={addForm.last_name}
-                  onChange={(e) => setAddForm((p) => ({ ...p, last_name: e.target.value }))}
-                />
-              </label>
-              <label className={`${styles.addField} ${styles.addFieldWide}`}>
-                <span className={styles.addLabel}>
-                  טלפון
-                  <span className={styles.addOptional}>לא חובה</span>
-                </span>
-                <input
-                  className={styles.addInput}
-                  inputMode="tel"
-                  value={addForm.phone}
-                  onChange={(e) => setAddForm((p) => ({ ...p, phone: e.target.value }))}
-                />
-              </label>
-            </div>
-            <div className={styles.addActions}>
-              <button
-                type="button"
-                className={styles.addSave}
-                onClick={handleAddWalkIn}
-                disabled={isAdding}
-              >
-                {isAdding ? 'מוסיף…' : 'הוסף'}
-              </button>
-              <button
-                type="button"
-                className={styles.addCancel}
-                onClick={() => setAddOpen(false)}
-                disabled={isAdding}
-              >
-                ביטול
-              </button>
-            </div>
-          </div>
-        )}
-
-        <footer className={styles.footer} data-tour="add-student">
+          {/* At the end of the list it belongs to, where the names it reveals
+              are about to appear. */}
           {hiddenCount > 0 && !expanded && (
             <button type="button" className={styles.moreBtn} onClick={() => setExpanded(true)}>
               <span>עוד {hiddenCount} ילדים</span>
               <ChevronDown size={18} />
             </button>
           )}
-          <button
-            type="button"
-            className={styles.addBtn}
-            onClick={() => setAddOpen((v) => !v)}
-            aria-expanded={addOpen}
-            disabled={isCancelled}
-          >
-            <Plus size={18} strokeWidth={3} />
-            הוסף לקוח
-          </button>
-        </footer>
+          {addOpen && (
+            /* No autofocus anywhere in here: the instructor opens this while the
+               children are still arriving, and a keyboard that springs up over
+               the register hides the rows they are in the middle of marking. */
+            <div className={styles.addForm} ref={addFormRef}>
+              <div className={styles.addTitle}>הוספת תלמיד שהגיע</div>
+              <p className={styles.addHint}>
+                נרשם לשיעור הזה בלבד כדי שתוכלו לסמן נוכחות. המשרד ישלים את ההרשמה.
+              </p>
+              <div className={styles.addFields}>
+                <label className={styles.addField}>
+                  <span className={styles.addLabel}>שם פרטי</span>
+                  <input
+                    className={styles.addInput}
+                    value={addForm.first_name}
+                    onChange={(e) => setAddForm((p) => ({ ...p, first_name: e.target.value }))}
+                  />
+                </label>
+                <label className={styles.addField}>
+                  <span className={styles.addLabel}>שם משפחה</span>
+                  <input
+                    className={styles.addInput}
+                    value={addForm.last_name}
+                    onChange={(e) => setAddForm((p) => ({ ...p, last_name: e.target.value }))}
+                  />
+                </label>
+                <label className={`${styles.addField} ${styles.addFieldWide}`}>
+                  <span className={styles.addLabel}>
+                    טלפון
+                    <span className={styles.addOptional}>לא חובה</span>
+                  </span>
+                  <input
+                    className={styles.addInput}
+                    inputMode="tel"
+                    value={addForm.phone}
+                    onChange={(e) => setAddForm((p) => ({ ...p, phone: e.target.value }))}
+                  />
+                </label>
+              </div>
+              <div className={styles.addActions}>
+                <button
+                  type="button"
+                  className={styles.addSave}
+                  onClick={handleAddWalkIn}
+                  disabled={isAdding}
+                >
+                  {isAdding ? 'מוסיף…' : 'הוסף'}
+                </button>
+                <button
+                  type="button"
+                  className={styles.addCancel}
+                  onClick={() => setAddOpen(false)}
+                  disabled={isAdding}
+                >
+                  ביטול
+                </button>
+              </div>
+            </div>
+          )}
+        </section>
+
+        {/* Stands down while the form is open: the form pulls itself against the
+            bottom of the list, and a button floating there would come down on
+            the very actions it just revealed. The form closes on its own
+            ביטול. */}
+        {!addOpen && (
+          <footer className={styles.footer} data-tour="add-student">
+            <button
+              type="button"
+              className={styles.addBtn}
+              onClick={() => setAddOpen(true)}
+              disabled={isCancelled}
+            >
+              <Plus size={18} strokeWidth={3} />
+              הוסף לקוח
+            </button>
+          </footer>
+        )}
       </div>
       {contact && (
         <div
