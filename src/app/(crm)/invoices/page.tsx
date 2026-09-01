@@ -6,10 +6,11 @@ import { useQuery } from '@tanstack/react-query';
 import { FileText, Search, DollarSign, Clock, TrendingUp, Wallet, AlertCircle, Plus, Bell, Repeat, Download } from 'lucide-react';
 import PageFilters from '@/components/PageFilters';
 import NewDocumentDialog from '@/components/dialogs/NewDocumentDialog';
+import RefundDialog from '@/components/dialogs/RefundDialog';
 import { GroupIdBadge } from '@/components/GroupIdBadge/GroupIdBadge';
 import { TableSkeleton } from '@/components/ui/skeleton';
 import { fetchAllInvoices, downloadStoreInvoicePdf } from '@/lib/storeApi';
-import { sendDocumentReminder, fetchTranzilaDocuments, fetchTranzilaTransactions } from '@/lib/documentsApi';
+import { sendDocumentReminder, fetchTranzilaDocuments, fetchAllCustomerPayments } from '@/lib/documentsApi';
 import api from '@/lib/api';
 import { useAuth } from '@/components/AuthProvider';
 import { filterBranchesForUser, unwrapApiList } from '@/lib/scopedFilters';
@@ -18,9 +19,8 @@ import type { Branch } from '@/types/branch';
 import type { ChildWithDetails } from '@/types/customer';
 import type { RecurringPayment } from '@/types/payment';
 import type { ActiveTab, DocumentRow, PaymentRecord } from './types';
-import { PAYMENT_SUBCATEGORIES } from './constants';
+import { CHARGE_KIND_OPTIONS } from './constants';
 import {
-  getDocType,
   getLedgerDocType,
   getStatusLabel,
   getStatusClass,
@@ -36,6 +36,8 @@ import {
   getAgingBuckets,
   getRecurringStatusLabel,
   getRecurringStatusClass,
+  paymentToLedgerRow,
+  storeInvoiceToLedgerRow,
 } from './utils';
 import styles from './invoices.module.css';
 
@@ -64,13 +66,16 @@ export default function InvoicesPage() {
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
 
-  // Payments tab state — live Tranzila transactions
+  // Payments tab state — CRM charges (signup + standing order) and store invoices
   const [payments, setPayments] = useState<PaymentRecord[]>([]);
   const [paymentsError, setPaymentsError] = useState('');
   const [paymentsLoading, setPaymentsLoading] = useState(false);
   const [paymentsLoaded, setPaymentsLoaded] = useState(false);
-  const [paymentBranchFilter, setPaymentBranchFilter] = useState('');
-  const [paymentCategoryFilter, setPaymentCategoryFilter] = useState('');
+  const [paymentKindFilter, setPaymentKindFilter] = useState('');
+  const [paymentStatusFilter, setPaymentStatusFilter] = useState('');
+  const [paymentSearch, setPaymentSearch] = useState('');
+  const [refundTarget, setRefundTarget] = useState<PaymentRecord | null>(null);
+  const [refundLoading, setRefundLoading] = useState(false);
 
   // Collection tab state
   const [collectionCustomerFilter, setCollectionCustomerFilter] = useState('');
@@ -133,19 +138,13 @@ export default function InvoicesPage() {
     }
   }
 
-  async function loadPayments() {
-    if (paymentsLoaded) return;
+  async function loadPayments(force = false) {
+    if (paymentsLoaded && !force) return;
     setPaymentsLoading(true);
     setPaymentsError('');
     try {
-      const ledger = await fetchTranzilaTransactions({
-        ...(dateFrom ? { start_date: dateFrom } : {}),
-        ...(dateTo ? { end_date: dateTo } : {}),
-      });
-      setPayments(Array.isArray(ledger.payments) ? ledger.payments : []);
-      if (ledger.error && (!ledger.payments || ledger.payments.length === 0)) {
-        setPaymentsError('לא ניתן לטעון עסקאות מטרנזילה כרגע.');
-      }
+      const crmPayments = await fetchAllCustomerPayments();
+      setPayments(crmPayments.map(paymentToLedgerRow));
     } catch (error) {
       console.error('Error loading payments:', error);
       setPayments([]);
@@ -153,6 +152,40 @@ export default function InvoicesPage() {
     } finally {
       setPaymentsLoading(false);
       setPaymentsLoaded(true);
+    }
+  }
+
+  async function handleRefundConfirm(amount: number | null, reason: string) {
+    if (!refundTarget) return;
+    setRefundLoading(true);
+    try {
+      const endpoint = refundTarget.source === 'payment'
+        ? `/customers/payments/${refundTarget.id}/refund/`
+        : `/store/invoices/${refundTarget.id}/refund/`;
+      await api.post(endpoint, { amount, reason });
+      if (refundTarget.source === 'payment') {
+        setPayments((prev) =>
+          prev.map((row) =>
+            row.id === refundTarget.id
+              ? { ...row, status: 'refunded', canRefund: false }
+              : row,
+          ),
+        );
+      } else {
+        setInvoices((prev) =>
+          prev.map((inv) =>
+            inv.id === refundTarget.id
+              ? { ...inv, payment_status: 'refunded' }
+              : inv,
+          ),
+        );
+      }
+      setRefundTarget(null);
+    } catch (error: unknown) {
+      const data = (error as { response?: { data?: { error?: string } } })?.response?.data;
+      window.alert(data?.error || 'שגיאה בביצוע הזיכוי');
+    } finally {
+      setRefundLoading(false);
     }
   }
 
@@ -256,9 +289,28 @@ export default function InvoicesPage() {
     }
   }
 
-  const pendingCount = payments.filter(p => p.status === 'pending').length;
-  const monthTotal = getCurrentMonthTotal(payments);
-  const sortedPayments = [...payments].sort(
+  const ledgerPayments: PaymentRecord[] = [
+    ...payments,
+    ...invoices.map(storeInvoiceToLedgerRow),
+  ];
+  const pendingCount = ledgerPayments.filter(
+    (p) => p.status === 'pending' || p.status === 'processing',
+  ).length;
+  const monthTotal = getCurrentMonthTotal(ledgerPayments);
+  const filteredPayments = ledgerPayments.filter((p) => {
+    if (primaryFilter && p.branch_id !== primaryFilter) return false;
+    if (paymentKindFilter && p.kind !== paymentKindFilter) return false;
+    if (paymentStatusFilter && p.status !== paymentStatusFilter) return false;
+    const q = paymentSearch.trim().toLowerCase();
+    if (!q) return true;
+    return (
+      p.customer_name.toLowerCase().includes(q)
+      || p.description.toLowerCase().includes(q)
+      || p.kind_label.toLowerCase().includes(q)
+      || (p.transaction_reference || '').toLowerCase().includes(q)
+    );
+  });
+  const sortedPayments = [...filteredPayments].sort(
     (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
   );
 
@@ -345,7 +397,7 @@ export default function InvoicesPage() {
             </h2>
             <p className={styles.subtitle}>
               {activeTab === 'תשלומים'
-                ? 'תשלומים מווידג׳ט ההרשמה ומהחנות'
+                ? 'כל החיובים: הרשמה, הוראת קבע, שיעורי ניסיון והחנות — כולל הסבר וזיכוי'
                 : activeTab === 'גבייה'
                 ? 'מסמכים עם יתרה פתוחה, מעקב Aging ופעולות גבייה'
                 : activeTab === 'הוראת קבע'
@@ -580,8 +632,8 @@ export default function InvoicesPage() {
                   <DollarSign size={18} />
                 </div>
                 <div className={styles.statCardBody}>
-                  <span className={styles.statCardValue}>{payments.length}</span>
-                  <span className={styles.statCardLabel}>סה&quot;כ תשלומים</span>
+                  <span className={styles.statCardValue}>{ledgerPayments.length}</span>
+                  <span className={styles.statCardLabel}>סה&quot;כ חיובים</span>
                 </div>
               </div>
 
@@ -601,41 +653,46 @@ export default function InvoicesPage() {
                 </div>
                 <div className={styles.statCardBody}>
                   <span className={styles.statCardValue}>{formatAmount(monthTotal)}</span>
-                  <span className={styles.statCardLabel}>תשלומים החודש</span>
+                  <span className={styles.statCardLabel}>חיובים שהצליחו החודש</span>
                 </div>
               </div>
             </div>
 
-            {/* Payments filter bar */}
             <div className={styles.paymentsFilterBar}>
               <select
                 className={styles.filterSelect}
-                value={paymentBranchFilter}
-                onChange={e => { setPaymentBranchFilter(e.target.value); setPaymentCategoryFilter(''); }}
-                aria-label="סינון לפי סוג"
+                value={paymentKindFilter}
+                onChange={(e) => setPaymentKindFilter(e.target.value)}
+                aria-label="סינון לפי סוג חיוב"
               >
-                <option value="">כל הסוגים</option>
-                <option value="לקוחות">לקוחות</option>
-                <option value="שוכרים">שוכרים</option>
-                <option value="ספקים">ספקים</option>
-                <option value="חוגים">חוגים</option>
-                <option value="מותג קוגומלו">מותג קוגומלו</option>
-                <option value="מותג געגע">מותג געגע</option>
-                <option value="סניפים">סניפים</option>
+                <option value="">כל סוגי החיוב</option>
+                {CHARGE_KIND_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                ))}
               </select>
-              {paymentBranchFilter && (
-                <select
-                  className={styles.filterSelect}
-                  value={paymentCategoryFilter}
-                  onChange={e => setPaymentCategoryFilter(e.target.value)}
-                  aria-label="סינון לפי קטגוריה"
-                >
-                  <option value="">כל הקטגוריות</option>
-                  {PAYMENT_SUBCATEGORIES[paymentBranchFilter]?.map(cat => (
-                    <option key={cat} value={cat}>{cat}</option>
-                  ))}
-                </select>
-              )}
+              <select
+                className={styles.filterSelect}
+                value={paymentStatusFilter}
+                onChange={(e) => setPaymentStatusFilter(e.target.value)}
+                aria-label="סינון לפי סטטוס"
+              >
+                <option value="">כל הסטטוסים</option>
+                <option value="completed">אושר</option>
+                <option value="pending">ממתין</option>
+                <option value="failed">נכשל</option>
+                <option value="refunded">זוכה</option>
+              </select>
+              <div className={styles.searchWrapper}>
+                <Search className={styles.searchIcon} aria-hidden="true" />
+                <input
+                  type="text"
+                  className={styles.searchInput}
+                  placeholder="חיפוש לפי לקוח, חוג, הסבר..."
+                  value={paymentSearch}
+                  onChange={(e) => setPaymentSearch(e.target.value)}
+                  aria-label="חיפוש חיובים"
+                />
+              </div>
             </div>
 
             {paymentsError && (
@@ -646,33 +703,37 @@ export default function InvoicesPage() {
             <div className={styles.tableCard}>
               {paymentsLoading ? (
                 <TableSkeleton
-                  columns={7}
+                  columns={8}
                   tableClassName={`${styles.invoiceTable} ${styles.paymentsTable}`}
                   label="טוען תשלומים"
                 />
               ) : sortedPayments.length === 0 ? (
-                <div className={styles.emptyState}>לא נמצאו תשלומים</div>
+                <div className={styles.emptyState}>לא נמצאו חיובים</div>
               ) : (
                 <table className={`${styles.invoiceTable} ${styles.paymentsTable}`}>
                   <thead>
                     <tr>
                       <th scope="col">תאריך</th>
                       <th scope="col">לקוח</th>
-                      <th scope="col">מס' מסמך</th>
+                      <th scope="col">על מה החיוב</th>
                       <th scope="col">סכום</th>
                       <th scope="col">אמצעי</th>
                       <th scope="col">אסמכתא</th>
                       <th scope="col">סטטוס</th>
+                      <th scope="col">פעולות</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {sortedPayments.map(p => {
+                    {sortedPayments.map((p) => {
                       const statusLabel = getPaymentStatusLabel(p.status);
                       return (
-                        <tr key={p.id}>
+                        <tr key={`${p.source}-${p.id}`}>
                           <td>{p.created_at ? formatDate(p.created_at) : '—'}</td>
                           <td className={styles.customerName}>{p.customer_name || '—'}</td>
-                          <td className={styles.invoiceNumber}>{p.invoice_number || '—'}</td>
+                          <td className={styles.chargeCell}>
+                            <span className={styles.chargeKindChip}>{p.kind_label}</span>
+                            <span className={styles.chargeDescription}>{p.description || '—'}</span>
+                          </td>
                           <td className={styles.amount}>{formatAmount(p.amount)}</td>
                           <td><span className={styles.methodBadge}>{p.payment_method || 'אשראי'}</span></td>
                           <td className={styles.referenceCell}>{p.transaction_reference || '—'}</td>
@@ -683,6 +744,19 @@ export default function InvoicesPage() {
                             >
                               {statusLabel}
                             </span>
+                          </td>
+                          <td>
+                            {p.canRefund ? (
+                              <button
+                                type="button"
+                                className={styles.refundBtn}
+                                onClick={() => setRefundTarget(p)}
+                              >
+                                זיכוי
+                              </button>
+                            ) : (
+                              <span className={styles.refundUnavailable}>—</span>
+                            )}
                           </td>
                         </tr>
                       );
@@ -998,6 +1072,16 @@ export default function InvoicesPage() {
           </>
         )}
       </div>
+
+      <RefundDialog
+        isOpen={Boolean(refundTarget)}
+        onClose={() => { if (!refundLoading) setRefundTarget(null); }}
+        onConfirm={handleRefundConfirm}
+        title="זיכוי חיוב"
+        maxAmount={refundTarget?.amount ?? 0}
+        itemDescription={refundTarget?.description}
+        loading={refundLoading}
+      />
 
       <NewDocumentDialog open={isNewDocOpen} onClose={() => { setIsNewDocOpen(false); loadInvoiceData(); }} />
 
