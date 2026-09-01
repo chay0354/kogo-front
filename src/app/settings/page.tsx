@@ -21,6 +21,7 @@ import { useAuth } from '@/components/AuthProvider';
 import LinkedUsersSection from './LinkedUsersSection';
 import InstructorLoginDiagnostics from './InstructorLoginDiagnostics';
 import IntegrationCredentials from './IntegrationCredentials';
+import PartnersSection from './PartnersSection';
 
 type UserRole = 'manager' | 'worker' | 'partner';
 
@@ -187,9 +188,6 @@ export default function SettingsPage() {
               <Link href="/discounts">
                 <Button variant="outline">הנחות</Button>
               </Link>
-              <Link href="/credit-charge">
-                <Button variant="outline">סליקת אשראי</Button>
-              </Link>
               <Link href="/settings/terms">
                 <Button variant="outline">ערוך תקנון</Button>
               </Link>
@@ -267,9 +265,25 @@ export default function SettingsPage() {
         )}
       </div>
 
+      {isManager && <PartnersSection />}
+
       {isManager && <IntegrationCredentials />}
 
       {isManager && <InstructorLoginDiagnostics />}
+
+      {isManager && (
+        <div className="card mt-4">
+          <h2 className="text-base font-semibold">ספר-מערכת</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            לוגיקות עסקיות ומילון מונחים כפי שהם מוגדרים בפועל במערכת
+          </p>
+          <div className="mt-3">
+            <Link href="/manual">
+              <Button variant="outline">פתח ספר-מערכת</Button>
+            </Link>
+          </div>
+        </div>
+      )}
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="max-w-lg">

@@ -107,6 +107,13 @@
   font-weight: 600;
 }
 
+/* A tab that leaves the page instead of switching one, so it is an anchor. */
+.tabLink {
+  display: flex;
+  align-items: center;
+  text-decoration: none;
+}
+
 /* Filter bar */
 .filterBar {
   display: flex;

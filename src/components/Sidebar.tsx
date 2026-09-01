@@ -14,7 +14,6 @@ import {
   KeyRound,
   MessageCircle,
   FileText,
-  Users2,
   PanelRightClose,
   CreditCard,
 } from 'lucide-react';
@@ -34,15 +33,23 @@ const MANAGER_MENU = [
   { name: 'חנות', href: '/store', icon: ShoppingBag },
   { name: 'חשבוניות', href: '/invoices', icon: FileText },
   { name: 'כרטיסי אשראי', href: '/credit-cards', icon: CreditCard },
-  { name: 'שותפים', href: '/partners', icon: Users2 },
   { name: 'WhatsApp', href: '/whatsapp', icon: MessageCircle },
-  { name: 'ספר-מערכת', href: '/manual', icon: BookOpen },
   { name: 'הגדרות', href: '/settings', icon: Settings },
 ];
 
-const PARTNER_MENU = MANAGER_MENU.filter(
-  (item) => !['/partners', '/settings', '/whatsapp', '/credit-cards'].includes(item.href)
-);
+/**
+ * A manager reaches ספר-מערכת from inside הגדרות. A partner has no הגדרות
+ * screen, so for them it has to stay an entry of its own — otherwise moving it
+ * there would quietly take the page away from them.
+ */
+const MANUAL_ITEM = { name: 'ספר-מערכת', href: '/manual', icon: BookOpen };
+
+const PARTNER_MENU = [
+  ...MANAGER_MENU.filter(
+    (item) => !['/settings', '/whatsapp', '/credit-cards'].includes(item.href)
+  ),
+  MANUAL_ITEM,
+];
 
 const INSTRUCTOR_MENU = [{ name: 'לוח זמנים', href: '/schedule', icon: Calendar }];
 
@@ -123,22 +130,6 @@ export default function Sidebar({ open = true, onToggle, onNavigate }: SidebarPr
           })}
         </ul>
       </nav>
-
-      {/* Reopen the guided tour. It stops opening on its own after the third
-          sign-in, so this is how anyone gets back to it. */}
-      {user ? (
-        <button
-          type="button"
-          onClick={() => {
-            onNavigate?.();
-            window.dispatchEvent(new CustomEvent('kogo:open-tour'));
-          }}
-          className="mx-4 mb-2 flex items-center justify-center gap-2 rounded-lg border border-sidebar-accent px-3 py-2 text-xs font-bold text-sidebar-foreground/80 hover:bg-sidebar-accent transition-colors"
-        >
-          <span aria-hidden>❓</span>
-          הדרכה
-        </button>
-      ) : null}
 
       <div className="h-16 border-t border-sidebar-accent flex items-center justify-center px-4">
         {user ? (

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
 import { FileText, Search, DollarSign, Clock, TrendingUp, Wallet, AlertCircle, Plus, Bell, Repeat, Download } from 'lucide-react';
 import AppLayout from '@/components/AppLayout';
@@ -41,6 +42,9 @@ import styles from './invoices.module.css';
 
 export default function InvoicesPage() {
   const { user } = useAuth();
+  // סליקת אשראי is a manager-only screen, so a partner is not shown a tab that
+  // the shell would only bounce them off.
+  const isManager = user?.role === 'manager';
   const [activeTab, setActiveTab] = useState<ActiveTab>('מסמכים');
   const [isNewDocOpen, setIsNewDocOpen] = useState(false);
   const [reminderStatus, setReminderStatus] = useState<Record<string, 'sending' | 'sent' | 'error'>>({});
@@ -385,6 +389,11 @@ export default function InvoicesPage() {
               >
                 הוראת קבע
               </button>
+              {isManager && (
+                <Link href="/credit-charge" className={`${styles.tabBtn} ${styles.tabLink}`}>
+                  סליקת אשראי
+                </Link>
+              )}
             </div>
 
             <button type="button" className={styles.newDocBtn} onClick={() => setIsNewDocOpen(true)}>
