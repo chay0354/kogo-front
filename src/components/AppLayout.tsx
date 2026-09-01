@@ -1,14 +1,20 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { PanelRightOpen } from 'lucide-react';
-import Sidebar from './Sidebar';
+import Sidebar, { SIDEBAR_ID } from './Sidebar';
 import { useAuth } from './AuthProvider';
 import { Skeleton } from '@/components/ui/skeleton';
 import { LG_MEDIA_QUERY, useMediaQuery } from '@/hooks/useMediaQuery';
-
-const SIDEBAR_STORAGE_KEY = 'kogo-sidebar-open';
+import dialogMotion from '@/components/ui/motion.module.css';
+import { useExitTransition } from '@/components/ui/motion';
+import {
+  readSidebarPreference,
+  resolveContentOffset,
+  resolveSidebarMode,
+  writeSidebarPreference,
+} from '@/components/sidebarShell';
 
 /**
  * The menu state, kept outside React because every page renders its own copy of
@@ -38,14 +44,36 @@ export default function AppLayout({ children }: AppLayoutProps) {
   const isDesktop = useMediaQuery(LG_MEDIA_QUERY);
   const [sidebarOpen, setSidebarOpen] = useState(() => lastSidebarOpen ?? false);
   const [sidebarReady, setSidebarReady] = useState(lastSidebarReady);
+  // The menu itself slides on a transform and is never unmounted; the sheet of
+  // dark behind it is, so it needs holding on screen for the length of its fade.
+  const { rendered: scrimRendered, closing: scrimClosing } = useExitTransition(
+    sidebarOpen && !isDesktop,
+  );
+  const menuToggleRef = useRef<HTMLButtonElement>(null);
+  const openerRef = useRef<HTMLButtonElement>(null);
+  const handedFocus = useRef(false);
+
+  const sidebarMode = resolveSidebarMode(isDesktop, sidebarOpen);
+
+  /**
+   * On a desktop the one button stays put and keeps its focus on its own. A
+   * phone's drawer takes its button off screen with it, and focus dropped onto
+   * the body sends the next Tab back to the top of the page, so it is handed
+   * over deliberately: out to the opener when the drawer shuts, in to the close
+   * button when it opens. Only a press moves focus — a navigation or a change
+   * of width must leave the reader where they were.
+   */
+  useEffect(() => {
+    if (!handedFocus.current) return;
+    handedFocus.current = false;
+    if (isDesktop) return;
+    (sidebarOpen ? menuToggleRef : openerRef).current?.focus();
+  }, [sidebarOpen, isDesktop]);
 
   useEffect(() => {
-    if (isDesktop) {
-      const stored = localStorage.getItem(SIDEBAR_STORAGE_KEY);
-      lastSidebarOpen = stored === null ? true : stored === 'true';
-    } else {
-      lastSidebarOpen = false;
-    }
+    // A phone always starts with its drawer shut, whatever width the desk it
+    // was last opened on had; only the desktop choice is worth remembering.
+    lastSidebarOpen = isDesktop ? readSidebarPreference(true) : false;
     setSidebarOpen(lastSidebarOpen);
     lastSidebarReady = true;
     setSidebarReady(true);
@@ -70,8 +98,9 @@ export default function AppLayout({ children }: AppLayoutProps) {
   const toggleSidebar = () => {
     const next = !sidebarOpen;
     if (isDesktop) {
-      localStorage.setItem(SIDEBAR_STORAGE_KEY, String(next));
+      writeSidebarPreference(next);
     }
+    handedFocus.current = true;
     lastSidebarOpen = next;
     setSidebarOpen(next);
   };
@@ -137,26 +166,34 @@ export default function AppLayout({ children }: AppLayoutProps) {
     <div className="min-h-screen bg-background">
       {showSidebar && sidebarReady && (
         <>
-          {sidebarOpen && !isDesktop && (
+          {scrimRendered && (
             <button
               type="button"
-              className="fixed inset-0 bg-black/50 z-40"
+              className={`fixed inset-0 bg-black/50 z-40 ${dialogMotion.overlay} ${scrimClosing ? dialogMotion.overlayClosing : ''}`}
               onClick={closeSidebar}
               aria-label="סגור תפריט"
             />
           )}
           <Sidebar
-            open={sidebarOpen}
+            toggleRef={menuToggleRef}
+            mode={sidebarMode}
             onToggle={toggleSidebar}
             onNavigate={closeSidebar}
           />
-          {!sidebarOpen && (
+          {/* Only a phone parks its menu off screen and so only a phone needs a
+              way back in from outside it. A desktop keeps the rail, which
+              carries its own button and never lies over the page — the reserved
+              space on the screens below lg is cut for this same button. */}
+          {!isDesktop && !sidebarOpen && (
             <button
+              ref={openerRef}
               type="button"
               onClick={toggleSidebar}
-              className="fixed top-3 right-3 z-50 flex items-center justify-center w-10 h-10 rounded-lg bg-sidebar-background text-sidebar-foreground shadow-lg hover:bg-sidebar-accent transition-colors lg:top-4 lg:right-4"
+              className="fixed top-3 right-3 z-50 flex items-center justify-center w-10 h-10 rounded-lg bg-sidebar-background text-sidebar-foreground shadow-lg hover:bg-sidebar-accent transition-colors"
               title="הצג תפריט"
               aria-label="הצג תפריט"
+              aria-expanded={false}
+              aria-controls={SIDEBAR_ID}
             >
               <PanelRightOpen className="w-5 h-5" />
             </button>
@@ -164,9 +201,12 @@ export default function AppLayout({ children }: AppLayoutProps) {
         </>
       )}
 
+      {/* The duration and the easing carry the same variant as the property
+          they belong to: left bare they are written first and the variant's
+          own rule, coming later, puts them back to Tailwind's defaults. */}
       <main
-        className={`min-h-screen transition-[margin] duration-300 ease-in-out ${
-          showSidebar && sidebarOpen && isDesktop ? 'lg:mr-64' : ''
+        className={`min-h-screen motion-safe:transition-[margin] motion-safe:duration-300 motion-safe:ease-[cubic-bezier(0.32,0.72,0,1)] ${
+          showSidebar && sidebarReady ? resolveContentOffset(sidebarMode) : ''
         }`}
       >
         <div

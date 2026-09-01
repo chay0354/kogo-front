@@ -1,0 +1,47 @@
+/*
+ * The menu's own motion: the width it takes when it narrows to a rail, and the
+ * slide a phone's drawer makes on its way off the edge.
+ *
+ * Both are held here rather than in utility classes because the two share one
+ * `transition` declaration — a second one from anywhere else would replace this
+ * whole list rather than add to it — and because a transform has no logical
+ * form. `inset-inline-start` puts the menu on the right of this Hebrew build
+ * and would put it on the left of a left-to-right one; sliding it back out of
+ * sight is +100% in the first case and -100% in the second, so the offset is
+ * read from the writing direction instead of being assumed.
+ *
+ * The easing is the one the office's panels already move on.
+ */
+
+.shell {
+  --sidebar-hidden-shift: 100%;
+  transition:
+    width 300ms cubic-bezier(0.32, 0.72, 0, 1),
+    transform 300ms cubic-bezier(0.32, 0.72, 0, 1),
+    visibility 0s;
+}
+
+[dir='ltr'] .shell {
+  --sidebar-hidden-shift: -100%;
+}
+
+/*
+ * A menu parked off screen is still in the tab order and still read aloud, so a
+ * keyboard would walk into a dozen links nobody can see. Visibility takes it
+ * out of both, delayed by the length of the slide so the exit still plays.
+ */
+.hidden {
+  transform: translateX(var(--sidebar-hidden-shift));
+  visibility: hidden;
+  transition-delay: 0s, 0s, 300ms;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .shell {
+    transition: none;
+  }
+
+  .hidden {
+    transition-delay: 0s;
+  }
+}
