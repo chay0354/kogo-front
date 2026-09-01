@@ -25,6 +25,8 @@ const PANEL_GAP = 8;
 
 const SCROLL_CUE_SIZE = 40;
 const SCROLL_CUE_INSET = 12;
+/** Height of the wash under the cue — keep in step with .scrollCueFade. */
+const SCROLL_CUE_FADE = 72;
 /** Less than this left to travel and the reader has arrived — the same slack the
     shortcut inside the terms document allows itself. */
 const SCROLL_CUE_SLACK = 24;
@@ -207,6 +209,11 @@ function ScrollCue() {
 
   return (
     <WidgetPortal>
+      <span
+        className={styles.scrollCueFade}
+        style={{ top: `${cueTop + SCROLL_CUE_SIZE + SCROLL_CUE_INSET - SCROLL_CUE_FADE}px` }}
+        aria-hidden="true"
+      />
       <span className={styles.scrollCue} style={{ top: `${cueTop}px` }} aria-hidden="true">
         <ChevronDown size={18} />
       </span>

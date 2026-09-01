@@ -707,6 +707,19 @@
   z-index: 480;
 }
 
+/* The cue lands on whatever line happens to sit at the fold, so the page is
+   faded out beneath it the same way the terms document fades its own last
+   lines — an opaque disc dropped mid-word leaves the heading under it
+   unreadable. The page's own background is what it fades to. */
+.scrollCueFade {
+  position: fixed;
+  inset-inline: 0;
+  height: 72px;
+  background: linear-gradient(to top, hsl(var(--background)) 30%, hsl(var(--background) / 0));
+  pointer-events: none;
+  z-index: 479;
+}
+
 @media (prefers-reduced-motion: no-preference) {
   .scrollCue {
     animation: widgetScrollCueBob 1.8s ease-in-out infinite;
