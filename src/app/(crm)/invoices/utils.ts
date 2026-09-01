@@ -1,6 +1,20 @@
+import type { Payment } from '@/types/payment';
 import type { StoreInvoice } from '@/types/store';
-import type { AgingBucket, DocType, DocumentRow, PaymentRecord } from './types';
+import type { AgingBucket, ChargeKind, DocType, DocumentRow, PaymentRecord } from './types';
 import styles from './invoices.module.css';
+
+const HEBREW_MONTHS = [
+  'ינואר', 'פברואר', 'מרץ', 'אפריל', 'מאי', 'יוני',
+  'יולי', 'אוגוסט', 'ספטמבר', 'אוקטובר', 'נובמבר', 'דצמבר',
+];
+
+const CHARGE_KIND_LABELS: Record<ChargeKind, string> = {
+  standing_order: 'הוראת קבע',
+  registration: 'הרשמה / דמי רישום',
+  trial: 'שיעור ניסיון',
+  store: 'חנות',
+  one_time: 'חד-פעמי',
+};
 
 const AGING_BUCKET_DEFS: Array<{ key: AgingBucket['key']; label: string; min: number; max: number }> = [
   { key: 'current', label: 'שוטף (0-30)', min: 0, max: 30 },
@@ -46,8 +60,10 @@ export function getPaymentStatusLabel(status: string): string {
     approved: 'אושר',
     completed: 'אושר',
     pending: 'ממתין',
+    processing: 'בעיבוד',
     failed: 'נכשל',
     refunded: 'זוכה',
+    cancelled: 'בוטל',
   };
   return labels[status] ?? status;
 }
@@ -57,8 +73,10 @@ export function getPaymentStatusClass(status: string): string {
     approved: styles.statusCompleted,
     completed: styles.statusCompleted,
     pending: styles.statusPending,
+    processing: styles.statusPending,
     failed: styles.statusFailed,
     refunded: styles.statusRefunded,
+    cancelled: styles.statusRefunded,
   };
   return classes[status] ?? '';
 }
@@ -143,8 +161,108 @@ export function getCurrentMonthTotal(payments: PaymentRecord[]): number {
   const now = new Date();
   return payments
     .filter(p => {
+      if (p.status !== 'completed' && p.status !== 'approved') return false;
       const d = new Date(p.created_at);
       return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
     })
     .reduce((sum, p) => sum + (p.amount ?? 0), 0);
+}
+
+export function formatHebrewMonth(iso: string): string {
+  const datePart = (iso || '').slice(0, 10);
+  const [year, month] = datePart.split('-').map(Number);
+  if (!year || !month) return '';
+  return `${HEBREW_MONTHS[month - 1]} ${year}`;
+}
+
+export function getChargeKindLabel(kind: ChargeKind): string {
+  return CHARGE_KIND_LABELS[kind];
+}
+
+export function getPaymentChargeKind(payment: Payment): ChargeKind {
+  if (payment.trial_lesson_date) return 'trial';
+  if (Number(payment.registration_fee || 0) > 0) return 'registration';
+  if (payment.payment_type === 'recurring_subscription') return 'standing_order';
+  return 'one_time';
+}
+
+export function getPaymentChargeDescription(payment: Payment): string {
+  const course = payment.lesson_name || '';
+  const child = payment.child_name || '';
+  const fee = Number(payment.registration_fee || 0);
+  const month = formatHebrewMonth(payment.payment_date || payment.created_at);
+
+  if (payment.trial_lesson_date) {
+    return ['שיעור ניסיון', course, child].filter(Boolean).join(' · ');
+  }
+  if (fee > 0) {
+    const monthly = Number(payment.final_amount || 0) - fee;
+    const head = monthly > 0
+      ? `הרשמה: דמי רישום ₪${fee} + מנוי חודשי ₪${monthly}`
+      : `הרשמה: דמי רישום ₪${fee}`;
+    return [head, course, child].filter(Boolean).join(' · ');
+  }
+  if (payment.payment_type === 'recurring_subscription') {
+    return [`חיוב הוראת קבע${month ? ` · ${month}` : ''}`, course, child].filter(Boolean).join(' · ');
+  }
+  if (payment.description) return payment.description;
+  return ['תשלום חד-פעמי', course, child].filter(Boolean).join(' · ');
+}
+
+export function paymentToLedgerRow(payment: Payment): PaymentRecord {
+  const amount = Number(payment.final_amount || 0);
+  const txn = payment.tranzila_transaction;
+  const kind = getPaymentChargeKind(payment);
+  return {
+    id: payment.id,
+    source: 'payment',
+    created_at: payment.payment_date || payment.created_at,
+    customer_name: payment.child_name || payment.family_name || '',
+    description: getPaymentChargeDescription(payment),
+    kind,
+    kind_label: getChargeKindLabel(kind),
+    invoice_number: '',
+    amount,
+    payment_method: 'אשראי',
+    transaction_reference: txn?.transaction_id || '',
+    status: payment.status,
+    branch_id: payment.branch,
+    branch_name: payment.branch_name,
+    canRefund: payment.status === 'completed'
+      && amount > 0
+      && Boolean(txn?.transaction_id && txn?.confirmation_code),
+  };
+}
+
+export function storeInvoiceToLedgerRow(invoice: StoreInvoice): PaymentRecord {
+  const amount = Number(invoice.total_amount || 0);
+  const items = (invoice.line_items || [])
+    .map((item) => item.product_name)
+    .filter(Boolean);
+  const itemText = items.length ? items.join(', ') : 'רכישה בחנות';
+  const method = invoice.payment_method === 'cash'
+    ? 'מזומן'
+    : invoice.payment_method === 'monthly_billing'
+      ? 'חיוב חודשי'
+      : 'אשראי';
+  return {
+    id: invoice.id,
+    source: 'store',
+    created_at: invoice.issue_date || invoice.created_at,
+    customer_name: invoice.child_name || invoice.customer_name || '',
+    description: `${itemText}${invoice.invoice_number ? ` · ${invoice.invoice_number}` : ''}`,
+    kind: 'store',
+    kind_label: getChargeKindLabel('store'),
+    invoice_number: invoice.invoice_number || '',
+    amount,
+    payment_method: method,
+    transaction_reference: invoice.tranzila_transaction_id || '',
+    status: invoice.payment_status,
+    branch_id: invoice.branch,
+    branch_name: invoice.branch_name,
+    canRefund: invoice.payment_status === 'completed'
+      && amount > 0
+      && invoice.payment_method === 'credit_card'
+      && Boolean(invoice.tranzila_transaction_id),
+  };
 }

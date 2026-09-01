@@ -4,6 +4,7 @@ import type {
   FormalDocumentSummary,
   CreateDocumentPayload,
 } from '@/types/document';
+import type { Payment } from '@/types/payment';
 
 export async function createDocument(payload: CreateDocumentPayload): Promise<FormalDocument> {
   const res = await api.post('/documents/documents/create-document/', payload);
@@ -77,6 +78,26 @@ export async function fetchTranzilaTransactions(params?: {
     timeout: 90000,
   });
   return res.data;
+}
+
+export async function fetchAllCustomerPayments(): Promise<Payment[]> {
+  const items: Payment[] = [];
+  let page = 1;
+  while (page <= 100) {
+    const res = await api.get('/customers/payments/', {
+      params: { page, page_size: 200, ordering: '-created_at' },
+    });
+    const data = res.data;
+    if (Array.isArray(data)) {
+      items.push(...data);
+      break;
+    }
+    const batch = Array.isArray(data?.results) ? data.results : [];
+    items.push(...batch);
+    if (!data?.next || batch.length === 0) break;
+    page += 1;
+  }
+  return items;
 }
 
 export async function fetchDocument(id: string): Promise<FormalDocument> {

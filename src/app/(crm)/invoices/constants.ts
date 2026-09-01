@@ -1,9 +1,7 @@
-export const PAYMENT_SUBCATEGORIES: Record<string, string[]> = {
-  לקוחות: ['כללי'],
-  שוכרים: ['חדרים', 'אולמות'],
-  ספקים: ['ציוד', 'שירותים'],
-  חוגים: ['דרמה', 'מוסיקה', 'ציור', 'קפוארה', 'אקרובטיקה', 'תנועה'],
-  'מותג קוגומלו': ['הופעות', 'מרצנדייז', 'סדנאות'],
-  'מותג געגע': ['הופעות', 'אירועים'],
-  סניפים: [],
-};
+export const CHARGE_KIND_OPTIONS = [
+  { value: 'standing_order', label: 'הוראת קבע' },
+  { value: 'registration', label: 'הרשמה / דמי רישום' },
+  { value: 'trial', label: 'שיעור ניסיון' },
+  { value: 'store', label: 'חנות' },
+  { value: 'one_time', label: 'חד-פעמי' },
+] as const;

@@ -27,15 +27,24 @@ export interface DocumentRow {
   branch_id?: string | null;
 }
 
+export type ChargeKind = 'standing_order' | 'registration' | 'trial' | 'store' | 'one_time';
+export type ChargeSource = 'payment' | 'store';
+
 export interface PaymentRecord {
-  id: number | string;
+  id: string;
+  source: ChargeSource;
   created_at: string;
   customer_name: string;
+  description: string;
+  kind: ChargeKind;
+  kind_label: string;
   invoice_number: string;
   amount: number;
   payment_method: string;
   transaction_reference: string;
   status: string;
+  branch_id?: string | null;
+  branch_name?: string | null;
+  canRefund: boolean;
   card_last4?: string;
-  source?: string;
 }
