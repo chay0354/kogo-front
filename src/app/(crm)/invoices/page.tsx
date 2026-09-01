@@ -165,7 +165,11 @@ export default function InvoicesPage() {
   }
 
   useEffect(() => {
-    if (activeTab !== 'תשלומים' || paymentKindFilter === 'store') {
+    if (activeTab !== 'תשלומים') {
+      return;
+    }
+    if (paymentKindFilter === 'store') {
+      setPaymentsLoading(false);
       return;
     }
     let cancelled = false;
