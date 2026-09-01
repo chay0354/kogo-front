@@ -485,10 +485,15 @@
 }
 
 /*
- * The dialog sits on top of the card it was opened from, so it moves a shorter
- * distance and over less time than the card did — a small thing that arrives
- * with the same weight as a large one reads as slow. The curves are the pair the
- * rest of the widget uses: settling on the way in, prompt on the way out.
+ * The entrance curve the rest of the widget shares spends most of its travel in
+ * the first fifth of its own duration. Across a panel's distance that still
+ * reads as movement; across the few pixels a centred dialog crosses, everything
+ * visible is over within a couple of frames and the dialog reads as arriving all
+ * at once. So this one takes its time on a gentler curve and covers enough
+ * ground to be worth watching. Leaving keeps the widget's prompt exit pair, and
+ * its own shorter distance with it: a parent enrolling three children passes
+ * through here many times, and something that leaves as slowly as it arrived
+ * reads as the screen holding them up.
  */
 @keyframes widgetNoticeBackdropIn {
   from {
@@ -513,7 +518,7 @@
 @keyframes widgetNoticeIn {
   from {
     opacity: 0;
-    transform: translateY(12px) scale(0.96);
+    transform: translateY(20px) scale(0.92);
   }
 
   to {
@@ -557,11 +562,11 @@
 
 @media (prefers-reduced-motion: no-preference) {
   .noticeBackdrop {
-    animation: widgetNoticeBackdropIn 260ms cubic-bezier(0.32, 0.72, 0, 1) both;
+    animation: widgetNoticeBackdropIn 380ms cubic-bezier(0.24, 0.5, 0.32, 1) both;
   }
 
   .noticeCard {
-    animation: widgetNoticeIn 260ms cubic-bezier(0.32, 0.72, 0, 1) both;
+    animation: widgetNoticeIn 380ms cubic-bezier(0.24, 0.5, 0.32, 1) both;
   }
 
   .noticeBackdrop.noticeBackdropClosing {
@@ -709,19 +714,22 @@
   padding-block-start: 3px;
 }
 
+/* The way on from the dialog, so it carries the same weight as the card's own
+   primary action rather than reading as one more line of the notice. */
 .noticeConfirm {
-  display: inline-block;
+  width: 100%;
   border: none;
-  background: none;
-  padding: 0;
+  border-radius: 12px;
+  padding: 10px 14px;
+  background: #F5C518;
   color: #2B3090;
-  font-size: 1.05rem;
+  font-size: 1rem;
   font-weight: 800;
   cursor: pointer;
 }
 
 .noticeConfirm:hover {
-  text-decoration: underline;
+  background: #ffc93f;
 }
 
 @media (max-height: 760px) {

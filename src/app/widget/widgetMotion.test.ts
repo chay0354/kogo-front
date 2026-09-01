@@ -17,7 +17,7 @@ describe('widget motion timing', () => {
   it('lets every overlay leave faster than it arrived', () => {
     expect(WIDGET_MOTION_MS.detailExit).toBeLessThan(380);
     expect(WIDGET_MOTION_MS.drawerExit).toBeLessThan(340);
-    expect(WIDGET_MOTION_MS.noticeExit).toBeLessThan(260);
+    expect(WIDGET_MOTION_MS.noticeExit).toBeLessThan(380);
   });
 
   it('keeps the small notice quicker than the card it sits over', () => {
