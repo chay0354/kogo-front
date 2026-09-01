@@ -305,3 +305,17 @@
 .line:nth-child(5n) {
   width: 66%;
 }
+
+/* Rows at the height a real option takes, so the open list is the size it will
+   be once the options arrive and nothing shifts under a finger. */
+.optionList {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 10px;
+}
+
+.optionRow {
+  height: 28px;
+  border-radius: 8px;
+}

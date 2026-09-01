@@ -21,6 +21,18 @@ export function SkeletonFilterField({ compact = false }: { compact?: boolean }) 
   );
 }
 
+/** Options on their way, at the height real ones take, inside an open list. */
+export function SkeletonFilterOptions({ rows = 4 }: { rows?: number }) {
+  return (
+    <span className={styles.optionList} role="status">
+      <span className={styles.srOnly}>טוען אפשרויות...</span>
+      {range(rows).map((i) => (
+        <span key={i} className={`${styles.block} ${styles.optionRow}`} />
+      ))}
+    </span>
+  );
+}
+
 /** The catalogue on its way: a track heading over rows the height of real ones. */
 export function SkeletonCourseList({ compact = false }: { compact?: boolean }) {
   return (

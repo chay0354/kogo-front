@@ -15,7 +15,7 @@ import { AGE_OPTIONS, formatAge, isInstructorsCourse, INSTRUCTORS_TRACK_TITLE } 
 import { findWidgetAlternatives, isWidgetSelectionFull, type WidgetAlternative } from './alternativeLessons';
 import { sortWidgetCourseTypes } from './courseTypeOrder';
 import { preloadInstructorPhotos } from './instructorPhotoPreload';
-import { SkeletonCourseList, SkeletonFilterField } from './WidgetSkeletons/WidgetSkeletons';
+import { SkeletonCourseList, SkeletonFilterOptions } from './WidgetSkeletons/WidgetSkeletons';
 import styles from './page.module.css';
 
 const OPTION_HEIGHT = 44;
@@ -286,18 +286,6 @@ const FilterSelect = React.memo(function FilterSelect({
     };
   }, [isOpen, syncHeight]);
 
-  /**
-   * A field whose options are still on the way shows the shape it is about to
-   * be, at the size it will be, so the strip does not shuffle when they land.
-   */
-  if (loading) {
-    return (
-      <div className={styles.filterWrapper}>
-        <SkeletonFilterField />
-      </div>
-    );
-  }
-
   const chevronIcon = isOpen ? (
     <ChevronUp size={16} className={styles.filterChevron} />
   ) : value ? (
@@ -318,7 +306,14 @@ const FilterSelect = React.memo(function FilterSelect({
         style={{ '--dp-max-height': `${maxHeight}px` } as React.CSSProperties}
         onScroll={measureList}
       >
-        {options.length === 0 ? (
+        {loading ? (
+          /* The field itself never changes shape while it waits — swapping it for
+             a grey block moved the whole strip. The wait belongs here, where
+             someone has actually gone looking for the options. */
+          <li className={styles.dropdownLoading}>
+            <SkeletonFilterOptions />
+          </li>
+        ) : options.length === 0 ? (
           <li className={styles.dropdownEmpty}>אין אפשרויות</li>
         ) : options.map((opt) => (
           <li key={opt.value} role="option" aria-selected={opt.value === value} className={`${styles.dropdownOption} ${opt.value === value ? styles.dropdownOptionSelected : ''}`} onClick={() => handleSelect(opt.value)}>

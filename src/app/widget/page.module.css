@@ -722,3 +722,8 @@
   color: #374151;
   text-align: center;
 }
+/* The wait lives inside the open list; the closed field never changes shape. */
+.dropdownLoading {
+  list-style: none;
+  padding: 0;
+}

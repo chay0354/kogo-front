@@ -30,8 +30,20 @@ function isCompetitiveTroupeTitle(title: string): boolean {
   return title.includes('מסלול להקה תחרותי');
 }
 
-function noticeBodyFor(course: Course, title: string): string | null {
-  if (isInstructorsCourse(course)) return INSTRUCTORS_NOTICE_BODY;
+/**
+ * Decided from the ages of the offer on screen, not the course's own.
+ *
+ * One course can sell both an adults option and an instructors one, and the
+ * approval notice belongs to the instructors track alone. Reading the course
+ * meant an adults option inherited a condition that does not apply to it.
+ */
+function noticeBodyFor(
+  course: Course,
+  title: string,
+  minAge: number | null | undefined,
+  maxAge: number | null | undefined,
+): string | null {
+  if (isInstructorsCourse({ min_age: minAge, max_age: maxAge })) return INSTRUCTORS_NOTICE_BODY;
   if (isCompetitiveTroupeTitle(title) || isCompetitiveTroupeTitle(course.name)) {
     return AUDITION_NOTICE_BODY;
   }
@@ -236,7 +248,7 @@ export default function CourseExpandedDetail({
     ?? (lesson?.price != null ? Number(lesson.price) : null)
     ?? course.price;
   const displayTitle = stripWidgetApprovalPhrase(priceOption?.display_title ?? course.name);
-  const noticeBody = noticeBodyFor(course, displayTitle);
+  const noticeBody = noticeBodyFor(course, displayTitle, minAge, maxAge);
   const showAuditionNotice = Boolean(noticeBody);
   const trialNoticeRows = paidTrialNoticeRows(course, ageLabel);
   const showTrialNotice = trialNoticeRows.length > 0;
