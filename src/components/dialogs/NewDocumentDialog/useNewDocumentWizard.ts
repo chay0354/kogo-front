@@ -22,6 +22,8 @@ const EMPTY_BUSINESS_FORM: BusinessCustomerFormData = {
   company_number: '',
   address: '',
   business_type: '',
+  business_id: null,
+  business_category_id: null,
   category: '',
   branch_id: null,
   notes: '',

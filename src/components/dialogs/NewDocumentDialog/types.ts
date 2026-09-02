@@ -42,6 +42,8 @@ export interface BusinessCustomer {
   address: string;
   business_type: string;
   category: string;
+  business_id: string | null;
+  business_category_id: string | null;
   branch_id: string | null;
   notes: string;
 }
@@ -56,6 +58,8 @@ export interface BusinessCustomerFormData {
   address: string;
   business_type: string;
   category: string;
+  business_id: string | null;
+  business_category_id: string | null;
   branch_id: string | null;
   notes: string;
 }

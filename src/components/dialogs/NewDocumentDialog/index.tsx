@@ -21,7 +21,7 @@ import {
   X,
 } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
-import api, { createBusinessCustomer, searchBusinessCustomers } from '@/lib/api';
+import api, { createBusinessCustomer, fetchBusinesses, searchBusinessCustomers } from '@/lib/api';
 import { createDocument, fetchDocuments } from '@/lib/documentsApi';
 import type { CreateDocumentPayload } from '@/types/document';
 import { Select } from '@/components/ui/select';
@@ -29,7 +29,7 @@ import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import type { ChildWithDetails } from '@/types/customer';
 import { useScopedBranches } from '@/hooks/useScopedBranches';
 import styles from './index.module.css';
-import { BUSINESS_AFFILIATION_OPTIONS, BUSINESS_CATEGORY_OPTIONS, CLIENT_TYPE_OPTIONS, DOCUMENT_TYPE_OPTIONS } from './constants';
+import { CLIENT_TYPE_OPTIONS, DOCUMENT_TYPE_OPTIONS } from './constants';
 import {
   businessFormFromCustomer,
   canAdvanceFromStep,
@@ -400,6 +400,8 @@ export default function NewDocumentDialog({ open, onClose }: NewDocumentDialogPr
                   address: '',
                   business_type: '',
                   category: '',
+                  business_id: null,
+                  business_category_id: null,
                   branch_id: null,
                   notes: '',
                 });
@@ -675,6 +677,11 @@ function BusinessClientStep({
     () => [...branches].sort((a, b) => a.name.localeCompare(b.name, 'he')),
     [branches],
   );
+  const { data: businesses = [] } = useQuery({ queryKey: ['businesses'], queryFn: fetchBusinesses });
+  const businessCategories = useMemo(
+    () => businesses.find((b) => b.id === formData.business_id)?.categories.filter((c) => c.is_active) ?? [],
+    [businesses, formData.business_id],
+  );
 
   return (
     <div>
@@ -868,13 +875,22 @@ function BusinessClientStep({
           <Select
             id="biz-business-type"
             className={styles.formSelect}
-            value={formData.business_type}
-            onChange={(e) => updateField('business_type', e.target.value)}
+            value={formData.business_id ?? ''}
+            onChange={(e) => {
+              const business = businesses.find((b) => b.id === e.target.value) ?? null;
+              onFormChange({
+                ...formData,
+                business_id: business?.id ?? null,
+                business_type: business?.name ?? '',
+                business_category_id: null,
+                category: '',
+              });
+            }}
           >
-            <option value="">בחר סוג עסק</option>
-            {BUSINESS_AFFILIATION_OPTIONS.map((opt) => (
-              <option key={opt} value={opt}>
-                {opt}
+            <option value="">בחר עסק</option>
+            {businesses.filter((b) => b.is_active).map((b) => (
+              <option key={b.id} value={b.id}>
+                {b.name}
               </option>
             ))}
           </Select>
@@ -907,13 +923,21 @@ function BusinessClientStep({
           <Select
             id="biz-category"
             className={styles.formSelect}
-            value={formData.category}
-            onChange={(e) => updateField('category', e.target.value)}
+            value={formData.business_category_id ?? ''}
+            disabled={!formData.business_id}
+            onChange={(e) => {
+              const category = businessCategories.find((c) => c.id === e.target.value) ?? null;
+              onFormChange({
+                ...formData,
+                business_category_id: category?.id ?? null,
+                category: category?.name ?? '',
+              });
+            }}
           >
-            <option value="">בחר קטגוריה</option>
-            {BUSINESS_CATEGORY_OPTIONS.map((opt) => (
-              <option key={opt} value={opt}>
-                {opt}
+            <option value="">{formData.business_id ? 'בחר קטגוריה' : 'בחר עסק תחילה'}</option>
+            {businessCategories.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
               </option>
             ))}
           </Select>

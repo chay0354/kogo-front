@@ -146,7 +146,7 @@ export async function sendDocumentReminder(id: string): Promise<{ sent: boolean 
 export async function downloadPeriodReport(params: {
   start_date: string;
   end_date: string;
-  group_by: 'branch' | 'business';
+  group_by: 'branch' | 'business' | 'business_unit' | 'business_category';
   document_type?: string;
 }): Promise<void> {
   const res = await api.get('/documents/documents/period-report/', {

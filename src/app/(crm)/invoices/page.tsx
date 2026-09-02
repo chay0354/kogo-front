@@ -46,6 +46,8 @@ import styles from './invoices.module.css';
 
 // The type dropdown holds the label the table filters on; the report
 // endpoint filters on the model's code, so the label is mapped before it is sent.
+type ReportGroupBy = 'branch' | 'business' | 'business_unit' | 'business_category';
+
 const DOC_TYPE_CODES: Record<string, string> = {
   'חשבונית מס': 'tax_invoice',
   'קבלה': 'receipt',
@@ -62,7 +64,7 @@ export default function InvoicesPage() {
   const [activeTab, setActiveTab] = useState<ActiveTab>('מסמכים');
   // The period report follows whatever range and type the tab is already
   // showing, so the sheet a manager downloads is the sheet they were looking at.
-  const [reportGroupBy, setReportGroupBy] = useState<'branch' | 'business'>('branch');
+  const [reportGroupBy, setReportGroupBy] = useState<ReportGroupBy>('branch');
   const [reportBusy, setReportBusy] = useState(false);
   const [approvingId, setApprovingId] = useState<string | null>(null);
   const [isNewDocOpen, setIsNewDocOpen] = useState(false);
@@ -638,11 +640,13 @@ export default function InvoicesPage() {
               <select
                 className={styles.filterSelect}
                 value={reportGroupBy}
-                onChange={e => setReportGroupBy(e.target.value as 'branch' | 'business')}
+                onChange={e => setReportGroupBy(e.target.value as ReportGroupBy)}
                 aria-label="קיבוץ הדוח"
               >
                 <option value="branch">דוח לפי סניפים</option>
-                <option value="business">דוח לפי עסקים</option>
+                <option value="business">דוח לפי לקוחות עסקיים</option>
+                <option value="business_unit">דוח לפי עסק</option>
+                <option value="business_category">דוח לפי קטגוריה</option>
               </select>
               <button
                 type="button"

@@ -470,3 +470,47 @@ export const createBusinessCustomer = async (data: BusinessCustomerFormData): Pr
   return res.data;
 };
 
+// ---- Businesses and their categories: what income (and later expenses) is tagged to ----
+export interface BusinessCategory {
+  id: string;
+  business: string;
+  name: string;
+  is_active: boolean;
+  sort_order: number;
+}
+
+export interface Business {
+  id: string;
+  name: string;
+  is_active: boolean;
+  sort_order: number;
+  categories: BusinessCategory[];
+}
+
+export const fetchBusinesses = async (): Promise<Business[]> => {
+  const res = await api.get('/core/businesses/');
+  return res.data?.results ?? res.data ?? [];
+};
+
+export const createBusiness = async (data: { name: string; sort_order?: number }): Promise<Business> => {
+  const res = await api.post('/core/businesses/', data);
+  return res.data;
+};
+
+export const updateBusiness = async (id: string, data: Partial<Pick<Business, 'name' | 'is_active' | 'sort_order'>>): Promise<Business> => {
+  const res = await api.patch(`/core/businesses/${id}/`, data);
+  return res.data;
+};
+
+export const createBusinessCategory = async (data: { business: string; name: string; sort_order?: number }): Promise<BusinessCategory> => {
+  const res = await api.post('/core/business-categories/', data);
+  return res.data;
+};
+
+export const updateBusinessCategory = async (
+  id: string,
+  data: Partial<Pick<BusinessCategory, 'name' | 'is_active' | 'sort_order'>>,
+): Promise<BusinessCategory> => {
+  const res = await api.patch(`/core/business-categories/${id}/`, data);
+  return res.data;
+};

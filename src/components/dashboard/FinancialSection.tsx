@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { Fragment, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { format } from 'date-fns';
 import {
@@ -36,6 +36,19 @@ interface BranchRow {
   revenue: number;
   expenses: number;
   profit: number;
+}
+
+interface BusinessCategoryRow {
+  category_id: string | null;
+  category_name: string;
+  revenue: number;
+}
+
+interface BusinessRow {
+  business_id: string | null;
+  business_name: string;
+  revenue: number;
+  categories: BusinessCategoryRow[];
 }
 
 interface InstructorRow {
@@ -96,6 +109,7 @@ export default function FinancialSection({ globalDateRange }: Props) {
   const kpis = data?.kpis ?? {};
   const revenueByBranch: BranchRow[] = data?.revenue_by_branch ?? [];
   const revenueByInstructor: InstructorRow[] = data?.revenue_by_instructor ?? [];
+  const revenueByBusiness: BusinessRow[] = data?.revenue_by_business ?? [];
 
   const revenue = Number(kpis.total_revenue ?? 0);
   const profit = Number(kpis.net_profit ?? 0);
@@ -416,6 +430,45 @@ export default function FinancialSection({ globalDateRange }: Props) {
                       </tr>
                     );
                   })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      ) : null}
+
+      {/* by business and category */}
+      {revenueByBusiness.length > 0 ? (
+        <div className={`${theme.card} ${theme.mt}`}>
+          <h2 className={theme.cardTitle}>הכנסות לפי עסק וקטגוריה</h2>
+          <p className={theme.cardSub}>לפי השיוך של החוגים; מה שלא שויך מופיע בנפרד</p>
+          <div className={theme.tableScroll}>
+            <table className={theme.table}>
+              <thead>
+                <tr>
+                  <th>עסק / קטגוריה</th>
+                  <th className={theme.n}>הכנסות</th>
+                </tr>
+              </thead>
+              <tbody>
+                {revenueByBusiness.map((row, i) => (
+                  <Fragment key={row.business_id ?? `untagged-${i}`}>
+                    <tr>
+                      <td className={theme.name}>
+                        <span className={`${theme.rank} ${i === 0 ? theme.rankTop : ''}`}>{i + 1}</span>
+                        {row.business_name}
+                      </td>
+                      <td className={theme.n}>{formatCurrency(row.revenue)}</td>
+                    </tr>
+                    {row.categories.map((cat, j) => (
+                      <tr key={cat.category_id ?? `untagged-${i}-${j}`}>
+                        <td className={theme.name} style={{ paddingInlineStart: '2.5rem' }}>
+                          {cat.category_name}
+                        </td>
+                        <td className={theme.n}>{formatCurrency(cat.revenue)}</td>
+                      </tr>
+                    ))}
+                  </Fragment>
+                ))}
               </tbody>
             </table>
           </div>

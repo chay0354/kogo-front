@@ -21,6 +21,7 @@ import LinkedUsersSection from './LinkedUsersSection';
 import InstructorLoginDiagnostics from './InstructorLoginDiagnostics';
 import IntegrationCredentials from './IntegrationCredentials';
 import PartnersSection from './PartnersSection';
+import BusinessTaxonomySection from './BusinessTaxonomySection';
 import CrossFade from '@/components/ui/CrossFade';
 
 type UserRole = 'manager' | 'worker' | 'partner';
@@ -266,6 +267,8 @@ export default function SettingsPage() {
       </CrossFade>
 
       {isManager && <PartnersSection />}
+
+      {isManager && <BusinessTaxonomySection />}
 
       {isManager && <IntegrationCredentials />}
 
