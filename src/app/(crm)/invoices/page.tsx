@@ -99,7 +99,19 @@ export default function InvoicesPage() {
 
   const { data: childrenData } = useQuery({
     queryKey: ['children'],
-    queryFn: () => api.get('/customers/children/').then(r => r.data?.results ?? r.data),
+    // The endpoint paginates at 20. Reading only the first page meant the
+    // collection view silently ignored every child past the twentieth — the
+    // ones most likely to be owed for, since they were enrolled last.
+    queryFn: async () => {
+      const all: any[] = [];
+      for (let page = 1; page <= 50; page += 1) {
+        const r = await api.get(`/customers/children/?page=${page}`);
+        if (Array.isArray(r.data)) { all.push(...r.data); break; }
+        all.push(...(r.data?.results ?? []));
+        if (!r.data?.next) break;
+      }
+      return all;
+    },
     staleTime: 5 * 60 * 1000,
     enabled: activeTab === 'גבייה',
   });
