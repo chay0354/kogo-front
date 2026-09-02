@@ -51,9 +51,23 @@ interface RegisterChecksDialogProps {
   open: boolean;
   onClose: () => void;
   onCreated: () => void;
+  lockedChild?: ChildWithDetails | null;
+  lockedLessonId?: string | null;
+  lockedLessonLabel?: string;
+  defaultAmount?: string;
+  defaultDescription?: string;
 }
 
-export default function RegisterChecksDialog({ open, onClose, onCreated }: RegisterChecksDialogProps) {
+export default function RegisterChecksDialog({
+  open,
+  onClose,
+  onCreated,
+  lockedChild = null,
+  lockedLessonId = null,
+  lockedLessonLabel,
+  defaultAmount,
+  defaultDescription,
+}: RegisterChecksDialogProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [searching, setSearching] = useState(false);
   const [children, setChildren] = useState<ChildWithDetails[]>([]);
@@ -68,15 +82,20 @@ export default function RegisterChecksDialog({ open, onClose, onCreated }: Regis
     if (!open) return;
     setSearchQuery('');
     setChildren([]);
-    setChild(null);
-    setLessonId('');
-    setDescription('');
-    setRows([emptyRow()]);
+    setChild(lockedChild);
+    setLessonId(lockedLessonId || lockedChild?.enrollments?.[0]?.lesson_id || '');
+    setDescription(
+      defaultDescription
+      || (lockedChild?.enrollments?.[0]?.course_name
+        ? `מנוי צ׳קים — ${lockedChild.enrollments[0].course_name}`
+        : ''),
+    );
+    setRows([emptyRow({ amount: defaultAmount || '' })]);
     setError('');
-  }, [open]);
+  }, [open, lockedChild, lockedLessonId, defaultAmount, defaultDescription]);
 
   useEffect(() => {
-    if (!open) return;
+    if (!open || lockedChild) return;
     const q = searchQuery.trim();
     if (q.length < 2) {
       setChildren([]);
@@ -186,43 +205,47 @@ export default function RegisterChecksDialog({ open, onClose, onCreated }: Regis
           </button>
         </div>
 
-        <label className={styles.fieldLabel} htmlFor="check-child-search">
-          חיפוש ילד
-        </label>
-        <div className={styles.searchRow}>
-          <Search size={16} aria-hidden="true" />
-          <input
-            id="check-child-search"
-            type="search"
-            className={styles.textInput}
-            placeholder="שם ילד או טלפון הורה..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-          />
-        </div>
-        {searching ? <p className={styles.muted}>מחפש...</p> : null}
-        {!child && children.length > 0 ? (
-          <ul className={styles.childList}>
-            {children.map((item) => (
-              <li key={item.id}>
-                <button
-                  type="button"
-                  className={styles.childOption}
-                  onClick={() => {
-                    setChild(item);
-                    setLessonId(item.enrollments?.[0]?.lesson_id ?? '');
-                    setDescription(item.enrollments?.[0]?.course_name ? `מנוי צ׳קים — ${item.enrollments[0].course_name}` : '');
-                  }}
-                >
-                  <strong>{item.full_name}</strong>
-                  <span>
-                    {item.parent_name || item.family_name}
-                    {item.branch_name ? ` · ${item.branch_name}` : ''}
-                  </span>
-                </button>
-              </li>
-            ))}
-          </ul>
+        {!lockedChild ? (
+          <>
+            <label className={styles.fieldLabel} htmlFor="check-child-search">
+              חיפוש ילד
+            </label>
+            <div className={styles.searchRow}>
+              <Search size={16} aria-hidden="true" />
+              <input
+                id="check-child-search"
+                type="search"
+                className={styles.textInput}
+                placeholder="שם ילד או טלפון הורה..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
+            </div>
+            {searching ? <p className={styles.muted}>מחפש...</p> : null}
+            {!child && children.length > 0 ? (
+              <ul className={styles.childList}>
+                {children.map((item) => (
+                  <li key={item.id}>
+                    <button
+                      type="button"
+                      className={styles.childOption}
+                      onClick={() => {
+                        setChild(item);
+                        setLessonId(item.enrollments?.[0]?.lesson_id ?? '');
+                        setDescription(item.enrollments?.[0]?.course_name ? `מנוי צ׳קים — ${item.enrollments[0].course_name}` : '');
+                      }}
+                    >
+                      <strong>{item.full_name}</strong>
+                      <span>
+                        {item.parent_name || item.family_name}
+                        {item.branch_name ? ` · ${item.branch_name}` : ''}
+                      </span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+          </>
         ) : null}
 
         {child ? (
@@ -232,22 +255,25 @@ export default function RegisterChecksDialog({ open, onClose, onCreated }: Regis
               <p>
                 {child.parent_name || child.family_name}
                 {child.branch_name ? ` · ${child.branch_name}` : ''}
+                {lockedLessonLabel ? ` · ${lockedLessonLabel}` : ''}
               </p>
             </div>
-            <button
-              type="button"
-              className={styles.linkBtn}
-              onClick={() => {
-                setChild(null);
-                setLessonId('');
-              }}
-            >
-              החלף
-            </button>
+            {!lockedChild ? (
+              <button
+                type="button"
+                className={styles.linkBtn}
+                onClick={() => {
+                  setChild(null);
+                  setLessonId('');
+                }}
+              >
+                החלף
+              </button>
+            ) : null}
           </div>
         ) : null}
 
-        {child && enrollments.length > 0 ? (
+        {child && !lockedChild && enrollments.length > 0 ? (
           <>
             <label className={styles.fieldLabel} htmlFor="check-lesson">
               חוג
