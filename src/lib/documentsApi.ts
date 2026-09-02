@@ -160,3 +160,66 @@ export async function downloadPeriodReport(params: {
   link.remove();
   window.URL.revokeObjectURL(blobUrl);
 }
+
+export interface CheckItemRow {
+  id: string;
+  due_date: string;
+  amount: number | string;
+  bank: string;
+  bank_branch: string;
+  account_number: string;
+  check_number: string;
+  status: 'pending' | 'invoiced' | 'cancelled' | string;
+  tax_invoice: string | null;
+  tax_invoice_number: string | null;
+  invoiced_at: string | null;
+}
+
+export interface CheckPlanRow {
+  id: string;
+  child: string;
+  child_name: string;
+  lesson: string | null;
+  lesson_name: string | null;
+  description: string;
+  status: 'active' | 'completed' | 'cancelled' | string;
+  receipt: string | null;
+  receipt_number: string | null;
+  branch: string | null;
+  branch_name: string | null;
+  items: CheckItemRow[];
+  total_amount: number | string;
+  next_due_date: string | null;
+  created_at: string;
+}
+
+export async function fetchCheckPlans(params?: {
+  search?: string;
+  status?: string;
+  branch?: string;
+}): Promise<CheckPlanRow[]> {
+  const res = await api.get('/documents/check-plans/', { params });
+  return Array.isArray(res.data) ? res.data : (res.data?.results ?? []);
+}
+
+export async function createCheckPlan(payload: {
+  child_id: string;
+  lesson_id?: string | null;
+  description?: string;
+  checks: Array<{
+    date: string;
+    bank: string;
+    branch: string;
+    account_number: string;
+    check_number: string;
+    amount: number;
+  }>;
+}): Promise<CheckPlanRow> {
+  const res = await api.post('/documents/check-plans/', payload);
+  return res.data;
+}
+
+export async function cancelCheckPlan(id: string): Promise<CheckPlanRow> {
+  const res = await api.post(`/documents/check-plans/${id}/cancel/`);
+  return res.data;
+}

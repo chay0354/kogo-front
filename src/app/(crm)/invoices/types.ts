@@ -1,5 +1,5 @@
 export type DocType = 'חשבונית מס/קבלה' | 'חשבונית מס' | 'קבלה' | 'חשבונית עסקה' | 'חשבונית מס זיכוי' | 'טיוטה';
-export type ActiveTab = 'מסמכים' | 'תשלומים' | 'גבייה' | 'הוראת קבע';
+export type ActiveTab = 'מסמכים' | 'תשלומים' | 'גבייה' | 'הוראת קבע' | "צ'קים";
 
 export interface AgingBucket {
   key: 'current' | 'd31_60' | 'd61_90' | 'd90_plus';

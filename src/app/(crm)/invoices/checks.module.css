@@ -1,0 +1,291 @@
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgb(0 0 0 / 0.45);
+  padding: 1rem;
+}
+
+.dialog {
+  width: 100%;
+  max-width: 56rem;
+  max-height: 90vh;
+  overflow: auto;
+  background: hsl(var(--background));
+  border: 1px solid hsl(var(--border));
+  border-radius: calc(var(--radius));
+  padding: 1.25rem 1.5rem 1.5rem;
+  box-shadow: 0 10px 30px rgb(0 0 0 / 0.15);
+}
+
+.dialogHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.dialogTitle {
+  margin: 0 0 0.375rem;
+  font-size: 1.125rem;
+  font-weight: 700;
+}
+
+.dialogHint {
+  margin: 0;
+  font-size: 0.875rem;
+  color: hsl(var(--muted-foreground));
+}
+
+.closeBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  color: hsl(var(--muted-foreground));
+  cursor: pointer;
+}
+
+.fieldLabel {
+  display: block;
+  margin: 0.875rem 0 0.375rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.searchRow {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  border: 1px solid hsl(var(--border));
+  border-radius: calc(var(--radius) - 4px);
+  padding: 0 0.75rem;
+}
+
+.searchRow .textInput {
+  border: none;
+  padding-inline-start: 0;
+}
+
+.textInput,
+.selectInput {
+  width: 100%;
+  height: 2.25rem;
+  border: 1px solid hsl(var(--border));
+  border-radius: calc(var(--radius) - 4px);
+  background: hsl(var(--card));
+  padding: 0 0.75rem;
+}
+
+.muted {
+  margin: 0.5rem 0 0;
+  font-size: 0.8125rem;
+  color: hsl(var(--muted-foreground));
+}
+
+.childList {
+  list-style: none;
+  margin: 0.5rem 0 0;
+  padding: 0;
+  border: 1px solid hsl(var(--border));
+  border-radius: calc(var(--radius) - 4px);
+  max-height: 12rem;
+  overflow: auto;
+}
+
+.childOption {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.125rem;
+  padding: 0.625rem 0.75rem;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid hsl(var(--border));
+  text-align: right;
+  cursor: pointer;
+}
+
+.childOption:last-child {
+  border-bottom: none;
+}
+
+.childOption:hover {
+  background: hsl(var(--muted));
+}
+
+.childOption span {
+  font-size: 0.8125rem;
+  color: hsl(var(--muted-foreground));
+}
+
+.selectedChild {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-top: 0.75rem;
+  padding: 0.75rem;
+  border: 1px solid hsl(var(--border));
+  border-radius: calc(var(--radius) - 4px);
+  background: hsl(var(--muted) / 0.4);
+}
+
+.selectedChild p {
+  margin: 0.125rem 0 0;
+  font-size: 0.8125rem;
+  color: hsl(var(--muted-foreground));
+}
+
+.linkBtn {
+  border: none;
+  background: transparent;
+  color: hsl(var(--primary));
+  cursor: pointer;
+  font-size: 0.875rem;
+}
+
+.tableWrap {
+  overflow-x: auto;
+  border: 1px solid hsl(var(--border));
+  border-radius: calc(var(--radius) - 4px);
+}
+
+.checkTable {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 40rem;
+}
+
+.checkTable th,
+.checkTable td {
+  padding: 0.375rem;
+  text-align: right;
+  font-size: 0.8125rem;
+}
+
+.checkTable th {
+  background: hsl(var(--muted));
+  font-weight: 500;
+  color: hsl(var(--muted-foreground));
+}
+
+.cellInput {
+  width: 100%;
+  min-width: 4.5rem;
+  height: 2rem;
+  border: 1px solid hsl(var(--input));
+  border-radius: 4px;
+  padding: 0 0.375rem;
+  background: hsl(var(--card));
+}
+
+.removeRowBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: #ef4444;
+  cursor: pointer;
+}
+
+.addRowBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  margin-top: 0.75rem;
+  padding: 0.375rem 0.75rem;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: hsl(var(--primary));
+  background: transparent;
+  border: 1px dashed hsl(var(--primary));
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.summaryBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 0.875rem;
+  padding: 0.625rem 0.75rem;
+  background: hsl(var(--muted));
+  border-radius: calc(var(--radius) - 4px);
+}
+
+.error {
+  margin: 0.75rem 0 0;
+  color: #dc2626;
+  font-size: 0.875rem;
+}
+
+.dialogActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-top: 1.25rem;
+}
+
+.secondaryBtn,
+.primaryBtn {
+  border-radius: calc(var(--radius) - 4px);
+  padding: 0.5rem 0.875rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.secondaryBtn {
+  border: 1px solid hsl(var(--border));
+  background: transparent;
+}
+
+.primaryBtn {
+  border: none;
+  background: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
+}
+
+.primaryBtn:disabled,
+.secondaryBtn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.nestedRow td {
+  background: hsl(var(--muted) / 0.35);
+  padding: 0.75rem;
+}
+
+.nestedTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8125rem;
+}
+
+.nestedTable th,
+.nestedTable td {
+  padding: 0.375rem 0.5rem;
+  text-align: right;
+  border-bottom: 1px solid hsl(var(--border));
+}
+
+.footnote {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: hsl(var(--muted-foreground));
+}
