@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { Users, MoreHorizontal, Eye, Edit, UserPlus, Trash2, UserCheck } from 'lucide-react';
+import { Users, MoreHorizontal, Eye, Edit, UserPlus, Trash2, UserCheck, Search } from 'lucide-react';
 import PageHeader from '@/components/PageHeader';
 import { TableSkeleton } from '@/components/ui/skeleton';
 import api, { fetchInstructorsDropdown } from '@/lib/api';
@@ -459,6 +459,15 @@ export default function CustomersPage() {
                             }`}>
                               {child.gender === 'male' ? 'ז' : child.gender === 'female' ? 'נ' : '-'}
                             </span>
+                            {child.search_match && (
+                              <span
+                                className="text-xs px-1.5 py-0.5 rounded border bg-amber-50 text-amber-800 border-amber-200 inline-flex items-center gap-1 flex-shrink-0"
+                                title={`נמצא לפי ${child.search_match.label}`}
+                              >
+                                <Search size={11} aria-hidden="true" />
+                                {child.search_match.label} – {child.search_match.value}
+                              </span>
+                            )}
                           </div>
                         </td>
                         

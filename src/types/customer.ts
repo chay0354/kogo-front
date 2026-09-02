@@ -35,6 +35,8 @@ export interface ChildWithDetails {
   branch_name: string | null;
   parent_name: string | null;
   parent_phone: string | null;
+  // Only while the list is searched: the off-row field the search hit.
+  search_match?: { label: string; value: string } | null;
   parent_id: string | null;
   
   // NEW: Explicit status field
