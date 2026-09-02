@@ -43,6 +43,16 @@ import {
 } from './utils';
 import styles from './invoices.module.css';
 
+// The type dropdown holds the label the table filters on; the report
+// endpoint filters on the model's code, so the label is mapped before it is sent.
+const DOC_TYPE_CODES: Record<string, string> = {
+  'חשבונית מס': 'tax_invoice',
+  'קבלה': 'receipt',
+  'חשבונית מס/קבלה': 'combined',
+  'חשבונית עסקה': 'transaction_invoice',
+  'חשבונית מס זיכוי': 'credit_invoice',
+};
+
 export default function InvoicesPage() {
   const { user } = useAuth();
   // סליקת אשראי is a manager-only screen, so a partner is not shown a tab that
@@ -630,7 +640,7 @@ export default function InvoicesPage() {
                       start_date: dateFrom || daysAgoLocalISO(90),
                       end_date: dateTo || localISODate(),
                       group_by: reportGroupBy,
-                      document_type: docTypeFilter === 'all' ? '' : docTypeFilter,
+                      document_type: DOC_TYPE_CODES[docTypeFilter] ?? '',
                     });
                   } catch {
                     setDocumentsError('הפקת הדוח נכשלה');
@@ -707,6 +717,9 @@ export default function InvoicesPage() {
                           </td>
                           <td>
                             <div className={styles.collectionActions}>
+                              {!canDownload && (
+                                <span className={styles.refundUnavailable} title="לא קיים קובץ למסמך זה">ללא PDF</span>
+                              )}
                               {canDownload && (
                                 <button
                                   type="button"
@@ -1133,7 +1146,7 @@ export default function InvoicesPage() {
             <div className={styles.tableCard}>
               {!invoicesLoaded ? (
                 <TableSkeleton
-                  columns={10}
+                  columns={9}
                   tableClassName={`${styles.invoiceTable} ${styles.collectionTable}`}
                   label="טוען חובות פתוחים"
                 />
@@ -1146,11 +1159,10 @@ export default function InvoicesPage() {
                       <th scope="col">לקוח</th>
                       <th scope="col">מס&apos; מסמך</th>
                       <th scope="col">תאריך הנפקה</th>
-                      <th scope="col">תאריך פירעון</th>
                       <th scope="col">סכום מסמך</th>
                       <th scope="col">שולם</th>
                       <th scope="col">יתרה פתוחה</th>
-                      <th scope="col">ימי איחור</th>
+                      <th scope="col">ימים מההנפקה</th>
                       <th scope="col">סטטוס</th>
                       <th scope="col">פעולות</th>
                     </tr>
@@ -1167,7 +1179,6 @@ export default function InvoicesPage() {
                         <tr key={inv.id}>
                           <td className={styles.customerName}>{customerDisplay}</td>
                           <td className={styles.invoiceNumber}>{inv.invoice_number}</td>
-                          <td>{formatDate(inv.issue_date)}</td>
                           <td>{formatDate(inv.issue_date)}</td>
                           <td className={styles.amount}>{formatAmount(inv.total_amount)}</td>
                           <td>{formatAmount(inv.amount_paid)}</td>

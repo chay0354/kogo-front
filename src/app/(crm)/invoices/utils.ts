@@ -137,8 +137,10 @@ export function getDaysOverdue(issueDate: string): number {
   return Math.max(diff, 0);
 }
 
+// Days since issue, not days past a due date: the store invoice carries no
+// due date, so "not yet due" would be a claim the data cannot back.
 export function getOverdueLabel(daysOverdue: number): string {
-  return daysOverdue > 0 ? `${daysOverdue} ימים` : 'טרם הגיע';
+  return daysOverdue > 0 ? `${daysOverdue} ימים` : 'הונפק היום';
 }
 
 export function getAgingBuckets(invoices: StoreInvoice[]): AgingBucket[] {
