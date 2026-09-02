@@ -41,10 +41,9 @@ export function businessFormFromCustomer(customer: {
   };
 }
 
+// The number is the server's to give, at issuance; nothing is promised before that.
 export function generateDocumentNumber(): string {
-  const year = new Date().getFullYear();
-  const seq = String(Math.floor(Math.random() * 9000) + 1000);
-  return `${year}-${seq}`;
+  return 'יוקצה בהפקה';
 }
 
 export function getDocumentDetailsLabel(docType: string | null): string {
