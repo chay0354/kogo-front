@@ -58,6 +58,17 @@ export type LessonDetail = Lesson & {
 
 export type AttendanceStatus = 'present' | 'absent' | 'not_marked';
 
+/**
+ * A walk-in as the server hands it back: the roster row, plus the mark it was
+ * created with. Someone added mid-lesson is already in the room, so the server
+ * records them present in the same request and says so here — the screen shows
+ * the tick without asking for the register again.
+ */
+export type WalkInStudent = LessonDetail['enrollments'][number] & {
+  created?: boolean;
+  attendance_status?: AttendanceStatus;
+};
+
 export type AttendanceRecord = {
   id: string;
   lesson_id: string;

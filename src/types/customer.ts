@@ -82,14 +82,13 @@ export interface Instructor {
 
 export interface CustomerFilters {
   search: string;
+  city: string;
   branch: string;
   course_type: string;
   course: string;
   instructor: string;
   status: string;
   absent_irregularly: string;
-  trial: string;
-  payment: string;
 }
 
 export type ViewMode = 'children' | 'courses';

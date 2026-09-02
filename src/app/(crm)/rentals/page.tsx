@@ -3,8 +3,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import PageHeader from '@/components/PageHeader';
-import PageSearchBar from '@/components/PageSearchBar';
-import PageFilters from '@/components/PageFilters';
 import { TableSkeleton } from '@/components/ui/skeleton';
 import RentalDialog from '@/components/dialogs/RentalDialog';
 import { useAuth } from '@/components/AuthProvider';
@@ -37,11 +35,6 @@ export default function RentalsPage() {
   const [error, setError] = useState('');
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<ScheduleEvent | null>(null);
-  const [pageSearch, setPageSearch] = useState('');
-  const [dateFrom, setDateFrom] = useState('');
-  const [dateTo, setDateTo] = useState('');
-  const [primaryFilter, setPrimaryFilter] = useState('');
-  const [secondaryFilter, setSecondaryFilter] = useState('');
 
   const load = useCallback(async () => {
     if (user?.role === 'worker') return;
@@ -99,24 +92,6 @@ export default function RentalsPage() {
             הוסף שכירות
           </Button>
         </div>
-        <PageSearchBar
-          search={pageSearch}
-          onSearchChange={setPageSearch}
-          dateFrom={dateFrom}
-          dateTo={dateTo}
-          onDateFromChange={setDateFrom}
-          onDateToChange={setDateTo}
-          searchPlaceholder="חיפוש שכירות..."
-        />
-        <PageFilters
-          primaryLabel="סניף"
-          primaryValue={primaryFilter}
-          primaryOptions={[]}
-          onPrimaryChange={setPrimaryFilter}
-          secondaryValue={secondaryFilter}
-          secondaryOptions={[]}
-          onSecondaryChange={setSecondaryFilter}
-        />
 
         {error && <p className="text-destructive text-sm">{error}</p>}
 

@@ -1,5 +1,5 @@
 import api from '@/lib/api';
-import { Lesson, LessonDetail, LessonFilters, AttendanceMark, AttendanceRecord, InstructorSalary, SalaryHistory, type ScheduleEvent, DAY_NAMES, type WeekDay, type WeeklyDayTimes } from '@/types/schedule';
+import { Lesson, LessonDetail, LessonFilters, AttendanceMark, AttendanceRecord, InstructorSalary, SalaryHistory, type ScheduleEvent, type WalkInStudent, DAY_NAMES, type WeekDay, type WeeklyDayTimes } from '@/types/schedule';
 
 /**
  * Fetch lessons with optional filters
@@ -90,13 +90,28 @@ export async function addWalkInStudent(
   date: string,
   student: { first_name: string; last_name: string; phone?: string },
   asUser?: string,
-): Promise<LessonDetail['enrollments'][number]> {
+): Promise<WalkInStudent> {
   const suffix = asUser ? `?as_user=${encodeURIComponent(asUser)}` : '';
   const res = await api.post(`/scheduling/lessons/${lessonId}/add-walkin/${suffix}`, {
     date,
     ...student,
   });
-  return res.data as LessonDetail['enrollments'][number];
+  return res.data as WalkInStudent;
+}
+
+/**
+ * Remove a walk-in an instructor added by mistake.
+ *
+ * Walk-ins only — the server refuses anything else, so a registered child
+ * cannot be deleted from the attendance screen even if this is called with one.
+ */
+export async function removeWalkInStudent(
+  lessonId: string,
+  enrollmentId: string,
+  asUser?: string,
+): Promise<void> {
+  const suffix = asUser ? `?as_user=${encodeURIComponent(asUser)}` : '';
+  await api.delete(`/scheduling/lessons/${lessonId}/walkin/${enrollmentId}/${suffix}`);
 }
 
 /**

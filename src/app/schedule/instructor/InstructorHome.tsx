@@ -86,12 +86,32 @@ export default function InstructorHome() {
   // Which calendar the screen has already advanced for, so picking a date by
   // hand is never overridden.
   const autoAdvancedForRef = useRef<string | null>(null);
+  /**
+   * A day the search ahead already read, waiting for the load below to claim it.
+   *
+   * The search covers a month, so the day it lands on came back inside that same
+   * answer; asking for it again is a second round trip for something already in
+   * hand, and an instructor stands waiting through both.
+   *
+   * Carries the account it was read as, and is spent on first use. A day read as
+   * one instructor can never be handed to another: the load only claims it when
+   * both the date and that account match what it is about to ask for.
+   */
+  const preloadedDayRef = useRef<{ date: string; viewAs: string; lessons: Lesson[] } | null>(null);
 
   const dateIso = formatDateISO(selectedDate);
 
   useEffect(() => {
     let cancelled = false;
     const load = async () => {
+      const ready = preloadedDayRef.current;
+      preloadedDayRef.current = null;
+      if (ready && ready.date === dateIso && ready.viewAs === viewAs) {
+        setLessons(ready.lessons);
+        setError('');
+        setIsLoading(false);
+        return;
+      }
       setIsLoading(true);
       setError('');
       try {
@@ -320,7 +340,18 @@ export default function InstructorHome() {
       .map((l) => l.lesson_date)
       .filter((d): d is string => Boolean(d))
       .sort();
-    return dates.length ? new Date(`${dates[0]}T00:00:00`) : null;
+    if (!dates.length) return null;
+    const iso = dates[0];
+    // The occurrences for that day, out of the answer that found it. The
+    // server expands a range the same way it expands a single day, so these
+    // are what asking for the day on its own would return.
+    return {
+      iso,
+      date: new Date(`${iso}T00:00:00`),
+      lessons: ahead
+        .filter((l) => l.lesson_date === iso)
+        .sort((a, b) => a.start_time.localeCompare(b.start_time)),
+    };
   };
 
   // An empty day tells an instructor nothing. When the screen opens on one —
@@ -339,9 +370,10 @@ export default function InstructorHome() {
       try {
         const day = await nextTeachingDay(selectedDate, viewAs);
         if (cancelled || !day) return;
-        if (formatDateISO(day) === formatDateISO(selectedDate)) return;
+        if (day.iso === formatDateISO(selectedDate)) return;
+        preloadedDayRef.current = { date: day.iso, viewAs, lessons: day.lessons };
         setAutoAdvanced(true);
-        setSelectedDate(day);
+        setSelectedDate(day.date);
       } catch {
         /* leave the empty day rather than guess */
       }
@@ -365,7 +397,8 @@ export default function InstructorHome() {
         if (tourOriginalDateRef.current === null) {
           tourOriginalDateRef.current = selectedDate;
         }
-        setSelectedDate(nextDay);
+        preloadedDayRef.current = { date: nextDay.iso, viewAs, lessons: nextDay.lessons };
+        setSelectedDate(nextDay.date);
       } catch {
         /* the steps fall back to centred cards */
       }

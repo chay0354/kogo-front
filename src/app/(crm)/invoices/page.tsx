@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
 import { FileText, Search, DollarSign, Clock, TrendingUp, Wallet, AlertCircle, Plus, Bell, Repeat, Download } from 'lucide-react';
-import PageFilters from '@/components/PageFilters';
+import FilterBar, { FILTER_ALL } from '@/components/FilterBar';
 import NewDocumentDialog from '@/components/dialogs/NewDocumentDialog';
 import RefundDialog from '@/components/dialogs/RefundDialog';
 import { GroupIdBadge } from '@/components/GroupIdBadge/GroupIdBadge';
@@ -52,8 +52,7 @@ export default function InvoicesPage() {
   const [isNewDocOpen, setIsNewDocOpen] = useState(false);
   const [reminderStatus, setReminderStatus] = useState<Record<string, 'sending' | 'sent' | 'error'>>({});
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
-  const [primaryFilter, setPrimaryFilter] = useState('');
-  const [secondaryFilter, setSecondaryFilter] = useState('');
+  const [primaryFilter, setPrimaryFilter] = useState(FILTER_ALL);
 
   // Documents tab state — Tranzila tax documents + local invoices from those charges
   const [documents, setDocuments] = useState<DocumentRow[]>([]);
@@ -179,7 +178,7 @@ export default function InvoicesPage() {
       search: paymentSearch.trim() || undefined,
       status: paymentStatusFilter || undefined,
       kind: paymentKindFilter || undefined,
-      branch: primaryFilter || undefined,
+      branch: primaryFilter !== FILTER_ALL ? primaryFilter : undefined,
     })
       .then((data) => {
         if (cancelled) return;
@@ -353,7 +352,7 @@ export default function InvoicesPage() {
       const day = (inv.issue_date || inv.created_at || '').slice(0, 10);
       if (dateFrom && day && day < dateFrom) return false;
       if (dateTo && day && day > dateTo) return false;
-      if (primaryFilter && inv.branch !== primaryFilter) return false;
+      if (primaryFilter !== FILTER_ALL && inv.branch !== primaryFilter) return false;
       return true;
     })
     .map(storeInvoiceToLedgerRow)
@@ -522,15 +521,20 @@ export default function InvoicesPage() {
           </div>
         </div>
 
-        <PageFilters
-          primaryLabel="עסק / סניף"
-          primaryValue={primaryFilter}
-          primaryOptions={branches.map((b) => ({ value: b.id, label: b.name }))}
-          onPrimaryChange={setPrimaryFilter}
-          secondaryValue={secondaryFilter}
-          secondaryOptions={[]}
-          onSecondaryChange={setSecondaryFilter}
-        />
+        {activeTab === 'תשלומים' && (
+          <FilterBar
+            fields={[
+              {
+                key: 'branch',
+                label: 'כל הסניפים',
+                options: branches.map((b) => ({ value: b.id, label: b.name })),
+              },
+            ]}
+            values={{ branch: primaryFilter }}
+            onChange={(_key, value) => setPrimaryFilter(value)}
+            onClear={() => setPrimaryFilter(FILTER_ALL)}
+          />
+        )}
 
         {activeTab === 'מסמכים' && (
           <>

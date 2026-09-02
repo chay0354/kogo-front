@@ -14,7 +14,12 @@ import { fetchAnalytics } from '@/lib/storeApi';
 import { getProductStockLocationLabels } from '@/lib/storeProductDisplay';
 import api from '@/lib/api';
 import { useAuth } from '@/components/AuthProvider';
-import { filterBranchesForUser, unwrapApiList } from '@/lib/scopedFilters';
+import {
+  citiesFromBranches,
+  filterBranchesByCity,
+  filterBranchesForUser,
+  unwrapApiList,
+} from '@/lib/scopedFilters';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import type { StoreAnalytics } from '@/types/store';
 import type { Branch } from '@/types/branch';
@@ -46,22 +51,12 @@ export default function StoreDashboard() {
     }
   }, [selectedCity, selectedBranch, branches]);
 
-  const cities = useMemo(() => {
-    const map = new Map<string, string>();
-    branches.forEach((b) => {
-      if (b.city && b.city_name) {
-        map.set(b.city, b.city_name);
-      }
-    });
-    return Array.from(map.entries())
-      .map(([id, name]) => ({ id, name }))
-      .sort((a, b) => a.name.localeCompare(b.name, 'he'));
-  }, [branches]);
+  const cities = useMemo(() => citiesFromBranches(branches), [branches]);
 
-  const branchesForFilter = useMemo(() => {
-    if (selectedCity === 'all') return branches;
-    return branches.filter((b) => b.city === selectedCity);
-  }, [branches, selectedCity]);
+  const branchesForFilter = useMemo(
+    () => filterBranchesByCity(branches, selectedCity),
+    [branches, selectedCity],
+  );
 
   async function loadBranches() {
     try {

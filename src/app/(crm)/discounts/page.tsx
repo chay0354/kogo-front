@@ -3,8 +3,6 @@
 import { useState, useEffect } from 'react';
 import { Plus, Pencil, Trash2, Calendar, DollarSign } from 'lucide-react';
 import PageHeader from '@/components/PageHeader';
-import PageSearchBar from '@/components/PageSearchBar';
-import PageFilters from '@/components/PageFilters';
 import { CardGridSkeleton, StatCardsSkeleton } from '@/components/ui/skeleton';
 import EditEarlySignupDiscountDialog from '@/components/dialogs/EditEarlySignupDiscountDialog';
 import EditSecondChildDiscountDialog from '@/components/dialogs/EditSecondChildDiscountDialog';
@@ -34,11 +32,6 @@ export default function DiscountsPage() {
   const [additionalLessonDiscount, setAdditionalLessonDiscount] = useState<AdditionalLessonDiscount | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [pageSearch, setPageSearch] = useState('');
-  const [dateFrom, setDateFrom] = useState('');
-  const [dateTo, setDateTo] = useState('');
-  const [primaryFilter, setPrimaryFilter] = useState('');
-  const [secondaryFilter, setSecondaryFilter] = useState('');
 
   // Dialog states
   const [showEarlySignupDialog, setShowEarlySignupDialog] = useState(false);
@@ -153,24 +146,6 @@ export default function DiscountsPage() {
       <PageHeader
         title="הנחות"
         description="ניהול הנחות - רישום מוקדם והנחת ילד שני"
-      />
-      <PageSearchBar
-        search={pageSearch}
-        onSearchChange={setPageSearch}
-        dateFrom={dateFrom}
-        dateTo={dateTo}
-        onDateFromChange={setDateFrom}
-        onDateToChange={setDateTo}
-        searchPlaceholder="חיפוש הנחה..."
-      />
-      <PageFilters
-        primaryLabel="עסק / סניף"
-        primaryValue={primaryFilter}
-        primaryOptions={[]}
-        onPrimaryChange={setPrimaryFilter}
-        secondaryValue={secondaryFilter}
-        secondaryOptions={[]}
-        onSecondaryChange={setSecondaryFilter}
       />
 
       {error && (

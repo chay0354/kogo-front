@@ -4,8 +4,6 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Users, TrendingUp, DollarSign, BarChart3, Plus, Gift, Edit, ChevronUp, ChevronDown, Trash2 } from 'lucide-react';
 import PageHeader from '@/components/PageHeader';
-import PageSearchBar from '@/components/PageSearchBar';
-import PageFilters from '@/components/PageFilters';
 import { TableSkeleton } from '@/components/ui/skeleton';
 import api from '@/lib/api';
 import { useAuth } from '@/components/AuthProvider';
@@ -53,10 +51,6 @@ export default function InstructorsPage() {
     month: getCurrentMonth()
   });
   
-  const [dateFrom, setDateFrom] = useState('');
-  const [dateTo, setDateTo] = useState('');
-  const [primaryFilter, setPrimaryFilter] = useState('');
-  const [secondaryFilter, setSecondaryFilter] = useState('');
 
   // Sorting
   const [sortField, setSortField] = useState<SortField>('full_name');
@@ -338,24 +332,6 @@ export default function InstructorsPage() {
         </div>
       </div>
       
-      <PageSearchBar
-        search=""
-        onSearchChange={() => {}}
-        dateFrom={dateFrom}
-        dateTo={dateTo}
-        onDateFromChange={setDateFrom}
-        onDateToChange={setDateTo}
-        searchPlaceholder="חיפוש..."
-      />
-      <PageFilters
-        primaryLabel="עסק / סניף"
-        primaryValue={primaryFilter}
-        primaryOptions={branches.map((b) => ({ value: b.id, label: b.name }))}
-        onPrimaryChange={setPrimaryFilter}
-        secondaryValue={secondaryFilter}
-        secondaryOptions={[]}
-        onSecondaryChange={setSecondaryFilter}
-      />
 
       {/* Instructors Table */}
       <CrossFade swapKey={loading ? 'loading' : 'ready'} className="card animate-fade-in">

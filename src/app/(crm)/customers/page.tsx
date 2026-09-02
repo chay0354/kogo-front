@@ -3,12 +3,16 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Users, MoreHorizontal, Eye, Edit, UserPlus, Trash2, UserCheck } from 'lucide-react';
 import PageHeader from '@/components/PageHeader';
-import PageSearchBar from '@/components/PageSearchBar';
-import PageFilters from '@/components/PageFilters';
 import { TableSkeleton } from '@/components/ui/skeleton';
 import api, { fetchInstructorsDropdown } from '@/lib/api';
+import FilterBar, { FILTER_ALL } from '@/components/FilterBar';
 import { useAuth } from '@/components/AuthProvider';
-import { filterBranchesForUser, unwrapApiList } from '@/lib/scopedFilters';
+import {
+  citiesFromBranches,
+  filterBranchesByCity,
+  filterBranchesForUser,
+  unwrapApiList,
+} from '@/lib/scopedFilters';
 import { ChildWithDetails, CustomerFilters, Branch, Course, Instructor, EnrollmentDetail } from '@/types/customer';
 import { 
   getCustomerTableStatus,
@@ -33,27 +37,41 @@ function childrenListParams(filters: CustomerFilters, page: number) {
   const params = new URLSearchParams();
   if (filters.search) params.append('search', filters.search);
   if (filters.branch !== 'all') params.append('branch', filters.branch);
+  if (filters.city !== 'all') params.append('city', filters.city);
   if (filters.course_type !== 'all') params.append('course_type', filters.course_type);
   if (filters.course !== 'all') params.append('course', filters.course);
   if (filters.instructor !== 'all') params.append('instructor', filters.instructor);
   if (filters.status !== 'all') params.append('status', filters.status);
   if (filters.absent_irregularly !== 'all') params.append('absent_irregularly', filters.absent_irregularly);
-  if (filters.trial !== 'all') params.append('trial', filters.trial);
-  if (filters.payment !== 'all') params.append('payment', filters.payment);
   params.append('page', String(page));
   return params;
 }
 
+const STATUS_OPTIONS = [
+  { value: 'active', label: 'פעיל' },
+  { value: 'trial_signed', label: 'נרשם לניסיון' },
+  { value: 'trial_completed', label: 'ביצע ניסיון' },
+  { value: 'payment_problem', label: 'בעיות באשראי' },
+  { value: 'not_paid', label: 'לא שולם' },
+  { value: 'pending', label: 'בתהליך רישום' },
+  { value: 'ghost', label: 'רפאים' },
+  { value: 'inactive', label: 'לא פעיל' },
+];
+
+const ABSENCE_OPTIONS = [
+  { value: 'true', label: 'רק עם היעדרות חריגה' },
+  { value: 'false', label: 'ללא היעדרות חריגה' },
+];
+
 const EMPTY_CUSTOMER_FILTERS: CustomerFilters = {
   search: '',
+  city: 'all',
   branch: 'all',
   course_type: 'all',
   course: 'all',
   instructor: 'all',
   status: 'all',
   absent_irregularly: 'all',
-  trial: 'all',
-  payment: 'all',
 };
 
 export default function CustomersPage() {
@@ -70,14 +88,40 @@ export default function CustomersPage() {
   const [courseTypes, setCourseTypes] = useState<CourseTypeOption[]>([]);
   const [courses, setCourses] = useState<Course[]>([]);
   const [instructors, setInstructors] = useState<Instructor[]>([]);
-  const [dateFrom, setDateFrom] = useState('');
-  const [dateTo, setDateTo] = useState('');
-  const [primaryFilter, setPrimaryFilter] = useState('');
-  const [secondaryFilter, setSecondaryFilter] = useState('');
   
   // Active filters - default to all statuses so newly added children
   // (created with status='pending') are visible immediately.
   const [filters, setFilters] = useState<CustomerFilters>(EMPTY_CUSTOMER_FILTERS);
+
+  const cities = useMemo(() => citiesFromBranches(branches), [branches]);
+  const cityOptions = useMemo(
+    () => cities.map((c) => ({ value: c.id, label: c.name })),
+    [cities],
+  );
+  const branchOptions = useMemo(
+    () =>
+      filterBranchesByCity(branches, filters.city).map((b) => ({
+        value: b.id,
+        label: b.name,
+      })),
+    [branches, filters.city],
+  );
+  const courseTypeOptions = useMemo(
+    () => courseTypes.map((t) => ({ value: t.id, label: t.name })),
+    [courseTypes],
+  );
+  const courseOptions = useMemo(
+    () =>
+      courses.map((c: any) => ({
+        value: c.id,
+        label: `${c.name}${c.display_id ? ` #${c.display_id}` : ''}`,
+      })),
+    [courses],
+  );
+  const instructorOptions = useMemo(
+    () => instructors.map((i: any) => ({ value: i.id, label: i.full_name })),
+    [instructors],
+  );
   
   // Dialog states
   const [selectedChild, setSelectedChild] = useState<ChildWithDetails | null>(null);
@@ -305,132 +349,31 @@ export default function CustomersPage() {
       {/* Filters */}
       <div className="mb-6 animate-fade-in">
         <div className="mb-6 card animate-slide-up">
-          <div className="flex flex-wrap items-center gap-2">
-            {/* Search - Wider */}
-            <input
-              type="text"
-              placeholder="חיפוש..."
-              className="input w-full sm:w-64"
-              value={filters.search}
-              onChange={(e) => updateFilter('search', e.target.value)}
-            />
-            
-            {/* Branch Filter */}
-            <select
-              className="input w-full sm:w-32 text-sm"
-              value={filters.branch}
-              onChange={(e) => updateFilter('branch', e.target.value)}
-            >
-              <option value="all">סניפים</option>
-              {branches.map((branch: any) => (
-                <option key={branch.id} value={branch.id}>{branch.name}</option>
-              ))}
-            </select>
+          <FilterBar
+            search={{
+              value: filters.search,
+              onChange: (value) => updateFilter('search', value),
+            }}
+            fields={[
+              { key: 'city', label: 'ערים', options: cityOptions },
+              { key: 'branch', label: 'סניפים', options: branchOptions },
+              { key: 'course_type', label: 'תחומים', options: courseTypeOptions },
+              { key: 'course', label: 'חוגים', options: courseOptions },
+              { key: 'instructor', label: 'מדריכים', options: instructorOptions },
+              { key: 'status', label: 'כל הסטטוסים', options: STATUS_OPTIONS },
+              { key: 'absent_irregularly', label: 'היעדרות חריגה', options: ABSENCE_OPTIONS },
+            ]}
+            values={filters}
+            onChange={updateFilter}
+            onClear={() => {
+              setChildrenPage(1);
+              setFilters(EMPTY_CUSTOMER_FILTERS);
+            }}
+          />
 
-            {/* Course type / תחום */}
-            <select
-              className="input w-full sm:w-40 text-sm"
-              value={filters.course_type}
-              onChange={(e) => updateFilter('course_type', e.target.value)}
-            >
-              <option value="all">תחומים</option>
-              {courseTypes.map((courseType) => (
-                <option key={courseType.id} value={courseType.id}>{courseType.name}</option>
-              ))}
-            </select>
-            
-            {/* Course Filter */}
-            <select
-              className="input w-full sm:w-32 text-sm"
-              value={filters.course}
-              onChange={(e) => updateFilter('course', e.target.value)}
-            >
-              <option value="all">חוגים</option>
-              {courses.map((course: any) => (
-                <option key={course.id} value={course.id}>
-                  {course.name}{course.display_id ? ` #${course.display_id}` : ''}
-                </option>
-              ))}
-            </select>
-            
-            {/* Instructor Filter */}
-            <select
-              className="input w-full sm:w-32 text-sm"
-              value={filters.instructor}
-              onChange={(e) => updateFilter('instructor', e.target.value)}
-            >
-              <option value="all">מדריכים</option>
-              {instructors.map((instructor: any) => (
-                <option key={instructor.id} value={instructor.id}>{instructor.full_name}</option>
-              ))}
-            </select>
-            
-            {/* Clear Filters Button */}
-            {(filters.search || filters.branch !== 'all' || filters.course_type !== 'all' || filters.course !== 'all' || 
-              filters.instructor !== 'all' || filters.status !== 'all' || filters.absent_irregularly !== 'all') && (
-              <button
-              onClick={() => {
-                setChildrenPage(1);
-                setFilters(EMPTY_CUSTOMER_FILTERS);
-              }}
-                className="text-sm text-primary hover:text-primary/80 underline mr-2"
-              >
-                נקה סינון ✕
-              </button>
-            )}
-          </div>
-          
-          {/* Second Row - Status and Absence Filters */}
-          <div className="flex flex-wrap items-center gap-2 mt-2">
-            {/* Status Filter */}
-            <select
-              className="input w-40 text-sm text-muted-foreground"
-              value={filters.status}
-              onChange={(e) => updateFilter('status', e.target.value)}
-            >
-              <option value="all">כל הסטטוסים</option>
-              <option value="active">פעיל</option>
-              <option value="trial_signed">נרשם לניסיון</option>
-              <option value="trial_completed">ביצע ניסיון</option>
-              <option value="payment_problem">בעיות באשראי</option>
-              <option value="not_paid">לא שולם</option>
-              <option value="pending">בתהליך רישום</option>
-              <option value="ghost">רפאים</option>
-              <option value="inactive">לא פעיל</option>
-            </select>
-            
-            {/* Absent Irregularly Filter */}
-            <select
-              className="input w-40 text-sm text-muted-foreground"
-              value={filters.absent_irregularly}
-              onChange={(e) => updateFilter('absent_irregularly', e.target.value)}
-            >
-              <option value="all">היעדרות חריגה</option>
-              <option value="true">רק עם היעדרות חריגה</option>
-              <option value="false">ללא היעדרות חריגה</option>
-            </select>
-          </div>
         </div>
       </div>
 
-      <PageSearchBar
-        search=""
-        onSearchChange={() => {}}
-        dateFrom={dateFrom}
-        dateTo={dateTo}
-        onDateFromChange={setDateFrom}
-        onDateToChange={setDateTo}
-        searchPlaceholder="חיפוש לפי תאריך..."
-      />
-      <PageFilters
-        primaryLabel="עסק / סניף"
-        primaryValue={primaryFilter}
-        primaryOptions={branches.map((b) => ({ value: b.id, label: b.name }))}
-        onPrimaryChange={setPrimaryFilter}
-        secondaryValue={secondaryFilter}
-        secondaryOptions={[]}
-        onSecondaryChange={setSecondaryFilter}
-      />
 
       {/* Children Table */}
       <div className="mb-6 animate-slide-up">

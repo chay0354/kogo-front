@@ -4,13 +4,17 @@ import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Package, ShoppingCart, TrendingUp, AlertTriangle, Plus, Search, Edit, RefreshCw, X, ArrowUpDown, ArrowLeftRight, Trash2 } from 'lucide-react';
-import PageFilters from '@/components/PageFilters';
 import { useAuth } from '@/components/AuthProvider';
 import { Card, CardContent, CardHeader, CardTitle, Button, Input, Select, Badge, Table, TableHeader, TableBody, TableRow, TableHead, TableCell, Skeleton, StatCardsSkeleton, TableSkeleton } from '@/components/ui';
 import { fetchProducts, syncWebsiteProducts, deleteProduct } from '@/lib/storeApi';
 import { getProductStockLocationLabels } from '@/lib/storeProductDisplay';
 import api from '@/lib/api';
-import { filterBranchesForUser, unwrapApiList } from '@/lib/scopedFilters';
+import {
+  citiesFromBranches,
+  filterBranchesByCity,
+  filterBranchesForUser,
+  unwrapApiList,
+} from '@/lib/scopedFilters';
 import type { StoreProduct, StoreCartLine } from '@/types/store';
 import type { Branch } from '@/types/branch';
 import AddProductDialog from '@/components/store/AddProductDialog';
@@ -53,8 +57,6 @@ export default function StorePage() {
   const [stockFilter, setStockFilter] = useState('all');
   const [sortField, setSortField] = useState<'name' | 'sale_price' | 'stock_quantity'>('name');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
-  const [primaryFilter, setPrimaryFilter] = useState('');
-  const [secondaryFilter, setSecondaryFilter] = useState('');
 
   // Dialog states
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
@@ -191,22 +193,12 @@ export default function StorePage() {
     }
   }, [selectedCity, selectedBranch, branches]);
 
-  const cities = useMemo(() => {
-    const map = new Map<string, string>();
-    branches.forEach((b) => {
-      if (b.city && b.city_name) {
-        map.set(b.city, b.city_name);
-      }
-    });
-    return Array.from(map.entries())
-      .map(([id, name]) => ({ id, name }))
-      .sort((a, b) => a.name.localeCompare(b.name, 'he'));
-  }, [branches]);
+  const cities = useMemo(() => citiesFromBranches(branches), [branches]);
 
-  const branchesForFilter = useMemo(() => {
-    if (selectedCity === 'all') return branches;
-    return branches.filter((b) => b.city === selectedCity);
-  }, [branches, selectedCity]);
+  const branchesForFilter = useMemo(
+    () => filterBranchesByCity(branches, selectedCity),
+    [branches, selectedCity],
+  );
 
   // Filter and sort products
   const filteredAndSortedProducts = products
@@ -471,15 +463,6 @@ export default function StorePage() {
         </CardContent>
       </Card>
 
-      <PageFilters
-        primaryLabel="עסק / סניף"
-        primaryValue={primaryFilter}
-        primaryOptions={branches.map((b) => ({ value: b.id, label: b.name }))}
-        onPrimaryChange={setPrimaryFilter}
-        secondaryValue={secondaryFilter}
-        secondaryOptions={[]}
-        onSecondaryChange={setSecondaryFilter}
-      />
 
       {/* Products Table */}
       <Card>

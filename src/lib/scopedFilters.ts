@@ -43,3 +43,26 @@ export function filterBranchesByCity<T extends BranchOption>(branches: T[], city
   if (cityId === 'all') return branches;
   return branches.filter((b) => b.city === cityId);
 }
+
+/**
+ * Filter options taken from rows the screen already holds, for roles that
+ * cannot read the list endpoints — a worker gets 403 on branches, cities,
+ * instructors, courses and course types alike.
+ */
+export function optionsFromRows<T>(
+  rows: T[],
+  getValue: (row: T) => string | null | undefined,
+  getLabel: (row: T) => string | null | undefined,
+): Array<{ value: string; label: string }> {
+  const map = new Map<string, string>();
+  rows.forEach((row) => {
+    const value = getValue(row);
+    const label = getLabel(row);
+    if (value && label) {
+      map.set(value, label);
+    }
+  });
+  return Array.from(map.entries())
+    .map(([value, label]) => ({ value, label }))
+    .sort((a, b) => a.label.localeCompare(b.label, 'he'));
+}

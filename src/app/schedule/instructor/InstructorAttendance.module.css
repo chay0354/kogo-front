@@ -717,6 +717,28 @@
   vertical-align: middle;
 }
 
+/* Quiet next to the tag it follows: removing is the rare correction, not the
+   thing the row is for. Still a full touch target on a phone. */
+.removeBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  margin-inline-start: 4px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: rgba(30, 42, 110, 0.45);
+  vertical-align: middle;
+  cursor: pointer;
+}
+
+.removeBtn:active {
+  background: rgba(214, 60, 60, 0.12);
+  color: #c33;
+}
+
 @media (max-width: 400px) {
   .addFields { grid-template-columns: 1fr; }
 }
@@ -823,6 +845,36 @@
   font-size: 14px;
   color: rgba(30, 42, 110, 0.6);
   cursor: pointer;
+}
+
+.removeHint {
+  margin: 8px 0 14px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: rgba(30, 42, 110, 0.6);
+}
+
+.removeActions {
+  display: grid;
+  gap: 4px;
+}
+
+.removeConfirm {
+  width: 100%;
+  border: 0;
+  border-radius: 999px;
+  padding: 13px;
+  background: #d63c3c;
+  font: inherit;
+  font-weight: 800;
+  font-size: 15px;
+  color: #fff;
+  cursor: pointer;
+}
+
+.removeConfirm:disabled {
+  opacity: 0.6;
+  cursor: default;
 }
 
 @keyframes contactFade {

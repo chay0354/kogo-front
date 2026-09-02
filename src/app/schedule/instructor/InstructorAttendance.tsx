@@ -1,8 +1,14 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Calendar, Check, ChevronDown, ChevronRight, Clock, MessageCircle, Phone, Plus, X } from 'lucide-react';
-import { addWalkInStudent, fetchLessonDetail, formatTime, markAttendance } from '@/lib/scheduleUtils';
+import { Calendar, Check, ChevronDown, ChevronRight, Clock, MessageCircle, Phone, Plus, Trash2, X } from 'lucide-react';
+import {
+  addWalkInStudent,
+  fetchLessonDetail,
+  formatTime,
+  markAttendance,
+  removeWalkInStudent,
+} from '@/lib/scheduleUtils';
 import type { AttendanceStatus, Lesson, LessonDetail } from '@/types/schedule';
 import { hebrewDayLetter, lessonTitle } from './instructorUtils';
 import styles from './InstructorAttendance.module.css';
@@ -57,6 +63,9 @@ export default function InstructorAttendance({
   const [isAdding, setIsAdding] = useState(false);
   // The parent an instructor tapped, while the two ways to reach them are open.
   const [contact, setContact] = useState<{ name: string; phone: string } | null>(null);
+  // The walk-in whose removal is waiting to be confirmed.
+  const [removing, setRemoving] = useState<{ id: string; child_id: string; name: string } | null>(null);
+  const [isRemoving, setIsRemoving] = useState(false);
   const addFormRef = useRef<HTMLDivElement>(null);
 
   const occurrenceDate = lesson.lesson_date || '';
@@ -101,15 +110,18 @@ export default function InstructorAttendance({
     return () => window.clearTimeout(timer);
   }, [toast]);
 
-  // Nearest the instructor first: the contact sheet is a modal over everything
-  // here, including the walk-in form, so it answers a back press before it.
+  // Nearest the instructor first: the confirm and the contact sheet are modals
+  // over everything here, including the walk-in form, so they answer a back
+  // press before it. A back press on the confirm cancels the removal, which is
+  // what its own ביטול does.
   useEffect(() => {
     if (!onOverlayChange) return;
-    if (contact) onOverlayChange(() => setContact(null));
+    if (removing) onOverlayChange(() => setRemoving(null));
+    else if (contact) onOverlayChange(() => setContact(null));
     else if (addOpen) onOverlayChange(() => setAddOpen(false));
     else onOverlayChange(null);
     return () => onOverlayChange(null);
-  }, [contact, addOpen, onOverlayChange]);
+  }, [removing, contact, addOpen, onOverlayChange]);
 
   /* The form is revealed below a list that can be longer than the screen. The
      layout keeps it on screen on its own, but a short phone with a long header
@@ -176,15 +188,50 @@ export default function InstructorAttendance({
           ? { ...prev, enrollments: [...prev.enrollments.filter((s) => s.id !== added.id), added] }
           : prev,
       );
+      // The server marked them on the way in and says so, so the tick is drawn
+      // from the answer already in hand rather than by asking for the register
+      // again — one request, and the row lands finished.
+      if (added.attendance_status) {
+        setAttendance((prev) => ({ ...prev, [added.child_id]: added.attendance_status as AttendanceStatus }));
+      }
       setExpanded(true);
       setAddForm({ first_name: '', last_name: '', phone: '' });
       setAddOpen(false);
-      setToast(`${added.child_name} נוסף לרשימה`);
     } catch (err) {
       console.error(err);
       setToast('לא הצלחנו להוסיף את התלמיד');
     } finally {
       setIsAdding(false);
+    }
+  };
+
+  /**
+   * Take back a walk-in that was added by mistake. Walk-ins only — the button
+   * is drawn on no other row, and the server refuses anything that is not one.
+   *
+   * Asked for first: this cannot be undone, and the control sits on a screen
+   * being tapped quickly in a room full of children.
+   */
+  const handleRemoveWalkIn = async () => {
+    if (!removing) return;
+    const target = removing;
+    setIsRemoving(true);
+    try {
+      await removeWalkInStudent(lesson.id, target.id, asUser);
+      setDetail((prev) =>
+        prev ? { ...prev, enrollments: prev.enrollments.filter((s) => s.id !== target.id) } : prev,
+      );
+      setAttendance((prev) => {
+        const next = { ...prev };
+        delete next[target.child_id];
+        return next;
+      });
+      setRemoving(null);
+    } catch (err) {
+      console.error(err);
+      setToast('לא הצלחנו להסיר את התלמיד');
+    } finally {
+      setIsRemoving(false);
     }
   };
 
@@ -246,6 +293,24 @@ export default function InstructorAttendance({
                       {student.child_name}
                       {student.child_status === 'ghost' && (
                         <span className={styles.walkInTag}>הגיע ללא רישום</span>
+                      )}
+                      {/* Only on a walk-in. A registered child belongs to the
+                          office, and this screen offers no way to remove one. */}
+                      {student.child_status === 'ghost' && (
+                        <button
+                          type="button"
+                          className={styles.removeBtn}
+                          onClick={() =>
+                            setRemoving({
+                              id: student.id,
+                              child_id: student.child_id,
+                              name: student.child_name,
+                            })
+                          }
+                          aria-label={`הסרת ${student.child_name} מהרשימה`}
+                        >
+                          <Trash2 size={15} strokeWidth={2.4} />
+                        </button>
                       )}
                     </div>
                     {student.child_phone ? (
@@ -414,6 +479,41 @@ export default function InstructorAttendance({
             <button type="button" className={styles.contactCancel} onClick={() => setContact(null)}>
               ביטול
             </button>
+          </div>
+        </div>
+      )}
+
+      {removing && (
+        <div
+          className={styles.contactScrim}
+          role="dialog"
+          aria-modal="true"
+          aria-label={`הסרת ${removing.name} מהרשימה`}
+          onClick={(e) => {
+            if (e.target === e.currentTarget && !isRemoving) setRemoving(null);
+          }}
+        >
+          <div className={styles.contactBox}>
+            <div className={styles.contactName}>{removing.name}</div>
+            <p className={styles.removeHint}>להסיר מרשימת השיעור? לא ניתן לבטל.</p>
+            <div className={styles.removeActions}>
+              <button
+                type="button"
+                className={styles.removeConfirm}
+                onClick={handleRemoveWalkIn}
+                disabled={isRemoving}
+              >
+                {isRemoving ? 'מסיר…' : 'הסר'}
+              </button>
+              <button
+                type="button"
+                className={styles.contactCancel}
+                onClick={() => setRemoving(null)}
+                disabled={isRemoving}
+              >
+                ביטול
+              </button>
+            </div>
           </div>
         </div>
       )}

@@ -19,7 +19,7 @@ import { fetchFinancialData, fetchInvoicingData } from '@/lib/api';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useScopedBranches } from '@/hooks/useScopedBranches';
 import type { DateRange } from './GlobalDateFilter';
-import { MONTHS } from './filters/monthYearUtils';
+import { MONTHS } from './monthYearUtils';
 import { formatCurrency, formatPercent, SOURCE_LABELS } from './format';
 import KpiCard from './KpiCard';
 import { deriveTrends } from './trends';

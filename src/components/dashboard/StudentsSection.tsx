@@ -17,7 +17,7 @@ import { fetchStudentsData } from '@/lib/api';
 import { useScopedBranches } from '@/hooks/useScopedBranches';
 import { filterBranchesByCity } from '@/lib/scopedFilters';
 import type { DateRange } from './GlobalDateFilter';
-import { MONTHS } from './filters/monthYearUtils';
+import { MONTHS } from './monthYearUtils';
 import { formatPercent } from './format';
 import theme from './theme/dashboard.module.css';
 import { SectionSkeleton } from './SectionSkeleton';
