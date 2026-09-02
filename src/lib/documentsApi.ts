@@ -40,6 +40,8 @@ export async function fetchTranzilaDocuments(params?: {
     status: string;
     pdf_url?: string;
     store_invoice_id?: string;
+    tranzila_issued?: boolean;
+    is_draft?: boolean;
     tranzila_doc_id?: string;
     source?: string;
     branch?: string;
@@ -155,6 +157,27 @@ export async function downloadPeriodReport(params: {
   const link = document.createElement('a');
   link.href = blobUrl;
   link.download = `invoices-${params.start_date}-${params.end_date}-${params.group_by}.pdf`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.URL.revokeObjectURL(blobUrl);
+}
+
+/** Approve a draft: it becomes a real document and takes a fiscal number. */
+export async function finalizeDraft(id: string): Promise<void> {
+  await api.post(`/documents/documents/${id}/finalize/`);
+}
+
+/**
+ * The document rendered by our own server. Used when Tranzila has no PDF for
+ * it — drafts, credit invoices, and anything Tranzila never issued.
+ */
+export async function downloadDocumentPdf(id: string, documentNumber: string): Promise<void> {
+  const res = await api.get(`/documents/documents/${id}/pdf/`, { responseType: 'blob' });
+  const blobUrl = window.URL.createObjectURL(new Blob([res.data], { type: 'application/pdf' }));
+  const link = document.createElement('a');
+  link.href = blobUrl;
+  link.download = `${documentNumber}.pdf`;
   document.body.appendChild(link);
   link.click();
   link.remove();

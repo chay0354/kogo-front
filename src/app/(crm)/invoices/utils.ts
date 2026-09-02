@@ -39,6 +39,7 @@ export function getStatusLabel(status: string): string {
     partially_paid: 'שולם חלקית',
     failed: 'נכשל',
     refunded: 'זוכה',
+    draft: 'טיוטה',
   };
   return labels[status] ?? status;
 }
@@ -50,6 +51,7 @@ export function getStatusClass(status: string): string {
     partially_paid: styles.statusFailed,
     failed: styles.statusFailed,
     refunded: styles.statusRefunded,
+    draft: styles.statusPending,
   };
   return classes[status] ?? '';
 }

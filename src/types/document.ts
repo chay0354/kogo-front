@@ -3,7 +3,8 @@ export type DocumentType =
   | 'receipt'
   | 'combined'
   | 'transaction_invoice'
-  | 'credit_invoice';
+  | 'credit_invoice'
+  | 'draft';
 
 export type DocumentClientType = 'business' | 'existing';
 export type DocumentCurrency = 'ILS' | 'USD' | 'EUR';
@@ -144,6 +145,8 @@ export interface CreditInvoiceInput {
 
 export interface CreateDocumentPayload {
   document_type: DocumentType;
+  // Only for drafts: the type the document becomes when approved.
+  draft_target_type?: 'tax_invoice' | 'transaction_invoice';
   client_type: DocumentClientType;
   child_id?: string | null;
   business_customer_id?: string | null;
