@@ -175,12 +175,17 @@ export default function CustomersPage() {
   useEffect(() => {
     if (!user) return;
 
+    // Typing fires a request per keystroke; an older reply landing after a
+    // newer one would show results for a term the box no longer holds.
+    let stale = false;
+
     const fetchChildren = async () => {
       setLoading(true);
       try {
         const params = childrenListParams(filters, childrenPage);
         
         const response = await api.get(`/customers/children/?${params.toString()}`);
+        if (stale) return;
         // Extract results from paginated response
         const results = response.data.results || response.data || [];
         setChildren(results);
@@ -188,17 +193,21 @@ export default function CustomersPage() {
         setChildrenHasNext(Boolean(response.data.next));
         setChildrenHasPrev(Boolean(response.data.previous));
       } catch (error) {
+        if (stale) return;
         console.error('Error fetching children:', error);
         setChildren([]);
         setChildrenTotalCount(0);
         setChildrenHasNext(false);
         setChildrenHasPrev(false);
       } finally {
-        setLoading(false);
+        if (!stale) setLoading(false);
       }
     };
     
     fetchChildren();
+    return () => {
+      stale = true;
+    };
   }, [user?.id, user?.role, user?.branch_ids?.join(','), filters, childrenPage]);
 
 
