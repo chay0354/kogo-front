@@ -3,8 +3,9 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
-import { FileText, Search, DollarSign, Clock, TrendingUp, Wallet, AlertCircle, Plus, Bell, Repeat, Download } from 'lucide-react';
+import { FileText, Search, DollarSign, Clock, TrendingUp, Wallet, AlertCircle, Plus, Bell, Repeat, Download, Banknote } from 'lucide-react';
 import FilterBar, { FILTER_ALL } from '@/components/FilterBar';
+import ChecksTab from './ChecksTab';
 import NewDocumentDialog from '@/components/dialogs/NewDocumentDialog';
 import RefundDialog from '@/components/dialogs/RefundDialog';
 import { GroupIdBadge } from '@/components/GroupIdBadge/GroupIdBadge';
@@ -483,6 +484,8 @@ export default function InvoicesPage() {
                 <AlertCircle className={styles.titleIcon} />
               ) : activeTab === 'הוראת קבע' ? (
                 <Repeat className={styles.titleIcon} />
+              ) : activeTab === "צ'קים" ? (
+                <Banknote className={styles.titleIcon} />
               ) : (
                 <FileText className={styles.titleIcon} />
               )}
@@ -495,6 +498,8 @@ export default function InvoicesPage() {
                 ? 'מסמכים עם יתרה פתוחה, מעקב Aging ופעולות גבייה'
                 : activeTab === 'הוראת קבע'
                 ? 'כל הוראות הקבע הפעילות והמבוטלות של לקוחות החוגים'
+                : activeTab === "צ'קים"
+                ? 'רישום צ׳קים במשרד: קבלה ברישום, וחשבונית מס אוטומטית בכל חודש'
                 : 'כל החשבוניות והקבלות שהופקו מול טרנזילה'}
             </p>
           </div>
@@ -532,6 +537,14 @@ export default function InvoicesPage() {
                 onClick={() => handleTabChange('הוראת קבע')}
               >
                 הוראת קבע
+              </button>
+              <button
+                role="tab"
+                aria-selected={activeTab === "צ'קים"}
+                className={`${styles.tabBtn} ${activeTab === "צ'קים" ? styles.tabBtnActive : ''}`}
+                onClick={() => handleTabChange("צ'קים")}
+              >
+                צ׳קים
               </button>
               {isManager && (
                 <Link href="/credit-charge" className={`${styles.tabBtn} ${styles.tabLink}`}>
@@ -1100,6 +1113,14 @@ export default function InvoicesPage() {
               )}
             </div>
           </>
+        )}
+
+        {activeTab === "צ'קים" && (
+          <ChecksTab
+            formatAmount={formatAmount}
+            formatDate={formatDate}
+            branchFilter={primaryFilter !== FILTER_ALL ? primaryFilter : undefined}
+          />
         )}
 
         {activeTab === 'גבייה' && (
