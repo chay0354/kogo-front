@@ -133,3 +133,30 @@ export async function sendDocumentReminder(id: string): Promise<{ sent: boolean 
   const res = await api.post(`/documents/documents/${id}/send-reminder/`);
   return res.data;
 }
+
+/**
+ * Every document in a period as one PDF, grouped by branch or by business.
+ *
+ * Fetched as a blob rather than opened by URL: the file sits behind the same
+ * token every other request carries, and a plain window.open would arrive
+ * without it. Same shape as the store's invoice download.
+ */
+export async function downloadPeriodReport(params: {
+  start_date: string;
+  end_date: string;
+  group_by: 'branch' | 'business';
+  document_type?: string;
+}): Promise<void> {
+  const res = await api.get('/documents/documents/period-report/', {
+    params: { ...params, document_type: params.document_type || undefined },
+    responseType: 'blob',
+  });
+  const blobUrl = window.URL.createObjectURL(new Blob([res.data], { type: 'application/pdf' }));
+  const link = document.createElement('a');
+  link.href = blobUrl;
+  link.download = `invoices-${params.start_date}-${params.end_date}-${params.group_by}.pdf`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.URL.revokeObjectURL(blobUrl);
+}

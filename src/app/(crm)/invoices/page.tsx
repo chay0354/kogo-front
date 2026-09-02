@@ -10,7 +10,7 @@ import RefundDialog from '@/components/dialogs/RefundDialog';
 import { GroupIdBadge } from '@/components/GroupIdBadge/GroupIdBadge';
 import { TableSkeleton } from '@/components/ui/skeleton';
 import { fetchAllInvoices, downloadStoreInvoicePdf } from '@/lib/storeApi';
-import { sendDocumentReminder, fetchTranzilaDocuments, fetchPaymentLedger, PAYMENTS_PAGE_SIZE } from '@/lib/documentsApi';
+import { sendDocumentReminder, fetchTranzilaDocuments, fetchPaymentLedger, PAYMENTS_PAGE_SIZE, downloadPeriodReport } from '@/lib/documentsApi';
 import api from '@/lib/api';
 import { useAuth } from '@/components/AuthProvider';
 import { filterBranchesForUser, unwrapApiList } from '@/lib/scopedFilters';
@@ -49,6 +49,10 @@ export default function InvoicesPage() {
   // the shell would only bounce them off.
   const isManager = user?.role === 'manager';
   const [activeTab, setActiveTab] = useState<ActiveTab>('מסמכים');
+  // The period report follows whatever range and type the tab is already
+  // showing, so the sheet a manager downloads is the sheet they were looking at.
+  const [reportGroupBy, setReportGroupBy] = useState<'branch' | 'business'>('branch');
+  const [reportBusy, setReportBusy] = useState(false);
   const [isNewDocOpen, setIsNewDocOpen] = useState(false);
   const [reminderStatus, setReminderStatus] = useState<Record<string, 'sending' | 'sent' | 'error'>>({});
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
@@ -605,6 +609,39 @@ export default function InvoicesPage() {
                 onChange={e => setDateTo(e.target.value)}
                 aria-label="עד תאריך"
               />
+
+              <select
+                className={styles.filterSelect}
+                value={reportGroupBy}
+                onChange={e => setReportGroupBy(e.target.value as 'branch' | 'business')}
+                aria-label="קיבוץ הדוח"
+              >
+                <option value="branch">דוח לפי סניפים</option>
+                <option value="business">דוח לפי עסקים</option>
+              </select>
+              <button
+                type="button"
+                className={styles.tabBtn}
+                disabled={reportBusy}
+                onClick={async () => {
+                  setReportBusy(true);
+                  try {
+                    await downloadPeriodReport({
+                      start_date: dateFrom || daysAgoLocalISO(90),
+                      end_date: dateTo || localISODate(),
+                      group_by: reportGroupBy,
+                      document_type: docTypeFilter === 'all' ? '' : docTypeFilter,
+                    });
+                  } catch {
+                    setDocumentsError('הפקת הדוח נכשלה');
+                  } finally {
+                    setReportBusy(false);
+                  }
+                }}
+              >
+                <Download size={16} aria-hidden="true" />
+                {reportBusy ? 'מפיק…' : 'הורד דוח PDF'}
+              </button>
 
               <div className={styles.searchWrapper}>
                 <Search className={styles.searchIcon} aria-hidden="true" />
