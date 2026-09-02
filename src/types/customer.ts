@@ -41,6 +41,7 @@ export interface ChildWithDetails {
   parent_id_number?: string | null;
   parent_email?: string | null;
   family_email?: string | null;
+  family_address?: string | null;
   
   // NEW: Explicit status field
   status: "active" | "trial_signed" | "trial_completed" | "payment_problem" | "not_paid" | "pending" | "ghost" | "inactive";

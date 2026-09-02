@@ -525,7 +525,7 @@ export default function ChildProfileDialog({
                             <MapPin className="h-4 w-4" />
                             כתובת
                           </span>
-                          <span className="font-medium">{/* placeholder */}-</span>
+                          <span className="font-medium">{child.family_address || '-'}</span>
                         </div>
                         <div className="flex justify-between gap-4">
                           <span className="text-muted-foreground text-sm">סניף</span>
