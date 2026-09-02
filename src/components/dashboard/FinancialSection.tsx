@@ -440,7 +440,7 @@ export default function FinancialSection({ globalDateRange }: Props) {
       {revenueByBusiness.length > 0 ? (
         <div className={`${theme.card} ${theme.mt}`}>
           <h2 className={theme.cardTitle}>הכנסות לפי עסק וקטגוריה</h2>
-          <p className={theme.cardSub}>לפי השיוך של החוגים; מה שלא שויך מופיע בנפרד</p>
+          <p className={theme.cardSub}>חוגים, השכרות ומכירות באיסוף — לפי הסניף; משלוחי חנות — מותג קוגומלו; לקוחות עסקיים — לפי העסק והקטגוריה שלהם</p>
           <div className={theme.tableScroll}>
             <table className={theme.table}>
               <thead>
