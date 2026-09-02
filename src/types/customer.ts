@@ -38,6 +38,9 @@ export interface ChildWithDetails {
   // Only while the list is searched: the off-row field the search hit.
   search_match?: { label: string; value: string } | null;
   parent_id: string | null;
+  parent_id_number?: string | null;
+  parent_email?: string | null;
+  family_email?: string | null;
   
   // NEW: Explicit status field
   status: "active" | "trial_signed" | "trial_completed" | "payment_problem" | "not_paid" | "pending" | "ghost" | "inactive";

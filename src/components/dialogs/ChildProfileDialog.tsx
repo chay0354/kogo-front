@@ -496,7 +496,7 @@ export default function ChildProfileDialog({
                         </div>
                         <div className="flex justify-between gap-4">
                           <span className="text-muted-foreground text-sm">ת.ז. הורה</span>
-                          <span className="font-medium">{child.parent_id || '-'}</span>
+                          <span className="font-medium">{child.parent_id_number || '-'}</span>
                         </div>
                         <div className="flex justify-between gap-4 items-center">
                           <span className="text-muted-foreground text-sm">טלפון</span>
@@ -518,7 +518,7 @@ export default function ChildProfileDialog({
                             <Mail className="h-4 w-4" />
                             אימייל
                           </span>
-                          <span className="font-medium">{/* placeholder */}-</span>
+                          <span className="font-medium">{child.parent_email || child.family_email || '-'}</span>
                         </div>
                         <div className="flex justify-between gap-4 items-center">
                           <span className="text-muted-foreground text-sm flex items-center gap-2">
