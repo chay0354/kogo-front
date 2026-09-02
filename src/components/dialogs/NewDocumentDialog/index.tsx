@@ -111,6 +111,9 @@ export default function NewDocumentDialog({ open, onClose }: NewDocumentDialogPr
   const [showCloseConfirm, setShowCloseConfirm] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
   const [saveAsDraft, setSaveAsDraft] = useState(false);
+  useEffect(() => {
+    setSaveAsDraft(false);
+  }, [docType]);
   const queryClient = useQueryClient();
 
   const { data: childrenData } = useQuery({
@@ -158,9 +161,6 @@ export default function NewDocumentDialog({ open, onClose }: NewDocumentDialogPr
   const isFirstStep = steps[0]?.id === currentStep;
   const isLastStep = steps[steps.length - 1]?.id === currentStep;
   const canDraft = docType === 'חשבונית מס' || docType === 'חשבונית עסקה';
-  useEffect(() => {
-    setSaveAsDraft(false);
-  }, [docType]);
 
   async function handleNext() {
     setSubmitError(null);
