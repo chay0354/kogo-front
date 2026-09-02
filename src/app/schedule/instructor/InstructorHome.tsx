@@ -18,7 +18,12 @@ import {
   X,
 } from 'lucide-react';
 import { useAuth } from '@/components/AuthProvider';
-import { fetchLessons, formatDateISO, formatTime } from '@/lib/scheduleUtils';
+import {
+  fetchLessons,
+  formatDateISO,
+  formatTime,
+  prefetchLessonDetails,
+} from '@/lib/scheduleUtils';
 import { fetchLinkedUsers, fetchMyBranches, type LinkedUser } from '@/lib/api';
 import type { Lesson } from '@/types/schedule';
 import InstructorAttendance from './InstructorAttendance';
@@ -353,6 +358,12 @@ export default function InstructorHome() {
         .sort((a, b) => a.start_time.localeCompare(b.start_time)),
     };
   };
+
+  // The rosters of the day on screen, read while the instructor looks at it.
+  useEffect(() => {
+    if (isLoading || !visibleLessons.length) return;
+    prefetchLessonDetails(visibleLessons, viewAs === 'self' ? undefined : viewAs);
+  }, [isLoading, visibleLessons, viewAs]);
 
   // An empty day tells an instructor nothing. When the screen opens on one —
   // or they switch to a colleague who is not teaching today — it moves to
@@ -792,14 +803,18 @@ export default function InstructorHome() {
           {/* Say so plainly rather than leaving someone to wonder why the
               screen is not on today. */}
           {autoAdvanced && (
-            <div className={styles.movedNote}>אין שיעורים היום — מוצג היום הקרוב</div>
+            <div className={styles.movedNote} key={formatDateISO(selectedDate)} role="status">
+              <span className={styles.movedNoteFrom}>אין שיעורים היום</span>
+              <ChevronLeft size={14} className={styles.movedNoteArrow} aria-hidden />
+              <span className={styles.movedNoteTo}>{hebrewDayTitle(selectedDate)}</span>
+            </div>
           )}
 
           <div className={styles.sectionLabel}>השיעורים היום</div>
         </header>
 
         <div className={styles.body}>
-          <section className={styles.list} data-tour="list">
+          <section className={styles.list} data-tour="list" key={formatDateISO(selectedDate)}>
             {isLoading && (
               <div className={styles.rowSkeletons} aria-busy="true" aria-label="טוען שיעורים">
                 {Array.from({ length: 4 }).map((_, i) => (

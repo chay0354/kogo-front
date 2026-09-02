@@ -37,7 +37,31 @@ export async function fetchLessonDetail(
   if (asUser) params.append('as_user', asUser);
   const query = params.toString();
   const res = await api.get(`/scheduling/lessons/${lessonId}/${query ? `?${query}` : ''}`);
-  return res.data as LessonDetail;
+  const detail = res.data as LessonDetail;
+  lessonDetailCache.set(detailCacheKey(lessonId, date, asUser), detail);
+  return detail;
+}
+
+// The register is opened in front of a waiting class, and every call crosses
+// to the server's region. The day's rosters are read once the day itself is
+// on screen, so opening a lesson paints from memory and refreshes behind it.
+const lessonDetailCache = new Map<string, LessonDetail>();
+
+function detailCacheKey(lessonId: string, date?: string, asUser?: string) {
+  return `${lessonId}|${date ?? ''}|${asUser ?? ''}`;
+}
+
+/** The roster already read for this lesson and day, if any. */
+export function peekLessonDetail(lessonId: string, date?: string, asUser?: string): LessonDetail | undefined {
+  return lessonDetailCache.get(detailCacheKey(lessonId, date, asUser));
+}
+
+/** Read the rosters of a day's lessons in the background. Failures are silent — the register fetches again on open. */
+export function prefetchLessonDetails(lessons: Lesson[], asUser?: string): void {
+  lessons.forEach((lesson) => {
+    if (!lesson.lesson_date || lessonDetailCache.has(detailCacheKey(lesson.id, lesson.lesson_date, asUser))) return;
+    fetchLessonDetail(lesson.id, lesson.lesson_date, asUser).catch(() => undefined);
+  });
 }
 
 /**

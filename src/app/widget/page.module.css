@@ -737,25 +737,25 @@
   padding: 0;
 }
 
-/* רמז גלילה: הרשימה ממשיכה מתחת למה שרואים */
+/* רמז גלילה: שורות שיעורים ממשיכות מתחת למה שרואים */
 .scrollCue {
   position: fixed;
   left: 50%;
-  bottom: 16px;
+  bottom: 10px;
   transform: translateX(-50%);
   z-index: 900;
-  width: 42px;
-  height: 42px;
+  width: 30px;
+  height: 30px;
   border: 0;
   border-radius: 999px;
-  background: #2B3090;
+  background: rgba(43, 48, 144, 0.82);
   color: #fff;
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 8px 20px rgba(16, 18, 40, 0.28);
+  box-shadow: 0 4px 12px rgba(16, 18, 40, 0.22);
   cursor: pointer;
-  animation: widgetScrollCueNudge 1.6s ease-in-out infinite;
+  opacity: 0.9;
 }
 
 .scrollCue[style*="top"] {
@@ -763,16 +763,5 @@
 }
 
 .scrollCue:hover {
-  background: #232876;
-}
-
-@keyframes widgetScrollCueNudge {
-  0%, 100% { transform: translateX(-50%) translateY(0); }
-  50% { transform: translateX(-50%) translateY(4px); }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .scrollCue {
-    animation: none;
-  }
+  opacity: 1;
 }

@@ -797,25 +797,26 @@ export default function WidgetPage() {
         : !selectedAge ? 'age'
           : null;
 
-  // A small cue while the list runs on below what is on screen; pressing it
-  // brings the end of the list into view (the host scrolls when embedded).
+  // A quiet cue at the edge of what is on screen, only while actual lesson
+  // rows (an opened track) sit below it. Collapsed track headers do not count.
   const courseListRef = useRef<HTMLDivElement | null>(null);
-  const [listRunsBelow, setListRunsBelow] = useState(false);
-  const listBottomInFrame = () => {
+  const [rowsBelowFold, setRowsBelowFold] = useState(false);
+  const visibleBottomInFrame = () =>
+    band ? band.bottom : (window.scrollY || window.pageYOffset || 0) + window.innerHeight;
+  const lastRowBottomBelow = () => {
     const el = courseListRef.current;
     if (!el) return null;
-    return el.getBoundingClientRect().bottom + (window.scrollY || window.pageYOffset || 0);
+    const scrollY = window.scrollY || window.pageYOffset || 0;
+    const limit = visibleBottomInFrame() - 8;
+    let last: number | null = null;
+    el.querySelectorAll('[role="listitem"]').forEach((row) => {
+      const rect = row.getBoundingClientRect();
+      if (rect.top + scrollY >= limit) last = rect.bottom + scrollY;
+    });
+    return last;
   };
   useEffect(() => {
-    const check = () => {
-      const bottom = listBottomInFrame();
-      if (bottom === null) {
-        setListRunsBelow(false);
-        return;
-      }
-      const visibleBottom = band ? band.bottom : (window.scrollY || window.pageYOffset || 0) + window.innerHeight;
-      setListRunsBelow(bottom - visibleBottom > 48);
-    };
+    const check = () => setRowsBelowFold(lastRowBottomBelow() !== null);
     check();
     const observer = courseListRef.current ? new ResizeObserver(check) : null;
     if (observer && courseListRef.current) observer.observe(courseListRef.current);
@@ -828,17 +829,17 @@ export default function WidgetPage() {
     };
   }, [band, filteredCourses]);
   const revealListEnd = () => {
-    const bottom = listBottomInFrame();
+    const bottom = lastRowBottomBelow();
     if (bottom === null) return;
     if (isWidgetEmbedded()) {
       try {
-        window.parent.postMessage({ type: 'kogo-widget-reveal', bottom: bottom + 24 }, '*');
+        window.parent.postMessage({ type: 'kogo-widget-reveal', bottom: bottom + 16 }, '*');
       } catch {
         /* cross-origin host may still receive the message */
       }
       return;
     }
-    window.scrollTo({ top: Math.max(0, bottom - window.innerHeight + 24), behavior: 'smooth' });
+    window.scrollTo({ top: Math.max(0, bottom - window.innerHeight + 16), behavior: 'smooth' });
   };
 
   return (
@@ -894,16 +895,16 @@ export default function WidgetPage() {
         </div>
       ) : null}
 
-      {listRunsBelow && !detailCourse && !drawerCourse ? (
+      {rowsBelowFold && !detailCourse && !drawerCourse ? (
         <button
           type="button"
           className={styles.scrollCue}
-          style={band ? { top: band.bottom - 60 } : undefined}
+          style={band ? { top: band.bottom - 40 } : undefined}
           onClick={revealListEnd}
           aria-label="לרשימת השיעורים המלאה"
           title="עוד שיעורים למטה"
         >
-          <ChevronDown size={22} aria-hidden />
+          <ChevronDown size={16} aria-hidden />
         </button>
       ) : null}
 

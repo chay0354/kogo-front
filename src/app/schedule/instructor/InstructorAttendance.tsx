@@ -5,6 +5,7 @@ import { Calendar, Check, ChevronDown, ChevronRight, Clock, MessageCircle, Phone
 import {
   addWalkInStudent,
   fetchLessonDetail,
+  peekLessonDetail,
   formatTime,
   markAttendance,
   removeWalkInStudent,
@@ -78,11 +79,7 @@ export default function InstructorAttendance({
         setIsLoading(false);
         return;
       }
-      setIsLoading(true);
-      setError('');
-      try {
-        const data = await fetchLessonDetail(lesson.id, occurrenceDate, asUser);
-        if (cancelled) return;
+      const applyDetail = (data: LessonDetail) => {
         setDetail(data);
         const next: Record<string, AttendanceStatus> = {};
         data.attendance.forEach((record) => {
@@ -90,10 +87,24 @@ export default function InstructorAttendance({
           if (childId) next[childId] = record.status;
         });
         setAttendance(next);
+      };
+      // Paint the roster read with the day, then refresh it.
+      const cached = peekLessonDetail(lesson.id, occurrenceDate, asUser);
+      if (cached) {
+        applyDetail(cached);
+        setIsLoading(false);
+      } else {
+        setIsLoading(true);
+      }
+      setError('');
+      try {
+        const data = await fetchLessonDetail(lesson.id, occurrenceDate, asUser);
+        if (cancelled) return;
+        applyDetail(data);
       } catch (err) {
         if (cancelled) return;
         console.error(err);
-        setError('שגיאה בטעינת רשימת הנוכחות');
+        if (!cached) setError('שגיאה בטעינת רשימת הנוכחות');
       } finally {
         if (!cancelled) setIsLoading(false);
       }
