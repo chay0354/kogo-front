@@ -39,7 +39,8 @@ function panelHeightForOptions(optionCount: number) {
  * coordinates. Embedded in the B2C site the iframe is taller than the phone
  * screen, so only the host page knows the real band — it reports it to us.
  */
-type VisibleBand = { top: number; bottom: number };
+// `bottom` leaves room for the host's floating buttons; `edge` is the true visible bottom.
+type VisibleBand = { top: number; bottom: number; edge?: number };
 
 let hostBand: VisibleBand | null = null;
 const bandSubscribers = new Set<() => void>();
@@ -59,13 +60,14 @@ function ensureHostBandBridge() {
   if (bandBridgeReady || typeof window === 'undefined') return;
   bandBridgeReady = true;
   window.addEventListener('message', (event: MessageEvent) => {
-    const data = event.data as { type?: string; top?: number; bottom?: number } | null;
+    const data = event.data as { type?: string; top?: number; bottom?: number; edge?: number } | null;
     if (!data || data.type !== 'kogo-widget-visible-band') return;
     if (bandFrozen) return;
     const top = Number(data.top);
     const bottom = Number(data.bottom);
     if (!Number.isFinite(top) || !Number.isFinite(bottom) || bottom - top < 80) return;
-    hostBand = { top, bottom };
+    const edge = Number(data.edge);
+    hostBand = { top, bottom, edge: Number.isFinite(edge) && edge > bottom ? edge : bottom };
     bandSubscribers.forEach((notify) => notify());
   });
   requestHostBand();
@@ -403,6 +405,30 @@ export default function WidgetPage() {
   const [drawerIsTrial, setDrawerIsTrial] = useState(false);
   const [drawerOrigin, setDrawerOrigin] = useState<DrawerOrigin | null>(null);
   const [detailClosing, setDetailClosing] = useState(false);
+  // The slice of this frame the host says is on screen, under its header and
+  // above its floating buttons. Overlays are framed by it so nothing opens
+  // behind the host's header. Standalone there is no host, and no frame.
+  const [band, setBand] = useState<VisibleBand | null>(() => hostBand);
+  useEffect(() => {
+    const sync = () => setBand(hostBand ? { ...hostBand } : null);
+    bandSubscribers.add(sync);
+    sync();
+    return () => {
+      bandSubscribers.delete(sync);
+    };
+  }, []);
+  const bandFrame = band
+    ? {
+        position: 'fixed' as const,
+        top: band.top,
+        left: 0,
+        right: 0,
+        height: (band.edge ?? band.bottom) - band.top,
+        // A transform makes this the containing block of the fixed overlays inside it.
+        transform: 'translateZ(0)',
+        zIndex: 1000,
+      }
+    : undefined;
   const [drawerClosing, setDrawerClosing] = useState(false);
   const [savedParent, setSavedParent] = useState<SavedParentDetails | null>(null);
   const [addingAnotherChild, setAddingAnotherChild] = useState(false);
@@ -825,26 +851,28 @@ export default function WidgetPage() {
       {/* Course detail overlay — portaled so mobile fixed layout stays viewport-aligned */}
       {detailCourse && (
         <WidgetPortal>
-          <div className={`${styles.detailOverlay}${detailClosing ? ` ${styles.detailOverlayClosing}` : ''}`} onClick={closeDetail} />
-          <div className={`${styles.detailPanel}${detailClosing ? ` ${styles.detailPanelClosing}` : ''}`}>
-            <CourseExpandedDetail
-              course={detailCourse}
-              lesson={detailLesson ?? undefined}
-              bundleOffer={detailBundle ?? undefined}
-              priceOption={detailPriceOption ?? undefined}
-              selectionFull={detailSelectionFull}
-              alternatives={detailAlternatives}
-              onSelectAlternative={handleSelectAlternative}
-              hideSeptemberStandingOrderNote={hideSeptemberStandingOrderNote(
-                cities.find((c) => c.id === selectedCity)?.name,
-                allBranches.find((b) => b.id === selectedBranch)?.name
-                  ?? detailCourse.branch_name,
-              )}
-              onClose={closeDetail}
-              onEnroll={() => handleEnrollClick(false)}
-              onBundleEnroll={detailBundleForLesson ? handleBundleEnrollClick : undefined}
-              onTrialEnroll={handleTrialEnrollClick}
-            />
+          <div style={bandFrame}>
+            <div className={`${styles.detailOverlay}${detailClosing ? ` ${styles.detailOverlayClosing}` : ''}`} onClick={closeDetail} />
+            <div className={`${styles.detailPanel}${detailClosing ? ` ${styles.detailPanelClosing}` : ''}`}>
+              <CourseExpandedDetail
+                course={detailCourse}
+                lesson={detailLesson ?? undefined}
+                bundleOffer={detailBundle ?? undefined}
+                priceOption={detailPriceOption ?? undefined}
+                selectionFull={detailSelectionFull}
+                alternatives={detailAlternatives}
+                onSelectAlternative={handleSelectAlternative}
+                hideSeptemberStandingOrderNote={hideSeptemberStandingOrderNote(
+                  cities.find((c) => c.id === selectedCity)?.name,
+                  allBranches.find((b) => b.id === selectedBranch)?.name
+                    ?? detailCourse.branch_name,
+                )}
+                onClose={closeDetail}
+                onEnroll={() => handleEnrollClick(false)}
+                onBundleEnroll={detailBundleForLesson ? handleBundleEnrollClick : undefined}
+                onTrialEnroll={handleTrialEnrollClick}
+              />
+            </div>
           </div>
         </WidgetPortal>
       )}
@@ -852,51 +880,53 @@ export default function WidgetPage() {
       {/* Enrollment side drawer */}
       {drawerCourse && (
         <WidgetPortal>
-          <div className={`${styles.drawerOverlay}${drawerClosing ? ` ${styles.drawerOverlayClosing}` : ''}`} onClick={closeDrawer} />
-          <div className={`${styles.drawerPanel}${drawerClosing ? ` ${styles.drawerPanelClosing}` : ''}`}>
-            {allBranches.find((b) => b.id === selectedBranch)?.is_external ? (
-              <div className={styles.externalBranchMessage}>
-                {(() => {
-                  const branch = allBranches.find((b) => b.id === selectedBranch);
-                  const externalLink = drawerCourse?.external_link || branch?.external_link;
-                  return externalLink ? (
-                    <a href={normalizeExternalLink(externalLink)} target="_blank" rel="noopener noreferrer" className={styles.externalBranchText}>
-                      לחצו כאן להמשך רישום בסניף
-                    </a>
-                  ) : (
-                    <p className={styles.externalBranchText}>לחצו כאן להמשך רישום בסניף</p>
-                  );
-                })()}
-              </div>
-            ) : (
-              <CourseRegistrationForm
-                courseId={drawerCourse.id}
-                courseName={
-                  drawerPriceOption
-                    ? drawerPriceOption.display_title
-                    : drawerBundle
-                      ? `${drawerCourse.name} #${drawerCourse.display_id} (${drawerBundle.name || (isInstructorsCourse(drawerCourse) ? INSTRUCTORS_TRACK_TITLE : 'פעמיים בשבוע')})`
-                      : `${drawerCourse.name} #${drawerCourse.display_id}`
-                }
-                isAdult={drawerCourse.is_adult ?? false}
-                bundleId={drawerBundle?.id}
-                lessonId={drawerLesson?.id}
-                priceOptionId={drawerPriceOption?.id}
-                trialLessonOptions={drawerLesson ? [] : (drawerBundle?.lessons ?? [])}
-                isTrial={drawerIsTrial}
-                trialLessonIsPaid={drawerCourse.trial_lesson_is_paid ?? false}
-                trialLessonPrice={
-                  drawerCourse.trial_lesson_price != null
-                    ? Number(drawerCourse.trial_lesson_price)
-                    : null
-                }
-                catalogDefaultFilters={catalogDefaultFilters}
-                initialParent={addingAnotherChild ? savedParent : null}
-                onBack={backToCourseDetail}
-                onComplete={finishFamilyRegistration}
-                onRegisterAnother={handleRegisterAnother}
-              />
-            )}
+          <div style={bandFrame}>
+            <div className={`${styles.drawerOverlay}${drawerClosing ? ` ${styles.drawerOverlayClosing}` : ''}`} onClick={closeDrawer} />
+            <div className={`${styles.drawerPanel}${drawerClosing ? ` ${styles.drawerPanelClosing}` : ''}`}>
+              {allBranches.find((b) => b.id === selectedBranch)?.is_external ? (
+                <div className={styles.externalBranchMessage}>
+                  {(() => {
+                    const branch = allBranches.find((b) => b.id === selectedBranch);
+                    const externalLink = drawerCourse?.external_link || branch?.external_link;
+                    return externalLink ? (
+                      <a href={normalizeExternalLink(externalLink)} target="_blank" rel="noopener noreferrer" className={styles.externalBranchText}>
+                        לחצו כאן להמשך רישום בסניף
+                      </a>
+                    ) : (
+                      <p className={styles.externalBranchText}>לחצו כאן להמשך רישום בסניף</p>
+                    );
+                  })()}
+                </div>
+              ) : (
+                <CourseRegistrationForm
+                  courseId={drawerCourse.id}
+                  courseName={
+                    drawerPriceOption
+                      ? drawerPriceOption.display_title
+                      : drawerBundle
+                        ? `${drawerCourse.name} #${drawerCourse.display_id} (${drawerBundle.name || (isInstructorsCourse(drawerCourse) ? INSTRUCTORS_TRACK_TITLE : 'פעמיים בשבוע')})`
+                        : `${drawerCourse.name} #${drawerCourse.display_id}`
+                  }
+                  isAdult={drawerCourse.is_adult ?? false}
+                  bundleId={drawerBundle?.id}
+                  lessonId={drawerLesson?.id}
+                  priceOptionId={drawerPriceOption?.id}
+                  trialLessonOptions={drawerLesson ? [] : (drawerBundle?.lessons ?? [])}
+                  isTrial={drawerIsTrial}
+                  trialLessonIsPaid={drawerCourse.trial_lesson_is_paid ?? false}
+                  trialLessonPrice={
+                    drawerCourse.trial_lesson_price != null
+                      ? Number(drawerCourse.trial_lesson_price)
+                      : null
+                  }
+                  catalogDefaultFilters={catalogDefaultFilters}
+                  initialParent={addingAnotherChild ? savedParent : null}
+                  onBack={backToCourseDetail}
+                  onComplete={finishFamilyRegistration}
+                  onRegisterAnother={handleRegisterAnother}
+                />
+              )}
+            </div>
           </div>
         </WidgetPortal>
       )}
