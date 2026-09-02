@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Calendar, Check, ChevronDown, ChevronRight, Clock, MessageCircle, Phone, Plus, Trash2, X } from 'lucide-react';
+import { Calendar, Check, ChevronDown, ChevronRight, Clock, MessageCircle, Phone, Plus, Sparkles, Trash2, X } from 'lucide-react';
 import {
   addWalkInStudent,
   fetchLessonDetail,
@@ -135,7 +135,18 @@ export default function InstructorAttendance({
     node.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'nearest' });
   }, [addOpen]);
 
-  const students = detail?.enrollments ?? [];
+  // Paying students first, trial students after them, walk-ins last — the
+  // order an instructor calls the register in. Within a group the server's
+  // order stands.
+  const students = useMemo(() => {
+    const rows = detail?.enrollments ?? [];
+    const rank = (row: (typeof rows)[number]) =>
+      row.child_status === 'ghost' ? 2 : row.is_trial ? 1 : 0;
+    return rows
+      .map((row, index) => ({ row, index }))
+      .sort((a, b) => rank(a.row) - rank(b.row) || a.index - b.index)
+      .map(({ row }) => row);
+  }, [detail?.enrollments]);
   const visibleStudents = expanded ? students : students.slice(0, INITIAL_VISIBLE);
   const hiddenCount = Math.max(0, students.length - INITIAL_VISIBLE);
 
@@ -291,6 +302,12 @@ export default function InstructorAttendance({
                   <div className={styles.identity}>
                     <div className={styles.name}>
                       {student.child_name}
+                      {student.is_trial && student.child_status !== 'ghost' && (
+                        <span className={styles.trialTag} title="שיעור ניסיון">
+                          <Sparkles size={13} strokeWidth={2.4} aria-hidden />
+                          ניסיון
+                        </span>
+                      )}
                       {student.child_status === 'ghost' && (
                         <span className={styles.walkInTag}>הגיע ללא רישום</span>
                       )}
