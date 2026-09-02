@@ -32,7 +32,14 @@ const api = axios.create({
 api.interceptors.request.use(
   (config) => {
     if (typeof window !== 'undefined') {
-      const token = window.localStorage.getItem(AUTH_TOKEN_STORAGE_KEY);
+      // Storage can throw (private browsing, blocked site data). A missing
+      // token means an unauthenticated request, not a dead client.
+      let token: string | null = null;
+      try {
+        token = window.localStorage.getItem(AUTH_TOKEN_STORAGE_KEY);
+      } catch {
+        token = null;
+      }
       if (token) {
         config.headers.Authorization = `Token ${token}`;
       }
