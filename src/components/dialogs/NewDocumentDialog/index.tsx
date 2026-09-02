@@ -110,6 +110,7 @@ export default function NewDocumentDialog({ open, onClose }: NewDocumentDialogPr
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [showCloseConfirm, setShowCloseConfirm] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
+  const [saveAsDraft, setSaveAsDraft] = useState(false);
   const queryClient = useQueryClient();
 
   const { data: childrenData } = useQuery({
@@ -156,6 +157,10 @@ export default function NewDocumentDialog({ open, onClose }: NewDocumentDialogPr
   );
   const isFirstStep = steps[0]?.id === currentStep;
   const isLastStep = steps[steps.length - 1]?.id === currentStep;
+  const canDraft = docType === 'חשבונית מס' || docType === 'חשבונית עסקה';
+  useEffect(() => {
+    setSaveAsDraft(false);
+  }, [docType]);
 
   async function handleNext() {
     setSubmitError(null);
@@ -214,8 +219,10 @@ export default function NewDocumentDialog({ open, onClose }: NewDocumentDialogPr
     };
     const mappedType = docTypeMap[docType ?? ''] ?? 'tax_invoice';
 
+    const asDraft = saveAsDraft && canDraft;
     const base: CreateDocumentPayload = {
-      document_type: mappedType,
+      document_type: asDraft ? 'draft' : mappedType,
+      ...(asDraft ? { draft_target_type: mappedType as 'tax_invoice' | 'transaction_invoice' } : {}),
       client_type: clientType ?? 'existing',
       child_id: clientType === 'existing' ? selectedCustomerId : null,
       business_customer_id: clientType === 'business' ? businessCustomerId : null,
@@ -472,6 +479,17 @@ export default function NewDocumentDialog({ open, onClose }: NewDocumentDialogPr
             </button>
           ) : (
             <span />
+          )}
+          {isLastStep && canDraft && (
+            <label className={styles.draftToggle}>
+              <input
+                type="checkbox"
+                checked={saveAsDraft}
+                onChange={(e) => setSaveAsDraft(e.target.checked)}
+                disabled={isSubmitting}
+              />
+              שמור כטיוטה (ללא מספר חשבונית)
+            </label>
           )}
           <button
             type="button"

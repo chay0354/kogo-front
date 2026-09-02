@@ -1409,3 +1409,13 @@
   from { opacity: 0; }
   to   { opacity: 1; }
 }
+
+.draftToggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-inline-end: auto;
+  font-size: 13px;
+  color: var(--text-secondary, #4a4e6a);
+  cursor: pointer;
+}

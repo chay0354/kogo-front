@@ -11,7 +11,7 @@ import RefundDialog from '@/components/dialogs/RefundDialog';
 import { GroupIdBadge } from '@/components/GroupIdBadge/GroupIdBadge';
 import { TableSkeleton } from '@/components/ui/skeleton';
 import { fetchAllInvoices, downloadStoreInvoicePdf } from '@/lib/storeApi';
-import { sendDocumentReminder, fetchTranzilaDocuments, fetchPaymentLedger, PAYMENTS_PAGE_SIZE, downloadPeriodReport } from '@/lib/documentsApi';
+import { sendDocumentReminder, fetchTranzilaDocuments, fetchPaymentLedger, PAYMENTS_PAGE_SIZE, downloadPeriodReport, finalizeDraft, downloadDocumentPdf } from '@/lib/documentsApi';
 import api from '@/lib/api';
 import { useAuth } from '@/components/AuthProvider';
 import { filterBranchesForUser, unwrapApiList } from '@/lib/scopedFilters';
@@ -64,6 +64,7 @@ export default function InvoicesPage() {
   // showing, so the sheet a manager downloads is the sheet they were looking at.
   const [reportGroupBy, setReportGroupBy] = useState<'branch' | 'business'>('branch');
   const [reportBusy, setReportBusy] = useState(false);
+  const [approvingId, setApprovingId] = useState<string | null>(null);
   const [isNewDocOpen, setIsNewDocOpen] = useState(false);
   const [reminderStatus, setReminderStatus] = useState<Record<string, 'sending' | 'sent' | 'error'>>({});
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
@@ -604,6 +605,7 @@ export default function InvoicesPage() {
                 <option value="pending">פתוח</option>
                 <option value="failed">נכשל</option>
                 <option value="refunded">זוכה</option>
+                <option value="draft">טיוטה</option>
               </select>
 
               <select
@@ -706,7 +708,8 @@ export default function InvoicesPage() {
                   </thead>
                   <tbody>
                     {filtered.map(doc => {
-                      const canDownload = Boolean(doc.pdf_url || doc.store_invoice_id);
+                      const canDownload = Boolean(doc.pdf_url || doc.store_invoice_id || doc.source === 'local');
+                      const notIssued = doc.source === 'local' && doc.tranzila_issued === false && !doc.is_draft;
                       const isDownloading = downloadingId === doc.id;
 
                       return (
@@ -727,9 +730,35 @@ export default function InvoicesPage() {
                             >
                               {getStatusLabel(doc.status)}
                             </span>
+                            {notIssued && (
+                              <span className={styles.refundUnavailable} title="המסמך נשמר מקומית אך לא הונפק בטרנזילה">
+                                לא הונפק בטרנזילה
+                              </span>
+                            )}
                           </td>
                           <td>
                             <div className={styles.collectionActions}>
+                              {doc.is_draft && (
+                                <button
+                                  type="button"
+                                  className={styles.refundBtn}
+                                  disabled={approvingId === doc.id}
+                                  onClick={async () => {
+                                    if (!window.confirm(`לאשר את הטיוטה ${doc.document_number}? המסמך יקבל מספר חשבונית.`)) return;
+                                    setApprovingId(doc.id);
+                                    try {
+                                      await finalizeDraft(doc.id);
+                                      await loadInvoiceData();
+                                    } catch {
+                                      setDocumentsError('אישור הטיוטה נכשל');
+                                    } finally {
+                                      setApprovingId(null);
+                                    }
+                                  }}
+                                >
+                                  {approvingId === doc.id ? 'מאשר…' : 'אשר טיוטה'}
+                                </button>
+                              )}
                               {!canDownload && (
                                 <span className={styles.refundUnavailable} title="לא קיים קובץ למסמך זה">ללא PDF</span>
                               )}
@@ -747,6 +776,8 @@ export default function InvoicesPage() {
                                         await downloadStoreInvoicePdf(doc.store_invoice_id, doc.document_number);
                                       } else if (doc.pdf_url) {
                                         window.open(doc.pdf_url, '_blank', 'noopener,noreferrer');
+                                      } else {
+                                        await downloadDocumentPdf(doc.id, doc.document_number);
                                       }
                                     } catch {
                                       alert('שגיאה בהורדת החשבונית');

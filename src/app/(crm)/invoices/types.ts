@@ -23,6 +23,8 @@ export interface DocumentRow {
   store_invoice_id?: string;
   tranzila_doc_id?: string;
   source?: string;
+  tranzila_issued?: boolean;
+  is_draft?: boolean;
   branch?: string;
   branch_id?: string | null;
 }

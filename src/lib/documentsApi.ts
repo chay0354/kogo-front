@@ -224,6 +224,8 @@ export async function createCheckPlan(payload: {
 export async function cancelCheckPlan(id: string): Promise<CheckPlanRow> {
   const res = await api.post(`/documents/check-plans/${id}/cancel/`);
   return res.data;
+}
+
 /** Approve a draft: it becomes a real document and takes a fiscal number. */
 export async function finalizeDraft(id: string): Promise<void> {
   await api.post(`/documents/documents/${id}/finalize/`);
