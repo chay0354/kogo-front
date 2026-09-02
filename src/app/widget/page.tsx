@@ -417,13 +417,14 @@ export default function WidgetPage() {
       bandSubscribers.delete(sync);
     };
   }, []);
+  const bandHeight = band ? (band.edge ?? band.bottom) - band.top : null;
   const bandFrame = band
     ? {
         position: 'fixed' as const,
         top: band.top,
         left: 0,
         right: 0,
-        height: (band.edge ?? band.bottom) - band.top,
+        height: bandHeight ?? undefined,
         // A transform makes this the containing block of the fixed overlays inside it.
         transform: 'translateZ(0)',
         zIndex: 1000,
@@ -853,7 +854,10 @@ export default function WidgetPage() {
         <WidgetPortal>
           <div style={bandFrame}>
             <div className={`${styles.detailOverlay}${detailClosing ? ` ${styles.detailOverlayClosing}` : ''}`} onClick={closeDetail} />
-            <div className={`${styles.detailPanel}${detailClosing ? ` ${styles.detailPanelClosing}` : ''}`}>
+            <div
+              className={`${styles.detailPanel}${detailClosing ? ` ${styles.detailPanelClosing}` : ''}`}
+              style={bandHeight ? { maxHeight: bandHeight } : undefined}
+            >
               <CourseExpandedDetail
                 course={detailCourse}
                 lesson={detailLesson ?? undefined}
