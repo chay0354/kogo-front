@@ -146,18 +146,20 @@ function writeScrollY(y: number) {
  * is the same before and after an overlay opens: there is nothing to answer, and
  * moving the page would itself be the jump the reader sees.
  *
- * The offset is the band's own top. The frame keeps its scroll position across
- * the host's resize, so that scroll is already where the reader left it.
+ * The frame keeps its scroll position across the host's resize, so that scroll
+ * is already where the reader left it.
+ *
+ * The slide itself is the host's job: it moves this frame by the band's top in
+ * the same render that stretches it, so both land in one paint. Doing it here
+ * put the two changes in different documents and different frames, and the
+ * gap between them was the jump the reader saw.
  */
-function pinVisibleSlice(page: HTMLElement | null) {
+function pinVisibleSlice(_page: HTMLElement | null) {
   const band = hostBand;
-  if (!band) return () => { /* nothing was moved, so nothing has to be put back */ };
+  if (!band) return () => { /* nothing was frozen, so nothing has to be released */ };
   const iframeScroll = readScrollY();
-  const shift = Math.max(0, band.top);
   bandFrozen = true;
-  if (page && shift) page.style.transform = `translateY(-${shift}px)`;
   return () => {
-    if (page) page.style.transform = '';
     writeScrollY(iframeScroll);
     bandFrozen = false;
   };
