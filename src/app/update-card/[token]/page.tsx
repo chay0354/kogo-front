@@ -101,7 +101,7 @@ export default function UpdateCardPage() {
       }
       setFormError(res.data?.error || 'התשלום נכשל');
     } catch (err: unknown) {
-      const axiosErr = err as { response?: { data?: { error?: string; success?: boolean } } };
+      const axiosErr = err as { response?: { data?: { error?: string; success?: boolean; charged?: boolean } } };
       if (axiosErr.response?.data?.success) {
         setChargedNow(Boolean(axiosErr.response.data.charged));
         setStep('success');
