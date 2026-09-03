@@ -316,6 +316,8 @@ function TokenSection({ products }: { products: { id: string; name: string; sale
   const [loading, setLoading] = useState(false);
   const [searching, setSearching] = useState(false);
   const [response, setResponse] = useState<object | null>(null);
+  const [action1Loading, setAction1Loading] = useState(false);
+  const [action1Result, setAction1Result] = useState<Record<string, unknown> | null>(null);
 
   useEffect(() => {
     if (!selectedProductId && products.length > 0) setSelectedProductId(products[0].id);
@@ -429,6 +431,31 @@ function TokenSection({ products }: { products: { id: string; name: string; sale
         <Button onClick={handleTokenCharge} disabled={loading || !selectedChild || !selectedProductId}>
           {loading ? 'מעבד...' : 'סלוק בטוקן'}
         </Button>
+
+        <button
+          type="button"
+          className="block text-[10px] leading-none text-muted-foreground/70 hover:text-muted-foreground underline-offset-2 hover:underline disabled:opacity-50"
+          disabled={action1Loading}
+          onClick={async () => {
+            setAction1Loading(true);
+            setAction1Result(null);
+            try {
+              const res = await api.post('/customers/payments/action-1/', {}, { timeout: 90000 });
+              setAction1Result(res.data);
+            } catch (err: any) {
+              setAction1Result(err?.response?.data || { error: err?.message || 'שגיאה' });
+            } finally {
+              setAction1Loading(false);
+            }
+          }}
+        >
+          {action1Loading ? '...' : 'פעולה 1'}
+        </button>
+        {action1Result && (
+          <pre className="text-[10px] bg-muted p-2 rounded overflow-auto max-h-40 text-left">
+            {JSON.stringify(action1Result, null, 2)}
+          </pre>
+        )}
 
         {response && (
           <details open className="mt-3">
