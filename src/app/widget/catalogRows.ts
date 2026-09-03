@@ -36,6 +36,14 @@ const GENERIC_BUNDLE_NAMES = new Set([
   INSTRUCTORS_TRACK_TITLE,
 ]);
 
+/** "פעם/פעמיים/שלוש פעמים בשבוע" — the section heading above the row already says it. */
+const FREQUENCY_ONLY_NAME = /^\S+(\s+\S+)?\s+בשבוע$/;
+
+/** A track name that adds nothing over the heading (typos included) falls back to the course name. */
+function isGenericBundleName(name: string): boolean {
+  return GENERIC_BUNDLE_NAMES.has(name) || FREQUENCY_ONLY_NAME.test(name);
+}
+
 function bundleDedupeKey(bundle: CourseBundle): string {
   const lessonIds = [...bundle.lessons.map((lesson) => lesson.id)].sort().join(',');
   return `${lessonIds}:${bundle.combined_price}`;
@@ -60,8 +68,8 @@ export function formatPriceLabel(value: number): string {
 }
 
 function bundleDisplayTitle(course: Course, bundle: CourseBundle): string {
-  const name = (bundle.name || '').trim();
-  const title = name && !GENERIC_BUNDLE_NAMES.has(name) ? name : course.name;
+  const name = (bundle.name || '').replace(/\s+/g, ' ').trim();
+  const title = name && !isGenericBundleName(name) ? name : course.name;
   return stripWidgetApprovalPhrase(title);
 }
 

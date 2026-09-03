@@ -102,6 +102,46 @@ describe('buildCatalogRows instructors track', () => {
     expect(bundleRow?.displayPrice).toBe(455);
   });
 
+  test('a misspelled frequency track still shows the course name', () => {
+    const rows = buildCatalogRows([
+      instructorsCourse({
+        name: 'קפוארה ואקרובטיקה',
+        min_age: 5,
+        max_age: 7,
+        lessons: [],
+        bundles: [{
+          id: 'bundle-220',
+          name: 'פעמייפ בשבוע',
+          combined_price: 300,
+          min_age: null,
+          max_age: null,
+          lessons: [lesson({ id: 'mon' }), lesson({ id: 'thu', day_of_week: 4 })],
+        }],
+      }),
+    ]);
+    expect(rows.map((row) => row.displayTitle)).toEqual(['קפוארה ואקרובטיקה']);
+  });
+
+  test('a track named for its group keeps its own name', () => {
+    const rows = buildCatalogRows([
+      instructorsCourse({
+        name: 'קפוארה ואקרובטיקה',
+        min_age: 5,
+        max_age: 7,
+        lessons: [],
+        bundles: [{
+          id: 'bundle-229',
+          name: 'קבוצת בוגרים',
+          combined_price: 330,
+          min_age: null,
+          max_age: null,
+          lessons: [lesson({ id: 'mon' }), lesson({ id: 'thu', day_of_week: 4 })],
+        }],
+      }),
+    ]);
+    expect(rows.map((row) => row.displayTitle)).toEqual(['קבוצת בוגרים']);
+  });
+
   test('מדריכים once-a-week course is hidden from the widget', () => {
     const rows = buildCatalogRows(
       [instructorsCourse({ lessons: [lesson({ id: 'only-mon' })], bundles: [] })],
