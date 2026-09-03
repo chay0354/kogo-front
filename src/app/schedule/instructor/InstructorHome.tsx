@@ -32,6 +32,7 @@ import { INSTRUCTOR_MOTION_MS, resolveInstructorMotionDelay } from './instructor
 import { useInstructorBack, type InstructorBackLayer } from './instructorBack';
 import GuidedTour from '@/components/onboarding/GuidedTour';
 import {
+  activeCount,
   findCurrentOrNextLessonId,
   isLessonNow,
   lessonTimeRange,
@@ -754,8 +755,8 @@ export default function InstructorHome() {
                 const complete = Boolean(lesson.attendance_complete);
                 const highlighted = highlightId === lesson.id;
                 const selected = isSelected(lesson);
-                const studentCount = lesson.student_count ?? lesson.enrollment_count;
                 const trialStudentCount = lesson.trial_student_count ?? 0;
+                const activeStudentCount = activeCount(lesson, trialStudentCount);
                 return (
                   <div
                     key={`${lesson.id}-${lesson.lesson_date}`}
@@ -770,10 +771,10 @@ export default function InstructorHome() {
                     >
                       <div className={styles.slotTime}>{formatTime(lesson.start_time)}</div>
                       <div className={styles.slotGroup}>{shortGroupLabel(lesson)}</div>
-                      <div className={styles.slotCounts} aria-label={`${studentCount} תלמידים, ${trialStudentCount} תלמידי ניסיון`}>
-                        <span title="תלמידים">
+                      <div className={styles.slotCounts} aria-label={`${activeStudentCount} פעילים, ${trialStudentCount} תלמידי ניסיון`}>
+                        <span title="תלמידים פעילים">
                           <Users size={13} aria-hidden="true" />
-                          {studentCount}
+                          {activeStudentCount}
                         </span>
                         <span className={trialStudentCount > 0 ? styles.slotTrial : styles.slotTrialEmpty} title="תלמידי ניסיון">
                           <FlaskConical size={12} aria-hidden="true" />
@@ -831,8 +832,8 @@ export default function InstructorHome() {
               <div className={styles.empty}>אין שיעורים ביום זה</div>
             )}
             {visibleLessons.map((lesson) => {
-              const studentCount = lesson.student_count ?? lesson.enrollment_count;
               const trialStudentCount = lesson.trial_student_count ?? 0;
+              const activeStudentCount = activeCount(lesson, trialStudentCount);
               return (
                 <button
                   key={`${lesson.id}-${lesson.lesson_date}-row`}
@@ -849,10 +850,10 @@ export default function InstructorHome() {
                           <Clock size={14} />
                           <span>{lessonTimeRange(lesson)}</span>
                         </div>
-                        <div className={styles.cardCounts} aria-label={`${studentCount} תלמידים, ${trialStudentCount} תלמידי ניסיון`}>
-                          <span title="תלמידים">
+                        <div className={styles.cardCounts} aria-label={`${activeStudentCount} פעילים, ${trialStudentCount} תלמידי ניסיון`}>
+                          <span title="תלמידים פעילים">
                             <Users size={15} aria-hidden="true" />
-                            {studentCount} תלמידים
+                            {activeStudentCount} פעילים
                           </span>
                           <span className={trialStudentCount > 0 ? styles.trialCount : styles.trialCountEmpty} title="תלמידי ניסיון">
                             <FlaskConical size={14} aria-hidden="true" />

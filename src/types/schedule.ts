@@ -22,6 +22,8 @@ export type Lesson = {
   enrollment_count: number;
   /** תלמידים שמופיעים בפועל ברשימת הנוכחות של המופע הזה. */
   student_count?: number;
+  /** תלמידים פעילים במופע הזה — הרשימה בלי תלמידי הניסיון. */
+  active_student_count?: number;
   /** תלמידי ניסיון שמופיעים רק במופע הניסיון שנקבע להם. */
   trial_student_count?: number;
   notes: string;

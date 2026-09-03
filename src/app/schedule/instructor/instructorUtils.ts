@@ -11,6 +11,16 @@ export const DAY_LETTERS: Record<WeekDay, string> = {
   6: 'ש',
 };
 
+/**
+ * כמה תלמידים פעילים בשיעור — הרשימה כוללת גם את תלמידי הניסיון של אותו מופע,
+ * והם נספרים בנפרד. מופעים שנשמרו לפני שהשדה נוסף נגזרים מהרשימה פחות הניסיון.
+ */
+export function activeCount(lesson: Lesson, trialCount: number): number {
+  if (lesson.active_student_count != null) return lesson.active_student_count;
+  const roster = lesson.student_count ?? lesson.enrollment_count;
+  return Math.max(roster - trialCount, 0);
+}
+
 export function timeToMinutes(time: string): number {
   const [hours, minutes] = formatTime(time).split(':').map(Number);
   return (hours || 0) * 60 + (minutes || 0);
