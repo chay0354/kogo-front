@@ -8,6 +8,7 @@ import FilterBar, { FILTER_ALL } from '@/components/FilterBar';
 import ChecksTab from './ChecksTab';
 import NewDocumentDialog from '@/components/dialogs/NewDocumentDialog';
 import RefundDialog from '@/components/dialogs/RefundDialog';
+import EditStandingOrderDialog from '@/components/dialogs/EditStandingOrderDialog';
 import { GroupIdBadge } from '@/components/GroupIdBadge/GroupIdBadge';
 import { TableSkeleton } from '@/components/ui/skeleton';
 import { fetchAllInvoices, downloadStoreInvoicePdf } from '@/lib/storeApi';
@@ -112,8 +113,6 @@ export default function InvoicesPage() {
   const [recurringSearch, setRecurringSearch] = useState('');
   const [recurringActionId, setRecurringActionId] = useState<string | null>(null);
   const [editingRecurring, setEditingRecurring] = useState<RecurringPayment | null>(null);
-  const [editAmountValue, setEditAmountValue] = useState('');
-  const [editAmountError, setEditAmountError] = useState('');
 
   const { data: childrenData } = useQuery({
     queryKey: ['children'],
@@ -307,42 +306,8 @@ export default function InvoicesPage() {
     }
   }
 
-  async function handleScheduleRecurringAmount(e: React.FormEvent) {
-    e.preventDefault();
-    if (!editingRecurring) return;
-
-    const parsed = Number(editAmountValue);
-    if (!Number.isFinite(parsed) || parsed <= 0) {
-      setEditAmountError('יש להזין סכום גדול מ-0');
-      return;
-    }
-
-    setRecurringActionId(editingRecurring.id);
-    setEditAmountError('');
-    try {
-      const response = await api.post(
-        `/customers/recurring-payments/${editingRecurring.id}/schedule-amount/`,
-        { amount: parsed },
-      );
-      setRecurringPayments((prev) =>
-        prev.map((item) => (item.id === editingRecurring.id ? response.data : item)),
-      );
-      setEditingRecurring(null);
-      setEditAmountValue('');
-    } catch (error: unknown) {
-      const msg =
-        (error as { response?: { data?: { error?: string } } })?.response?.data?.error ??
-        'שגיאה בעדכון הסכום';
-      setEditAmountError(msg);
-    } finally {
-      setRecurringActionId(null);
-    }
-  }
-
   function openEditRecurringAmount(item: RecurringPayment) {
     setEditingRecurring(item);
-    setEditAmountValue(String(item.pending_amount ?? item.amount));
-    setEditAmountError('');
   }
 
   async function handleCancelRecurring(recurringId: string, childName: string) {
@@ -1359,57 +1324,12 @@ export default function InvoicesPage() {
 
       <NewDocumentDialog open={isNewDocOpen} onClose={() => { setIsNewDocOpen(false); loadInvoiceData(); }} />
 
-      {editingRecurring ? (
-        <div className={styles.editAmountOverlay} onClick={() => setEditingRecurring(null)}>
-          <form
-            className={styles.editAmountModal}
-            dir="rtl"
-            onClick={(e) => e.stopPropagation()}
-            onSubmit={handleScheduleRecurringAmount}
-          >
-            <h3 className={styles.editAmountTitle}>עדכון סכום חודשי</h3>
-            <p className={styles.editAmountSubtitle}>
-              {editingRecurring.child_name} · הסכום הנוכחי {formatAmount(Number(editingRecurring.amount))}
-            </p>
-            <p className={styles.editAmountHint}>
-              השינוי יחול מהחודש הבא (מחזור החיוב הבא), לא מהחיוב הנוכחי.
-            </p>
-            <label className={styles.editAmountLabel} htmlFor="recurring-amount-edit">
-              סכום חודשי חדש (₪)
-            </label>
-            <input
-              id="recurring-amount-edit"
-              type="number"
-              min="0"
-              step="0.01"
-              className={styles.editAmountInput}
-              value={editAmountValue}
-              onChange={(e) => {
-                setEditAmountValue(e.target.value);
-                setEditAmountError('');
-              }}
-              required
-            />
-            {editAmountError ? <p className={styles.editAmountError}>{editAmountError}</p> : null}
-            <div className={styles.editAmountActions}>
-              <button
-                type="button"
-                className={styles.editAmountCancelBtn}
-                onClick={() => setEditingRecurring(null)}
-              >
-                ביטול
-              </button>
-              <button
-                type="submit"
-                className={styles.editAmountSaveBtn}
-                disabled={recurringActionId === editingRecurring.id}
-              >
-                {recurringActionId === editingRecurring.id ? 'שומר...' : 'שמור לחודש הבא'}
-              </button>
-            </div>
-          </form>
-        </div>
-      ) : null}
+      <EditStandingOrderDialog
+        order={editingRecurring}
+        isOpen={Boolean(editingRecurring)}
+        onClose={() => setEditingRecurring(null)}
+        onSaved={() => { void loadRecurringPayments(true); }}
+      />
     </>
   );
 }
