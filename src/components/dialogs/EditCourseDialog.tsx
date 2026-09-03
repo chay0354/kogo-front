@@ -211,7 +211,7 @@ export default function EditCourseDialog({
         branch: branchId,
         instructor: instructorId,
         instructor_salary_override: instructorSalaryOverride ?? null,
-        external_link: selectedBranch?.is_external ? (formData.external_link || '') : '',
+        external_link: formData.external_link || '',
         trial_lesson_price: formData.trial_lesson_is_paid ? formData.trial_lesson_price : null,
       });
 
@@ -492,23 +492,23 @@ export default function EditCourseDialog({
               </div>
             </div>
 
-            {/* External link — shown only when the selected branch is external */}
-            {selectedBranch?.is_external && (
-              <div>
-                <label htmlFor="course_external_link_edit" className="block text-sm font-medium text-gray-700 mb-1">
-                  לינק חיצוני לחוג
-                </label>
-                <input
-                  type="url"
-                  id="course_external_link_edit"
-                  value={formData.external_link || ''}
-                  onChange={(e) => setFormData({ ...formData, external_link: e.target.value })}
-                  placeholder="https://..."
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500"
-                />
-                <p className="text-xs text-gray-500 mt-1">ריק = שימוש בלינק החיצוני של הסניף.</p>
-              </div>
-            )}
+            <div>
+              <label htmlFor="course_external_link_edit" className="block text-sm font-medium text-gray-700 mb-1">
+                לינק חיצוני לחוג
+              </label>
+              <input
+                type="url"
+                id="course_external_link_edit"
+                value={formData.external_link || ''}
+                onChange={(e) => setFormData({ ...formData, external_link: e.target.value })}
+                placeholder="https://..."
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500"
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                אם מוגדר, ההרשמה בווידג׳ט נפתחת בלינק הזה במקום בטופס קוגו.
+                {selectedBranch?.is_external ? ' ריק = לינק הסניף החיצוני.' : ''}
+              </p>
+            </div>
 
             <div className="grid grid-cols-2 gap-4">
               <div>

@@ -74,3 +74,15 @@ export function normalizeExternalLink(link: string): string {
   if (/^https?:\/\//i.test(trimmed)) return trimmed;
   return `https://${trimmed}`;
 }
+
+/** Course link wins; branch link is only a fallback for branches marked external. */
+export function resolveWidgetExternalLink(
+  courseLink?: string | null,
+  branch?: { is_external?: boolean; external_link?: string | null } | null,
+): string {
+  const fromCourse = (courseLink || '').trim();
+  if (fromCourse) return normalizeExternalLink(fromCourse);
+  if (!branch?.is_external) return '';
+  const fromBranch = (branch.external_link || '').trim();
+  return fromBranch ? normalizeExternalLink(fromBranch) : '';
+}

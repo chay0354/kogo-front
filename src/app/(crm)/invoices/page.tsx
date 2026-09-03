@@ -367,6 +367,46 @@ export default function InvoicesPage() {
     }
   }
 
+  async function handleSendCardUpdate(recurringId: string, childName: string) {
+    if (!window.confirm(`לשלוח לוואטסאפ קישור לעדכון כרטיס עבור ${childName}?`)) return;
+    setRecurringActionId(recurringId);
+    try {
+      await api.post(`/customers/recurring-payments/${recurringId}/send-card-update/`);
+      window.alert('ההודעה נשלחה ב-ManyChat');
+    } catch (error) {
+      const msg =
+        (error as { response?: { data?: { error?: string; reason?: string } } })?.response?.data?.error
+        || (error as { response?: { data?: { reason?: string } } })?.response?.data?.reason
+        || 'שגיאה בשליחת ההודעה';
+      window.alert(msg);
+    } finally {
+      setRecurringActionId(null);
+    }
+  }
+
+  async function handleSendCardUpdateFailed() {
+    const failedIds = recurringPayments.filter((item) => item.status === 'failed').map((item) => item.id);
+    if (failedIds.length === 0) {
+      window.alert('אין הוראות קבע בסטטוס נכשל');
+      return;
+    }
+    if (!window.confirm(`לשלוח קישור לעדכון כרטיס ל-${failedIds.length} הוראות קבע שנכשלו?`)) return;
+    setRecurringActionId('bulk');
+    try {
+      const res = await api.post('/customers/recurring-payments/send-card-update-failed/', {
+        ids: failedIds,
+      });
+      const sent = Number(res.data?.sent ?? 0);
+      const failed = Number(res.data?.failed ?? 0);
+      window.alert(`נשלח: ${sent}. לא נשלח: ${failed}.`);
+    } catch (error) {
+      console.error('Error sending card-update WhatsApp:', error);
+      window.alert('שגיאה בשליחת ההודעות');
+    } finally {
+      setRecurringActionId(null);
+    }
+  }
+
   function handleTabChange(tab: ActiveTab) {
     setActiveTab(tab);
     if (tab === 'גבייה') {
@@ -1047,6 +1087,16 @@ export default function InvoicesPage() {
                   aria-label="חיפוש הוראות קבע"
                 />
               </div>
+              {recurringPayments.some((item) => item.status === 'failed') ? (
+                <button
+                  type="button"
+                  className={styles.editRecurringBtn}
+                  disabled={recurringActionId === 'bulk'}
+                  onClick={() => void handleSendCardUpdateFailed()}
+                >
+                  {recurringActionId === 'bulk' ? 'שולח...' : 'שלח קישור לכל הנכשלים'}
+                </button>
+              ) : null}
             </div>
 
             <div className={styles.tableCard}>
@@ -1134,6 +1184,17 @@ export default function InvoicesPage() {
                                   onClick={() => handleCancelRecurring(item.id, item.child_name)}
                                 >
                                   {recurringActionId === item.id ? 'מבטל...' : 'ביטול'}
+                                </button>
+                              </div>
+                            ) : item.status === 'failed' ? (
+                              <div className={styles.recurringActions}>
+                                <button
+                                  type="button"
+                                  className={styles.editRecurringBtn}
+                                  disabled={recurringActionId === item.id}
+                                  onClick={() => void handleSendCardUpdate(item.id, item.child_name)}
+                                >
+                                  {recurringActionId === item.id ? 'שולח...' : 'שלח קישור לכרטיס'}
                                 </button>
                               </div>
                             ) : (

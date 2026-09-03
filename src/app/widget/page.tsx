@@ -9,7 +9,7 @@ import CourseExpandedDetail from './CourseExpandedDetail/index';
 import { CourseList } from './CourseList/CourseList';
 import type { Branch, Course, CourseBundle, CourseLesson, CourseLessonPriceOption } from './types';
 import type { SavedParentDetails } from './CourseRegistrationForm/types';
-import { STATIC_CITIES, normalizeExternalLink, hideSeptemberStandingOrderNote } from './page.utils';
+import { STATIC_CITIES, resolveWidgetExternalLink, hideSeptemberStandingOrderNote } from './page.utils';
 import { isCourseVisibleInWidgetCatalog } from './lessonVisibility';
 import { AGE_OPTIONS, formatAge, isInstructorsCourse, INSTRUCTORS_TRACK_TITLE } from '@/lib/courseUtils';
 import { findWidgetAlternatives, isWidgetSelectionFull, type WidgetAlternative } from './alternativeLessons';
@@ -693,9 +693,9 @@ export default function WidgetPage() {
 
   const handleEnrollClick = (isTrial = false, bundleOverride?: CourseBundle | null) => {
     const branch = allBranches.find((b) => b.id === selectedBranch);
-    const externalLink = detailCourse?.external_link || branch?.external_link;
-    if (branch?.is_external && externalLink) {
-      window.open(normalizeExternalLink(externalLink), '_blank', 'noopener,noreferrer');
+    const externalLink = resolveWidgetExternalLink(detailCourse?.external_link, branch);
+    if (externalLink) {
+      window.open(externalLink, '_blank', 'noopener,noreferrer');
       closeDetail();
       return;
     }
@@ -952,9 +952,9 @@ export default function WidgetPage() {
                 <div className={styles.externalBranchMessage}>
                   {(() => {
                     const branch = allBranches.find((b) => b.id === selectedBranch);
-                    const externalLink = drawerCourse?.external_link || branch?.external_link;
+                    const externalLink = resolveWidgetExternalLink(drawerCourse?.external_link, branch);
                     return externalLink ? (
-                      <a href={normalizeExternalLink(externalLink)} target="_blank" rel="noopener noreferrer" className={styles.externalBranchText}>
+                      <a href={externalLink} target="_blank" rel="noopener noreferrer" className={styles.externalBranchText}>
                         לחצו כאן להמשך רישום בסניף
                       </a>
                     ) : (

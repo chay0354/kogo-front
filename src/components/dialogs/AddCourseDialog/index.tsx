@@ -167,7 +167,7 @@ export default function AddCourseDialog({
         ...courseData,
         name: courseData.name.trim(),
         instructor_salary_override: courseData.instructor_salary_override ?? null,
-        external_link: selectedBranch?.is_external ? (courseData.external_link || '') : '',
+        external_link: courseData.external_link || '',
         trial_lesson_price: courseData.trial_lesson_is_paid ? courseData.trial_lesson_price : null,
       });
       const newCourseId = courseRes.data.id;
@@ -383,25 +383,23 @@ export default function AddCourseDialog({
               )}
             </div>
 
-            {/* External link — shown only when the selected branch is external */}
-            {selectedBranch?.is_external && (
-              <div>
-                <label htmlFor="course_external_link" className={styles.label}>
-                  לינק חיצוני לחוג
-                </label>
-                <input
-                  type="url"
-                  id="course_external_link"
-                  value={courseData.external_link || ''}
-                  onChange={(e) => setCourseData({ ...courseData, external_link: e.target.value })}
-                  placeholder="https://..."
-                  className={styles.input}
-                />
-                <p className={styles.helperText}>
-                  ריק = שימוש בלינק החיצוני של הסניף.
-                </p>
-              </div>
-            )}
+            <div>
+              <label htmlFor="course_external_link" className={styles.label}>
+                לינק חיצוני לחוג
+              </label>
+              <input
+                type="url"
+                id="course_external_link"
+                value={courseData.external_link || ''}
+                onChange={(e) => setCourseData({ ...courseData, external_link: e.target.value })}
+                placeholder="https://..."
+                className={styles.input}
+              />
+              <p className={styles.helperText}>
+                אם מוגדר, ההרשמה בווידג׳ט נפתחת בלינק הזה במקום בטופס קוגו.
+                {selectedBranch?.is_external ? ' ריק = לינק הסניף החיצוני.' : ''}
+              </p>
+            </div>
 
             <div className={styles.grid2}>
               <div>
