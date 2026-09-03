@@ -865,3 +865,9 @@
     align-items: flex-end;
   }
 }
+
+/* תנאי התשלום שמהם נגזר מועד היעד — הערה קטנה ליד התאריך */
+.termsHint {
+  color: #6b7280;
+  font-size: 0.85em;
+}

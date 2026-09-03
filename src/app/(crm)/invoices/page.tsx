@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { useQuery } from '@tanstack/react-query';
 import { FileText, Search, DollarSign, Clock, TrendingUp, Wallet, AlertCircle, Plus, Bell, Repeat, Download, Banknote } from 'lucide-react';
 import FilterBar, { FILTER_ALL } from '@/components/FilterBar';
 import ChecksTab from './ChecksTab';
@@ -18,7 +17,6 @@ import { useAuth } from '@/components/AuthProvider';
 import { filterBranchesForUser, unwrapApiList } from '@/lib/scopedFilters';
 import type { StoreInvoice } from '@/types/store';
 import type { Branch } from '@/types/branch';
-import type { ChildWithDetails } from '@/types/customer';
 import type { RecurringPayment } from '@/types/payment';
 import type { ActiveTab, DocumentRow, PaymentRecord } from './types';
 import { CHARGE_KIND_OPTIONS } from './constants';
@@ -31,10 +29,10 @@ import {
   formatAmount,
   formatDate,
   getCurrentMonthTotal,
-  getOpenInvoices,
-  getOpenBalance,
-  getDaysOverdue,
-  getOverdueLabel,
+  buildCollectionRows,
+  collectionDueDate,
+  getCollectionAge,
+  getCollectionAgeLabel,
   getAgingBuckets,
   getRecurringStatusLabel,
   getRecurringStatusClass,
@@ -114,24 +112,8 @@ export default function InvoicesPage() {
   const [recurringActionId, setRecurringActionId] = useState<string | null>(null);
   const [editingRecurring, setEditingRecurring] = useState<RecurringPayment | null>(null);
 
-  const { data: childrenData } = useQuery({
-    queryKey: ['children'],
-    // The endpoint paginates at 20. Reading only the first page meant the
-    // collection view silently ignored every child past the twentieth — the
-    // ones most likely to be owed for, since they were enrolled last.
-    queryFn: async () => {
-      const all: any[] = [];
-      for (let page = 1; page <= 50; page += 1) {
-        const r = await api.get(`/customers/children/?page=${page}`);
-        if (Array.isArray(r.data)) { all.push(...r.data); break; }
-        all.push(...(r.data?.results ?? []));
-        if (!r.data?.next) break;
-      }
-      return all;
-    },
-    staleTime: 5 * 60 * 1000,
-    enabled: activeTab === 'גבייה',
-  });
+  // רשימת הלקוחות לסינון נבנית מהשורות עצמן, ולכן היא כוללת גם לקוחות
+  // עסקיים — ואין צורך למשוך את כל הילדים בעשרות בקשות רק בשביל התפריט.
 
   useEffect(() => {
     loadInvoiceData();
@@ -433,19 +415,19 @@ export default function InvoicesPage() {
     return true;
   });
 
-  // Collection tab derived data
-  const openInvoices = getOpenInvoices(invoices);
-  const children: ChildWithDetails[] = Array.isArray(childrenData) ? childrenData : [];
+  // Collection tab derived data — the documents we issued and the store's
+  // invoices are the same debt to chase, so they share one table.
+  const collectionRows = buildCollectionRows(documents, invoices);
   const collectionCustomers = Array.from(
-    new Set(children.map(child => child.full_name)),
+    new Set(collectionRows.map(row => row.customer).filter(Boolean)),
   ).sort((a, b) => a.localeCompare(b, 'he'));
   const collectionFiltered = collectionCustomerFilter
-    ? openInvoices.filter(inv => (inv.child_name ?? inv.customer_name) === collectionCustomerFilter)
-    : openInvoices;
+    ? collectionRows.filter(row => row.customer === collectionCustomerFilter)
+    : collectionRows;
   const agingBuckets = getAgingBuckets(collectionFiltered);
-  const collectionTotalDebt = collectionFiltered.reduce((sum, inv) => sum + getOpenBalance(inv), 0);
+  const collectionTotalDebt = collectionFiltered.reduce((sum, row) => sum + row.open, 0);
   const sortedCollectionInvoices = [...collectionFiltered].sort(
-    (a, b) => getDaysOverdue(b.issue_date) - getDaysOverdue(a.issue_date),
+    (a, b) => getCollectionAge(b).days - getCollectionAge(a).days,
   );
 
   const filteredRecurring = recurringPayments.filter((item) => {
@@ -1228,7 +1210,7 @@ export default function InvoicesPage() {
             <div className={styles.tableCard}>
               {!invoicesLoaded ? (
                 <TableSkeleton
-                  columns={9}
+                  columns={10}
                   tableClassName={`${styles.invoiceTable} ${styles.collectionTable}`}
                   label="טוען חובות פתוחים"
                 />
@@ -1240,65 +1222,77 @@ export default function InvoicesPage() {
                     <tr>
                       <th scope="col">לקוח</th>
                       <th scope="col">מס&apos; מסמך</th>
+                      <th scope="col">סוג</th>
                       <th scope="col">תאריך הנפקה</th>
+                      <th scope="col">מועד תשלום</th>
                       <th scope="col">סכום מסמך</th>
                       <th scope="col">שולם</th>
                       <th scope="col">יתרה פתוחה</th>
-                      <th scope="col">ימים מההנפקה</th>
-                      <th scope="col">סטטוס</th>
+                      <th scope="col">ממתין</th>
                       <th scope="col">פעולות</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {sortedCollectionInvoices.map(inv => {
-                      const customerDisplay = inv.child_name ?? inv.customer_name;
-                      const openBalance = getOpenBalance(inv);
-                      const daysOverdue = getDaysOverdue(inv.issue_date);
-                      const overdueLabel = getOverdueLabel(daysOverdue);
-                      const statusLabel = getStatusLabel(inv.payment_status);
+                    {sortedCollectionInvoices.map(row => {
+                      const age = getCollectionAge(row);
+                      const statusLabel = getStatusLabel(row.status);
 
                       return (
-                        <tr key={inv.id}>
-                          <td className={styles.customerName}>{customerDisplay}</td>
-                          <td className={styles.invoiceNumber}>{inv.invoice_number}</td>
-                          <td>{formatDate(inv.issue_date)}</td>
-                          <td className={styles.amount}>{formatAmount(inv.total_amount)}</td>
-                          <td>{formatAmount(inv.amount_paid)}</td>
-                          <td className={openBalance > 0 ? styles.openBalance : styles.openBalanceZero}>
-                            {formatAmount(openBalance)}
-                          </td>
-                          <td className={daysOverdue > 0 ? styles.overdueLabel : styles.overdueLabelMuted}>
-                            {overdueLabel}
-                          </td>
+                        <tr key={`${row.kind}-${row.id}`}>
+                          <td className={styles.customerName}>{row.customer}</td>
+                          <td className={styles.invoiceNumber}>{row.number}</td>
+                          <td>{row.docType}</td>
+                          <td>{formatDate(row.issueDate)}</td>
                           <td>
-                            <span
-                              className={`${styles.statusBadge} ${getStatusClass(inv.payment_status)}`}
-                              aria-label={statusLabel}
-                            >
-                              {statusLabel}
-                            </span>
+                            {collectionDueDate(row) ? (
+                              <>
+                                {formatDate(collectionDueDate(row))}
+                                {!row.dueDate && row.paymentTerms ? (
+                                  <span className={styles.termsHint}> ({row.paymentTerms})</span>
+                                ) : null}
+                              </>
+                            ) : (
+                              '—'
+                            )}
+                          </td>
+                          <td className={styles.amount}>{formatAmount(row.total)}</td>
+                          <td>{formatAmount(row.paid)}</td>
+                          <td className={row.open > 0 ? styles.openBalance : styles.openBalanceZero}>
+                            {formatAmount(row.open)}
+                          </td>
+                          <td className={age.overdue ? styles.overdueLabel : styles.overdueLabelMuted}>
+                            {getCollectionAgeLabel(row)}
                           </td>
                           <td>
                             <div className={styles.collectionActions}>
+                              <span
+                                className={`${styles.statusBadge} ${getStatusClass(row.status)}`}
+                                aria-label={statusLabel}
+                              >
+                                {statusLabel}
+                              </span>
+                              {/* התזכורת נשלחת דרך המסמך; לחשבונית חנות אין נמען כזה */}
+                              {row.kind === 'document' && (
                               <button
                                 type="button"
-                                className={`${styles.reminderBtn} ${reminderStatus[inv.id] === 'sent' ? styles.reminderBtnSent : reminderStatus[inv.id] === 'error' ? styles.reminderBtnError : ''}`}
-                                aria-label={`שלח תזכורת תשלום ל${customerDisplay}`}
-                                disabled={reminderStatus[inv.id] === 'sending'}
+                                className={`${styles.reminderBtn} ${reminderStatus[row.id] === 'sent' ? styles.reminderBtnSent : reminderStatus[row.id] === 'error' ? styles.reminderBtnError : ''}`}
+                                aria-label={`שלח תזכורת תשלום ל${row.customer}`}
+                                disabled={reminderStatus[row.id] === 'sending'}
                                 onClick={async () => {
-                                  setReminderStatus((prev) => ({ ...prev, [inv.id]: 'sending' }));
+                                  setReminderStatus((prev) => ({ ...prev, [row.id]: 'sending' }));
                                   try {
-                                    await sendDocumentReminder(inv.id);
-                                    setReminderStatus((prev) => ({ ...prev, [inv.id]: 'sent' }));
-                                    setTimeout(() => setReminderStatus((prev) => { const next = { ...prev }; delete next[inv.id]; return next; }), 3000);
+                                    await sendDocumentReminder(row.id);
+                                    setReminderStatus((prev) => ({ ...prev, [row.id]: 'sent' }));
+                                    setTimeout(() => setReminderStatus((prev) => { const next = { ...prev }; delete next[row.id]; return next; }), 3000);
                                   } catch {
-                                    setReminderStatus((prev) => ({ ...prev, [inv.id]: 'error' }));
-                                    setTimeout(() => setReminderStatus((prev) => { const next = { ...prev }; delete next[inv.id]; return next; }), 3000);
+                                    setReminderStatus((prev) => ({ ...prev, [row.id]: 'error' }));
+                                    setTimeout(() => setReminderStatus((prev) => { const next = { ...prev }; delete next[row.id]; return next; }), 3000);
                                   }
                                 }}
                               >
                                 <Bell size={16} />
                               </button>
+                              )}
                             </div>
                           </td>
                         </tr>

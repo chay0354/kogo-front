@@ -1,5 +1,5 @@
 import type { StoreInvoice } from '@/types/store';
-import type { AgingBucket, ChargeKind, DocType, DocumentRow, PaymentLedgerItem, PaymentRecord } from './types';
+import type { AgingBucket, ChargeKind, CollectionRow, DocType, DocumentRow, PaymentLedgerItem, PaymentRecord } from './types';
 import styles from './invoices.module.css';
 
 const HEBREW_MONTHS = [
@@ -145,16 +145,110 @@ export function getOverdueLabel(daysOverdue: number): string {
   return daysOverdue > 0 ? `${daysOverdue} ימים` : 'הונפק היום';
 }
 
-export function getAgingBuckets(invoices: StoreInvoice[]): AgingBucket[] {
+/**
+ * שורות הגבייה: כל מה שהונפק ועדיין לא נגבה, משני המקורות.
+ *
+ * מסמך שהופק מהמערכת (חשבונית מס ללקוח עסקי) הוא בדיוק החוב שצריך לעקוב
+ * אחריו, ועד עכשיו הדף הראה רק חשבוניות חנות. טיוטות אינן חוב, וזיכוי אינו
+ * כסף שממתין לגבייה.
+ */
+export function buildCollectionRows(
+  documents: DocumentRow[],
+  storeInvoices: StoreInvoice[],
+): CollectionRow[] {
+  const fromDocuments: CollectionRow[] = documents
+    .filter(doc => !doc.is_draft && doc.document_type_code !== 'credit_invoice' && doc.open_balance > 0)
+    .map(doc => ({
+      id: doc.id,
+      kind: 'document' as const,
+      customer: doc.customer_name || '—',
+      number: doc.document_number,
+      docType: doc.document_type,
+      issueDate: doc.issue_date,
+      dueDate: doc.due_date || '',
+      paymentTerms: doc.payment_terms || '',
+      total: doc.total_amount ?? 0,
+      paid: doc.amount_paid ?? 0,
+      open: doc.open_balance ?? 0,
+      status: doc.status,
+    }));
+
+  const fromStore: CollectionRow[] = getOpenInvoices(storeInvoices).map(inv => ({
+    id: inv.id,
+    kind: 'store' as const,
+    customer: inv.child_name ?? inv.customer_name ?? '—',
+    number: inv.invoice_number,
+    docType: getDocType(inv),
+    issueDate: inv.issue_date,
+    dueDate: '',
+    paymentTerms: '',
+    total: inv.total_amount ?? 0,
+    paid: inv.amount_paid ?? 0,
+    open: getOpenBalance(inv),
+    status: inv.payment_status,
+  }));
+
+  return [...fromDocuments, ...fromStore];
+}
+
+/**
+ * מועד התשלום לפי תנאי התשלום שנרשמו, כשלא הוזן תאריך יעד מפורש.
+ *
+ * "שוטף + 30" בעברית חשבונאית הוא סוף החודש שבו הונפק המסמך ועוד 30 יום —
+ * לא 30 יום מההנפקה. בלי החישוב הזה מסמך בשוטף+30 שהונפק ב-2 בחודש נראה
+ * כאילו הוא באיחור שבועיים לפני שבכלל הגיע מועד התשלום.
+ */
+export function dueDateFromTerms(issueDate: string, terms: string): string {
+  const match = /שוטף\s*\+?\s*(\d{1,3})/.exec(terms || '');
+  if (!match) return '';
+  const [year, month, day] = (issueDate || '').slice(0, 10).split('-').map(Number);
+  if (!year || !month || !day) return '';
+  const endOfMonth = new Date(Date.UTC(year, month, 0));
+  endOfMonth.setUTCDate(endOfMonth.getUTCDate() + Number(match[1]));
+  return endOfMonth.toISOString().slice(0, 10);
+}
+
+export function collectionDueDate(row: CollectionRow): string {
+  return row.dueDate || dueDateFromTerms(row.issueDate, row.paymentTerms);
+}
+
+/**
+ * כמה ימים החוב פתוח — מיום היעד כשיש אחד, ואחרת מיום ההנפקה.
+ *
+ * מסמך בשוטף+30 שהונפק לפני 20 יום אינו באיחור, ולכן אסור לספור אותו כאילו
+ * הוא כן; בלי מועד יעד אין על מה להתבסס מלבד ההנפקה.
+ */
+export function getCollectionAge(row: CollectionRow): { days: number; overdue: boolean } {
+  const due = collectionDueDate(row);
+  if (due) {
+    const days = getDaysOverdue(due);
+    return { days, overdue: days > 0 };
+  }
+  return { days: getDaysOverdue(row.issueDate), overdue: false };
+}
+
+function daysPhrase(days: number): string {
+  return days === 1 ? 'יום אחד' : `${days} ימים`;
+}
+
+export function getCollectionAgeLabel(row: CollectionRow): string {
+  const { days } = getCollectionAge(row);
+  if (collectionDueDate(row)) {
+    return days <= 0 ? 'טרם הגיע מועד התשלום' : `${daysPhrase(days)} באיחור`;
+  }
+  return days > 0 ? `${daysPhrase(days)} מההנפקה` : 'הונפק היום';
+}
+
+export function getAgingBuckets(rows: CollectionRow[]): AgingBucket[] {
   return AGING_BUCKET_DEFS.map(def => {
-    const matching = invoices.filter(inv => {
-      const days = getDaysOverdue(inv.issue_date);
+    const matching = rows.filter(row => {
+      const { days } = getCollectionAge(row);
       return days >= def.min && days <= def.max;
     });
     return {
       key: def.key,
       label: def.label,
-      total: matching.reduce((sum, inv) => sum + getOpenBalance(inv), 0),
+      total: matching.reduce((sum, row) => sum + row.open, 0),
       count: matching.length,
     };
   });

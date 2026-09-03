@@ -1,6 +1,22 @@
 export type DocType = 'חשבונית מס/קבלה' | 'חשבונית מס' | 'קבלה' | 'חשבונית עסקה' | 'חשבונית מס זיכוי' | 'טיוטה';
 export type ActiveTab = 'מסמכים' | 'תשלומים' | 'גבייה' | 'הוראת קבע' | "צ'קים";
 
+/** שורה בדף הגבייה — חשבונית חנות ומסמך פורמלי מגיעים לאותה טבלה. */
+export interface CollectionRow {
+  id: string;
+  kind: 'document' | 'store';
+  customer: string;
+  number: string;
+  docType: string;
+  issueDate: string;
+  dueDate: string;
+  paymentTerms: string;
+  total: number;
+  paid: number;
+  open: number;
+  status: string;
+}
+
 export interface AgingBucket {
   key: 'current' | 'd31_60' | 'd61_90' | 'd90_plus';
   label: string;
@@ -18,6 +34,9 @@ export interface DocumentRow {
   total_amount: number;
   amount_paid: number;
   open_balance: number;
+  /** מועד התשלום שסוכם (שוטף+30 וכו') — קיים רק במסמכים מקומיים. */
+  due_date?: string;
+  payment_terms?: string;
   status: string;
   pdf_url?: string;
   store_invoice_id?: string;
