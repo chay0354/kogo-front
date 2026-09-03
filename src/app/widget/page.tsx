@@ -361,9 +361,18 @@ const FilterSelect = React.memo(function FilterSelect({
         tabIndex={disabled ? -1 : 0}
         aria-haspopup="listbox"
         aria-expanded={isOpen}
+        aria-label={placeholder}
       >
         <div className={styles.filterFace}>
-          <select value={value} onChange={(e) => onChange(e.target.value)} disabled={disabled} className={styles.filterSelect}>
+          {/* aria-label: the visible label is drawn beside the control, so the
+              select itself reached a screen reader with no name at all. */}
+          <select
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+            disabled={disabled}
+            className={styles.filterSelect}
+            aria-label={placeholder}
+          >
             <option value="">{placeholder}</option>
             {options.map((opt) => (
               <option key={opt.value} value={opt.value}>{opt.label}</option>
