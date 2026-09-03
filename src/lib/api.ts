@@ -460,6 +460,52 @@ export const deleteInstructorPhoto = async (instructorId: string): Promise<void>
   await api.delete(`/instructors/${instructorId}/photo/`);
 };
 
+export interface InstructorPairTrack {
+  kind: 'bundle' | 'course';
+  id: string;
+  name: string;
+  course_name: string;
+  course_display_id?: number | null;
+  branch_name: string;
+}
+
+export interface InstructorPairPartner {
+  partner_id: string;
+  partner_name: string;
+  partner_photo_url?: string | null;
+  photo_url?: string | null;
+  tracks: InstructorPairTrack[];
+}
+
+/** Instructors who teach a combined track with this one, and the shared photo. */
+export const fetchInstructorPairPhotos = async (
+  instructorId: string,
+): Promise<InstructorPairPartner[]> => {
+  const response = await api.get(`/instructors/${instructorId}/pair-photos/`);
+  return response.data?.partners ?? [];
+};
+
+export const uploadInstructorPairPhoto = async (
+  instructorId: string,
+  partnerId: string,
+  file: File,
+): Promise<string> => {
+  const body = new FormData();
+  body.append('partner_id', partnerId);
+  body.append('photo', file);
+  const response = await api.post(`/instructors/${instructorId}/pair-photos/`, body, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  });
+  return response.data?.photo_url ?? '';
+};
+
+export const deleteInstructorPairPhoto = async (
+  instructorId: string,
+  partnerId: string,
+): Promise<void> => {
+  await api.delete(`/instructors/${instructorId}/pair-photos/`, { params: { partner_id: partnerId } });
+};
+
 export const searchBusinessCustomers = async (query: string): Promise<BusinessCustomer[]> => {
   const res = await api.get('/customers/business-customers/', { params: { search: query } });
   return res.data?.results ?? res.data ?? [];

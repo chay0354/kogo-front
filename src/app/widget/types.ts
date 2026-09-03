@@ -58,6 +58,8 @@ export interface CourseBundle {
   max_age?: number | null;
   lessons: CourseBundleLesson[];
   is_full?: boolean;
+  /** תמונה של שני מדריכים שמלמדים יחד את המסלול — כשיש שניים, זו התמונה. */
+  pair_photo_url?: string | null;
 }
 
 export interface Course {

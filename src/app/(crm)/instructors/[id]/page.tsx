@@ -22,6 +22,7 @@ import {
 import EditInstructorDialog from '@/components/dialogs/EditInstructorDialog';
 import AddInstructorBonusDialog from '@/components/dialogs/AddInstructorBonusDialog';
 import InstructorWeeklySchedule from '@/components/instructors/InstructorWeeklySchedule';
+import PairPhotoSection from '@/components/instructors/PairPhotoSection';
 
 type LessonFilter = 'all' | 'profitable' | 'loss';
 type LessonsView = 'table' | 'schedule';
@@ -382,6 +383,8 @@ export default function InstructorDetailPage() {
         </div>
       </div>
       
+      <PairPhotoSection instructorId={instructorId} />
+
       {/* Salary Model Section */}
       <div className="card mb-4">
         <div className="flex items-center justify-between mb-3">

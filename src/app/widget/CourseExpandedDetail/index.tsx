@@ -159,9 +159,9 @@ function resolveInstructorName(
 /**
  * The photo to show beside the instructor's name.
  *
- * Only used when a single instructor teaches what the parent is looking at:
- * a combined package taught by two people has one circle and no way to say
- * whose face it is, so it keeps the placeholder rather than picking one.
+ * One instructor, one face. A combined package taught by two people shows the
+ * picture of the two of them when the office uploaded one, and otherwise keeps
+ * the placeholder rather than picking one of the two.
  */
 function resolveInstructorPhoto(
   course: Course,
@@ -174,7 +174,8 @@ function resolveInstructorPhoto(
   const photos = new Set(
     slots.map((slot) => slot.instructor_photo_url).filter((url): url is string => Boolean(url)),
   );
-  return photos.size === 1 ? [...photos][0] : null;
+  if (photos.size === 1) return [...photos][0];
+  return bundleOffer?.pair_photo_url ?? null;
 }
 
 type ScheduleSlot = Pick<CourseLesson, 'day_of_week' | 'start_time' | 'end_time'>;
