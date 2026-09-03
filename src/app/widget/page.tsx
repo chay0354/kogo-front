@@ -797,51 +797,6 @@ export default function WidgetPage() {
         : !selectedAge ? 'age'
           : null;
 
-  // A quiet cue at the edge of what is on screen, only while actual lesson
-  // rows (an opened track) sit below it. Collapsed track headers do not count.
-  const courseListRef = useRef<HTMLDivElement | null>(null);
-  const [rowsBelowFold, setRowsBelowFold] = useState(false);
-  const visibleBottomInFrame = () =>
-    band ? band.bottom : (window.scrollY || window.pageYOffset || 0) + window.innerHeight;
-  const lastRowBottomBelow = () => {
-    const el = courseListRef.current;
-    if (!el) return null;
-    const scrollY = window.scrollY || window.pageYOffset || 0;
-    const limit = visibleBottomInFrame() - 8;
-    let last: number | null = null;
-    el.querySelectorAll('[role="listitem"]').forEach((row) => {
-      const rect = row.getBoundingClientRect();
-      if (rect.top + scrollY >= limit) last = rect.bottom + scrollY;
-    });
-    return last;
-  };
-  useEffect(() => {
-    const check = () => setRowsBelowFold(lastRowBottomBelow() !== null);
-    check();
-    const observer = courseListRef.current ? new ResizeObserver(check) : null;
-    if (observer && courseListRef.current) observer.observe(courseListRef.current);
-    window.addEventListener('scroll', check, { passive: true });
-    window.addEventListener('resize', check);
-    return () => {
-      observer?.disconnect();
-      window.removeEventListener('scroll', check);
-      window.removeEventListener('resize', check);
-    };
-  }, [band, filteredCourses]);
-  const revealListEnd = () => {
-    const bottom = lastRowBottomBelow();
-    if (bottom === null) return;
-    if (isWidgetEmbedded()) {
-      try {
-        window.parent.postMessage({ type: 'kogo-widget-reveal', bottom: bottom + 16 }, '*');
-      } catch {
-        /* cross-origin host may still receive the message */
-      }
-      return;
-    }
-    window.scrollTo({ top: Math.max(0, bottom - window.innerHeight + 16), behavior: 'smooth' });
-  };
-
   return (
     <div ref={pageRef} dir="rtl" className={styles.page}>
       {/* Filter strip */}
@@ -886,29 +841,12 @@ export default function WidgetPage() {
       ) : showCourseListLoading ? (
         <SkeletonCourseList />
       ) : showTable ? (
-        <div ref={courseListRef}>
-          <CourseList
-            filteredCourses={filteredCourses}
-            selectedAge={selectedAge ? parseInt(selectedAge, 10) : null}
-            onSelect={toggleDetail}
-          />
-        </div>
+        <CourseList
+          filteredCourses={filteredCourses}
+          selectedAge={selectedAge ? parseInt(selectedAge, 10) : null}
+          onSelect={toggleDetail}
+        />
       ) : null}
-
-      {rowsBelowFold && !detailCourse && !drawerCourse ? (
-        <button
-          type="button"
-          className={styles.scrollCue}
-          style={band ? { top: band.bottom - 40 } : undefined}
-          onClick={revealListEnd}
-          aria-label="לרשימת השיעורים המלאה"
-          title="עוד שיעורים למטה"
-        >
-          <ChevronDown size={16} aria-hidden />
-        </button>
-      ) : null}
-
-      {/* An overlay covers the page, so there is nothing left below its own fold to point at. */}
 
       {/* Course detail overlay — portaled so mobile fixed layout stays viewport-aligned */}
       {detailCourse && (
