@@ -20,6 +20,7 @@ import {
   getCurrentMonth,
   getProfitColorClass
 } from '@/lib/instructorUtils';
+import RegisterGapsAlert from '@/components/instructors/RegisterGapsAlert';
 import AddInstructorDialog from '@/components/dialogs/AddInstructorDialog';
 import AddBulkBonusDialog from '@/components/dialogs/AddBulkBonusDialog';
 import DeleteInstructorDialog from '@/components/dialogs/DeleteInstructorDialog';
@@ -207,6 +208,8 @@ export default function InstructorsPage() {
         }
       />
       
+      <RegisterGapsAlert />
+
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mb-4">
         <div className="card py-3 px-4">
