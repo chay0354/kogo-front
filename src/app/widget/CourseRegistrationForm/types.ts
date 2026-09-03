@@ -75,6 +75,8 @@ export interface LookupResult {
   child_id?: string;
   discount_type: 'sibling' | 'additional_lesson' | null;
   discount_question: string | null;
+  enrolled_lesson_ids?: string[];
+  already_registered?: boolean;
 }
 
 export interface AppliedDiscount {

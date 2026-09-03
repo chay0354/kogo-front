@@ -76,6 +76,19 @@ function formatShekel(value: number): string {
   return `₪${Number(value).toFixed(2)}`;
 }
 
+const ALREADY_REGISTERED_LESSON = 'הילד כבר רשום לחוג זה';
+
+function lookupBlocksLesson(
+  lookup: LookupResult | null | undefined,
+  selections: Array<{ lessonId?: string }>,
+): boolean {
+  if (!lookup) return false;
+  if (lookup.already_registered) return true;
+  const enrolled = new Set(lookup.enrolled_lesson_ids ?? []);
+  if (enrolled.size === 0) return false;
+  return selections.some((selection) => Boolean(selection.lessonId && enrolled.has(selection.lessonId)));
+}
+
 function withHanahatPrefix(label: string): string {
   if (!label || label === 'הנחה' || /^הנח[הת]/.test(label)) return label;
   return `הנחת ${label}`;
@@ -628,8 +641,6 @@ export default function CourseRegistrationForm({
         setErrorMsg('יש לבחור תאריך לשיעור הניסיון');
         return;
       }
-      setStep('consents');
-      return;
     }
 
     setLookingUp(true);
@@ -641,6 +652,8 @@ export default function CourseRegistrationForm({
           parent_id_number: parentIdNumber,
           child_first_name: lookupChildFirstName,
           child_last_name: lookupChildLastName,
+          lesson_id: isTrial ? effectiveTrialLessonId : lessonId,
+          bundle_id: isTrial ? undefined : bundleId,
         }).then((res) => ({ id: 'primary' as const, data: res.data as LookupResult })),
       ];
 
@@ -650,6 +663,8 @@ export default function CourseRegistrationForm({
             parent_id_number: parentIdNumber,
             child_first_name: child.firstName,
             child_last_name: child.lastName,
+            lesson_id: child.selection?.lessonId,
+            bundle_id: child.selection?.bundleId,
           }).then((res) => ({ id: child.id, data: res.data as LookupResult })),
         );
       }
@@ -668,21 +683,39 @@ export default function CourseRegistrationForm({
       });
 
       setLookup(primaryLookup);
+      const resolvedAdditional = nextAdditionalChildren.map((child) => ({
+        ...child,
+        lookup: lookupByChildId.get(child.id) ?? child.lookup,
+      }));
       if (nextAdditionalChildren.length > 0) {
-        setAdditionalChildren((prev) =>
-          prev.map((child) => ({
-            ...child,
-            lookup: lookupByChildId.get(child.id) ?? child.lookup,
-          })),
-        );
+        setAdditionalChildren(resolvedAdditional);
+      }
+
+      const primaryBlocked = lookupBlocksLesson(primaryLookup, [
+        { lessonId: isTrial ? effectiveTrialLessonId : lessonId },
+        ...primaryExtraLessons,
+      ]);
+      if (primaryBlocked) {
+        setErrorMsg(ALREADY_REGISTERED_LESSON);
+        return;
+      }
+      const blockedAdditional = resolvedAdditional.find((child) =>
+        lookupBlocksLesson(child.lookup, childLessonSelections(child)),
+      );
+      if (blockedAdditional) {
+        const name = `${blockedAdditional.firstName} ${blockedAdditional.lastName}`.trim() || 'הילד';
+        setErrorMsg(`${name} כבר רשום/ה לחוג זה`);
+        return;
+      }
+
+      if (isTrial) {
+        setStep('consents');
+        return;
       }
 
       const queue = buildDiscountQueue(
         primaryLookup,
-        nextAdditionalChildren.map((child) => ({
-          ...child,
-          lookup: lookupByChildId.get(child.id) ?? child.lookup,
-        })),
+        resolvedAdditional,
         lookupChildFirstName.trim() || 'ילד 1',
       );
 
