@@ -18,7 +18,10 @@ interface TransferStockDialogProps {
 
 function rowLabel(row: ProductSizeStock): string {
   const branch = row.branch_name?.trim() || (row.branch ? String(row.branch) : 'משלוח');
-  return `${row.size} — ${branch} (מלאי: ${row.stock_quantity})`;
+  // מוצר בלי מידות מחזיק שורה למיקום בלבד — אז המיקום הוא כל התווית
+  return row.size
+    ? `${row.size} — ${branch} (מלאי: ${row.stock_quantity})`
+    : `${branch} (מלאי: ${row.stock_quantity})`;
 }
 
 export default function TransferStockDialog({ isOpen, onClose, product, onSuccess }: TransferStockDialogProps) {
@@ -164,13 +167,13 @@ export default function TransferStockDialog({ isOpen, onClose, product, onSucces
             <div className="bg-gray-50 rounded-lg p-4 space-y-2 text-sm">
               <p className="font-medium text-gray-700">תצוגה מקדימה לאחר העברה:</p>
               <div className="flex justify-between">
-                <span className="text-gray-600">מקור ({fromRow.size} · {fromRow.branch_name || 'משלוח'}):</span>
+                <span className="text-gray-600">מקור ({[fromRow.size, fromRow.branch_name || 'משלוח'].filter(Boolean).join(' · ')}):</span>
                 <span className={`font-bold ${(fromRow.stock_quantity - quantity) < 0 ? 'text-red-600' : 'text-teal-600'}`}>
                   {fromRow.stock_quantity} → {Math.max(0, fromRow.stock_quantity - quantity)}
                 </span>
               </div>
               <div className="flex justify-between">
-                <span className="text-gray-600">יעד ({toRow.size} · {toRow.branch_name || 'משלוח'}):</span>
+                <span className="text-gray-600">יעד ({[toRow.size, toRow.branch_name || 'משלוח'].filter(Boolean).join(' · ')}):</span>
                 <span className="font-bold text-teal-600">
                   {toRow.stock_quantity} → {toRow.stock_quantity + quantity}
                 </span>

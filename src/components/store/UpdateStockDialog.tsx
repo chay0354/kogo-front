@@ -78,7 +78,9 @@ export default function UpdateStockDialog({ isOpen, onClose, product, onSuccess 
 
   const selectionSummary = (() => {
     if (!hasPerSizeStock || !selectedRow) return '';
-    return `${selectedRow.size} · ${rowLocationLabel(selectedRow)}`;
+    return selectedRow.size
+      ? `${selectedRow.size} · ${rowLocationLabel(selectedRow)}`
+      : rowLocationLabel(selectedRow);
   })();
 
   async function handleSubmit() {
@@ -144,7 +146,7 @@ export default function UpdateStockDialog({ isOpen, onClose, product, onSuccess 
               >
                 {sizeStocks.map((row, idx) => (
                   <option key={row.id ?? `${row.size}-${idx}`} value={idx}>
-                    {row.size} — {rowLocationLabel(row)} (מלאי: {row.stock_quantity})
+                    {row.size ? `${row.size} — ` : ''}{rowLocationLabel(row)} (מלאי: {row.stock_quantity})
                   </option>
                 ))}
               </Select>

@@ -121,16 +121,24 @@ export default function AddProductDialog({ isOpen, onClose, onSuccess }: AddProd
 
     for (const row of sizeRows) {
       const size = row.size.trim();
-      if (!size.length) continue;
+      // שורה בלי מידה נשמרת: היא אומרת "המוצר עצמו, במיקום הזה". כך מוצר
+      // בלי מידות מחזיק מלאי לפי סניף במקום מספר אחד לכל המקומות. שורה
+      // ריקה לגמרי — בלי מידה, בלי מיקום ובלי כמות — עדיין נזרקת.
       const rawBranch = coerceBranchFromApi(row.branch);
+      const quantity = Math.max(0, Math.floor(Number(row.stock_quantity) || 0));
+      if (!size.length && !rawBranch && quantity === 0) continue;
       const branchId = resolveStoreBranchId(row.branch, branches);
       if (rawBranch && branchId == null) {
-        toast.error(`מיקום לא תקף למידה "${size}". בחרו מיקום מהרשימה או משלוח.`);
+        toast.error(
+          size
+            ? `מיקום לא תקף למידה "${size}". בחרו מיקום מהרשימה או משלוח.`
+            : 'מיקום לא תקף בשורת המלאי. בחרו מיקום מהרשימה או משלוח.',
+        );
         return;
       }
       cleanedSizeRows.push({
         size,
-        stock_quantity: Math.max(0, Math.floor(Number(row.stock_quantity) || 0)),
+        stock_quantity: quantity,
         sort_order: cleanedSizeRows.length,
         branch: branchId,
       });
@@ -140,7 +148,11 @@ export default function AddProductDialog({ isOpen, onClose, onSuccess }: AddProd
     for (const row of cleanedSizeRows) {
       const key = `${row.size}\u0000${row.branch ?? ''}`;
       if (seen.has(key)) {
-        toast.error(`שילוב מידה "${row.size}" ומיקום מופיע פעמיים — שנה מיקום או מידה.`);
+        toast.error(
+          row.size
+            ? `שילוב מידה "${row.size}" ומיקום מופיע פעמיים — שנה מיקום או מידה.`
+            : 'אותו מיקום מופיע פעמיים בשורות המלאי — השאירו שורה אחת לכל מיקום.',
+        );
         return;
       }
       seen.add(key);
