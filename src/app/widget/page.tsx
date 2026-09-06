@@ -701,6 +701,10 @@ export default function WidgetPage() {
   }, [detailCourse, drawerCourse]);
 
   const handleEnrollClick = (isTrial = false, bundleOverride?: CourseBundle | null) => {
+    const enrollBundle = bundleOverride ?? detailBundle ?? null;
+    if (detailCourse && isWidgetSelectionFull(detailCourse, detailLesson, enrollBundle)) {
+      return;
+    }
     const branch = allBranches.find((b) => b.id === selectedBranch);
     const externalLink = resolveWidgetExternalLink(detailCourse?.external_link, branch);
     if (externalLink) {
@@ -735,9 +739,8 @@ export default function WidgetPage() {
     if (detailBundleForLesson) handleEnrollClick(false, detailBundleForLesson);
   };
 
-  const activeDetailBundle = detailBundle ?? detailBundleForLesson;
   const detailSelectionFull = detailCourse
-    ? isWidgetSelectionFull(detailCourse, detailLesson, activeDetailBundle)
+    ? isWidgetSelectionFull(detailCourse, detailLesson, detailBundle)
     : false;
   const detailAlternatives = detailCourse && detailSelectionFull && selectedCourseType
     ? findWidgetAlternatives(branchCourses, {
@@ -745,7 +748,7 @@ export default function WidgetPage() {
       selectedAge: selectedAge ? parseInt(selectedAge, 10) : null,
       currentCourseId: detailCourse.id,
       currentLessonId: detailLesson?.id,
-      currentBundleId: activeDetailBundle?.id,
+      currentBundleId: detailBundle?.id,
     })
     : [];
 

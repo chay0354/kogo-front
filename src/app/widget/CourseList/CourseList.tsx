@@ -12,6 +12,7 @@ import {
   formatPriceLabel,
   type CatalogRow,
 } from '../catalogRows';
+import { isWidgetSelectionFull } from '../alternativeLessons';
 import styles from './CourseList.module.css';
 
 interface CourseListProps {
@@ -65,12 +66,14 @@ function CourseRowItem({
 }) {
   const { course, lesson, bundle, priceOption, displayTitle, displayPrice } = row;
   const schedule = scheduleLines(lesson, bundle);
+  const isFull = isWidgetSelectionFull(course, lesson, bundle);
 
   return (
     <div
       key={`${course.id}-${bundle?.id ?? lesson?.id ?? index}-${priceOption?.id ?? 'default'}`}
       role="listitem"
-      className={styles.row}
+      className={`${styles.row}${isFull ? ` ${styles.rowFull}` : ''}`}
+      aria-label={isFull ? `${displayTitle} — מלא` : undefined}
       onClick={() => onSelect(course, bundle ?? undefined, lesson ?? undefined, priceOption ?? undefined)}
       onKeyDown={(e) => {
         if (e.key === 'Enter' || e.key === ' ') {
@@ -98,7 +101,9 @@ function CourseRowItem({
           </div>
         </div>
 
-        {displayPrice != null ? (
+        {isFull ? (
+          <span className={styles.fullBadge}>מלא</span>
+        ) : displayPrice != null ? (
           <span className={styles.price}>{formatPriceLabel(displayPrice)}</span>
         ) : null}
 

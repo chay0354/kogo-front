@@ -7,6 +7,7 @@ import {
 } from '@/lib/courseUtils';
 import type { Course, CourseLesson, CourseBundle, CourseLessonPriceOption } from './types';
 import { isLessonVisibleInCatalog } from './lessonVisibility';
+import { isWidgetSelectionFull } from './alternativeLessons';
 
 export interface CatalogRow {
   course: Course;
@@ -26,6 +27,7 @@ export interface EnrollmentSelection {
   displayTitle: string;
   displaySchedule: string;
   displayPrice: number | null;
+  isFull?: boolean;
 }
 
 const GENERIC_BUNDLE_NAMES = new Set([
@@ -233,6 +235,7 @@ export function catalogRowToSelection(row: CatalogRow): EnrollmentSelection {
     displayTitle: row.displayTitle,
     displaySchedule: scheduleLabel(row.lesson, row.bundle),
     displayPrice: row.displayPrice,
+    isFull: isWidgetSelectionFull(row.course, row.lesson, row.bundle),
   };
 }
 
@@ -268,5 +271,6 @@ export function selectionFromCatalogPick(
     displayTitle: stripWidgetApprovalPhrase(course.name),
     displaySchedule: scheduleLabel(lesson ?? null, bundle ?? null),
     displayPrice: formatListPrice(lesson?.price ?? course.price),
+    isFull: isWidgetSelectionFull(course, lesson, bundle),
   };
 }

@@ -7,6 +7,7 @@ import { CourseList } from '../CourseList/CourseList';
 import { isCourseVisibleInWidgetCatalog } from '../lessonVisibility';
 import { STATIC_CITIES } from '../page.utils';
 import { selectionFromCatalogPick, type EnrollmentSelection } from '../catalogRows';
+import { isWidgetSelectionFull } from '../alternativeLessons';
 import { sortWidgetCourseTypes } from '../courseTypeOrder';
 import type { Branch, Course, CourseBundle, CourseLesson, CourseLessonPriceOption } from '../types';
 import { SkeletonCourseList, SkeletonFilterField } from '../WidgetSkeletons/WidgetSkeletons';
@@ -90,6 +91,7 @@ export default function MiniLessonPicker({
   const [loadingBranches, setLoadingBranches] = useState(true);
   const [loadingCourseTypes, setLoadingCourseTypes] = useState(false);
   const [loadingCourses, setLoadingCourses] = useState(false);
+  const [fullNotice, setFullNotice] = useState(false);
   const loadedCourseTypesRef = useRef(new Set<string>());
   const loadedBranchCoursesRef = useRef(new Set<string>());
 
@@ -216,17 +218,25 @@ export default function MiniLessonPicker({
     setSelectedBranch('');
     setSelectedCourseType('');
     setSelectedAge('');
+    setFullNotice(false);
   };
 
   const handleBranchChange = (branchId: string) => {
     setSelectedBranch(branchId);
     setSelectedCourseType('');
     setSelectedAge('');
+    setFullNotice(false);
   };
 
   const handleCourseTypeChange = (typeId: string) => {
     setSelectedCourseType(typeId);
     setSelectedAge('');
+    setFullNotice(false);
+  };
+
+  const handleAgeChange = (age: string) => {
+    setSelectedAge(age);
+    setFullNotice(false);
   };
 
   const handleCourseSelect = (
@@ -235,6 +245,11 @@ export default function MiniLessonPicker({
     lesson?: CourseLesson,
     priceOption?: CourseLessonPriceOption,
   ) => {
+    if (isWidgetSelectionFull(course, lesson ?? null, bundle ?? null)) {
+      setFullNotice(true);
+      return;
+    }
+    setFullNotice(false);
     onSelect(selectionFromCatalogPick(course, bundle ?? null, lesson ?? null, priceOption ?? null));
   };
 
@@ -282,7 +297,7 @@ export default function MiniLessonPicker({
         <MiniFilterField
           label="גיל"
           value={selectedAge}
-          onChange={setSelectedAge}
+          onChange={handleAgeChange}
           disabled={!selectedCourseType}
           placeholder="בחרו גיל"
           options={AGE_OPTIONS.map((age) => ({ value: String(age), label: formatAge(age) }))}
@@ -305,6 +320,11 @@ export default function MiniLessonPicker({
         <p className={styles.helperText}>אין חוגים מתאימים לבחירה זו.</p>
       ) : (
         <div className={styles.listWrap}>
+          {fullNotice ? (
+            <p className={styles.fullNotice} role="status">
+              השיעור שבחרתם מלא — בחרו מועד אחר
+            </p>
+          ) : null}
           <CourseList
             filteredCourses={filteredCourses}
             selectedAge={parsedAge}

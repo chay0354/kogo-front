@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest';
 import { ADULTS_AGE_GROUP, INSTRUCTORS_AGE_GROUP } from '@/lib/courseUtils';
-import { buildCatalogRows } from './catalogRows';
+import { buildCatalogRows, catalogRowToSelection } from './catalogRows';
 import type { Course, CourseBundle, CourseLesson } from './types';
 
 function lesson(partial: Partial<CourseLesson> & Pick<CourseLesson, 'id'>): CourseLesson {
@@ -140,6 +140,18 @@ describe('buildCatalogRows instructors track', () => {
       }),
     ]);
     expect(rows.map((row) => row.displayTitle)).toEqual(['קבוצת בוגרים']);
+  });
+
+  test('catalog pick carries isFull from the selected lesson', () => {
+    const source = instructorsCourse({
+      min_age: 6,
+      max_age: 10,
+      lessons: [lesson({ id: 'full-mon', is_full: true })],
+      bundles: [],
+    });
+    const rows = buildCatalogRows([source], 8);
+    expect(rows[0]?.lesson?.is_full).toBe(true);
+    expect(catalogRowToSelection(rows[0]).isFull).toBe(true);
   });
 
   test('מדריכים once-a-week course is hidden from the widget', () => {
