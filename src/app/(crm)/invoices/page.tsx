@@ -47,14 +47,6 @@ import styles from './invoices.module.css';
 // endpoint filters on the model's code, so the label is mapped before it is sent.
 type ReportGroupBy = 'branch' | 'business' | 'business_unit' | 'business_category';
 
-const DOC_TYPE_CODES: Record<string, string> = {
-  'חשבונית מס': 'tax_invoice',
-  'קבלה': 'receipt',
-  'חשבונית מס/קבלה': 'combined',
-  'חשבונית עסקה': 'transaction_invoice',
-  'חשבונית מס זיכוי': 'credit_invoice',
-};
-
 export default function InvoicesPage() {
   const { user } = useAuth();
   // סליקת אשראי is a manager-only screen, so a partner is not shown a tab that
@@ -642,11 +634,13 @@ export default function InvoicesPage() {
                 onClick={async () => {
                   setReportBusy(true);
                   try {
+                    // הדוח מוציא את כל סוגי המסמכים תמיד. קודם הוא ירש בשקט את
+                    // מסנן הסוג של הטבלה, כך שדוח מסונן נראה בדיוק כמו דוח מלא —
+                    // ומי שקרא את הסכום לא ידע שחסרים בו מסמכים.
                     await downloadPeriodReport({
                       start_date: dateFrom || daysAgoLocalISO(90),
                       end_date: dateTo || localISODate(),
                       group_by: reportGroupBy,
-                      document_type: DOC_TYPE_CODES[docTypeFilter] ?? '',
                     });
                   } catch {
                     setDocumentsError('הפקת הדוח נכשלה');
