@@ -25,3 +25,20 @@ export function prefersReducedMotion(): boolean {
   return typeof window !== 'undefined'
     && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true;
 }
+
+/**
+ * Whether the band the host reported must be held still while an overlay is
+ * open.
+ *
+ * The host slides the frame on a phone so the slice the reader was looking
+ * at stays put, and the band it sent a moment earlier stays true through the
+ * stretch — so it is frozen. On a desktop the host does not slide: the frame
+ * jumps to the top of the screen, and only the band it sends *after* that
+ * says where the screen is. Holding the old one there framed the panel in
+ * the top half and cut the drawer off at the same line. Same breakpoint as
+ * the host's own rule.
+ */
+export function holdsBandWhileOpen(): boolean {
+  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return true;
+  return !window.matchMedia('(min-width: 768px)').matches;
+}

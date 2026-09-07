@@ -14,7 +14,7 @@ import { isCourseVisibleInWidgetCatalog } from './lessonVisibility';
 import { AGE_OPTIONS, formatAge, isInstructorsCourse, INSTRUCTORS_TRACK_TITLE } from '@/lib/courseUtils';
 import { findWidgetAlternatives, isWidgetSelectionFull, type WidgetAlternative } from './alternativeLessons';
 import { sortWidgetCourseTypes } from './courseTypeOrder';
-import { WIDGET_MOTION_MS, prefersReducedMotion } from './widgetMotion';
+import { WIDGET_MOTION_MS, holdsBandWhileOpen, prefersReducedMotion } from './widgetMotion';
 import { preloadInstructorPhotos } from './instructorPhotoPreload';
 import { SkeletonCourseList, SkeletonFilterOptions } from './WidgetSkeletons/WidgetSkeletons';
 import styles from './page.module.css';
@@ -160,7 +160,10 @@ function pinVisibleSlice(_page: HTMLElement | null) {
   const band = hostBand;
   if (!band) return () => { /* nothing was frozen, so nothing has to be released */ };
   const iframeScroll = readScrollY();
-  bandFrozen = true;
+  // On a desktop the host stretches the frame to the screen without sliding
+  // it, so the band it sends after that is the one to frame by; the one in
+  // hand describes where the frame used to be.
+  bandFrozen = holdsBandWhileOpen();
   return () => {
     writeScrollY(iframeScroll);
     bandFrozen = false;

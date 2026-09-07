@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { WIDGET_MOTION_MS, prefersReducedMotion } from './widgetMotion';
+import { WIDGET_MOTION_MS, holdsBandWhileOpen, prefersReducedMotion } from './widgetMotion';
 
 const globalWithWindow = globalThis as { window?: unknown };
 
@@ -43,5 +43,22 @@ describe('widget motion timing', () => {
       stubWindow(null);
       expect(prefersReducedMotion()).toBe(false);
     });
+  });
+});
+
+describe('holding the host band while an overlay is open', () => {
+  it('holds it on a phone, where the host slides the frame to keep the slice still', () => {
+    stubWindow(false);
+    expect(holdsBandWhileOpen()).toBe(true);
+  });
+
+  it('lets go on a desktop, where the frame jumps to the top and the fresh band is the truth', () => {
+    stubWindow(true);
+    expect(holdsBandWhileOpen()).toBe(false);
+  });
+
+  it('holds it when the viewport cannot be asked', () => {
+    stubWindow(null);
+    expect(holdsBandWhileOpen()).toBe(true);
   });
 });
