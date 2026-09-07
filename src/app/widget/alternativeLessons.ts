@@ -88,8 +88,12 @@ export function findWidgetAlternatives(
   return alternatives.sort((a, b) => a.label.localeCompare(b.label, 'he'));
 }
 
+/**
+ * Whether the offer the parent actually picked is full.
+ * Pass that lesson or bundle — not a related package that happens to share a day.
+ */
 export function isWidgetSelectionFull(
-  course: Course,
+  _course: Course,
   lesson?: CourseLesson | null,
   bundle?: CourseBundle | null,
 ): boolean {

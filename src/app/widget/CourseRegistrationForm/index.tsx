@@ -636,6 +636,20 @@ export default function CourseRegistrationForm({
     }
     setFieldErrors({});
 
+    const fullExtra = primaryExtraLessons.find((selection) => selection.isFull);
+    if (fullExtra) {
+      setErrorMsg(`${fullExtra.displayTitle} מלא — בחרו חוג אחר`);
+      return;
+    }
+    const fullAdditional = nextAdditionalChildren.find((child) =>
+      childLessonSelections(child).some((selection) => selection.isFull),
+    );
+    if (fullAdditional) {
+      const name = `${fullAdditional.firstName} ${fullAdditional.lastName}`.trim() || 'הילד הנוסף';
+      setErrorMsg(`החוג שנבחר עבור ${name} מלא — בחרו מועד אחר`);
+      return;
+    }
+
     if (isTrial) {
       if (!trialLessonDate || !effectiveTrialLessonId) {
         setErrorMsg('יש לבחור תאריך לשיעור הניסיון');
