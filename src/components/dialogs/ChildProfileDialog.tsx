@@ -32,7 +32,8 @@ import { GroupIdBadge } from '@/components/GroupIdBadge/GroupIdBadge';
 import api from '@/lib/api';
 import RefundDialog from '@/components/dialogs/RefundDialog';
 import EditStandingOrderDialog from '@/components/dialogs/EditStandingOrderDialog';
-import { upcomingCharges } from '@/components/dialogs/upcomingCharges';
+import { upcomingCharges, type UpcomingCharge } from '@/components/dialogs/upcomingCharges';
+import EditMonthAmountDialog from '@/components/dialogs/EditMonthAmountDialog';
 
 interface ChildProfileDialogProps {
   child: ChildWithDetails;
@@ -44,6 +45,8 @@ interface ChildProfileDialogProps {
     removedEnrollmentIds: string[];
     childStatus?: string;
   }) => void;
+  /** Open a brother or sister of this child. Without it the names show but do not link. */
+  onOpenSibling?: (childId: string) => void;
 }
 
 function daysUntil(dateString: string | null): number | null {
@@ -58,6 +61,14 @@ function formatShekel(value: unknown): string {
   const n = Number(value);
   if (!Number.isFinite(n)) return '₪0';
   return `₪${n.toLocaleString('he-IL', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
+}
+
+/** "אוקטובר 2026" from the ISO first-of-month an override is filed under. */
+function monthName(value: string | null | undefined): string {
+  const match = String(value || '').slice(0, 10).match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) return '';
+  const date = new Date(Number(match[1]), Number(match[2]) - 1, 1);
+  return date.toLocaleDateString('he-IL', { month: 'long', year: 'numeric' });
 }
 
 function isOneTimePayment(payment: {
@@ -129,13 +140,18 @@ export default function ChildProfileDialog({
   onOpenEnroll,
   onEditEnrollment,
   onRemovedFromCourse,
+  onOpenSibling,
 }: ChildProfileDialogProps) {
   const [absences, setAbsences] = useState<AbsenceRecord[]>([]);
   const [loadingAbsences, setLoadingAbsences] = useState(false);
   const [payments, setPayments] = useState<any[]>([]);
   const [storeInvoices, setStoreInvoices] = useState<any[]>([]);
   const [recurringPayments, setRecurringPayments] = useState<any[]>([]);
+  // The child's own formal documents. Scoped by child_id on purpose: a parent's
+  // other children have their own invoices and they do not belong on this card.
+  const [documents, setDocuments] = useState<any[]>([]);
   const [loadingPayments, setLoadingPayments] = useState(false);
+  const [editingCharge, setEditingCharge] = useState<UpcomingCharge | null>(null);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   
   // Refund dialog state
@@ -188,19 +204,22 @@ export default function ChildProfileDialog({
   const fetchPaymentData = async () => {
     setLoadingPayments(true);
     try {
-      const [paymentsRes, storeInvoicesRes, recurringRes] = await Promise.all([
+      const [paymentsRes, storeInvoicesRes, recurringRes, documentsRes] = await Promise.all([
         api.get(`/customers/payments/?child_id=${child.id}`).catch(() => ({ data: [] })),
         api.get(`/store/invoices/?child_id=${child.id}`).catch(() => ({ data: [] })),
-        api.get(`/customers/recurring-payments/?child_id=${child.id}`).catch(() => ({ data: [] }))
+        api.get(`/customers/recurring-payments/?child_id=${child.id}`).catch(() => ({ data: [] })),
+        api.get(`/documents/documents/?child_id=${child.id}`).catch(() => ({ data: [] }))
       ]);
       
       const paymentsData = paymentsRes.data?.results || paymentsRes.data || [];
       const storeData = storeInvoicesRes.data?.results || storeInvoicesRes.data || [];
       const recurringData = recurringRes.data?.results || recurringRes.data || [];
+      const documentsData = documentsRes.data?.results || documentsRes.data || [];
       
       setPayments(Array.isArray(paymentsData) ? paymentsData : []);
       setStoreInvoices(Array.isArray(storeData) ? storeData : []);
       setRecurringPayments(Array.isArray(recurringData) ? recurringData : []);
+      setDocuments(Array.isArray(documentsData) ? documentsData : []);
     } catch (error) {
       console.error('Error fetching payment data:', error);
     } finally {
@@ -433,6 +452,28 @@ export default function ChildProfileDialog({
                           <span className="text-muted-foreground text-sm">תאריך רישום</span>
                           <span className="font-medium">{formatHebrewDate(child.created_at)}</span>
                         </div>
+                        {(child.siblings ?? []).length > 0 && (
+                          <div className="flex justify-between gap-4 items-start">
+                            <span className="text-muted-foreground text-sm shrink-0">אחים ואחיות</span>
+                            <div className="flex flex-wrap gap-2 justify-end">
+                              {(child.siblings ?? []).map((sibling) => (
+                                <Button
+                                  key={sibling.id}
+                                  size="sm"
+                                  variant="outline"
+                                  disabled={!onOpenSibling}
+                                  onClick={() => onOpenSibling?.(sibling.id)}
+                                  title={onOpenSibling ? `מעבר ל${sibling.full_name}` : undefined}
+                                >
+                                  {sibling.full_name}
+                                  {sibling.age != null && (
+                                    <span className="text-muted-foreground mr-1">· {sibling.age}</span>
+                                  )}
+                                </Button>
+                              ))}
+                            </div>
+                          </div>
+                        )}
                         <div className="flex justify-between gap-4 items-center">
                           <span className="text-muted-foreground text-sm">שיעור ניסיון</span>
                           {(child.status === 'trial_signed' || child.status === 'trial_completed' || child.trial_classes_attended > 0) ? (
@@ -785,6 +826,13 @@ export default function ChildProfileDialog({
                                           מהחודש הבא {formatShekel(recurring.pending_amount)}
                                         </div>
                                       )}
+                                      {(recurring.upcoming_overrides || []).map((override: any) => (
+                                        <div key={override.id} className="text-xs font-normal text-amber-700">
+                                          {monthName(override.billing_month)} {formatShekel(override.amount)}
+                                          {' · '}
+                                          {override.source === 'store' ? 'רכישה בחנות' : 'שינוי עם הערה'}
+                                        </div>
+                                      ))}
                                     </td>
                                     <td className="p-3">
                                       <Badge variant={recurring.status === 'active' ? 'default' : 'outline'}>
@@ -830,6 +878,60 @@ export default function ChildProfileDialog({
                       </div>
 
                       <div>
+                        <h3 className="font-semibold text-lg mb-1">מסמכים</h3>
+                        <p className="text-sm text-muted-foreground mb-3">
+                          חשבוניות וקבלות של {child.first_name} בלבד — מסמכים של אחים אינם מוצגים כאן
+                        </p>
+                        {documents.length === 0 ? (
+                          <div className="border rounded-lg px-4 py-8 text-center text-muted-foreground">
+                            אין מסמכים
+                          </div>
+                        ) : (
+                          <div className="border rounded-lg overflow-hidden">
+                            <table className="w-full">
+                              <thead className="bg-muted/50">
+                                <tr>
+                                  <th className="p-3 text-right font-medium">מספר</th>
+                                  <th className="p-3 text-right font-medium">סוג</th>
+                                  <th className="p-3 text-right font-medium">תאריך</th>
+                                  <th className="p-3 text-right font-medium">סכום</th>
+                                  <th className="p-3 text-right font-medium">פעולות</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {documents.map((doc: any) => (
+                                  <tr key={doc.id} className="border-t">
+                                    <td className="p-3 font-medium whitespace-nowrap">{doc.document_number}</td>
+                                    <td className="p-3">{doc.document_type_display || doc.document_type}</td>
+                                    <td className="p-3 text-sm text-muted-foreground whitespace-nowrap">
+                                      {formatHebrewDate(doc.document_date)}
+                                    </td>
+                                    <td className="p-3 font-medium whitespace-nowrap">
+                                      {formatShekel(doc.total_amount)}
+                                    </td>
+                                    <td className="p-3">
+                                      {doc.pdf_url ? (
+                                        <a
+                                          href={doc.pdf_url}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          className="text-sm underline"
+                                        >
+                                          פתיחה
+                                        </a>
+                                      ) : (
+                                        <span className="text-sm text-muted-foreground">אין קובץ</span>
+                                      )}
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        )}
+                      </div>
+
+                      <div>
                         <h3 className="font-semibold text-lg mb-1">תשלומים עתידיים</h3>
                         <p className="text-sm text-muted-foreground mb-3">10 החיובים הבאים לפי הוראות הקבע</p>
                         {futureCharges.length === 0 ? (
@@ -844,6 +946,7 @@ export default function ChildProfileDialog({
                                   <th className="p-3 text-right font-medium">תאריך</th>
                                   <th className="p-3 text-right font-medium">תיאור</th>
                                   <th className="p-3 text-right font-medium">סכום</th>
+                                  <th className="p-3 text-right font-medium">פעולות</th>
                                 </tr>
                               </thead>
                               <tbody>
@@ -855,8 +958,33 @@ export default function ChildProfileDialog({
                                     <td className="p-3">
                                       {charge.description}
                                       <GroupIdBadge displayId={charge.courseDisplayId} />
+                                      {charge.override && (
+                                        <div className="text-xs text-amber-700 mt-1 break-words">
+                                          {charge.override.source === 'store' ? 'רכישה בחנות' : 'שינוי לחודש זה'}
+                                          {' · '}
+                                          {charge.override.reason}
+                                        </div>
+                                      )}
                                     </td>
-                                    <td className="p-3 font-medium whitespace-nowrap">{formatShekel(charge.amount)}</td>
+                                    <td className="p-3 font-medium whitespace-nowrap">
+                                      {formatShekel(charge.amount)}
+                                      {charge.override && (
+                                        <div className="text-xs text-muted-foreground font-normal line-through">
+                                          {formatShekel(charge.regularAmount)}
+                                        </div>
+                                      )}
+                                    </td>
+                                    <td className="p-3">
+                                      <Button
+                                        size="sm"
+                                        variant="outline"
+                                        onClick={() => setEditingCharge(charge)}
+                                        title="שנה את הסכום לחודש הזה בלבד"
+                                      >
+                                        <Pencil className="h-3 w-3 ml-1" />
+                                        ערוך
+                                      </Button>
+                                    </td>
                                   </tr>
                                 ))}
                               </tbody>
@@ -892,6 +1020,12 @@ export default function ChildProfileDialog({
       order={editingStandingOrder}
       isOpen={Boolean(editingStandingOrder)}
       onClose={() => setEditingStandingOrder(null)}
+      onSaved={fetchPaymentData}
+    />
+    <EditMonthAmountDialog
+      charge={editingCharge}
+      isOpen={Boolean(editingCharge)}
+      onClose={() => setEditingCharge(null)}
       onSaved={fetchPaymentData}
     />
     <ConfirmDialog
