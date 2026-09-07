@@ -645,6 +645,10 @@ export default function CustomersPage() {
               setEnrollDialogOpen(true);
             }}
             onEditEnrollment={(slots) => handleEnrollmentEdit(selectedChild, slots)}
+            onOpenSibling={(childId) => {
+              const sibling = children.find((row) => row.id === childId);
+              if (sibling) setSelectedChild(sibling);
+            }}
             onRemovedFromCourse={({ removedEnrollmentIds, childStatus }) => {
               const removed = new Set(removedEnrollmentIds);
               const apply = (row: ChildWithDetails): ChildWithDetails => ({

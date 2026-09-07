@@ -65,6 +65,16 @@ export interface ChildWithDetails {
   attendance_rate: number;
   
   created_at: string | null;
+  /** Brothers and sisters on the same family, so the office can move between them. */
+  siblings?: {
+    id: string;
+    first_name: string;
+    last_name: string;
+    full_name: string;
+    age: number | null;
+    gender: string | null;
+    status: string | null;
+  }[];
 }
 
 export interface Branch {

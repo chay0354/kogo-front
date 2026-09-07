@@ -1,11 +1,24 @@
 export const UPCOMING_CHARGE_LIMIT = 10;
 
+/** A single month billed at something other than the standing amount. */
+export type MonthOverride = {
+  id: string;
+  billing_month: string;
+  amount: unknown;
+  original_amount?: unknown;
+  reason: string;
+  source: 'manual' | 'store' | string;
+  store_invoice_number?: string | null;
+  created_by_name?: string | null;
+};
+
 export type UpcomingStandingOrder = {
   id: string;
   status: string;
   amount: unknown;
   pending_amount?: unknown;
   pending_amount_effective_date?: string | null;
+  upcoming_overrides?: MonthOverride[] | null;
   next_billing_date?: string | null;
   billing_day?: number | null;
   end_date?: string | null;
@@ -23,6 +36,11 @@ export type UpcomingCharge = {
   description: string;
   amount: number;
   courseDisplayId?: number | null;
+  orderId: string;
+  /** Set when this month was told to bill at something else. */
+  override?: MonthOverride | null;
+  /** What the month would have cost without that instruction. */
+  regularAmount: number;
 };
 
 export function parseYmd(value: string | null | undefined): Date | null {
@@ -56,6 +74,22 @@ function firstChargeDate(order: UpcomingStandingOrder, today: Date): Date | null
   return compareDates(candidate, today) >= 0 ? candidate : nextMonthFirst(today);
 }
 
+/** The override filed for the month a charge falls in, if any. */
+function overrideOn(order: UpcomingStandingOrder, chargeDate: Date): MonthOverride | null {
+  const rows = order.upcoming_overrides;
+  if (!rows || rows.length === 0) return null;
+  return (
+    rows.find((row) => {
+      const month = parseYmd(row.billing_month);
+      return (
+        !!month
+        && month.getFullYear() === chargeDate.getFullYear()
+        && month.getMonth() === chargeDate.getMonth()
+      );
+    }) ?? null
+  );
+}
+
 function amountOn(order: UpcomingStandingOrder, chargeDate: Date): number {
   const pending = Number(order.pending_amount);
   const effective = parseYmd(order.pending_amount_effective_date);
@@ -82,12 +116,20 @@ function* iterateOrderCharges(order: UpcomingStandingOrder, today: Date): Genera
 
   for (let index = 0; index < UPCOMING_CHARGE_LIMIT; index += 1) {
     if (endDate && compareDates(chargeDate, endDate) > 0) return;
+    const regular = amountOn(order, chargeDate);
+    // An override replaces the month outright: it already carries the store
+    // purchases and any manual change folded into one figure.
+    const override = overrideOn(order, chargeDate);
+    const overrideAmount = Number(override?.amount);
     yield {
       key: `${order.id}-${chargeDate.getFullYear()}-${chargeDate.getMonth() + 1}-${chargeDate.getDate()}`,
       date: chargeDate,
       description: lessonLabel(order),
-      amount: amountOn(order, chargeDate),
+      amount: override && Number.isFinite(overrideAmount) ? overrideAmount : regular,
       courseDisplayId: order.initial_payment_details?.lesson_course_display_id ?? null,
+      orderId: order.id,
+      override,
+      regularAmount: regular,
     };
     chargeDate = nextMonthFirst(chargeDate);
   }

@@ -71,6 +71,73 @@ describe('upcomingCharges', () => {
     expect(rows[1].amount).toBe(300);
   });
 
+  test('a month with an override bills that amount, and only that month', () => {
+    const rows = upcomingCharges([
+      order({
+        id: 'ov-order-1',
+        amount: 275,
+        next_billing_date: '2026-10-01',
+        upcoming_overrides: [{
+          id: 'ov-1',
+          billing_month: '2026-11-01',
+          amount: 150,
+          original_amount: 275,
+          reason: 'רק שני שיעורים בנובמבר',
+          source: 'manual',
+        }],
+      }),
+    ], new Date(2026, 8, 1));
+
+    expect(rows[0].amount).toBe(275);
+    expect(rows[0].override).toBeNull();
+    expect(rows[1].amount).toBe(150);
+    expect(rows[1].regularAmount).toBe(275);
+    expect(rows[1].override?.reason).toContain('שני שיעורים');
+    expect(rows[2].amount).toBe(275);
+  });
+
+  test('a store purchase shows as the month it rides on, above the regular amount', () => {
+    const rows = upcomingCharges([
+      order({
+        id: 'ov-order-2',
+        amount: 275,
+        next_billing_date: '2026-10-01',
+        upcoming_overrides: [{
+          id: 'ov-2',
+          billing_month: '2026-10-01',
+          amount: 395,
+          original_amount: 275,
+          reason: 'רכישה בחנות: חולצה',
+          source: 'store',
+          store_invoice_number: 'S-1001',
+        }],
+      }),
+    ], new Date(2026, 8, 1));
+
+    expect(rows[0].amount).toBe(395);
+    expect(rows[0].regularAmount).toBe(275);
+    expect(rows[0].override?.source).toBe('store');
+  });
+
+  test('an override for a month outside the window changes nothing', () => {
+    const rows = upcomingCharges([
+      order({
+        id: 'ov-order-3',
+        amount: 275,
+        next_billing_date: '2026-10-01',
+        upcoming_overrides: [{
+          id: 'ov-3',
+          billing_month: '2030-01-01',
+          amount: 1,
+          reason: 'רחוק',
+          source: 'manual',
+        }],
+      }),
+    ], new Date(2026, 8, 1));
+
+    expect(rows.every((row) => row.amount === 275)).toBe(true);
+  });
+
   test('skips cancelled orders and stops after end_date', () => {
     const rows = upcomingCharges([
       order({ id: 'cancelled', status: 'cancelled', next_billing_date: '2026-10-01' }),
