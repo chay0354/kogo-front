@@ -871,3 +871,21 @@
   color: #6b7280;
   font-size: 0.85em;
 }
+
+/* The buyer's phone, email and address under the name on a store row.
+   plaintext bidi so a phone and an address sit side by side without the
+   digits flipping. */
+.contactLine {
+  display: block;
+  margin-top: 2px;
+  font-size: 0.78rem;
+  color: #6b7280;
+  unicode-bidi: plaintext;
+  word-break: break-word;
+}
+
+.rowActions {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}

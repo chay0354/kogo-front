@@ -373,5 +373,48 @@ export function storeInvoiceToLedgerRow(invoice: StoreInvoice): PaymentRecord {
       && amount > 0
       && invoice.payment_method === 'credit_card'
       && Boolean(invoice.tranzila_transaction_id),
+    customer_phone: invoice.customer_phone || undefined,
+    customer_email: invoice.customer_email || undefined,
+    shipping_address: invoice.shipping_address || undefined,
+    customer_notes: invoice.customer_notes || undefined,
+    website_order_number: invoice.website_order_number || undefined,
+    store_invoice_id: invoice.id,
   };
+}
+
+/** The buyer's contact line under a store row: phone · email · address. */
+export function storeContactLine(row: PaymentRecord): string {
+  return [row.customer_phone, row.customer_email, row.shipping_address]
+    .filter(Boolean)
+    .join(' · ');
+}
+
+/**
+ * Whether a payments-tab row answers a free-text search.
+ *
+ * A store row matches on anything the buyer typed at checkout too — phone,
+ * email, address, notes, website order number — because "who is this
+ * number" is the question the owner brings to this tab.
+ */
+export function matchesPaymentSearch(row: PaymentRecord, query: string): boolean {
+  const q = query.trim().toLowerCase();
+  if (!q) return true;
+  const digits = q.replace(/\D/g, '');
+  const haystack = [
+    row.customer_name,
+    row.description,
+    row.transaction_reference,
+    row.invoice_number,
+    row.customer_email,
+    row.shipping_address,
+    row.customer_notes,
+    row.website_order_number,
+  ].filter(Boolean).join(' ').toLowerCase();
+  if (haystack.includes(q)) return true;
+  // A phone typed with dashes or spaces still has to find a number stored
+  // without them, and the other way round.
+  if (digits.length >= 4 && row.customer_phone) {
+    return row.customer_phone.replace(/\D/g, '').includes(digits);
+  }
+  return false;
 }

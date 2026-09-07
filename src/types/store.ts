@@ -64,6 +64,10 @@ export interface StoreInvoice {
   child_name: string | null;
   customer_name: string;
   customer_phone: string;
+  customer_email: string;
+  shipping_address: string;
+  customer_notes: string;
+  website_order_number: string | null;
   total_amount: number;
   amount_paid: number;
   payment_method: 'credit_card' | 'cash' | 'monthly_billing';

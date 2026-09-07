@@ -87,4 +87,13 @@ export interface PaymentRecord {
   branch_name?: string | null;
   canRefund: boolean;
   card_last4?: string;
+  // What the buyer typed at website checkout — on a store row only. Shown
+  // under the name and searchable, so a phone number or an address finds
+  // the order.
+  customer_phone?: string;
+  customer_email?: string;
+  shipping_address?: string;
+  customer_notes?: string;
+  website_order_number?: string;
+  store_invoice_id?: string;
 }

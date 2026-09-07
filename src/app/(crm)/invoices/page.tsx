@@ -38,6 +38,8 @@ import {
   getRecurringStatusClass,
   paymentToLedgerRow,
   storeInvoiceToLedgerRow,
+  storeContactLine,
+  matchesPaymentSearch,
   localISODate,
   daysAgoLocalISO,
 } from './utils';
@@ -367,13 +369,7 @@ export default function InvoicesPage() {
     .map(storeInvoiceToLedgerRow)
     .filter((row) => {
       if (paymentStatusFilter && row.status !== paymentStatusFilter) return false;
-      const q = paymentSearch.trim().toLowerCase();
-      if (!q) return true;
-      return (
-        row.customer_name.toLowerCase().includes(q)
-        || row.description.toLowerCase().includes(q)
-        || (row.transaction_reference || '').toLowerCase().includes(q)
-      );
+      return matchesPaymentSearch(row, paymentSearch);
     })
     .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
@@ -892,7 +888,12 @@ export default function InvoicesPage() {
                       return (
                         <tr key={`${p.source}-${p.id}`}>
                           <td>{p.created_at ? formatDate(p.created_at) : '—'}</td>
-                          <td className={styles.customerName}>{p.customer_name || '—'}</td>
+                          <td className={styles.customerName}>
+                            {p.customer_name || '—'}
+                            {p.source === 'store' && storeContactLine(p) && (
+                              <span className={styles.contactLine}>{storeContactLine(p)}</span>
+                            )}
+                          </td>
                           <td className={styles.chargeCell}>
                             <span className={styles.chargeKindChip}>{p.kind_label}</span>
                             <span className={styles.chargeDescription}>{p.description || '—'}</span>
@@ -908,7 +909,19 @@ export default function InvoicesPage() {
                               {statusLabel}
                             </span>
                           </td>
-                          <td>
+                          <td className={styles.rowActions}>
+                            {p.source === 'store' && p.store_invoice_id && (
+                              <button
+                                type="button"
+                                className={styles.refundBtn}
+                                onClick={() => {
+                                  void downloadStoreInvoicePdf(p.store_invoice_id as string, p.invoice_number || 'order');
+                                }}
+                                aria-label={`הורדת PDF של הזמנה ${p.invoice_number}`}
+                              >
+                                PDF
+                              </button>
+                            )}
                             {p.canRefund ? (
                               <button
                                 type="button"
@@ -918,7 +931,9 @@ export default function InvoicesPage() {
                                 זיכוי
                               </button>
                             ) : (
-                              <span className={styles.refundUnavailable}>—</span>
+                              !(p.source === 'store' && p.store_invoice_id) && (
+                                <span className={styles.refundUnavailable}>—</span>
+                              )
                             )}
                           </td>
                         </tr>
