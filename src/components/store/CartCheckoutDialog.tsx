@@ -56,6 +56,8 @@ export default function CartCheckoutDialog({
   const [children, setChildren] = useState<ChildWithDetails[]>([]);
   const [selectedChild, setSelectedChild] = useState<ChildWithDetails | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [childrenTotal, setChildrenTotal] = useState(0);
+  const [loadingChildren, setLoadingChildren] = useState(false);
 
   const [walkInName, setWalkInName] = useState('');
   const [walkInPhone, setWalkInPhone] = useState('');
@@ -76,30 +78,41 @@ export default function CartCheckoutDialog({
   const deliveryTotal = lines.reduce((sum, line) => sum + lineDelivery(line), 0);
   const total = productsTotal + deliveryTotal;
 
+  /**
+   * The list is one page of children, and the page is 20. Filtering it here meant
+   * the box only ever searched the twenty newest, so anyone enrolled before them
+   * could not be found and the seller had no way to tell. The typing goes to the
+   * server instead, which searches the whole roster by name, family and phone.
+   */
   useEffect(() => {
-    if (isOpen && customerType === 'existing') {
-      fetchChildren();
-    }
-  }, [isOpen, customerType]);
+    if (!isOpen || customerType !== 'existing') return;
+    const query = searchQuery.trim();
+    const timer = window.setTimeout(() => { fetchChildren(query); }, query ? 250 : 0);
+    return () => window.clearTimeout(timer);
+  }, [isOpen, customerType, searchQuery]);
 
-  async function fetchChildren() {
+  async function fetchChildren(query: string) {
+    setLoadingChildren(true);
     try {
-      const response = await api.get('/customers/children/');
+      const response = await api.get('/customers/children/', {
+        params: query ? { search: query, page_size: 20 } : { page_size: 20 },
+      });
       const data = response.data;
       const childrenArray = data.results || data;
       setChildren(Array.isArray(childrenArray) ? childrenArray : []);
+      setChildrenTotal(Number(data?.count ?? (Array.isArray(childrenArray) ? childrenArray.length : 0)));
     } catch (error) {
       console.error('Error fetching children:', error);
       setChildren([]);
+      setChildrenTotal(0);
+    } finally {
+      setLoadingChildren(false);
     }
   }
 
-  const filteredChildren = children.filter(
-    (child) =>
-      child.first_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      child.last_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      child.family_name?.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filteredChildren = children;
+  // A page holds 20; say so rather than letting the seller believe the rest do not exist.
+  const moreThanShown = Math.max(0, childrenTotal - filteredChildren.length);
 
   async function handleDirectCardCharge() {
     setIsLoading(true);
@@ -351,11 +364,19 @@ export default function CartCheckoutDialog({
 
               <TabsContent value="existing" className="space-y-3">
                 <Input
-                  placeholder="חיפוש לפי שם ילד או משפחה..."
+                  placeholder="חיפוש לפי שם ילד, משפחה או טלפון..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                 />
                 <div className="border rounded-lg max-h-48 overflow-y-auto">
+                  {loadingChildren && (
+                    <div className="px-3 py-4 text-sm text-gray-500 text-center">מחפש…</div>
+                  )}
+                  {!loadingChildren && filteredChildren.length === 0 && (
+                    <div className="px-3 py-4 text-sm text-gray-500 text-center">
+                      {searchQuery.trim() ? 'לא נמצא לקוח בשם הזה' : 'הקלידו שם כדי לחפש'}
+                    </div>
+                  )}
                   {Array.isArray(filteredChildren) &&
                     filteredChildren.map((child) => (
                       <div
@@ -382,6 +403,11 @@ export default function CartCheckoutDialog({
                       </div>
                     ))}
                 </div>
+                {moreThanShown > 0 && (
+                  <p className="text-xs text-gray-500">
+                    מוצגים {filteredChildren.length} מתוך {childrenTotal}. הקלידו שם כדי למצוא לקוח מסוים.
+                  </p>
+                )}
                 {selectedChild && (
                   <div className="flex items-center gap-2">
                     <Badge className="bg-teal-100 text-teal-800">
