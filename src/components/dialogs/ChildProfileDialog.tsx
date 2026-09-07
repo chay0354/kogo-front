@@ -833,6 +833,15 @@ export default function ChildProfileDialog({
                                           {override.source === 'store' ? 'רכישה בחנות' : 'שינוי עם הערה'}
                                         </div>
                                       ))}
+                                      {/* Months already charged. The reason was written so that
+                                          someone asking later finds an answer, so it stays. */}
+                                      {(recurring.past_overrides || []).map((override: any) => (
+                                        <div key={override.id} className="text-xs font-normal text-muted-foreground">
+                                          {monthName(override.billing_month)} {formatShekel(override.amount)}
+                                          {' · חויב · '}
+                                          {override.source === 'store' ? 'רכישה בחנות' : 'שינוי עם הערה'}
+                                        </div>
+                                      ))}
                                     </td>
                                     <td className="p-3">
                                       <Badge variant={recurring.status === 'active' ? 'default' : 'outline'}>
@@ -876,6 +885,48 @@ export default function ChildProfileDialog({
                           </div>
                         )}
                       </div>
+
+                      {standingOrders.some((order: any) => (order.past_overrides || []).length > 0) && (
+                        <div>
+                          <h3 className="font-semibold text-lg mb-1">חודשים ששונו וכבר חויבו</h3>
+                          <p className="text-sm text-muted-foreground mb-3">
+                            נשמר כדי שתמיד תהיה תשובה למה חודש מסוים עלה אחרת
+                          </p>
+                          <div className="border rounded-lg overflow-hidden">
+                            <table className="w-full">
+                              <thead className="bg-muted/50">
+                                <tr>
+                                  <th className="p-3 text-right font-medium">חודש</th>
+                                  <th className="p-3 text-right font-medium">נגבה</th>
+                                  <th className="p-3 text-right font-medium">סיבה</th>
+                                  <th className="p-3 text-right font-medium">מי שינה</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {standingOrders.flatMap((order: any) =>
+                                  (order.past_overrides || []).map((override: any) => (
+                                    <tr key={override.id} className="border-t">
+                                      <td className="p-3 whitespace-nowrap">{monthName(override.billing_month)}</td>
+                                      <td className="p-3 font-medium whitespace-nowrap">
+                                        {formatShekel(override.amount)}
+                                        {override.original_amount != null && (
+                                          <div className="text-xs text-muted-foreground font-normal line-through">
+                                            {formatShekel(override.original_amount)}
+                                          </div>
+                                        )}
+                                      </td>
+                                      <td className="p-3 text-sm break-words">{override.reason}</td>
+                                      <td className="p-3 text-sm text-muted-foreground whitespace-nowrap">
+                                        {override.created_by_name || '—'}
+                                      </td>
+                                    </tr>
+                                  )),
+                                )}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      )}
 
                       <div>
                         <h3 className="font-semibold text-lg mb-1">מסמכים</h3>
