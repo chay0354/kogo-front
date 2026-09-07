@@ -90,6 +90,26 @@ function isOneTimePayment(payment: {
   return desc.includes('דמי רישום') || desc.includes('ניסיון');
 }
 
+/**
+ * A charge worth showing on the card, one-time or monthly.
+ *
+ * The ₪0 rows that carry an extra day of a twice-a-week track are still left out:
+ * they exist so the child can be enrolled, and there is nothing to refund on them.
+ */
+function isRefundableCharge(payment: {
+  registration_fee?: unknown;
+  trial_lesson_date?: string | null;
+  payment_type?: string;
+  description?: string;
+  final_amount?: unknown;
+}): boolean {
+  if (isOneTimePayment(payment)) return true;
+  return (
+    payment.payment_type === 'recurring_subscription'
+    && Number(payment.final_amount || 0) > 0
+  );
+}
+
 function paymentStatusBadge(status: string): { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' } {
   if (status === 'completed') return { label: 'הושלם', variant: 'default' };
   if (status === 'refunded') return { label: 'זוכה', variant: 'secondary' };
@@ -123,12 +143,16 @@ function oneTimePaymentLabel(payment: {
   lesson_name?: string;
   registration_fee?: unknown;
   trial_lesson_date?: string | null;
+  payment_type?: string;
 }): string {
   if (payment.trial_lesson_date) {
     return payment.description || `שיעור ניסיון${payment.lesson_name ? ` · ${payment.lesson_name}` : ''}`;
   }
   if (Number(payment.registration_fee || 0) > 0 || String(payment.description || '').includes('דמי רישום')) {
     return `דמי רישום${payment.lesson_name ? ` · ${payment.lesson_name}` : ''}`;
+  }
+  if (payment.payment_type === 'recurring_subscription') {
+    return payment.description || `חיוב חודשי${payment.lesson_name ? ` · ${payment.lesson_name}` : ''}`;
   }
   return payment.description || payment.lesson_name || 'חיוב חד-פעמי';
 }
@@ -322,7 +346,10 @@ export default function ChildProfileDialog({
 
   const oneTimeCharges = useMemo(() => {
     const fromPayments = payments
-      .filter((payment) => isOneTimePayment(payment) && ['completed', 'refunded'].includes(payment.status))
+      // Monthly charges belong here too. The invoices screen has always let them be
+      // refunded; leaving them off the child's own card made it look as though a
+      // month could not be put right, and the office went looking elsewhere.
+      .filter((payment) => isRefundableCharge(payment) && ['completed', 'refunded'].includes(payment.status))
       .map((payment) => ({
         key: `payment-${payment.id}`,
         kind: 'payment' as const,
@@ -728,11 +755,13 @@ export default function ChildProfileDialog({
                   ) : (
                     <>
                       <div>
-                        <h3 className="font-semibold text-lg mb-1">חיובים חד פעמיים</h3>
-                        <p className="text-sm text-muted-foreground mb-3">דמי רישום ורכישות מהחנות</p>
+                        <h3 className="font-semibold text-lg mb-1">חיובים שבוצעו</h3>
+                        <p className="text-sm text-muted-foreground mb-3">
+                          דמי רישום, שיעורי ניסיון, רכישות מהחנות וחיובים חודשיים — כאן גם מזכים
+                        </p>
                         {oneTimeCharges.length === 0 ? (
                           <div className="border rounded-lg px-4 py-8 text-center text-muted-foreground">
-                            אין חיובים חד-פעמיים
+                            אין חיובים
                           </div>
                         ) : (
                           <div className="border rounded-lg overflow-hidden">
