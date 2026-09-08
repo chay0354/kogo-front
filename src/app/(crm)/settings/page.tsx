@@ -22,6 +22,7 @@ import InstructorLoginDiagnostics from './InstructorLoginDiagnostics';
 import IntegrationCredentials from './IntegrationCredentials';
 import PartnersSection from './PartnersSection';
 import BusinessTaxonomySection from './BusinessTaxonomySection';
+import TrialBlockedDatesSection from './TrialBlockedDatesSection';
 import CrossFade from '@/components/ui/CrossFade';
 
 type UserRole = 'manager' | 'worker' | 'partner';
@@ -269,6 +270,8 @@ export default function SettingsPage() {
       {isManager && <PartnersSection />}
 
       {isManager && <BusinessTaxonomySection />}
+
+      {isManager && <TrialBlockedDatesSection />}
 
       {isManager && <IntegrationCredentials />}
 

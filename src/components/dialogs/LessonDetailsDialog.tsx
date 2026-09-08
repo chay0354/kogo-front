@@ -62,6 +62,7 @@ function isTrialEnrollment(
   enrollment: {
     trial_lesson_date?: string | null;
     is_trial?: boolean;
+    trial_outcome?: 'attended' | 'no_show' | 'unmarked' | null;
     child_status?: string;
     child_name?: string;
   },
@@ -635,7 +636,15 @@ export default function LessonDetailsDialog({
                                     variant={isGhost ? 'destructive' : 'outline'}
                                     className={`text-[11px] ${isTrial && !isGhost ? 'bg-amber-100 text-amber-800 border-amber-200' : ''}`}
                                   >
-                                    {isGhost ? 'רפאים' : isTrial ? 'בניסיון' : 'רשום'}
+                                    {isGhost
+                                      ? 'רפאים'
+                                      : isTrial
+                                        ? (enrollment.trial_outcome === 'attended'
+                                            ? 'ניסיון · הגיע'
+                                            : enrollment.trial_outcome === 'no_show'
+                                              ? 'ניסיון · לא הגיע'
+                                              : 'בניסיון')
+                                        : 'רשום'}
                                   </Badge>
                                   {currentStatus === 'present' ? (
                                     <span className="text-xs text-emerald-700 flex items-center gap-1">

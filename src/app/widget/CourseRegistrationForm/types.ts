@@ -67,6 +67,7 @@ export type Step =
   | 'payment_success'
   | 'payment_failed'
   | 'payment_pending'
+  | 'trial_confirm'
   | 'trial_success';
 
 export interface LookupResult {

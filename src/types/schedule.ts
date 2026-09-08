@@ -45,6 +45,7 @@ export type LessonDetail = Lesson & {
     child_status?: string;
     trial_lesson_date?: string | null;
     is_trial?: boolean;
+    trial_outcome?: 'attended' | 'no_show' | 'unmarked' | null;
   }>;
   attendance: Array<{
     id: string;
