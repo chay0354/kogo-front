@@ -733,6 +733,18 @@ export default function CustomersPage() {
                                         </span>
                                       );
                                     })}
+                                    {group.slots.find((enrollment) => enrollment.scheduled_change)?.scheduled_change ? (() => {
+                                      const change = group.slots.find((enrollment) => enrollment.scheduled_change)!.scheduled_change!;
+                                      const [y, m, d] = change.effective_date.split('-').map(Number);
+                                      return (
+                                        <span
+                                          className="whitespace-nowrap rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-900"
+                                          title={`מתוזמן: ${change.target_label}${change.new_amount ? ` · ₪${change.new_amount}` : ''}`}
+                                        >
+                                          מתוזמן מ־{new Date(y, m - 1, d).toLocaleDateString('he-IL')}
+                                        </span>
+                                      );
+                                    })() : null}
                                     {group.slots.some((enrollment) => enrollment.lesson_id || enrollment.enrollment_id) ? (
                                       <button
                                         type="button"
@@ -949,7 +961,10 @@ export default function CustomersPage() {
           setChangingEnrollment(null);
           setChangingSlots([]);
         }}
-        onSaved={({ removedEnrollmentIds, enrollments: nextEnrollments }) => {
+        onSaved={({ removedEnrollmentIds, enrollments: nextEnrollments, applied, charged, foldedIntoNextMonth }) => {
+          if (applied === 'scheduled') toast.success('ההחלפה תוזמנה לתאריך החיוב הבא');
+          else if (charged) toast.success(`ההחלפה בוצעה · חויב הפרש יחסי ₪${charged}`);
+          else if (foldedIntoNextMonth) toast.success('ההחלפה בוצעה · ההפרש היחסי יצטרף לחיוב הבא');
           const removed = new Set(removedEnrollmentIds);
           const oldCourseId = changingEnrollment?.course_id;
           const isTrial = Boolean(changingEnrollment?.trial_lesson_date);
