@@ -3,22 +3,7 @@
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import type { Ref } from 'react';
-import {
-  Users,
-  BookOpen,
-  Calendar,
-  MapPin,
-  GraduationCap,
-  LayoutDashboard,
-  Settings,
-  ShoppingBag,
-  KeyRound,
-  MessageCircle,
-  FileText,
-  PanelRightClose,
-  PanelRightOpen,
-  LogOut,
-  CreditCard, Link2 } from 'lucide-react';
+import { Users, BookOpen, Calendar, MapPin, GraduationCap, LayoutDashboard, Settings, ShoppingBag, KeyRound, FileText, PanelRightClose, PanelRightOpen, LogOut } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/components/AuthProvider';
@@ -36,9 +21,6 @@ const MANAGER_MENU = [
   { name: 'מדריכים', href: '/instructors', icon: GraduationCap },
   { name: 'חנות', href: '/store', icon: ShoppingBag },
   { name: 'חשבוניות', href: '/invoices', icon: FileText },
-  { name: 'כרטיסי אשראי', href: '/credit-cards', icon: CreditCard },
-  { name: 'קישורי תשלום', href: '/payment-links', icon: Link2 },
-  { name: 'WhatsApp', href: '/whatsapp', icon: MessageCircle },
   { name: 'הגדרות', href: '/settings', icon: Settings },
 ];
 
@@ -153,7 +135,8 @@ export default function Sidebar({ mode, onToggle, onNavigate, toggleRef }: Sideb
         <ul className="space-y-2">
           {menuItems.map((item) => {
             const Icon = item.icon;
-            const isActive = pathname === item.href;
+            // A hub with sub-pages (הגדרות) stays lit on every page under it.
+            const isActive = pathname === item.href || (item.href !== '/' && pathname.startsWith(`${item.href}/`));
 
             return (
               <li key={item.href}>
