@@ -103,6 +103,8 @@ export interface Lesson {
   max_students?: number | null;
   status: 'scheduled' | 'completed' | 'cancelled';
   is_recurring: boolean;
+  /** null — follows the studio rule; true/false — this lesson's own answer. */
+  trial_registration_open?: boolean | null;
   notes: string;
 }
 
@@ -242,6 +244,8 @@ export interface CourseFormData {
   external_link?: string;
 }
 
+export type TrialRegistrationChoice = 'rule' | 'open' | 'closed';
+
 export interface LessonFormData {
   course: string;
   branch?: string;
@@ -256,5 +260,7 @@ export interface LessonFormData {
   instructor_salary_override?: number;
   max_students?: number;
   notes?: string;
+  /** 'rule' follows the studio-wide setting; 'open' / 'closed' is this lesson's own answer. */
+  trial_registration?: TrialRegistrationChoice;
 }
 

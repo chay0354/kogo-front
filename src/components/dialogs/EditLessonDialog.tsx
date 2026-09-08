@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import api, { fetchInstructorsDropdown } from '@/lib/api';
-import { LessonFormData, Lesson } from '@/types/course';
+import { LessonFormData, Lesson, TrialRegistrationChoice } from '@/types/course';
 import { addMinutesToTime, normalizeTimeValue } from '@/lib/timeUtils';
 import { TimeField } from '@/components/ui/time-picker';
 import InstructorSelect from '@/components/InstructorSelect';
@@ -26,6 +26,19 @@ interface EditLessonDialogProps {
   open: boolean;
   onClose: () => void;
   onSuccess: () => void;
+}
+
+/** The dialog's three-way answer from the lesson's nullable flag, and back. */
+function trialRegistrationValue(flag: boolean | null | undefined): TrialRegistrationChoice {
+  if (flag === true) return 'open';
+  if (flag === false) return 'closed';
+  return 'rule';
+}
+
+function trialRegistrationFlag(choice: TrialRegistrationChoice): boolean | null {
+  if (choice === 'open') return true;
+  if (choice === 'closed') return false;
+  return null;
 }
 
 function lessonInstructorId(lesson: Lesson): string {
@@ -74,6 +87,7 @@ export default function EditLessonDialog({
     start_time: lesson.start_time,
     end_time: lesson.end_time,
     notes: lesson.notes || '',
+    trial_registration: trialRegistrationValue(lesson.trial_registration_open),
   });
 
   const [instructors, setInstructors] = useState<InstructorOption[]>([]);
@@ -103,6 +117,7 @@ export default function EditLessonDialog({
         start_time: normalizeTimeValue(lesson.start_time, '16:00'),
         end_time: normalizeTimeValue(lesson.end_time, '16:45'),
         notes: lesson.notes || '',
+    trial_registration: trialRegistrationValue(lesson.trial_registration_open),
       });
     }
   }, [lesson]);
@@ -159,6 +174,7 @@ export default function EditLessonDialog({
         start_time: formData.start_time,
         end_time: formData.end_time,
         notes: formData.notes || '',
+        trial_registration_open: trialRegistrationFlag(formData.trial_registration ?? 'rule'),
         is_recurring: true,
         status: 'scheduled',
       });
@@ -308,6 +324,19 @@ export default function EditLessonDialog({
             </div>
 
             <div>
+              <label htmlFor="trial_registration" className="block text-sm font-medium text-gray-700 mb-1">
+                הרשמה לשיעור ניסיון
+              </label>
+              <select
+                id="trial_registration"
+                value={formData.trial_registration ?? 'rule'}
+                onChange={(e) => setFormData({ ...formData, trial_registration: e.target.value as TrialRegistrationChoice })}
+                className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm mb-4"
+              >
+                <option value="rule">לפי הכלל הכללי (הגדרות ← שיעורי ניסיון)</option>
+                <option value="open">פתוח — גם כשהכלל סגור</option>
+                <option value="closed">סגור — בלי כפתור ניסיון בווידג'ט</option>
+              </select>
               <label htmlFor="notes" className="block text-sm font-medium text-gray-700 mb-1">
                 הערות
               </label>

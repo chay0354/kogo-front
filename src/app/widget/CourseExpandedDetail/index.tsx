@@ -12,6 +12,7 @@ import {
   stripWidgetApprovalPhrase,
 } from '@/lib/courseUtils';
 import type { Course, CourseBundle, CourseLesson, CourseLessonPriceOption } from '../types';
+import { trialRegistrationOffered } from '../lessonVisibility';
 import type { WidgetAlternative } from '../alternativeLessons';
 import { MapPin, Users, CalendarDays, Coins, BadgePercent, X } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
@@ -456,11 +457,13 @@ export default function CourseExpandedDetail({
             <button type="button" onClick={requestEnroll} className={styles.enrollButton}>
               הירשם לחוג
             </button>
-            <button type="button" onClick={requestTrial} className={styles.trialButton}>
-              {course.trial_lesson_is_paid && course.trial_lesson_price != null
-                ? `הרשמה לניסיון (${formatShekel(course.trial_lesson_price)})`
-                : 'הרשמה לניסיון'}
-            </button>
+            {trialRegistrationOffered(lesson, bundleOffer) && (
+              <button type="button" onClick={requestTrial} className={styles.trialButton}>
+                {course.trial_lesson_is_paid && course.trial_lesson_price != null
+                  ? `הרשמה לניסיון (${formatShekel(course.trial_lesson_price)})`
+                  : 'הרשמה לניסיון'}
+              </button>
+            )}
           </div>
         )}
       </div>

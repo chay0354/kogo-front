@@ -10,7 +10,7 @@ import { CourseList } from './CourseList/CourseList';
 import type { Branch, Course, CourseBundle, CourseLesson, CourseLessonPriceOption } from './types';
 import type { SavedParentDetails } from './CourseRegistrationForm/types';
 import { STATIC_CITIES, resolveWidgetExternalLink, hideSeptemberStandingOrderNote } from './page.utils';
-import { isCourseVisibleInWidgetCatalog } from './lessonVisibility';
+import { isCourseVisibleInWidgetCatalog , trialLessonChoices } from './lessonVisibility';
 import { AGE_OPTIONS, formatAge, isInstructorsCourse, INSTRUCTORS_TRACK_TITLE } from '@/lib/courseUtils';
 import { findWidgetAlternatives, isWidgetSelectionFull, type WidgetAlternative } from './alternativeLessons';
 import { sortWidgetCourseTypes } from './courseTypeOrder';
@@ -929,7 +929,7 @@ export default function WidgetPage() {
                   bundleId={drawerBundle?.id}
                   lessonId={drawerLesson?.id}
                   priceOptionId={drawerPriceOption?.id}
-                  trialLessonOptions={drawerLesson ? [] : (drawerBundle?.lessons ?? [])}
+                  trialLessonOptions={drawerLesson ? [] : trialLessonChoices(drawerBundle)}
                   isTrial={drawerIsTrial}
                   trialLessonIsPaid={drawerCourse.trial_lesson_is_paid ?? false}
                   trialLessonPrice={

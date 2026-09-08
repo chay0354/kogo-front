@@ -29,6 +29,8 @@ export interface CourseLesson {
   available_spots?: number | null;
   is_full?: boolean;
   price_options?: CourseLessonPriceOption[];
+  /** False when the office closed trial bookings on this lesson (or the studio rule did). */
+  trial_registration_open?: boolean;
 }
 
 export interface CourseLessonPriceOption {
@@ -48,6 +50,7 @@ export interface CourseBundleLesson {
   instructor_name?: string | null;
   /** Served from its own cached endpoint; null falls back to the placeholder. */
   instructor_photo_url?: string | null;
+  trial_registration_open?: boolean;
 }
 
 export interface CourseBundle {
