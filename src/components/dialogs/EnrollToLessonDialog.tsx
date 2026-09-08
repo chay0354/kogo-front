@@ -9,6 +9,7 @@ import SubscriptionPaymentDialog from './SubscriptionPaymentDialog';
 import RegisterChecksDialog from '@/app/(crm)/invoices/RegisterChecksDialog';
 import dialogMotion from '@/components/ui/motion.module.css';
 import { useDialogExit } from '@/components/ui/motion';
+import { isTrialEnrollment } from '@/lib/customerUtils';
 
 interface EnrollToLessonDialogProps {
   child: ChildWithDetails;
@@ -384,7 +385,7 @@ export default function EnrollToLessonDialog({ child, isOpen, onClose: dismiss, 
 
   const existingCourseIds = new Set(
     child.enrollments
-      .filter((e) => BILLING_ENROLLMENT_STATUSES.has(e.status))
+      .filter((e) => BILLING_ENROLLMENT_STATUSES.has(e.status) && !isTrialEnrollment(e))
       .map((e) => e.course_id)
   );
 
