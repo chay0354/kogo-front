@@ -105,6 +105,10 @@ export interface CustomerFilters {
   branch: string;
   course_type: string;
   course: string;
+  /** One slot of the chosen course (lesson id) — only meaningful when `course` is set. */
+  lesson: string;
+  /** 0 = Sunday … 6 = Saturday, as the backend's Lesson.day_of_week. */
+  day_of_week: string;
   instructor: string;
   status: string;
   absent_irregularly: string;

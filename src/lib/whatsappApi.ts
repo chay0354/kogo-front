@@ -179,3 +179,87 @@ export function saveTalkedContactKey(key: string) {
   set.add(key);
   localStorage.setItem(TALKED_STORAGE_KEY, JSON.stringify([...set]));
 }
+
+// ---------------------------------------------------------------------------
+// Broadcast from the customers page (children, not bare contacts)
+// ---------------------------------------------------------------------------
+
+/**
+ * How many children go in one request. A personalised Kogo template (kind)
+ * costs several ManyChat calls plus a settle sleep per parent, so the chunk
+ * stays small enough to answer before the serverless timeout; a plain flow is
+ * cheaper. Raising `maxDuration` in kogo-back/vercel.json allows larger chunks.
+ */
+export const BROADCAST_CHUNK_KIND = 4;
+export const BROADCAST_CHUNK_FLOW = 8;
+
+export type BroadcastRowStatus = 'sent' | 'failed' | 'preview' | 'skipped';
+
+export type BroadcastRow = {
+  child_id: string;
+  child_name: string;
+  parent_name: string;
+  phone: string;
+  status: BroadcastRowStatus;
+  reason?: 'no_parent_phone' | 'duplicate_phone' | 'no_active_lesson' | null;
+  method?: string | null;
+  error?: string | null;
+};
+
+export type BroadcastResult = {
+  dry_run: boolean;
+  automation_type: 'kind' | 'flow';
+  automation_id: string;
+  automation_label?: string | null;
+  total: number;
+  sent: number;
+  failed: number;
+  skipped: number;
+  preview_count: number;
+  missing: number;
+  /** E.164 phones this request used — pass back as skip_phones so siblings across chunks get one message. */
+  phones: string[];
+  results: BroadcastRow[];
+};
+
+export function broadcastChunkSize(automationType: 'kind' | 'flow') {
+  return automationType === 'kind' ? BROADCAST_CHUNK_KIND : BROADCAST_CHUNK_FLOW;
+}
+
+export function chunkIds(ids: string[], size: number): string[][] {
+  const out: string[][] = [];
+  for (let i = 0; i < ids.length; i += size) out.push(ids.slice(i, i + size));
+  return out;
+}
+
+/** One chunk. `dry_run` defaults to true on the server as well — a real send is always explicit. */
+export async function broadcastToChildren(payload: {
+  child_ids: string[];
+  automation_type: 'kind' | 'flow';
+  automation_id: string;
+  dry_run: boolean;
+  skip_phones?: string[];
+  /** The lesson / weekday the audience was filtered by (see the server's hint handling). */
+  lesson_id?: string;
+  day_of_week?: number;
+}) {
+  const res = await api.post('/customers/children/broadcast/', payload, { timeout: 120_000 });
+  return res.data as BroadcastResult;
+}
+
+export function automationOptionValue(a: Pick<WhatsAppAutomation, 'automation_type' | 'automation_id'>) {
+  return `${a.automation_type}:${a.automation_id}`;
+}
+
+export function parseAutomationValue(value: string): Pick<WhatsAppAutomation, 'automation_type' | 'automation_id'> | null {
+  const idx = value.indexOf(':');
+  if (idx < 0) return null;
+  const automation_type = value.slice(0, idx);
+  const automation_id = value.slice(idx + 1);
+  if ((automation_type !== 'kind' && automation_type !== 'flow') || !automation_id) return null;
+  return { automation_type, automation_id };
+}
+
+export function automationDisplayLabel(a: WhatsAppAutomation) {
+  return a.kogo_label && a.kogo_label !== a.label ? `${a.label} · ${a.kogo_label}` : a.label;
+}
