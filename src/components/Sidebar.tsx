@@ -18,8 +18,7 @@ import {
   PanelRightClose,
   PanelRightOpen,
   LogOut,
-  CreditCard,
-} from 'lucide-react';
+  CreditCard, Link2 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/components/AuthProvider';
@@ -38,6 +37,7 @@ const MANAGER_MENU = [
   { name: 'חנות', href: '/store', icon: ShoppingBag },
   { name: 'חשבוניות', href: '/invoices', icon: FileText },
   { name: 'כרטיסי אשראי', href: '/credit-cards', icon: CreditCard },
+  { name: 'קישורי תשלום', href: '/payment-links', icon: Link2 },
   { name: 'WhatsApp', href: '/whatsapp', icon: MessageCircle },
   { name: 'הגדרות', href: '/settings', icon: Settings },
 ];
@@ -51,7 +51,7 @@ const MANUAL_ITEM = { name: 'ספר-מערכת', href: '/manual', icon: BookOpen
 
 const PARTNER_MENU = [
   ...MANAGER_MENU.filter(
-    (item) => !['/settings', '/whatsapp', '/credit-cards'].includes(item.href)
+    (item) => !['/settings', '/whatsapp', '/credit-cards', '/payment-links'].includes(item.href)
   ),
   MANUAL_ITEM,
 ];

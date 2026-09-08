@@ -132,7 +132,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
     }
 
     if (user.role === 'partner') {
-      const blocked = ['/settings', '/partners', '/whatsapp', '/discounts', '/credit-charge'];
+      const blocked = ['/settings', '/partners', '/whatsapp', '/discounts', '/credit-charge', '/payment-links'];
       if (blocked.some((path) => pathname === path || pathname.startsWith(`${path}/`))) {
         router.replace('/');
       }

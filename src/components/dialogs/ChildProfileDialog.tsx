@@ -34,6 +34,8 @@ import RefundDialog from '@/components/dialogs/RefundDialog';
 import EditStandingOrderDialog from '@/components/dialogs/EditStandingOrderDialog';
 import { upcomingCharges, type UpcomingCharge } from '@/components/dialogs/upcomingCharges';
 import EditMonthAmountDialog from '@/components/dialogs/EditMonthAmountDialog';
+import SendCardLinkDialog from '@/components/dialogs/SendCardLinkDialog';
+import { useAuth } from '@/components/AuthProvider';
 
 interface ChildProfileDialogProps {
   child: ChildWithDetails;
@@ -166,6 +168,9 @@ export default function ChildProfileDialog({
   onRemovedFromCourse,
   onOpenSibling,
 }: ChildProfileDialogProps) {
+  const [cardLinkOpen, setCardLinkOpen] = useState(false);
+  const { user: authUser } = useAuth();
+  const canSendCardLink = authUser?.role === 'manager';
   const [absences, setAbsences] = useState<AbsenceRecord[]>([]);
   const [loadingAbsences, setLoadingAbsences] = useState(false);
   const [payments, setPayments] = useState<any[]>([]);
@@ -765,7 +770,14 @@ export default function ChildProfileDialog({
                   ) : (
                     <>
                       <div>
-                        <h3 className="font-semibold text-lg mb-1">חיובים שבוצעו</h3>
+                        <div className="flex items-start justify-between gap-3 mb-1">
+                          <h3 className="font-semibold text-lg">חיובים שבוצעו</h3>
+                          {canSendCardLink && (
+                            <Button type="button" variant="outline" size="sm" onClick={() => setCardLinkOpen(true)}>
+                              קישור להזנת כרטיס
+                            </Button>
+                          )}
+                        </div>
                         <p className="text-sm text-muted-foreground mb-3">
                           דמי רישום, שיעורי ניסיון, רכישות מהחנות וחיובים חודשיים — כאן גם מזכים
                         </p>
@@ -1092,6 +1104,7 @@ export default function ChildProfileDialog({
     </Dialog>
     
     {/* Refund Dialog */}
+    {canSendCardLink && <SendCardLinkDialog open={cardLinkOpen} onOpenChange={setCardLinkOpen} child={child} />}
     {refundItem && (
       <RefundDialog
         isOpen={refundDialogOpen}
