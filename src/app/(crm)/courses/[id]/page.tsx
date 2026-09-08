@@ -439,7 +439,11 @@ export default function CourseTypeDetailsPage() {
                 const courseStudentCount = course.course_enrollment_count ?? 0;
                 const capacity = course.capacity || 0;
                 const studentsDisplay = capacity > 0 ? `${courseStudentCount}/${capacity}` : String(courseStudentCount);
-                const enrollmentDisplay = studentsDisplay;
+                // Per-lesson headcount from lessons_detail: active paying students on that
+                // specific lesson (bundle members included, trial signups excluded). The
+                // course-level number above is distinct children across all days, so it must
+                // not be repeated on every lesson row. Just the number — no capacity here.
+                const lessonEnrollmentDisplay = (lesson: any) => String(lesson.enrolled_count ?? 0);
 
                 return (
                   <div
@@ -594,7 +598,7 @@ export default function CourseTypeDetailsPage() {
                                         <div className={styles.lessonInstructor}>{lesson.room.name}</div>
                                       )}
                                     </td>
-                                    <td className={styles.td}>{enrollmentDisplay}</td>
+                                    <td className={styles.td}>{lessonEnrollmentDisplay(lesson)}</td>
                                     <td className={`${styles.td} ${styles.tdCenter}`}>
                                       <div className={styles.lessonActionButtons}>
                                         <button
