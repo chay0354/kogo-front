@@ -525,7 +525,7 @@ export default function InvoicesPage() {
                 צ׳קים
               </button>
               {isManager && (
-                <Link href="/credit-charge" className={`${styles.tabBtn} ${styles.tabLink}`}>
+                <Link href="/settings/billing" className={`${styles.tabBtn} ${styles.tabLink}`}>
                   סליקת אשראי
                 </Link>
               )}

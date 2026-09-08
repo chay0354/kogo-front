@@ -1,9 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import Link from 'next/link';
 
-import PageHeader from '@/components/PageHeader';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useAuth } from '@/components/AuthProvider';
@@ -56,22 +54,17 @@ export default function TermsEditorPage() {
 
   return (
     <>
-      <PageHeader
-        title="עריכת תקנון"
-        description="תקנון הרישום שמוצג בווידג'ט ובטופס ההרשמה"
-        actions={
-          isManager ? (
-            <>
-              <Link href="/settings">
-                <Button variant="outline">חזרה להגדרות</Button>
-              </Link>
-              <Button variant="gradient" onClick={save} disabled={saving || loading}>
-                {saving ? 'שומר...' : 'שמור'}
-              </Button>
-            </>
-          ) : undefined
-        }
-      />
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 className="text-xl font-semibold">עריכת תקנון</h2>
+          <p className="text-sm text-muted-foreground">התקנון שההורה רואה בווידג'ט ובטופס ההרשמה</p>
+        </div>
+        {isManager && (
+          <Button variant="gradient" onClick={save} disabled={saving || loading}>
+            {saving ? 'שומר...' : 'שמור'}
+          </Button>
+        )}
+      </div>
 
       <div className="card">
         {!isManager ? (
