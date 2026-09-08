@@ -1,7 +1,9 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Users, MoreHorizontal, Eye, Edit, UserPlus, Trash2, UserCheck, Search } from 'lucide-react';
+import { Users, MoreHorizontal, Eye, Edit, UserPlus, Trash2, UserCheck, Search, MessageCircle } from 'lucide-react';
+import { toast } from 'sonner';
+import BroadcastWhatsAppDialog from '@/components/dialogs/BroadcastWhatsAppDialog';
 import PageHeader from '@/components/PageHeader';
 import { TableSkeleton } from '@/components/ui/skeleton';
 import api, { fetchInstructorsDropdown } from '@/lib/api';
@@ -40,6 +42,8 @@ function childrenListParams(filters: CustomerFilters, page: number) {
   if (filters.city !== 'all') params.append('city', filters.city);
   if (filters.course_type !== 'all') params.append('course_type', filters.course_type);
   if (filters.course !== 'all') params.append('course', filters.course);
+  if (filters.course !== 'all' && filters.lesson !== 'all') params.append('lesson', filters.lesson);
+  if (filters.day_of_week !== 'all') params.append('day_of_week', filters.day_of_week);
   if (filters.instructor !== 'all') params.append('instructor', filters.instructor);
   if (filters.status !== 'all') params.append('status', filters.status);
   if (filters.absent_irregularly !== 'all') params.append('absent_irregularly', filters.absent_irregularly);
@@ -63,12 +67,38 @@ const ABSENCE_OPTIONS = [
   { value: 'false', label: 'ללא היעדרות חריגה' },
 ];
 
+const DAY_OPTIONS = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שבת'].map((label, value) => ({
+  value: String(value),
+  label,
+}));
+
+type LessonOption = {
+  id: string;
+  day_of_week: number;
+  start_time?: string | null;
+  end_time?: string | null;
+  instructor_name?: string | null;
+  instructor?: { full_name?: string } | null;
+};
+
+function lessonOptionLabel(lesson: LessonOption) {
+  const day = DAY_OPTIONS[lesson.day_of_week]?.label ?? '';
+  const time = [lesson.start_time, lesson.end_time]
+    .filter(Boolean)
+    .map((t) => String(t).slice(0, 5))
+    .join('–');
+  const instructor = lesson.instructor_name || lesson.instructor?.full_name || '';
+  return [day, time, instructor].filter(Boolean).join(' · ');
+}
+
 const EMPTY_CUSTOMER_FILTERS: CustomerFilters = {
   search: '',
   city: 'all',
   branch: 'all',
   course_type: 'all',
   course: 'all',
+  lesson: 'all',
+  day_of_week: 'all',
   instructor: 'all',
   status: 'all',
   absent_irregularly: 'all',
@@ -88,6 +118,15 @@ export default function CustomersPage() {
   const [courseTypes, setCourseTypes] = useState<CourseTypeOption[]>([]);
   const [courses, setCourses] = useState<Course[]>([]);
   const [instructors, setInstructors] = useState<Instructor[]>([]);
+  const [lessons, setLessons] = useState<LessonOption[]>([]);
+
+  // Broadcast selection: ids survive filter and page changes on purpose, so the
+  // office can build one audience out of several filter passes.
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
+  const [selectedNames, setSelectedNames] = useState<Record<string, string>>({});
+  const [broadcastOpen, setBroadcastOpen] = useState(false);
+  const [selectingAll, setSelectingAll] = useState(false);
+  const isManager = user?.role === 'manager';
   
   // Active filters - default to all statuses so newly added children
   // (created with status='pending') are visible immediately.
@@ -122,6 +161,33 @@ export default function CustomersPage() {
     () => instructors.map((i: any) => ({ value: i.id, label: i.full_name })),
     [instructors],
   );
+  const lessonOptions = useMemo(
+    () => lessons.map((lesson) => ({ value: lesson.id, label: lessonOptionLabel(lesson) })),
+    [lessons],
+  );
+
+  // The lesson filter lists the slots of the chosen course only.
+  useEffect(() => {
+    if (!user || filters.course === 'all') {
+      setLessons([]);
+      return;
+    }
+    let stale = false;
+    (async () => {
+      try {
+        const res = await api.get('/courses/lessons/', { params: { course: filters.course, page_size: 200 } });
+        if (stale) return;
+        const rows: LessonOption[] = res.data?.results ?? res.data ?? [];
+        rows.sort((a, b) => a.day_of_week - b.day_of_week || String(a.start_time || '').localeCompare(String(b.start_time || '')));
+        setLessons(rows);
+      } catch {
+        if (!stale) setLessons([]);
+      }
+    })();
+    return () => {
+      stale = true;
+    };
+  }, [user, filters.course]);
   
   // Dialog states
   const [selectedChild, setSelectedChild] = useState<ChildWithDetails | null>(null);
@@ -227,11 +293,73 @@ export default function CustomersPage() {
           next.course = 'all';
         }
       }
+      if (key === 'course' || next.course === 'all') {
+        next.lesson = 'all';
+      }
       return next;
     });
     setChildrenPage(1);
   };
   
+  // ---- Broadcast selection ----
+  const toggleSelected = (child: ChildWithDetails) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(child.id)) next.delete(child.id);
+      else next.add(child.id);
+      return next;
+    });
+    setSelectedNames((prev) => (prev[child.id] ? prev : { ...prev, [child.id]: child.full_name }));
+  };
+  const pageAllSelected = children.length > 0 && children.every((c) => selectedIds.has(c.id));
+  const pageSomeSelected = children.some((c) => selectedIds.has(c.id));
+  const togglePage = () => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (pageAllSelected) children.forEach((c) => next.delete(c.id));
+      else children.forEach((c) => next.add(c.id));
+      return next;
+    });
+    setSelectedNames((prev) => {
+      const next = { ...prev };
+      children.forEach((c) => { next[c.id] = c.full_name; });
+      return next;
+    });
+  };
+  const clearSelection = () => {
+    setSelectedIds(new Set());
+    setSelectedNames({});
+  };
+  // "Select all N results": the server answers with every id behind the
+  // current filters (the same query that pages), never just the 20 on screen.
+  const selectAllMatching = async () => {
+    setSelectingAll(true);
+    try {
+      const params = childrenListParams(filters, 1);
+      params.delete('page');
+      const res = await api.get(`/customers/children/ids/?${params.toString()}`);
+      const ids: string[] = res.data?.ids ?? [];
+      setSelectedIds((prev) => {
+        const next = new Set(prev);
+        ids.forEach((id) => next.add(id));
+        return next;
+      });
+      setSelectedNames((prev) => {
+        const next = { ...prev };
+        children.forEach((c) => { next[c.id] = c.full_name; });
+        return next;
+      });
+      if (res.data?.capped) {
+        toast.warning('נבחרו 2,000 הראשונים בלבד — צמצמו את הסינון לבחירה מלאה');
+      }
+    } catch {
+      toast.error('בחירת כל התוצאות נכשלה');
+    } finally {
+      setSelectingAll(false);
+    }
+  };
+  const selectedIdList = useMemo(() => Array.from(selectedIds), [selectedIds]);
+
   // Handler functions
   const handleViewProfile = (child: ChildWithDetails) => {
     setSelectedChild(child);
@@ -370,6 +498,8 @@ export default function CustomersPage() {
               { key: 'branch', label: 'סניפים', options: branchOptions },
               { key: 'course_type', label: 'תחומים', options: courseTypeOptions },
               { key: 'course', label: 'חוגים', options: courseOptions },
+              ...(filters.course !== 'all' ? [{ key: 'lesson' as const, label: 'שיעורים', options: lessonOptions }] : []),
+              { key: 'day_of_week', label: 'ימים', options: DAY_OPTIONS },
               { key: 'instructor', label: 'מדריכים', options: instructorOptions },
               { key: 'status', label: 'כל הסטטוסים', options: STATUS_OPTIONS },
               { key: 'absent_irregularly', label: 'היעדרות חריגה', options: ABSENCE_OPTIONS },
@@ -417,6 +547,28 @@ export default function CustomersPage() {
                       </>
                     );
                   })()}
+                  {isManager && (
+                    <span className="mr-2 inline-flex flex-wrap items-center gap-2">
+                      {selectedIds.size > 0 && (
+                        <span className="font-medium text-foreground">· נבחרו {selectedIds.size}</span>
+                      )}
+                      {selectedIds.size < childrenTotalCount && (
+                        <button
+                          type="button"
+                          className="text-primary hover:underline disabled:opacity-50"
+                          onClick={selectAllMatching}
+                          disabled={selectingAll}
+                        >
+                          {selectingAll ? 'בוחר…' : `בחר את כל ${childrenTotalCount} התוצאות`}
+                        </button>
+                      )}
+                      {selectedIds.size > 0 && (
+                        <button type="button" className="text-muted-foreground hover:underline" onClick={clearSelection}>
+                          נקה בחירה
+                        </button>
+                      )}
+                    </span>
+                  )}
                 </div>
                 <div className="flex items-center gap-2">
                   <button
@@ -441,6 +593,17 @@ export default function CustomersPage() {
                 <table className="table table-compact">
                 <thead>
                   <tr className="bg-muted/50">
+                    {isManager && (
+                      <th className="w-10 text-center">
+                        <input
+                          type="checkbox"
+                          aria-label={pageAllSelected ? 'בטל בחירת העמוד' : 'בחר את כל העמוד'}
+                          checked={pageAllSelected}
+                          ref={(el) => { if (el) el.indeterminate = !pageAllSelected && pageSomeSelected; }}
+                          onChange={togglePage}
+                        />
+                      </th>
+                    )}
                     <th>שם הילד</th>
                     <th className="col-hide-mobile">טלפון</th>
                     <th className="col-hide-mobile">סניף</th>
@@ -458,9 +621,21 @@ export default function CustomersPage() {
                     return (
                       <tr 
                         key={child.id}
-                        className="hover:bg-muted/30 cursor-pointer transition-colors animate-slide-up"
+                        className={`hover:bg-muted/30 cursor-pointer transition-colors animate-slide-up${selectedIds.has(child.id) ? ' bg-primary/5' : ''}`}
                         style={{ animationDelay: `${index * 50}ms` }}
+                        onClick={isManager ? () => toggleSelected(child) : undefined}
+                        aria-selected={isManager ? selectedIds.has(child.id) : undefined}
                       >
+                        {isManager && (
+                          <td className="text-center" onClick={(e) => e.stopPropagation()}>
+                            <input
+                              type="checkbox"
+                              aria-label={`בחר את ${child.full_name}`}
+                              checked={selectedIds.has(child.id)}
+                              onChange={() => toggleSelected(child)}
+                            />
+                          </td>
+                        )}
                         {/* Child Name */}
                         <td>
                           <div className="flex items-center gap-2">
@@ -645,6 +820,47 @@ export default function CustomersPage() {
         </CrossFade>
       </div>
       
+      {/* Floating broadcast bar — bottom-left, managers only, once something is selected */}
+      {isManager && selectedIds.size > 0 && (
+        <div className="fixed bottom-6 left-6 z-40">
+          <div className="flex items-center gap-4 rounded-full bg-gray-900 text-white shadow-xl px-5 py-3" dir="rtl">
+            <div className="flex items-center gap-2">
+              <div className="relative">
+                <MessageCircle className="h-5 w-5" />
+                <span className="absolute -top-2 -right-2.5 h-5 min-w-5 px-1 rounded-full bg-teal-500 text-[11px] font-bold flex items-center justify-center">
+                  {selectedIds.size}
+                </span>
+              </div>
+              <span className="text-sm font-semibold">נבחרו {selectedIds.size}</span>
+            </div>
+            <button
+              type="button"
+              className="rounded-full bg-teal-500 hover:bg-teal-600 text-white text-sm font-medium px-4 py-1.5"
+              onClick={() => setBroadcastOpen(true)}
+            >
+              שליחת WhatsApp
+            </button>
+            <button
+              type="button"
+              className="text-xs text-gray-300 hover:text-white transition-colors"
+              onClick={clearSelection}
+            >
+              נקה
+            </button>
+          </div>
+        </div>
+      )}
+
+      {isManager && (
+        <BroadcastWhatsAppDialog
+          open={broadcastOpen}
+          onOpenChange={setBroadcastOpen}
+          childIds={selectedIdList}
+          childNames={selectedNames}
+          onSent={clearSelection}
+        />
+      )}
+
       {/* Dialogs */}
       {selectedChild && (
         <>

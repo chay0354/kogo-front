@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import PageHeader from '@/components/PageHeader';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -287,6 +288,16 @@ export default function WhatsAppPage() {
               : 'ממתין להגדרת ManyChat בשרת'
           }
         />
+
+        {/* The broadcast moved to the customers page (filters → select → floating button). This page is kept
+            one more cycle so nothing the office relies on disappears overnight, then removed. */}
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 flex flex-wrap items-center gap-2">
+          <span>
+            התפוצה עברה ל<Link href="/customers" className="font-semibold underline">עמוד הלקוחות</Link>: מסננים, בוחרים
+            (או "בחר את כל התוצאות"), ולוחצים על הכפתור הצף. שם ההודעות יוצאות עם פרטי החוג של כל ילד.
+          </span>
+          <span className="text-amber-800/80">העמוד הזה יוסר במחזור הבא.</span>
+        </div>
 
         {apiError && configured === false && (
           <div className="rounded-lg border border-destructive/40 bg-destructive/10 p-4 text-sm text-destructive">
