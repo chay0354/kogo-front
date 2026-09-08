@@ -1,7 +1,8 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
+import Link from 'next/link';
 
 import api from '@/lib/api';
 import { Button } from '@/components/ui/button';
@@ -161,4 +162,199 @@ export default function SettingsUsersPage() {
     }
   };
 
+
+  const shown = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return users;
+    return users.filter((u) =>
+      [u.email, u.username, u.first_name, u.last_name]
+        .filter(Boolean)
+        .some((v) => String(v).toLowerCase().includes(q)),
+    );
+  }, [users, search]);
+
+  return (
+    <>
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 className="text-xl font-semibold">משתמשים</h2>
+          <p className="text-sm text-muted-foreground">כניסות למערכת ותפקידים — מנהל בלבד</p>
+        </div>
+        {isManager && (
+          <Button variant="gradient" onClick={openCreate}>
+            משתמש חדש
+          </Button>
+        )}
+      </div>
+
+      <CrossFade swapKey={!isManager ? 'denied' : loading ? 'loading' : 'ready'} className="card">
+        {!isManager ? (
+          <p className="text-muted-foreground">אין הרשאה</p>
+        ) : loading ? (
+          <TableSkeleton columns={5} rows={6} tableClassName="min-w-full text-sm" label="טוען משתמשים" />
+        ) : (
+          <>
+            {error && (
+              <div className="mb-4 rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+                {error}
+              </div>
+            )}
+
+            <div className="mb-3 flex items-center gap-3">
+              <input
+                type="search"
+                className="h-9 w-full max-w-xs rounded-lg border border-gray-200 bg-white px-3 text-sm"
+                placeholder="חיפוש לפי שם או שם משתמש"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                aria-label="חיפוש משתמשים"
+              />
+              <span className="text-xs text-muted-foreground">
+                {search ? `${shown.length} מתוך ${users.length}` : `${users.length} משתמשים`}
+              </span>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="min-w-full text-sm">
+                <thead>
+                  <tr className="border-b">
+                    <th className="text-right py-2">שם משתמש</th>
+                    <th className="text-right py-2">שם</th>
+                    <th className="text-right py-2">תפקיד</th>
+                    <th className="text-right py-2">סטטוס</th>
+                    <th className="text-left py-2">פעולות</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {shown.map((u) => (
+                    <tr key={u.id} className="border-b">
+                      <td className="py-2">{u.email || u.username || '—'}</td>
+                      <td className="py-2">{`${u.first_name || ''} ${u.last_name || ''}`.trim() || '—'}</td>
+                      <td className="py-2">{roleLabel(u.role_display)}</td>
+                      <td className="py-2">{u.is_active ? 'פעיל' : 'מושבת'}</td>
+                      <td className="py-2 text-left">
+                        <Button variant="outline" size="sm" onClick={() => openEdit(u)}>
+                          ערוך
+                        </Button>
+                      </td>
+                    </tr>
+                  ))}
+                  {shown.length === 0 && (
+                    <tr>
+                      <td className="py-4 text-muted-foreground" colSpan={5}>
+                        אין משתמשים להצגה
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </>
+        )}
+      </CrossFade>
+
+      {isManager && <PartnersSection />}
+
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <DialogTitle className="text-lg">{editing ? 'עריכת משתמש' : 'יצירת משתמש'}</DialogTitle>
+                <DialogDescription>רק מנהל יכול לנהל משתמשים והרשאות.</DialogDescription>
+              </div>
+              <DialogCloseButton />
+            </div>
+          </DialogHeader>
+
+          <div className="px-6 pb-6 pt-4 space-y-4">
+            {error && (
+              <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+                {error}
+              </div>
+            )}
+
+            <div>
+              <label className="block text-sm font-medium mb-1">שם משתמש / אימייל</label>
+              <input
+                type="text"
+                className="w-full rounded-lg border border-gray-200 px-3 py-2 bg-white"
+                value={formEmail}
+                onChange={(e) => setFormEmail(e.target.value)}
+                required
+                autoComplete="username"
+              />
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-sm font-medium mb-1">שם פרטי</label>
+                <input
+                  className="w-full rounded-lg border border-gray-200 px-3 py-2 bg-white"
+                  value={formFirst}
+                  onChange={(e) => setFormFirst(e.target.value)}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">שם משפחה</label>
+                <input
+                  className="w-full rounded-lg border border-gray-200 px-3 py-2 bg-white"
+                  value={formLast}
+                  onChange={(e) => setFormLast(e.target.value)}
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-sm font-medium mb-1">תפקיד</label>
+                <select
+                  className="w-full rounded-lg border border-gray-200 px-3 py-2 bg-white"
+                  value={formRole}
+                  onChange={(e) => setFormRole(e.target.value as UserRole)}
+                >
+                  <option value="manager">Manager</option>
+                  <option value="worker">Worker</option>
+                </select>
+              </div>
+              <div className="flex items-end">
+                <label className="flex items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={formActive}
+                    onChange={(e) => setFormActive(e.target.checked)}
+                  />
+                  פעיל
+                </label>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium mb-1">
+                סיסמה {editing ? '(אופציונלי)' : '(נדרש)'}
+              </label>
+              <input
+                type="password"
+                className="w-full rounded-lg border border-gray-200 px-3 py-2 bg-white"
+                value={formPassword}
+                onChange={(e) => setFormPassword(e.target.value)}
+                placeholder={editing ? 'השאר ריק כדי לא לשנות' : ''}
+              />
+            </div>
+
+            <LinkedUsersSection user={editing} allUsers={users} />
+
+            <div className="flex justify-end gap-2 pt-2">
+              <Button variant="outline" onClick={() => setDialogOpen(false)} disabled={saving}>
+                ביטול
+              </Button>
+              <Button variant="gradient" onClick={saveUser} disabled={saving}>
+                {saving ? 'שומר...' : 'שמור'}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
 }
