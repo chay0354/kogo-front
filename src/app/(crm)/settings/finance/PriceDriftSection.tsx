@@ -51,7 +51,7 @@ export default function PriceDriftSection() {
         <div>
           <h2 className="text-base font-semibold">הוראות קבע שסכומן שונה ממחיר החוג</h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            קריאה בלבד. ילד שהועבר בעבר ליחידה יקרה או זולה יותר בלי שהסכום עודכן — או חוג שמחירו השתנה. תיקון: דרך "החלפת חוג" בדף הלקוחות (הצעת מחיר ואישור) או עריכת הוראת הקבע בכרטיס הילד.
+            קריאה בלבד. ילד שהועבר בעבר ליחידה יקרה או זולה יותר בלי שהסכום עודכן — או חוג שמחירו השתנה. המחיר הצפוי מחושב לפי ההנחות שבתוקף היום (הנחה שפגה מאז ההרשמה תופיע כאן כסטייה). תיקון: דרך "החלפת חוג" בדף הלקוחות (הצעת מחיר ואישור) או עריכת הוראת הקבע בכרטיס הילד.
           </p>
         </div>
         <button type="button" className="btn-secondary flex items-center gap-1 text-sm" onClick={() => void load()} disabled={loading}>

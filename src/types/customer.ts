@@ -25,6 +25,8 @@ export interface EnrollmentDetail {
     target_label: string;
     old_amount: string | null;
     new_amount: string | null;
+    /** Set when the cron could not move the child on the date (a full or cancelled lesson). */
+    last_error?: string;
   } | null;
 }
 
@@ -41,7 +43,13 @@ export interface ChangeLessonQuote {
   remaining_occurrences: number;
   total_occurrences: number;
   effective_date: string | null;
+  /** False for a legacy order not billed on the 1st — a priced change is refused. */
+  effective_on_first: boolean;
   has_saved_card: boolean;
+  /** A different amount already waiting for the next cycle; this change replaces it. */
+  pending_amount: string | null;
+  pending_effective_date: string | null;
+  clears_pending: boolean;
   blocked: string;
   pending_change: EnrollmentDetail['scheduled_change'];
 }

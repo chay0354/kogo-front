@@ -961,10 +961,12 @@ export default function CustomersPage() {
           setChangingEnrollment(null);
           setChangingSlots([]);
         }}
-        onSaved={({ removedEnrollmentIds, enrollments: nextEnrollments, applied, charged, foldedIntoNextMonth }) => {
+        onSaved={({ removedEnrollmentIds, enrollments: nextEnrollments, applied, charged, manualCollection, clearedPending }) => {
           if (applied === 'scheduled') toast.success('ההחלפה תוזמנה לתאריך החיוב הבא');
+          else if (applied === 'cancelled') toast.success('ההחלפה המתוזמנת בוטלה · הוראת הקבע נשארת בסכום הנוכחי');
           else if (charged) toast.success(`ההחלפה בוצעה · חויב הפרש יחסי ₪${charged}`);
-          else if (foldedIntoNextMonth) toast.success('ההחלפה בוצעה · ההפרש היחסי יצטרף לחיוב הבא');
+          else if (manualCollection) toast.warning(`ההחלפה בוצעה · אין כרטיס שמור — לגבות ידנית הפרש של ₪${manualCollection}`, { duration: 8000 });
+          else if (clearedPending) toast.success('ההחלפה בוצעה · הסכום שהיה מתוזמן להוראת הקבע בוטל');
           const removed = new Set(removedEnrollmentIds);
           const oldCourseId = changingEnrollment?.course_id;
           const isTrial = Boolean(changingEnrollment?.trial_lesson_date);
