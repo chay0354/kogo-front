@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Users, MoreHorizontal, Eye, Edit, UserPlus, Trash2, UserCheck, Search } from 'lucide-react';
 import PageHeader from '@/components/PageHeader';
 import { TableSkeleton } from '@/components/ui/skeleton';
@@ -125,6 +125,8 @@ export default function CustomersPage() {
   
   // Dialog states
   const [selectedChild, setSelectedChild] = useState<ChildWithDetails | null>(null);
+  const selectedChildRef = useRef<ChildWithDetails | null>(null);
+  useEffect(() => { selectedChildRef.current = selectedChild; }, [selectedChild]);
   const [profileDialogOpen, setProfileDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -398,12 +400,22 @@ export default function CustomersPage() {
             <>
               {/* Results Count - Above Table */}
               <div className="mb-4 pb-3 border-b flex items-center justify-between">
-                <div className="text-sm text-muted-foreground">
+                <div className="text-sm text-muted-foreground" aria-live="polite">
                   {(() => {
+                    // `childrenTotalCount` is the server's count over the same scoped,
+                    // filtered, duplicate-collapsed query that pages — the real total,
+                    // not the rows on screen. The office reads this number as fact.
                     const pageSize = 20;
+                    if (childrenTotalCount <= pageSize) {
+                      return `${childrenTotalCount} לקוחות`;
+                    }
                     const startIndex = (childrenPage - 1) * pageSize + 1;
                     const endIndex = Math.min(childrenPage * pageSize, childrenTotalCount);
-                    return `${startIndex}-${endIndex}`;
+                    return (
+                      <>
+                        מוצגים <bdi dir="ltr">{startIndex}–{endIndex}</bdi> מתוך {childrenTotalCount}
+                      </>
+                    );
                   })()}
                 </div>
                 <div className="flex items-center gap-2">
@@ -645,9 +657,25 @@ export default function CustomersPage() {
               setEnrollDialogOpen(true);
             }}
             onEditEnrollment={(slots) => handleEnrollmentEdit(selectedChild, slots)}
-            onOpenSibling={(childId) => {
-              const sibling = children.find((row) => row.id === childId);
-              if (sibling) setSelectedChild(sibling);
+            onOpenSibling={async (childId) => {
+              // The sibling is rarely on this page: the list is 20 rows, newest
+              // first, under whatever filter is on. Ask the list endpoint for the
+              // family instead — it is the one route that returns the full card,
+              // and it applies the same scoping as the table.
+              const onPage = children.find((row) => row.id === childId);
+              if (onPage) { setSelectedChild(onPage); return; }
+              const origin = selectedChild.id;
+              try {
+                const res = await api.get('/customers/children/', { params: { family: selectedChild.family_id } });
+                const rows: ChildWithDetails[] = res.data?.results ?? res.data ?? [];
+                const sibling = rows.find((row) => row.id === childId);
+                // The office may have moved to another card while this was in flight.
+                if (selectedChildRef.current?.id !== origin) return;
+                if (sibling) setSelectedChild(sibling);
+                else alert('לא ניתן לפתוח את הכרטיס של האח/ות');
+              } catch {
+                alert('לא ניתן לפתוח את הכרטיס של האח/ות');
+              }
             }}
             onRemovedFromCourse={({ removedEnrollmentIds, childStatus }) => {
               const removed = new Set(removedEnrollmentIds);

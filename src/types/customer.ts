@@ -16,6 +16,8 @@ export interface EnrollmentDetail {
   status: string;
   bundle_id?: string | null;
   trial_lesson_date?: string | null;
+  /** Set once the trial date passed: attended / no_show / unmarked. */
+  trial_outcome?: 'attended' | 'no_show' | 'unmarked' | null;
 }
 
 export interface ChildWithDetails {
@@ -61,6 +63,7 @@ export interface ChildWithDetails {
     lesson_id: string;
     course_name: string;
     trial_lesson_date: string | null;
+    trial_outcome?: 'attended' | 'no_show' | 'unmarked' | null;
   } | null;
   attendance_rate: number;
   

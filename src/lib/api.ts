@@ -560,3 +560,35 @@ export const updateBusinessCategory = async (
   const res = await api.patch(`/core/business-categories/${id}/`, data);
   return res.data;
 };
+
+// --- Trial blocked dates (settings calendar) -------------------------------
+
+export interface TrialBlockedDate {
+  id: string;
+  date: string;          // YYYY-MM-DD
+  reason: string;
+  created_by_name: string;
+  created_at: string;
+}
+
+export const fetchTrialBlockedDates = async (): Promise<TrialBlockedDate[]> => {
+  const res = await api.get('/enrollments/trial-blocked-dates/');
+  return res.data?.results ?? res.data ?? [];
+};
+
+/** The dates fixed in configuration — shown read-only beside the office's own. */
+export const fetchConfiguredTrialBlockedDates = async (): Promise<string[]> => {
+  const res = await api.get('/enrollments/trial-blocked-dates/configured/');
+  return res.data?.dates ?? [];
+};
+
+export const createTrialBlockedDate = async (
+  data: { date: string; reason?: string },
+): Promise<TrialBlockedDate & { moved: number; unmoved: number }> => {
+  const res = await api.post('/enrollments/trial-blocked-dates/', data);
+  return res.data;
+};
+
+export const deleteTrialBlockedDate = async (id: string): Promise<void> => {
+  await api.delete(`/enrollments/trial-blocked-dates/${id}/`);
+};

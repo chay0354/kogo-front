@@ -17,6 +17,7 @@ import AdditionalChildSection, {
 import ExtraLessonPicker from './ExtraLessonPicker';
 import SelectedLessonCard from './SelectedLessonCard';
 import { SkeletonLessonOptions, SkeletonTextLines } from '../WidgetSkeletons/WidgetSkeletons';
+import { trialNextStep } from './trialFlow';
 import type { AppliedDiscount, Props, Step, LookupResult, PaymentResponse, TrialOccurrence } from './types';
 
 export type { CourseLesson } from './types';
@@ -723,7 +724,7 @@ export default function CourseRegistrationForm({
       }
 
       if (isTrial) {
-        setStep('consents');
+        setStep(trialNextStep(trialLessonIsPaid));
         return;
       }
 
@@ -772,6 +773,11 @@ export default function CourseRegistrationForm({
    * the first one is the expanded course card, which the page reopens for us.
    */
   const goBackOneStep = () => {
+    if (step === 'trial_confirm') {
+      setErrorMsg('');
+      setStep('details');
+      return;
+    }
     if (step === 'consents' || step === 'error') {
       setStep(discountQueue.length > 0 ? 'discount_confirm' : 'details');
       return;
@@ -785,6 +791,71 @@ export default function CourseRegistrationForm({
       return;
     }
     onBack();
+  };
+
+  /**
+   * The trial registration itself, reached by two doors: the consents form
+   * (paid trials) and the summary screen (free trials). On success it moves to
+   * the next step; on failure it returns the message and leaves the step
+   * alone, so each door shows the error where the parent is standing.
+   */
+  const submitTrialRegistration = async (child: {
+    firstName: string;
+    lastName: string;
+    idNumber: string;
+  }): Promise<string | null> => {
+    try {
+      const res = await api.post('/customers/widget/trial-register/', {
+        parent_id_number: parentIdNumber,
+        parent_first_name: parentFirstName,
+        parent_last_name: parentLastName,
+        parent_phone: parentPhone,
+        parent_email: parentEmail,
+        child_first_name: child.firstName,
+        child_last_name: child.lastName,
+        child_id_number: child.idNumber,
+        child_birth_date: childBirthDate,
+        child_gender: childGender,
+        course_id: courseId,
+        lesson_id: effectiveTrialLessonId,
+        trial_lesson_date: trialLessonDate,
+      });
+      if (res.data.requires_payment) {
+        // The catalog said free but the course now charges: the payment step
+        // reads nothing from the consents, so it can take over from here.
+        setPaymentData({
+          payment_id: res.data.payment_id,
+          final_amount: res.data.final_amount,
+          base_amount: res.data.base_amount,
+          discount_amount: res.data.discount_amount ?? 0,
+          discounts_applied: [],
+        });
+        setStep('payment');
+        return null;
+      }
+      setStep('trial_success');
+      return null;
+    } catch (err: unknown) {
+      return (
+        (err as { response?: { data?: { error?: string } } })?.response?.data?.error ??
+        'אירעה שגיאה. נסה שנית.'
+      );
+    }
+  };
+
+  /** The free trial's one confirm: summary → registered. */
+  const handleTrialConfirm = async () => {
+    setErrorMsg('');
+    setStep('submitting');
+    const failure = await submitTrialRegistration({
+      firstName: selfRegistering ? parentFirstName : childFirstName,
+      lastName: selfRegistering ? parentLastName : childLastName,
+      idNumber: selfRegistering ? parentIdNumber : childIdNumber,
+    });
+    if (failure) {
+      setErrorMsg(failure);
+      setStep('trial_confirm');
+    }
   };
 
   const handleFinalSubmit = async (e: React.FormEvent) => {
@@ -822,39 +893,13 @@ export default function CourseRegistrationForm({
     const registerChildIdNumber = selfRegistering ? parentIdNumber : childIdNumber;
 
     if (isTrial) {
-      try {
-        const res = await api.post('/customers/widget/trial-register/', {
-          parent_id_number: parentIdNumber,
-          parent_first_name: parentFirstName,
-          parent_last_name: parentLastName,
-          parent_phone: parentPhone,
-          parent_email: parentEmail,
-          child_first_name: registerChildFirstName,
-          child_last_name: registerChildLastName,
-          child_id_number: registerChildIdNumber,
-          child_birth_date: childBirthDate,
-          child_gender: childGender,
-          course_id: courseId,
-          lesson_id: effectiveTrialLessonId,
-          trial_lesson_date: trialLessonDate,
-        });
-        if (res.data.requires_payment) {
-          setPaymentData({
-            payment_id: res.data.payment_id,
-            final_amount: res.data.final_amount,
-            base_amount: res.data.base_amount,
-            discount_amount: res.data.discount_amount ?? 0,
-            discounts_applied: [],
-          });
-          setStep('payment');
-          return;
-        }
-        setStep('trial_success');
-      } catch (err: unknown) {
-        const msg =
-          (err as { response?: { data?: { error?: string } } })?.response?.data?.error ??
-          'אירעה שגיאה. נסה שנית.';
-        setErrorMsg(msg);
+      const failure = await submitTrialRegistration({
+        firstName: registerChildFirstName,
+        lastName: registerChildLastName,
+        idNumber: registerChildIdNumber,
+      });
+      if (failure) {
+        setErrorMsg(failure);
         setStep('error');
       }
       return;
@@ -998,6 +1043,61 @@ export default function CourseRegistrationForm({
       </button>
     </div>
   );
+
+  // The terms, read from a modal. Shared by the consents form (where reading to
+  // the end is required) and by the free trial's summary (where the link is
+  // there for whoever wants it).
+  const termsModal = showTerms ? (
+    <div className={styles.termsOverlay} onClick={() => setShowTerms(false)}>
+        <div className={styles.termsModal} onClick={(e) => e.stopPropagation()}>
+          <div className={styles.termsHeader}>
+            <span className={styles.termsModalTitle}>תקנון ונהלים</span>
+            <button type="button" className={styles.termsClose} onClick={() => setShowTerms(false)}>✕</button>
+          </div>
+          <div className={styles.termsBodyWrap}>
+            <div
+              ref={attachTermsBody}
+              className={styles.termsBody}
+              onScroll={updateTermsScrollState}
+            >
+              {loadingTerms ? (
+                <SkeletonTextLines label="טוען תקנון..." />
+              ) : termsContent ? (
+                <div dangerouslySetInnerHTML={{ __html: termsContent }} />
+              ) : (
+                <p>לא ניתן לטעון את התקנון. נסו שוב מאוחר יותר.</p>
+              )}
+            </div>
+            {termsCanJumpToEnd ? (
+              <>
+                <span className={styles.termsJumpFade} aria-hidden="true" />
+                <button
+                  type="button"
+                  className={styles.termsJumpButton}
+                  onClick={jumpToTermsEnd}
+                  aria-label="דילוג לסוף התקנון"
+                >
+                  <ChevronDown size={18} aria-hidden="true" />
+                </button>
+              </>
+            ) : null}
+          </div>
+          <div className={styles.termsFooter}>
+            {!termsScrolledToEnd && !loadingTerms && termsContent ? (
+              <p className={styles.termsScrollHint}>גללו עד הסוף כדי לאשר שקראתם את התקנון</p>
+            ) : null}
+            <button
+              type="button"
+              className={styles.termsConfirmButton}
+              disabled={!termsScrolledToEnd || loadingTerms || !termsContent}
+              onClick={confirmTermsRead}
+            >
+              אישור — קראתי את התקנון והנהלים
+            </button>
+          </div>
+        </div>
+      </div>
+  ) : null;
 
   const header = (
     <div className={styles.header}>
@@ -1401,6 +1501,80 @@ export default function CourseRegistrationForm({
     );
   }
 
+  if (step === 'trial_confirm') {
+    const chosen = trialOccurrences.find(
+      (occ) => occ.date === trialLessonDate
+        && (occ.lesson_id ?? effectiveTrialLessonId) === effectiveTrialLessonId,
+    );
+    const childName = `${selfRegistering ? parentFirstName : childFirstName} ${selfRegistering ? parentLastName : childLastName}`.trim();
+    const parentName = `${parentFirstName} ${parentLastName}`.trim();
+    return (
+      <form
+        noValidate
+        className={styles.form}
+        dir="rtl"
+        onSubmit={(e) => {
+          e.preventDefault();
+          void handleTrialConfirm();
+        }}
+      >
+        {header}
+
+        <div className={`${styles.section} ${styles.fadeIn}`}>
+          <div className={styles.sectionTitle}>
+            <span className={styles.sectionTitleLine} />
+            <span className={styles.sectionTitleText}>סיכום ההרשמה לניסיון</span>
+            <span className={styles.sectionTitleLine} />
+          </div>
+          <div className={styles.paymentSummary}>
+            <div className={styles.summaryRow}>
+              <span>חוג</span>
+              <span>{courseName}</span>
+            </div>
+            <div className={styles.summaryRow}>
+              <span>{selfRegistering ? 'משתתף/ת' : 'ילד/ה'}</span>
+              <span>{childName || '—'}</span>
+            </div>
+            {!selfRegistering && (
+              <div className={styles.summaryRow}>
+                <span>הורה</span>
+                <span>{parentName || '—'}{parentPhone ? ` · ${parentPhone}` : ''}</span>
+              </div>
+            )}
+            <div className={styles.summaryRow}>
+              <span>מועד הניסיון</span>
+              <span>
+                {chosen
+                  ? `${chosen.day_name} · ${chosen.label} · ${chosen.start_time}–${chosen.end_time}`
+                  : (() => {
+                      const [y, m, d] = trialLessonDate.split('-').map(Number);
+                      return Number.isFinite(y) && Number.isFinite(m) && Number.isFinite(d)
+                        ? new Date(y, m - 1, d).toLocaleDateString('he-IL')
+                        : trialLessonDate;
+                    })()}
+              </span>
+            </div>
+          </div>
+          <p className={styles.helperText}>
+            באישור אני מסכים/ה{' '}
+            <button type="button" className={styles.termsLink} onClick={openTermsModal}>
+              לתקנון ולנהלים
+            </button>
+            {' '}של קוגומלו.
+          </p>
+        </div>
+
+        {errorMsg && <p className={styles.errorText}>{errorMsg}</p>}
+
+        <button type="submit" className={styles.submitButton}>
+          אישור והרשמה לניסיון
+        </button>
+
+        {termsModal}
+      </form>
+    );
+  }
+
   if (step === 'consents' || step === 'error') {
     return (
       <form noValidate onSubmit={handleFinalSubmit} className={styles.form} dir="rtl">
@@ -1481,57 +1655,7 @@ export default function CourseRegistrationForm({
           ) : null}
         </div>
 
-        {showTerms && (
-          <div className={styles.termsOverlay} onClick={() => setShowTerms(false)}>
-            <div className={styles.termsModal} onClick={(e) => e.stopPropagation()}>
-              <div className={styles.termsHeader}>
-                <span className={styles.termsModalTitle}>תקנון ונהלים</span>
-                <button type="button" className={styles.termsClose} onClick={() => setShowTerms(false)}>✕</button>
-              </div>
-              <div className={styles.termsBodyWrap}>
-                <div
-                  ref={attachTermsBody}
-                  className={styles.termsBody}
-                  onScroll={updateTermsScrollState}
-                >
-                  {loadingTerms ? (
-                    <SkeletonTextLines label="טוען תקנון..." />
-                  ) : termsContent ? (
-                    <div dangerouslySetInnerHTML={{ __html: termsContent }} />
-                  ) : (
-                    <p>לא ניתן לטעון את התקנון. נסו שוב מאוחר יותר.</p>
-                  )}
-                </div>
-                {termsCanJumpToEnd ? (
-                  <>
-                    <span className={styles.termsJumpFade} aria-hidden="true" />
-                    <button
-                      type="button"
-                      className={styles.termsJumpButton}
-                      onClick={jumpToTermsEnd}
-                      aria-label="דילוג לסוף התקנון"
-                    >
-                      <ChevronDown size={18} aria-hidden="true" />
-                    </button>
-                  </>
-                ) : null}
-              </div>
-              <div className={styles.termsFooter}>
-                {!termsScrolledToEnd && !loadingTerms && termsContent ? (
-                  <p className={styles.termsScrollHint}>גללו עד הסוף כדי לאשר שקראתם את התקנון</p>
-                ) : null}
-                <button
-                  type="button"
-                  className={styles.termsConfirmButton}
-                  disabled={!termsScrolledToEnd || loadingTerms || !termsContent}
-                  onClick={confirmTermsRead}
-                >
-                  אישור — קראתי את התקנון והנהלים
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
+        {termsModal}
 
         {errorMsg && <p className={styles.errorText}>{errorMsg}</p>}
 
