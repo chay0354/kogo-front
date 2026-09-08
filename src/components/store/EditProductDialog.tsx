@@ -17,6 +17,7 @@ import {
 import api from '@/lib/api';
 import type { StoreProduct, ProductSizeStock } from '@/types/store';
 import type { Branch } from '@/types/branch';
+import dlg from './storeDialog.module.css';
 
 interface EditProductDialogProps {
   isOpen: boolean;
@@ -247,7 +248,7 @@ export default function EditProductDialog({ isOpen, onClose, product, onSuccess 
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto p-8">
+      <DialogContent className={`${dlg.dlg} max-w-2xl max-h-[90vh] overflow-y-auto p-8`}>
         <DialogHeader>
           <DialogTitle className="text-2xl">ערוך מוצר<span style={{ fontSize: '10px', color: 'white', userSelect: 'none' }}> #33</span></DialogTitle>
         </DialogHeader>

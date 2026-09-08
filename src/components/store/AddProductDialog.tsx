@@ -16,6 +16,7 @@ import {
 import api from '@/lib/api';
 import type { ProductFormData, ProductSizeStock } from '@/types/store';
 import type { Branch } from '@/types/branch';
+import dlg from './storeDialog.module.css';
 
 interface AddProductDialogProps {
   isOpen: boolean;
@@ -212,7 +213,7 @@ export default function AddProductDialog({ isOpen, onClose, onSuccess }: AddProd
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto p-8">
+      <DialogContent className={`${dlg.dlg} max-w-2xl max-h-[90vh] overflow-y-auto p-8`}>
         <DialogHeader>
           <DialogTitle className="text-2xl">הוסף מוצר חדש<span style={{ fontSize: '10px', color: 'white', userSelect: 'none' }}> #31</span></DialogTitle>
         </DialogHeader>

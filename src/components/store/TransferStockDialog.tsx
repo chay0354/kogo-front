@@ -8,6 +8,7 @@ import { Select } from '@/components/ui/select';
 import { toast } from 'sonner';
 import { transferStock } from '@/lib/storeApi';
 import type { StoreProduct, ProductSizeStock } from '@/types/store';
+import dlg from './storeDialog.module.css';
 
 interface TransferStockDialogProps {
   isOpen: boolean;
@@ -80,7 +81,7 @@ export default function TransferStockDialog({ isOpen, onClose, product, onSucces
   if (sizeStocks.length < 2) {
     return (
       <Dialog open={isOpen} onOpenChange={onClose}>
-        <DialogContent className="max-w-md p-8">
+        <DialogContent className={`${dlg.dlg} max-w-md p-8`}>
           <DialogHeader>
             <DialogTitle>העברת מלאי — {product.name}<span style={{ fontSize: '10px', color: 'white', userSelect: 'none' }}> #35</span></DialogTitle>
           </DialogHeader>
@@ -97,7 +98,7 @@ export default function TransferStockDialog({ isOpen, onClose, product, onSucces
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-lg p-8">
+      <DialogContent className={`${dlg.dlg} max-w-lg p-8`}>
         <DialogHeader>
           <DialogTitle className="text-2xl">העברת מלאי — {product.name}</DialogTitle>
         </DialogHeader>

@@ -1,0 +1,123 @@
+/*
+ * One coat of paint for every store dialog.
+ *
+ * The dialogs' markup is left alone — each one only gains this class on its
+ * DialogContent. Styling by element inside the wrapper reaches the fields
+ * whether they come from the shared <Input>/<Select> or from a raw <input>,
+ * so the forms match the redesigned store without a line of their JSX moving
+ * and without touching what any of them do.
+ *
+ * Values follow the dashboard's --kg-* palette. They are written out rather
+ * than read from a variable because a dialog can render outside the page's
+ * themed subtree, and a missing variable would leave an unstyled form.
+ */
+
+.dlg {
+  --sd-ink: #231f6e;
+  --sd-ink2: #4a4599;
+  --sd-muted: #8b88b6;
+  --sd-line: #eae7f8;
+  --sd-focus: #5b54d6;
+
+  color: var(--sd-ink);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- headings ---- */
+.dlg h2,
+.dlg h3 {
+  color: var(--sd-ink);
+  font-weight: 900;
+  letter-spacing: -0.3px;
+}
+
+/* ---- labels ---- */
+.dlg label {
+  color: var(--sd-ink2);
+  font-weight: 700;
+}
+
+/* A label that is only a caption above a field reads better small and muted. */
+.dlg label.block,
+.dlg label > span:first-child {
+  color: var(--sd-muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+/* ---- fields ---- */
+.dlg input:not([type='checkbox']):not([type='radio']),
+.dlg select,
+.dlg textarea {
+  border: 1px solid var(--sd-line);
+  border-radius: 11px;
+  background: #fff;
+  color: var(--sd-ink);
+  font-weight: 700;
+  font-family: inherit;
+}
+
+.dlg input:not([type='checkbox']):not([type='radio']),
+.dlg select {
+  min-height: 42px;
+}
+
+.dlg textarea {
+  padding: 10px 12px;
+  line-height: 1.55;
+}
+
+.dlg input:focus,
+.dlg select:focus,
+.dlg textarea:focus {
+  outline: none;
+  border-color: var(--sd-focus);
+  box-shadow: 0 0 0 3px rgba(91, 84, 214, 0.14);
+}
+
+.dlg input:disabled,
+.dlg select:disabled,
+.dlg textarea:disabled {
+  background: #f7f6fc;
+  color: var(--sd-muted);
+}
+
+.dlg input[type='checkbox'] {
+  width: 17px;
+  height: 17px;
+  accent-color: var(--sd-focus);
+}
+
+/* ---- grouped blocks (sizes and stock, cart lines) ---- */
+.dlg .bg-gray-50,
+.dlg .bg-gray-100 {
+  background: #f7f6fc;
+  border-radius: 14px;
+}
+
+.dlg .border {
+  border-color: var(--sd-line);
+}
+
+/* ---- the row of buttons that closes a dialog ---- */
+.dlg hr,
+.dlg .border-t {
+  border-color: var(--sd-line);
+}
+
+/*
+ * Phone: the dialog is a sheet off the bottom edge, so the form needs breathing
+ * room rather than the desktop's generous padding, and the fields need to be
+ * comfortably tappable.
+ */
+@media (max-width: 640px) {
+  .dlg {
+    padding: 18px 16px 22px !important;
+  }
+  .dlg input:not([type='checkbox']):not([type='radio']),
+  .dlg select,
+  .dlg textarea {
+    min-height: 46px;
+    font-size: 16px; /* keeps iOS from zooming the page on focus */
+  }
+}

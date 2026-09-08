@@ -8,6 +8,7 @@ import { Select } from '@/components/ui/select';
 import { toast } from 'sonner';
 import { adjustStock } from '@/lib/storeApi';
 import type { StoreProduct, ProductSizeStock, AdjustmentReason } from '@/types/store';
+import dlg from './storeDialog.module.css';
 
 interface AdjustStockDialogProps {
   isOpen: boolean;
@@ -120,7 +121,7 @@ export default function AdjustStockDialog({ isOpen, onClose, product, onSuccess 
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-lg p-8">
+      <DialogContent className={`${dlg.dlg} max-w-lg p-8`}>
         <DialogHeader>
           <DialogTitle className="text-2xl">עדכון מלאי — {product.name}<span style={{ fontSize: '10px', color: 'white', userSelect: 'none' }}> #32</span></DialogTitle>
         </DialogHeader>

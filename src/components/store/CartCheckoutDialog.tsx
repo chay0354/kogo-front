@@ -14,6 +14,7 @@ import { initiatePayment, createCashInvoice } from '@/lib/storeApi';
 import api from '@/lib/api';
 import type { StoreCartLine, CartItem, CustomerInfo } from '@/types/store';
 import type { ChildWithDetails } from '@/types/customer';
+import dlg from './storeDialog.module.css';
 
 interface CartCheckoutDialogProps {
   isOpen: boolean;
@@ -285,7 +286,7 @@ export default function CartCheckoutDialog({
   return (
     <>
       <Dialog open={isOpen && !showTranzilaModal} onOpenChange={handleClose}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto p-8 space-y-5">
+        <DialogContent className={`${dlg.dlg} max-w-2xl max-h-[90vh] overflow-y-auto p-8 space-y-5`}>
           <DialogHeader className="px-0 pt-0">
             <DialogTitle className="text-2xl">סל קניות — תשלום</DialogTitle>
           </DialogHeader>

@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { ShoppingCart } from 'lucide-react';
 import type { StoreProduct, StoreCartLine } from '@/types/store';
+import dlg from './storeDialog.module.css';
 
 interface AddToCartDialogProps {
   isOpen: boolean;
@@ -127,7 +128,7 @@ export default function AddToCartDialog({ isOpen, onClose, product, onAdd }: Add
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-md mx-4 p-6 space-y-4">
+      <DialogContent className={`${dlg.dlg} max-w-md mx-4 p-6 space-y-4`}>
         <DialogHeader className="px-0 pt-0">
           <DialogTitle className="text-xl">הוספה לסל</DialogTitle>
         </DialogHeader>
