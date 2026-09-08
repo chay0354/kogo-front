@@ -8,7 +8,7 @@ import { sortWidgetCourseTypes } from '@/app/widget/courseTypeOrder';
 import { unwrapApiList } from '@/lib/scopedFilters';
 import { Dialog, DialogCloseButton, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Skeleton } from '@/components/ui/skeleton';
-import type { EnrollmentDetail } from '@/types/customer';
+import type { ChangeLessonQuote, EnrollmentDetail } from '@/types/customer';
 
 type LessonOption = {
   id: string;
@@ -75,8 +75,23 @@ type Props = {
   onSaved: (payload: {
     removedEnrollmentIds: string[];
     enrollments: EnrollmentDetail[];
+    applied?: 'now' | 'scheduled' | 'cancelled';
+    charged?: string | null;
+    manualCollection?: string | null;
+    clearedPending?: boolean;
   }) => void;
 };
+
+function shekels(value: string | number | null | undefined) {
+  const n = Number(value ?? 0);
+  return `₪${Number.isFinite(n) ? n.toLocaleString('he-IL', { maximumFractionDigits: 2 }) : value}`;
+}
+
+function hebrewDate(iso: string | null | undefined) {
+  if (!iso) return '';
+  const [y, m, d] = iso.split('-').map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString('he-IL');
+}
 
 function slotTime(start?: string | null): string {
   return start ? start.slice(0, 5) : '';
@@ -268,6 +283,10 @@ export default function ChangeChildLessonDialog({
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [quote, setQuote] = useState<ChangeLessonQuote | null>(null);
+  const [quoting, setQuoting] = useState(false);
+  const [quoteError, setQuoteError] = useState('');
+  const [priceConfirmed, setPriceConfirmed] = useState(false);
   const isTrial = Boolean(enrollment?.trial_lesson_date);
 
   useEffect(() => {
@@ -395,7 +414,61 @@ export default function ChangeChildLessonDialog({
   const selected = offerings.find((offering) => offering.key === selectedKey);
   const currentDate = enrollment?.trial_lesson_date || '';
   const trialChanged = isTrial && (selectedKey !== currentKey || selectedDate !== currentDate);
-  const canSave = Boolean(selectedKey) && (isTrial ? trialChanged : selectedKey !== currentKey);
+  // Anything that touches the standing order needs the office's confirmation and the quoted figure.
+  const priceChanges = Boolean(quote && (quote.direction === 'up' || quote.direction === 'down' || quote.clears_pending));
+  const canSave = Boolean(selectedKey)
+    && (isTrial ? trialChanged : selectedKey !== currentKey)
+    && (isTrial || (!quoting && !quoteError && Boolean(quote)))
+    && (isTrial || !quote?.blocked || quote.direction === 'no_sto')
+    && (isTrial || !quote?.pending_change)
+    && (!priceChanges || priceConfirmed);
+
+  // Price the selection before the office can confirm it.
+  useEffect(() => {
+    setPriceConfirmed(false);
+    setQuoteError('');
+    if (!isOpen || isTrial || !enrollment?.enrollment_id || !selected || selectedKey === currentKey) {
+      setQuote(null);
+      return;
+    }
+    let cancelled = false;
+    setQuoting(true);
+    const body = selected.kind === 'bundle'
+      ? { bundle_id: selected.bundleId }
+      : selected.kind === 'course'
+        ? { course_id: selected.courseId }
+        : { lesson_id: selected.lessonId };
+    api.post(`/enrollments/lesson-enrollments/${enrollment.enrollment_id}/change-lesson/quote/`, body)
+      .then((res) => { if (!cancelled) setQuote(res.data as ChangeLessonQuote); })
+      .catch((err: unknown) => {
+        if (cancelled) return;
+        setQuote(null);
+        setQuoteError((err as { response?: { data?: { error?: string } } })?.response?.data?.error || 'לא ניתן לחשב מחיר — נסו שוב');
+      })
+      .finally(() => { if (!cancelled) setQuoting(false); });
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, isTrial, enrollment?.enrollment_id, selectedKey, currentKey]);
+
+  const cancelScheduled = async () => {
+    if (!enrollment?.enrollment_id) return;
+    if (!window.confirm('לבטל את ההחלפה המתוזמנת? הוראת הקבע תישאר בסכום הנוכחי.')) return;
+    setSaving(true);
+    setError('');
+    try {
+      await api.post(`/enrollments/lesson-enrollments/${enrollment.enrollment_id}/cancel-scheduled-change/`);
+      onSaved({
+        removedEnrollmentIds: [],
+        enrollments: (unitSlots?.length ? unitSlots : [enrollment]).map((row) => ({ ...row, scheduled_change: null })),
+        applied: 'cancelled',
+      });
+      onClose();
+    } catch (err: unknown) {
+      setError((err as { response?: { data?: { error?: string } } })?.response?.data?.error || 'הביטול נכשל');
+    } finally {
+      setSaving(false);
+    }
+  };
 
   useEffect(() => {
     if (!isOpen || !isTrial || !enrollment?.enrollment_id || !selected?.lessonId) {
@@ -441,13 +514,15 @@ export default function ChangeChildLessonDialog({
     setSaving(true);
     setError('');
     try {
-      const body = isTrial
+      const target = isTrial
         ? { lesson_id: selected.lessonId, trial_lesson_date: selectedDate }
         : selected.kind === 'bundle'
           ? { bundle_id: selected.bundleId }
           : selected.kind === 'course'
             ? { course_id: selected.courseId }
             : { lesson_id: selected.lessonId };
+      // The quoted amount travels with the request: the server refuses if the price moved meanwhile.
+      const body = priceChanges && quote?.new_amount ? { ...target, expected_new_amount: quote.new_amount } : target;
       const res = await api.post(
         `/enrollments/lesson-enrollments/${enrollment.enrollment_id}/change-lesson/`,
         body,
@@ -459,6 +534,10 @@ export default function ChangeChildLessonDialog({
       onSaved({
         removedEnrollmentIds: (res.data?.removed_enrollment_ids || []).map(String),
         enrollments: nextRows.length ? nextRows : [fallback],
+        applied: res.data?.applied === 'scheduled' ? 'scheduled' : 'now',
+        charged: res.data?.charged ?? null,
+        manualCollection: res.data?.manual_collection ?? null,
+        clearedPending: Boolean(res.data?.cleared_pending),
       });
       onClose();
     } catch (err: unknown) {
@@ -504,8 +583,25 @@ export default function ChangeChildLessonDialog({
           <p className="text-sm text-muted-foreground">
             {isTrial
               ? 'אפשר להחליף יום או חוג ולבחור תאריך לשיעור הניסיון.'
-              : 'המחיר החודשי לא משתנה. אפשר לבחור פעם, פעמיים או שלוש פעמים בשבוע לאותו חוג.'}
+              : 'אפשר לבחור פעם, פעמיים או שלוש פעמים בשבוע. אם המחיר החודשי שונה — תוצג הצעת מחיר לאישור לפני ההחלפה.'}
           </p>
+          {!isTrial && enrollment?.scheduled_change ? (
+            <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+              <p className="font-medium">
+                מתוזמנת החלפה ל־{hebrewDate(enrollment.scheduled_change.effective_date)}: {enrollment.scheduled_change.target_label}
+                {enrollment.scheduled_change.new_amount ? ` · ${shekels(enrollment.scheduled_change.new_amount)} לחודש` : ''}
+              </p>
+              <p className="mt-1 text-xs">עד אז הילד נשאר בשיעור הנוכחי והחיוב לא משתנה.</p>
+              {enrollment.scheduled_change.last_error ? (
+                <p className="mt-1 text-xs text-destructive">
+                  ההחלפה לא בוצעה בתאריך: {enrollment.scheduled_change.last_error} — הסכום הישן נשאר בתוקף. אפשר לבטל ולהחליף מחדש.
+                </p>
+              ) : null}
+              <button type="button" className="mt-1 text-xs underline" onClick={cancelScheduled} disabled={saving}>
+                בטל את ההחלפה המתוזמנת
+              </button>
+            </div>
+          ) : null}
           {currentLabel ? (
             <p className="text-sm">
               <span className="text-muted-foreground">נוכחי: </span>
@@ -629,6 +725,86 @@ export default function ChangeChildLessonDialog({
               ))}
             </div>
           )}
+          {!isTrial && selectedKey && selectedKey !== currentKey ? (
+            quoting ? (
+              <p className="text-xs text-muted-foreground" aria-busy="true">מחשב מחיר…</p>
+            ) : quoteError ? (
+              <p className="rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">{quoteError}</p>
+            ) : quote?.blocked && quote.direction !== 'no_sto' ? (
+              <p className="rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">{quote.blocked}</p>
+            ) : quote?.pending_change ? (
+              <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+                כבר מתוזמנת החלפה לחוג הזה — בטלו אותה לפני החלפה נוספת.
+              </p>
+            ) : quote && quote.direction === 'same' && quote.clears_pending ? (
+              <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm space-y-1">
+                <p className="font-medium">המחיר החודשי נשאר {shekels(quote.current_amount)}.</p>
+                <p>
+                  להוראת הקבע כבר מתוזמן סכום אחר ({shekels(quote.pending_amount)} מ־{hebrewDate(quote.pending_effective_date)}) —
+                  ההחלפה תבטל אותו והחיוב יישאר {shekels(quote.new_amount)} לחודש.
+                </p>
+                <label className="flex items-start gap-2 pt-1">
+                  <input type="checkbox" className="mt-0.5" checked={priceConfirmed} onChange={(e) => setPriceConfirmed(e.target.checked)} />
+                  <span>אני מאשר/ת את ביטול הסכום המתוזמן</span>
+                </label>
+              </div>
+            ) : quote && quote.direction === 'same' ? (
+              <p className="text-xs text-muted-foreground">המחיר החודשי לא משתנה ({shekels(quote.current_amount)}).</p>
+            ) : quote && !quote.effective_on_first ? (
+              <p className="rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                הוראת הקבע הזאת אינה נגבית ב־1 בחודש — יש לעדכן את הסכום ידנית לפני החלפה עם שינוי מחיר.
+              </p>
+            ) : quote && quote.direction === 'no_sto' ? (
+              <p className="text-xs text-muted-foreground">לילד אין הוראת קבע פעילה לחוג הזה — ההחלפה לא נוגעת בחיוב.</p>
+            ) : quote && quote.direction === 'up' ? (
+              <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm space-y-1">
+                <p className="font-medium">
+                  המחיר החודשי עולה: {shekels(quote.current_amount)} ← {shekels(quote.new_amount)}
+                </p>
+                {quote.discounts.length ? (
+                  <p className="text-xs text-muted-foreground">
+                    {quote.discounts.map((d) => d.reason || d.name).join(' · ')}
+                  </p>
+                ) : null}
+                <p>
+                  {Number(quote.prorated_difference) > 0
+                    ? quote.has_saved_card
+                      ? `יחויב עכשיו בכרטיס השמור הפרש יחסי של ${shekels(quote.prorated_difference)} (${quote.remaining_occurrences} מתוך ${quote.total_occurrences} שיעורים נותרו החודש).`
+                      : `אין כרטיס שמור להוראת הקבע: הפרש יחסי של ${shekels(quote.prorated_difference)} (${quote.remaining_occurrences} מתוך ${quote.total_occurrences} שיעורים) לא ייגבה אוטומטית — לגבות ידנית.`
+                    : 'אין הפרש לגבייה החודש.'}
+                </p>
+                {quote.pending_amount && quote.pending_amount !== quote.new_amount ? (
+                  <p className="text-xs text-amber-800">
+                    סכום שתוזמן קודם ({shekels(quote.pending_amount)}) יוחלף ב־{shekels(quote.new_amount)}.
+                  </p>
+                ) : null}
+                <p>מ־{hebrewDate(quote.effective_date)} הוראת הקבע תהיה {shekels(quote.new_amount)} לחודש.</p>
+                <label className="flex items-start gap-2 pt-1">
+                  <input type="checkbox" className="mt-0.5" checked={priceConfirmed} onChange={(e) => setPriceConfirmed(e.target.checked)} />
+                  <span>אני מאשר/ת את ההחלפה ואת הסכומים האלה</span>
+                </label>
+              </div>
+            ) : quote && quote.direction === 'down' ? (
+              <div className="rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-sm space-y-1">
+                <p className="font-medium">
+                  המחיר החודשי יורד: {shekels(quote.current_amount)} ← {shekels(quote.new_amount)}
+                </p>
+                <p>
+                  החודש הנוכחי כבר שולם, ולכן ההחלפה תיכנס לתוקף ב־{hebrewDate(quote.effective_date)}: עד אז הילד נשאר
+                  בשיעור הנוכחי, ומאותו תאריך הוראת הקבע תהיה {shekels(quote.new_amount)} לחודש. בדף הלקוחות יופיע "מתוזמן".
+                </p>
+                {quote.pending_amount && quote.pending_amount !== quote.new_amount ? (
+                  <p className="text-xs text-amber-800">
+                    סכום שתוזמן קודם ({shekels(quote.pending_amount)}) יוחלף ב־{shekels(quote.new_amount)}.
+                  </p>
+                ) : null}
+                <label className="flex items-start gap-2 pt-1">
+                  <input type="checkbox" className="mt-0.5" checked={priceConfirmed} onChange={(e) => setPriceConfirmed(e.target.checked)} />
+                  <span>אני מאשר/ת את התזמון ואת הסכום</span>
+                </label>
+              </div>
+            ) : null
+          ) : null}
           {error ? <p className="text-sm text-destructive">{error}</p> : null}
           {isTrial ? (
             <div className="space-y-2 border-t pt-3">
@@ -675,7 +851,7 @@ export default function ChangeChildLessonDialog({
             disabled={saving || loading || !canSave}
             onClick={handleSave}
           >
-            {saving ? 'שומר...' : isTrial ? 'שמור' : 'החלף חוג'}
+            {saving ? 'שומר...' : isTrial ? 'שמור' : quote?.direction === 'down' ? 'תזמן החלפה' : 'החלף חוג'}
           </button>
         </div>
       </DialogContent>
