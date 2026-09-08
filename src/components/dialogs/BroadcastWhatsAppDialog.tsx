@@ -32,6 +32,9 @@ interface BroadcastWhatsAppDialogProps {
   childNames: Record<string, string>;
   /** Called after a real send finished (fully or partially) so the page can clear the selection. */
   onSent?: () => void;
+  /** The lesson / weekday the list was filtered by, so a child in several slots gets that lesson's details. */
+  lessonHint?: string | null;
+  dayHint?: number | null;
 }
 
 /**
@@ -82,8 +85,13 @@ export default function BroadcastWhatsAppDialog({
   childIds,
   childNames,
   onSent,
+  lessonHint,
+  dayHint,
 }: BroadcastWhatsAppDialogProps) {
   const [step, setStep] = useState<Step>('pick');
+  // The selection is snapshotted when the dialog opens: the page clears it
+  // after a send, and the title and the chunks must not follow that.
+  const [ids, setIds] = useState<string[]>([]);
   const [configured, setConfigured] = useState<boolean | null>(null);
   const [automations, setAutomations] = useState<WhatsAppAutomation[]>([]);
   const [loadingAutomations, setLoadingAutomations] = useState(false);
@@ -97,7 +105,11 @@ export default function BroadcastWhatsAppDialog({
   const [chunkProgress, setChunkProgress] = useState<{ done: number; total: number }>({ done: 0, total: 0 });
   const [paused, setPaused] = useState<ChunkOutcome | null>(null);
   const [error, setError] = useState('');
-  const sendStateRef = useRef<{ nextChunk: number; skipPhones: string[]; chunks: string[][] } | null>(null);
+  const sendStateRef = useRef<{ skipPhones: string[]; chunks: string[][] } | null>(null);
+  const hintBody = {
+    ...(lessonHint ? { lesson_id: lessonHint } : {}),
+    ...(dayHint !== null && dayHint !== undefined ? { day_of_week: dayHint } : {}),
+  };
 
   const selectedAutomation = useMemo(() => {
     const parsed = parseAutomationValue(automationValue);
@@ -112,6 +124,7 @@ export default function BroadcastWhatsAppDialog({
   // Reset whenever the dialog opens with a new selection.
   useEffect(() => {
     if (!open) return;
+    setIds(childIds);
     setStep('pick');
     setPreviewRows([]);
     setSentRows([]);
@@ -142,6 +155,7 @@ export default function BroadcastWhatsAppDialog({
     return () => {
       cancelled = true;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
   const runPreview = useCallback(async () => {
@@ -151,7 +165,7 @@ export default function BroadcastWhatsAppDialog({
     }
     setPreviewing(true);
     setError('');
-    const chunks = chunkIds(childIds, broadcastChunkSize(selectedAutomation.automation_type));
+    const chunks = chunkIds(ids, broadcastChunkSize(selectedAutomation.automation_type));
     const rows: BroadcastRow[] = [];
     let skipPhones: string[] = [];
     try {
@@ -162,6 +176,7 @@ export default function BroadcastWhatsAppDialog({
           automation_id: selectedAutomation.automation_id,
           dry_run: true,
           skip_phones: skipPhones,
+          ...hintBody,
         });
         rows.push(...res.results);
         skipPhones = skipPhones.concat(res.phones);
@@ -175,7 +190,8 @@ export default function BroadcastWhatsAppDialog({
     } finally {
       setPreviewing(false);
     }
-  }, [childIds, selectedAutomation]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ids, selectedAutomation, lessonHint, dayHint]);
 
   const previewSummary = useMemo(() => {
     const willSend = previewRows.filter((r) => r.status === 'preview').length;
@@ -193,7 +209,6 @@ export default function BroadcastWhatsAppDialog({
       setStep('sending');
       setPaused(null);
       for (let i = startIndex; i < state.chunks.length; i += 1) {
-        state.nextChunk = i + 1;
         try {
           const res = await broadcastToChildren({
             child_ids: state.chunks[i],
@@ -201,13 +216,21 @@ export default function BroadcastWhatsAppDialog({
             automation_id: selectedAutomation.automation_id,
             dry_run: false,
             skip_phones: state.skipPhones,
+            ...hintBody,
           });
           state.skipPhones = state.skipPhones.concat(res.phones);
           setSentRows((prev) => prev.concat(res.results));
           setChunkProgress({ done: i + 1, total: state.chunks.length });
         } catch {
-          // A timed-out chunk may have sent part of its rows. Never retry it
-          // by itself — the office decides after seeing what went out.
+          // A timed-out chunk may well have gone out on the server (the client
+          // timeout is longer than the function's). Never retry it by itself,
+          // and treat its phones as used so a sibling in a later chunk does
+          // not get a second message when the office continues.
+          const chunk = new Set(state.chunks[i]);
+          const usedPhones = previewRows
+            .filter((r) => chunk.has(r.child_id) && r.status === 'preview' && r.phone)
+            .map((r) => r.phone);
+          state.skipPhones = state.skipPhones.concat(usedPhones);
           setChunkProgress({ done: i, total: state.chunks.length });
           setPaused({ index: i, state: 'unknown' });
           return;
@@ -216,17 +239,18 @@ export default function BroadcastWhatsAppDialog({
       setStep('done');
       onSent?.();
     },
-    [onSent, selectedAutomation],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [onSent, selectedAutomation, previewRows, lessonHint, dayHint],
   );
 
   const startSending = useCallback(() => {
     if (!selectedAutomation || !confirmed) return;
-    const chunks = chunkIds(childIds, broadcastChunkSize(selectedAutomation.automation_type));
-    sendStateRef.current = { nextChunk: 0, skipPhones: [], chunks };
+    const chunks = chunkIds(ids, broadcastChunkSize(selectedAutomation.automation_type));
+    sendStateRef.current = { skipPhones: [], chunks };
     setSentRows([]);
     setChunkProgress({ done: 0, total: chunks.length });
     void sendChunksFrom(0);
-  }, [childIds, confirmed, selectedAutomation, sendChunksFrom]);
+  }, [ids, confirmed, selectedAutomation, sendChunksFrom]);
 
   const sentSummary = useMemo(() => {
     const sent = sentRows.filter((r) => r.status === 'sent').length;
@@ -262,7 +286,7 @@ export default function BroadcastWhatsAppDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <MessageCircle className="h-5 w-5 text-primary" />
-            שליחת WhatsApp ל-{childIds.length} ילדים שנבחרו
+            שליחת WhatsApp ל-{ids.length} ילדים שנבחרו
           </DialogTitle>
         </DialogHeader>
         {step !== 'sending' && <DialogCloseButton />}

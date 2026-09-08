@@ -79,10 +79,14 @@ type LessonOption = {
   end_time?: string | null;
   instructor_name?: string | null;
   instructor?: { full_name?: string } | null;
+  is_recurring?: boolean;
+  lesson_date?: string | null;
 };
 
 function lessonOptionLabel(lesson: LessonOption) {
-  const day = DAY_OPTIONS[lesson.day_of_week]?.label ?? '';
+  const day = lesson.is_recurring === false && lesson.lesson_date
+    ? new Date(`${lesson.lesson_date}T00:00:00`).toLocaleDateString('he-IL')
+    : (DAY_OPTIONS[lesson.day_of_week]?.label ?? '');
   const time = [lesson.start_time, lesson.end_time]
     .filter(Boolean)
     .map((t) => String(t).slice(0, 5))
@@ -552,7 +556,7 @@ export default function CustomersPage() {
                       {selectedIds.size > 0 && (
                         <span className="font-medium text-foreground">· נבחרו {selectedIds.size}</span>
                       )}
-                      {selectedIds.size < childrenTotalCount && (
+                      {childrenTotalCount > 0 && !(pageAllSelected && !childrenHasNext && !childrenHasPrev) && (
                         <button
                           type="button"
                           className="text-primary hover:underline disabled:opacity-50"
@@ -624,7 +628,6 @@ export default function CustomersPage() {
                         className={`hover:bg-muted/30 cursor-pointer transition-colors animate-slide-up${selectedIds.has(child.id) ? ' bg-primary/5' : ''}`}
                         style={{ animationDelay: `${index * 50}ms` }}
                         onClick={isManager ? () => toggleSelected(child) : undefined}
-                        aria-selected={isManager ? selectedIds.has(child.id) : undefined}
                       >
                         {isManager && (
                           <td className="text-center" onClick={(e) => e.stopPropagation()}>
@@ -858,6 +861,8 @@ export default function CustomersPage() {
           childIds={selectedIdList}
           childNames={selectedNames}
           onSent={clearSelection}
+          lessonHint={filters.course !== 'all' && filters.lesson !== 'all' ? filters.lesson : null}
+          dayHint={filters.day_of_week !== 'all' ? Number(filters.day_of_week) : null}
         />
       )}
 

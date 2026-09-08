@@ -239,6 +239,9 @@ export async function broadcastToChildren(payload: {
   automation_id: string;
   dry_run: boolean;
   skip_phones?: string[];
+  /** The lesson / weekday the audience was filtered by (see the server's hint handling). */
+  lesson_id?: string;
+  day_of_week?: number;
 }) {
   const res = await api.post('/customers/children/broadcast/', payload, { timeout: 120_000 });
   return res.data as BroadcastResult;
