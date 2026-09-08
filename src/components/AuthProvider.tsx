@@ -22,7 +22,10 @@ const isPublicPath = (pathname: string | null) =>
   pathname === '/signin' ||
   pathname === '/forgot-password' ||
   pathname === '/reset-password' ||
-  pathname?.startsWith('/widget') === true;
+  pathname?.startsWith('/widget') === true ||
+  pathname?.startsWith('/pay/') === true ||
+  pathname?.startsWith('/card-link/') === true ||
+  pathname?.startsWith('/update-card/') === true;
 
 function AuthProviderInner({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
