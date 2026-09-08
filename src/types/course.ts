@@ -143,6 +143,13 @@ export interface LessonBundleFormData {
 }
 
 // Course with nested lessons
+export interface LessonHeadcount {
+  lesson_id: string;
+  day_of_week: number;
+  start_time: string;
+  count: number;
+}
+
 export interface CourseWithLessons {
   id: string;
   display_id: number;
@@ -158,6 +165,8 @@ export interface CourseWithLessons {
   instructor_salary_override?: number | null;
   /** Distinct active students (paying + trial) across all lessons in this course */
   course_enrollment_count?: number;
+  /** Scheduled lessons in day/time order, each with its own active paying headcount */
+  lesson_headcounts?: LessonHeadcount[];
   /** Count from the backend — lessons[] starts empty and is filled lazily (see fetchCourseLessons) */
   lessons_count: number;
   /** Current-month aggregates from LessonMonthlySnapshot (nightly-refreshed, not live) */
