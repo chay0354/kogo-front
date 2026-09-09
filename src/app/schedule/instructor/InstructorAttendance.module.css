@@ -907,3 +907,9 @@
   font-weight: 700;
   vertical-align: middle;
 }
+
+/* A repeat trial: the same small tag, blue, so the instructor knows this child has been here before. */
+.trialTagRepeat {
+  background: #e6efff;
+  color: #1e40af;
+}

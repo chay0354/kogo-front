@@ -18,6 +18,8 @@ export interface EnrollmentDetail {
   trial_lesson_date?: string | null;
   /** Set once the trial date passed: attended / no_show / unmarked. */
   trial_outcome?: 'attended' | 'no_show' | 'unmarked' | null;
+  /** 1 for the first trial; the office may book a second (2, 3…) from the CRM. */
+  trial_number?: number;
   /** A downgrade waiting for the next billing date (the child stays put until then). */
   scheduled_change?: {
     id: string;
@@ -98,6 +100,7 @@ export interface ChildWithDetails {
     course_name: string;
     trial_lesson_date: string | null;
     trial_outcome?: 'attended' | 'no_show' | 'unmarked' | null;
+    trial_number?: number;
   } | null;
   attendance_rate: number;
   

@@ -510,13 +510,15 @@ export default function ChildProfileDialog({
                           <span className="text-muted-foreground text-sm">שיעור ניסיון</span>
                           {(() => {
                             const outcome = child.trial_enrollment?.trial_outcome;
-                            if (outcome === 'attended') return <Badge variant="default">הגיע לניסיון</Badge>;
-                            if (outcome === 'no_show') return <Badge variant="destructive">לא הגיע לניסיון</Badge>;
-                            if (outcome === 'unmarked') return <Badge variant="secondary">ניסיון · לא סומנה נוכחות</Badge>;
+                            const trialNumber = child.trial_enrollment?.trial_number ?? 1;
+                            const nth = trialNumber > 1 ? ` (ניסיון ${trialNumber})` : '';
+                            if (outcome === 'attended') return <Badge variant="default">הגיע לניסיון{nth}</Badge>;
+                            if (outcome === 'no_show') return <Badge variant="destructive">לא הגיע לניסיון{nth}</Badge>;
+                            if (outcome === 'unmarked') return <Badge variant="secondary">ניסיון{nth} · לא סומנה נוכחות</Badge>;
                             const bookedFor = child.trial_enrollment?.trial_lesson_date;
                             if (child.status === 'trial_signed' && bookedFor) {
                               const [y, m, d] = bookedFor.split('-').map(Number);
-                              return <Badge variant="secondary">נקבע ל־{new Date(y, m - 1, d).toLocaleDateString('he-IL')}</Badge>;
+                              return <Badge variant="secondary">נקבע ל־{new Date(y, m - 1, d).toLocaleDateString('he-IL')}{nth}</Badge>;
                             }
                             if (child.status === 'trial_signed' || child.status === 'trial_completed' || child.trial_classes_attended > 0) {
                               return <Badge variant="secondary">כן</Badge>;

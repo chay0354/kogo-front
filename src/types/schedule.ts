@@ -45,6 +45,8 @@ export type LessonDetail = Lesson & {
     child_status?: string;
     trial_lesson_date?: string | null;
     is_trial?: boolean;
+    /** 1 for a first trial; the office may book a second (2, 3…) from the CRM. */
+    trial_number?: number | null;
     trial_outcome?: 'attended' | 'no_show' | 'unmarked' | null;
   }>;
   attendance: Array<{
