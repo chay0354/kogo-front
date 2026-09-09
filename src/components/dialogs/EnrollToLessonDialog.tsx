@@ -275,7 +275,11 @@ export default function EnrollToLessonDialog({ child, isOpen, onClose: dismiss, 
             (whatsapp.error || whatsapp.reason || 'בדוק ManyChat')
         );
       } else {
-        alert('הילד נרשם לניסיון בהצלחה!');
+        alert(
+          enrollRes.data?.repeat_trial
+            ? `הילד נרשם לניסיון ${enrollRes.data.trial_number} בהצלחה!`
+            : 'הילד נרשם לניסיון בהצלחה!'
+        );
       }
       onEnroll();
       onClose();
@@ -286,6 +290,10 @@ export default function EnrollToLessonDialog({ child, isOpen, onClose: dismiss, 
 
       if (errorData?.lesson) {
         errorMessage = errorData.lesson;
+      } else if (errorData?.trial_lesson_date) {
+        errorMessage = String(errorData.trial_lesson_date);
+      } else if (errorData?.non_field_errors?.[0]) {
+        errorMessage = String(errorData.non_field_errors[0]);
       } else if (errorData?.detail) {
         errorMessage = errorData.detail;
       } else if (errorData?.error) {
@@ -382,6 +390,13 @@ export default function EnrollToLessonDialog({ child, isOpen, onClose: dismiss, 
     courseSeats !== 0 &&
     (!activeBundle || bundleLessons.length === activeBundle.lessons_detail.length)
   );
+  // A child who already had a trial may get another one from here (never from
+  // the widget). It is numbered, so the instructor sees "ניסיון 2" on the register.
+  const hadTrial =
+    child.status === 'trial_completed' ||
+    (child.trial_classes_attended ?? 0) > 0 ||
+    Boolean(child.trial_enrollment?.trial_outcome);
+  const nextTrialNumber = (child.trial_enrollment?.trial_number ?? 1) + 1;
 
   const existingCourseIds = new Set(
     child.enrollments
@@ -514,6 +529,11 @@ export default function EnrollToLessonDialog({ child, isOpen, onClose: dismiss, 
                   <p className="text-xs text-muted-foreground mt-1">
                     רישום לניסיון הוא לשיעור אחד בלבד. מנוי מלא כולל את כל מועדי הקבוצה.
                   </p>
+                  {hadTrial && (
+                    <p className="text-xs text-blue-700 mt-1">
+                      לילד כבר היה שיעור ניסיון — הרישום הזה יסומן כניסיון {nextTrialNumber}, והמדריך יראה זאת ברשימה.
+                    </p>
+                  )}
                 </div>
               )}
 
@@ -610,7 +630,9 @@ export default function EnrollToLessonDialog({ child, isOpen, onClose: dismiss, 
                   ? 'מבצע רישום...'
                   : trialPickerOpen
                     ? 'אשר רישום לניסיון'
-                    : 'הרשם לניסיון'}
+                    : hadTrial
+                      ? 'הרשם לניסיון נוסף'
+                      : 'הרשם לניסיון'}
               </button>
               <button
                 type="button"

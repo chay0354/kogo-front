@@ -62,6 +62,7 @@ function isTrialEnrollment(
   enrollment: {
     trial_lesson_date?: string | null;
     is_trial?: boolean;
+    trial_number?: number | null;
     trial_outcome?: 'attended' | 'no_show' | 'unmarked' | null;
     child_status?: string;
     child_name?: string;
@@ -86,6 +87,9 @@ function isGhostEnrollment(
     /רפאים/.test(enrollment.child_name || '')
   );
 }
+
+/** "ניסיון" for a first trial, "ניסיון 2" (3…) for a repeat the office booked. */
+const trialWord = (n?: number | null) => ((n ?? 1) > 1 ? `ניסיון ${n}` : 'ניסיון');
 
 export default function LessonDetailsDialog({
   lessonId,
@@ -640,10 +644,12 @@ export default function LessonDetailsDialog({
                                       ? 'רפאים'
                                       : isTrial
                                         ? (enrollment.trial_outcome === 'attended'
-                                            ? 'ניסיון · הגיע'
+                                            ? `${trialWord(enrollment.trial_number)} · הגיע`
                                             : enrollment.trial_outcome === 'no_show'
-                                              ? 'ניסיון · לא הגיע'
-                                              : 'בניסיון')
+                                              ? `${trialWord(enrollment.trial_number)} · לא הגיע`
+                                              : (enrollment.trial_number ?? 1) > 1
+                                                ? trialWord(enrollment.trial_number)
+                                                : 'בניסיון')
                                         : 'רשום'}
                                   </Badge>
                                   {currentStatus === 'present' ? (

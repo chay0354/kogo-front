@@ -730,6 +730,14 @@ export default function CustomersPage() {
                                               {formatTrialDate(enrollment.trial_lesson_date)}
                                             </span>
                                           ) : null}
+                                          {trial && (enrollment.trial_number ?? 1) > 1 ? (
+                                            <span
+                                              className="whitespace-nowrap rounded bg-blue-50 px-1 text-[10px] font-semibold text-blue-700"
+                                              title="ניסיון נוסף — הילד כבר היה בשיעור ניסיון"
+                                            >
+                                              ניסיון {enrollment.trial_number}
+                                            </span>
+                                          ) : null}
                                         </span>
                                       );
                                     })}

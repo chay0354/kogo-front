@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Calendar, Check, ChevronDown, ChevronRight, Clock, MessageCircle, Phone, Plus, Sparkles, Trash2, X } from 'lucide-react';
+import { Calendar, Check, ChevronDown, ChevronRight, Clock, MessageCircle, Phone, Plus, RotateCcw, Sparkles, Trash2, X } from 'lucide-react';
 import {
   addWalkInStudent,
   fetchLessonDetail,
@@ -314,10 +314,20 @@ export default function InstructorAttendance({
                     <div className={styles.name}>
                       {student.child_name}
                       {student.is_trial && student.child_status !== 'ghost' && (
-                        <span className={styles.trialTag} title="שיעור ניסיון">
-                          <Sparkles size={13} strokeWidth={2.4} aria-hidden />
-                          ניסיון
-                        </span>
+                        (student.trial_number ?? 1) > 1 ? (
+                          <span
+                            className={`${styles.trialTag} ${styles.trialTagRepeat}`}
+                            title={`שיעור ניסיון ${student.trial_number} — הילד כבר היה בניסיון`}
+                          >
+                            <RotateCcw size={13} strokeWidth={2.4} aria-hidden />
+                            ניסיון {student.trial_number}
+                          </span>
+                        ) : (
+                          <span className={styles.trialTag} title="שיעור ניסיון">
+                            <Sparkles size={13} strokeWidth={2.4} aria-hidden />
+                            ניסיון
+                          </span>
+                        )
                       )}
                       {student.child_status === 'ghost' && (
                         <span className={styles.walkInTag}>הגיע ללא רישום</span>
