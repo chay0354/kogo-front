@@ -8,6 +8,7 @@ import api from '@/lib/api';
 import { initiatePayment } from '@/lib/storeApi';
 import type { ChildWithDetails } from '@/types/customer';
 import RealCardTestSection from './RealCardTestSection';
+import TerminalMapSection from './TerminalMapSection';
 
 function Row({ label, value, mono }: { label: string; value: string | number | boolean; mono?: boolean }) {
   return (
@@ -461,9 +462,10 @@ export default function SettingsBillingPage() {
         <div>
           <h2 className="text-xl font-semibold">סליקת אשראי — בדיקות</h2>
           <p className="text-muted-foreground text-sm mt-1">
-            בדיקה וחקירה של זרמי סליקת אשראי מול Tranzila. לא לשימוש יומיומי — חיוב לקוחות נעשה מהקופה ומכרטיס הילד.
+            מיפוי המסופים, ובדיקה וחקירה של זרמי סליקת אשראי מול Tranzila. הבדיקות אינן לשימוש יומיומי — חיוב לקוחות נעשה מהקופה ומכרטיס הילד.
           </p>
         </div>
+        <TerminalMapSection />
         <RealCardTestSection />
         <DirectCardSection products={products} />
         <IframeSection products={products} />
