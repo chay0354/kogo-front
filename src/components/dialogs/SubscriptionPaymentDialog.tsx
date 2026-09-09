@@ -165,6 +165,9 @@ export default function SubscriptionPaymentDialog({
   const paymentData = paymentDataList[0] ?? null;
   const totalFinalAmount = paymentDataList.reduce((sum, p) => sum + Number(p.final_amount || 0), 0);
   const totalRegistrationFee = paymentDataList.reduce((sum, p) => sum + Number(p.registration_fee || 0), 0);
+  // A paid trial the parent already settled, taken off this first charge.
+  const totalTrialCredit = paymentDataList.reduce((sum, p) => sum + Number(p.trial_credit_amount || 0), 0);
+  const trialCreditReason = paymentDataList.find((p) => Number(p.trial_credit_amount || 0) > 0)?.trial_credit_reason;
   const totalProratedAmount = paymentDataList.reduce((sum, p) => sum + Number(p.prorated_amount || 0), 0);
   const totalMonthlyAmount = paymentDataList.reduce((sum, p) => sum + Number(p.monthly_amount || 0), 0);
 
@@ -276,12 +279,21 @@ export default function SubscriptionPaymentDialog({
                       </span>
                     </div>
                   )}
+                  {totalTrialCredit > 0 && (
+                    <div className="flex justify-between">
+                      <span className="text-emerald-700">קיזוז שיעור ניסיון ששולם</span>
+                      <span className="font-medium text-emerald-700">-₪{totalTrialCredit.toFixed(2)}</span>
+                    </div>
+                  )}
                   <div className="border-t border-blue-300 pt-2 flex justify-between font-bold text-base">
                     <span>{paymentData.subscription_start_date ? 'סה"כ לתשלום כעת:' : 'סה"כ לתשלום:'}</span>
                     <span className="text-blue-600">
                       ₪{(paymentDataList.length > 1 ? totalFinalAmount : Number(paymentData.final_amount || 0)).toFixed(2)}
                     </span>
                   </div>
+                  {totalTrialCredit > 0 && trialCreditReason && (
+                    <p className="text-xs text-emerald-700 pt-1">{trialCreditReason}</p>
+                  )}
                   {paymentData.subscription_start_date && (
                     <p className="text-xs text-gray-600 pt-1">
                       החודש הנוכחי אינו מחויב. המנוי החודשי בסך ₪{totalMonthlyAmount.toFixed(2)}

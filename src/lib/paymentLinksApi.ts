@@ -176,7 +176,7 @@ export type CardLink = {
   sent_result: Record<string, unknown>;
   completed_at: string | null;
   created_at: string;
-  quote?: { first_charge: string; monthly_amount: string; registration_fee: string; next_billing_date: string };
+  quote?: { first_charge: string; monthly_amount: string; registration_fee: string; next_billing_date: string; trial_credit?: string; trial_credit_reason?: string };
   quote_error?: string;
   whatsapp?: { sent?: boolean; method?: string; reason?: string; error?: string };
 };
@@ -223,6 +223,9 @@ export type CardLinkPreview = {
   first_charge?: string;
   monthly_amount?: string;
   registration_fee?: string;
+  /** A paid trial the parent already settled, taken off this first charge. */
+  trial_credit?: string;
+  trial_credit_reason?: string;
   next_billing_date?: string;
   quote_error?: string;
   description?: string;

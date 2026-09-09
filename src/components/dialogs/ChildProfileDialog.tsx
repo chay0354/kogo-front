@@ -75,6 +75,7 @@ function monthName(value: string | null | undefined): string {
 
 function isOneTimePayment(payment: {
   registration_fee?: unknown;
+  trial_credit_amount?: unknown;
   trial_lesson_date?: string | null;
   payment_type?: string;
   description?: string;
@@ -100,6 +101,7 @@ function isOneTimePayment(payment: {
  */
 function isRefundableCharge(payment: {
   registration_fee?: unknown;
+  trial_credit_amount?: unknown;
   trial_lesson_date?: string | null;
   payment_type?: string;
   description?: string;
@@ -144,19 +146,24 @@ function oneTimePaymentLabel(payment: {
   description?: string;
   lesson_name?: string;
   registration_fee?: unknown;
+  trial_credit_amount?: unknown;
   trial_lesson_date?: string | null;
   payment_type?: string;
 }): string {
+  // A charge that a paid trial reduced says so, so the office can explain the
+  // number to a parent without opening the payment.
+  const credit = Number(payment.trial_credit_amount || 0);
+  const creditNote = credit > 0 ? ` · קוזז שיעור ניסיון ₪${credit.toFixed(0)}` : '';
   if (payment.trial_lesson_date) {
     return payment.description || `שיעור ניסיון${payment.lesson_name ? ` · ${payment.lesson_name}` : ''}`;
   }
   if (Number(payment.registration_fee || 0) > 0 || String(payment.description || '').includes('דמי רישום')) {
-    return `דמי רישום${payment.lesson_name ? ` · ${payment.lesson_name}` : ''}`;
+    return `דמי רישום${payment.lesson_name ? ` · ${payment.lesson_name}` : ''}${creditNote}`;
   }
   if (payment.payment_type === 'recurring_subscription') {
-    return payment.description || `חיוב חודשי${payment.lesson_name ? ` · ${payment.lesson_name}` : ''}`;
+    return (payment.description || `חיוב חודשי${payment.lesson_name ? ` · ${payment.lesson_name}` : ''}`) + creditNote;
   }
-  return payment.description || payment.lesson_name || 'חיוב חד-פעמי';
+  return (payment.description || payment.lesson_name || 'חיוב חד-פעמי') + creditNote;
 }
 
 export default function ChildProfileDialog({

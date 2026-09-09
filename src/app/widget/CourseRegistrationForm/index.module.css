@@ -482,6 +482,18 @@
   @apply text-sm font-semibold text-center leading-relaxed pt-2;
   color: #2B3090;
 }
+
+/* The sentence that tells a parent their paid trial came off this charge. */
+.trialCreditNote {
+  margin: 8px 0 0;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: #eef6ee;
+  color: #1f5130;
+  font-size: 0.82rem;
+  line-height: 1.45;
+  text-align: right;
+}
 .cardFields {
   @apply space-y-3;
 }
