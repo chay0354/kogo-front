@@ -16,6 +16,8 @@ import AdditionalChildSection, {
 } from './AdditionalChildSection';
 import ExtraLessonPicker from './ExtraLessonPicker';
 import SelectedLessonCard from './SelectedLessonCard';
+import ProcessingPanel from './ProcessingPanel';
+import type { ProcessingPhase } from './processingCopy';
 import { SkeletonLessonOptions, SkeletonTextLines } from '../WidgetSkeletons/WidgetSkeletons';
 import { trialNextStep } from './trialFlow';
 import type { AppliedDiscount, Props, Step, LookupResult, PaymentResponse, TrialOccurrence } from './types';
@@ -203,6 +205,9 @@ export default function CourseRegistrationForm({
   const [cvv, setCvv] = useState('');
   const [cardHolderId, setCardHolderId] = useState('');
   const [charging, setCharging] = useState(false);
+  // 'charge' while the card round trip is open; 'verify' once the gateway
+  // accepted the card and we are polling for the settled status.
+  const [chargePhase, setChargePhase] = useState<ProcessingPhase>('charge');
   const [lookingUp, setLookingUp] = useState(false);
   const [showTerms, setShowTerms] = useState(false);
   const [termsContent, setTermsContent] = useState('');
@@ -469,6 +474,7 @@ export default function CourseRegistrationForm({
   const handleCardCharge = async () => {
     if (!paymentData || !cardNumber || !expiryMonth || !expiryYear || !cvv) return;
     setCharging(true);
+    setChargePhase('charge');
     setErrorMsg('');
 
     const ids = paymentData.payment_ids?.length
@@ -488,6 +494,7 @@ export default function CourseRegistrationForm({
     };
 
     const waitForSettlement = async (): Promise<'completed' | 'failed' | 'processing'> => {
+      setChargePhase('verify');
       const deadline = Date.now() + CHARGE_POLL_MAX_MS;
       let last: 'completed' | 'failed' | 'processing' = 'processing';
       while (Date.now() < deadline) {
@@ -570,6 +577,7 @@ export default function CourseRegistrationForm({
       setStep('payment_failed');
     } finally {
       setCharging(false);
+      setChargePhase('charge');
     }
   };
 
@@ -1668,6 +1676,15 @@ export default function CourseRegistrationForm({
     );
   }
 
+  if (step === 'payment' && paymentData && charging) {
+    return (
+      <ProcessingPanel
+        phase={chargePhase}
+        amountLabel={`₪${Number(paymentData.final_amount).toFixed(2)}`}
+      />
+    );
+  }
+
   if (step === 'payment' && paymentData) {
     const baseAmount = Number(paymentData.base_amount);
     const discountAmount = Number(paymentData.discount_amount);
@@ -1861,10 +1878,5 @@ export default function CourseRegistrationForm({
     );
   }
 
-  return (
-    <div className={styles.submittingContainer} dir="rtl">
-      <span className={styles.submittingSpinner} />
-      שולח פרטים, אנא המתן...
-    </div>
-  );
+  return <ProcessingPanel phase="register" />;
 }
