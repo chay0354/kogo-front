@@ -395,7 +395,8 @@ export default function EnrollToLessonDialog({ child, isOpen, onClose: dismiss, 
   const hadTrial =
     child.status === 'trial_completed' ||
     (child.trial_classes_attended ?? 0) > 0 ||
-    Boolean(child.trial_enrollment?.trial_outcome);
+    Boolean(child.trial_enrollment?.trial_outcome) ||
+    (child.trial_enrollment?.trial_number ?? 1) > 1;
   const nextTrialNumber = (child.trial_enrollment?.trial_number ?? 1) + 1;
 
   const existingCourseIds = new Set(
