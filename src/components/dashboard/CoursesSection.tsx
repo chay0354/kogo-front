@@ -275,7 +275,14 @@ export default function CoursesSection({ globalDateRange }: Props) {
                         </td>
                         <td style={{ color: 'var(--kg-muted)', fontSize: 12 }}>{c.branch || '—'}</td>
                         <td className={theme.n}>{Number(c.lessons ?? 0)}</td>
-                        <td className={theme.n}>{Number(c.students ?? 0)}</td>
+                        <td className={theme.n}>
+                          {Number(c.students ?? 0)}
+                          {Number(c.external_students ?? 0) > 0 && (
+                            <span className={theme.tagType} style={{ marginRight: 6 }}>
+                              +{Number(c.external_students)} עירייה
+                            </span>
+                          )}
+                        </td>
                         <td className={theme.n}>
                           {formatPercent(occ, 0)}
                           <span className={theme.mini}>
@@ -285,10 +292,21 @@ export default function CoursesSection({ globalDateRange }: Props) {
                             />
                           </span>
                         </td>
-                        <td className={theme.n}>{formatCurrency(c.revenue)}</td>
-                        <td className={`${theme.n} ${Number(c.profit ?? 0) >= 0 ? theme.up : theme.down}`}>
-                          {formatCurrency(c.profit)}
-                        </td>
+                        {/* An external course collects nothing through us, so a
+                            ₪0 next to a real instructor cost reads as a loss it
+                            never made. Say where the money is instead. */}
+                        {c.is_external ? (
+                          <td className={theme.n} colSpan={2} style={{ color: 'var(--kg-muted)', fontSize: 12 }}>
+                            נגבה בעירייה
+                          </td>
+                        ) : (
+                          <>
+                            <td className={theme.n}>{formatCurrency(c.revenue)}</td>
+                            <td className={`${theme.n} ${Number(c.profit ?? 0) >= 0 ? theme.up : theme.down}`}>
+                              {formatCurrency(c.profit)}
+                            </td>
+                          </>
+                        )}
                       </tr>
                     );
                   })}
