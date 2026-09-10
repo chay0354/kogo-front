@@ -21,13 +21,33 @@ export function isCourseVisibleInWidgetCatalog(course: {
  * lessons still does — the form then lists only those. A card with neither
  * (an older payload) keeps the button, so a missing field never hides it.
  */
+/**
+ * A trial sits in the same room as the paying students, so it is offered only
+ * while there is a place for another body — not merely another subscriber.
+ */
+export function trialSeatsAvailable(lesson?: { trial_is_full?: boolean } | null): boolean {
+  return lesson?.trial_is_full !== true;
+}
+
 export function trialRegistrationOffered(lesson?: CourseLesson | null, bundle?: CourseBundle | null): boolean {
-  if (lesson) return lesson.trial_registration_open !== false;
-  if (bundle?.lessons?.length) return bundle.lessons.some((l) => l.trial_registration_open !== false);
+  if (lesson) return lesson.trial_registration_open !== false && trialSeatsAvailable(lesson);
+  if (bundle?.lessons?.length) {
+    return bundle.lessons.some((l) => l.trial_registration_open !== false && trialSeatsAvailable(l));
+  }
   return true;
+}
+
+/** True when a trial is closed only because the room is full for that day. */
+export function trialFullOnly(lesson?: CourseLesson | null, bundle?: CourseBundle | null): boolean {
+  if (lesson) return lesson.trial_registration_open !== false && lesson.trial_is_full === true;
+  if (bundle?.lessons?.length) {
+    const open = bundle.lessons.filter((l) => l.trial_registration_open !== false);
+    return open.length > 0 && open.every((l) => l.trial_is_full === true);
+  }
+  return false;
 }
 
 /** The bundle lessons a trial may still be booked on. */
 export function trialLessonChoices(bundle?: CourseBundle | null) {
-  return (bundle?.lessons ?? []).filter((l) => l.trial_registration_open !== false);
+  return (bundle?.lessons ?? []).filter((l) => l.trial_registration_open !== false && trialSeatsAvailable(l));
 }

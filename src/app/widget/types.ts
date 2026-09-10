@@ -31,6 +31,9 @@ export interface CourseLesson {
   price_options?: CourseLessonPriceOption[];
   /** False when the office closed trial bookings on this lesson (or the studio rule did). */
   trial_registration_open?: boolean;
+  /** Places a trial may still be booked into — payers plus trials already booked share the room. */
+  trial_spots_left?: number | null;
+  trial_is_full?: boolean;
 }
 
 export interface CourseLessonPriceOption {
@@ -51,6 +54,9 @@ export interface CourseBundleLesson {
   /** Served from its own cached endpoint; null falls back to the placeholder. */
   instructor_photo_url?: string | null;
   trial_registration_open?: boolean;
+  /** Places a trial may still be booked into — payers plus trials already booked share the room. */
+  trial_spots_left?: number | null;
+  trial_is_full?: boolean;
 }
 
 export interface CourseBundle {

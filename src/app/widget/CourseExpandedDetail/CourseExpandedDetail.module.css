@@ -354,6 +354,18 @@
   cursor: pointer;
 }
 
+/* The trial is closed because the room is full that day, not for good. */
+.trialFullNote {
+  margin: 0;
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: #f4f5f9;
+  color: #5b6178;
+  font-size: 0.88rem;
+  font-weight: 600;
+  text-align: center;
+}
+
 .enrollButton {
   background: #F5C518;
   color: #2B3090;
