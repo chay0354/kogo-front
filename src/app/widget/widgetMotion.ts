@@ -12,6 +12,17 @@ export const WIDGET_MOTION_MS = {
   detailExit: 260,
   drawerExit: 240,
   noticeExit: 200,
+  /*
+   * Two entrances that need no timer: the track fold in
+   * `CourseList.module.css` and the widget's own arrival on `.filterStrip`.
+   * Both are pure CSS, and nothing reads these numbers — but writing them here
+   * is what puts them under the same test as everything else, so the rule that
+   * a thing leaves faster than it arrives stays enforced rather than
+   * remembered.
+   */
+  accordion: 300,
+  accordionExit: 240,
+  stripIn: 440,
 } as const;
 
 /**

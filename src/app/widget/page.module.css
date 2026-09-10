@@ -20,10 +20,10 @@
   }
 }
 
-@keyframes widgetSlideUp {
+@keyframes widgetStripIn {
   from {
     opacity: 0;
-    transform: translateY(20px);
+    transform: translateY(12px);
   }
 
   to {
@@ -714,8 +714,36 @@
   }
 }
 
+/*
+ * The arrow that says the list carries on below the frame's closing line.
+ * Fixed, because the line it sits on is reported in this document's fixed
+ * coordinates — `top` comes from the host's visible band, not from the flow.
+ * The white glow is the same one the filter list's cue wears, so the two read
+ * as one hand.
+ */
+.scrollCue {
+  position: fixed;
+  inset-inline: 0;
+  display: flex;
+  justify-content: center;
+  color: #2B3090;
+  pointer-events: none;
+  z-index: 400;
+  filter: drop-shadow(0 -2px 4px #ffffff) drop-shadow(0 0 6px #ffffff);
+}
+
 @media (prefers-reduced-motion: no-preference) {
+  /*
+   * Three bobs, then it rests. The site's accessibility toolbar stops
+   * animations by a rule on its own <html>, and CSS does not cross into an
+   * iframe — so a cue that bobbed forever could not be stopped from out there.
+   * It bobs again each time it becomes newly relevant, which is when it has
+   * something to say anyway.
+   */
+  .scrollCue {
+    animation: widgetScrollCueBob 1600ms ease-in-out 3;
   }
+}
 
 .externalBranchMessage {
   display: flex;
@@ -737,3 +765,26 @@
   padding: 0;
 }
 
+
+/*
+ * The widget's own arrival. It lives in here rather than on the frame out in
+ * the host page for three reasons written down in the site's register.module.css:
+ * a transform on an ancestor of the iframe falsifies the measurement the visible
+ * band is built from, it breaks the fullscreen sheet's `position: fixed`, and
+ * the widget is the page's primary action so it must never wait on JS. Inside
+ * this document none of that applies — the frame's own box never moves.
+ *
+ * `backwards` and not `both`: nothing should be left holding a computed
+ * transform once the strip has landed.
+ */
+@media (prefers-reduced-motion: no-preference) {
+  .filterStrip {
+    animation: widgetStripIn 440ms cubic-bezier(0.32, 0.72, 0, 1) backwards;
+  }
+
+  /* The catalogue is the moment a parent is actually watching — it should
+     arrive rather than appear whole between one filter and the next. */
+  .catalogEnter {
+    animation: widgetFadeIn 260ms cubic-bezier(0.32, 0.72, 0, 1) backwards;
+  }
+}

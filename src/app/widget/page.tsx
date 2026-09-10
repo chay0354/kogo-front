@@ -9,11 +9,17 @@ import CourseExpandedDetail from './CourseExpandedDetail/index';
 import { CourseList } from './CourseList/CourseList';
 import type { Branch, Course, CourseBundle, CourseLesson, CourseLessonPriceOption } from './types';
 import type { SavedParentDetails } from './CourseRegistrationForm/types';
-import { STATIC_CITIES, resolveWidgetExternalLink, hideSeptemberStandingOrderNote } from './page.utils';
+import {
+  STATIC_CITIES,
+  drawerCourseTitle,
+  resolveWidgetExternalLink,
+  hideSeptemberStandingOrderNote,
+} from './page.utils';
 import { isCourseVisibleInWidgetCatalog , trialLessonChoices } from './lessonVisibility';
-import { AGE_OPTIONS, formatAge, isInstructorsCourse, INSTRUCTORS_TRACK_TITLE } from '@/lib/courseUtils';
+import { AGE_OPTIONS, formatAge, isInstructorsCourse } from '@/lib/courseUtils';
 import { findWidgetAlternatives, isWidgetSelectionFull, type WidgetAlternative } from './alternativeLessons';
 import { sortWidgetCourseTypes } from './courseTypeOrder';
+import { scrollCueTop, showsScrollCue } from './scrollCue';
 import { WIDGET_MOTION_MS, holdsBandWhileOpen, prefersReducedMotion } from './widgetMotion';
 import { preloadInstructorPhotos } from './instructorPhotoPreload';
 import { SkeletonCourseList, SkeletonFilterOptions } from './WidgetSkeletons/WidgetSkeletons';
@@ -23,9 +29,6 @@ const OPTION_HEIGHT = 44;
 const MAX_PANEL_HEIGHT = 240;
 const MIN_PANEL_HEIGHT = 132;
 const PANEL_GAP = 8;
-
-/** Less than this left to travel and the reader has arrived — the same slack the
-    shortcut inside the terms document allows itself. */
 
 const DETAIL_EXIT_MS = WIDGET_MOTION_MS.detailExit;
 const DRAWER_EXIT_MS = WIDGET_MOTION_MS.drawerExit;
@@ -447,6 +450,70 @@ export default function WidgetPage() {
   const [savedParent, setSavedParent] = useState<SavedParentDetails | null>(null);
   const [addingAnotherChild, setAddingAnotherChild] = useState(false);
   const pageRef = useRef<HTMLDivElement>(null);
+
+  /**
+   * The arrow on the closing line, shown only while the catalogue still runs
+   * past it. `null` means there is nothing left below and the reader has
+   * arrived — a cue that never leaves is not a cue.
+   */
+  const [scrollCue, setScrollCue] = useState<number | null>(null);
+  const catalogCoveredByOverlay = Boolean(detailCourse || drawerCourse);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    let frame = 0;
+
+    const measure = () => {
+      frame = 0;
+      const root = pageRef.current;
+      const scrollY = readScrollY();
+      // Measured off the content itself, not documentElement.scrollHeight: that
+      // never reports less than the frame's own fixed height, so a widget
+      // shorter than its frame would claim there was more to come and leave the
+      // arrow pointing at empty space.
+      const contentHeight = root ? root.getBoundingClientRect().bottom + scrollY : Number.NaN;
+      const { bottom } = visibleBand();
+      setScrollCue(
+        showsScrollCue({
+          contentHeight,
+          scrollY,
+          bandBottom: bottom,
+          overlayOpen: catalogCoveredByOverlay,
+        })
+          ? scrollCueTop(bottom)
+          : null,
+      );
+    };
+
+    const schedule = () => {
+      if (!frame) frame = window.requestAnimationFrame(measure);
+    };
+
+    ensureHostBandBridge();
+    measure();
+    bandSubscribers.add(schedule);
+    window.addEventListener('scroll', schedule, { passive: true });
+    window.addEventListener('resize', schedule);
+    window.visualViewport?.addEventListener('resize', schedule);
+    window.visualViewport?.addEventListener('scroll', schedule);
+
+    // Opening a track changes the content height with no scroll and no fresh
+    // band behind it, so neither listener above would hear about it.
+    const observed = pageRef.current;
+    const observer =
+      typeof ResizeObserver !== 'undefined' && observed ? new ResizeObserver(schedule) : null;
+    observer?.observe(observed as Element);
+
+    return () => {
+      if (frame) window.cancelAnimationFrame(frame);
+      bandSubscribers.delete(schedule);
+      window.removeEventListener('scroll', schedule);
+      window.removeEventListener('resize', schedule);
+      window.visualViewport?.removeEventListener('resize', schedule);
+      window.visualViewport?.removeEventListener('scroll', schedule);
+      observer?.disconnect();
+    };
+  }, [catalogCoveredByOverlay]);
   const detailExitRef = useRef<number | null>(null);
   const drawerExitRef = useRef<number | null>(null);
 
@@ -856,11 +923,21 @@ export default function WidgetPage() {
       ) : showCourseListLoading ? (
         <SkeletonCourseList />
       ) : showTable ? (
-        <CourseList
-          filteredCourses={filteredCourses}
-          selectedAge={selectedAge ? parseInt(selectedAge, 10) : null}
-          onSelect={toggleDetail}
-        />
+        <div className={styles.catalogEnter}>
+          <CourseList
+            filteredCourses={filteredCourses}
+            selectedAge={selectedAge ? parseInt(selectedAge, 10) : null}
+            onSelect={toggleDetail}
+          />
+        </div>
+      ) : null}
+
+      {/* Sits on the line where the frame stops, so it reads as the widget's own
+          bottom edge rather than as something floating over the list. */}
+      {scrollCue !== null ? (
+        <span className={styles.scrollCue} style={{ top: scrollCue }} aria-hidden="true">
+          <ChevronDown size={22} />
+        </span>
       ) : null}
 
       {/* Course detail overlay — portaled so mobile fixed layout stays viewport-aligned */}
@@ -918,13 +995,13 @@ export default function WidgetPage() {
               ) : (
                 <CourseRegistrationForm
                   courseId={drawerCourse.id}
-                  courseName={
-                    drawerPriceOption
-                      ? drawerPriceOption.display_title
-                      : drawerBundle
-                        ? `${drawerCourse.name} #${drawerCourse.display_id} (${drawerBundle.name || (isInstructorsCourse(drawerCourse) ? INSTRUCTORS_TRACK_TITLE : 'פעמיים בשבוע')})`
-                        : `${drawerCourse.name} #${drawerCourse.display_id}`
-                  }
+                  courseName={drawerCourseTitle({
+                    courseName: drawerCourse.name,
+                    priceOptionTitle: drawerPriceOption?.display_title,
+                    bundleName: drawerBundle?.name,
+                    isBundle: Boolean(drawerBundle),
+                    isInstructors: isInstructorsCourse(drawerCourse),
+                  })}
                   isAdult={drawerCourse.is_adult ?? false}
                   bundleId={drawerBundle?.id}
                   lessonId={drawerLesson?.id}

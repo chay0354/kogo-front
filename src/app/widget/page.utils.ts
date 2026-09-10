@@ -1,3 +1,4 @@
+import { INSTRUCTORS_TRACK_TITLE, stripWidgetApprovalPhrase } from '@/lib/courseUtils';
 import type { City } from './types';
 
 /** These cities do not show the "standing order starts 1.9" widget note. */
@@ -85,4 +86,38 @@ export function resolveWidgetExternalLink(
   if (!branch?.is_external) return '';
   const fromBranch = (branch.external_link || '').trim();
   return fromBranch ? normalizeExternalLink(fromBranch) : '';
+}
+
+/**
+ * The course as it should read on the registration drawer — the same words the
+ * catalogue row beside it uses.
+ *
+ * A price option speaks for itself. Anything else is the course's own name with
+ * the approval phrase stripped, exactly as the catalogue spells it, so a parent
+ * never meets one course under two names on one screen. A bundle keeps its track
+ * in brackets: that parenthetical is the only thing telling them which of the two
+ * they are enrolling in.
+ */
+export function drawerCourseTitle({
+  courseName,
+  priceOptionTitle,
+  bundleName,
+  isBundle,
+  isInstructors,
+}: {
+  courseName: string;
+  priceOptionTitle?: string | null;
+  bundleName?: string | null;
+  isBundle: boolean;
+  isInstructors: boolean;
+}): string {
+  const fromPriceOption = (priceOptionTitle || '').trim();
+  if (fromPriceOption) return fromPriceOption;
+
+  const name = stripWidgetApprovalPhrase(courseName || '');
+  if (!isBundle) return name;
+
+  const track =
+    (bundleName || '').trim() || (isInstructors ? INSTRUCTORS_TRACK_TITLE : 'פעמיים בשבוע');
+  return `${name} (${track})`;
 }

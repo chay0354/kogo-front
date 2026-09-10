@@ -10,6 +10,14 @@ body {
   padding: 0;
   overflow-x: clip;
   overscroll-behavior-x: none;
+  /*
+   * No ground of its own. The host reserves the frame's box and paints it long
+   * before this document exists; painting a second, near-enough white on top
+   * the moment we load is a flash of colour that lands before there is any
+   * content to justify it. Transparent lets the host's ground show through, so
+   * the only thing that changes on load is the widget arriving.
+   */
+  background: transparent;
 }
 
 body {

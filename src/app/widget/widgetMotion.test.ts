@@ -24,6 +24,24 @@ describe('widget motion timing', () => {
     expect(WIDGET_MOTION_MS.noticeExit).toBeLessThan(WIDGET_MOTION_MS.detailExit);
   });
 
+  it('folds the extra tracks away faster than it unfolds them', () => {
+    expect(WIDGET_MOTION_MS.accordionExit).toBeLessThan(WIDGET_MOTION_MS.accordion);
+  });
+
+  it('opens a track without outstaying the card that opens over it', () => {
+    expect(WIDGET_MOTION_MS.accordion).toBeLessThanOrEqual(380);
+  });
+
+  it('lets the widget arrive more slowly than anything here leaves', () => {
+    const exits = [
+      WIDGET_MOTION_MS.detailExit,
+      WIDGET_MOTION_MS.drawerExit,
+      WIDGET_MOTION_MS.noticeExit,
+      WIDGET_MOTION_MS.accordionExit,
+    ];
+    exits.forEach((exit) => expect(exit).toBeLessThan(WIDGET_MOTION_MS.stripIn));
+  });
+
   describe('prefersReducedMotion', () => {
     it('says no on the server, where there is no window to ask', () => {
       expect(prefersReducedMotion()).toBe(false);
