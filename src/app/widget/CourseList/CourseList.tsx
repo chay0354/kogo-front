@@ -71,9 +71,6 @@ function CourseRowItem({
     <div
       key={`${course.id}-${bundle?.id ?? lesson?.id ?? index}-${priceOption?.id ?? 'default'}`}
       role="listitem"
-      /* The scroll cue hangs off the last of these a reader can finish, so it
-         needs to find them without knowing a hashed class name. */
-      data-catalog-row=""
       className={`${styles.row}${isFull ? ` ${styles.rowFull}` : ''}`}
       aria-label={isFull ? `${displayTitle} — מלא` : undefined}
       onClick={() => onSelect(course, bundle ?? undefined, lesson ?? undefined, priceOption ?? undefined)}
