@@ -385,7 +385,9 @@ export default function InstructorDashboard({ onClose, onOpenLesson, onDismissCh
                           key={g.lesson_id}
                           title={`${g.course_name} · ${g.branch_name}`}
                         >
-                          <b>{g.active_students}</b>
+                          {/* A municipality group we have no list for reports
+                              nothing rather than a zero it cannot vouch for. */}
+                          <b>{g.roster_unknown ? '—' : g.active_students}</b>
                           {g.course_name}
                         </span>
                       ))}
