@@ -42,6 +42,7 @@ import {
 import EditMonthAmountDialog from '@/components/dialogs/EditMonthAmountDialog';
 import SendCardLinkDialog from '@/components/dialogs/SendCardLinkDialog';
 import RegisterCashDialog from '@/components/dialogs/RegisterCashDialog';
+import ReplaceCardDialog from '@/components/dialogs/ReplaceCardDialog';
 import FamilySignaturesTable, { type FamilySignaturesStatus } from '@/components/signatures/FamilySignaturesTable';
 import SignatureViewDialog from '@/components/signatures/SignatureViewDialog';
 import { downloadSignaturePdf, fetchSignatures } from '@/lib/signaturesApi';
@@ -515,6 +516,7 @@ export default function ChildProfileDialog({
 }: ChildProfileDialogProps) {
   const [cardLinkOpen, setCardLinkOpen] = useState(false);
   const [cashOpen, setCashOpen] = useState(false);
+  const [replaceCardOpen, setReplaceCardOpen] = useState(false);
   const { user: authUser } = useAuth();
   const canSendCardLink = authUser?.role === 'manager';
   const [absences, setAbsences] = useState<AbsenceRecord[]>([]);
@@ -1299,6 +1301,9 @@ export default function ChildProfileDialog({
                           <h3 className="font-semibold text-lg">חיובים שבוצעו</h3>
                           {canSendCardLink && (
                             <div className="flex gap-2">
+                              <Button type="button" variant="outline" size="sm" onClick={() => setReplaceCardOpen(true)}>
+                                החלפת כרטיס אשראי
+                              </Button>
                               <Button type="button" variant="outline" size="sm" onClick={() => setCashOpen(true)}>
                                 רישום במזומן
                               </Button>
@@ -1640,6 +1645,7 @@ export default function ChildProfileDialog({
     {canSendCardLink && <SendCardLinkDialog open={cardLinkOpen} onOpenChange={setCardLinkOpen} child={child} />}
     {canSendCardLink && (
       <RegisterCashDialog open={cashOpen} onOpenChange={setCashOpen} child={child} />
+      <ReplaceCardDialog open={replaceCardOpen} onOpenChange={setReplaceCardOpen} child={child} />
     )}
     {refundItem && (
       <RefundDialog
