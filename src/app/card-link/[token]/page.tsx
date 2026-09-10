@@ -214,6 +214,15 @@ export default function CardLinkPage() {
                         <span>{formatShekels(preview.registration_fee || 0)}</span>
                       </div>
                     ) : null}
+                    {Number(preview.trial_credit) > 0 ? (
+                      <div className={formStyles.summaryRow}>
+                        <span>קיזוז שיעור ניסיון ששולם</span>
+                        <span>-{formatShekels(preview.trial_credit || 0)}</span>
+                      </div>
+                    ) : null}
+                    {Number(preview.trial_credit) > 0 && preview.trial_credit_reason ? (
+                      <p className={formStyles.billingNote}>{preview.trial_credit_reason}</p>
+                    ) : null}
                     <p className={formStyles.billingNote}>
                       {firstCharge > 0
                         ? 'החיוב הראשון ירד עכשיו (יחסי לחודש הנוכחי), והכרטיס יישמר להוראת הקבע החודשית.'

@@ -1,0 +1,235 @@
+/*
+ * The terminal map's own furniture, on the dashboard's --kg-* tokens.
+ *
+ * The one thing this screen exists to say is a terminal's name, so the name is
+ * set larger than the section heading above it and left in LTR — it is an
+ * identifier at Tranzila, not Hebrew prose, and reversing it would make it
+ * unusable for the very comparison the reader came to do.
+ */
+
+.headRow {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.verifyBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  border: 0;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #312a9e, #231f6e);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 800;
+  padding: 10px 17px;
+  cursor: pointer;
+  white-space: nowrap;
+  flex: none;
+}
+.verifyBtn:hover:not(:disabled) {
+  box-shadow: 0 8px 22px rgba(35, 31, 110, 0.28);
+}
+.verifyBtn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+/* ---- the terminal's name ---- */
+.termHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  flex-wrap: wrap;
+  padding-bottom: 13px;
+  border-bottom: 1px solid var(--kg-line);
+}
+
+.termName {
+  direction: ltr;
+  text-align: start;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 30px;
+  font-weight: 900;
+  letter-spacing: -0.5px;
+  line-height: 1.15;
+  margin-top: 3px;
+  word-break: break-all;
+}
+.termMissing {
+  direction: rtl;
+  font-family: inherit;
+  color: #c93b40;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: 999px;
+  padding: 7px 13px;
+  font-size: 12.5px;
+  font-weight: 800;
+  flex: none;
+}
+.badgeOk {
+  background: #e6f7ee;
+  color: #0b8a4c;
+}
+.badgeWarn {
+  background: #fff4e5;
+  color: #a8690a;
+}
+.badgeBad {
+  background: #fdecec;
+  color: #c93b40;
+}
+.badgeUnknown {
+  background: #f2f1f7;
+  color: #6f6c93;
+}
+
+.verifyDetail {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--kg-ink2);
+  line-height: 1.65;
+  margin: 12px 0 0;
+}
+
+.settingLine {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--kg-muted);
+  margin: 11px 0 0;
+  line-height: 1.9;
+}
+.sameNote {
+  color: var(--kg-ink2);
+  font-weight: 800;
+}
+
+.code {
+  direction: ltr;
+  display: inline-block;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11.5px;
+  font-weight: 700;
+  background: #f3f1fc;
+  color: var(--kg-ink2);
+  border-radius: 7px;
+  padding: 2px 7px;
+  margin-inline-end: 5px;
+}
+
+/* ---- a flow and its steps ---- */
+.flow {
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid var(--kg-line-soft);
+}
+.flow:first-of-type {
+  border-top: 0;
+}
+
+.flowTitle {
+  font-size: 15px;
+  font-weight: 900;
+  margin: 0;
+}
+.flowDetail {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--kg-muted);
+  margin: 3px 0 12px;
+  line-height: 1.6;
+}
+
+.steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  counter-reset: step;
+}
+.steps li {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--kg-ink);
+  line-height: 1.6;
+  padding: 6px 0;
+}
+.stepNum {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 7px;
+  background: linear-gradient(135deg, #312a9e, #231f6e);
+  color: #fff;
+  font-size: 11.5px;
+  font-weight: 900;
+  margin-top: 1px;
+}
+
+/* A flow with no terminal cannot run; its steps read as what is not happening. */
+.stepsDead li {
+  color: var(--kg-muted);
+}
+.stepsDead .stepNum {
+  background: #ddd9ef;
+  color: #6f6c93;
+}
+.stepsDead li:last-child {
+  color: #c93b40;
+  font-weight: 800;
+}
+.stepsDead li:last-child .stepNum {
+  background: #f5cdce;
+  color: #a92f34;
+}
+
+.missingCard {
+  border: 1px solid #f8d7d8;
+}
+
+/* ---- settings table ---- */
+.settingNote {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--kg-muted);
+  margin-top: 4px;
+  line-height: 1.5;
+}
+.termCell {
+  direction: ltr;
+  text-align: start;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12.5px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+@media (max-width: 560px) {
+  .termName {
+    font-size: 24px;
+  }
+  .verifyBtn {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
+@media (hover: none) and (pointer: coarse) {
+  .verifyBtn {
+    min-height: 44px;
+  }
+}

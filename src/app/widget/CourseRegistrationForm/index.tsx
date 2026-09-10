@@ -404,6 +404,12 @@ export default function CourseRegistrationForm({
       registration_fee: responses.reduce((sum, response) => sum + Number(response.registration_fee ?? 0), 0),
       monthly_amount: responses.reduce((sum, response) => sum + Number(response.monthly_amount ?? 0), 0),
       subscription_start_date: responses.find((response) => response.subscription_start_date)?.subscription_start_date,
+      // Only one registration in a basket can hold the credit — the others see it
+      // already taken — so summing gives the single amount that was applied.
+      trial_credit_amount: responses.reduce((sum, response) => sum + Number(response.trial_credit_amount ?? 0), 0),
+      trial_credit_paid: responses.find((response) => Number(response.trial_credit_amount ?? 0) > 0)?.trial_credit_paid,
+      trial_credit_date: responses.find((response) => Number(response.trial_credit_amount ?? 0) > 0)?.trial_credit_date,
+      trial_credit_reason: responses.find((response) => Number(response.trial_credit_amount ?? 0) > 0)?.trial_credit_reason,
       discounts_applied: discountsApplied,
     };
   };
@@ -422,6 +428,10 @@ export default function CourseRegistrationForm({
         registration_fee: res.data.registration_fee,
         monthly_amount: res.data.monthly_amount,
         subscription_start_date: res.data.subscription_start_date,
+        trial_credit_amount: res.data.trial_credit_amount,
+        trial_credit_paid: res.data.trial_credit_paid,
+        trial_credit_date: res.data.trial_credit_date,
+        trial_credit_reason: res.data.trial_credit_reason,
         discounts_applied: res.data.payments.flatMap(
           (payment: { discounts_applied?: AppliedDiscount[] }) => payment.discounts_applied ?? [],
         ),
@@ -1692,6 +1702,7 @@ export default function CourseRegistrationForm({
     const discountLines = groupedDiscountLines(paymentData.discounts_applied, discountAmount);
     const hasDiscount = discountAmount > 0;
     const monthlyAmount = Number(paymentData.monthly_amount ?? priceAfterDiscount);
+    const trialCredit = Number(paymentData.trial_credit_amount ?? 0);
 
     return (
       <div className={styles.paymentContainer} dir="rtl">
@@ -1738,6 +1749,12 @@ export default function CourseRegistrationForm({
               <span>{formatShekel(Number(paymentData.registration_fee))}</span>
             </div>
           )}
+          {trialCredit > 0 && (
+            <div className={`${styles.summaryRow} ${styles.discountRow}`}>
+              <span>קיזוז שיעור ניסיון ששולם</span>
+              <span>-{formatShekel(trialCredit)}</span>
+            </div>
+          )}
           <div className={styles.totalBlock}>
             <div className={styles.totalRow}>
               <span>תשלום כעת</span>
@@ -1750,6 +1767,9 @@ export default function CourseRegistrationForm({
               </div>
             )}
           </div>
+          {trialCredit > 0 && paymentData.trial_credit_reason && (
+            <p className={styles.trialCreditNote}>{paymentData.trial_credit_reason}</p>
+          )}
           {!isTrial && paymentData.subscription_start_date && (
             <p className={styles.billingNote}>
               {(paymentData.registration_fee ?? 0) > 0

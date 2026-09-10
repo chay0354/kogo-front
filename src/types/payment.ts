@@ -69,6 +69,7 @@ export interface Payment {
   discount_amount: number;
   final_amount: number;
   registration_fee?: number;
+  trial_credit_amount?: number;
   trial_lesson_date?: string | null;
   description: string;
   payment_date: string | null;
@@ -147,6 +148,11 @@ export interface PaymentInitiationResponse {
   registration_fee?: number;
   final_amount: number;
   prorate_factor?: number;
+  /** A paid trial the parent already settled, taken off this first charge. */
+  trial_credit_amount?: number;
+  trial_credit_paid?: number;
+  trial_credit_date?: string | null;
+  trial_credit_reason?: string;
   prorate_lessons_remaining?: number;
   total_lessons_this_month?: number;
   next_billing_date?: string;

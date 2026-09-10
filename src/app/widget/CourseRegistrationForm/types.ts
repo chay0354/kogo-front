@@ -100,5 +100,10 @@ export interface PaymentResponse {
   monthly_amount?: number;
   /** Set when monthly billing only starts later — nothing but דמי רישום is charged now. */
   subscription_start_date?: string | null;
+  /** A paid trial the parent already settled, taken off this first charge. */
+  trial_credit_amount?: number;
+  trial_credit_paid?: number;
+  trial_credit_date?: string | null;
+  trial_credit_reason?: string;
   discounts_applied: AppliedDiscount[];
 }
