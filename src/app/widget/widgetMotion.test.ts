@@ -28,8 +28,12 @@ describe('widget motion timing', () => {
     expect(WIDGET_MOTION_MS.accordionExit).toBeLessThan(WIDGET_MOTION_MS.accordion);
   });
 
-  it('opens a track without outstaying the card that opens over it', () => {
-    expect(WIDGET_MOTION_MS.accordion).toBeLessThanOrEqual(380);
+  it('unfolds a track slowly enough to follow, without making anyone wait', () => {
+    // Deliberately unhurried: a parent watches the lessons arrive and reads them
+    // as they come. Half a second is where a transition stops reading as motion
+    // and starts reading as a delay.
+    expect(WIDGET_MOTION_MS.accordion).toBeGreaterThan(WIDGET_MOTION_MS.drawerExit);
+    expect(WIDGET_MOTION_MS.accordion).toBeLessThanOrEqual(500);
   });
 
   it('lets the widget arrive more slowly than anything here leaves', () => {

@@ -20,7 +20,7 @@ export const WIDGET_MOTION_MS = {
    * a thing leaves faster than it arrives stays enforced rather than
    * remembered.
    */
-  accordion: 300,
+  accordion: 460,
   accordionExit: 240,
   stripIn: 440,
 } as const;
