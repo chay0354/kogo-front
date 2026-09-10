@@ -9,6 +9,7 @@ import SubscriptionPaymentDialog from './SubscriptionPaymentDialog';
 import RegisterChecksDialog from '@/app/(crm)/invoices/RegisterChecksDialog';
 import dialogMotion from '@/components/ui/motion.module.css';
 import { useDialogExit } from '@/components/ui/motion';
+import { AGE_OPTIONS, formatAge, formatAgeRange } from '@/lib/courseUtils';
 import { isTrialEnrollment } from '@/lib/customerUtils';
 
 interface EnrollToLessonDialogProps {
@@ -29,9 +30,17 @@ interface Course {
   display_id?: number;
   course_type: string;
   branch_name: string;
+  branch?: string | null;
+  min_age?: number | null;
+  max_age?: number | null;
   price: string | null;
   capacity?: number | null;
   enrolled_students_count?: number | null;
+}
+
+interface Branch {
+  id: string;
+  name: string;
 }
 
 interface Lesson {
@@ -97,6 +106,12 @@ export default function EnrollToLessonDialog({ child, isOpen, onClose: dismiss, 
   const [lessons, setLessons] = useState<Lesson[]>([]);
   const [bundles, setBundles] = useState<Bundle[]>([]);
 
+  const [branches, setBranches] = useState<Branch[]>([]);
+  const [selectedBranch, setSelectedBranch] = useState('');
+  const [selectedAge, setSelectedAge] = useState('');
+  // course id -> its lessons, loaded for the whole filtered set in one request so
+  // the list can show days and times without a call per course.
+  const [lessonsByCourse, setLessonsByCourse] = useState<Record<string, Lesson[]>>({});
   const [selectedCourseType, setSelectedCourseType] = useState('');
   const [selectedCourse, setSelectedCourse] = useState('');
   const [selectedTrialLesson, setSelectedTrialLesson] = useState('');
@@ -113,20 +128,22 @@ export default function EnrollToLessonDialog({ child, isOpen, onClose: dismiss, 
   useEffect(() => {
     if (isOpen) {
       loadCourseTypes();
+      loadBranches();
       setTrialPickerOpen(false);
       setSelectedTrialLesson('');
     }
   }, [isOpen]);
 
   useEffect(() => {
-    if (selectedCourseType) {
-      loadCourses(selectedCourseType);
-      setSelectedCourse('');
-      setLessons([]);
-      setTrialPickerOpen(false);
-      setSelectedTrialLesson('');
-    }
-  }, [selectedCourseType]);
+    // Branch and course type narrow on the server; age is a property of the
+    // course row, so it narrows here. Any combination is allowed, including none.
+    loadCourses(selectedCourseType, selectedBranch);
+    loadFilteredLessons(selectedCourseType, selectedBranch);
+    setSelectedCourse('');
+    setLessons([]);
+    setTrialPickerOpen(false);
+    setSelectedTrialLesson('');
+  }, [selectedCourseType, selectedBranch]);
 
   useEffect(() => {
     if (selectedCourse) {
@@ -141,6 +158,16 @@ export default function EnrollToLessonDialog({ child, isOpen, onClose: dismiss, 
     }
   }, [selectedCourse]);
 
+  const loadBranches = async () => {
+    try {
+      const response = await api.get('/core/branches/', { params: { simple: 'true' } });
+      setBranches(response.data.results || response.data || []);
+    } catch (error) {
+      console.error('Error loading branches:', error);
+      setBranches([]);
+    }
+  };
+
   const loadCourseTypes = async () => {
     setLoadingCourseTypes(true);
     try {
@@ -154,16 +181,42 @@ export default function EnrollToLessonDialog({ child, isOpen, onClose: dismiss, 
     }
   };
 
-  const loadCourses = async (courseTypeId: string) => {
+  const filterParams = (courseTypeId: string, branchId: string) => {
+    const params: Record<string, string> = {};
+    if (courseTypeId) params.course_type = courseTypeId;
+    if (branchId) params.branch_id = branchId;
+    return params;
+  };
+
+  const loadCourses = async (courseTypeId: string, branchId: string) => {
     setLoadingCourses(true);
     try {
-      const response = await api.get(`/courses/courses/?course_type=${courseTypeId}`);
+      const response = await api.get('/courses/courses/', { params: filterParams(courseTypeId, branchId) });
       setCourses(response.data.results || response.data || []);
     } catch (error) {
       console.error('Error loading courses:', error);
       alert('שגיאה בטעינת הקבוצות');
     } finally {
       setLoadingCourses(false);
+    }
+  };
+
+  /** Every lesson under the current filters, grouped by course, so the list can show days and times. */
+  const loadFilteredLessons = async (courseTypeId: string, branchId: string) => {
+    try {
+      const response = await api.get('/courses/lessons/', { params: filterParams(courseTypeId, branchId) });
+      const rows: Lesson[] = response.data.results || response.data || [];
+      const grouped: Record<string, Lesson[]> = {};
+      for (const lesson of rows) {
+        (grouped[lesson.course] ||= []).push(lesson);
+      }
+      for (const list of Object.values(grouped)) {
+        list.sort((a, b) => a.day_of_week - b.day_of_week || a.start_time.localeCompare(b.start_time));
+      }
+      setLessonsByCourse(grouped);
+    } catch (error) {
+      console.error('Error loading lessons for the filters:', error);
+      setLessonsByCourse({});
     }
   };
 
@@ -384,6 +437,37 @@ export default function EnrollToLessonDialog({ child, isOpen, onClose: dismiss, 
     : [];
   const paymentLessons = activeBundle ? bundleLessons : (billingLesson ? [billingLesson] : []);
   const courseSeats = selectedCourseDetails ? courseSeatsLeft(selectedCourseDetails) : null;
+  // A course matches an age when the chosen group falls inside its range. A course
+  // with no range set matches everything — that is how most courses are configured.
+  const matchesAge = (course: Course) => {
+    if (!selectedAge) return true;
+    const age = Number(selectedAge);
+    const min = course.min_age ?? null;
+    const max = course.max_age ?? null;
+    if (min === null && max === null) return true;
+    if (min !== null && age < min) return false;
+    if (max !== null && age > max) return false;
+    return true;
+  };
+
+  const visibleCourses = courses.filter(matchesAge);
+
+  /** "ראשון 16:00 · חמישי 17:30" — every meeting of the course, in day order. */
+  const courseSchedule = (courseId: string) => {
+    const rows = lessonsByCourse[courseId] || [];
+    if (rows.length === 0) return '';
+    return rows
+      .map((lesson) => `${DAY_NAMES[lesson.day_of_week]} ${lesson.start_time.slice(0, 5)}`)
+      .join(' · ');
+  };
+
+  const clearFilters = () => {
+    setSelectedBranch('');
+    setSelectedCourseType('');
+    setSelectedAge('');
+  };
+  const anyFilter = Boolean(selectedBranch || selectedCourseType || selectedAge);
+
   const canEnroll = Boolean(
     selectedCourse &&
     lessons.length > 0 &&
@@ -443,62 +527,113 @@ export default function EnrollToLessonDialog({ child, isOpen, onClose: dismiss, 
 
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium mb-2">
-                  בחר תחום <span className="text-red-500">*</span>
-                </label>
-                {loadingCourseTypes ? (
-                  <Skeleton className="h-10 w-full rounded-lg" />
-                ) : (
+                <div className="flex items-baseline justify-between mb-2 gap-2">
+                  <label className="block text-sm font-medium">סינון קבוצות</label>
+                  {anyFilter && (
+                    <button type="button" onClick={clearFilters} className="text-xs text-primary hover:underline">
+                      נקה סינון
+                    </button>
+                  )}
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                  <select
+                    value={selectedBranch}
+                    onChange={(e) => setSelectedBranch(e.target.value)}
+                    className="input w-full"
+                    aria-label="סניף"
+                  >
+                    <option value="">כל הסניפים</option>
+                    {branches.map((branch) => (
+                      <option key={branch.id} value={branch.id}>{branch.name}</option>
+                    ))}
+                  </select>
                   <select
                     value={selectedCourseType}
                     onChange={(e) => setSelectedCourseType(e.target.value)}
                     className="input w-full"
+                    disabled={loadingCourseTypes}
+                    aria-label="תחום"
                   >
-                    <option value="">-- בחר תחום --</option>
+                    <option value="">כל התחומים</option>
                     {courseTypes.map((ct) => (
-                      <option key={ct.id} value={ct.id}>
-                        {ct.name}
-                      </option>
+                      <option key={ct.id} value={ct.id}>{ct.name}</option>
                     ))}
                   </select>
-                )}
+                  <select
+                    value={selectedAge}
+                    onChange={(e) => setSelectedAge(e.target.value)}
+                    className="input w-full"
+                    aria-label="גיל"
+                  >
+                    <option value="">כל הגילאים</option>
+                    {AGE_OPTIONS.map((age) => (
+                      <option key={age} value={String(age)}>{formatAge(age)}</option>
+                    ))}
+                  </select>
+                </div>
               </div>
 
-              {selectedCourseType && (
-                <div>
-                  <label className="block text-sm font-medium mb-2">
-                    בחר קבוצה <span className="text-red-500">*</span>
-                  </label>
-                  {loadingCourses ? (
-                    <Skeleton className="h-10 w-full rounded-lg" />
-                  ) : courses.length === 0 ? (
-                    <div className="text-sm text-muted-foreground">אין קבוצות זמינות בתחום זה</div>
-                  ) : (
-                    <select
-                      value={selectedCourse}
-                      onChange={(e) => setSelectedCourse(e.target.value)}
-                      className="input w-full"
-                    >
-                      <option value="">-- בחר קבוצה --</option>
-                      {courses.map((course) => {
-                        const seats = courseSeatsLeft(course);
-                        const isFull = seats === 0;
-                        const alreadyEnrolled = existingCourseIds.has(course.id);
-                        return (
-                          <option
-                            key={course.id}
-                            value={course.id}
-                            disabled={isFull || alreadyEnrolled}
-                          >
-                            {course.name} #{course.display_id} - {course.branch_name}
-                            {alreadyEnrolled ? ' — כבר רשום' : formatSeatsSuffix(seats)}
-                          </option>
-                        );
-                      })}
-                    </select>
+              <div>
+                <label className="block text-sm font-medium mb-2">
+                  בחר קבוצה <span className="text-red-500">*</span>
+                  {!loadingCourses && visibleCourses.length > 0 && (
+                    <span className="text-muted-foreground font-normal"> · {visibleCourses.length} קבוצות</span>
                   )}
-                </div>
-              )}
+                </label>
+                {loadingCourses ? (
+                  <div className="space-y-2">
+                    <Skeleton className="h-14 w-full rounded-lg" />
+                    <Skeleton className="h-14 w-full rounded-lg" />
+                  </div>
+                ) : visibleCourses.length === 0 ? (
+                  <div className="text-sm text-muted-foreground">
+                    {anyFilter ? 'אין קבוצות שמתאימות לסינון — נסו לנקות אותו' : 'אין קבוצות זמינות'}
+                  </div>
+                ) : (
+                  <div
+                    className="max-h-72 overflow-y-auto rounded-lg border divide-y"
+                    role="radiogroup"
+                    aria-label="בחר קבוצה"
+                  >
+                    {visibleCourses.map((course) => {
+                      const seats = courseSeatsLeft(course);
+                      const isFull = seats === 0;
+                      const alreadyEnrolled = existingCourseIds.has(course.id);
+                      const disabled = isFull || alreadyEnrolled;
+                      const chosen = selectedCourse === course.id;
+                      const schedule = courseSchedule(course.id);
+                      const ages = formatAgeRange(course.min_age, course.max_age);
+                      return (
+                        <button
+                          key={course.id}
+                          type="button"
+                          role="radio"
+                          aria-checked={chosen}
+                          disabled={disabled}
+                          onClick={() => setSelectedCourse(course.id)}
+                          className={`w-full text-right px-3 py-2.5 transition ${
+                            chosen ? 'bg-primary/10' : 'hover:bg-muted/60'
+                          } ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+                        >
+                          <div className="flex items-baseline justify-between gap-2">
+                            <span className="font-medium truncate">
+                              {course.name} <span className="text-muted-foreground">#{course.display_id}</span>
+                            </span>
+                            <span className={`text-xs whitespace-nowrap ${isFull ? 'text-red-600' : 'text-muted-foreground'}`}>
+                              {alreadyEnrolled ? 'כבר רשום' : (seats == null ? '' : isFull ? 'מלא' : `נותרו ${seats}`)}
+                            </span>
+                          </div>
+                          <div className="text-xs text-muted-foreground mt-0.5 flex flex-wrap gap-x-2">
+                            <span>{course.branch_name}</span>
+                            {ages && <span>· {ages}</span>}
+                            {schedule && <span>· {schedule}</span>}
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
 
               {selectedCourse && trialPickerOpen && (
                 <div>
