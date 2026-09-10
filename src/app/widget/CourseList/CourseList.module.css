@@ -91,8 +91,76 @@
 .accordionSection {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  /*
+   * No gap: a shut panel is zero rows tall but a gap would still be spent on
+   * it, so two closed tracks would sit twice as far apart as two open ones.
+   * The 10px the gap used to give lives inside the panel's own padding, where
+   * it is clipped away along with the rows.
+   */
+  gap: 0;
   min-width: 0;
+}
+
+/*
+ * The fold itself. A grid row measured in fractions is the one height that can
+ * be animated without anyone measuring anything: 0fr to 1fr resolves to the
+ * rows' true height at every breakpoint, whatever the row count. Browsers that
+ * cannot interpolate it still apply it, and simply open the track at once —
+ * which is what it did before this existed.
+ */
+.accordionPanel {
+  display: grid;
+  grid-template-rows: 0fr;
+  visibility: hidden;
+  /* While it folds away it is on its way out — nothing left to press. Stated
+     without a transition so it holds from the instant the track starts to
+     close, whatever the fold is doing. */
+  pointer-events: none;
+}
+
+.accordionPanelOpen {
+  grid-template-rows: 1fr;
+  visibility: visible;
+  pointer-events: auto;
+}
+
+.accordionPanelInner {
+  min-height: 0;
+  overflow: hidden;
+}
+
+/*
+ * The spacing sits on the list's margin rather than on the wrapper's padding,
+ * and that distinction is the whole thing: `min-height: 0` lets the grid track
+ * collapse past the wrapper's content, but padding is added on top of it
+ * regardless, so a padded wrapper floors the track and every shut track keeps a
+ * permanent strip of air under its header. A margin inside the clipped box is
+ * clipped away with everything else.
+ *
+ * 13px above is the 10px the section's gap used to give plus 3px of room for
+ * the first row's focus ring, which draws outside the row and would otherwise
+ * be shaved off by `overflow: hidden`; 3px below is the same room for the last.
+ */
+.accordionPanelInner > .sectionList {
+  margin-block: 13px 3px;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  /* The base carries the exit curve and the open class overrides with the
+     entrance curve, so one transition reads as arriving one way and leaving the
+     other. Visibility waits out the fold on the way closed and lands at once on
+     the way open, so the rows are never reachable behind a shut panel. */
+  .accordionPanel {
+    transition:
+      grid-template-rows 240ms cubic-bezier(0.4, 0, 0.9, 0.6),
+      visibility 0s linear 240ms;
+  }
+
+  .accordionPanelOpen {
+    transition:
+      grid-template-rows 300ms cubic-bezier(0.32, 0.72, 0, 1),
+      visibility 0s;
+  }
 }
 
 .accordionCard {
@@ -125,7 +193,8 @@
 }
 
 .accordionChevron {
-  transition: transform 180ms ease;
+  /* Matches the panel's opening duration so the arrow and the fold settle together. */
+  transition: transform 300ms cubic-bezier(0.32, 0.72, 0, 1);
 }
 
 .accordionChevronOpen {
@@ -218,10 +287,6 @@
   text-overflow: ellipsis;
   white-space: nowrap;
   min-width: 0;
-}
-
-.groupIdBadge {
-  flex-shrink: 0;
 }
 
 .slotZone {

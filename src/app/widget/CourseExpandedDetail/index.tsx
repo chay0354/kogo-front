@@ -16,7 +16,6 @@ import { trialRegistrationOffered } from '../lessonVisibility';
 import type { WidgetAlternative } from '../alternativeLessons';
 import { MapPin, Users, CalendarDays, Coins, BadgePercent, X } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
-import { GroupIdBadge } from '@/components/GroupIdBadge/GroupIdBadge';
 import { widgetBundlePrice } from '../catalogRows';
 import { WIDGET_MOTION_MS, prefersReducedMotion } from '../widgetMotion';
 import styles from './CourseExpandedDetail.module.css';
@@ -324,7 +323,6 @@ export default function CourseExpandedDetail({
         <div className={styles.header}>
           <h2 className={styles.title}>
             {displayTitle}
-            <GroupIdBadge displayId={course.display_id} />
           </h2>
           {timesPerWeek > 0 ? (
             <div className={styles.badgeRow}>

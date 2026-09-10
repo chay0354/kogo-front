@@ -1,9 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useId, useState } from 'react';
 import { ChevronDown } from 'lucide-react';
 import { getDayName, formatTimeRange, isInstructorsAgeGroup, INSTRUCTORS_TRACK_TITLE } from '@/lib/courseUtils';
-import { GroupIdBadge } from '@/components/GroupIdBadge/GroupIdBadge';
 import type { Course, CourseLesson, CourseBundle, CourseLessonPriceOption } from '../types';
 import {
   buildCatalogRows,
@@ -86,7 +85,6 @@ function CourseRowItem({
       <div className={styles.nameZone}>
         <span className={styles.bullet} aria-hidden="true" />
         <span className={styles.courseName}>{displayTitle}</span>
-        <GroupIdBadge displayId={course.display_id} className={styles.groupIdBadge} />
       </div>
       <div className={styles.divider} />
       <div className={styles.slotZone}>
@@ -169,6 +167,7 @@ function AccordionTrack({
   onSelect: CourseListProps['onSelect'];
 }) {
   const [open, setOpen] = useState(false);
+  const panelId = useId();
 
   return (
     <section className={styles.accordionSection} aria-label={title}>
@@ -177,6 +176,7 @@ function AccordionTrack({
         className={styles.accordionCard}
         onClick={() => setOpen((isOpen) => !isOpen)}
         aria-expanded={open}
+        aria-controls={panelId}
       >
         <span className={styles.accordionTitle}>{title}</span>
         <span className={styles.expandBtn} aria-hidden="true">
@@ -187,18 +187,29 @@ function AccordionTrack({
           />
         </span>
       </button>
-      {open ? (
-        <div role="list" className={styles.sectionList}>
-          {rows.map((row, index) => (
-            <CourseRowItem
-              key={rowKey(row, index)}
-              row={row}
-              index={index}
-              onSelect={onSelect}
-            />
-          ))}
+      {/*
+        Stays mounted rather than switching on `open`, so the fold is animated
+        closing as well as opening. `visibility` in the panel's base rules is
+        what keeps the rows out of the tab order and off the accessibility tree
+        while it is shut — the inner wrapper only clips them.
+      */}
+      <div
+        id={panelId}
+        className={`${styles.accordionPanel}${open ? ` ${styles.accordionPanelOpen}` : ''}`}
+      >
+        <div className={styles.accordionPanelInner}>
+          <div role="list" className={styles.sectionList}>
+            {rows.map((row, index) => (
+              <CourseRowItem
+                key={rowKey(row, index)}
+                row={row}
+                index={index}
+                onSelect={onSelect}
+              />
+            ))}
+          </div>
         </div>
-      ) : null}
+      </div>
     </section>
   );
 }
