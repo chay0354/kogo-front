@@ -19,7 +19,7 @@ import { isCourseVisibleInWidgetCatalog , trialLessonChoices } from './lessonVis
 import { AGE_OPTIONS, formatAge, isInstructorsCourse } from '@/lib/courseUtils';
 import { findWidgetAlternatives, isWidgetSelectionFull, type WidgetAlternative } from './alternativeLessons';
 import { sortWidgetCourseTypes } from './courseTypeOrder';
-import { scrollCueTop, showsScrollCue } from './scrollCue';
+import { scrollCueTop } from './scrollCue';
 import { WIDGET_MOTION_MS, holdsBandWhileOpen, prefersReducedMotion } from './widgetMotion';
 import { preloadInstructorPhotos } from './instructorPhotoPreload';
 import { SkeletonCourseList, SkeletonFilterOptions } from './WidgetSkeletons/WidgetSkeletons';
@@ -452,9 +452,9 @@ export default function WidgetPage() {
   const pageRef = useRef<HTMLDivElement>(null);
 
   /**
-   * The arrow on the closing line, shown only while the catalogue still runs
-   * past it. `null` means there is nothing left below and the reader has
-   * arrived — a cue that never leaves is not a cue.
+   * The arrow that hangs under the last readable lesson while more of them run
+   * on below. `null` means it has nothing to say — the reader has arrived, or
+   * has not reached the lessons yet. A cue that never leaves is not a cue.
    */
   const [scrollCue, setScrollCue] = useState<number | null>(null);
   const catalogCoveredByOverlay = Boolean(detailCourse || drawerCourse);
@@ -466,22 +466,26 @@ export default function WidgetPage() {
     const measure = () => {
       frame = 0;
       const root = pageRef.current;
-      const scrollY = readScrollY();
       // Measured off the content itself, not documentElement.scrollHeight: that
       // never reports less than the frame's own fixed height, so a widget
       // shorter than its frame would claim there was more to come and leave the
       // arrow pointing at empty space.
-      const contentHeight = root ? root.getBoundingClientRect().bottom + scrollY : Number.NaN;
-      const { bottom } = visibleBand();
+      const contentBottom = root ? root.getBoundingClientRect().bottom : Number.NaN;
+      // A shut track keeps its rows in the document — clipped to nothing and
+      // hidden — so they are laid out but not on show. Reading them would put
+      // the arrow under a lesson nobody can see.
+      const rowBottoms = root
+        ? [...root.querySelectorAll('[data-catalog-row]')]
+            .filter((row) => window.getComputedStyle(row).visibility !== 'hidden')
+            .map((row) => row.getBoundingClientRect().bottom)
+        : [];
       setScrollCue(
-        showsScrollCue({
-          contentHeight,
-          scrollY,
-          bandBottom: bottom,
+        scrollCueTop({
+          contentBottom,
+          rowBottoms,
+          bandBottom: visibleBand().bottom,
           overlayOpen: catalogCoveredByOverlay,
-        })
-          ? scrollCueTop(bottom)
-          : null,
+        }),
       );
     };
 
@@ -932,8 +936,8 @@ export default function WidgetPage() {
         </div>
       ) : null}
 
-      {/* Sits on the line where the frame stops, so it reads as the widget's own
-          bottom edge rather than as something floating over the list. */}
+      {/* Hangs under the last lesson the reader can finish, so it points from the
+          list itself rather than from wherever the frame happens to stop. */}
       {scrollCue !== null ? (
         <span className={styles.scrollCue} style={{ top: scrollCue }} aria-hidden="true">
           <ChevronDown size={22} />
