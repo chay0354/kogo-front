@@ -39,10 +39,14 @@ export type LessonDetail = Lesson & {
   cancelled_at?: string | null;
   enrollments: Array<{
     id: string;
-    child_id: string;
+    /** Null for an external student — they are not a Child. Use attendeeKey(). */
+    child_id: string | null;
     child_name: string;
     child_phone?: string;
     child_status?: string;
+    /** Which table attendee_id came from. Absent on a server that predates it. */
+    attendee_kind?: AttendeeKind;
+    attendee_id?: string;
     trial_lesson_date?: string | null;
     is_trial?: boolean;
     /** 1 for a first trial; the office may book a second (2, 3…) from the CRM. */
@@ -52,16 +56,25 @@ export type LessonDetail = Lesson & {
   attendance: Array<{
     id: string;
     child?: string; // UUID field from backend
-    child_id?: string; // Alternative field name
+    child_id?: string | null; // Alternative field name
     child_name: string;
     status: 'present' | 'absent' | 'not_marked';
     child_status?: string;
+    attendee_kind?: AttendeeKind;
+    attendee_id?: string;
   }>;
   created_at: string;
   updated_at: string;
 };
 
 export type AttendanceStatus = 'present' | 'absent' | 'not_marked';
+
+/**
+ * Whether a register row is one of our registered children or a municipality
+ * child on an external branch's list. The two live in different tables and
+ * their ids must never be compared with each other.
+ */
+export type AttendeeKind = 'child' | 'external';
 
 /**
  * A walk-in as the server hands it back: the roster row, plus the mark it was
@@ -86,7 +99,10 @@ export type AttendanceRecord = {
 };
 
 export type AttendanceMark = {
-  child_id: string;
+  /** Kept for the deploy window: a server that predates attendee_id reads this. */
+  child_id?: string;
+  attendee_id: string;
+  attendee_kind?: AttendeeKind;
   status: AttendanceStatus;
 };
 

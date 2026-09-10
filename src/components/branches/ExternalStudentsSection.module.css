@@ -1,0 +1,171 @@
+/* The municipality roster on an external branch's page. */
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+.headingGroup {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.heading {
+  font-size: 1.25rem;
+  font-weight: 700;
+}
+.actions {
+  display: flex;
+  gap: 8px;
+}
+.primaryButton,
+.secondaryButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: 8px;
+  padding: 8px 14px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  transition: opacity 150ms ease, background-color 150ms ease;
+}
+.primaryButton {
+  background: hsl(var(--primary));
+  color: #fff;
+}
+.secondaryButton {
+  border: 1px solid hsl(var(--border));
+}
+.secondaryButton:hover:not(:disabled) {
+  background: hsl(var(--accent));
+}
+.primaryButton:disabled,
+.secondaryButton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.explainer {
+  margin: 0 0 16px;
+  font-size: 0.8125rem;
+  line-height: 1.6;
+  color: hsl(var(--muted-foreground));
+  max-width: 70ch;
+}
+
+.filter {
+  margin-bottom: 16px;
+  padding: 8px 12px;
+  border: 1px solid hsl(var(--border));
+  border-radius: 8px;
+  background: hsl(var(--background));
+  font-size: 0.875rem;
+}
+
+.empty {
+  padding: 32px 12px;
+  text-align: center;
+}
+.emptyTitle {
+  margin: 0;
+  font-weight: 500;
+}
+.emptyHint {
+  margin: 6px 0 0;
+  font-size: 0.8125rem;
+  color: hsl(var(--muted-foreground));
+}
+
+.groups {
+  display: grid;
+  gap: 20px;
+}
+.groupTitle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 8px;
+  font-size: 0.9375rem;
+  font-weight: 600;
+}
+.groupCount {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 24px;
+  height: 22px;
+  padding: 0 7px;
+  border-radius: 999px;
+  background: hsl(var(--accent));
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.tableWrap {
+  overflow-x: auto;
+}
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+}
+.th {
+  padding: 8px 10px;
+  text-align: right;
+  font-weight: 500;
+  color: hsl(var(--muted-foreground));
+  border-bottom: 1px solid hsl(var(--border));
+  white-space: nowrap;
+}
+.thActions,
+.tdActions {
+  text-align: left;
+}
+.row:not(:last-child) .td {
+  border-bottom: 1px solid hsl(var(--border) / 0.5);
+}
+.td {
+  padding: 10px;
+  white-space: nowrap;
+}
+.tdActions {
+  display: flex;
+  gap: 4px;
+  justify-content: flex-start;
+}
+.iconButton {
+  padding: 6px;
+  border-radius: 6px;
+  color: hsl(var(--muted-foreground));
+  transition: background-color 150ms ease, color 150ms ease;
+}
+.iconButton:hover {
+  background: hsl(var(--accent));
+  color: hsl(var(--foreground));
+}
+.danger:hover {
+  color: hsl(var(--destructive));
+}
+
+/* The way back into an import that outlived its window. */
+.resume {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: hsl(var(--warning) / 0.14);
+  font-size: 0.8125rem;
+}
+.linkButton {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: hsl(var(--primary));
+  text-decoration: underline;
+}

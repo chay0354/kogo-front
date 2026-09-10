@@ -297,10 +297,15 @@ const selectStyle: React.CSSProperties = {
 function BranchCard({ branch, onOpen }: { branch: any; onOpen: () => void }) {
   const revenue = Number(branch.revenue ?? 0);
   const profit = Number(branch.profit ?? 0);
+  const externalStudents = Number(branch.external_students ?? 0);
+  // Registrations for an external branch happen at the municipality, so it
+  // carries a real instructor cost against no revenue of ours. Showing that as
+  // a loss would be reporting a number the branch never made.
+  const isExternal = Boolean(branch.is_external);
   const margin = revenue > 0 ? Math.round((profit / revenue) * 100) : 0;
 
   // Ring shows the share of revenue kept as profit; nothing to show without revenue.
-  const pct = revenue > 0 ? Math.max(0, Math.min(100, margin)) : 0;
+  const pct = revenue > 0 && !isExternal ? Math.max(0, Math.min(100, margin)) : 0;
   const R = 52;
   const C = 2 * Math.PI * R;
   const dash = (C * pct) / 100;
@@ -353,7 +358,14 @@ function BranchCard({ branch, onOpen }: { branch: any; onOpen: () => void }) {
             justifyContent: 'center',
           }}
         >
-          {revenue > 0 ? (
+          {isExternal ? (
+            <>
+              <b style={{ fontSize: 19, fontWeight: 900, letterSpacing: '-0.5px' }}>{externalStudents}</b>
+              <span style={{ fontSize: 12, color: 'var(--kg-muted)', fontWeight: 700, marginTop: 2 }}>
+                תלמידי עירייה
+              </span>
+            </>
+          ) : revenue > 0 ? (
             <>
               <b style={{ fontSize: 21, fontWeight: 900, letterSpacing: '-0.5px' }}>{formatCurrency(profit)}</b>
               <span style={{ fontSize: 12, color: 'var(--kg-muted)', fontWeight: 700, marginTop: 2 }}>רווח</span>
@@ -369,12 +381,23 @@ function BranchCard({ branch, onOpen }: { branch: any; onOpen: () => void }) {
 
       <div className={theme.counts} style={{ marginTop: 0, boxShadow: 'none', padding: '10px 0' }}>
         <div>
-          <b style={{ fontSize: 15 }} className={theme.up}>{formatCurrency(revenue)}</b>
-          <span>הכנסות</span>
+          {isExternal ? (
+            <>
+              <b style={{ fontSize: 13, color: 'var(--kg-muted)', fontWeight: 800 }}>נגבה בעירייה</b>
+              <span>הכנסות</span>
+            </>
+          ) : (
+            <>
+              <b style={{ fontSize: 15 }} className={theme.up}>{formatCurrency(revenue)}</b>
+              <span>הכנסות</span>
+            </>
+          )}
         </div>
         <div>
-          <b style={{ fontSize: 15 }}>{Number(branch.students ?? 0)}</b>
-          <span>תלמידים</span>
+          <b style={{ fontSize: 15 }}>
+            {isExternal ? externalStudents : Number(branch.students ?? 0)}
+          </b>
+          <span>{isExternal ? 'תלמידי עירייה' : 'תלמידים'}</span>
         </div>
       </div>
     </div>

@@ -77,6 +77,8 @@ export default function AttendanceDialog({
 
     try {
       const marks: AttendanceMark[] = Object.entries(attendance).map(([child_id, status]) => ({
+        attendee_id: child_id,
+        attendee_kind: 'child' as const,
         child_id,
         status,
       }));
