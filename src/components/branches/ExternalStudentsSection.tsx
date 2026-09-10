@@ -2,13 +2,15 @@
 
 import { useMemo, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Edit, MessageCircle, Trash2, UserPlus, Users } from 'lucide-react';
+import { Edit, FileUp, MessageCircle, Trash2, UserPlus, Users } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import ExternalStudentDialog from '@/components/dialogs/ExternalStudentDialog';
 import ExternalBroadcastDialog from '@/components/dialogs/ExternalBroadcastDialog';
+import RosterImportDialog from '@/components/dialogs/RosterImportDialog';
 import { useAuth } from '@/components/AuthProvider';
 import { fetchExternalStudents, removeExternalStudent } from '@/lib/externalStudents';
+import { fetchOpenRosterImport } from '@/lib/rosterImports';
 import type { ExternalStudent } from '@/types/externalStudent';
 import type { Lesson } from '@/types/course';
 import styles from './ExternalStudentsSection.module.css';
@@ -38,11 +40,21 @@ export default function ExternalStudentsSection({ branchId, lessons }: Props) {
   const [adding, setAdding] = useState(false);
   const [removing, setRemoving] = useState<ExternalStudent | null>(null);
   const [broadcasting, setBroadcasting] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const [resumeId, setResumeId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   const { data: students = [], isLoading } = useQuery({
     queryKey: ['branch-external-students', branchId],
     queryFn: () => fetchExternalStudents({ branch: branchId }),
+  });
+
+  // An import can outlive the window it was started in, so the way back to it
+  // has to live here rather than only in the dialog that opened it.
+  const { data: openImport } = useQuery({
+    queryKey: ['branch-open-roster-import', branchId],
+    queryFn: () => fetchOpenRosterImport(branchId),
+    enabled: isManager,
   });
 
   const courseOptions = useMemo(() => {
@@ -75,7 +87,10 @@ export default function ExternalStudentsSection({ branchId, lessons }: Props) {
     return [...byLesson.values()].sort((a, b) => a.day - b.day || a.time.localeCompare(b.time));
   }, [filtered]);
 
-  const refresh = () => queryClient.invalidateQueries({ queryKey: ['branch-external-students', branchId] });
+  const refresh = () => {
+    queryClient.invalidateQueries({ queryKey: ['branch-external-students', branchId] });
+    queryClient.invalidateQueries({ queryKey: ['branch-open-roster-import', branchId] });
+  };
 
   const confirmRemove = async (choice: boolean) => {
     if (!removing || !choice) {
@@ -110,6 +125,10 @@ export default function ExternalStudentsSection({ branchId, lessons }: Props) {
               <MessageCircle className="w-4 h-4" />
               שליחת וואטסאפ
             </button>
+            <button type="button" onClick={() => setImporting(true)} className={styles.secondaryButton}>
+              <FileUp className="w-4 h-4" />
+              ייבוא מקובץ
+            </button>
             <button type="button" onClick={() => setAdding(true)} className={styles.primaryButton}>
               <UserPlus className="w-4 h-4" />
               הוספת תלמיד
@@ -117,6 +136,25 @@ export default function ExternalStudentsSection({ branchId, lessons }: Props) {
           </div>
         )}
       </div>
+
+      {isManager && openImport && (
+        <div className={styles.resume}>
+          <span>
+            יש ייבוא שלא הושלם: {openImport.original_filename} ·
+            {' '}{openImport.units_done} מתוך {openImport.units_total} קבוצות נקראו.
+          </span>
+          <button
+            type="button"
+            className={styles.linkButton}
+            onClick={() => {
+              setResumeId(openImport.id);
+              setImporting(true);
+            }}
+          >
+            להמשך
+          </button>
+        </div>
+      )}
 
       <p className={styles.explainer}>
         תלמידים שנרשמו דרך העירייה. מופיעים ברשימת הנוכחות ובספירת התלמידים בלבד — ללא חיוב,
@@ -214,6 +252,19 @@ export default function ExternalStudentsSection({ branchId, lessons }: Props) {
         isOpen={broadcasting}
         onClose={() => setBroadcasting(false)}
         students={filtered}
+      />
+
+      <RosterImportDialog
+        isOpen={importing}
+        onClose={() => {
+          setImporting(false);
+          setResumeId(null);
+          refresh();
+        }}
+        onSuccess={refresh}
+        branchId={branchId}
+        lessons={lessons}
+        resumeImportId={resumeId}
       />
 
       <ConfirmDialog

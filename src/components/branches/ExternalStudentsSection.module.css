@@ -149,3 +149,23 @@
 .danger:hover {
   color: hsl(var(--destructive));
 }
+
+/* The way back into an import that outlived its window. */
+.resume {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: hsl(var(--warning) / 0.14);
+  font-size: 0.8125rem;
+}
+.linkButton {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: hsl(var(--primary));
+  text-decoration: underline;
+}
