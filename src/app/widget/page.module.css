@@ -700,51 +700,6 @@
   border-radius: 15px;
 }
 
-/* Scroll cue */
-
-@keyframes widgetScrollCueBob {
-
-  0%,
-  100% {
-    transform: translateY(0);
-  }
-
-  50% {
-    transform: translateY(4px);
-  }
-}
-
-/*
- * The arrow that says the list carries on below the frame's closing line.
- * Fixed, because the line it sits on is reported in this document's fixed
- * coordinates — `top` comes from the host's visible band, not from the flow.
- * The white glow is the same one the filter list's cue wears, so the two read
- * as one hand.
- */
-.scrollCue {
-  position: fixed;
-  inset-inline: 0;
-  display: flex;
-  justify-content: center;
-  color: #2B3090;
-  pointer-events: none;
-  z-index: 400;
-  filter: drop-shadow(0 -2px 4px #ffffff) drop-shadow(0 0 6px #ffffff);
-}
-
-@media (prefers-reduced-motion: no-preference) {
-  /*
-   * Three bobs, then it rests. The site's accessibility toolbar stops
-   * animations by a rule on its own <html>, and CSS does not cross into an
-   * iframe — so a cue that bobbed forever could not be stopped from out there.
-   * It bobs again each time it becomes newly relevant, which is when it has
-   * something to say anyway.
-   */
-  .scrollCue {
-    animation: widgetScrollCueBob 1600ms ease-in-out 3;
-  }
-}
-
 .externalBranchMessage {
   display: flex;
   align-items: center;

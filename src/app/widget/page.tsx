@@ -19,7 +19,6 @@ import { isCourseVisibleInWidgetCatalog , trialLessonChoices } from './lessonVis
 import { AGE_OPTIONS, formatAge, isInstructorsCourse } from '@/lib/courseUtils';
 import { findWidgetAlternatives, isWidgetSelectionFull, type WidgetAlternative } from './alternativeLessons';
 import { sortWidgetCourseTypes } from './courseTypeOrder';
-import { scrollCueTop } from './scrollCue';
 import { WIDGET_MOTION_MS, holdsBandWhileOpen, prefersReducedMotion } from './widgetMotion';
 import { preloadInstructorPhotos } from './instructorPhotoPreload';
 import { SkeletonCourseList, SkeletonFilterOptions } from './WidgetSkeletons/WidgetSkeletons';
@@ -451,73 +450,6 @@ export default function WidgetPage() {
   const [addingAnotherChild, setAddingAnotherChild] = useState(false);
   const pageRef = useRef<HTMLDivElement>(null);
 
-  /**
-   * The arrow that hangs under the last readable lesson while more of them run
-   * on below. `null` means it has nothing to say — the reader has arrived, or
-   * has not reached the lessons yet. A cue that never leaves is not a cue.
-   */
-  const [scrollCue, setScrollCue] = useState<number | null>(null);
-  const catalogCoveredByOverlay = Boolean(detailCourse || drawerCourse);
-
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    let frame = 0;
-
-    const measure = () => {
-      frame = 0;
-      const root = pageRef.current;
-      // Measured off the content itself, not documentElement.scrollHeight: that
-      // never reports less than the frame's own fixed height, so a widget
-      // shorter than its frame would claim there was more to come and leave the
-      // arrow pointing at empty space.
-      const contentBottom = root ? root.getBoundingClientRect().bottom : Number.NaN;
-      // A shut track keeps its rows in the document — clipped to nothing and
-      // hidden — so they are laid out but not on show. Reading them would put
-      // the arrow under a lesson nobody can see.
-      const rowBottoms = root
-        ? [...root.querySelectorAll('[data-catalog-row]')]
-            .filter((row) => window.getComputedStyle(row).visibility !== 'hidden')
-            .map((row) => row.getBoundingClientRect().bottom)
-        : [];
-      setScrollCue(
-        scrollCueTop({
-          contentBottom,
-          rowBottoms,
-          bandBottom: visibleBand().bottom,
-          overlayOpen: catalogCoveredByOverlay,
-        }),
-      );
-    };
-
-    const schedule = () => {
-      if (!frame) frame = window.requestAnimationFrame(measure);
-    };
-
-    ensureHostBandBridge();
-    measure();
-    bandSubscribers.add(schedule);
-    window.addEventListener('scroll', schedule, { passive: true });
-    window.addEventListener('resize', schedule);
-    window.visualViewport?.addEventListener('resize', schedule);
-    window.visualViewport?.addEventListener('scroll', schedule);
-
-    // Opening a track changes the content height with no scroll and no fresh
-    // band behind it, so neither listener above would hear about it.
-    const observed = pageRef.current;
-    const observer =
-      typeof ResizeObserver !== 'undefined' && observed ? new ResizeObserver(schedule) : null;
-    observer?.observe(observed as Element);
-
-    return () => {
-      if (frame) window.cancelAnimationFrame(frame);
-      bandSubscribers.delete(schedule);
-      window.removeEventListener('scroll', schedule);
-      window.removeEventListener('resize', schedule);
-      window.visualViewport?.removeEventListener('resize', schedule);
-      window.visualViewport?.removeEventListener('scroll', schedule);
-      observer?.disconnect();
-    };
-  }, [catalogCoveredByOverlay]);
   const detailExitRef = useRef<number | null>(null);
   const drawerExitRef = useRef<number | null>(null);
 
@@ -934,14 +866,6 @@ export default function WidgetPage() {
             onSelect={toggleDetail}
           />
         </div>
-      ) : null}
-
-      {/* Hangs under the last lesson the reader can finish, so it points from the
-          list itself rather than from wherever the frame happens to stop. */}
-      {scrollCue !== null ? (
-        <span className={styles.scrollCue} style={{ top: scrollCue }} aria-hidden="true">
-          <ChevronDown size={22} />
-        </span>
       ) : null}
 
       {/* Course detail overlay — portaled so mobile fixed layout stays viewport-aligned */}
