@@ -1,13 +1,14 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
-import { Loader2, Search } from 'lucide-react';
+import { FilePlus2, Loader2, Search } from 'lucide-react';
 import { useDialogExit } from '@/components/ui/motion';
 import { searchBusinessCustomers } from '@/lib/api';
 import type { BusinessCustomer } from '@/components/dialogs/NewDocumentDialog/types';
 import type { BranchOption } from '@/lib/scopedFilters';
 import {
   createTenancy,
+  fetchTenancy,
   linkTenancySlots,
   unlinkTenancySlot,
   updateTenancy,
@@ -18,6 +19,7 @@ import {
 } from '@/lib/rentalsApi';
 import DialogShell from './DialogShell';
 import SlotChecklist, { type SlotChoice } from './SlotChecklist';
+import { contractNoticeAfterSave, isUnsignedContract } from './contractUtils';
 import {
   BILLING_DAYS,
   TENANCY_STATUS_OPTIONS,
@@ -59,8 +61,17 @@ interface TenancyDialogProps {
   onClose: () => void;
   /** Something may have been written — the list should read the server again. */
   onChanged: () => void;
-  /** Everything was written. Say so; the dialog closes itself. */
+  /**
+   * Everything was written. Say so; the dialog closes itself — or stays, when
+   * the server now calls the unsigned contract version on file stale, to say so.
+   */
   onSaved: (message: string) => void;
+  /**
+   * Issue a new contract version for this tenancy, from the row as the server
+   * returned it after the save. Offered when the save left its unsigned
+   * version behind; the view takes over, and the dialog is gone by then.
+   */
+  onIssueContract?: (tenancy: Tenancy) => void;
 }
 
 /** A search result. The endpoint sends the customer's business too, which the shared type leaves out. */
@@ -105,6 +116,12 @@ function isSlot(slot: TenancySlot | undefined): slot is TenancySlot {
  * the dialog says so, and trying again sends only what is still missing. A
  * tenancy created here turns the dialog into its editor at once, so a retry
  * can never create a second one.
+ *
+ * The contract already issued keeps the terms it was issued with; an edit
+ * never reaches it. When the tenancy has an unsigned version on file, a save
+ * reads the row back, and if the server now calls that version stale the
+ * dialog stays to say so, where the change was made — the server's is_stale
+ * decides, not a guess from the fields that changed.
  */
 export default function TenancyDialog({
   tenancy = null,
@@ -114,8 +131,17 @@ export default function TenancyDialog({
   onClose,
   onChanged,
   onSaved,
+  onIssueContract,
 }: TenancyDialogProps) {
-  const { closing, requestClose } = useDialogExit(onClose);
+  // The tenancy to issue a new version for once the dialog is gone. Handed over
+  // only after the exit: the view's confirmation opens beneath this overlay.
+  const issueAfterCloseRef = useRef<Tenancy | null>(null);
+  const { closing, requestClose } = useDialogExit(() => {
+    onClose();
+    const pending = issueAfterCloseRef.current;
+    issueAfterCloseRef.current = null;
+    if (pending) onIssueContract?.(pending);
+  });
   const createdHere = tenancy === null;
   const [saved, setSaved] = useState<SavedState | null>(() =>
     tenancy ? { tenancy, slots: tenancy.slots ?? [] } : null,
@@ -129,6 +155,8 @@ export default function TenancyDialog({
   const [picked, setPicked] = useState<CustomerResult | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  // Saved, and the server now calls the unsigned version on file stale: what to say, and the row it came from.
+  const [contractNotice, setContractNotice] = useState<{ text: string; tenancy: Tenancy } | null>(null);
   const savingRef = useRef(false);
   const bodyRef = useRef<HTMLDivElement>(null);
 
@@ -227,6 +255,7 @@ export default function TenancyDialog({
     savingRef.current = true;
     setSaving(true);
     setError('');
+    setContractNotice(null);
     let wrote = false;
     let createdNow = false;
 
@@ -278,6 +307,20 @@ export default function TenancyDialog({
       }
 
       onSaved(createdHere ? 'השוכר נוצר' : 'השינויים נשמרו');
+
+      // Only an unsigned version can be left behind by a save; with one on
+      // file, read the row back and let the server's is_stale decide.
+      if (isUnsignedContract(baseline.tenancy.current_contract)) {
+        const fresh = await readBack(baseline.tenancy.id);
+        const text = contractNoticeAfterSave(fresh?.current_contract);
+        if (fresh && text) {
+          setSaved({ tenancy: fresh, slots: fresh.slots ?? baseline.slots });
+          setForm(tenancyFormFrom(fresh));
+          setContractNotice({ text, tenancy: fresh });
+          bodyRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+          return;
+        }
+      }
       requestClose();
     } catch (err) {
       if (wrote) onChanged();
@@ -300,6 +343,24 @@ export default function TenancyDialog({
     }
   }
 
+  /**
+   * The row as the server holds it after a save. null when the read fails: the
+   * save stands, and the list shows the version's state in its own column.
+   */
+  async function readBack(tenancyId: string): Promise<Tenancy | null> {
+    try {
+      return await fetchTenancy(tenancyId);
+    } catch {
+      return null;
+    }
+  }
+
+  function issueNewVersion() {
+    if (!contractNotice || saving) return;
+    issueAfterCloseRef.current = contractNotice.tenancy;
+    requestClose();
+  }
+
   const title = saved ? `עריכת שוכר — ${tenantName(saved.tenancy.tenant)}` : 'שוכר חדש';
   const pickingExisting = !editing && form.tenantMode === 'existing';
 
@@ -310,7 +371,7 @@ export default function TenancyDialog({
       hint={
         editing
           ? undefined
-          : 'לקוח עסקי בסניף, ההסכם החודשי שלו והמשבצות שלו ביומן. החוזה, החתימה והוראת הקבע יתווספו בשלבים הבאים.'
+          : 'לקוח עסקי בסניף, ההסכם החודשי שלו והמשבצות שלו ביומן. את החוזה מפיקים מהשורה ברשימה אחרי השמירה; החתימה והוראת הקבע יתווספו בשלבים הבאים.'
       }
       closing={closing}
       onRequestClose={requestClose}
@@ -319,8 +380,9 @@ export default function TenancyDialog({
       bodyRef={bodyRef}
       footer={
         <>
+          {/* Once saved, "ביטול" would read as undoing what was just written. */}
           <button type="button" className={styles.secondaryBtn} onClick={requestClose} disabled={saving}>
-            ביטול
+            {contractNotice ? 'סגירה' : 'ביטול'}
           </button>
           <button type="submit" className={styles.primaryBtn} disabled={saving}>
             {saving && <Loader2 size={15} className={styles.spin} aria-hidden="true" />}
@@ -333,6 +395,19 @@ export default function TenancyDialog({
         <p className={styles.error} role="alert">
           {error}
         </p>
+      )}
+
+      {contractNotice && (
+        <div className={styles.savedNotice} role="status">
+          <p className={styles.savedTitle}>השינויים נשמרו</p>
+          <p className={styles.savedText}>{contractNotice.text}</p>
+          {onIssueContract && (
+            <button type="button" className={styles.savedAction} onClick={issueNewVersion} disabled={saving}>
+              <FilePlus2 size={14} aria-hidden="true" />
+              הפק גרסה חדשה
+            </button>
+          )}
+        </div>
       )}
 
       <section className={styles.section} aria-labelledby="tenancy-tenant-title">

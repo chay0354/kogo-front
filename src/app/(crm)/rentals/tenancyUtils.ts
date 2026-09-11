@@ -773,6 +773,7 @@ const FIELD_LABELS: Record<string, string> = {
   notes: 'הערות',
   slot_ids: 'משבצות',
   slot_id: 'משבצת',
+  reason: 'סיבת הביטול',
 };
 
 /** Keys whose messages speak for themselves; a label in front would only add noise. */

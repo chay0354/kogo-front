@@ -507,6 +507,143 @@
   color: #9a6b00;
 }
 
+/* ---- the contract column: the version on file, its PDF, and whether it still matches ---- */
+.table .contractCell {
+  min-width: 170px;
+}
+
+.contractStack {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 5px;
+}
+
+.contractLine {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.contractVersion {
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--kg-ink2);
+  font-variant-numeric: tabular-nums;
+}
+
+.contractDownload {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  border: 1px solid var(--kg-line);
+  background: #fff;
+  color: var(--kg-ink2);
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.contractDownload:hover:not(:disabled) {
+  background: #f3f1fc;
+  border-color: #ddd8f5;
+  color: var(--kg-ink);
+}
+
+.contractDownload:focus-visible {
+  outline: 2px solid var(--kg-bar-a);
+  outline-offset: 1px;
+}
+
+.contractDownload:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+/* Nothing issued yet: the way to issue the first version, dashed like a place still empty. */
+.contractIssue {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 28px;
+  padding: 0 11px;
+  border: 1px dashed #cfc9f3;
+  border-radius: 999px;
+  background: #faf9fe;
+  color: var(--kg-bar-a);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 800;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.contractIssue:hover:not(:disabled) {
+  background: #f3f1fc;
+  border-style: solid;
+}
+
+.contractIssue:focus-visible {
+  outline: 2px solid var(--kg-bar-a);
+  outline-offset: 2px;
+}
+
+.contractIssue:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+/* The agreement changed after the version was issued. Orange, apart from the amber of "sent". */
+.staleChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 7px;
+  border-radius: 6px;
+  background: #fff0e3;
+  color: #b3561c;
+  font-size: 11px;
+  font-weight: 800;
+  white-space: nowrap;
+  cursor: help;
+}
+
+/* A contract action that failed, in the server's words, under the controls it came from. */
+.contractError {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin-top: 6px;
+  max-width: 260px;
+  padding: 6px 8px;
+  border-radius: 9px;
+  background: #fff6f6;
+  border: 1px solid #f8d7d8;
+  color: #a92f34;
+  font-size: 11.5px;
+  font-weight: 700;
+  line-height: 1.45;
+  white-space: pre-line;
+}
+
+.contractError > span {
+  min-width: 0;
+}
+
+.spin {
+  animation: spin 0.9s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 /* Columns of later phases: present, empty, and saying when they fill in. */
 .phaseTag {
   display: inline-block;

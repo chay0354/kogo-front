@@ -1,4 +1,5 @@
 import api from './api';
+import { saveBlob } from './documentsApi';
 import { unwrapApiList } from '@/lib/scopedFilters';
 import type { WeeklyDayTimes } from '@/types/schedule';
 
@@ -70,6 +71,57 @@ export interface Tenancy {
   suggested_monthly_amount: string | null;
   tenant: TenancyTenant;
   slots: TenancySlot[];
+  /**
+   * Phase 2: the newest version of the contract that is not void — null before
+   * the first is issued, or once every version was voided. The whole history
+   * is fetchTenancyContracts.
+   */
+  current_contract: TenancyContractSummary | null;
+}
+
+// ---- the contract (phase 2) ----
+
+/**
+ * A tenancy's contract is a saved document: numbered versions whose terms and
+ * PDF are frozen when issued. Issuing a new version voids the previous
+ * unsigned one on the server. Signing (phase 3) and sending by WhatsApp
+ * (phase 5) move a version on from draft.
+ */
+export type ContractStatus = 'draft' | 'sent' | 'viewed' | 'signed' | 'void';
+
+/** The version a tenancy's row carries: its newest that is not void. */
+export interface TenancyContractSummary {
+  id: string;
+  version: number;
+  status: ContractStatus;
+  status_label: string;
+  created_at: string;
+  /**
+   * The agreement changed after this version was issued, so its frozen terms
+   * no longer match. The server's word on it — the screen never compares terms.
+   */
+  is_stale: boolean;
+}
+
+/** One version, as the history lists it. */
+export interface RentalContract {
+  id: string;
+  version: number;
+  status: ContractStatus;
+  status_label: string;
+  created_at: string;
+  /** Who issued it; empty when the server has no name for them. */
+  created_by_name: string | null;
+  voided_at: string | null;
+  /** Why it was voided — the office's words, or the server's when a new version replaced it. */
+  void_reason: string | null;
+  /** The fingerprint of the terms frozen into this version. */
+  terms_sha256: string;
+  /**
+   * Where the server keeps the file. Not opened from here: the file sits
+   * behind the token every request carries, so downloadContractPdf fetches it.
+   */
+  pdf_url: string | null;
 }
 
 /** A new tenant's details, as a write takes them. */
@@ -213,4 +265,88 @@ export async function fetchTenancySuggestions(): Promise<TenancySuggestion[]> {
 export async function importTenancies(payload: TenancyImportPayload): Promise<Tenancy[]> {
   const res = await api.post(`${TENANCIES_URL}import/`, payload, { timeout: 60000 });
   return unwrapApiList<Tenancy>(res.data);
+}
+
+// ---- the contract (phase 2) ----
+
+const CONTRACTS_URL = '/rentals/contracts/';
+
+function tenancyContractsUrl(tenancyId: string): string {
+  return `${tenancyUrl(tenancyId)}contracts/`;
+}
+
+function contractUrl(id: string): string {
+  return `${CONTRACTS_URL}${encodeURIComponent(id)}/`;
+}
+
+/** Every version of a tenancy's contract, newest first — the void ones too. */
+export async function fetchTenancyContracts(tenancyId: string): Promise<RentalContract[]> {
+  const res = await api.get(tenancyContractsUrl(tenancyId));
+  return unwrapApiList<RentalContract>(res.data);
+}
+
+/**
+ * Issue the next version from the agreement as it stands now. The server voids
+ * the previous unsigned version in the same step, and refuses with a Hebrew
+ * `error` (400) a tenancy without active slots, dates or an amount, or one
+ * already signed. Freezing the terms renders the PDF, so it gets longer than
+ * the client's default wait.
+ */
+export async function issueTenancyContract(tenancyId: string): Promise<RentalContract> {
+  const res = await api.post(tenancyContractsUrl(tenancyId), {}, { timeout: 60000 });
+  return res.data;
+}
+
+/** Void an unsigned version, saying why. A signed or already void one comes back 400. */
+export async function voidContract(contractId: string, reason: string): Promise<RentalContract> {
+  const res = await api.post(`${contractUrl(contractId)}void/`, { reason });
+  return res.data;
+}
+
+/** An error body read as text: its JSON when it is JSON, else the text itself. */
+export function parseErrorText(text: string): unknown {
+  const trimmed = text.trim();
+  if (!trimmed) return '';
+  try {
+    return JSON.parse(trimmed);
+  } catch {
+    return trimmed;
+  }
+}
+
+/**
+ * A request made for a blob gets its refusal as a Blob too, and the server's
+ * Hebrew words would be lost inside it. Read the body back in place, so the
+ * error reads like every other request's. Anything else passes as it came.
+ */
+export async function readBlobError(err: unknown): Promise<unknown> {
+  const response = (err as { response?: { data?: unknown } } | null)?.response;
+  const body = response?.data;
+  if (!response || typeof Blob === 'undefined' || !(body instanceof Blob)) return err;
+  try {
+    response.data = parseErrorText(await body.text());
+  } catch {
+    // Unreadable — the caller's own message covers it.
+  }
+  return err;
+}
+
+/** A version's PDF, as frozen when it was issued. */
+export async function fetchContractPdf(contractId: string): Promise<Blob> {
+  try {
+    const res = await api.get(`${contractUrl(contractId)}pdf/`, { responseType: 'blob' });
+    return res.data;
+  } catch (err) {
+    throw await readBlobError(err);
+  }
+}
+
+/**
+ * Save a version's PDF under the name given. Fetched as a blob rather than
+ * opened by pdf_url: the file sits behind the same token every other request
+ * carries, and a plain link would arrive without it (downloadPeriodReport's shape).
+ */
+export async function downloadContractPdf(contractId: string, filename: string): Promise<void> {
+  const pdf = await fetchContractPdf(contractId);
+  saveBlob(pdf, 'application/pdf', filename);
 }

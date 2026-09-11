@@ -185,7 +185,7 @@ export async function downloadPeriodReport(params: {
   window.URL.revokeObjectURL(blobUrl);
 }
 
-/** Hand a file fetched as a blob to the browser under a name of our choosing. */
+/** Hand the browser a file fetched as a blob, under a name of our choosing. Shared by signaturesApi and rentalsApi. */
 export function saveBlob(data: BlobPart, type: string, filename: string): void {
   const blobUrl = window.URL.createObjectURL(new Blob([data], { type }));
   const link = document.createElement('a');

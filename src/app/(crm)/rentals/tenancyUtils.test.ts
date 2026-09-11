@@ -116,6 +116,7 @@ function tenancy(overrides: Partial<Tenancy> = {}): Tenancy {
     suggested_monthly_amount: '960.00',
     tenant: tenant(),
     slots: [slot()],
+    current_contract: null,
     ...overrides,
   };
 }
@@ -723,6 +724,10 @@ describe("the server's refusals", () => {
     expect(apiErrorMessages({ tenant: { last_name: ['שדה חובה'] } })).toEqual(['שם משפחה / שם העסק: שדה חובה']);
     expect(apiErrorMessages({ non_field_errors: ['X'], foo: ['bar'] })).toEqual(['X', 'foo: bar']);
     expect(apiErrorMessages({ error: 'X', detail: 'X' })).toEqual(['X']);
+  });
+
+  it('names the reason a contract version is voided for', () => {
+    expect(apiErrorMessages({ reason: ['שדה חובה'] })).toEqual(['סיבת הביטול: שדה חובה']);
   });
 
   it("names an import's failing group by the renter it was for", () => {

@@ -699,6 +699,240 @@
   color: var(--kg-ink);
 }
 
+/* ---- a save that left the contract behind: saved, and what that means for the version on file ---- */
+.savedNotice {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  padding: 11px 13px;
+  border-radius: 12px;
+  background: #fff8e8;
+  border: 1px solid #f5dfa8;
+}
+
+.savedTitle {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 900;
+  color: var(--kg-ink);
+}
+
+.savedText {
+  margin: 0;
+  font-size: 12.5px;
+  font-weight: 700;
+  line-height: 1.55;
+  color: #7a5500;
+}
+
+.savedAction {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+  height: 32px;
+  padding: 0 13px;
+  border: 1px solid #f0d48a;
+  border-radius: 999px;
+  background: #fff;
+  color: #7a5500;
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.savedAction:hover:not(:disabled) {
+  background: #fffaf0;
+}
+
+.savedAction:focus-visible {
+  outline: 2px solid #e0a81f;
+  outline-offset: 1px;
+}
+
+.savedAction:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+/* ---- the contract's history: a card per version, newest first ---- */
+.historyList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.historyItem {
+  border: 1px solid var(--kg-line);
+  border-radius: 14px;
+  padding: 11px 14px 12px;
+}
+
+/* The version in force stands out; the void ones step back. */
+.historyItemCurrent {
+  border-color: #cfc9f3;
+  background: #fbfaff;
+}
+
+.historyItemVoid .historyTitle {
+  color: var(--kg-muted);
+}
+
+.historyHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
+  flex-wrap: wrap;
+}
+
+.historyTitleLine {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.historyTitle {
+  font-size: 14px;
+  font-weight: 900;
+}
+
+.historyActions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.historyMeta {
+  margin: 5px 0 0;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--kg-muted);
+}
+
+.historyVoid {
+  margin: 3px 0 0;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.5;
+  color: #a92f34;
+  white-space: pre-line;
+}
+
+.historyItem .error {
+  margin-top: 8px;
+}
+
+.smallBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 30px;
+  padding: 0 11px;
+  border: 1px solid var(--kg-line);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--kg-ink2);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 800;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.smallBtn:hover:not(:disabled) {
+  background: #faf9fe;
+}
+
+/* "בטל": red, and quieter than the download beside it. */
+.voidBtn {
+  display: inline-flex;
+  align-items: center;
+  height: 30px;
+  padding: 0 10px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: none;
+  color: #c93b40;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 800;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.voidBtn:hover:not(:disabled) {
+  background: #fdecec;
+  border-color: #f5cdce;
+}
+
+.smallBtn:disabled,
+.voidBtn:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.smallBtn:focus-visible,
+.voidBtn:focus-visible {
+  outline: 2px solid var(--kg-bar-a);
+  outline-offset: 2px;
+}
+
+/* Asking why, under the version it is about. */
+.voidForm {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--kg-line);
+}
+
+.voidActions {
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.dangerBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 38px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 999px;
+  background: #c93b40;
+  color: #fff;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 800;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.dangerBtn:hover:not(:disabled) {
+  background: #b3262c;
+}
+
+.dangerBtn:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.dangerBtn:focus-visible {
+  outline: 2px solid #c93b40;
+  outline-offset: 2px;
+}
+
 /* A phone gets a sheet from the bottom edge, as the shared dialogs do. */
 @media (max-width: 639px) {
   .overlay {
