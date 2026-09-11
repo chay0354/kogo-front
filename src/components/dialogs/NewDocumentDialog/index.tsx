@@ -31,6 +31,7 @@ import { useScopedBranches } from '@/hooks/useScopedBranches';
 import styles from './index.module.css';
 import { CLIENT_TYPE_OPTIONS, DOCUMENT_TYPE_OPTIONS } from './constants';
 import {
+  businessCustomerErrorMessage,
   businessFormFromCustomer,
   canAdvanceFromStep,
   getNextButtonLabel,
@@ -176,8 +177,9 @@ export default function NewDocumentDialog({ open, onClose }: NewDocumentDialogPr
           const created = await createBusinessCustomer(businessFormData);
           setBusinessCustomerId(created.id);
           goNext(true);
-        } catch {
-          // leave isSubmitting false so the user can retry
+        } catch (err: unknown) {
+          // Say why, so it can be fixed and saved again (isSubmitting clears below).
+          setSubmitError(businessCustomerErrorMessage(err));
         } finally {
           setIsSubmitting(false);
         }

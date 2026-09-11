@@ -46,6 +46,22 @@ export function generateDocumentNumber(): string {
   return 'יוקצה בהפקה';
 }
 
+/**
+ * Why saving a merchant failed, in the server's words when it gave any — a
+ * partner with several branches, say, has to choose the merchant's branch.
+ */
+export function businessCustomerErrorMessage(error: unknown): string {
+  const data = (error as { response?: { data?: unknown } } | null)?.response?.data;
+  if (data && typeof data === 'object') {
+    const record = data as Record<string, unknown>;
+    for (const value of [record.error, record.detail, ...Object.values(record)]) {
+      const first = Array.isArray(value) ? value[0] : value;
+      if (typeof first === 'string' && first.trim()) return first;
+    }
+  }
+  return 'שמירת הלקוח העסקי נכשלה';
+}
+
 export function getDocumentDetailsLabel(docType: string | null): string {
   if (docType === 'חשבונית מס') return 'פרטי חשבונית מס';
   if (docType === 'חשבונית מס/קבלה') return 'פרטי חשבונית מס/קבלה';

@@ -1,0 +1,710 @@
+/*
+ * /rentals — the page's header and view switch, and the tenants view: its
+ * figures, its filters and its list. Built on the --kg-* tokens the dashboard
+ * theme declares on .scope, in the shapes the invoices page already uses
+ * (invoices.module.css, ledgerFilterBar.module.css, paymentsTab.module.css),
+ * so the two screens read as one product.
+ */
+
+/* ---- page ---- */
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+/*
+ * The theme's mobile rule reserves room for AppLayout's sidebar toggle on the
+ * first child of .tokens — on the inline end, the wrong side in RTL. This
+ * zero-height spacer takes that reservation and the header clears the
+ * toggle's corner itself, as the invoices and store pages do.
+ */
+.toggleSpacer {
+  height: 0;
+}
+
+.pageHead {
+  margin: 0;
+}
+
+@media (max-width: 1023px) {
+  .pageHead {
+    padding-inline-start: 52px;
+  }
+}
+
+/* The view switch — the invoices page's segmented rail: the open view is the white pill. */
+.switchRail {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  max-width: 100%;
+  padding: 4px;
+  border: 1px solid var(--kg-line);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.55);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.switchRail::-webkit-scrollbar {
+  display: none;
+}
+
+.switchPill {
+  border: 0;
+  background: none;
+  border-radius: 999px;
+  padding: 7px 16px;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--kg-ink2);
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color 0.18s ease, color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.switchPill:hover {
+  color: var(--kg-ink);
+}
+
+.switchPill[aria-selected='true'] {
+  background: #fff;
+  color: var(--kg-ink);
+  font-weight: 800;
+  box-shadow: 0 2px 8px rgba(43, 37, 133, 0.13);
+}
+
+.switchPill:focus-visible {
+  outline: 2px solid var(--kg-bar-a);
+  outline-offset: 1px;
+}
+
+/* The open view. Its blocks keep the dashboard's 12px rhythm. */
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+
+/* ---- the tenants view ---- */
+.view {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+
+/* Two figures a line on a phone keeps the summary in one glance. (Scoped
+   under .view so it outranks the theme's single-column rule at this width.) */
+@media (max-width: 880px) {
+  .view .kpis {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+}
+
+/* A figure's foot that leads somewhere — the rentals still to connect. */
+.footLink {
+  border: 0;
+  background: none;
+  padding: 0;
+  font: inherit;
+  font-weight: 800;
+  color: var(--kg-bar-a);
+  cursor: pointer;
+}
+
+.footLink:hover {
+  text-decoration: underline;
+}
+
+.footLink:focus-visible {
+  outline: 2px solid var(--kg-bar-a);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* ---- filters: the invoices bar's fields, on one row ---- */
+.filterRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 10px 12px;
+}
+
+.field {
+  flex: 0 1 200px;
+  min-width: 0;
+}
+
+.fieldWide {
+  flex: 1 1 280px;
+}
+
+.fieldLabel {
+  display: block;
+  font-size: 11.5px;
+  font-weight: 800;
+  color: var(--kg-muted);
+  margin-bottom: 5px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.control {
+  width: 100%;
+  height: 40px;
+  border: 1px solid var(--kg-line);
+  border-radius: 11px;
+  background: #fff;
+  padding: 0 12px;
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--kg-ink);
+  font-family: inherit;
+  transition: border-color 0.15s ease, background-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.control:focus {
+  outline: none;
+  border-color: var(--kg-bar-a);
+  box-shadow: 0 0 0 3px rgba(91, 84, 214, 0.14);
+}
+
+/* A field that is narrowing the list is tinted, so the filters in force stand out. */
+.controlOn {
+  border-color: #cfc9f3;
+  background: #f7f6fe;
+}
+
+.searchWrap {
+  position: relative;
+}
+
+.searchIcon {
+  position: absolute;
+  inset-inline-start: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 16px;
+  height: 16px;
+  color: var(--kg-muted);
+  pointer-events: none;
+}
+
+.searchControl {
+  padding-inline-start: 36px;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.filterFooter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px 12px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+  padding-top: 11px;
+  border-top: 1px solid var(--kg-line-soft);
+}
+
+.resultLine {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--kg-muted);
+}
+
+.resultLine b {
+  color: var(--kg-ink);
+}
+
+.sep {
+  color: var(--kg-line);
+}
+
+.activeCount {
+  color: var(--kg-ink2);
+}
+
+.clearLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--kg-bar-a);
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 6px;
+}
+
+.clearLink:hover {
+  text-decoration: underline;
+}
+
+.clearLink:focus-visible {
+  outline: 2px solid var(--kg-bar-a);
+  outline-offset: 1px;
+}
+
+/* ---- list card head: what is listed, in what order, and the two ways to add ---- */
+.cardHead {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 10px 16px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+.cardSub {
+  margin: 2px 0 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--kg-muted);
+}
+
+.headActions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* The view's one primary action, in the dashboard's primary pill. */
+.primaryBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 36px;
+  border: 0;
+  border-radius: 999px;
+  padding: 0 15px;
+  background: linear-gradient(135deg, #312a9e, #231f6e);
+  color: #fff;
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 800;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: box-shadow 0.18s ease, transform 0.18s ease;
+}
+
+.primaryBtn:hover {
+  box-shadow: 0 8px 22px rgba(35, 31, 110, 0.28);
+  transform: translateY(-1px);
+}
+
+.secondaryBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 36px;
+  border: 1px solid var(--kg-line);
+  border-radius: 999px;
+  padding: 0 14px;
+  background: #fff;
+  color: var(--kg-ink2);
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 800;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: box-shadow 0.18s ease, background 0.18s ease;
+}
+
+.secondaryBtn:hover {
+  box-shadow: var(--kg-sh);
+}
+
+.primaryBtn:focus-visible,
+.secondaryBtn:focus-visible {
+  outline: 2px solid var(--kg-bar-a);
+  outline-offset: 2px;
+}
+
+/* How many rentals still wait to be connected. */
+.countBadge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--kg-amber);
+  color: #4a3400;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+/* An action that failed. */
+.notice {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 0 0 10px;
+  padding: 8px 12px;
+  border-radius: 11px;
+  background: #fff6f6;
+  border: 1px solid #f8d7d8;
+  color: #a92f34;
+  font-size: 12.5px;
+  font-weight: 700;
+  white-space: pre-line;
+}
+
+.noticeClose {
+  flex: none;
+  display: inline-flex;
+  border: 0;
+  background: none;
+  color: inherit;
+  cursor: pointer;
+  padding: 2px;
+  border-radius: 6px;
+}
+
+.noticeClose:focus-visible {
+  outline: 2px solid currentColor;
+}
+
+/* ---- table ---- */
+
+/* Eleven columns do not fit a phone; the table keeps its shape and scrolls
+   inside the card (theme.tableScroll) rather than squeezing unreadably. */
+.table {
+  min-width: 1240px;
+}
+
+.table th,
+.table td {
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+.table .wrapCell {
+  white-space: normal;
+  min-width: 150px;
+  max-width: 230px;
+}
+
+.table .slotsCell {
+  white-space: normal;
+  min-width: 240px;
+  max-width: 340px;
+}
+
+.strong {
+  display: block;
+  font-weight: 800;
+  line-height: 1.35;
+}
+
+.subLine {
+  display: block;
+  margin-top: 3px;
+  font-size: 11.5px;
+  font-weight: 700;
+  line-height: 1.35;
+  color: var(--kg-muted);
+  unicode-bidi: plaintext;
+}
+
+.money {
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+.muted {
+  color: var(--kg-ink2);
+  font-weight: 600;
+}
+
+.dash {
+  color: var(--kg-muted);
+}
+
+/* A slot per line, each with the way to let it go. */
+.slotList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.slotLine {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  font-weight: 700;
+  line-height: 1.4;
+  color: var(--kg-ink2);
+}
+
+.slotText {
+  min-width: 0;
+}
+
+.slotOff {
+  margin-inline-start: 4px;
+  font-size: 10.5px;
+  font-weight: 800;
+  color: #9996b8;
+}
+
+.slotUnlink {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 7px;
+  border: 1px solid transparent;
+  background: none;
+  color: var(--kg-muted);
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.slotUnlink:hover:not(:disabled) {
+  background: #fdecec;
+  border-color: #f5cdce;
+  color: #c93b40;
+}
+
+.slotUnlink:focus-visible {
+  outline: 2px solid var(--kg-bar-a);
+  outline-offset: 1px;
+}
+
+.slotUnlink:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+/* Sent for signing and not yet back — the one status that waits on someone. */
+.toneProgress {
+  background: #fff5dc;
+  color: #9a6b00;
+}
+
+/* Columns of later phases: present, empty, and saying when they fill in. */
+.phaseTag {
+  display: inline-block;
+  margin-inline-start: 5px;
+  padding: 1px 6px;
+  border-radius: 5px;
+  background: #f2f1f7;
+  color: #9996b8;
+  font-size: 10px;
+  font-weight: 800;
+  vertical-align: 1px;
+}
+
+.later {
+  color: var(--kg-muted);
+  cursor: help;
+}
+
+/* ---- row actions ---- */
+.actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.iconBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  border: 1px solid var(--kg-line);
+  background: #fff;
+  color: var(--kg-ink2);
+  cursor: pointer;
+  flex: none;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.iconBtn:hover:not(:disabled) {
+  background: #f3f1fc;
+  border-color: #ddd8f5;
+  color: var(--kg-ink);
+}
+
+.iconBtn:focus-visible {
+  outline: 2px solid var(--kg-bar-a);
+  outline-offset: 2px;
+}
+
+.iconBtn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.iconDanger {
+  color: #c93b40;
+}
+
+.iconDanger:hover:not(:disabled) {
+  background: #fdecec;
+  border-color: #f5cdce;
+  color: #a92f34;
+}
+
+/* ---- empty and error states: say what happened and offer the way out ---- */
+.empty {
+  text-align: center;
+  padding: 40px 20px 36px;
+}
+
+.emptyIcon {
+  display: block;
+  width: 44px;
+  height: 44px;
+  margin: 0 auto 12px;
+  color: #d8d4ef;
+}
+
+.emptyTitle {
+  margin: 0 0 4px;
+  font-size: 15px;
+  font-weight: 900;
+}
+
+.emptyText {
+  margin: 0 auto;
+  max-width: 34rem;
+  font-size: 12.5px;
+  font-weight: 600;
+  line-height: 1.6;
+  color: var(--kg-muted);
+}
+
+.emptyActions {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.emptyBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #fff;
+  border: 1px solid var(--kg-line);
+  border-radius: 999px;
+  padding: 8px 15px;
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 800;
+  color: var(--kg-ink2);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: box-shadow 0.18s ease, transform 0.18s ease;
+}
+
+.emptyBtn:hover {
+  box-shadow: var(--kg-sh);
+  transform: translateY(-1px);
+}
+
+.emptyBtnPrimary {
+  background: linear-gradient(135deg, #312a9e, #231f6e);
+  border-color: transparent;
+  color: #fff;
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ---- the calendar view: its one action and where the tenants are ---- */
+.slotsBar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.slotsHint {
+  margin: 0;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--kg-muted);
+}
+
+@media (max-width: 560px) {
+  .field {
+    flex: 1 1 140px;
+  }
+}
+
+@media (hover: none) and (pointer: coarse) {
+  .control,
+  .primaryBtn,
+  .secondaryBtn,
+  .emptyBtn,
+  .iconBtn {
+    min-height: 44px;
+  }
+
+  .iconBtn {
+    width: 44px;
+  }
+
+  .slotUnlink {
+    width: 32px;
+    height: 32px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .switchPill,
+  .control,
+  .primaryBtn,
+  .secondaryBtn,
+  .emptyBtn,
+  .iconBtn,
+  .slotUnlink {
+    transition: none;
+  }
+
+  .primaryBtn:hover,
+  .emptyBtn:hover {
+    transform: none;
+  }
+}
