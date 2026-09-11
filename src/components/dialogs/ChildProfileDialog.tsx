@@ -34,6 +34,11 @@ import api from '@/lib/api';
 import RefundDialog from '@/components/dialogs/RefundDialog';
 import EditStandingOrderDialog from '@/components/dialogs/EditStandingOrderDialog';
 import { upcomingCharges, type UpcomingCharge } from '@/components/dialogs/upcomingCharges';
+import {
+  computerizedDocsConsentLine,
+  readComputerizedDocsConsent,
+  type ComputerizedDocsConsent,
+} from '@/components/dialogs/computerizedDocsConsent';
 import EditMonthAmountDialog from '@/components/dialogs/EditMonthAmountDialog';
 import SendCardLinkDialog from '@/components/dialogs/SendCardLinkDialog';
 import { useAuth } from '@/components/AuthProvider';
@@ -539,6 +544,15 @@ export default function ChildProfileDialog({
     trial: boolean;
   } | null>(null);
   const [dropLoading, setDropLoading] = useState(false);
+  // The family's consent to computerized documents (סעיף 18ב(ג)), read afresh on
+  // every open: the widget or a sibling's card may have changed it since the
+  // list loaded. Null while it loads, or when it cannot be read.
+  const [docsConsent, setDocsConsent] = useState<ComputerizedDocsConsent | null>(null);
+  const [docsConsentLoading, setDocsConsentLoading] = useState(true);
+  const docsConsentRequest = useRef(0);
+  // The change waiting for its confirm: true records consent, false withdraws it.
+  const [docsConsentChange, setDocsConsentChange] = useState<boolean | null>(null);
+  const [docsConsentSaving, setDocsConsentSaving] = useState(false);
   
   const genderText = child.gender === 'male' ? 'בן' : child.gender === 'female' ? 'בת' : 'בן/בת';
   const whatsapp = formatWhatsAppLink(child.parent_phone);
@@ -554,6 +568,7 @@ export default function ChildProfileDialog({
     if (isOpen && child.id) {
       fetchAbsenceHistory();
       fetchPaymentData();
+      fetchDocsConsent();
     }
   }, [isOpen, child.id]);
   
@@ -617,6 +632,42 @@ export default function ChildProfileDialog({
     await documentsLoaded;
   };
   
+  // The family's own record, not the list row, so the line is current.
+  const fetchDocsConsent = async () => {
+    const request = ++docsConsentRequest.current;
+    setDocsConsentLoading(true);
+    try {
+      const response = await api.get(`/customers/families/${child.family_id}/`);
+      if (request !== docsConsentRequest.current) return;
+      setDocsConsent(readComputerizedDocsConsent(response.data));
+    } catch (error) {
+      if (request !== docsConsentRequest.current) return;
+      console.error('Error fetching the family consent:', error);
+      setDocsConsent(null);
+    } finally {
+      if (request === docsConsentRequest.current) setDocsConsentLoading(false);
+    }
+  };
+
+  const handleDocsConsentConfirm = async (confirmed: boolean) => {
+    if (!confirmed || docsConsentChange === null) return;
+    setDocsConsentSaving(true);
+    try {
+      const response = await api.post(`/customers/families/${child.family_id}/computerized-consent/`, {
+        consent: docsConsentChange,
+      });
+      // A read still on its way must not paint over what was just saved.
+      docsConsentRequest.current += 1;
+      setDocsConsent(readComputerizedDocsConsent(response.data));
+      setDocsConsentLoading(false);
+    } catch (error) {
+      console.error('Error saving the family consent:', error);
+      alert(docsConsentChange ? 'שגיאה ברישום ההסכמה' : 'שגיאה בביטול ההסכמה');
+    } finally {
+      setDocsConsentSaving(false);
+    }
+  };
+
   const handleCancelRecurring = async (recurringId: string) => {
     if (!confirm('האם אתה בטוח שברצונך לבטל את המנוי החוזר?')) return;
     
@@ -995,6 +1046,28 @@ export default function ChildProfileDialog({
                             אימייל
                           </span>
                           <span className="font-medium">{child.parent_email || child.family_email || '-'}</span>
+                        </div>
+                        {/* סעיף 18ב(ג): invoices and receipts go by email only to a family that agreed. */}
+                        <div className="flex justify-between gap-4 items-center">
+                          <span className="text-muted-foreground text-sm">מסמכים ממוחשבים</span>
+                          {docsConsentLoading ? (
+                            <Skeleton className="h-5 w-32" />
+                          ) : docsConsent ? (
+                            <span className="flex items-center gap-2">
+                              <span className="font-medium">{computerizedDocsConsentLine(docsConsent)}</span>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-7 px-2 text-xs"
+                                disabled={docsConsentSaving}
+                                onClick={() => setDocsConsentChange(!docsConsent.accepts_computerized_documents)}
+                              >
+                                {docsConsent.accepts_computerized_documents ? 'בטל הסכמה' : 'סמן הסכמה'}
+                              </Button>
+                            </span>
+                          ) : (
+                            <span className="font-medium">-</span>
+                          )}
                         </div>
                         <div className="flex justify-between gap-4 items-center">
                           <span className="text-muted-foreground text-sm flex items-center gap-2">
@@ -1515,6 +1588,20 @@ export default function ChildProfileDialog({
       }
       confirmText={dropGroup?.trial ? 'כן, בטל' : 'כן, הסר'}
       cancelText="ביטול"
+    />
+    <ConfirmDialog
+      isOpen={docsConsentChange !== null}
+      onClose={() => { if (!docsConsentSaving) setDocsConsentChange(null); }}
+      onConfirm={handleDocsConsentConfirm}
+      type={docsConsentChange ? 'question' : 'warning'}
+      title={docsConsentChange ? 'רישום הסכמה למסמכים ממוחשבים' : 'ביטול ההסכמה למסמכים ממוחשבים'}
+      message={
+        docsConsentChange
+          ? 'לרשום שהמשפחה הסכימה לקבל חשבוניות, קבלות והודעות זיכוי בדוא״ל, כמסמך ממוחשב?\nההסכמה תירשם כניתנה במשרד.'
+          : 'לבטל את הסכמת המשפחה לקבל חשבוניות, קבלות והודעות זיכוי בדוא״ל?\nהביטול יירשם מהיום.'
+      }
+      confirmText={docsConsentChange ? 'כן, סמן הסכמה' : 'כן, בטל הסכמה'}
+      cancelText="חזרה"
     />
   </>
   );

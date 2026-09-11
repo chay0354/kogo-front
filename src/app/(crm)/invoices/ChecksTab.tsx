@@ -20,10 +20,11 @@ import styles from './checks.module.css';
 // ---------------------------------------------------------------------------
 
 /**
- * A check plan as a ledger row. The plan sends its branch as `branch`; the
- * shared filters match on branch_id, and the branch places the plan in its
- * city. The other dimensions — business, course type, age group, instructor —
- * are not sent for plans yet, so they stay absent.
+ * A check plan as a ledger row. The plan arrives with the dimensions of its
+ * lesson — business, city, course type, age group, instructor — and its
+ * branch_id, so every shared filter matches it as it matches a charge; a plan
+ * without a lesson has its branch and city only. An answer without branch_id
+ * (an older server) is placed by `branch`, and the branch places it in its city.
  */
 export interface CheckPlanLedgerRow extends CheckPlanRow, LedgerDimensions {}
 
@@ -48,17 +49,10 @@ export const CHECK_PLAN_STATUS_OPTIONS = [
 ] as const;
 
 /**
- * What a check plan cannot be narrowed by: it is not one dated row but a
- * series (a range over its registration day would hide live plans), and it
- * carries no course type, age group or instructor.
+ * What a check plan cannot be narrowed by: its dates. A plan is not one dated
+ * row but a series, and a range over its registration day would hide live plans.
  */
-export const CHECKS_HIDDEN_FIELDS: readonly LedgerFilterKey[] = [
-  'dateFrom',
-  'dateTo',
-  'courseTypeId',
-  'ageKey',
-  'instructorId',
-];
+export const CHECKS_HIDDEN_FIELDS: readonly LedgerFilterKey[] = ['dateFrom', 'dateTo'];
 
 const PLAN_RANK: Readonly<Record<string, number>> = { active: 0, completed: 1, cancelled: 2 };
 const OTHER_RANK = 3;
@@ -113,15 +107,12 @@ export function matchesCheckPlanSearch(plan: CheckPlanRow, query: string): boole
 }
 
 /**
- * Whether a plan passes the page's shared filters and search. The fields this
- * tab hides are blanked first: a class chosen on another tab must not hide
- * every plan here without a control on screen that says why.
+ * Whether a plan passes the page's shared filters and search — the class, the
+ * age group and the instructor too, read from its lesson. The dates are never
+ * matched on: the tab hides them (CHECKS_HIDDEN_FIELDS).
  */
 export function matchesCheckPlanFilters(row: CheckPlanLedgerRow, filters: LedgerFilters): boolean {
-  return (
-    matchesLedgerFilters(row, { ...filters, courseTypeId: '', ageKey: '', instructorId: '' })
-    && matchesCheckPlanSearch(row, filters.search)
-  );
+  return matchesLedgerFilters(row, filters) && matchesCheckPlanSearch(row, filters.search);
 }
 
 /**
@@ -235,8 +226,9 @@ interface ChecksTabProps {
  * tax invoice for each check on its date.
  *
  * The plans arrive whole, so the filters narrow them here in the browser:
- * עסק and, under סניפים, עיר and סניף; the search; and the tab's own status.
- * The dates and the class dimensions are hidden (CHECKS_HIDDEN_FIELDS).
+ * עסק and, under סניפים, עיר and סניף; סוג חוג, גיל and מדריך, from each plan's
+ * lesson; the search; and the tab's own status. The dates are hidden
+ * (CHECKS_HIDDEN_FIELDS).
  */
 export default function ChecksTab({ ledger: pageLedger, branchFilter }: ChecksTabProps) {
   const ownLedger = useLedgerFilters(branchFilter ? { branchId: branchFilter } : undefined);

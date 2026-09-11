@@ -40,7 +40,7 @@ type DiscountQueueItem = {
 type NameFieldKey = 'parentFirstName' | 'parentLastName' | 'childFirstName' | 'childLastName';
 type IdFieldKey = 'parentIdNumber' | 'childIdNumber';
 type DetailsFieldKey = NameFieldKey | IdFieldKey | 'parentPhone' | 'parentEmail' | 'childBirthDate' | 'childGender';
-type ConsentFieldKey = 'health' | 'terms' | 'signature';
+type ConsentFieldKey = 'health' | 'documents' | 'terms' | 'signature';
 
 function nameFieldError(value: string): string | null {
   const trimmed = value.trim();
@@ -187,6 +187,8 @@ export default function CourseRegistrationForm({
 
   // Step 3 — consents
   const [healthConsent, setHealthConsent] = useState(false);
+  // סעיף 18ב(ג): invoices and receipts go out by email only to a customer who agreed to it.
+  const [computerizedDocsConsent, setComputerizedDocsConsent] = useState(false);
   const [termsConsent, setTermsConsent] = useState(false);
   const [termsReadComplete, setTermsReadComplete] = useState(false);
   const [termsOpenedOnce, setTermsOpenedOnce] = useState(false);
@@ -837,6 +839,10 @@ export default function CourseRegistrationForm({
         course_id: courseId,
         lesson_id: effectiveTrialLessonId,
         trial_lesson_date: trialLessonDate,
+        // True only through the consents step (a paid trial), where the box is
+        // required. The free trial's summary skips that step and never shows
+        // the box, so it sends false and nothing is recorded.
+        computerized_docs_consent: computerizedDocsConsent,
       });
       if (res.data.requires_payment) {
         // The catalog said free but the course now charges: the payment step
@@ -883,6 +889,9 @@ export default function CourseRegistrationForm({
     const errors: Partial<Record<ConsentFieldKey, string>> = {};
     if (!healthConsent) {
       errors.health = 'יש לאשר את ההתחייבות לגבי מצב בריאותי';
+    }
+    if (!computerizedDocsConsent) {
+      errors.documents = 'יש לאשר קבלת מסמכים ממוחשבים בדוא״ל כדי להמשיך';
     }
     if (!termsReadComplete) {
       errors.terms = 'יש לפתוח את התקנון, לגלול עד הסוף ולאשר';
@@ -932,6 +941,8 @@ export default function CourseRegistrationForm({
         parent_phone: parentPhone,
         parent_email: parentEmail,
         signature,
+        // Checked above: the consents step does not submit without it.
+        computerized_docs_consent: computerizedDocsConsent,
       };
 
       const registerChildLessons = async (
@@ -1609,6 +1620,19 @@ export default function CourseRegistrationForm({
         </label>
         {consentErrors.health ? (
           <p className={styles.fieldError}>{consentErrors.health}</p>
+        ) : null}
+
+        <label className={styles.consentLabel}>
+          <input type="checkbox" checked={computerizedDocsConsent}
+            onChange={(e) => {
+              setComputerizedDocsConsent(e.target.checked);
+              if (e.target.checked) clearConsentError('documents');
+            }}
+            className={styles.checkbox} />
+          <span>אני מסכים/ה לקבל חשבוניות, קבלות והודעות זיכוי בדוא״ל, כמסמך ממוחשב.</span>
+        </label>
+        {consentErrors.documents ? (
+          <p className={styles.fieldError}>{consentErrors.documents}</p>
         ) : null}
 
         <div className={`${styles.termsGate}${termsReadComplete ? ` ${styles.termsGateDone}` : ''}`}>

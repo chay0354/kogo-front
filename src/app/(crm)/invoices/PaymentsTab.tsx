@@ -123,9 +123,20 @@ export function chargeLedgerParams(filters: LedgerFilters, own: PaymentsOwnFilte
   return params;
 }
 
-/** The same query asked only for its totals: one row, page one. */
+/**
+ * One page of the query, and with it the filter bar's options: every course
+ * type, age group and instructor the range holds. The page in hand would offer
+ * only what happens to be on it, while the filters run over every page.
+ */
+export function chargePageParams(params: ChargeLedgerParams, page: number): ChargeLedgerParams {
+  return { ...params, page, page_size: PAYMENTS_PAGE_SIZE, with_options: true };
+}
+
+/** The same query asked only for its totals: one row, page one, no options. */
 export function chargeCountParams(params: ChargeLedgerParams): ChargeLedgerParams {
-  return { ...params, page: 1, page_size: 1 };
+  const count: ChargeLedgerParams = { ...params, page: 1, page_size: 1 };
+  delete count.with_options;
+  return count;
 }
 
 /**
@@ -300,6 +311,19 @@ export function optionRowsFromLists(
   return [...types, ...people];
 }
 
+/**
+ * The rows the filter bar reads סוג חוג, גיל and מדריך from: the full lists of
+ * course types and instructors, the server's options for the range — every age
+ * group in it, and anything the lists do not hold — and the page's own rows.
+ */
+export function filterBarRows(
+  listRows: readonly LedgerDimensions[],
+  rangeOptions: readonly LedgerDimensions[],
+  pageRows: readonly LedgerDimensions[],
+): LedgerDimensions[] {
+  return [...listRows, ...rangeOptions, ...pageRows];
+}
+
 export function pageCountFor(count: number): number {
   return Math.max(1, Math.ceil(count / PAYMENTS_PAGE_SIZE));
 }
@@ -318,32 +342,41 @@ interface ChargeTotals {
 }
 
 const NO_CHARGE_ROWS: ChargeRow[] = [];
+const NO_OPTIONS: LedgerDimensions[] = [];
 
 interface ChargePageState {
   /** The query and page these rows answer. While it differs from the one asked, no stale row is shown. */
   key: string;
   /** The query alone — its totals hold on every page of it. */
   queryKey: string;
+  /** The range alone — its options hold for every query and page over it. */
+  rangeKey: string;
   rows: ChargeRow[];
   totals: ChargeTotals | null;
+  /** Every course type, age group and instructor in the range (chargePageParams). */
+  options: LedgerDimensions[];
   error: string;
 }
 
 /**
- * One page of the CRM charges for a query, from the server. A new query waits
- * a moment first; another page of the same query, or a retry, goes at once.
- * An answer that arrives after a newer request went out is dropped rather
- * than painted over it. A null query asks nothing — the store is listed.
+ * One page of the CRM charges for a query, from the server, with the filter
+ * bar's options for its range. A new query waits a moment first; another page
+ * of the same query, or a retry, goes at once. An answer that arrives after a
+ * newer request went out is dropped rather than painted over it. A null query
+ * asks nothing — the store is listed.
  */
 function useChargePage(query: ChargeLedgerParams | null, page: number) {
   const [attempt, setAttempt] = useState(0);
   const queryKey = query ? JSON.stringify(query) : '';
   const key = query ? `${queryKey}#${page}#${attempt}` : '';
+  const rangeKey = query ? `${query.start_date ?? ''}|${query.end_date ?? ''}` : '';
   const [state, setState] = useState<ChargePageState>({
     key: '',
     queryKey: '',
+    rangeKey: '',
     rows: NO_CHARGE_ROWS,
     totals: null,
+    options: NO_OPTIONS,
     error: '',
   });
   const latest = useRef(0);
@@ -353,21 +386,31 @@ function useChargePage(query: ChargeLedgerParams | null, page: number) {
     const request = ++latest.current;
     const delay = state.queryKey === queryKey ? 0 : REQUEST_DELAY_MS;
     const timer = window.setTimeout(() => {
-      fetchPaymentLedger({ ...query, page, page_size: PAYMENTS_PAGE_SIZE })
+      fetchPaymentLedger(chargePageParams(query, page))
         .then((data) => {
           if (request !== latest.current) return;
           setState({
             key,
             queryKey,
+            rangeKey,
             rows: (data.results as PaymentLedgerRow[]).map(toChargeRow),
             totals: { count: data.count, monthTotal: data.month_total, pending: data.pending_count },
+            options: data.dimension_options,
             error: '',
           });
         })
         .catch((error) => {
           if (request !== latest.current) return;
           console.error('Error loading payments:', error);
-          setState({ key, queryKey, rows: NO_CHARGE_ROWS, totals: null, error: 'שגיאה בטעינת החיובים.' });
+          setState({
+            key,
+            queryKey,
+            rangeKey,
+            rows: NO_CHARGE_ROWS,
+            totals: null,
+            options: NO_OPTIONS,
+            error: 'שגיאה בטעינת החיובים.',
+          });
         });
     }, delay);
     return () => window.clearTimeout(timer);
@@ -399,6 +442,9 @@ function useChargePage(query: ChargeLedgerParams | null, page: number) {
     // The totals do not change with the page, so paging keeps the figures on screen.
     totals: sameQuery ? state.totals : null,
     totalsLoading: query !== null && !sameQuery,
+    // Nor do the options change with the filters or the page: a choice keeps
+    // the others on offer while its page loads.
+    options: query !== null && state.rangeKey === rangeKey ? state.options : NO_OPTIONS,
     markRefunded,
     retry,
   };
@@ -631,11 +677,11 @@ export default function PaymentsTab({ ledger }: PaymentsTabProps) {
     : 'רשימת החיובים';
   const noun = storeListing ? 'רכישות' : 'חיובים';
 
-  // סוג חוג and מדריך offer the full lists; the page's rows add the age groups
-  // and anything the lists do not hold.
+  // סוג חוג and מדריך offer the full lists; the server's options add every age
+  // group in the range, and the page's rows anything else they name.
   const barRows = useMemo(
-    () => (charges.rows.length > 0 ? [...optionRows, ...charges.rows] : optionRows),
-    [optionRows, charges.rows],
+    () => filterBarRows(optionRows, charges.options, charges.rows),
+    [optionRows, charges.options, charges.rows],
   );
 
   function goToPage(next: number) {

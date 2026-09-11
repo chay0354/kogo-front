@@ -1,12 +1,14 @@
 'use client';
 
 import { useMemo, useState, type ReactNode } from 'react';
-import { AlertCircle, Bell, Download, FileSearch, X } from 'lucide-react';
+import { AlertCircle, Bell, Download, FileArchive, FileSearch, FileSpreadsheet, X } from 'lucide-react';
 import { Skeleton, TableSkeleton } from '@/components/ui/skeleton';
 import { downloadStoreInvoicePdf } from '@/lib/storeApi';
 import {
   downloadDocumentPdf,
+  downloadDocumentsRegister,
   downloadPeriodReport,
+  downloadUniformExport,
   finalizeDraft,
   sendDocumentReminder,
 } from '@/lib/documentsApi';
@@ -86,6 +88,7 @@ export default function DocumentsTab({ ledger, refreshKey = 0 }: DocumentsTabPro
   const [actionError, setActionError] = useState('');
   const [reportGroupBy, setReportGroupBy] = useState<ReportGroupBy>('branch');
   const [reportBusy, setReportBusy] = useState(false);
+  const [exportBusy, setExportBusy] = useState<'' | 'register' | 'uniform'>('');
   const [approvingId, setApprovingId] = useState<string | null>(null);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
   const [reminders, setReminders] = useState<Record<string, ReminderState>>({});
@@ -153,6 +156,26 @@ export default function DocumentsTab({ ledger, refreshKey = 0 }: DocumentsTabPro
       setActionError('הפקת הדוח נכשלה');
     } finally {
       setReportBusy(false);
+    }
+  }
+
+  // The accountant's two files follow the dates only, like the report: every
+  // document in the range, whatever the table is narrowed to.
+  async function handleExport(kind: 'register' | 'uniform') {
+    setExportBusy(kind);
+    setActionError('');
+    try {
+      const range = ledgerRangeParams(filters);
+      if (kind === 'register') await downloadDocumentsRegister(range);
+      else await downloadUniformExport(range);
+    } catch {
+      setActionError(
+        kind === 'register'
+          ? 'הפקת קובץ המסמכים נכשלה'
+          : 'הפקת קבצי המבנה האחיד נכשלה — הטווח צריך להיות בתוך שנת מס אחת',
+      );
+    } finally {
+      setExportBusy('');
     }
   }
 
@@ -476,6 +499,26 @@ export default function DocumentsTab({ ledger, refreshKey = 0 }: DocumentsTabPro
             >
               <Download size={15} aria-hidden="true" />
               {reportBusy ? 'מפיק…' : 'הורד דוח PDF'}
+            </button>
+            <button
+              type="button"
+              className={styles.reportBtn}
+              disabled={exportBusy !== ''}
+              onClick={() => void handleExport('register')}
+              title="כל המסמכים בטווח, שורה לכל מסמך — קובץ שנפתח ב-Excel אצל רואה החשבון"
+            >
+              <FileSpreadsheet size={15} aria-hidden="true" />
+              {exportBusy === 'register' ? 'מפיק…' : 'ייצוא לרו״ח'}
+            </button>
+            <button
+              type="button"
+              className={styles.reportBtn}
+              disabled={exportBusy !== ''}
+              onClick={() => void handleExport('uniform')}
+              title="קבצי מבנה אחיד של רשות המסים (INI.TXT ו-BKMVDATA.TXT) לטווח, בתוך שנת מס אחת"
+            >
+              <FileArchive size={15} aria-hidden="true" />
+              {exportBusy === 'uniform' ? 'מפיק…' : 'מבנה אחיד'}
             </button>
           </div>
         </div>

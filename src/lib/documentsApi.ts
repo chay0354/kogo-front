@@ -4,7 +4,7 @@ import type {
   FormalDocumentSummary,
   CreateDocumentPayload,
 } from '@/types/document';
-import type { PaymentLedgerItem } from '@/app/(crm)/invoices/types';
+import type { LedgerDimensions, PaymentLedgerItem } from '@/app/(crm)/invoices/types';
 
 export async function createDocument(payload: CreateDocumentPayload): Promise<FormalDocument> {
   const res = await api.post('/documents/documents/create-document/', payload);
@@ -101,18 +101,31 @@ export async function fetchPaymentLedger(params?: {
   instructor?: string;
   /** The course's age key: '6-9', '6-', '-9'. */
   age?: string;
+  /**
+   * Ask for dimension_options too: every course type, age group and instructor
+   * among the charges in the range, before the search and the filters — the
+   * filter bar's choices. The page request asks; a count has no use for them.
+   */
+  with_options?: boolean;
 }): Promise<{
   results: PaymentLedgerItem[];
   count: number;
   month_total: number;
   pending_count: number;
+  /**
+   * One dimension each — {course_type_id, course_type_name}, {age_key,
+   * age_label} or {instructor_id, instructor_name}. Empty unless asked for.
+   */
+  dimension_options: LedgerDimensions[];
 }> {
+  const { with_options: withOptions, ...query } = params ?? {};
   const res = await api.get('/customers/payments/ledger/', {
     params: {
       page: 1,
       page_size: PAYMENTS_PAGE_SIZE,
       ordering: '-created_at',
-      ...params,
+      ...query,
+      ...(withOptions ? { with_options: 1 } : {}),
     },
     timeout: 15000,
   });
@@ -123,6 +136,7 @@ export async function fetchPaymentLedger(params?: {
       count: data.length,
       month_total: 0,
       pending_count: 0,
+      dimension_options: [],
     };
   }
   return {
@@ -130,6 +144,7 @@ export async function fetchPaymentLedger(params?: {
     count: Number(data?.count ?? 0),
     month_total: Number(data?.month_total ?? 0),
     pending_count: Number(data?.pending_count ?? 0),
+    dimension_options: Array.isArray(data?.dimension_options) ? data.dimension_options : [],
   };
 }
 
@@ -170,6 +185,36 @@ export async function downloadPeriodReport(params: {
   window.URL.revokeObjectURL(blobUrl);
 }
 
+function saveBlob(data: BlobPart, type: string, filename: string): void {
+  const blobUrl = window.URL.createObjectURL(new Blob([data], { type }));
+  const link = document.createElement('a');
+  link.href = blobUrl;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.URL.revokeObjectURL(blobUrl);
+}
+
+/**
+ * Every document in the range — issued by hand, lesson receipts, store sales —
+ * one row each, as a CSV the accountant opens in Excel: the period report's
+ * rows, and the numbers that never became a document.
+ */
+export async function downloadDocumentsRegister(params: { start_date: string; end_date: string }): Promise<void> {
+  const res = await api.get('/documents/documents/register-export/', { params, responseType: 'blob' });
+  saveBlob(res.data, 'text/csv;charset=utf-8', `documents-${params.start_date}-${params.end_date}.csv`);
+}
+
+/**
+ * The same documents in the Tax Authority's uniform structure (מבנה אחיד):
+ * INI.TXT and BKMVDATA.TXT in their folder, zipped. One tax year at a time.
+ */
+export async function downloadUniformExport(params: { start_date: string; end_date: string }): Promise<void> {
+  const res = await api.get('/documents/documents/uniform-export/', { params, responseType: 'blob' });
+  saveBlob(res.data, 'application/zip', `uniform-${params.start_date}-${params.end_date}.zip`);
+}
+
 export interface CheckItemRow {
   id: string;
   due_date: string;
@@ -184,7 +229,13 @@ export interface CheckItemRow {
   invoiced_at: string | null;
 }
 
-export interface CheckPlanRow {
+/**
+ * A check plan as /documents/check-plans/ sends it: the plan and its checks,
+ * with the ledger dimensions of its lesson (business, city, course type, age
+ * group, instructor — empty without a lesson) and its branch_id, as every row
+ * of the invoices page carries them.
+ */
+export interface CheckPlanRow extends LedgerDimensions {
   id: string;
   child: string;
   child_name: string;

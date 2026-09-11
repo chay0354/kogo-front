@@ -11,9 +11,11 @@ import {
   chargeCountParams,
   chargeDescription,
   chargeLedgerParams,
+  chargePageParams,
   compareChargesNewestFirst,
   courseLine,
   currentMonthWindow,
+  filterBarRows,
   isStoreListing,
   knownRefundedCount,
   matchesStoreRow,
@@ -382,5 +384,36 @@ describe('optionRowsFromLists — the full lists behind סוג חוג and מדר
   it('adds what a loaded row names on top of the lists', () => {
     const withPage = [...rows, toChargeRow(charge({ age_key: '6-9', age_label: 'גילאי 6–9' }))];
     expect(ledgerRowOptions(withPage, 'ageKey')).toEqual([{ value: '6-9', label: 'גילאי 6–9' }]);
+  });
+});
+
+describe('the filter bar’s choices over the whole range', () => {
+  it('the page asks the server for the range’s options; a count never does', () => {
+    const params = chargeLedgerParams(filters({ ageKey: '6-9' }), own({ status: 'completed' }));
+    expect(chargePageParams(params, 3)).toEqual({ ...params, page: 3, page_size: 20, with_options: true });
+    const count = chargeCountParams(chargePageParams(params, 3));
+    expect(count).toEqual({ ...params, page: 1, page_size: 1 });
+    expect(count).not.toHaveProperty('with_options');
+  });
+
+  it('offers an age group the server found in the range, though no row on this page has it', () => {
+    const lists = optionRowsFromLists([{ id: 'type-1', name: 'בלט' }], [{ id: 'inst-1', full_name: 'שירה לוי' }]);
+    const rangeOptions = [
+      { age_key: '10-12', age_label: 'גילאי 10–12' },
+      { course_type_id: 'type-5', course_type_name: 'שחייה' },
+      { instructor_id: 'inst-1', instructor_name: 'שירה לוי' },
+    ];
+    const page = [toChargeRow(charge({ age_key: '6-9', age_label: 'גילאי 6–9' }))];
+    const rows = filterBarRows(lists, rangeOptions, page);
+
+    expect(ledgerRowOptions(rows, 'ageKey')).toEqual([
+      { value: '6-9', label: 'גילאי 6–9' },
+      { value: '10-12', label: 'גילאי 10–12' },
+    ]);
+    expect(ledgerRowOptions(rows, 'courseTypeId')).toEqual([
+      { value: 'type-1', label: 'בלט' },
+      { value: 'type-5', label: 'שחייה' },
+    ]);
+    expect(ledgerRowOptions(rows, 'instructorId')).toEqual([{ value: 'inst-1', label: 'שירה לוי' }]);
   });
 });

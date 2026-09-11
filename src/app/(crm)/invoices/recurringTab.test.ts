@@ -1,7 +1,8 @@
 /**
  * The standing-orders tab: which orders the page's shared filters keep, how an
- * order is placed in its branch while the list names the branch but sends no
- * id, the order the list is read in, and the figures and marks over it.
+ * order is placed in its branch — by the id the list sends, or by the branch's
+ * name when an answer has none — the order the list is read in, and the
+ * figures and marks over it.
  */
 import { describe, expect, it } from 'vitest';
 import type { BranchOption } from '@/lib/scopedFilters';
@@ -156,6 +157,14 @@ describe('withStandingOrderBranch', () => {
   it('keeps a branch_id the server sent, even an empty one', () => {
     expect(withStandingOrderBranch(order({ branch_id: 'b-9' }), branches).branch_id).toBe('b-9');
     expect(withStandingOrderBranch(order({ branch_id: null }), branches).branch_id).toBeNull();
+  });
+
+  it('takes the id the list sends where two branches share the name, whichever is chosen', () => {
+    const row = order({ branch_name: 'מרכז', branch_id: 'b-4' });
+    expect(withStandingOrderBranch(row, branches).branch_id).toBe('b-4');
+    expect(withStandingOrderBranch(row, branches, 'b-3').branch_id).toBe('b-4');
+    expect(matchesStandingOrderFilters(row, filters({ business: 'branches', branchId: 'b-4' }))).toBe(true);
+    expect(matchesStandingOrderFilters(row, filters({ business: 'branches', branchId: 'b-3' }))).toBe(false);
   });
 
   it('leaves an order without a known branch alone', () => {

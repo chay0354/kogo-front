@@ -44,11 +44,12 @@ export interface StandingOrderOverride {
 }
 
 /**
- * A standing order as /customers/recurring-payments/ sends it: the order, and
- * the ledger dimensions of the lesson behind it — business, city, course,
- * course type, age group, instructor — which are empty when the order has no
- * lesson. The list sends no branch_id yet, only the branch's name;
- * withStandingOrderBranch places the order in its branch from that.
+ * A standing order as /customers/recurring-payments/ sends it: the order, the
+ * ledger dimensions of the lesson behind it — business, city, course, course
+ * type, age group, instructor — which are empty when the order has no lesson,
+ * and branch_id, the branch of its initial payment (null when that has none).
+ * An answer without branch_id (an older server) names the branch only;
+ * withStandingOrderBranch places such an order from the name.
  *
  * course_name comes from the dimensions: '' without a lesson (older servers
  * sent null), so read it with ||, never ??.
@@ -111,11 +112,12 @@ export function standingOrderCourse(row: StandingOrderRow): string {
 /**
  * The order with the branch id the shared filter matches on.
  *
- * The list names the branch but does not send its id, so the name is looked
- * up among the branches the user can see. Where two branches share a name, the
- * one chosen in the filter answers for it — as the name comparison this
- * replaces did — and otherwise the order is left without an id rather than
- * guessed into one. A row that sent its own branch_id, even null, keeps it.
+ * The list sends each order's branch_id, and a row that has one — even null —
+ * keeps it. The branch's name is the fallback for a row sent without it (an
+ * older server): it is looked up among the branches the user can see. Where
+ * two branches share a name, the one chosen in the filter answers for it — as
+ * the name comparison this replaced did — and otherwise the order is left
+ * without an id rather than guessed into one.
  */
 export function withStandingOrderBranch(
   row: StandingOrderRow,

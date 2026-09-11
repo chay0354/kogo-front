@@ -1,7 +1,8 @@
 /**
- * The checks tab: which plans the page's shared filters keep — only the
- * dimensions a check plan carries — the order the list is read in, and the
- * figures over it, including the checks whose invoice did not go out.
+ * The checks tab: which plans the page's shared filters keep — every one of
+ * them but the dates, since a plan is a series and not one dated row — the
+ * order the list is read in, and the figures over it, including the checks
+ * whose invoice did not go out.
  */
 import { describe, expect, it } from 'vitest';
 import type { CheckItemRow, CheckPlanRow } from '@/lib/documentsApi';
@@ -114,9 +115,22 @@ describe('matchesCheckPlanFilters', () => {
     expect(matchesCheckPlanFilters(tagged, filters({ business: 'biz-1' }))).toBe(true);
   });
 
-  it('ignores the fields the tab hides — a class chosen on another tab does not empty the list', () => {
-    const elsewhere = filters({ courseTypeId: 't-1', ageKey: '6-9', instructorId: 'i-1' });
-    expect(matchesCheckPlanFilters(row(), elsewhere)).toBe(true);
+  it('narrows by the class, the age group and the instructor of the plan’s lesson', () => {
+    const judo = row({ course_type_id: 't-1', age_key: '6-9', instructor_id: 'i-1' });
+    expect(matchesCheckPlanFilters(judo, filters({ courseTypeId: 't-1' }))).toBe(true);
+    expect(matchesCheckPlanFilters(judo, filters({ courseTypeId: 't-2' }))).toBe(false);
+    expect(matchesCheckPlanFilters(judo, filters({ ageKey: '6-9', instructorId: 'i-1' }))).toBe(true);
+    expect(matchesCheckPlanFilters(judo, filters({ ageKey: '10-12' }))).toBe(false);
+    expect(matchesCheckPlanFilters(judo, filters({ instructorId: 'i-2' }))).toBe(false);
+  });
+
+  it('a plan without a lesson names no class, so a class filter leaves it out', () => {
+    const bare = row({ lesson: null, lesson_name: null, course_type_id: null, age_key: '', instructor_id: null });
+    expect(matchesCheckPlanFilters(bare, filters({ courseTypeId: 't-1' }))).toBe(false);
+    expect(matchesCheckPlanFilters(bare, filters())).toBe(true);
+  });
+
+  it('never matches on the dates: a plan is a series, not one dated row', () => {
     expect(matchesCheckPlanFilters(row(), filters({ dateFrom: '2030-01-01', dateTo: '2030-01-31' }))).toBe(true);
   });
 
@@ -125,8 +139,8 @@ describe('matchesCheckPlanFilters', () => {
     expect(matchesCheckPlanFilters(row(), filters({ search: 'דנה' }))).toBe(false);
   });
 
-  it('hides the range and the class fields, and keeps business, place and search on screen', () => {
-    expect([...CHECKS_HIDDEN_FIELDS].sort()).toEqual(['ageKey', 'courseTypeId', 'dateFrom', 'dateTo', 'instructorId']);
+  it('hides the range only, and keeps business, place, class and search on screen', () => {
+    expect([...CHECKS_HIDDEN_FIELDS].sort()).toEqual(['dateFrom', 'dateTo']);
   });
 });
 
