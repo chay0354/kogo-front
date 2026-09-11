@@ -1,0 +1,447 @@
+/*
+ * The signature history — what the dashboard theme and the invoices page's
+ * filter fields do not carry: the page's rhythm, the filter row's layout, the
+ * table's cells and actions, the pager and the empty states. Same shapes as
+ * the invoices tabs, built on the --kg-* tokens of theme.scope.
+ */
+
+/* ---- page ---- */
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+
+/*
+ * The theme's mobile rule reserves room for AppLayout's sidebar toggle on the
+ * first child of .tokens — on the inline end, which in RTL is the wrong side.
+ * This zero-height spacer takes that reservation, and the header clears the
+ * toggle's corner itself, as the invoices page does.
+ */
+.toggleSpacer {
+  height: 0;
+}
+
+.pageHead {
+  margin: 0;
+}
+
+@media (max-width: 1023px) {
+  .pageHead {
+    padding-inline-start: 52px;
+  }
+}
+
+/* ---- filters: one row that wraps as the width allows ---- */
+.filterRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 10px 12px;
+}
+
+.field {
+  flex: 0 1 168px;
+  min-width: 0;
+}
+
+.wideField {
+  flex: 1 1 280px;
+  min-width: 0;
+}
+
+.searchWrap {
+  position: relative;
+}
+
+.searchIcon {
+  position: absolute;
+  inset-inline-start: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 16px;
+  height: 16px;
+  color: var(--kg-muted);
+  pointer-events: none;
+}
+
+/* Two classes deep, so it wins over the shared control's padding whichever
+   stylesheet loads last. */
+.searchWrap .searchControl {
+  padding-inline-start: 36px;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+/* A search in force is tinted, like a chosen select. */
+.searchWrap .searchOn {
+  border-color: #cfc9f3;
+  background: #f7f6fe;
+}
+
+.footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px 12px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+  padding-top: 11px;
+  border-top: 1px solid var(--kg-line-soft);
+}
+
+.resultLine {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--kg-muted);
+}
+
+.resultLine b {
+  color: var(--kg-ink);
+}
+
+.sep {
+  color: var(--kg-line);
+}
+
+.activeCount {
+  color: var(--kg-ink2);
+}
+
+.clearLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--kg-bar-a);
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 6px;
+}
+
+.clearLink:hover {
+  text-decoration: underline;
+}
+
+.clearLink:focus-visible {
+  outline: 2px solid var(--kg-bar-a);
+  outline-offset: 1px;
+}
+
+/* ---- table card ---- */
+.cardHead {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 10px 16px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+.cardSub {
+  margin: 2px 0 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--kg-muted);
+}
+
+/* A download that failed. */
+.notice {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 0 0 10px;
+  padding: 8px 12px;
+  border-radius: 11px;
+  background: #fff6f6;
+  border: 1px solid #f8d7d8;
+  color: #a92f34;
+  font-size: 12.5px;
+  font-weight: 700;
+}
+
+.noticeClose {
+  flex: none;
+  display: inline-flex;
+  border: 0;
+  background: none;
+  color: inherit;
+  cursor: pointer;
+  padding: 2px;
+  border-radius: 6px;
+}
+
+.noticeClose:focus-visible {
+  outline: 2px solid currentColor;
+}
+
+/* Seven columns do not fit a phone; the table keeps its shape and scrolls
+   inside the card (theme.tableScroll) rather than squeezing unreadably. */
+.table {
+  min-width: 960px;
+}
+
+.table th,
+.table td {
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+/* The title and the children can be long; these cells wrap instead. */
+.table .wrapCell {
+  white-space: normal;
+  min-width: 140px;
+  max-width: 260px;
+}
+
+.strong {
+  display: block;
+  font-weight: 800;
+  line-height: 1.35;
+}
+
+.subLine {
+  display: block;
+  margin-top: 3px;
+  font-size: 11.5px;
+  font-weight: 700;
+  line-height: 1.35;
+  color: var(--kg-muted);
+}
+
+.dash {
+  color: var(--kg-muted);
+}
+
+/* ---- row actions ---- */
+.actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.viewBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 34px;
+  padding: 0 12px;
+  border-radius: 10px;
+  border: 1px solid var(--kg-line);
+  background: #fff;
+  color: var(--kg-ink2);
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 800;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.iconBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  border: 1px solid var(--kg-line);
+  background: #fff;
+  color: var(--kg-ink2);
+  cursor: pointer;
+  flex: none;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.viewBtn:hover,
+.iconBtn:hover:not(:disabled) {
+  background: #f3f1fc;
+  border-color: #ddd8f5;
+  color: var(--kg-ink);
+}
+
+.viewBtn:focus-visible,
+.iconBtn:focus-visible {
+  outline: 2px solid var(--kg-bar-a);
+  outline-offset: 2px;
+}
+
+.iconBtn:disabled {
+  opacity: 0.5;
+  cursor: progress;
+}
+
+/* ---- pager ---- */
+.pager {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--kg-line-soft);
+}
+
+.pagerBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 34px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid var(--kg-line);
+  background: #fff;
+  color: var(--kg-ink2);
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 800;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.pagerBtn:hover:not(:disabled) {
+  background: #faf9fe;
+}
+
+.pagerBtn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.pagerBtn:focus-visible {
+  outline: 2px solid var(--kg-bar-a);
+  outline-offset: 2px;
+}
+
+.pagerStatus {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--kg-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.pagerStatus b {
+  color: var(--kg-ink);
+}
+
+/* ---- empty and error states: say what happened and offer the way out ---- */
+.empty {
+  text-align: center;
+  padding: 40px 20px 36px;
+}
+
+.emptyIcon {
+  display: block;
+  width: 44px;
+  height: 44px;
+  margin: 0 auto 12px;
+  color: #d8d4ef;
+}
+
+.emptyTitle {
+  margin: 0 0 4px;
+  font-size: 15px;
+  font-weight: 900;
+}
+
+.emptyText {
+  margin: 0 auto;
+  max-width: 32rem;
+  font-size: 12.5px;
+  font-weight: 600;
+  line-height: 1.6;
+  color: var(--kg-muted);
+}
+
+.emptyActions {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.emptyBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #fff;
+  border: 1px solid var(--kg-line);
+  border-radius: 999px;
+  padding: 8px 15px;
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 800;
+  color: var(--kg-ink2);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: box-shadow 0.18s ease, transform 0.18s ease;
+}
+
+.emptyBtn:hover {
+  box-shadow: var(--kg-sh);
+  transform: translateY(-1px);
+}
+
+.emptyBtnPrimary {
+  background: linear-gradient(135deg, #312a9e, #231f6e);
+  border-color: transparent;
+  color: #fff;
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* On a phone the search takes its own line and the other four pair up. */
+@media (max-width: 560px) {
+  .field {
+    flex: 1 1 130px;
+  }
+}
+
+@media (hover: none) and (pointer: coarse) {
+  .viewBtn,
+  .iconBtn,
+  .pagerBtn,
+  .emptyBtn {
+    min-height: 44px;
+  }
+
+  .iconBtn {
+    width: 44px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .emptyBtn,
+  .viewBtn,
+  .iconBtn {
+    transition: none;
+  }
+
+  .emptyBtn:hover {
+    transform: none;
+  }
+}

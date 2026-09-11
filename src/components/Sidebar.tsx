@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import type { Ref } from 'react';
-import { Users, BookOpen, Calendar, MapPin, GraduationCap, LayoutDashboard, Settings, ShoppingBag, KeyRound, FileText, PanelRightClose, PanelRightOpen, LogOut } from 'lucide-react';
+import { Users, BookOpen, Calendar, MapPin, GraduationCap, LayoutDashboard, Settings, ShoppingBag, KeyRound, FileText, FileSignature, PanelRightClose, PanelRightOpen, LogOut } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/components/AuthProvider';
@@ -21,6 +21,9 @@ const MANAGER_MENU = [
   { name: 'מדריכים', href: '/instructors', icon: GraduationCap },
   { name: 'חנות', href: '/store', icon: ShoppingBag },
   { name: 'חשבוניות', href: '/invoices', icon: FileText },
+  // Beside the invoices: both are the records of what a customer was given and
+  // agreed to. A partner gets it too — PARTNER_MENU is this list less a few.
+  { name: 'היסטוריית חתימות', href: '/signatures', icon: FileSignature },
   { name: 'הגדרות', href: '/settings', icon: Settings },
 ];
 
