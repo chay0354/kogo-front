@@ -216,6 +216,123 @@ export async function downloadUniformExport(params: { start_date: string; end_da
   saveBlob(res.data, 'application/zip', `uniform-${params.start_date}-${params.end_date}.zip`);
 }
 
+// ---------------------------------------------------------------- missing receipts
+
+/** What the server wants typed before it issues — it checks the word itself. */
+export const MISSING_RECEIPTS_CONFIRM_WORD = 'הפק';
+
+/** The server refuses more than this in one request; a longer list is issued in rounds. */
+export const MISSING_RECEIPTS_MAX_BATCH = 100;
+
+/** A document issued by hand for the same family and sum near the charge — maybe its receipt already. */
+export interface PossibleManualDocument {
+  number: string;
+  /** YYYY-MM-DD. */
+  date: string;
+  /** Two decimals, as a string. */
+  amount: string;
+}
+
+/** A completed charge that never got its חשבונית מס/קבלה, as /documents/missing-receipts/ lists it. */
+export interface MissingReceiptRow {
+  payment_id: string;
+  /** When the money came in, ISO, local time. */
+  paid_at: string;
+  family_name: string;
+  child_name: string;
+  description: string;
+  /** Two decimals, as a string. */
+  amount: string;
+  channel: 'trial' | 'registration' | 'card_link' | 'standing_order' | 'one_time' | string;
+  channel_label: string;
+  /** What the receipt will record: 'credit_card', or '' when the charge did not go through Tranzila. */
+  method: string;
+  method_label: string;
+  /** Set when a hand-issued document may already cover this charge; such a row starts unticked. */
+  possible_manual_document?: PossibleManualDocument | null;
+}
+
+/** One number run of the year, checked for numbers no document carries. */
+export interface SeriesRunCheck {
+  series: string;
+  year: number;
+  name: string;
+  label: string;
+  issued: number;
+  first: string;
+  last: string;
+  missing: string[];
+  complete: boolean;
+}
+
+export interface MissingReceiptsReport {
+  year: number;
+  count: number;
+  /** Two decimals, as a string. */
+  total: string;
+  /** The number the next receipt would take — dated today, so from this year's IR run. */
+  next_number: string;
+  rows: MissingReceiptRow[];
+  continuity: SeriesRunCheck[];
+}
+
+export interface IssueMissingReceiptsResult {
+  issued: Array<{ payment_id: string; number: string }>;
+  /** Not missing any more (a receipt was issued meanwhile), not found, or not a completed charge. */
+  skipped: Array<{ payment_id: string; reason: string; message: string }>;
+  /** The message is for the office; the error itself is only in the server's log. */
+  failed: Array<{ payment_id: string; message: string }>;
+}
+
+/** The charges of a year that never got their receipt — the same list `check_invoices` finds. */
+export async function fetchMissingReceipts(year: number): Promise<MissingReceiptsReport> {
+  const res = await api.get('/documents/missing-receipts/', { params: { year }, timeout: 60000 });
+  const data = res.data ?? {};
+  return {
+    year: Number(data.year ?? year),
+    count: Number(data.count ?? 0),
+    total: String(data.total ?? '0.00'),
+    next_number: String(data.next_number ?? ''),
+    rows: Array.isArray(data.rows) ? data.rows : [],
+    continuity: Array.isArray(data.continuity) ? data.continuity : [],
+  };
+}
+
+/** The IR number issuing would start from right now — read as the confirmation opens, so it is not stale. */
+export async function fetchMissingReceiptsNextNumber(): Promise<string> {
+  const res = await api.get('/documents/missing-receipts/next-number/');
+  return String(res.data?.next_number ?? '');
+}
+
+/** The same list as a CSV for the accountant to approve, before anything is issued. */
+export async function downloadMissingReceiptsCsv(year: number): Promise<void> {
+  const res = await api.get('/documents/missing-receipts/export/', { params: { year }, responseType: 'blob' });
+  saveBlob(res.data, 'text/csv;charset=utf-8', `missing-receipts-${year}.csv`);
+}
+
+/**
+ * Issue the receipts, exactly as `check_invoices --fix` does: dated today,
+ * marked late, not mailed. `confirm` is what the user typed; the server
+ * refuses anything but the word.
+ */
+export async function issueMissingReceipts(
+  paymentIds: string[],
+  confirm: string,
+): Promise<IssueMissingReceiptsResult> {
+  const res = await api.post(
+    '/documents/missing-receipts/issue/',
+    { payment_ids: paymentIds, confirm },
+    // Each receipt is a few writes; a long backlog takes longer than a page load.
+    { timeout: 120000 },
+  );
+  const data = res.data ?? {};
+  return {
+    issued: Array.isArray(data.issued) ? data.issued : [],
+    skipped: Array.isArray(data.skipped) ? data.skipped : [],
+    failed: Array.isArray(data.failed) ? data.failed : [],
+  };
+}
+
 export interface CheckItemRow {
   id: string;
   due_date: string;

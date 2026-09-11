@@ -1,8 +1,9 @@
 'use client';
 
 import { useMemo, useState, type ReactNode } from 'react';
-import { AlertCircle, Bell, Download, FileArchive, FileSearch, FileSpreadsheet, X } from 'lucide-react';
+import { AlertCircle, Bell, Download, FileArchive, FileSearch, FileSpreadsheet, FileWarning, X } from 'lucide-react';
 import { Skeleton, TableSkeleton } from '@/components/ui/skeleton';
+import { useAuth } from '@/components/AuthProvider';
 import { downloadStoreInvoicePdf } from '@/lib/storeApi';
 import {
   downloadDocumentPdf,
@@ -15,6 +16,7 @@ import {
 import { useScopedBranches } from '@/hooks/useScopedBranches';
 import theme from '@/components/dashboard/theme/dashboard.module.css';
 import LedgerFilterBar, { LedgerSelect } from './LedgerFilterBar';
+import MissingReceiptsPanel, { MISSING_RECEIPTS_PANEL_ID } from './MissingReceiptsPanel';
 import type { LedgerFiltersState } from './useLedgerFilters';
 import { useLedgerDocuments } from './useLedgerDocuments';
 import type { DocumentRow } from './types';
@@ -82,6 +84,12 @@ export default function DocumentsTab({ ledger, refreshKey = 0 }: DocumentsTabPro
   const { dateFrom, dateTo } = filters;
   const { documents, isLoading, error: loadError, reload } = useLedgerDocuments(dateFrom, dateTo, refreshKey);
   const { branches } = useScopedBranches();
+  const { user } = useAuth();
+  // Issuing late receipts is a manager's call; the server refuses anyone else too.
+  const isManager = user?.role === 'manager';
+  const [missingOpen, setMissingOpen] = useState(false);
+  // While the panel issues, closing it would lose the outcome of an irreversible action.
+  const [missingIssuing, setMissingIssuing] = useState(false);
 
   const [docType, setDocType] = useState('');
   const [status, setStatus] = useState('');
@@ -463,6 +471,16 @@ export default function DocumentsTab({ ledger, refreshKey = 0 }: DocumentsTabPro
         />
       </LedgerFilterBar>
 
+      {/* Its own card above the list, inside the tab's themed scope: the late
+          receipts it issues land in the list below once it reloads. */}
+      {isManager && missingOpen && (
+        <MissingReceiptsPanel
+          onClose={() => setMissingOpen(false)}
+          onIssueFinished={() => void reload()}
+          onIssuingChange={setMissingIssuing}
+        />
+      )}
+
       <section className={theme.card} aria-labelledby="documents-list-title">
         <div className={styles.cardHead}>
           <div>
@@ -510,6 +528,20 @@ export default function DocumentsTab({ ledger, refreshKey = 0 }: DocumentsTabPro
               <FileSpreadsheet size={15} aria-hidden="true" />
               {exportBusy === 'register' ? 'מפיק…' : 'ייצוא לרו״ח'}
             </button>
+            {isManager && (
+              <button
+                type="button"
+                className={styles.reportBtn}
+                aria-expanded={missingOpen}
+                aria-controls={missingOpen ? MISSING_RECEIPTS_PANEL_ID : undefined}
+                disabled={missingOpen && missingIssuing}
+                onClick={() => setMissingOpen((open) => !open)}
+                title="חיובים שהושלמו ולא הופקה להם קבלה — לשליחה לרואה החשבון ולהפקה אחרי שאישר"
+              >
+                <FileWarning size={15} aria-hidden="true" />
+                קבלות חסרות
+              </button>
+            )}
             <button
               type="button"
               className={styles.reportBtn}
