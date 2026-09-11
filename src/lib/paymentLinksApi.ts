@@ -159,6 +159,8 @@ export type CardLink = {
   status: CardLinkStatus;
   child_id: string;
   lesson_id: string | null;
+  /** Set for a twice/thrice-a-week track; `lesson_id` is then its first day. */
+  bundle_id: string | null;
   lesson_label: string;
   include_registration_fee: boolean;
   amount: string | null;
@@ -182,7 +184,15 @@ export type CardLink = {
 };
 
 export type CardLinkInput =
-  | { kind: 'standing_order'; child_id: string; lesson_id: string; include_registration_fee: boolean; send?: boolean }
+  | {
+      kind: 'standing_order';
+      child_id: string;
+      /** One of the two: a single lesson, or a track (the server picks its first day). */
+      lesson_id?: string | null;
+      bundle_id?: string | null;
+      include_registration_fee: boolean;
+      send?: boolean;
+    }
   | {
       kind: 'one_time';
       child_id: string;
@@ -209,6 +219,47 @@ export async function cardLinkAction(id: string, action: 'send' | 'cancel' | 're
   return res.data as CardLink;
 }
 
+export type CardLinkSession = {
+  lesson_id: string;
+  day_name: string;
+  start_time: string;
+  end_time: string;
+  instructor_name?: string;
+};
+
+export type CardLinkQuote = {
+  first_charge: string;
+  monthly_amount: string;
+  registration_fee: string;
+  next_billing_date: string;
+};
+
+/** Something the office can send a standing-order link for — one lesson, or a whole track. */
+export type CardLinkOption = {
+  key: string;
+  kind: 'lesson' | 'bundle';
+  lesson_id: string;
+  bundle_id: string | null;
+  course_name: string;
+  branch_name: string;
+  label: string;
+  /** "פעם בשבוע" / "פעמיים בשבוע" / "שלוש פעמים בשבוע". */
+  frequency_label: string;
+  sessions: CardLinkSession[];
+  /** The child is on this unit today (every day of it, for a track). */
+  enrolled: boolean;
+  is_trial: boolean;
+  /** Already billed by an active standing order — a new link would be refused. */
+  has_standing_order: boolean;
+  quote?: CardLinkQuote;
+  quote_error?: string;
+};
+
+export async function fetchCardLinkOptions(childId: string) {
+  const res = await api.get('/customers/card-links/options/', { params: { child_id: childId } });
+  return (res.data?.options ?? []) as CardLinkOption[];
+}
+
 export type CardLinkPreview = {
   ok: boolean;
   kind: CardLinkKind;
@@ -220,6 +271,9 @@ export type CardLinkPreview = {
   day_name?: string;
   start_time?: string;
   end_time?: string;
+  /** Every day the standing order covers — more than one for a track. */
+  sessions?: CardLinkSession[];
+  frequency_label?: string;
   first_charge?: string;
   monthly_amount?: string;
   registration_fee?: string;

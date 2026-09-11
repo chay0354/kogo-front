@@ -1,0 +1,1522 @@
+/*
+ * The office's side of the card link, drawn in the family of the page the
+ * parent opens (src/app/card-link/card-link.module.css): an indigo header with
+ * a rounded skirt, gold for the amount and the one action that matters, white
+ * cards on a cool ground. What the office builds here should visibly be the
+ * same thing the parent receives.
+ */
+
+.shell {
+  --cl-indigo: #2b3090;
+  --cl-indigo-deep: #22267a;
+  --cl-indigo-soft: #eceefb;
+  --cl-ink: #1e2a6e;
+  --cl-ink-soft: #4b5573;
+  --cl-gold: #f5c518;
+  --cl-gold-hover: #ffd234;
+  --cl-gold-soft: #fff7d6;
+  --cl-gold-edge: #f0d77a;
+  --cl-gold-ink: #4a3400;
+  --cl-gold-label: #8a6d00;
+  --cl-ground: #eef0f6;
+  --cl-ground-soft: #f7f7fb;
+  --cl-line: #e1e4ef;
+  --cl-line-soft: #eceef5;
+  --cl-muted: #6b7280;
+  --cl-subtle: #8a90a8;
+  --cl-green: #0fa45c;
+  --cl-green-ink: #0b7a45;
+  --cl-green-soft: #e7f8ef;
+  --cl-red: #b91c1c;
+  --cl-red-soft: #fef2f2;
+  --cl-red-edge: #fecaca;
+  --cl-amber: #92400e;
+  --cl-amber-soft: #fff4e0;
+  --cl-focus: rgba(43, 48, 144, 0.35);
+
+  /* Fills the panel and hands the scrolling to .body, so the header with the
+     kind switch and the footer with the action never scroll out of reach. */
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  font-family: Heebo, system-ui, sans-serif;
+  color: var(--cl-ink);
+  background: var(--cl-ground-soft);
+}
+
+.shell * {
+  box-sizing: border-box;
+}
+
+/* ---- header ---- */
+.header {
+  flex: none;
+  background: var(--cl-indigo);
+  color: #fff;
+  padding: 16px 20px 18px;
+  border-end-start-radius: 26px;
+  border-end-end-radius: 26px;
+}
+
+.headerRow {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.badge {
+  flex: none;
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  background: rgba(245, 197, 24, 0.16);
+  color: var(--cl-gold);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.headerText {
+  flex: 1;
+  min-width: 0;
+}
+
+.eyebrow {
+  margin: 0;
+  font-size: 12.5px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  color: var(--cl-gold);
+}
+
+.title {
+  margin: 1px 0 0;
+  font-size: 20px;
+  font-weight: 800;
+  line-height: 1.25;
+  color: #fff;
+}
+
+.parent {
+  margin: 3px 0 0;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.74);
+}
+
+/* The shared close button draws its X in currentColor; on indigo it has to be white. */
+.close {
+  flex: none;
+  margin-top: -4px;
+  margin-inline-end: -8px;
+  color: #fff;
+}
+
+.close button:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.close button:focus-visible {
+  outline: 2px solid var(--cl-gold);
+  outline-offset: 1px;
+}
+
+/* ---- kind switch: a segmented control sitting on the indigo ---- */
+.switch {
+  margin-top: 14px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  padding: 4px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.switchOption {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 38px;
+  border: 0;
+  border-radius: 11px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.82);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background-color 140ms ease, color 140ms ease, box-shadow 140ms ease;
+}
+
+.switchOption:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+}
+
+.switchOption[aria-checked='true'] {
+  background: #fff;
+  color: var(--cl-ink);
+  box-shadow: 0 2px 8px rgba(10, 14, 60, 0.25);
+}
+
+.switchOption:focus-visible {
+  outline: 2px solid var(--cl-gold);
+  outline-offset: 2px;
+}
+
+/* ---- scrolling body ---- */
+.body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 18px 20px 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+/* Nothing in the body shrinks to fit it — the body scrolls instead. A flex item
+   with overflow:hidden (the ticket) has no minimum height and would be squashed. */
+.body > * {
+  flex: none;
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.sectionHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.sectionTitle {
+  margin: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13.5px;
+  font-weight: 800;
+  color: var(--cl-ink-soft);
+}
+
+.sectionHint {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--cl-subtle);
+}
+
+/* ---- the options: selectable cards ---- */
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.group + .group {
+  margin-top: 8px;
+}
+
+.groupTitle {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--cl-subtle);
+}
+
+.groupTitle::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--cl-line);
+}
+
+.option {
+  position: relative;
+  display: grid;
+  /* The price stub comes first, so in RTL it sits on the leading edge. */
+  grid-template-columns: 138px minmax(0, 1fr);
+  width: 100%;
+  padding: 0;
+  margin: 0;
+  text-align: start;
+  font: inherit;
+  color: inherit;
+  background: #fff;
+  border: 1.5px solid var(--cl-line-soft);
+  border-radius: 16px;
+  box-shadow: 0 1px 2px rgba(30, 42, 110, 0.04);
+  overflow: hidden;
+  cursor: pointer;
+  transition: border-color 140ms ease, box-shadow 140ms ease;
+}
+
+.option:hover:not(:disabled) {
+  border-color: #c9cdea;
+  box-shadow: 0 1px 2px rgba(30, 42, 110, 0.04), 0 8px 22px -16px rgba(30, 42, 110, 0.45);
+}
+
+.option:focus-visible {
+  outline: 3px solid var(--cl-focus);
+  outline-offset: 2px;
+}
+
+.option[aria-checked='true'] {
+  border-color: var(--cl-indigo);
+  box-shadow: 0 0 0 3px rgba(43, 48, 144, 0.12), 0 10px 26px -18px rgba(30, 42, 110, 0.55);
+}
+
+.option:disabled {
+  cursor: default;
+  background: #fbfbfd;
+}
+
+.stub {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 1px;
+  padding: 14px;
+  background: var(--cl-gold-soft);
+  border-inline-end: 1.5px dashed var(--cl-gold-edge);
+  transition: background-color 140ms ease;
+}
+
+.option[aria-checked='true'] .stub {
+  background: var(--cl-gold);
+  border-inline-end-color: rgba(74, 52, 0, 0.22);
+}
+
+.stubAmount {
+  font-size: 22px;
+  font-weight: 900;
+  line-height: 1.1;
+  letter-spacing: -0.5px;
+  font-variant-numeric: tabular-nums;
+  color: var(--cl-ink);
+}
+
+.stubPer {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--cl-gold-label);
+}
+
+.stubNow {
+  margin-top: 7px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--cl-gold-label);
+}
+
+.stubNow b {
+  font-weight: 900;
+  color: var(--cl-ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.option[aria-checked='true'] .stubPer,
+.option[aria-checked='true'] .stubNow {
+  color: var(--cl-gold-ink);
+}
+
+/* A unit that cannot be sent: the stub says why instead of a price. */
+.stubBlocked {
+  background: #f3f4f8;
+  border-inline-end-color: var(--cl-line);
+  color: var(--cl-muted);
+  font-size: 12.5px;
+  font-weight: 800;
+  line-height: 1.4;
+  gap: 6px;
+}
+
+.stubError {
+  background: var(--cl-red-soft);
+  border-inline-end-color: var(--cl-red-edge);
+  color: var(--cl-red);
+  font-size: 12.5px;
+  font-weight: 800;
+  line-height: 1.4;
+  gap: 6px;
+}
+
+.details {
+  min-width: 0;
+  padding-block: 13px;
+  padding-inline-start: 16px;
+  padding-inline-end: 46px;
+}
+
+.optionHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+}
+
+.course {
+  font-size: 15.5px;
+  font-weight: 800;
+  color: var(--cl-ink);
+}
+
+.option:disabled .course {
+  color: var(--cl-ink-soft);
+}
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 22px;
+  padding: 0 9px;
+  border-radius: 999px;
+  font-size: 11.5px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.pillFreq {
+  background: var(--cl-indigo-soft);
+  color: var(--cl-indigo);
+}
+
+/* Twice/thrice a week reads louder: it is the thing the old dialog could not send. */
+.pillTrack {
+  background: var(--cl-indigo);
+  color: #fff;
+}
+
+.pillEnrolled {
+  background: var(--cl-green-soft);
+  color: var(--cl-green-ink);
+}
+
+.pillTrial {
+  background: var(--cl-amber-soft);
+  color: var(--cl-amber);
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 9px;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  height: 26px;
+  padding: 0 10px;
+  border-radius: 9px;
+  background: var(--cl-ground-soft);
+  border: 1px solid var(--cl-line-soft);
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #3b456e;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
+  margin-top: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--cl-muted);
+}
+
+.metaItem {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+
+.optionNote {
+  display: block;
+  margin: 8px 0 0;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.5;
+  color: var(--cl-muted);
+}
+
+.optionNoteError {
+  color: var(--cl-red);
+}
+
+.check {
+  position: absolute;
+  top: 12px;
+  inset-inline-end: 12px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 1.5px solid var(--cl-line);
+  background: #fff;
+  color: transparent;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 140ms ease, border-color 140ms ease, color 140ms ease;
+}
+
+.option[aria-checked='true'] .check {
+  background: var(--cl-indigo);
+  border-color: var(--cl-indigo);
+  color: #fff;
+}
+
+.option:disabled .check {
+  display: none;
+}
+
+/* The placeholder takes the card's own shape, so nothing jumps when options land. */
+.skeletonCard {
+  display: grid;
+  grid-template-columns: 138px minmax(0, 1fr);
+  background: #fff;
+  border: 1.5px solid var(--cl-line-soft);
+  border-radius: 16px;
+  overflow: hidden;
+}
+
+.skeletonStub {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 8px;
+  padding: 14px;
+  background: #fbfaf2;
+  border-inline-end: 1.5px dashed var(--cl-line);
+}
+
+.skeletonDetails {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px 16px;
+}
+
+/* ---- empty and failed states ---- */
+.empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 6px;
+  padding: 22px 16px;
+  border: 1.5px dashed var(--cl-line);
+  border-radius: 16px;
+  background: #fff;
+}
+
+.emptyIcon {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: var(--cl-indigo-soft);
+  color: var(--cl-indigo);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.emptyIconError {
+  background: var(--cl-red-soft);
+  color: var(--cl-red);
+}
+
+.emptyTitle {
+  margin: 4px 0 0;
+  font-size: 14.5px;
+  font-weight: 800;
+  color: var(--cl-ink);
+}
+
+.emptyText {
+  margin: 0;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--cl-muted);
+}
+
+.retry {
+  margin-top: 6px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 34px;
+  padding: 0 14px;
+  border: 1.5px solid var(--cl-line);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--cl-ink);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.retry:hover {
+  border-color: var(--cl-indigo);
+}
+
+.retry:focus-visible {
+  outline: 3px solid var(--cl-focus);
+  outline-offset: 2px;
+}
+
+/* ---- "another course": the old list of every lesson, folded away ---- */
+.other {
+  border: 1.5px dashed var(--cl-line);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.65);
+  transition: border-color 140ms ease, box-shadow 140ms ease, background-color 140ms ease;
+}
+
+.otherActive {
+  border-style: solid;
+  border-color: var(--cl-indigo);
+  background: #fff;
+  box-shadow: 0 0 0 3px rgba(43, 48, 144, 0.12);
+}
+
+.otherToggle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 12px 14px;
+  border: 0;
+  border-radius: 16px;
+  background: transparent;
+  font: inherit;
+  font-size: 13.5px;
+  font-weight: 800;
+  color: var(--cl-ink);
+  text-align: start;
+  cursor: pointer;
+}
+
+.otherToggle:focus-visible {
+  outline: 3px solid var(--cl-focus);
+  outline-offset: 2px;
+}
+
+.otherIcon {
+  flex: none;
+  color: var(--cl-indigo);
+}
+
+.otherHint {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--cl-muted);
+}
+
+.otherHintChosen {
+  color: var(--cl-indigo);
+  font-weight: 800;
+}
+
+.chevron {
+  flex: none;
+  color: var(--cl-subtle);
+  transition: transform 160ms ease;
+}
+
+.otherToggle[aria-expanded='true'] .chevron {
+  transform: rotate(180deg);
+}
+
+.otherBody {
+  padding: 0 14px 14px;
+}
+
+.otherNote {
+  margin: 7px 0 0;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.55;
+  color: var(--cl-muted);
+}
+
+/* ---- registration fee ---- */
+.fee {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: #fff;
+  border: 1px solid var(--cl-line-soft);
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--cl-ink);
+  cursor: pointer;
+}
+
+.fee input {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  accent-color: var(--cl-indigo);
+  cursor: pointer;
+}
+
+.feeText {
+  flex: 1;
+  min-width: 0;
+}
+
+.feeAmount {
+  flex: none;
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: var(--cl-gold-soft);
+  color: var(--cl-ink);
+  font-size: 12.5px;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- one-time charge form ---- */
+.formCard {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 16px;
+  border-radius: 16px;
+  background: #fff;
+  border: 1px solid var(--cl-line-soft);
+}
+
+.grid2 {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.6fr);
+  gap: 12px;
+}
+
+.grid3 {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.label {
+  display: block;
+  margin-bottom: 5px;
+  font-size: 12.5px;
+  font-weight: 800;
+  color: var(--cl-ink-soft);
+}
+
+.input {
+  width: 100%;
+  height: 42px;
+  border: 1.5px solid var(--cl-line);
+  border-radius: 12px;
+  background: #fbfbfe;
+  padding: 0 12px;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--cl-ink);
+  transition: border-color 140ms ease, box-shadow 140ms ease;
+}
+
+.input::placeholder {
+  color: #aab0c4;
+  font-weight: 600;
+}
+
+.input:focus {
+  outline: none;
+  border-color: var(--cl-indigo);
+  box-shadow: 0 0 0 3px rgba(43, 48, 144, 0.13);
+}
+
+.input:disabled {
+  background: #f3f4f8;
+  color: var(--cl-subtle);
+  cursor: not-allowed;
+}
+
+.money {
+  position: relative;
+}
+
+.money .input {
+  padding-inline-start: 30px;
+  font-variant-numeric: tabular-nums;
+}
+
+.moneySign {
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: 12px;
+  display: flex;
+  align-items: center;
+  font-weight: 800;
+  color: var(--cl-subtle);
+  pointer-events: none;
+}
+
+.formNote {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--cl-muted);
+}
+
+/* ---- footer: what is chosen, and the one action ---- */
+.footer {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 20px;
+  background: #fff;
+  border-top: 1px solid var(--cl-line-soft);
+  box-shadow: 0 -10px 24px -22px rgba(30, 42, 110, 0.6);
+}
+
+.footerRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.summary {
+  flex: 1;
+  min-width: 0;
+}
+
+.summaryLabel {
+  display: block;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--cl-subtle);
+}
+
+.summaryValue {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--cl-ink);
+}
+
+.summaryValue b {
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+}
+
+.summaryEmpty {
+  color: var(--cl-subtle);
+  font-weight: 700;
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.primary,
+.secondary,
+.ghost {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 46px;
+  border-radius: 999px;
+  font: inherit;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color 140ms ease, border-color 140ms ease, box-shadow 140ms ease, transform 140ms ease;
+}
+
+.primary {
+  padding: 0 22px;
+  border: 0;
+  background: var(--cl-gold);
+  color: var(--cl-gold-ink);
+  font-size: 15px;
+  font-weight: 900;
+  box-shadow: 0 4px 12px rgba(245, 197, 24, 0.35);
+}
+
+.primary:hover:not(:disabled) {
+  background: var(--cl-gold-hover);
+}
+
+.primary:active:not(:disabled) {
+  transform: scale(0.985);
+}
+
+.primary:disabled {
+  background: #e5e7eb;
+  color: #9ca3af;
+  box-shadow: none;
+  cursor: default;
+}
+
+.secondary {
+  padding: 0 18px;
+  border: 1.5px solid var(--cl-line);
+  background: #fff;
+  color: var(--cl-ink);
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.secondary:hover:not(:disabled) {
+  border-color: var(--cl-indigo);
+}
+
+.ghost {
+  padding: 0 14px;
+  border: 0;
+  background: transparent;
+  color: var(--cl-indigo);
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.ghost:hover:not(:disabled) {
+  background: var(--cl-indigo-soft);
+}
+
+.secondary:disabled,
+.ghost:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.primary:focus-visible,
+.secondary:focus-visible,
+.ghost:focus-visible {
+  outline: 3px solid var(--cl-focus);
+  outline-offset: 2px;
+}
+
+.errorBox {
+  margin: 0;
+  padding: 10px 13px;
+  border-radius: 12px;
+  background: var(--cl-red-soft);
+  border: 1px solid var(--cl-red-edge);
+  color: var(--cl-red);
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.5;
+}
+
+/* ---- the ticket: the link, once it exists ---- */
+.ticket {
+  position: relative;
+  background: #fff;
+  border: 1px solid var(--cl-line-soft);
+  border-radius: 18px;
+  box-shadow: 0 1px 2px rgba(30, 42, 110, 0.04), 0 14px 34px -22px rgba(30, 42, 110, 0.5);
+  overflow: hidden;
+}
+
+.ticketTop {
+  padding: 16px 18px 18px;
+  background: var(--cl-indigo);
+  color: #fff;
+}
+
+.ticketEyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  font-weight: 800;
+  color: var(--cl-gold);
+}
+
+.ticketTitle {
+  margin: 6px 0 0;
+  font-size: 17px;
+  font-weight: 800;
+  line-height: 1.35;
+  color: #fff;
+}
+
+.ticketSub {
+  margin: 2px 0 0;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.linkWrap {
+  padding: 16px 18px 4px;
+}
+
+.linkLabel {
+  margin: 0 0 6px;
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--cl-subtle);
+}
+
+/* The pill is dir="ltr", so its logical sides are the URL's own. */
+.linkPill {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 56px;
+  padding-block: 6px;
+  padding-inline: 16px 6px;
+  border-radius: 16px;
+  background: var(--cl-ground-soft);
+  border: 1.5px solid var(--cl-line);
+}
+
+.linkUrl {
+  flex: 1;
+  min-width: 0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace;
+  font-size: 17px;
+  line-height: 1.35;
+  text-decoration: none;
+  overflow-wrap: anywhere;
+  text-align: left;
+}
+
+.linkUrl:hover .urlPath {
+  text-decoration: underline;
+}
+
+.linkUrl:focus-visible {
+  outline: 3px solid var(--cl-focus);
+  outline-offset: 3px;
+  border-radius: 6px;
+}
+
+.urlHost {
+  color: var(--cl-subtle);
+  font-weight: 500;
+}
+
+.urlPath {
+  color: var(--cl-indigo);
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.copyBtn {
+  flex: none;
+  width: 44px;
+  height: 44px;
+  border: 0;
+  border-radius: 12px;
+  background: var(--cl-indigo);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background-color 140ms ease;
+}
+
+.copyBtn:hover {
+  background: var(--cl-indigo-deep);
+}
+
+.copyBtn[data-copied='true'] {
+  background: var(--cl-green);
+}
+
+.copyBtn:focus-visible {
+  outline: 3px solid var(--cl-focus);
+  outline-offset: 2px;
+}
+
+/* The tear line between what was made and what it costs. */
+.perforation {
+  position: relative;
+  height: 22px;
+  margin-top: 10px;
+  padding-inline: 20px;
+  background-image: linear-gradient(90deg, var(--cl-line) 50%, transparent 0);
+  background-size: 12px 2px;
+  background-repeat: repeat-x;
+  background-position: center;
+  background-origin: content-box;
+  background-clip: content-box;
+}
+
+.perforation::before,
+.perforation::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--cl-ground-soft);
+  border: 1px solid var(--cl-line-soft);
+}
+
+.perforation::before {
+  inset-inline-start: -12px;
+}
+
+.perforation::after {
+  inset-inline-end: -12px;
+}
+
+/* Four figures in a row, two by two on a phone — never a lonely three-and-one. */
+.ticketStub {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  padding: 8px 18px 16px;
+}
+
+/* A one-time charge has one figure: the whole width, like the total on the parent's page. */
+.ticketStubSingle {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.tile {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--cl-ground-soft);
+}
+
+.tileLabel {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--cl-muted);
+}
+
+.tileValue {
+  font-size: 16px;
+  font-weight: 900;
+  color: var(--cl-ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.tileHero {
+  background: var(--cl-gold-soft);
+}
+
+.tileHero .tileLabel {
+  color: var(--cl-gold-label);
+  font-weight: 800;
+}
+
+.tileHero .tileValue {
+  font-size: 22px;
+  letter-spacing: -0.5px;
+}
+
+.ticketNote {
+  grid-column: 1 / -1;
+  margin: 2px 0 0;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.55;
+  color: var(--cl-muted);
+}
+
+.ticketInset {
+  margin: 0 18px 16px;
+}
+
+.sendState {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 18px 16px;
+  padding: 9px 12px;
+  border-radius: 12px;
+  font-size: 12.5px;
+  font-weight: 700;
+}
+
+.sendOk {
+  background: var(--cl-green-soft);
+  color: var(--cl-green-ink);
+}
+
+.sendFail {
+  background: var(--cl-red-soft);
+  color: var(--cl-red);
+}
+
+/* ---- previous links ---- */
+.linkList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  background: #fff;
+  border: 1px solid var(--cl-line-soft);
+  border-radius: 16px;
+  overflow: hidden;
+}
+
+.linkRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+}
+
+.linkRow + .linkRow {
+  border-top: 1px solid #f2f3f8;
+}
+
+/* The link just made, so it can be found again in the list. */
+.linkRowNew {
+  background: #fffbea;
+}
+
+.rowIcon {
+  flex: none;
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+  background: var(--cl-indigo-soft);
+  color: var(--cl-indigo);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.rowIconOneTime {
+  background: var(--cl-gold-soft);
+  color: var(--cl-gold-label);
+}
+
+.rowMain {
+  flex: 1;
+  min-width: 0;
+}
+
+.rowTitle {
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13.5px;
+  font-weight: 800;
+  color: var(--cl-ink);
+}
+
+.rowKind {
+  color: var(--cl-subtle);
+  font-weight: 700;
+}
+
+.rowMeta {
+  margin: 1px 0 0;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--cl-muted);
+  overflow-wrap: anywhere;
+}
+
+.rowWarn {
+  color: var(--cl-red);
+}
+
+.status {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  height: 22px;
+  padding: 0 9px;
+  border-radius: 999px;
+  font-size: 11.5px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.statusPending {
+  background: var(--cl-gold-soft);
+  color: var(--cl-gold-label);
+}
+
+.statusProcessing {
+  background: #e8f0fe;
+  color: #1d4ed8;
+}
+
+.statusCompleted {
+  background: var(--cl-green-soft);
+  color: var(--cl-green-ink);
+}
+
+.statusReview {
+  background: var(--cl-red-soft);
+  color: var(--cl-red);
+}
+
+.statusCancelled {
+  background: #f1f2f6;
+  color: var(--cl-subtle);
+}
+
+.rowActions {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.iconBtn {
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--cl-indigo);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.iconBtn:hover:not(:disabled) {
+  background: var(--cl-indigo-soft);
+}
+
+.iconBtnDanger {
+  color: #dc2626;
+}
+
+.iconBtnDanger:hover:not(:disabled) {
+  background: var(--cl-red-soft);
+}
+
+.iconBtn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.iconBtn:focus-visible {
+  outline: 2px solid var(--cl-focus);
+  outline-offset: 1px;
+}
+
+.moreBtn {
+  align-self: center;
+  padding: 4px 12px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--cl-indigo);
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.moreBtn:hover {
+  background: var(--cl-indigo-soft);
+}
+
+.moreBtn:focus-visible {
+  outline: 2px solid var(--cl-focus);
+  outline-offset: 1px;
+}
+
+/* ---- narrow: a phone sheet, or a squeezed window ---- */
+@media (max-width: 559px) {
+  .header {
+    padding: 14px 16px 16px;
+    border-end-start-radius: 22px;
+    border-end-end-radius: 22px;
+  }
+
+  .title {
+    font-size: 18px;
+  }
+
+  .body {
+    padding: 14px 14px 18px;
+  }
+
+  .footer {
+    padding: 10px 14px calc(10px + env(safe-area-inset-bottom, 0px));
+  }
+
+  /* The stub drops under the details and lays its prices out in a row. */
+  .option,
+  .skeletonCard {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .stub,
+  .skeletonStub {
+    order: 2;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 2px 8px;
+    padding: 10px 14px;
+    border-inline-end: 0;
+    border-top: 1.5px dashed var(--cl-gold-edge);
+  }
+
+  .stubBlocked,
+  .stubError {
+    align-items: center;
+    border-top-color: var(--cl-line);
+  }
+
+  .stubError {
+    border-top-color: var(--cl-red-edge);
+  }
+
+  .stubNow {
+    margin-top: 0;
+    margin-inline-start: auto;
+  }
+
+  .grid2,
+  .grid3 {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .footerRow {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  /* The gold action takes the top row; the quieter two share the one below,
+     so a phone keeps its height for the ticket rather than three stacked buttons. */
+  .actions {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+
+  .actions .primary {
+    grid-row: 1;
+    grid-column: 1 / -1;
+  }
+
+  .primary,
+  .secondary,
+  .ghost {
+    width: 100%;
+  }
+
+  .linkUrl {
+    font-size: 15px;
+  }
+
+  .ticketStub {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .ticketStubSingle {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .linkRow {
+    flex-wrap: wrap;
+  }
+
+  .rowMain {
+    flex-basis: calc(100% - 42px);
+  }
+
+  /* Wrapped onto its own line, the chip lines up with the text, not the icon. */
+  .status {
+    margin-inline-start: 42px;
+  }
+
+  .rowActions {
+    margin-inline-start: auto;
+  }
+}
+
+/* ---- motion ---- */
+@keyframes ticketIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.985);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes riseIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .ticket {
+    animation: ticketIn 320ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  .rise {
+    animation: riseIn 220ms cubic-bezier(0.32, 0.72, 0, 1) both;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .option,
+  .stub,
+  .check,
+  .chevron,
+  .other,
+  .switchOption,
+  .primary,
+  .secondary,
+  .ghost,
+  .copyBtn {
+    transition: none;
+  }
+}

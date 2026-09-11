@@ -1,1337 +1,145 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import Link from 'next/link';
-import { FileText, Search, DollarSign, Clock, TrendingUp, Wallet, AlertCircle, Plus, Bell, Repeat, Download, Banknote } from 'lucide-react';
-import FilterBar, { FILTER_ALL } from '@/components/FilterBar';
-import ChecksTab from './ChecksTab';
+import { Plus } from 'lucide-react';
 import NewDocumentDialog from '@/components/dialogs/NewDocumentDialog';
-import RefundDialog from '@/components/dialogs/RefundDialog';
-import EditStandingOrderDialog from '@/components/dialogs/EditStandingOrderDialog';
-import { GroupIdBadge } from '@/components/GroupIdBadge/GroupIdBadge';
-import { TableSkeleton } from '@/components/ui/skeleton';
-import { fetchAllInvoices, downloadStoreInvoicePdf } from '@/lib/storeApi';
-import { sendDocumentReminder, fetchTranzilaDocuments, fetchPaymentLedger, PAYMENTS_PAGE_SIZE, downloadPeriodReport, finalizeDraft, downloadDocumentPdf } from '@/lib/documentsApi';
-import api from '@/lib/api';
 import { useAuth } from '@/components/AuthProvider';
-import { filterBranchesForUser, unwrapApiList } from '@/lib/scopedFilters';
-import type { StoreInvoice } from '@/types/store';
-import type { Branch } from '@/types/branch';
-import type { RecurringPayment } from '@/types/payment';
-import type { ActiveTab, DocumentRow, PaymentRecord } from './types';
-import { CHARGE_KIND_OPTIONS } from './constants';
-import {
-  getLedgerDocType,
-  getStatusLabel,
-  getStatusClass,
-  getPaymentStatusLabel,
-  getPaymentStatusClass,
-  formatAmount,
-  formatDate,
-  getCurrentMonthTotal,
-  buildCollectionRows,
-  collectionDueDate,
-  getCollectionAge,
-  getCollectionAgeLabel,
-  getAgingBuckets,
-  getRecurringStatusLabel,
-  getRecurringStatusClass,
-  paymentToLedgerRow,
-  storeInvoiceToLedgerRow,
-  storeContactLine,
-  matchesPaymentSearch,
-  localISODate,
-  daysAgoLocalISO,
-} from './utils';
+import theme from '@/components/dashboard/theme/dashboard.module.css';
+import ChecksTab from './ChecksTab';
+import CollectionTab from './CollectionTab';
+import DocumentsTab from './DocumentsTab';
+import PaymentsTab from './PaymentsTab';
+import RecurringTab from './RecurringTab';
+import type { ActiveTab } from './types';
+import { useLedgerFilters } from './useLedgerFilters';
 import styles from './invoices.module.css';
 
-// The type dropdown holds the label the table filters on; the report
-// endpoint filters on the model's code, so the label is mapped before it is sent.
-type ReportGroupBy = 'branch' | 'business' | 'business_unit' | 'business_category';
+/** The tabs in order, each with the line under the title that says what it is for. */
+const TABS: ReadonlyArray<{ key: ActiveTab; label: string; subtitle: string }> = [
+  {
+    key: 'מסמכים',
+    label: 'מסמכים',
+    subtitle: 'כל החשבוניות והקבלות שהופקו — מאיפה הגיע כל מסמך, כמה שולם ומה עוד פתוח',
+  },
+  {
+    key: 'תשלומים',
+    label: 'תשלומים',
+    subtitle: 'כל החיובים: הרשמה, הוראת קבע, שיעורי ניסיון והחנות — כולל הסבר וזיכוי',
+  },
+  {
+    key: 'גבייה',
+    label: 'גבייה',
+    subtitle: 'כל מה שהונפק ועוד לא נגבה — מהחוב הוותיק ביותר, עם תזכורת במייל',
+  },
+  {
+    key: 'הוראת קבע',
+    label: 'הוראת קבע',
+    subtitle: 'כל הוראות הקבע הפעילות והמבוטלות של לקוחות החוגים',
+  },
+  {
+    key: "צ'קים",
+    label: 'צ׳קים',
+    subtitle: 'רישום צ׳קים במשרד: קבלה ברישום, וחשבונית מס אוטומטית בכל חודש',
+  },
+];
 
+const PANEL_ID = 'invoices-tabpanel';
+const tabId = (index: number) => `invoices-tab-${index}`;
+
+/**
+ * The invoices page: a header, the tab switcher, the new-document action, and
+ * the filters every tab shares. Each tab lives in its own file and owns its
+ * rows, its loading and the fields that are its alone.
+ */
 export default function InvoicesPage() {
   const { user } = useAuth();
   // סליקת אשראי is a manager-only screen, so a partner is not shown a tab that
   // the shell would only bounce them off.
   const isManager = user?.role === 'manager';
   const [activeTab, setActiveTab] = useState<ActiveTab>('מסמכים');
-  // The period report follows whatever range and type the tab is already
-  // showing, so the sheet a manager downloads is the sheet they were looking at.
-  const [reportGroupBy, setReportGroupBy] = useState<ReportGroupBy>('branch');
-  const [reportBusy, setReportBusy] = useState(false);
-  const [approvingId, setApprovingId] = useState<string | null>(null);
   const [isNewDocOpen, setIsNewDocOpen] = useState(false);
-  const [reminderStatus, setReminderStatus] = useState<Record<string, 'sending' | 'sent' | 'error'>>({});
-  const [downloadingId, setDownloadingId] = useState<string | null>(null);
-  const [primaryFilter, setPrimaryFilter] = useState(FILTER_ALL);
+  // The filters every tab shares live here, above the tabs, so a choice made
+  // on one tab is still in force on the next.
+  const ledger = useLedgerFilters();
+  // Bumped when the new-document dialog closes, so a tab that lists documents
+  // reloads and the one just issued is there.
+  const [documentsVersion, setDocumentsVersion] = useState(0);
 
-  // Documents tab state — Tranzila tax documents + local invoices from those charges
-  const [documents, setDocuments] = useState<DocumentRow[]>([]);
-  const [documentsError, setDocumentsError] = useState('');
-  const [invoices, setInvoices] = useState<StoreInvoice[]>([]);
-  const [invoicesLoaded, setInvoicesLoaded] = useState(false);
-  const [branches, setBranches] = useState<Branch[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [docTypeFilter, setDocTypeFilter] = useState('');
-  const [statusFilter, setStatusFilter] = useState('');
-  const [branchFilter, setBranchFilter] = useState('');
-  const [dateFrom, setDateFrom] = useState(() => daysAgoLocalISO(90));
-  const [dateTo, setDateTo] = useState(() => localISODate());
-
-  // Payments tab state — CRM charges (signup + standing order) and store invoices
-  const [payments, setPayments] = useState<PaymentRecord[]>([]);
-  const [paymentsError, setPaymentsError] = useState('');
-  const [paymentsLoading, setPaymentsLoading] = useState(false);
-  const [paymentPage, setPaymentPage] = useState(1);
-  const [paymentTotalCount, setPaymentTotalCount] = useState(0);
-  const [paymentMonthTotal, setPaymentMonthTotal] = useState(0);
-  const [paymentPendingCount, setPaymentPendingCount] = useState(0);
-  const [paymentKindFilter, setPaymentKindFilter] = useState('');
-  const [paymentStatusFilter, setPaymentStatusFilter] = useState('');
-  const [paymentSearch, setPaymentSearch] = useState('');
-  const [refundTarget, setRefundTarget] = useState<PaymentRecord | null>(null);
-  const [refundLoading, setRefundLoading] = useState(false);
-
-  // Collection tab state
-  const [collectionCustomerFilter, setCollectionCustomerFilter] = useState('');
-
-  // Recurring payments tab state
-  const [recurringPayments, setRecurringPayments] = useState<RecurringPayment[]>([]);
-  const [recurringLoading, setRecurringLoading] = useState(false);
-  const [recurringLoaded, setRecurringLoaded] = useState(false);
-  const [recurringStatusFilter, setRecurringStatusFilter] = useState('');
-  const [recurringBranchFilter, setRecurringBranchFilter] = useState('');
-  const [recurringSearch, setRecurringSearch] = useState('');
-  const [recurringActionId, setRecurringActionId] = useState<string | null>(null);
-  const [editingRecurring, setEditingRecurring] = useState<RecurringPayment | null>(null);
-
-  // רשימת הלקוחות לסינון נבנית מהשורות עצמן, ולכן היא כוללת גם לקוחות
-  // עסקיים — ואין צורך למשוך את כל הילדים בעשרות בקשות רק בשביל התפריט.
-
-  useEffect(() => {
-    loadInvoiceData();
-  }, []);
-
-  function documentDateRange() {
-    return {
-      start_date: dateFrom || daysAgoLocalISO(90),
-      end_date: dateTo || localISODate(),
-    };
-  }
-
-  async function loadStoreInvoices() {
-    if (invoicesLoaded) return;
-    try {
-      const invoicesData = await fetchAllInvoices();
-      setInvoices(Array.isArray(invoicesData) ? invoicesData : []);
-    } catch (error) {
-      console.error('Error loading store invoices:', error);
-      setInvoices([]);
-    } finally {
-      setInvoicesLoaded(true);
-    }
-  }
-
-  async function loadInvoiceData() {
-    setIsLoading(true);
-    setDocumentsError('');
-    const range = documentDateRange();
-    try {
-      const [ledger, branchesResponse] = await Promise.all([
-        fetchTranzilaDocuments({ ...range, local_only: '1' }),
-        api.get('/core/branches/'),
-      ]);
-      setDocuments(Array.isArray(ledger.documents) ? ledger.documents : []);
-      if (ledger.error && (!ledger.documents || ledger.documents.length === 0)) {
-        setDocumentsError('לא ניתן לטעון מסמכים מטרנזילה כרגע.');
-      }
-      const branchList = branchesResponse.data?.results ?? branchesResponse.data;
-      setBranches(
-        filterBranchesForUser(
-          unwrapApiList<Branch>(branchList),
-          user,
-        ),
-      );
-    } catch (error) {
-      console.error('Error loading invoices:', error);
-      setDocuments([]);
-      setBranches([]);
-      setDocumentsError('שגיאה בטעינת המסמכים');
-    } finally {
-      setIsLoading(false);
-    }
-  }
-
-  useEffect(() => {
-    if (activeTab !== 'תשלומים') {
-      return;
-    }
-    if (paymentKindFilter === 'store') {
-      setPaymentsLoading(false);
-      void loadStoreInvoices();
-      return;
-    }
-    let cancelled = false;
-    setPaymentsLoading(true);
-    setPaymentsError('');
-    const range = documentDateRange();
-    fetchPaymentLedger({
-      page: paymentPage,
-      page_size: PAYMENTS_PAGE_SIZE,
-      ...range,
-      search: paymentSearch.trim() || undefined,
-      status: paymentStatusFilter || undefined,
-      kind: paymentKindFilter || undefined,
-      branch: primaryFilter !== FILTER_ALL ? primaryFilter : undefined,
-    })
-      .then((data) => {
-        if (cancelled) return;
-        setPayments(data.results.map(paymentToLedgerRow));
-        setPaymentTotalCount(data.count);
-        setPaymentMonthTotal(data.month_total);
-        setPaymentPendingCount(data.pending_count);
-      })
-      .catch((error) => {
-        console.error('Error loading payments:', error);
-        if (cancelled) return;
-        setPayments([]);
-        setPaymentTotalCount(0);
-        setPaymentMonthTotal(0);
-        setPaymentPendingCount(0);
-        setPaymentsError('שגיאה בטעינת התשלומים');
-      })
-      .finally(() => {
-        if (!cancelled) setPaymentsLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [
-    activeTab,
-    paymentPage,
-    paymentKindFilter,
-    paymentStatusFilter,
-    paymentSearch,
-    dateFrom,
-    dateTo,
-    primaryFilter,
-  ]);
-
-  async function handleRefundConfirm(amount: number | null, reason: string) {
-    if (!refundTarget) return;
-    setRefundLoading(true);
-    try {
-      const endpoint = refundTarget.source === 'payment'
-        ? `/customers/payments/${refundTarget.id}/refund/`
-        : `/store/invoices/${refundTarget.id}/refund/`;
-      await api.post(endpoint, { amount, reason });
-      if (refundTarget.source === 'payment') {
-        setPayments((prev) =>
-          prev.map((row) =>
-            row.id === refundTarget.id
-              ? { ...row, status: 'refunded', canRefund: false }
-              : row,
-          ),
-        );
-      } else {
-        setInvoices((prev) =>
-          prev.map((inv) =>
-            inv.id === refundTarget.id
-              ? { ...inv, payment_status: 'refunded' }
-              : inv,
-          ),
-        );
-      }
-      setRefundTarget(null);
-    } catch (error: unknown) {
-      const data = (error as { response?: { data?: { error?: string } } })?.response?.data;
-      window.alert(data?.error || 'שגיאה בביצוע הזיכוי');
-    } finally {
-      setRefundLoading(false);
-    }
-  }
-
-  async function loadRecurringPayments(force = false) {
-    if (recurringLoaded && !force) return;
-    setRecurringLoading(true);
-    try {
-      const items: RecurringPayment[] = [];
-      let page = 1;
-      while (page <= 100) {
-        const response = await api.get('/customers/recurring-payments/', {
-          params: page === 1 ? {} : { page },
-        });
-        const data = response.data;
-        if (Array.isArray(data)) {
-          items.push(...data);
-          break;
-        }
-        const batch = Array.isArray(data?.results) ? data.results : [];
-        items.push(...batch);
-        if (!data?.next || batch.length === 0) break;
-        page += 1;
-      }
-      setRecurringPayments(items);
-    } catch (error) {
-      console.error('Error loading recurring payments:', error);
-      setRecurringPayments([]);
-    } finally {
-      setRecurringLoading(false);
-      setRecurringLoaded(true);
-    }
-  }
-
-  function openEditRecurringAmount(item: RecurringPayment) {
-    setEditingRecurring(item);
-  }
-
-  async function handleCancelRecurring(recurringId: string, childName: string) {
-    if (!window.confirm(`לבטל את הוראת הקבע של ${childName}?`)) return;
-    setRecurringActionId(recurringId);
-    try {
-      await api.post(`/customers/recurring-payments/${recurringId}/cancel/`, {
-        cancellation_reason: 'בוטל ממסך הוראות קבע',
-      });
-      setRecurringPayments((prev) =>
-        prev.map((item) =>
-          item.id === recurringId
-            ? { ...item, status: 'cancelled', cancelled_at: new Date().toISOString() }
-            : item,
-        ),
-      );
-    } catch (error) {
-      console.error('Error cancelling recurring payment:', error);
-      window.alert('שגיאה בביטול הוראת הקבע');
-    } finally {
-      setRecurringActionId(null);
-    }
-  }
-
-  async function handleSendCardUpdate(recurringId: string, childName: string) {
-    if (!window.confirm(`לשלוח לוואטסאפ קישור לעדכון כרטיס עבור ${childName}?`)) return;
-    setRecurringActionId(recurringId);
-    try {
-      await api.post(`/customers/recurring-payments/${recurringId}/send-card-update/`);
-      window.alert('ההודעה נשלחה ב-ManyChat');
-    } catch (error) {
-      const msg =
-        (error as { response?: { data?: { error?: string; reason?: string } } })?.response?.data?.error
-        || (error as { response?: { data?: { reason?: string } } })?.response?.data?.reason
-        || 'שגיאה בשליחת ההודעה';
-      window.alert(msg);
-    } finally {
-      setRecurringActionId(null);
-    }
-  }
-
-  async function handleSendCardUpdateFailed() {
-    const failedIds = recurringPayments.filter((item) => item.status === 'failed').map((item) => item.id);
-    if (failedIds.length === 0) {
-      window.alert('אין הוראות קבע בסטטוס נכשל');
-      return;
-    }
-    if (!window.confirm(`לשלוח קישור לעדכון כרטיס ל-${failedIds.length} הוראות קבע שנכשלו?`)) return;
-    setRecurringActionId('bulk');
-    try {
-      const res = await api.post('/customers/recurring-payments/send-card-update-failed/', {
-        ids: failedIds,
-      });
-      const sent = Number(res.data?.sent ?? 0);
-      const failed = Number(res.data?.failed ?? 0);
-      window.alert(`נשלח: ${sent}. לא נשלח: ${failed}.`);
-    } catch (error) {
-      console.error('Error sending card-update WhatsApp:', error);
-      window.alert('שגיאה בשליחת ההודעות');
-    } finally {
-      setRecurringActionId(null);
-    }
-  }
-
-  function handleTabChange(tab: ActiveTab) {
-    setActiveTab(tab);
-    if (tab === 'גבייה') {
-      void loadStoreInvoices();
-    }
-    if (tab === 'הוראת קבע' && !recurringLoaded) {
-      loadRecurringPayments();
-    }
-  }
-
-  const storeLedger = invoices
-    .filter((inv) => {
-      const day = (inv.issue_date || inv.created_at || '').slice(0, 10);
-      if (dateFrom && day && day < dateFrom) return false;
-      if (dateTo && day && day > dateTo) return false;
-      if (primaryFilter !== FILTER_ALL && inv.branch !== primaryFilter) return false;
-      return true;
-    })
-    .map(storeInvoiceToLedgerRow)
-    .filter((row) => {
-      if (paymentStatusFilter && row.status !== paymentStatusFilter) return false;
-      return matchesPaymentSearch(row, paymentSearch);
-    })
-    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-
-  const showingStore = paymentKindFilter === 'store';
-  const pagedStore = storeLedger.slice(
-    (paymentPage - 1) * PAYMENTS_PAGE_SIZE,
-    paymentPage * PAYMENTS_PAGE_SIZE,
-  );
-  const sortedPayments = showingStore ? pagedStore : payments;
-  const paymentCount = showingStore ? storeLedger.length : paymentTotalCount;
-  const pendingCount = showingStore
-    ? storeLedger.filter((p) => p.status === 'pending' || p.status === 'processing').length
-    : paymentPendingCount;
-  const monthTotal = showingStore ? getCurrentMonthTotal(storeLedger) : paymentMonthTotal;
-  const paymentPageCount = Math.max(1, Math.ceil(paymentCount / PAYMENTS_PAGE_SIZE));
-
-  const filtered = documents.filter(doc => {
-    if (docTypeFilter && getLedgerDocType(doc) !== docTypeFilter) return false;
-    if (statusFilter && doc.status !== statusFilter) return false;
-    if (branchFilter && doc.branch_id !== branchFilter) return false;
-    if (dateFrom && doc.issue_date < dateFrom) return false;
-    if (dateTo && doc.issue_date > dateTo) return false;
-    const q = searchQuery.toLowerCase();
-    if (
-      q &&
-      !doc.document_number.toLowerCase().includes(q) &&
-      !(doc.customer_name ?? '').toLowerCase().includes(q)
-    ) {
-      return false;
-    }
-    return true;
-  });
-
-  // Collection tab derived data — the documents we issued and the store's
-  // invoices are the same debt to chase, so they share one table.
-  const collectionRows = buildCollectionRows(documents, invoices);
-  const collectionCustomers = Array.from(
-    new Set(collectionRows.map(row => row.customer).filter(Boolean)),
-  ).sort((a, b) => a.localeCompare(b, 'he'));
-  const collectionFiltered = collectionCustomerFilter
-    ? collectionRows.filter(row => row.customer === collectionCustomerFilter)
-    : collectionRows;
-  const agingBuckets = getAgingBuckets(collectionFiltered);
-  const collectionTotalDebt = collectionFiltered.reduce((sum, row) => sum + row.open, 0);
-  const sortedCollectionInvoices = [...collectionFiltered].sort(
-    (a, b) => getCollectionAge(b).days - getCollectionAge(a).days,
-  );
-
-  const filteredRecurring = recurringPayments.filter((item) => {
-    if (recurringStatusFilter && item.status !== recurringStatusFilter) return false;
-    const branchName = item.initial_payment_details?.branch_name ?? item.branch_name ?? '';
-    if (recurringBranchFilter && branchName !== recurringBranchFilter) return false;
-    const q = recurringSearch.trim().toLowerCase();
-    if (!q) return true;
-    const courseName = item.initial_payment_details?.lesson_name ?? item.course_name ?? '';
-    return (
-      item.child_name.toLowerCase().includes(q) ||
-      courseName.toLowerCase().includes(q) ||
-      branchName.toLowerCase().includes(q)
-    );
-  });
-
-  const sortedRecurring = [...filteredRecurring].sort(
-    (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
-  );
-
-  const activeRecurring = recurringPayments.filter((item) => item.status === 'active');
-  const activeRecurringTotal = activeRecurring.reduce(
-    (sum, item) => sum + Number(item.amount || 0),
-    0,
-  );
-  const recurringBranchOptions = Array.from(
-    new Set(
-      recurringPayments
-        .map((item) => item.initial_payment_details?.branch_name ?? item.branch_name ?? '')
-        .filter(Boolean),
-    ),
-  ).sort((a, b) => a.localeCompare(b, 'he'));
+  const activeIndex = Math.max(0, TABS.findIndex((tab) => tab.key === activeTab));
+  const current = TABS[activeIndex];
 
   return (
     <>
-      <div className={styles.page}>
-        {/* Header */}
-        <div className={styles.pageHeader}>
-          <div className={styles.titleGroup}>
-            <h2 className={styles.pageTitle}>
-              {activeTab === 'תשלומים' ? (
-                <Wallet className={styles.titleIcon} />
-              ) : activeTab === 'גבייה' ? (
-                <AlertCircle className={styles.titleIcon} />
-              ) : activeTab === 'הוראת קבע' ? (
-                <Repeat className={styles.titleIcon} />
-              ) : activeTab === "צ'קים" ? (
-                <Banknote className={styles.titleIcon} />
-              ) : (
-                <FileText className={styles.titleIcon} />
-              )}
-              {activeTab}
-            </h2>
-            <p className={styles.subtitle}>
-              {activeTab === 'תשלומים'
-                ? 'כל החיובים: הרשמה, הוראת קבע, שיעורי ניסיון והחנות — כולל הסבר וזיכוי'
-                : activeTab === 'גבייה'
-                ? 'מסמכים עם יתרה פתוחה, מעקב Aging ופעולות גבייה'
-                : activeTab === 'הוראת קבע'
-                ? 'כל הוראות הקבע הפעילות והמבוטלות של לקוחות החוגים'
-                : activeTab === "צ'קים"
-                ? 'רישום צ׳קים במשרד: קבלה ברישום, וחשבונית מס אוטומטית בכל חודש'
-                : 'כל החשבוניות והקבלות שהופקו מול טרנזילה'}
-            </p>
+      <div className={`${theme.tokens} ${theme.scope} ${styles.page}`}>
+        {/* The theme reserves room for AppLayout's sidebar toggle on the first
+            child of .tokens — on the wrong side for RTL. This spacer takes
+            that reservation, and the header clears the toggle's corner itself. */}
+        <div aria-hidden className={styles.toggleSpacer} />
+
+        <header className={`${theme.ph} ${styles.pageHead}`}>
+          <div>
+            <h1 className={theme.phTitle}>{current.label}</h1>
+            <p className={theme.phSub}>{current.subtitle}</p>
           </div>
 
-          <div className={styles.headerActions}>
-            <div className={styles.subTabs} role="tablist">
-              <button
-                role="tab"
-                aria-selected={activeTab === 'מסמכים'}
-                className={`${styles.tabBtn} ${activeTab === 'מסמכים' ? styles.tabBtnActive : ''}`}
-                onClick={() => handleTabChange('מסמכים')}
-              >
-                מסמכים
-              </button>
-              <button
-                role="tab"
-                aria-selected={activeTab === 'תשלומים'}
-                className={`${styles.tabBtn} ${activeTab === 'תשלומים' ? styles.tabBtnActive : ''}`}
-                onClick={() => handleTabChange('תשלומים')}
-              >
-                תשלומים
-              </button>
-              <button
-                role="tab"
-                aria-selected={activeTab === 'גבייה'}
-                className={`${styles.tabBtn} ${activeTab === 'גבייה' ? styles.tabBtnActive : ''}`}
-                onClick={() => handleTabChange('גבייה')}
-              >
-                גבייה
-              </button>
-              <button
-                role="tab"
-                aria-selected={activeTab === 'הוראת קבע'}
-                className={`${styles.tabBtn} ${activeTab === 'הוראת קבע' ? styles.tabBtnActive : ''}`}
-                onClick={() => handleTabChange('הוראת קבע')}
-              >
-                הוראת קבע
-              </button>
-              <button
-                role="tab"
-                aria-selected={activeTab === "צ'קים"}
-                className={`${styles.tabBtn} ${activeTab === "צ'קים" ? styles.tabBtnActive : ''}`}
-                onClick={() => handleTabChange("צ'קים")}
-              >
-                צ׳קים
-              </button>
+          <div className={styles.headActions}>
+            <div className={styles.tabRail}>
+              <div role="tablist" aria-label="מסכי החשבוניות" className={styles.tabList}>
+                {TABS.map((tab, index) => (
+                  <button
+                    key={tab.key}
+                    type="button"
+                    role="tab"
+                    id={tabId(index)}
+                    aria-selected={activeTab === tab.key}
+                    aria-controls={PANEL_ID}
+                    className={styles.tabPill}
+                    onClick={() => setActiveTab(tab.key)}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
+              {/* A tab that leaves the page instead of switching one, so it is a link. */}
               {isManager && (
-                <Link href="/settings/billing" className={`${styles.tabBtn} ${styles.tabLink}`}>
+                <Link href="/settings/billing" className={`${styles.tabPill} ${styles.tabPillLink}`}>
                   סליקת אשראי
                 </Link>
               )}
             </div>
 
-            <button type="button" className={styles.newDocBtn} onClick={() => setIsNewDocOpen(true)}>
-              <Plus size={16} />
+            <button type="button" className={styles.primaryAction} onClick={() => setIsNewDocOpen(true)}>
+              <Plus size={16} aria-hidden="true" />
               מסמך חדש
             </button>
           </div>
+        </header>
+
+        {/* Keyed on the tab, so each tab gets the shell's entrance as it opens. */}
+        <div
+          key={activeTab}
+          role="tabpanel"
+          id={PANEL_ID}
+          aria-labelledby={tabId(activeIndex)}
+          className={styles.panel}
+        >
+          {activeTab === 'מסמכים' && <DocumentsTab ledger={ledger} refreshKey={documentsVersion} />}
+          {activeTab === 'תשלומים' && <PaymentsTab ledger={ledger} />}
+          {activeTab === 'גבייה' && <CollectionTab ledger={ledger} refreshKey={documentsVersion} />}
+          {activeTab === 'הוראת קבע' && <RecurringTab ledger={ledger} />}
+          {activeTab === "צ'קים" && (
+            <ChecksTab ledger={ledger} />
+          )}
         </div>
-
-        {activeTab === 'תשלומים' && (
-          <FilterBar
-            fields={[
-              {
-                key: 'branch',
-                label: 'כל הסניפים',
-                options: branches.map((b) => ({ value: b.id, label: b.name })),
-              },
-            ]}
-            values={{ branch: primaryFilter }}
-            onChange={(_key, value) => setPrimaryFilter(value)}
-            onClear={() => setPrimaryFilter(FILTER_ALL)}
-          />
-        )}
-
-        {activeTab === 'מסמכים' && (
-          <>
-            {/* Filter bar */}
-            <div className={styles.filterBar}>
-              <select
-                className={styles.filterSelect}
-                value={docTypeFilter}
-                onChange={e => setDocTypeFilter(e.target.value)}
-                aria-label="סינון לפי סוג מסמך"
-              >
-                <option value="">כל הסוגים</option>
-                <option value="חשבונית מס/קבלה">חשבונית מס/קבלה</option>
-                <option value="חשבונית מס">חשבונית מס</option>
-                <option value="קבלה">קבלה</option>
-                <option value="חשבונית עסקה">חשבונית עסקה</option>
-                <option value="חשבונית מס זיכוי">חשבונית מס זיכוי</option>
-              </select>
-
-              <select
-                className={styles.filterSelect}
-                value={statusFilter}
-                onChange={e => setStatusFilter(e.target.value)}
-                aria-label="סינון לפי סטטוס"
-              >
-                <option value="">הכל</option>
-                <option value="completed">שולם</option>
-                <option value="pending">פתוח</option>
-                <option value="failed">נכשל</option>
-                <option value="refunded">זוכה</option>
-                <option value="draft">טיוטה</option>
-              </select>
-
-              <select
-                className={styles.filterSelect}
-                value={branchFilter}
-                onChange={e => setBranchFilter(e.target.value)}
-                aria-label="סינון לפי סניף"
-              >
-                <option value="">כל הסניפים</option>
-                {branches.map(b => (
-                  <option key={b.id} value={b.id}>{b.name}</option>
-                ))}
-              </select>
-
-              <input
-                type="date"
-                className={styles.dateInput}
-                value={dateFrom}
-                onChange={e => setDateFrom(e.target.value)}
-                aria-label="מתאריך"
-              />
-              <input
-                type="date"
-                className={styles.dateInput}
-                value={dateTo}
-                onChange={e => setDateTo(e.target.value)}
-                aria-label="עד תאריך"
-              />
-
-              <select
-                className={styles.filterSelect}
-                value={reportGroupBy}
-                onChange={e => setReportGroupBy(e.target.value as ReportGroupBy)}
-                aria-label="קיבוץ הדוח"
-              >
-                <option value="branch">דוח לפי סניפים</option>
-                <option value="business">דוח לפי לקוחות עסקיים</option>
-                <option value="business_unit">דוח לפי עסק</option>
-                <option value="business_category">דוח לפי קטגוריה</option>
-              </select>
-              <button
-                type="button"
-                className={styles.tabBtn}
-                disabled={reportBusy}
-                onClick={async () => {
-                  setReportBusy(true);
-                  try {
-                    // הדוח מוציא את כל סוגי המסמכים תמיד. קודם הוא ירש בשקט את
-                    // מסנן הסוג של הטבלה, כך שדוח מסונן נראה בדיוק כמו דוח מלא —
-                    // ומי שקרא את הסכום לא ידע שחסרים בו מסמכים.
-                    await downloadPeriodReport({
-                      start_date: dateFrom || daysAgoLocalISO(90),
-                      end_date: dateTo || localISODate(),
-                      group_by: reportGroupBy,
-                    });
-                  } catch {
-                    setDocumentsError('הפקת הדוח נכשלה');
-                  } finally {
-                    setReportBusy(false);
-                  }
-                }}
-              >
-                <Download size={16} aria-hidden="true" />
-                {reportBusy ? 'מפיק…' : 'הורד דוח PDF'}
-              </button>
-
-              <div className={styles.searchWrapper}>
-                <Search className={styles.searchIcon} aria-hidden="true" />
-                <input
-                  type="text"
-                  className={styles.searchInput}
-                  placeholder="חיפוש לפי שם, מספר מסמך..."
-                  value={searchQuery}
-                  onChange={e => setSearchQuery(e.target.value)}
-                  aria-label="חיפוש חשבוניות"
-                />
-              </div>
-            </div>
-
-            {documentsError && (
-              <p className={styles.emptyState} style={{ padding: '8px 0' }}>{documentsError}</p>
-            )}
-
-            {/* Table */}
-            <div className={styles.tableCard}>
-              {isLoading ? (
-                <TableSkeleton columns={9} tableClassName={styles.invoiceTable} label="טוען מסמכים" />
-              ) : filtered.length === 0 ? (
-                <div className={styles.emptyState}>לא נמצאו מסמכים</div>
-              ) : (
-                <table className={styles.invoiceTable}>
-                  <thead>
-                    <tr>
-                      <th scope="col">מס' מסמך</th>
-                      <th scope="col">תאריך הנפקה</th>
-                      <th scope="col">לקוח</th>
-                      <th scope="col">סוג מסמך</th>
-                      <th scope="col">סכום</th>
-                      <th scope="col">שולם עד כה</th>
-                      <th scope="col">יתרה פתוחה</th>
-                      <th scope="col">סטטוס</th>
-                      <th scope="col">פעולות</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filtered.map(doc => {
-                      const canDownload = Boolean(doc.pdf_url || doc.store_invoice_id || doc.source === 'local');
-                      const notIssued = doc.source === 'local' && doc.tranzila_issued === false && !doc.is_draft;
-                      const isDownloading = downloadingId === doc.id;
-
-                      return (
-                        <tr key={doc.id}>
-                          <td className={styles.invoiceNumber}>{doc.document_number}</td>
-                          <td>{doc.issue_date ? formatDate(doc.issue_date) : '—'}</td>
-                          <td className={styles.customerName}>{doc.customer_name || '—'}</td>
-                          <td><span className={styles.docTypeChip}>{getLedgerDocType(doc)}</span></td>
-                          <td className={styles.amount}>{formatAmount(doc.total_amount)}</td>
-                          <td>{formatAmount(doc.amount_paid)}</td>
-                          <td className={doc.open_balance > 0 ? styles.openBalance : styles.openBalanceZero}>
-                            {formatAmount(doc.open_balance)}
-                          </td>
-                          <td>
-                            <span
-                              className={`${styles.statusBadge} ${getStatusClass(doc.status)}`}
-                              aria-label={getStatusLabel(doc.status)}
-                            >
-                              {getStatusLabel(doc.status)}
-                            </span>
-                            {notIssued && (
-                              <span className={styles.refundUnavailable} title="המסמך נשמר מקומית אך לא הונפק בטרנזילה">
-                                לא הונפק בטרנזילה
-                              </span>
-                            )}
-                          </td>
-                          <td>
-                            <div className={styles.collectionActions}>
-                              {doc.is_draft && (
-                                <button
-                                  type="button"
-                                  className={styles.refundBtn}
-                                  disabled={approvingId === doc.id}
-                                  onClick={async () => {
-                                    if (!window.confirm(`לאשר את הטיוטה ${doc.document_number}? המסמך יקבל מספר חשבונית.`)) return;
-                                    setApprovingId(doc.id);
-                                    try {
-                                      await finalizeDraft(doc.id);
-                                      await loadInvoiceData();
-                                    } catch {
-                                      setDocumentsError('אישור הטיוטה נכשל');
-                                    } finally {
-                                      setApprovingId(null);
-                                    }
-                                  }}
-                                >
-                                  {approvingId === doc.id ? 'מאשר…' : 'אשר טיוטה'}
-                                </button>
-                              )}
-                              {!canDownload && (
-                                <span className={styles.refundUnavailable} title="לא קיים קובץ למסמך זה">ללא PDF</span>
-                              )}
-                              {canDownload && (
-                                <button
-                                  type="button"
-                                  className={styles.reminderBtn}
-                                  aria-label={`הורדת ${doc.document_number}`}
-                                  title="הורד PDF"
-                                  disabled={isDownloading}
-                                  onClick={async () => {
-                                    setDownloadingId(doc.id);
-                                    try {
-                                      if (doc.store_invoice_id) {
-                                        await downloadStoreInvoicePdf(doc.store_invoice_id, doc.document_number);
-                                      } else if (doc.pdf_url) {
-                                        window.open(doc.pdf_url, '_blank', 'noopener,noreferrer');
-                                      } else {
-                                        await downloadDocumentPdf(doc.id, doc.document_number);
-                                      }
-                                    } catch {
-                                      alert('שגיאה בהורדת החשבונית');
-                                    } finally {
-                                      setDownloadingId(null);
-                                    }
-                                  }}
-                                >
-                                  <Download size={16} />
-                                </button>
-                              )}
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              )}
-            </div>
-          </>
-        )}
-
-        {activeTab === 'תשלומים' && (
-          <>
-            {/* Stats row */}
-            <div className={styles.statsRow}>
-              <div className={`${styles.statCard} ${styles.statCardBlue}`}>
-                <div className={styles.statCardIcon}>
-                  <DollarSign size={18} />
-                </div>
-                <div className={styles.statCardBody}>
-                  <span className={styles.statCardValue}>{paymentCount}</span>
-                  <span className={styles.statCardLabel}>סה&quot;כ חיובים</span>
-                </div>
-              </div>
-
-              <div className={`${styles.statCard} ${styles.statCardOrange}`}>
-                <div className={styles.statCardIcon}>
-                  <Clock size={18} />
-                </div>
-                <div className={styles.statCardBody}>
-                  <span className={styles.statCardValue}>{pendingCount}</span>
-                  <span className={styles.statCardLabel}>ממתינים לאישור</span>
-                </div>
-              </div>
-
-              <div className={`${styles.statCard} ${styles.statCardGreen}`}>
-                <div className={styles.statCardIcon}>
-                  <TrendingUp size={18} />
-                </div>
-                <div className={styles.statCardBody}>
-                  <span className={styles.statCardValue}>{formatAmount(monthTotal)}</span>
-                  <span className={styles.statCardLabel}>חיובים שהצליחו החודש</span>
-                </div>
-              </div>
-            </div>
-
-            <div className={styles.paymentsFilterBar}>
-              <select
-                className={styles.filterSelect}
-                value={paymentKindFilter}
-                onChange={(e) => { setPaymentKindFilter(e.target.value); setPaymentPage(1); }}
-                aria-label="סינון לפי סוג חיוב"
-              >
-                <option value="">כל סוגי החיוב</option>
-                {CHARGE_KIND_OPTIONS.map((opt) => (
-                  <option key={opt.value} value={opt.value}>{opt.label}</option>
-                ))}
-              </select>
-              <select
-                className={styles.filterSelect}
-                value={paymentStatusFilter}
-                onChange={(e) => { setPaymentStatusFilter(e.target.value); setPaymentPage(1); }}
-                aria-label="סינון לפי סטטוס"
-              >
-                <option value="">כל הסטטוסים</option>
-                <option value="completed">אושר</option>
-                <option value="pending">ממתין</option>
-                <option value="failed">נכשל</option>
-                <option value="refunded">זוכה</option>
-              </select>
-              <div className={styles.searchWrapper}>
-                <Search className={styles.searchIcon} aria-hidden="true" />
-                <input
-                  type="text"
-                  className={styles.searchInput}
-                  placeholder="חיפוש לפי לקוח, חוג, הסבר..."
-                  value={paymentSearch}
-                  onChange={(e) => { setPaymentSearch(e.target.value); setPaymentPage(1); }}
-                  aria-label="חיפוש חיובים"
-                />
-              </div>
-            </div>
-
-            {paymentsError && (
-              <p className={styles.emptyState} style={{ padding: '8px 0' }}>{paymentsError}</p>
-            )}
-
-            {/* Payments table */}
-            <div className={styles.tableCard}>
-              {paymentsLoading ? (
-                <TableSkeleton
-                  columns={8}
-                  tableClassName={`${styles.invoiceTable} ${styles.paymentsTable}`}
-                  label="טוען תשלומים"
-                />
-              ) : sortedPayments.length === 0 ? (
-                <div className={styles.emptyState}>לא נמצאו חיובים</div>
-              ) : (
-                <table className={`${styles.invoiceTable} ${styles.paymentsTable}`}>
-                  <thead>
-                    <tr>
-                      <th scope="col">תאריך</th>
-                      <th scope="col">לקוח</th>
-                      <th scope="col">על מה החיוב</th>
-                      <th scope="col">סכום</th>
-                      <th scope="col">אמצעי</th>
-                      <th scope="col">אסמכתא</th>
-                      <th scope="col">סטטוס</th>
-                      <th scope="col">פעולות</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {sortedPayments.map((p) => {
-                      const statusLabel = getPaymentStatusLabel(p.status);
-                      return (
-                        <tr key={`${p.source}-${p.id}`}>
-                          <td>{p.created_at ? formatDate(p.created_at) : '—'}</td>
-                          <td className={styles.customerName}>
-                            {p.customer_name || '—'}
-                            {p.source === 'store' && storeContactLine(p) && (
-                              <span className={styles.contactLine}>{storeContactLine(p)}</span>
-                            )}
-                          </td>
-                          <td className={styles.chargeCell}>
-                            <span className={styles.chargeKindChip}>{p.kind_label}</span>
-                            <span className={styles.chargeDescription}>{p.description || '—'}</span>
-                          </td>
-                          <td className={styles.amount}>{formatAmount(p.amount)}</td>
-                          <td><span className={styles.methodBadge}>{p.payment_method || 'אשראי'}</span></td>
-                          <td className={styles.referenceCell}>{p.transaction_reference || '—'}</td>
-                          <td>
-                            <span
-                              className={`${styles.statusBadge} ${getPaymentStatusClass(p.status)}`}
-                              aria-label={statusLabel}
-                            >
-                              {statusLabel}
-                            </span>
-                          </td>
-                          <td className={styles.rowActions}>
-                            {p.source === 'store' && p.store_invoice_id && (
-                              <button
-                                type="button"
-                                className={styles.refundBtn}
-                                onClick={() => {
-                                  void downloadStoreInvoicePdf(p.store_invoice_id as string, p.invoice_number || 'order');
-                                }}
-                                aria-label={`הורדת PDF של הזמנה ${p.invoice_number}`}
-                              >
-                                PDF
-                              </button>
-                            )}
-                            {p.canRefund ? (
-                              <button
-                                type="button"
-                                className={styles.refundBtn}
-                                onClick={() => setRefundTarget(p)}
-                              >
-                                זיכוי
-                              </button>
-                            ) : (
-                              !(p.source === 'store' && p.store_invoice_id) && (
-                                <span className={styles.refundUnavailable}>—</span>
-                              )
-                            )}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              )}
-              {paymentCount > 0 && (
-                <div className={styles.pager}>
-                  <button
-                    type="button"
-                    className={styles.pagerBtn}
-                    disabled={paymentPage <= 1 || paymentsLoading}
-                    onClick={() => setPaymentPage((page) => Math.max(1, page - 1))}
-                  >
-                    הקודם
-                  </button>
-                  <span className={styles.pagerStatus}>
-                    עמוד {Math.min(paymentPage, paymentPageCount)} מתוך {paymentPageCount}
-                    {' · '}
-                    {paymentCount} חיובים
-                  </span>
-                  <button
-                    type="button"
-                    className={styles.pagerBtn}
-                    disabled={paymentPage >= paymentPageCount || paymentsLoading}
-                    onClick={() => setPaymentPage((page) => page + 1)}
-                  >
-                    הבא
-                  </button>
-                </div>
-              )}
-            </div>
-          </>
-        )}
-
-        {activeTab === 'הוראת קבע' && (
-          <>
-            <div className={styles.statsRow}>
-              <div className={`${styles.statCard} ${styles.statCardBlue}`}>
-                <div className={styles.statCardIcon}>
-                  <Repeat size={18} />
-                </div>
-                <div className={styles.statCardBody}>
-                  <span className={styles.statCardValue}>{recurringPayments.length}</span>
-                  <span className={styles.statCardLabel}>סה&quot;כ הוראות קבע</span>
-                </div>
-              </div>
-
-              <div className={`${styles.statCard} ${styles.statCardGreen}`}>
-                <div className={styles.statCardIcon}>
-                  <TrendingUp size={18} />
-                </div>
-                <div className={styles.statCardBody}>
-                  <span className={styles.statCardValue}>{activeRecurring.length}</span>
-                  <span className={styles.statCardLabel}>פעילות</span>
-                </div>
-              </div>
-
-              <div className={`${styles.statCard} ${styles.statCardOrange}`}>
-                <div className={styles.statCardIcon}>
-                  <DollarSign size={18} />
-                </div>
-                <div className={styles.statCardBody}>
-                  <span className={styles.statCardValue}>{formatAmount(activeRecurringTotal)}</span>
-                  <span className={styles.statCardLabel}>סכום חודשי פעיל</span>
-                </div>
-              </div>
-            </div>
-
-            <div className={styles.filterBar}>
-              <select
-                className={styles.filterSelect}
-                value={recurringStatusFilter}
-                onChange={(e) => setRecurringStatusFilter(e.target.value)}
-                aria-label="סינון לפי סטטוס"
-              >
-                <option value="">כל הסטטוסים</option>
-                <option value="active">פעיל</option>
-                <option value="paused">מושהה</option>
-                <option value="cancelled">מבוטל</option>
-                <option value="expired">פג תוקף</option>
-                <option value="failed">נכשל</option>
-              </select>
-
-              <select
-                className={styles.filterSelect}
-                value={recurringBranchFilter}
-                onChange={(e) => setRecurringBranchFilter(e.target.value)}
-                aria-label="סינון לפי סניף"
-              >
-                <option value="">כל הסניפים</option>
-                {recurringBranchOptions.map((branchName) => (
-                  <option key={branchName} value={branchName}>{branchName}</option>
-                ))}
-              </select>
-
-              <div className={styles.searchWrapper}>
-                <Search className={styles.searchIcon} aria-hidden="true" />
-                <input
-                  type="text"
-                  className={styles.searchInput}
-                  placeholder="חיפוש לפי לקוח, חוג, סניף..."
-                  value={recurringSearch}
-                  onChange={(e) => setRecurringSearch(e.target.value)}
-                  aria-label="חיפוש הוראות קבע"
-                />
-              </div>
-              {recurringPayments.some((item) => item.status === 'failed') ? (
-                <button
-                  type="button"
-                  className={styles.editRecurringBtn}
-                  disabled={recurringActionId === 'bulk'}
-                  onClick={() => void handleSendCardUpdateFailed()}
-                >
-                  {recurringActionId === 'bulk' ? 'שולח...' : 'שלח קישור לכל הנכשלים'}
-                </button>
-              ) : null}
-            </div>
-
-            <div className={styles.tableCard}>
-              {recurringLoading ? (
-                <TableSkeleton
-                  columns={10}
-                  tableClassName={`${styles.invoiceTable} ${styles.paymentsTable}`}
-                  label="טוען הוראות קבע"
-                />
-              ) : sortedRecurring.length === 0 ? (
-                <div className={styles.emptyState}>לא נמצאו הוראות קבע</div>
-              ) : (
-                <table className={`${styles.invoiceTable} ${styles.paymentsTable}`}>
-                  <thead>
-                    <tr>
-                      <th scope="col">לקוח</th>
-                      <th scope="col">חוג</th>
-                      <th scope="col">סניף</th>
-                      <th scope="col">סכום חודשי</th>
-                      <th scope="col">יום חיוב</th>
-                      <th scope="col">חיוב הבא</th>
-                      <th scope="col">חיוב אחרון</th>
-                      <th scope="col">תאריך התחלה</th>
-                      <th scope="col">סטטוס</th>
-                      <th scope="col">פעולות</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {sortedRecurring.map((item) => {
-                      const statusLabel = getRecurringStatusLabel(item.status);
-                      const courseName =
-                        item.initial_payment_details?.lesson_name ??
-                        item.course_name ??
-                        item.initial_payment_details?.description ??
-                        '-';
-                      const courseDisplayId = item.initial_payment_details?.lesson_course_display_id;
-                      const branchName =
-                        item.initial_payment_details?.branch_name ??
-                        item.branch_name ??
-                        '-';
-
-                      return (
-                        <tr key={item.id}>
-                          <td className={styles.customerName}>{item.child_name}</td>
-                          <td>
-                            {courseName}
-                            <GroupIdBadge displayId={courseDisplayId} />
-                          </td>
-                          <td>{branchName}</td>
-                          <td className={styles.amount}>
-                            <div>{formatAmount(Number(item.amount))}</div>
-                            {item.pending_amount != null && item.pending_amount_effective_date ? (
-                              <div className={styles.pendingAmountNote}>
-                                → {formatAmount(Number(item.pending_amount))} מ-{formatDate(item.pending_amount_effective_date)}
-                              </div>
-                            ) : null}
-                          </td>
-                          <td>{item.billing_day}</td>
-                          <td>{item.next_billing_date ? formatDate(item.next_billing_date) : '—'}</td>
-                          <td>{item.last_charge_date ? formatDate(item.last_charge_date) : '—'}</td>
-                          <td>{formatDate(item.start_date)}</td>
-                          <td>
-                            <span
-                              className={`${styles.statusBadge} ${getRecurringStatusClass(item.status)}`}
-                              aria-label={statusLabel}
-                            >
-                              {statusLabel}
-                            </span>
-                          </td>
-                          <td>
-                            {item.status === 'active' ? (
-                              <div className={styles.recurringActions}>
-                                <button
-                                  type="button"
-                                  className={styles.editRecurringBtn}
-                                  disabled={recurringActionId === item.id}
-                                  onClick={() => openEditRecurringAmount(item)}
-                                >
-                                  עריכה
-                                </button>
-                                <button
-                                  type="button"
-                                  className={styles.cancelRecurringBtn}
-                                  disabled={recurringActionId === item.id}
-                                  onClick={() => handleCancelRecurring(item.id, item.child_name)}
-                                >
-                                  {recurringActionId === item.id ? 'מבטל...' : 'ביטול'}
-                                </button>
-                              </div>
-                            ) : item.status === 'failed' ? (
-                              <div className={styles.recurringActions}>
-                                <button
-                                  type="button"
-                                  className={styles.editRecurringBtn}
-                                  disabled={recurringActionId === item.id}
-                                  onClick={() => void handleSendCardUpdate(item.id, item.child_name)}
-                                >
-                                  {recurringActionId === item.id ? 'שולח...' : 'שלח קישור לכרטיס'}
-                                </button>
-                              </div>
-                            ) : (
-                              '—'
-                            )}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              )}
-            </div>
-          </>
-        )}
-
-        {activeTab === "צ'קים" && (
-          <ChecksTab
-            formatAmount={formatAmount}
-            formatDate={formatDate}
-            branchFilter={primaryFilter !== FILTER_ALL ? primaryFilter : undefined}
-          />
-        )}
-
-        {activeTab === 'גבייה' && (
-          <>
-            {/* Aging buckets */}
-            <div className={styles.agingRow}>
-              {agingBuckets.map(bucket => (
-                <div
-                  key={bucket.key}
-                  className={styles.agingCard}
-                  aria-label={`${bucket.label}: ${formatAmount(bucket.total)}, ${bucket.count} מסמכים`}
-                >
-                  <span className={styles.agingLabel}>{bucket.label}</span>
-                  <span className={bucket.total > 0 ? styles.agingAmount : styles.agingAmountZero}>
-                    {formatAmount(bucket.total)}
-                  </span>
-                  <span className={styles.agingCount}>{bucket.count} מסמכים</span>
-                </div>
-              ))}
-            </div>
-
-            {/* Customer filter */}
-            <div className={styles.collectionFilterBar}>
-              <select
-                className={styles.filterSelect}
-                value={collectionCustomerFilter}
-                onChange={e => setCollectionCustomerFilter(e.target.value)}
-                aria-label="סינון לפי לקוח"
-              >
-                <option value="">כל הלקוחות</option>
-                {collectionCustomers.map(name => (
-                  <option key={name} value={name}>{name}</option>
-                ))}
-              </select>
-            </div>
-
-            {/* Totals strip */}
-            <div className={styles.collectionTotals}>
-              <span className={styles.countPill}>{collectionFiltered.length} מסמכים</span>
-              <span className={styles.totalsHeading}>סה&quot;כ חובות: {formatAmount(collectionTotalDebt)}</span>
-            </div>
-
-            {/* Collection table */}
-            <div className={styles.tableCard}>
-              {!invoicesLoaded ? (
-                <TableSkeleton
-                  columns={10}
-                  tableClassName={`${styles.invoiceTable} ${styles.collectionTable}`}
-                  label="טוען חובות פתוחים"
-                />
-              ) : sortedCollectionInvoices.length === 0 ? (
-                <div className={styles.emptyState}>לא נמצאו חובות פתוחים</div>
-              ) : (
-                <table className={`${styles.invoiceTable} ${styles.collectionTable}`}>
-                  <thead>
-                    <tr>
-                      <th scope="col">לקוח</th>
-                      <th scope="col">מס&apos; מסמך</th>
-                      <th scope="col">סוג</th>
-                      <th scope="col">תאריך הנפקה</th>
-                      <th scope="col">מועד תשלום</th>
-                      <th scope="col">סכום מסמך</th>
-                      <th scope="col">שולם</th>
-                      <th scope="col">יתרה פתוחה</th>
-                      <th scope="col">ממתין</th>
-                      <th scope="col">פעולות</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {sortedCollectionInvoices.map(row => {
-                      const age = getCollectionAge(row);
-                      const statusLabel = getStatusLabel(row.status);
-
-                      return (
-                        <tr key={`${row.kind}-${row.id}`}>
-                          <td className={styles.customerName}>{row.customer}</td>
-                          <td className={styles.invoiceNumber}>{row.number}</td>
-                          <td>{row.docType}</td>
-                          <td>{formatDate(row.issueDate)}</td>
-                          <td>
-                            {collectionDueDate(row) ? (
-                              <>
-                                {formatDate(collectionDueDate(row))}
-                                {!row.dueDate && row.paymentTerms ? (
-                                  <span className={styles.termsHint}> ({row.paymentTerms})</span>
-                                ) : null}
-                              </>
-                            ) : (
-                              '—'
-                            )}
-                          </td>
-                          <td className={styles.amount}>{formatAmount(row.total)}</td>
-                          <td>{formatAmount(row.paid)}</td>
-                          <td className={row.open > 0 ? styles.openBalance : styles.openBalanceZero}>
-                            {formatAmount(row.open)}
-                          </td>
-                          <td className={age.overdue ? styles.overdueLabel : styles.overdueLabelMuted}>
-                            {getCollectionAgeLabel(row)}
-                          </td>
-                          <td>
-                            <div className={styles.collectionActions}>
-                              <span
-                                className={`${styles.statusBadge} ${getStatusClass(row.status)}`}
-                                aria-label={statusLabel}
-                              >
-                                {statusLabel}
-                              </span>
-                              {/* התזכורת נשלחת דרך המסמך; לחשבונית חנות אין נמען כזה */}
-                              {row.kind === 'document' && (
-                              <button
-                                type="button"
-                                className={`${styles.reminderBtn} ${reminderStatus[row.id] === 'sent' ? styles.reminderBtnSent : reminderStatus[row.id] === 'error' ? styles.reminderBtnError : ''}`}
-                                aria-label={`שלח תזכורת תשלום ל${row.customer}`}
-                                disabled={reminderStatus[row.id] === 'sending'}
-                                onClick={async () => {
-                                  setReminderStatus((prev) => ({ ...prev, [row.id]: 'sending' }));
-                                  try {
-                                    await sendDocumentReminder(row.id);
-                                    setReminderStatus((prev) => ({ ...prev, [row.id]: 'sent' }));
-                                    setTimeout(() => setReminderStatus((prev) => { const next = { ...prev }; delete next[row.id]; return next; }), 3000);
-                                  } catch {
-                                    setReminderStatus((prev) => ({ ...prev, [row.id]: 'error' }));
-                                    setTimeout(() => setReminderStatus((prev) => { const next = { ...prev }; delete next[row.id]; return next; }), 3000);
-                                  }
-                                }}
-                              >
-                                <Bell size={16} />
-                              </button>
-                              )}
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              )}
-            </div>
-          </>
-        )}
       </div>
 
-      <RefundDialog
-        isOpen={Boolean(refundTarget)}
-        onClose={() => { if (!refundLoading) setRefundTarget(null); }}
-        onConfirm={handleRefundConfirm}
-        title="זיכוי חיוב"
-        maxAmount={refundTarget?.amount ?? 0}
-        itemDescription={refundTarget?.description}
-        loading={refundLoading}
-      />
-
-      <NewDocumentDialog open={isNewDocOpen} onClose={() => { setIsNewDocOpen(false); loadInvoiceData(); }} />
-
-      <EditStandingOrderDialog
-        order={editingRecurring}
-        isOpen={Boolean(editingRecurring)}
-        onClose={() => setEditingRecurring(null)}
-        onSaved={() => { void loadRecurringPayments(true); }}
+      <NewDocumentDialog
+        open={isNewDocOpen}
+        onClose={() => {
+          setIsNewDocOpen(false);
+          setDocumentsVersion((version) => version + 1);
+        }}
       />
     </>
   );

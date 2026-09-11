@@ -5,48 +5,69 @@
   gap: 1.5rem;
 }
 
-/* Header */
-.pageHeader {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 1rem;
+/*
+ * The theme's mobile rule reserves room for AppLayout's sidebar toggle on the
+ * first child of .tokens — on the inline end, which in RTL is the wrong side.
+ * This zero-height spacer takes that reservation, and the header clears the
+ * toggle's corner itself, as the store page does.
+ */
+.toggleSpacer {
+  height: 0;
 }
 
-.titleGroup {
+/* Header — the dashboard's .ph voice; the theme gives it its type and rhythm. */
+.pageHead {
+  margin: 0;
+}
+
+@media (max-width: 1023px) {
+  .pageHead {
+    padding-inline-start: 52px;
+  }
+}
+
+.headActions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  max-width: 100%;
+}
+
+/* מסמך חדש — the page's one primary action, in the dashboard's primary pill. */
+.primaryAction {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 0;
+  border-radius: 999px;
+  padding: 9px 16px;
+  background: linear-gradient(135deg, #312a9e, #231f6e);
+  color: #fff;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 800;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: box-shadow 0.18s ease, transform 0.18s ease;
+}
+
+.primaryAction:hover {
+  box-shadow: 0 8px 22px rgba(35, 31, 110, 0.28);
+  transform: translateY(-1px);
+}
+
+.primaryAction:focus-visible {
+  outline: 2px solid var(--kg-bar-a);
+  outline-offset: 2px;
+}
+
+/* The open tab's content. Its blocks keep the page's spacing between them. */
+.panel {
   display: flex;
   flex-direction: column;
-  gap: 0.25rem;
-}
-
-.pageTitle {
-  font-size: 1.5rem;
-  font-weight: 700;
-  color: hsl(var(--foreground));
-  margin: 0;
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.titleIcon {
-  width: 1.5rem;
-  height: 1.5rem;
-}
-
-.subtitle {
-  font-size: 0.875rem;
-  color: hsl(var(--muted-foreground));
-  margin: 0;
-}
-
-/* Header actions */
-.headerActions {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  flex-wrap: wrap;
+  gap: 1.5rem;
+  min-width: 0;
 }
 
 .newDocBtn {
@@ -70,48 +91,78 @@
   background: hsl(var(--primary) / 0.9);
 }
 
-/* Sub-tabs */
-.subTabs {
-  display: flex;
-  align-items: flex-end;
-  gap: 0;
-  border-bottom: 1px solid hsl(var(--border));
-}
-
-.tabBtn {
-  padding: 0.375rem 0.875rem;
-  font-size: 0.875rem;
-  font-weight: 500;
-  background: none;
-  border: none;
-  border-bottom: 2px solid transparent;
-  cursor: pointer;
-  color: hsl(var(--muted-foreground));
-  transition: color 150ms;
-  white-space: nowrap;
-  margin-bottom: -1px;
-}
-
-.tabBtn:hover:not(:disabled) {
-  color: hsl(var(--foreground));
-}
-
-.tabBtn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.tabBtnActive {
-  color: hsl(var(--primary));
-  border-bottom-color: hsl(var(--primary));
-  font-weight: 600;
-}
-
-/* A tab that leaves the page instead of switching one, so it is an anchor. */
-.tabLink {
+/* Tabs — a segmented rail like the dashboard's island: the open tab is the
+   white pill. On a phone the rail scrolls sideways rather than wrapping. */
+.tabRail {
   display: flex;
   align-items: center;
+  gap: 2px;
+  max-width: 100%;
+  padding: 4px;
+  border: 1px solid var(--kg-line);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.55);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.tabRail::-webkit-scrollbar {
+  display: none;
+}
+
+.tabList {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.tabPill {
+  border: 0;
+  background: none;
+  border-radius: 999px;
+  padding: 7px 14px;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--kg-ink2);
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color 0.18s ease, color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.tabPill:hover {
+  color: var(--kg-ink);
+}
+
+.tabPill[aria-selected='true'] {
+  background: #fff;
+  color: var(--kg-ink);
+  font-weight: 800;
+  box-shadow: 0 2px 8px rgba(43, 37, 133, 0.13);
+}
+
+.tabPill:focus-visible {
+  outline: 2px solid var(--kg-bar-a);
+  outline-offset: 1px;
+}
+
+/* סליקת אשראי leaves the page rather than switching a tab, so it is a link. */
+.tabPillLink {
+  display: inline-flex;
+  align-items: center;
   text-decoration: none;
+  color: var(--kg-muted);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tabPill,
+  .primaryAction {
+    transition: none;
+  }
+
+  .primaryAction:hover {
+    transform: none;
+  }
 }
 
 /* Filter bar */
@@ -192,11 +243,12 @@
 
 /* Table card */
 .tableCard {
-  background: hsl(var(--card));
-  border: 1px solid hsl(var(--border));
-  border-radius: var(--radius);
+  background: var(--kg-card, #fff);
+  border-radius: var(--kg-r, 18px);
+  box-shadow: var(--kg-sh, 0 1px 3px rgba(43, 37, 133, 0.04), 0 6px 20px rgba(43, 37, 133, 0.06));
   overflow: hidden;
   overflow-x: auto;
+  padding: 6px 14px;
 }
 
 /* Table */
@@ -205,58 +257,58 @@
   border-collapse: collapse;
 }
 
-.invoiceTable thead tr {
-  background: #f9fafb;
-  border-bottom: 1px solid hsl(var(--border));
-}
-
 .invoiceTable th {
-  padding: 0.75rem 1rem;
-  font-size: 0.75rem;
-  font-weight: 500;
-  color: #374151;
+  padding: 12px 10px 10px;
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--kg-muted, #8b88b6);
   text-align: start;
   white-space: nowrap;
+  border-bottom: 1px solid var(--kg-line, #eae7f8);
 }
 
 .invoiceTable tbody tr {
-  border-bottom: 1px solid hsl(var(--border));
   transition: background-color 150ms;
 }
 
-.invoiceTable tbody tr:last-child {
-  border-bottom: none;
+.invoiceTable tbody tr:last-child td {
+  border-bottom: 0;
 }
 
 .invoiceTable tbody tr:hover {
-  background: hsl(var(--secondary));
+  background: #faf9fe;
 }
 
 .invoiceTable td {
-  padding: 0.875rem 1rem;
-  font-size: 0.875rem;
-  color: hsl(var(--foreground));
+  padding: 13px 10px;
+  border-bottom: 1px solid var(--kg-line-soft, #f5f3fc);
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--kg-ink, #231f6e);
   text-align: start;
   white-space: nowrap;
 }
 
 /* Specific cells */
 .invoiceNumber {
-  font-weight: 500;
-  font-family: monospace;
+  font-weight: 800;
+  font-family: ui-monospace, "SF Mono", monospace;
+  font-size: 12.5px;
 }
 
 .customerName {
-  font-weight: 500;
+  font-weight: 800;
 }
 
 .amount {
-  font-weight: 500;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
 }
 
 .openBalance {
-  font-weight: 600;
-  color: #ea580c;
+  font-weight: 800;
+  color: var(--kg-neg, #e5484d);
+  font-variant-numeric: tabular-nums;
 }
 
 .openBalanceZero {
@@ -267,11 +319,12 @@
 /* Document type chip */
 .docTypeChip {
   display: inline-block;
-  background: #f3f4f6;
-  color: #374151;
-  font-size: 0.75rem;
-  border-radius: 0.375rem;
-  padding: 0.125rem 0.5rem;
+  background: #f2f1f7;
+  color: var(--kg-ink2, #4a4599);
+  font-size: 11px;
+  font-weight: 800;
+  border-radius: 6px;
+  padding: 3px 8px;
   white-space: nowrap;
 }
 
@@ -842,10 +895,6 @@
     width: 100%;
   }
 
-  .pageHeader {
-    flex-direction: column;
-  }
-
   .statsRow {
     grid-template-columns: 1fr;
   }
@@ -888,4 +937,49 @@
   display: flex;
   gap: 6px;
   align-items: center;
+}
+
+/* Date range — labelled ends, so the pair reads correctly in RTL */
+.dateRange {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.5rem;
+}
+
+.dateField {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+}
+
+.dateLabel {
+  font-size: 0.6875rem;
+  color: hsl(var(--muted-foreground));
+  padding-inline-start: 0.25rem;
+}
+
+/* Origin chip — which system issued the document */
+.originChip {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 800;
+  border-radius: 6px;
+  padding: 3px 8px;
+  white-space: nowrap;
+  background: #efedfa;
+  color: var(--kg-ink2, #4a4599);
+}
+
+.originStore_website { background: #ecfdf5; color: #065f46; }
+.originStore_counter { background: #fff7ed; color: #9a3412; }
+.originSubscription  { background: #eff6ff; color: #1e40af; }
+.originManual        { background: #f5f3ff; color: #5b21b6; }
+.originTranzila      { background: #f3f4f6; color: #374151; }
+
+.originMeta {
+  display: block;
+  font-size: 0.6875rem;
+  color: hsl(var(--muted-foreground));
+  margin-top: 0.125rem;
+  white-space: nowrap;
 }

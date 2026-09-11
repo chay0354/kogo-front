@@ -3,16 +3,20 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { israeliIdFieldError, sanitizeIsraeliIdInput } from '@/lib/israeliId';
-import formStyles from '@/app/widget/CourseRegistrationForm/index.module.css';
-import pageStyles from '@/app/update-card/update-card.module.css';
+import styles from '../card-link.module.css';
 import { fetchCardLinkPreview, formatShekels, submitCardLink, type CardLinkPreview } from '@/lib/paymentLinksApi';
 
 type Step = 'loading' | 'form' | 'processing' | 'success' | 'review' | 'error';
 
+function formatDay(iso?: string | null): string {
+  if (!iso) return '';
+  return new Date(`${iso}T00:00:00`).toLocaleDateString('he-IL');
+}
+
 /**
  * The parent's page for a card link the office sent: what will be charged
  * (a standing order's first charge + monthly amount, or a one-time sum),
- * then the card form. Same shell as the card-update page.
+ * then the card form.
  */
 export default function CardLinkPage() {
   const params = useParams();
@@ -121,195 +125,261 @@ export default function CardLinkPage() {
   const isSto = preview?.kind === 'standing_order';
   const firstCharge = preview?.first_charge ? Number(preview.first_charge) : 0;
 
+  const headerTitle =
+    step === 'form' && preview
+      ? isSto ? 'הסדרת הוראת קבע' : 'תשלום'
+      : 'הזנת פרטי אשראי';
+
   return (
-    <div className={pageStyles.shell} dir="rtl">
-      <div className={pageStyles.brand}>קוגומלו</div>
+    <div className={styles.page} dir="rtl">
+      <header className={styles.header}>
+        <div className={styles.brand}>קוגומלו</div>
+        <h1 className={styles.title}>{headerTitle}</h1>
+        {step === 'form' && preview?.child_name ? (
+          <p className={styles.headerNote}>{preview.child_name}</p>
+        ) : null}
+      </header>
 
-      {step === 'loading' && (
-        <div className={formStyles.resultContainer}>
-          <div className={formStyles.submittingSpinner} />
-          <p className={formStyles.resultSubtext}>טוען פרטי חיוב...</p>
-        </div>
-      )}
-
-      {step === 'error' && (
-        <div className={formStyles.resultContainer}>
-          <div className={formStyles.failIcon}>!</div>
-          <p className={formStyles.resultTitle}>לא ניתן לפתוח את הקישור</p>
-          <p className={formStyles.resultSubtext}>{pageError}</p>
-        </div>
-      )}
-
-      {step === 'processing' && (
-        <div className={formStyles.resultContainer}>
-          <div className={formStyles.submittingSpinner} />
-          <p className={formStyles.resultTitle}>החיוב בעיבוד</p>
-          <p className={formStyles.resultSubtext}>המתינו רגע ורעננו את העמוד. אל תשלחו שוב.</p>
-        </div>
-      )}
-
-      {step === 'review' && (
-        <div className={formStyles.resultContainer}>
-          <div className={formStyles.successIcon}>✓</div>
-          <p className={formStyles.resultTitle}>החיוב עבר ונמצא בבדיקה</p>
-          <p className={formStyles.resultSubtext}>{result?.message || 'המשרד יסיים את ההסדרה ויחזור אליכם.'}</p>
-        </div>
-      )}
-
-      {step === 'success' && (
-        <div className={formStyles.resultContainer}>
-          <div className={formStyles.successIcon}>✓</div>
-          <p className={formStyles.resultTitle}>{isSto ? 'הוראת הקבע הוסדרה' : 'התשלום התקבל'}</p>
-          <p className={formStyles.resultSubtext}>
-            {isSto
-              ? result?.monthly_amount
-                ? `הכרטיס נשמר. ${Number(result.charged) > 0 ? `חויב עכשיו ${formatShekels(result.charged || 0)}. ` : ''}החיוב החודשי ${formatShekels(result.monthly_amount)} ירד אוטומטית${result.next_billing_date ? ` החל מ-${new Date(`${result.next_billing_date}T00:00:00`).toLocaleDateString('he-IL')}` : ''}.`
-                : 'הכרטיס נשמר והחיוב החודשי ירד אוטומטית.'
-              : `תודה! ${result?.charged ? `חויב ${formatShekels(result.charged)}.` : ''} קבלה תישלח למייל.`}
-          </p>
-        </div>
-      )}
-
-      {step === 'form' && preview && (
-        <div className={formStyles.paymentContainer}>
-          <div className={formStyles.paymentSummary}>
-            <p className={formStyles.summaryTitle}>{isSto ? 'הסדרת הוראת קבע' : 'תשלום חד-פעמי'}</p>
-            <div className={formStyles.summaryRow}>
-              <span>ילד/ה</span>
-              <span>{preview.child_name}</span>
-            </div>
-            {isSto ? (
-              <>
-                <div className={formStyles.summaryRow}>
-                  <span>חוג</span>
-                  <span>{preview.course_name}</span>
-                </div>
-                {preview.day_name ? (
-                  <div className={formStyles.summaryRow}>
-                    <span>מועד</span>
-                    <span>{preview.day_name} {preview.start_time}{preview.end_time ? `–${preview.end_time}` : ''}</span>
-                  </div>
-                ) : null}
-                {preview.branch_name ? (
-                  <div className={formStyles.summaryRow}>
-                    <span>סניף</span>
-                    <span>{preview.branch_name}</span>
-                  </div>
-                ) : null}
-                {preview.quote_error ? (
-                  <p className={formStyles.errorText}>{preview.quote_error}</p>
-                ) : (
-                  <>
-                    <div className={formStyles.totalRow}>
-                      <span>לחיוב עכשיו</span>
-                      <span className={formStyles.totalAmount}>{formatShekels(preview.first_charge || 0)}</span>
-                    </div>
-                    <div className={formStyles.summaryRow}>
-                      <span>סכום חודשי</span>
-                      <span>{formatShekels(preview.monthly_amount || 0)}</span>
-                    </div>
-                    {Number(preview.registration_fee) > 0 ? (
-                      <div className={formStyles.summaryRow}>
-                        <span>כולל דמי רישום</span>
-                        <span>{formatShekels(preview.registration_fee || 0)}</span>
-                      </div>
-                    ) : null}
-                    {Number(preview.trial_credit) > 0 ? (
-                      <div className={formStyles.summaryRow}>
-                        <span>קיזוז שיעור ניסיון ששולם</span>
-                        <span>-{formatShekels(preview.trial_credit || 0)}</span>
-                      </div>
-                    ) : null}
-                    {Number(preview.trial_credit) > 0 && preview.trial_credit_reason ? (
-                      <p className={formStyles.billingNote}>{preview.trial_credit_reason}</p>
-                    ) : null}
-                    <p className={formStyles.billingNote}>
-                      {firstCharge > 0
-                        ? 'החיוב הראשון ירד עכשיו (יחסי לחודש הנוכחי), והכרטיס יישמר להוראת הקבע החודשית.'
-                        : 'הכרטיס יאומת ויישמר להוראת הקבע; החיוב החודשי ירד אוטומטית.'}
-                      {preview.next_billing_date ? ` החיוב הבא: ${new Date(`${preview.next_billing_date}T00:00:00`).toLocaleDateString('he-IL')}.` : ''}
-                    </p>
-                  </>
-                )}
-              </>
-            ) : (
-              <>
-                <div className={formStyles.summaryRow}>
-                  <span>עבור</span>
-                  <span>{preview.description}</span>
-                </div>
-                <div className={formStyles.totalRow}>
-                  <span>לתשלום</span>
-                  <span className={formStyles.totalAmount}>{formatShekels(preview.amount || 0)}</span>
-                </div>
-                <p className={formStyles.billingNote}>חיוב חד-פעמי. הכרטיס לא יישמר.</p>
-              </>
-            )}
-          </div>
-
-          <div className={formStyles.cardFields}>
-            <p className={formStyles.cardSectionTitle}>פרטי כרטיס אשראי</p>
-            <div>
-              <label className={formStyles.label} htmlFor="card-number">מספר כרטיס</label>
-              <input
-                id="card-number"
-                className={formStyles.input}
-                inputMode="numeric"
-                autoComplete="cc-number"
-                placeholder="4580 4580 4580 4580"
-                value={cardNumber}
-                onChange={(e) => setCardNumber(e.target.value)}
-              />
-            </div>
-            <div className={formStyles.grid3}>
-              <div>
-                <label className={formStyles.label} htmlFor="exp-month">חודש תפוגה</label>
-                <input id="exp-month" className={formStyles.input} inputMode="numeric" placeholder="12" value={expiryMonth} onChange={(e) => setExpiryMonth(e.target.value)} />
-              </div>
-              <div>
-                <label className={formStyles.label} htmlFor="exp-year">שנת תפוגה</label>
-                <input id="exp-year" className={formStyles.input} inputMode="numeric" placeholder="2028" value={expiryYear} onChange={(e) => setExpiryYear(e.target.value)} />
-              </div>
-              <div>
-                <label className={formStyles.label} htmlFor="cvv">CVV</label>
-                <input id="cvv" className={formStyles.input} inputMode="numeric" autoComplete="cc-csc" placeholder="123" value={cvv} onChange={(e) => setCvv(e.target.value)} />
-              </div>
-            </div>
-            <div>
-              <label className={formStyles.label} htmlFor="card-id">תעודת זהות בעל הכרטיס</label>
-              <input
-                id="card-id"
-                className={`${formStyles.input} ${idError ? formStyles.inputInvalid : ''}`}
-                inputMode="numeric"
-                placeholder="012345678"
-                value={cardHolderId}
-                onChange={(e) => {
-                  setCardHolderId(sanitizeIsraeliIdInput(e.target.value));
-                  setIdError('');
-                }}
-              />
-              {idError ? <p className={formStyles.fieldError}>{idError}</p> : null}
+      <main className={styles.body}>
+        {step === 'loading' && (
+          <div className={styles.card}>
+            <div className={styles.result}>
+              <div className={styles.spinner} />
+              <p className={styles.resultText}>טוען פרטי חיוב…</p>
             </div>
           </div>
+        )}
 
-          {formError ? <p className={formStyles.errorText}>{formError}</p> : null}
+        {step === 'error' && (
+          <div className={styles.card}>
+            <div className={styles.result}>
+              <div className={`${styles.resultIcon} ${styles.iconFail}`}>!</div>
+              <p className={styles.resultTitle}>לא ניתן לפתוח את הקישור</p>
+              <p className={styles.resultText}>{pageError}</p>
+            </div>
+          </div>
+        )}
 
-          <button
-            type="button"
-            className={formStyles.submitButton}
-            disabled={charging || !cardNumber || !expiryMonth || !expiryYear || !cvv || !cardHolderId || Boolean(preview.quote_error)}
-            onClick={() => void handleSubmit()}
-          >
-            {charging
-              ? 'מעבד...'
-              : isSto
-                ? firstCharge > 0
-                  ? `שמור כרטיס וחייב ${formatShekels(preview.first_charge || 0)}`
-                  : 'שמור כרטיס להוראת קבע'
-                : `לתשלום ${formatShekels(preview.amount || 0)}`}
-          </button>
-        </div>
-      )}
+        {step === 'processing' && (
+          <div className={styles.card}>
+            <div className={styles.result}>
+              <div className={styles.spinner} />
+              <p className={styles.resultTitle}>החיוב בעיבוד</p>
+              <p className={styles.resultText}>המתינו רגע ורעננו את העמוד. אל תשלחו שוב.</p>
+            </div>
+          </div>
+        )}
+
+        {step === 'review' && (
+          <div className={styles.card}>
+            <div className={styles.result}>
+              <div className={`${styles.resultIcon} ${styles.iconOk}`}>✓</div>
+              <p className={styles.resultTitle}>החיוב עבר ונמצא בבדיקה</p>
+              <p className={styles.resultText}>{result?.message || 'המשרד יסיים את ההסדרה ויחזור אליכם.'}</p>
+            </div>
+          </div>
+        )}
+
+        {step === 'success' && (
+          <div className={styles.card}>
+            <div className={styles.result}>
+              <div className={`${styles.resultIcon} ${styles.iconOk}`}>✓</div>
+              <p className={styles.resultTitle}>{isSto ? 'הוראת הקבע הוסדרה' : 'התשלום התקבל'}</p>
+              <p className={styles.resultText}>
+                {isSto
+                  ? result?.monthly_amount
+                    ? `הכרטיס נשמר. ${Number(result.charged) > 0 ? `חויב עכשיו ${formatShekels(result.charged || 0)}. ` : ''}החיוב החודשי ${formatShekels(result.monthly_amount)} ירד אוטומטית${result.next_billing_date ? ` החל מ-${formatDay(result.next_billing_date)}` : ''}.`
+                    : 'הכרטיס נשמר והחיוב החודשי ירד אוטומטית.'
+                  : `תודה! ${result?.charged ? `חויב ${formatShekels(result.charged)}.` : ''} קבלה תישלח למייל.`}
+              </p>
+            </div>
+          </div>
+        )}
+
+        {step === 'form' && preview && (
+          <>
+            <section className={styles.card}>
+              <h2 className={styles.cardTitle}>{isSto ? 'פרטי ההרשמה' : 'פרטי התשלום'}</h2>
+
+              {isSto ? (
+                <>
+                  <div className={styles.row}>
+                    <span className={styles.rowLabel}>חוג</span>
+                    <span className={styles.rowValue}>{preview.course_name}</span>
+                  </div>
+                  {preview.sessions && preview.sessions.length > 1 ? (
+                    // A twice/thrice-a-week track: every day it covers, one per line,
+                    // so the parent sees exactly what the monthly charge buys.
+                    <div className={styles.row}>
+                      <span className={styles.rowLabel}>{preview.frequency_label || 'מועדים'}</span>
+                      <span className={styles.rowValue}>
+                        {preview.sessions.map((session) => (
+                          <span key={session.lesson_id} className={styles.session}>
+                            {session.day_name} {session.start_time}{session.end_time ? `–${session.end_time}` : ''}
+                          </span>
+                        ))}
+                      </span>
+                    </div>
+                  ) : preview.day_name ? (
+                    <div className={styles.row}>
+                      <span className={styles.rowLabel}>מועד</span>
+                      <span className={styles.rowValue}>
+                        {preview.day_name} {preview.start_time}{preview.end_time ? `–${preview.end_time}` : ''}
+                      </span>
+                    </div>
+                  ) : null}
+                  {preview.branch_name ? (
+                    <div className={styles.row}>
+                      <span className={styles.rowLabel}>סניף</span>
+                      <span className={styles.rowValue}>{preview.branch_name}</span>
+                    </div>
+                  ) : null}
+
+                  {preview.quote_error ? (
+                    <p className={styles.errorBox} style={{ marginTop: 12 }}>{preview.quote_error}</p>
+                  ) : (
+                    <>
+                      <div className={styles.total}>
+                        <span className={styles.totalLabel}>לחיוב עכשיו</span>
+                        <span className={styles.totalAmount}>{formatShekels(preview.first_charge || 0)}</span>
+                      </div>
+                      <div className={styles.row}>
+                        <span className={styles.rowLabel}>סכום חודשי</span>
+                        <span className={styles.rowValue}>{formatShekels(preview.monthly_amount || 0)}</span>
+                      </div>
+                      {Number(preview.registration_fee) > 0 ? (
+                        <div className={styles.row}>
+                          <span className={styles.rowLabel}>כולל דמי רישום</span>
+                          <span className={styles.rowValue}>{formatShekels(preview.registration_fee || 0)}</span>
+                        </div>
+                      ) : null}
+                      {Number(preview.trial_credit) > 0 ? (
+                        <div className={styles.row}>
+                          <span className={styles.rowLabel}>קיזוז שיעור ניסיון ששולם</span>
+                          <span className={styles.rowValue}>-{formatShekels(preview.trial_credit || 0)}</span>
+                        </div>
+                      ) : null}
+                      {Number(preview.trial_credit) > 0 && preview.trial_credit_reason ? (
+                        <p className={styles.note}>{preview.trial_credit_reason}</p>
+                      ) : null}
+                      <p className={styles.note}>
+                        {firstCharge > 0
+                          ? 'החיוב הראשון ירד עכשיו (יחסי לחודש הנוכחי), והכרטיס יישמר להוראת הקבע החודשית.'
+                          : 'הכרטיס יאומת ויישמר להוראת הקבע; החיוב החודשי ירד אוטומטית.'}
+                        {preview.next_billing_date ? ` החיוב הבא: ${formatDay(preview.next_billing_date)}.` : ''}
+                      </p>
+                    </>
+                  )}
+                </>
+              ) : (
+                <>
+                  <div className={styles.row}>
+                    <span className={styles.rowLabel}>עבור</span>
+                    <span className={styles.rowValue}>{preview.description}</span>
+                  </div>
+                  <div className={styles.total}>
+                    <span className={styles.totalLabel}>לתשלום</span>
+                    <span className={styles.totalAmount}>{formatShekels(preview.amount || 0)}</span>
+                  </div>
+                  <p className={styles.note}>חיוב חד-פעמי. הכרטיס לא יישמר.</p>
+                </>
+              )}
+            </section>
+
+            <section className={styles.card}>
+              <h2 className={styles.cardTitle}>פרטי כרטיס אשראי</h2>
+              <div className={styles.fields}>
+                <div>
+                  <label className={styles.label} htmlFor="card-number">מספר כרטיס</label>
+                  <input
+                    id="card-number"
+                    className={styles.input}
+                    inputMode="numeric"
+                    autoComplete="cc-number"
+                    placeholder="4580 4580 4580 4580"
+                    value={cardNumber}
+                    onChange={(e) => setCardNumber(e.target.value)}
+                  />
+                </div>
+
+                <div className={styles.grid3}>
+                  <div>
+                    <label className={styles.label} htmlFor="exp-month">חודש</label>
+                    <input
+                      id="exp-month"
+                      className={styles.input}
+                      inputMode="numeric"
+                      autoComplete="cc-exp-month"
+                      placeholder="12"
+                      value={expiryMonth}
+                      onChange={(e) => setExpiryMonth(e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <label className={styles.label} htmlFor="exp-year">שנה</label>
+                    <input
+                      id="exp-year"
+                      className={styles.input}
+                      inputMode="numeric"
+                      autoComplete="cc-exp-year"
+                      placeholder="2028"
+                      value={expiryYear}
+                      onChange={(e) => setExpiryYear(e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <label className={styles.label} htmlFor="cvv">CVV</label>
+                    <input
+                      id="cvv"
+                      className={styles.input}
+                      inputMode="numeric"
+                      autoComplete="cc-csc"
+                      placeholder="123"
+                      value={cvv}
+                      onChange={(e) => setCvv(e.target.value)}
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className={styles.label} htmlFor="card-id">תעודת זהות בעל הכרטיס</label>
+                  <input
+                    id="card-id"
+                    className={`${styles.input} ${idError ? styles.inputInvalid : ''}`}
+                    inputMode="numeric"
+                    placeholder="012345678"
+                    value={cardHolderId}
+                    onChange={(e) => {
+                      setCardHolderId(sanitizeIsraeliIdInput(e.target.value));
+                      setIdError('');
+                    }}
+                  />
+                  {idError ? <p className={styles.fieldError}>{idError}</p> : null}
+                </div>
+              </div>
+            </section>
+
+            {formError ? <p className={styles.errorBox}>{formError}</p> : null}
+
+            <button
+              type="button"
+              className={styles.submit}
+              disabled={charging || !cardNumber || !expiryMonth || !expiryYear || !cvv || !cardHolderId || Boolean(preview.quote_error)}
+              onClick={() => void handleSubmit()}
+            >
+              {charging
+                ? 'מעבד…'
+                : isSto
+                  ? firstCharge > 0
+                    ? `שמור כרטיס וחייב ${formatShekels(preview.first_charge || 0)}`
+                    : 'שמור כרטיס להוראת קבע'
+                  : `לתשלום ${formatShekels(preview.amount || 0)}`}
+            </button>
+
+            <p className={styles.secure}>התשלום מאובטח ומעובד בטרנזילה</p>
+          </>
+        )}
+      </main>
     </div>
   );
 }

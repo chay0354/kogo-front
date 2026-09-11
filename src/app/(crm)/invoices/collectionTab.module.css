@@ -1,0 +1,461 @@
+/*
+ * The collection tab — what the dashboard theme and the shared filter bar do
+ * not carry: the aging tiles that are also filters, the table card's head,
+ * the cells that say how late a debt is, the reminder and the empty states.
+ * Everything builds on the --kg-* tokens of theme.scope.
+ */
+
+/* The dashboard's rhythm: 12px between the blocks of one screen. */
+.tab {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+
+/* ---- aging: the total owed, then the four ages it breaks into ---- */
+.aging {
+  display: grid;
+  grid-template-columns: minmax(0, 1.45fr) repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  min-width: 0;
+}
+
+.total {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.totalVal {
+  font-size: 31px;
+}
+
+.totalLate {
+  margin-top: 6px;
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--kg-neg);
+}
+
+/* Each age wears its tone — the older the debt, the warmer. The row's dot in
+   the table wears the same one, so a row reads as belonging to its tile. */
+.tone {
+  --tone: var(--kg-bar-a);
+}
+
+.tone[data-tone='d31_60'] {
+  --tone: var(--kg-amber-d);
+}
+
+.tone[data-tone='d61_90'] {
+  --tone: #e8793a;
+}
+
+.tone[data-tone='d90_plus'] {
+  --tone: var(--kg-neg);
+}
+
+.dot {
+  flex: none;
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 3px;
+  background: var(--tone);
+}
+
+/* A tile is a toggle: it narrows the list to its age, and again clears it. */
+.bucket {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  width: 100%;
+  border: 1px solid transparent;
+  font: inherit;
+  color: inherit;
+  text-align: start;
+  cursor: pointer;
+  transition: box-shadow 0.18s ease, transform 0.18s ease, border-color 0.18s ease, background-color 0.18s ease;
+}
+
+.bucket:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 6px rgba(43, 37, 133, 0.06), 0 10px 28px rgba(43, 37, 133, 0.09);
+}
+
+.bucket:focus-visible {
+  outline: 2px solid var(--kg-bar-a);
+  outline-offset: 2px;
+}
+
+.bucket:disabled {
+  cursor: default;
+}
+
+/* The tile in force is tinted like a filter control that is narrowing. */
+.bucket.bucketOn,
+.bucket.bucketOn:hover:not(:disabled) {
+  background: #f7f6fe;
+  border-color: #cfc9f3;
+}
+
+.bucketHead {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.bucketClear {
+  flex: none;
+  margin-inline-start: auto;
+  color: var(--kg-bar-a);
+}
+
+.bucketVal,
+.bucketFoot {
+  display: block;
+}
+
+.zero {
+  color: var(--kg-muted);
+}
+
+/* The tile's share of the total. */
+.share {
+  display: block;
+  height: 5px;
+  margin-top: 10px;
+  border-radius: 99px;
+  background: #efedfa;
+  overflow: hidden;
+}
+
+.shareFill {
+  display: block;
+  height: 100%;
+  border-radius: 99px;
+  background: var(--tone);
+  transition: width 0.35s cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+/* The total takes its own line, and the four ages share the next. */
+@media (max-width: 1100px) {
+  .aging {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .total {
+    grid-column: 1 / -1;
+  }
+}
+
+/* Two ages up on a phone keeps the breakdown in one glance. */
+@media (max-width: 880px) {
+  .aging {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .totalVal {
+    font-size: 27px;
+  }
+}
+
+/* ---- table card head ---- */
+.cardHead {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 10px 16px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+.cardSub {
+  margin: 2px 0 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--kg-muted);
+}
+
+.cardNote {
+  margin: 3px 0 0;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--kg-ink2);
+}
+
+/* A source that failed to load while the rest is shown. */
+.notice {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 0 0 10px;
+  padding: 8px 12px;
+  border-radius: 11px;
+  background: #fff6f6;
+  border: 1px solid #f8d7d8;
+  color: #a92f34;
+  font-size: 12.5px;
+  font-weight: 700;
+}
+
+.noticeAction {
+  flex: none;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-weight: 800;
+  color: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 6px;
+}
+
+.noticeAction:focus-visible {
+  outline: 2px solid currentColor;
+}
+
+/* ---- table ---- */
+
+/* Eleven columns do not fit a phone; the table keeps its shape and scrolls
+   inside the card (theme.tableScroll) rather than squeezing unreadably. */
+.table {
+  min-width: 1160px;
+}
+
+.table th,
+.table td {
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+/* A customer's name can be long; it wraps instead of stretching the table. */
+.table .wrapCell {
+  white-space: normal;
+  min-width: 120px;
+  max-width: 220px;
+}
+
+.docNumber {
+  display: block;
+  font-family: ui-monospace, 'SF Mono', monospace;
+  font-size: 12.5px;
+  font-weight: 800;
+}
+
+.strong {
+  display: block;
+  font-weight: 800;
+  line-height: 1.35;
+}
+
+.subLine {
+  display: block;
+  margin-top: 3px;
+  font-size: 11.5px;
+  font-weight: 700;
+  line-height: 1.35;
+  color: var(--kg-muted);
+}
+
+.dash,
+.terms {
+  color: var(--kg-muted);
+}
+
+.money {
+  font-variant-numeric: tabular-nums;
+}
+
+.open {
+  color: var(--kg-neg);
+  font-weight: 900;
+}
+
+.age {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.ageLate {
+  color: var(--kg-neg);
+  font-weight: 800;
+}
+
+.ageWaiting {
+  color: var(--kg-muted);
+}
+
+/* ---- row actions ---- */
+.actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.iconBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  border: 1px solid var(--kg-line);
+  background: #fff;
+  color: var(--kg-ink2);
+  cursor: pointer;
+  flex: none;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.iconBtn:hover:not(:disabled) {
+  background: #f3f1fc;
+  border-color: #ddd8f5;
+  color: var(--kg-ink);
+}
+
+.iconBtn:focus-visible {
+  outline: 2px solid var(--kg-bar-a);
+  outline-offset: 2px;
+}
+
+.iconBtn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.iconBtnOk,
+.iconBtnOk:hover:not(:disabled) {
+  color: var(--kg-pos);
+  border-color: #bfe8d2;
+  background: #eefaf3;
+}
+
+.iconBtnFail,
+.iconBtnFail:hover:not(:disabled) {
+  color: #c93b40;
+  border-color: #f5cdce;
+  background: #fdecec;
+}
+
+/* Where the reminder cannot go out: a quiet word, never a button that fails. */
+.noReminder {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--kg-muted);
+  cursor: help;
+}
+
+/* ---- empty and error states: say what happened and offer the way out ---- */
+.empty {
+  text-align: center;
+  padding: 40px 20px 36px;
+}
+
+.emptyIcon {
+  display: block;
+  width: 44px;
+  height: 44px;
+  margin: 0 auto 12px;
+  color: #d8d4ef;
+}
+
+.emptyIconOk {
+  color: #9fdcbc;
+}
+
+.emptyTitle {
+  margin: 0 0 4px;
+  font-size: 15px;
+  font-weight: 900;
+}
+
+.emptyText {
+  margin: 0 auto;
+  max-width: 32rem;
+  font-size: 12.5px;
+  font-weight: 600;
+  line-height: 1.6;
+  color: var(--kg-muted);
+}
+
+.emptyActions {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.emptyBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #fff;
+  border: 1px solid var(--kg-line);
+  border-radius: 999px;
+  padding: 8px 15px;
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 800;
+  color: var(--kg-ink2);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: box-shadow 0.18s ease, transform 0.18s ease;
+}
+
+.emptyBtn:hover {
+  box-shadow: var(--kg-sh);
+  transform: translateY(-1px);
+}
+
+.emptyBtnPrimary {
+  background: linear-gradient(135deg, #312a9e, #231f6e);
+  border-color: transparent;
+  color: #fff;
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+@media (hover: none) and (pointer: coarse) {
+  .iconBtn,
+  .emptyBtn,
+  .noticeAction {
+    min-height: 44px;
+  }
+
+  .iconBtn {
+    width: 44px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bucket,
+  .shareFill,
+  .emptyBtn,
+  .iconBtn {
+    transition: none;
+  }
+
+  .bucket:hover:not(:disabled),
+  .emptyBtn:hover {
+    transform: none;
+  }
+}

@@ -1,0 +1,209 @@
+/*
+ * The shared filter bar — one labelled toolbar that every tab of the invoices
+ * page narrows its rows with.
+ *
+ * Built on the --kg-* tokens the dashboard theme declares on .scope (the page
+ * wraps itself in it), and shaped like the store's filter bar, so the page
+ * reads as the same product as the dashboard. The card itself is the theme's
+ * .card; this file holds the fields, their layout and the footer.
+ */
+
+/* Search and the date range: the questions asked most, on their own row. */
+.primary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 10px 12px;
+}
+
+.primary > .field {
+  flex: 0 1 168px;
+}
+
+.primary > .wide {
+  flex: 1 1 280px;
+}
+
+/* Where the income came from, then the tab's own fields. Wraps as the width allows. */
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(152px, 1fr));
+  gap: 10px 12px;
+  align-items: end;
+  margin-top: 12px;
+}
+
+.field {
+  min-width: 0;
+}
+
+.fieldLabel {
+  display: block;
+  font-size: 11.5px;
+  font-weight: 800;
+  color: var(--kg-muted);
+  margin-bottom: 5px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.control {
+  width: 100%;
+  height: 40px;
+  border: 1px solid var(--kg-line);
+  border-radius: 11px;
+  background: #fff;
+  padding: 0 12px;
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--kg-ink);
+  font-family: inherit;
+  transition: border-color 0.15s ease, background-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.control:focus {
+  outline: none;
+  border-color: var(--kg-bar-a);
+  box-shadow: 0 0 0 3px rgba(91, 84, 214, 0.14);
+}
+
+.control:disabled {
+  background: #faf9fe;
+  color: var(--kg-muted);
+  cursor: not-allowed;
+}
+
+/* A field that is narrowing the list is tinted, so the filters in force
+   stand out from the ones left open. */
+.controlOn {
+  border-color: #cfc9f3;
+  background: #f7f6fe;
+}
+
+.searchWrap {
+  position: relative;
+}
+
+.searchIcon {
+  position: absolute;
+  inset-inline-start: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 16px;
+  height: 16px;
+  color: var(--kg-muted);
+  pointer-events: none;
+}
+
+.searchControl {
+  padding-inline-start: 36px;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+/* עיר and סניף appear only under סניפים; a short entrance ties them to the
+   choice that revealed them. */
+.revealed {
+  animation: fieldIn 0.22s cubic-bezier(0.32, 0.72, 0, 1) both;
+}
+
+@keyframes fieldIn {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+
+/* ---- footer: what is shown, what is narrowing it, and the way out ---- */
+.footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px 12px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+  padding-top: 11px;
+  border-top: 1px solid var(--kg-line-soft);
+}
+
+.resultLine {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--kg-muted);
+}
+
+.resultLine b {
+  color: var(--kg-ink);
+}
+
+.sep {
+  color: var(--kg-line);
+}
+
+.activeCount {
+  color: var(--kg-ink2);
+}
+
+.clearLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--kg-bar-a);
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 6px;
+}
+
+.clearLink:hover {
+  text-decoration: underline;
+}
+
+.clearLink:focus-visible {
+  outline: 2px solid var(--kg-bar-a);
+  outline-offset: 1px;
+}
+
+.footerActions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* On a phone the search takes its own line and the two dates share the next. */
+@media (max-width: 560px) {
+  .primary > .field {
+    flex: 1 1 130px;
+  }
+
+  .grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (hover: none) and (pointer: coarse) {
+  .control {
+    min-height: 44px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .revealed {
+    animation: none;
+  }
+
+  .control {
+    transition: none;
+  }
+}

@@ -187,6 +187,8 @@ export default function CourseRegistrationForm({
 
   // Step 3 — consents
   const [healthConsent, setHealthConsent] = useState(false);
+  // The terms carry the consent to computerized documents (סעיף 18ב(ג)), so
+  // accepting them is that consent — the server records it on the family.
   const [termsConsent, setTermsConsent] = useState(false);
   const [termsReadComplete, setTermsReadComplete] = useState(false);
   const [termsOpenedOnce, setTermsOpenedOnce] = useState(false);
@@ -837,6 +839,10 @@ export default function CourseRegistrationForm({
         course_id: courseId,
         lesson_id: effectiveTrialLessonId,
         trial_lesson_date: trialLessonDate,
+        // Accepting the terms is the consent to computerized documents — the
+        // terms say so. A free trial's summary has no terms step, so it sends
+        // false and nothing is recorded.
+        computerized_docs_consent: termsConsent,
       });
       if (res.data.requires_payment) {
         // The catalog said free but the course now charges: the payment step
@@ -932,6 +938,8 @@ export default function CourseRegistrationForm({
         parent_phone: parentPhone,
         parent_email: parentEmail,
         signature,
+        // The accepted terms carry the consent (checked above: no submit without them).
+        computerized_docs_consent: termsConsent,
       };
 
       const registerChildLessons = async (
