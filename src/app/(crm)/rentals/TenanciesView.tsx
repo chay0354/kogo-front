@@ -6,6 +6,7 @@ import { toast } from 'sonner';
 import {
   AlertCircle,
   Download,
+  FileCheck2,
   FilePlus2,
   History as HistoryIcon,
   KeyRound,
@@ -14,6 +15,7 @@ import {
   Pencil,
   Plus,
   Search,
+  Send,
   Trash2,
   Users,
   X,
@@ -27,6 +29,7 @@ import { useScopedBranches } from '@/hooks/useScopedBranches';
 import {
   deleteTenancy,
   downloadContractPdf,
+  downloadSignedContractPdf,
   fetchTenancies,
   fetchTenancySuggestions,
   issueTenancyContract,
@@ -38,9 +41,11 @@ import {
 import ContractHistoryDialog from './ContractHistoryDialog';
 import ImportTenanciesDialog from './ImportTenanciesDialog';
 import LinkSlotsDialog from './LinkSlotsDialog';
-import { StaleChip, ToneChip } from './StatusChips';
+import SigningLinkDialog from './SigningLinkDialog';
+import { SigningChips, StaleChip, ToneChip } from './StatusChips';
 import TenancyDialog from './TenancyDialog';
 import { contractCell, contractFileName, issueConfirmMessage, issuedMessage, type ContractCell } from './contractUtils';
+import { sendForSigningState, signedByText } from './signingUtils';
 import {
   EMPTY_TENANCY_FILTERS,
   TENANCY_STATUS_OPTIONS,
@@ -82,6 +87,7 @@ type DialogState =
   | { kind: 'link'; tenancy: Tenancy }
   | { kind: 'import' }
   | { kind: 'history'; tenancy: Tenancy }
+  | { kind: 'signing'; tenancy: Tenancy; contractId: string }
   | null;
 
 type ConfirmState =
@@ -91,7 +97,7 @@ type ConfirmState =
   | null;
 
 /** What a row's contract controls are waiting on while their request is out. */
-type RowAction = 'issue' | 'download';
+type RowAction = 'issue' | 'download' | 'signed';
 
 /** The contract column once a version is on file. */
 type IssuedCell = Exclude<ContractCell, { state: 'none' }>;
@@ -272,6 +278,27 @@ export default function TenanciesView() {
     }
   }
 
+  /** The signed copy: the version's PDF with the tenant's signature on it. */
+  async function downloadSigned(tenancy: Tenancy, cell: IssuedCell) {
+    if (!startRowAction(tenancy.id, 'signed')) return;
+    try {
+      await downloadSignedContractPdf(
+        cell.contractId,
+        contractFileName({ tenantName: tenantName(tenancy.tenant), version: cell.version, signed: true }),
+      );
+    } catch (err) {
+      setRowError(tenancy.id, tenancyApiError(err, 'הורדת העותק החתום נכשלה'));
+    } finally {
+      endRowAction(tenancy.id);
+    }
+  }
+
+  /** "שליחה לחתימה" for the version in force — from its row, or from the history, which it replaces on screen. */
+  function openSigning(tenancy: Tenancy, contractId: string) {
+    setActionError('');
+    setDialog({ kind: 'signing', tenancy, contractId });
+  }
+
   async function runConfirmed(choice: boolean) {
     const target = confirm;
     if (!choice || !target) return;
@@ -333,6 +360,7 @@ export default function TenanciesView() {
     const contract = contractCell(tenancy.current_contract);
     const rowAction = rowActions[tenancy.id];
     const rowError = rowErrors[tenancy.id];
+    const sendState = sendForSigningState(tenancy.current_contract);
 
     return (
       <tr key={tenancy.id}>
@@ -414,6 +442,28 @@ export default function TenanciesView() {
                 </button>
               </div>
               {contract.stale && <StaleChip title={contract.staleTitle} />}
+              <SigningChips contract={tenancy.current_contract} />
+              {contract.state === 'signed' && (
+                <div className={styles.signedLine}>
+                  <button
+                    type="button"
+                    className={styles.signedCopy}
+                    aria-label={`הורדת העותק החתום של החוזה של ${name}`}
+                    disabled={Boolean(rowAction)}
+                    onClick={() => void downloadSigned(tenancy, contract)}
+                  >
+                    {rowAction === 'signed' ? (
+                      <Loader2 size={13} className={styles.spin} aria-hidden="true" />
+                    ) : (
+                      <FileCheck2 size={13} aria-hidden="true" />
+                    )}
+                    הורדת עותק חתום
+                  </button>
+                  {signedByText(tenancy.current_contract?.signer_name) && (
+                    <span className={styles.signerName}>{signedByText(tenancy.current_contract?.signer_name)}</span>
+                  )}
+                </div>
+              )}
             </div>
           )}
           {rowError && (
@@ -468,6 +518,23 @@ export default function TenanciesView() {
                 ) : (
                   <FilePlus2 size={16} aria-hidden="true" />
                 )}
+              </button>
+            )}
+            {/* The version in force, unsigned. One that no longer matches the agreement is held back: the server refuses it. */}
+            {contract.state !== 'none' && sendState.offered && (
+              <button
+                type="button"
+                className={styles.iconBtn}
+                title={sendState.blockedReason || 'שליחה לחתימה'}
+                aria-label={
+                  sendState.blockedReason
+                    ? `שליחה לחתימה — ${sendState.blockedReason}`
+                    : `שליחת החוזה של ${name} לחתימה`
+                }
+                disabled={busy || Boolean(sendState.blockedReason)}
+                onClick={() => openSigning(tenancy, contract.contractId)}
+              >
+                <Send size={16} aria-hidden="true" />
               </button>
             )}
             {/* Always offered: once every version is voided the row carries none, and the history still holds them. */}
@@ -779,6 +846,18 @@ export default function TenanciesView() {
         <ContractHistoryDialog
           // The row as the list reads it now, so a version voided here stops showing as the one in force.
           tenancy={tenancies.find((item) => item.id === dialog.tenancy.id) ?? dialog.tenancy}
+          onClose={() => setDialog(null)}
+          onChanged={refresh}
+          onSendForSigning={(contract) => openSigning(dialog.tenancy, contract.id)}
+        />
+      )}
+
+      {dialog?.kind === 'signing' && (
+        <SigningLinkDialog
+          key={dialog.contractId}
+          // The row as the list reads it now: a phone corrected in the tenant's edit is the one WhatsApp opens.
+          tenancy={tenancies.find((item) => item.id === dialog.tenancy.id) ?? dialog.tenancy}
+          contractId={dialog.contractId}
           onClose={() => setDialog(null)}
           onChanged={refresh}
         />

@@ -268,16 +268,19 @@ const MAX_NAME_IN_FILE = 80;
 
 /**
  * 'חוזה שכירות - דנה לוי - גרסה 2.pdf'. A void version says so in its name,
- * so a copy saved from the history is never taken for the one in force.
+ * so a copy saved from the history is never taken for the one in force; the
+ * signed copy says so too, so it is never taken for the unsigned PDF beside it.
  */
 export function contractFileName({
   tenantName,
   version,
   voided = false,
+  signed = false,
 }: {
   tenantName?: string | null;
   version: number | null | undefined;
   voided?: boolean;
+  signed?: boolean;
 }): string {
   const cleaned = (tenantName ?? '')
     .replace(UNSAFE_IN_FILE_NAME, ' ')
@@ -287,5 +290,5 @@ export function contractFileName({
   // Cut by characters rather than UTF-16 units, so the cut never splits one in two.
   const name = Array.from(cleaned).slice(0, MAX_NAME_IN_FILE).join('').trim();
   const base = ['חוזה שכירות', name, contractVersionLabel(version)].filter(Boolean).join(' - ');
-  return `${base}${voided ? ' (מבוטלת)' : ''}.pdf`;
+  return `${base}${voided ? ' (מבוטלת)' : signed ? ' (חתום)' : ''}.pdf`;
 }

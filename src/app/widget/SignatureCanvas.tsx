@@ -4,12 +4,14 @@ import { useRef, useEffect, useState } from 'react';
 
 interface SignatureCanvasProps {
   onChange?: (dataUrl: string | null) => void;
+  /** The clear button's words. The widget keeps its own; the tenant's contract page says "ניקוי". */
+  clearLabel?: string;
 }
 
 const CSS_WIDTH = 400;
 const CSS_HEIGHT = 96;
 
-export default function SignatureCanvas({ onChange }: SignatureCanvasProps) {
+export default function SignatureCanvas({ onChange, clearLabel = 'נקה חתימה' }: SignatureCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const drawing = useRef(false);
   const [isEmpty, setIsEmpty] = useState(true);
@@ -99,7 +101,7 @@ export default function SignatureCanvas({ onChange }: SignatureCanvasProps) {
           onClick={clear}
           className="self-start text-xs text-gray-500 underline hover:text-gray-700"
         >
-          נקה חתימה
+          {clearLabel}
         </button>
       )}
     </div>

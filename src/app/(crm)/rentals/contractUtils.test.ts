@@ -316,6 +316,15 @@ describe('the saved file', () => {
     );
   });
 
+  it('says the signed copy is signed, so it is never taken for the unsigned PDF', () => {
+    expect(contractFileName({ tenantName: 'דנה לוי', version: 2, signed: true })).toBe(
+      'חוזה שכירות - דנה לוי - גרסה 2 (חתום).pdf',
+    );
+    expect(contractFileName({ tenantName: 'סטודיו "אור"', version: 3, signed: true })).toBe(
+      'חוזה שכירות - סטודיו אור - גרסה 3 (חתום).pdf',
+    );
+  });
+
   it('drops what a file name cannot hold, and keeps the Hebrew punctuation', () => {
     expect(contractFileName({ tenantName: 'סטודיו "אור" / בע״מ: 3', version: 2 })).toBe(
       'חוזה שכירות - סטודיו אור בע״מ 3 - גרסה 2.pdf',

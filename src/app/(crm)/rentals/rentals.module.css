@@ -634,6 +634,63 @@
   min-width: 0;
 }
 
+/* When the version was sent, first opened and signed — a chip per step, with its time. */
+.signChips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.signChips > * {
+  white-space: nowrap;
+}
+
+/* A signed version: its signed copy, and who signed. */
+.signedLine {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+}
+
+.signedCopy {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 26px;
+  padding: 0 10px;
+  border: 1px solid #cfc9f3;
+  border-radius: 999px;
+  background: #fff;
+  color: var(--kg-bar-a);
+  font-family: inherit;
+  font-size: 11.5px;
+  font-weight: 800;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.signedCopy:hover:not(:disabled) {
+  background: #f3f1fc;
+}
+
+.signedCopy:focus-visible {
+  outline: 2px solid var(--kg-bar-a);
+  outline-offset: 2px;
+}
+
+.signedCopy:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.signerName {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--kg-muted);
+}
+
 .spin {
   animation: spin 0.9s linear infinite;
 }
