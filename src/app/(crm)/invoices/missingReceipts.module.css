@@ -1,0 +1,209 @@
+/*
+ * The missing-receipts panel — a card in the documents tab, on the dashboard
+ * theme's --kg-* tokens. The head, the select, the plain buttons and the error
+ * notice come from documentsTab.module.css; here is only what is its own: the
+ * issue button, the confirmation that has to be typed, and the outcome.
+ */
+
+.panel {
+  border: 1px solid var(--kg-line);
+}
+
+.head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 10px 16px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+.title {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.title:focus {
+  outline: none;
+}
+
+.title:focus-visible {
+  outline: 2px solid var(--kg-bar-a);
+  outline-offset: 3px;
+  border-radius: 6px;
+}
+
+.kpis {
+  margin-bottom: 12px;
+}
+
+/* Issuing takes fiscal numbers that cannot be given back: the one strong button. */
+.issueBtn {
+  height: 36px;
+  border: 0;
+  border-radius: 11px;
+  padding: 0 14px;
+  background: linear-gradient(135deg, #312a9e, #231f6e);
+  color: #fff;
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 800;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.issueBtn:hover:not(:disabled) {
+  filter: brightness(1.08);
+}
+
+.issueBtn:focus-visible {
+  outline: 2px solid var(--kg-bar-a);
+  outline-offset: 2px;
+}
+
+.issueBtn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+/* ---- the confirmation: every fact on its own line, then the word ---- */
+.confirm {
+  margin: 0 0 12px;
+  padding: 12px 14px;
+  border-radius: 13px;
+  background: #fffaeb;
+  border: 1px solid #f3dc96;
+  color: #4a3400;
+}
+
+.confirmTitle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 6px;
+  font-size: 13.5px;
+  font-weight: 900;
+}
+
+.confirmList {
+  margin: 0 0 8px;
+  padding-inline-start: 20px;
+  font-size: 12.5px;
+  font-weight: 700;
+  line-height: 1.7;
+}
+
+.confirmNote {
+  margin: 0 0 8px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.confirmLabel {
+  display: block;
+  margin-bottom: 5px;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.confirmRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.confirmInput {
+  height: 36px;
+  width: 8rem;
+  border: 1px solid #e6c661;
+  border-radius: 11px;
+  background: #fff;
+  padding: 0 10px;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--kg-ink);
+}
+
+.confirmInput:focus {
+  outline: none;
+  border-color: var(--kg-bar-a);
+  box-shadow: 0 0 0 3px rgba(91, 84, 214, 0.14);
+}
+
+/* ---- the outcome ---- */
+.result {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 0 0 12px;
+  padding: 9px 12px;
+  border-radius: 11px;
+  background: #eefaf3;
+  border: 1px solid #bfe8d2;
+  color: #0b6b3d;
+}
+
+.result > div {
+  flex: 1;
+  min-width: 0;
+}
+
+.resultIcon {
+  flex: none;
+  margin-top: 2px;
+}
+
+.resultLine {
+  margin: 0;
+  font-size: 12.5px;
+  font-weight: 700;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+
+/* A run missing a number is the accountant's business too; it says so quietly. */
+.gaps {
+  margin: 0 0 12px;
+  padding: 8px 12px;
+  border-radius: 11px;
+  background: #fff6f6;
+  border: 1px solid #f8d7d8;
+  color: #a92f34;
+}
+
+.gapLine {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+
+.empty {
+  margin: 0;
+  padding: 18px 0 6px;
+  text-align: center;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--kg-pos);
+}
+
+.table {
+  min-width: 760px;
+}
+
+.table th,
+.table td {
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+@media (hover: none) and (pointer: coarse) {
+  .issueBtn,
+  .confirmInput {
+    min-height: 44px;
+  }
+}
