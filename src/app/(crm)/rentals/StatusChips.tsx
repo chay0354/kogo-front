@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { AlertTriangle } from 'lucide-react';
 import theme from '@/components/dashboard/theme/dashboard.module.css';
+import { signingChips } from './signingUtils';
 import type { StatusTone } from './tenancyUtils';
 import styles from './rentals.module.css';
 
@@ -32,6 +33,30 @@ export function StaleChip({ title }: { title: string }) {
       <AlertTriangle size={12} aria-hidden="true" />
       לא תואם להסכם
       <span className={styles.srOnly}> — {title}</span>
+    </span>
+  );
+}
+
+/**
+ * When a version was sent for signing, first opened by the tenant and signed —
+ * each step the server stamped, with its time. Nothing when it stamped none.
+ */
+export function SigningChips({
+  contract,
+  className = '',
+}: {
+  contract: Parameters<typeof signingChips>[0];
+  className?: string;
+}) {
+  const chips = signingChips(contract);
+  if (chips.length === 0) return null;
+  return (
+    <span className={[styles.signChips, className].filter(Boolean).join(' ')}>
+      {chips.map((chip) => (
+        <ToneChip key={chip.step} tone={chip.tone}>
+          {chip.text}
+        </ToneChip>
+      ))}
     </span>
   );
 }

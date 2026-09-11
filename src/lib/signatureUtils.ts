@@ -167,6 +167,34 @@ export function signatureChildrenLabel(children: ReadonlyArray<SignatureChild> |
   return names.length ? names.join(', ') : '—';
 }
 
+export interface SignatureParty {
+  /** A rental contract is signed for a tenant; everything else for a family. */
+  kind: 'tenant' | 'family';
+  /** The tenant's or the family's name; '—' when the server has none. */
+  name: string;
+  /** Under the name: 'שוכר', or the children a registration covered. */
+  detail: string;
+}
+
+/**
+ * Whom a signature was for, where the list's column and the view dialog show
+ * it: the tenant (business_customer_name) for a rental contract, in the place
+ * a family and its children stand for a registration.
+ */
+export function signatureParty(
+  signature: Pick<SignatureSummary, 'kind' | 'family_name' | 'children'> &
+    Partial<Pick<SignatureSummary, 'business_customer_name'>>,
+): SignatureParty {
+  if (signature.kind === 'rental_contract') {
+    return { kind: 'tenant', name: String(signature.business_customer_name ?? '').trim() || '—', detail: 'שוכר' };
+  }
+  return {
+    kind: 'family',
+    name: String(signature.family_name ?? '').trim() || '—',
+    detail: signatureChildrenLabel(signature.children),
+  };
+}
+
 // ---- the text and the image ----
 
 /**
@@ -336,6 +364,7 @@ export function readSignatureSummary(raw: unknown): SignatureSummary {
     signer_id_number: asString(row.signer_id_number),
     family_id: row.family_id == null ? null : asString(row.family_id),
     family_name: asString(row.family_name),
+    business_customer_name: asString(row.business_customer_name),
     children,
     branch_name: asString(row.branch_name),
     document_title: asString(row.document_title),

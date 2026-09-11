@@ -6,6 +6,7 @@ import api from '@/lib/api';
 import SignatureCanvas from '../SignatureCanvas';
 import styles from './index.module.css';
 import { israeliIdFieldError, sanitizeIsraeliIdInput } from '@/lib/israeliId';
+import { readToEndState } from '@/lib/readToEnd';
 import { enrollmentSelectionKey, type EnrollmentSelection } from '../catalogRows';
 import AdditionalChildSection, {
   childLessonSelections,
@@ -299,8 +300,8 @@ export default function CourseRegistrationForm({
   const updateTermsScrollState = useCallback(() => {
     const el = termsBodyRef.current;
     if (!el) return;
-    const scrollable = el.scrollHeight > el.clientHeight + 1;
-    const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 24;
+    // The rule is shared with the tenant's contract page (readToEnd.ts), so both read "the end" alike.
+    const { scrollable, atEnd: atBottom } = readToEndState(el);
     if (atBottom) setTermsScrolledToEnd(true);
     setTermsCanJumpToEnd(scrollable && !atBottom);
   }, []);

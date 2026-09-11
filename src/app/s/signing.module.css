@@ -1,0 +1,267 @@
+/*
+ * The tenant's contract page. The card-link page's module (card-link.module.css)
+ * carries the shell and the attendance-screen palette — indigo header, gold for
+ * the one action, white cards on cool grey. These are only the parts a contract
+ * has and a card form does not: the slots, the text to scroll, the pad, the tick.
+ */
+
+/* ---- values that read left to right (an ID, a phone, an address of mail) ---- */
+.ltr {
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+
+/* ---- the slots the contract covers ---- */
+.slots {
+  list-style: none;
+  margin: 0 0 8px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.slot {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 13px;
+  background: #f6f7fb;
+}
+
+.slotMain,
+.slotMoney {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.slotMoney {
+  flex: none;
+  align-items: flex-end;
+  text-align: end;
+}
+
+.slotLabel,
+.slotMonthly {
+  font-size: 14px;
+  font-weight: 800;
+  color: #1e2a6e;
+}
+
+.slotMonthly {
+  font-variant-numeric: tabular-nums;
+}
+
+.slotWhen,
+.slotRate {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #6b7280;
+}
+
+/* ---- the contract's text: scrolled to its end before the tick unlocks ---- */
+.docWrap {
+  position: relative;
+}
+
+.doc {
+  max-height: min(52dvh, 380px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 12px 14px;
+  border: 1.5px solid #e1e4ef;
+  border-radius: 13px;
+  background: #fbfbfe;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.75;
+  color: #1e2a6e;
+}
+
+.docPara {
+  margin: 0 0 10px;
+  white-space: pre-line;
+}
+
+.docPara:last-child {
+  margin-bottom: 0;
+}
+
+.docEmpty {
+  margin: 0;
+  color: #6b7280;
+}
+
+/* The shortcut to the end, floating over the text while there is more below. */
+.docJump {
+  position: absolute;
+  bottom: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border: 0;
+  border-radius: 50%;
+  background: #2b3090;
+  color: #fff;
+  box-shadow: 0 6px 16px rgba(43, 48, 144, 0.3);
+  cursor: pointer;
+}
+
+.readHint {
+  margin: 10px 0 0;
+  padding: 9px 12px;
+  border-radius: 12px;
+  background: #fff7d6;
+  color: #8a6d00;
+  font-size: 12.5px;
+  font-weight: 700;
+  line-height: 1.55;
+}
+
+/* ---- the PDF: a plain link, which a phone's in-app browser opens in its viewer ---- */
+.pdfLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 12px;
+  min-height: 42px;
+  padding: 0 16px;
+  border: 1.5px solid #e1e4ef;
+  border-radius: 999px;
+  background: #fff;
+  color: #2b3090;
+  font-size: 14px;
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.pdfLink:active {
+  transform: scale(0.985);
+}
+
+/* ---- signing ---- */
+.padNote {
+  margin: 6px 0 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: #6b7280;
+}
+
+.check {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 13px;
+  border: 1.5px solid #e1e4ef;
+  border-radius: 13px;
+  background: #fbfbfe;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.6;
+  color: #1e2a6e;
+  cursor: pointer;
+}
+
+.check input {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  margin: 1px 0 0;
+  accent-color: #2b3090;
+}
+
+.checkOn {
+  border-color: #2b3090;
+  background: #f3f4fd;
+}
+
+.checkLocked {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.message {
+  white-space: pre-line;
+}
+
+.missing {
+  margin: 0;
+  text-align: center;
+  font-size: 12.5px;
+  font-weight: 700;
+  line-height: 1.55;
+  color: #8a90a8;
+}
+
+/* ---- the screens after (signed, a dead link) ---- */
+.signedTitle {
+  margin: 4px 0 8px;
+  font-size: 22px;
+  font-weight: 900;
+  color: #0fa45c;
+}
+
+.resultLink {
+  margin-top: 16px;
+}
+
+.nextStep {
+  margin: 16px 0 0;
+  padding: 12px 14px;
+  border-radius: 13px;
+  background: #eef0fb;
+  color: #2b3090;
+  font-size: 14px;
+  font-weight: 800;
+  line-height: 1.6;
+}
+
+.askOffice {
+  margin: 16px 0 8px;
+  font-size: 15px;
+  font-weight: 900;
+  color: #1e2a6e;
+}
+
+.phoneLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 46px;
+  padding: 0 20px;
+  border-radius: 999px;
+  background: #f5c518;
+  color: #4a3400;
+  font-size: 15px;
+  font-weight: 900;
+  text-decoration: none;
+  box-shadow: 0 4px 12px rgba(245, 197, 24, 0.35);
+}
+
+.retry {
+  margin-top: 16px;
+  min-height: 44px;
+  padding: 0 20px;
+  border: 1.5px solid #e1e4ef;
+  border-radius: 999px;
+  background: #fff;
+  color: #2b3090;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pdfLink:active {
+    transform: none;
+  }
+}

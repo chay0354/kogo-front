@@ -15,10 +15,14 @@ const api = vi.hoisted(() => ({
 vi.mock('./api', () => ({ default: api }));
 
 import {
+  cancelSigningLink,
+  createSigningLink,
   createTenancy,
   deleteTenancy,
   downloadContractPdf,
+  downloadSignedContractPdf,
   fetchContractPdf,
+  fetchSignedContractPdf,
   fetchTenancies,
   fetchTenancy,
   fetchTenancyContracts,
@@ -262,6 +266,54 @@ describe('the contract', () => {
     vi.stubGlobal('document', { createElement, body: { appendChild: vi.fn() } });
     await expect(downloadContractPdf('k-2', 'x.pdf')).rejects.toMatchObject({ response: { data: { error: 'הגרסה בוטלה' } } });
     expect(createElement).not.toHaveBeenCalled();
+  });
+});
+
+describe('signing (phase 3)', () => {
+  it('asks for a signing link for a version', async () => {
+    api.post.mockResolvedValue({ data: { id: 'k-2', status: 'sent', signing_url: 'https://kogo.example/s/tok' } });
+    expect(await createSigningLink('k-2')).toMatchObject({ signing_url: 'https://kogo.example/s/tok' });
+    expect(api.post).toHaveBeenCalledWith('/rentals/contracts/k-2/signing-link/', {});
+  });
+
+  it('cancels a link, the id kept inside its place in the path', async () => {
+    api.post.mockResolvedValue({ data: { id: 'k/2', signing_url: '' } });
+    expect(await cancelSigningLink('k/2')).toEqual({ id: 'k/2', signing_url: '' });
+    expect(api.post).toHaveBeenCalledWith('/rentals/contracts/k%2F2/signing-link/cancel/', {});
+  });
+
+  it("passes the server's refusal to make a link through, in its words", async () => {
+    const refusal = { response: { status: 400, data: { error: 'הגרסה כבר נחתמה' } } };
+    api.post.mockRejectedValue(refusal);
+    await expect(createSigningLink('k-2')).rejects.toBe(refusal);
+  });
+
+  it('fetches the signed copy as a blob, and reads a refusal back out of it', async () => {
+    const pdf = new Blob(['%PDF-1.7'], { type: 'application/pdf' });
+    api.get.mockResolvedValue({ data: pdf });
+    expect(await fetchSignedContractPdf('k-2')).toBe(pdf);
+    expect(api.get).toHaveBeenCalledWith('/rentals/contracts/k-2/signed-pdf/', { responseType: 'blob' });
+
+    api.get.mockRejectedValue({
+      response: { status: 404, data: new Blob([JSON.stringify({ error: 'הגרסה עוד לא נחתמה' })]) },
+    });
+    await expect(fetchSignedContractPdf('k-2')).rejects.toMatchObject({
+      response: { status: 404, data: { error: 'הגרסה עוד לא נחתמה' } },
+    });
+  });
+
+  it('saves the signed copy under the name it is given', async () => {
+    const pdf = new Blob(['%PDF-1.7'], { type: 'application/pdf' });
+    api.get.mockResolvedValue({ data: pdf });
+    const link = { href: '', download: '', click: vi.fn(), remove: vi.fn() };
+    vi.stubGlobal('window', { URL: { createObjectURL: vi.fn(() => 'blob:signed'), revokeObjectURL: vi.fn() } });
+    vi.stubGlobal('document', { createElement: vi.fn(() => link), body: { appendChild: vi.fn() } });
+
+    await downloadSignedContractPdf('k-2', 'חוזה שכירות - דנה לוי - גרסה 2 (חתום).pdf');
+
+    expect(api.get).toHaveBeenCalledWith('/rentals/contracts/k-2/signed-pdf/', { responseType: 'blob' });
+    expect(link.download).toBe('חוזה שכירות - דנה לוי - גרסה 2 (חתום).pdf');
+    expect(link.click).toHaveBeenCalledTimes(1);
   });
 });
 

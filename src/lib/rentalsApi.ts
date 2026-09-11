@@ -101,6 +101,15 @@ export interface TenancyContractSummary {
    * no longer match. The server's word on it — the screen never compares terms.
    */
   is_stale: boolean;
+  /**
+   * Phase 3: when the version was sent for signing, first opened by the
+   * tenant, and signed — and by whom. Optional: a server that does not send
+   * them leaves the row with its status alone.
+   */
+  sent_at?: string | null;
+  viewed_at?: string | null;
+  signed_at?: string | null;
+  signer_name?: string | null;
 }
 
 /** One version, as the history lists it. */
@@ -122,6 +131,21 @@ export interface RentalContract {
    * behind the token every request carries, so downloadContractPdf fetches it.
    */
   pdf_url: string | null;
+
+  // ---- signing (phase 3); optional, so a version read before phase 3 still types ----
+  sent_at?: string | null;
+  /** The first time the tenant opened the link. */
+  viewed_at?: string | null;
+  signed_at?: string | null;
+  /** The tenant's own page, /s/<token>. Empty once the link is cancelled, and none before the first is made. */
+  signing_url?: string | null;
+  signing_expires_at?: string | null;
+  /** The name typed when signing. */
+  signer_name?: string | null;
+  /** The signature's record in /signatures/. */
+  signature_id?: string | null;
+  /** Behind the same token as every request — downloadSignedContractPdf fetches it. */
+  signed_pdf_url?: string | null;
 }
 
 /** A new tenant's details, as a write takes them. */
@@ -331,14 +355,19 @@ export async function readBlobError(err: unknown): Promise<unknown> {
   return err;
 }
 
-/** A version's PDF, as frozen when it was issued. */
-export async function fetchContractPdf(contractId: string): Promise<Blob> {
+/** A PDF behind the office's token, with a refusal's words read back out of the blob. */
+async function fetchPdf(url: string): Promise<Blob> {
   try {
-    const res = await api.get(`${contractUrl(contractId)}pdf/`, { responseType: 'blob' });
+    const res = await api.get(url, { responseType: 'blob' });
     return res.data;
   } catch (err) {
     throw await readBlobError(err);
   }
+}
+
+/** A version's PDF, as frozen when it was issued. */
+export async function fetchContractPdf(contractId: string): Promise<Blob> {
+  return fetchPdf(`${contractUrl(contractId)}pdf/`);
 }
 
 /**
@@ -348,5 +377,36 @@ export async function fetchContractPdf(contractId: string): Promise<Blob> {
  */
 export async function downloadContractPdf(contractId: string, filename: string): Promise<void> {
   const pdf = await fetchContractPdf(contractId);
+  saveBlob(pdf, 'application/pdf', filename);
+}
+
+// ---- signing (phase 3) ----
+
+/**
+ * A link for the tenant to read and sign the version (/s/<token>), for the
+ * office to send itself — nothing is sent from here. Each call issues a fresh
+ * link, and one issued before stops opening. A version signed, void, not the
+ * current one, or no longer matching the agreement comes back 400 with a
+ * Hebrew `error`.
+ */
+export async function createSigningLink(contractId: string): Promise<RentalContract> {
+  const res = await api.post(`${contractUrl(contractId)}signing-link/`, {});
+  return res.data;
+}
+
+/** The link stops opening. The version stays as it is, and a new link can be made. */
+export async function cancelSigningLink(contractId: string): Promise<RentalContract> {
+  const res = await api.post(`${contractUrl(contractId)}signing-link/cancel/`, {});
+  return res.data;
+}
+
+/** The signed copy: the version's PDF with the tenant's signature on it. */
+export async function fetchSignedContractPdf(contractId: string): Promise<Blob> {
+  return fetchPdf(`${contractUrl(contractId)}signed-pdf/`);
+}
+
+/** Save the signed copy under the name given — fetched with the token, as downloadContractPdf is. */
+export async function downloadSignedContractPdf(contractId: string, filename: string): Promise<void> {
+  const pdf = await fetchSignedContractPdf(contractId);
   saveBlob(pdf, 'application/pdf', filename);
 }

@@ -11,9 +11,9 @@ import {
   consentRows,
   formatSignedAt,
   safeSignatureImage,
-  signatureChildrenLabel,
   signatureKindLabel,
   signatureParagraphs,
+  signatureParty,
   signaturePdfError,
   signatureTitle,
   type ConsentRow,
@@ -129,8 +129,7 @@ export default function SignatureViewDialog({ signature, onClose }: SignatureVie
                 <Fact label="מועד החתימה">
                   <span className="tabular-nums">{formatSignedAt(head.signed_at) || '—'}</span>
                 </Fact>
-                <Fact label="משפחה">{head.family_name || '—'}</Fact>
-                <Fact label="ילדים">{signatureChildrenLabel(head.children)}</Fact>
+                <PartyFacts signature={head} />
                 <Fact label="סניף">{head.branch_name || '—'}</Fact>
               </dl>
 
@@ -234,6 +233,18 @@ export default function SignatureViewDialog({ signature, onClose }: SignatureVie
         )}
       </DialogContent>
     </Dialog>
+  );
+}
+
+/** Whom it was signed for: a rental contract's tenant, where a registration has its family and children. */
+function PartyFacts({ signature }: { signature: SignatureSummary }) {
+  const party = signatureParty(signature);
+  if (party.kind === 'tenant') return <Fact label="שוכר">{party.name}</Fact>;
+  return (
+    <>
+      <Fact label="משפחה">{party.name}</Fact>
+      <Fact label="ילדים">{party.detail}</Fact>
+    </>
   );
 }
 

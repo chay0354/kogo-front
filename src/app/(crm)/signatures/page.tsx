@@ -14,11 +14,11 @@ import {
   defaultSignatureFilters,
   formatSignedDate,
   formatSignedTime,
-  signatureChildrenLabel,
   signatureKindLabel,
   signatureListParams,
   signaturePageCount,
   signaturePageSpan,
+  signatureParty,
   signaturePdfError,
   signatureRangeLabel,
   signatureTitle,
@@ -141,7 +141,7 @@ export default function SignaturesPage() {
               <th scope="col">סוג</th>
               <th scope="col">מסמך</th>
               <th scope="col">חתם/ה</th>
-              <th scope="col">משפחה וילדים</th>
+              <th scope="col">משפחה או שוכר</th>
               <th scope="col">סניף</th>
               <th scope="col" className={theme.n}>פעולות</th>
             </tr>
@@ -150,6 +150,7 @@ export default function SignaturesPage() {
             {rows.map((signature) => {
               const title = signatureTitle(signature);
               const downloading = downloadingIds.includes(signature.id);
+              const party = signatureParty(signature);
               return (
                 <tr key={signature.id}>
                   <td>
@@ -169,8 +170,9 @@ export default function SignaturesPage() {
                     )}
                   </td>
                   <td className={styles.wrapCell}>
-                    <span className={styles.strong}>{signature.family_name || '—'}</span>
-                    <span className={styles.subLine}>{signatureChildrenLabel(signature.children)}</span>
+                    {/* A rental contract's tenant stands where a registration's family and children do. */}
+                    <span className={styles.strong}>{party.name}</span>
+                    <span className={styles.subLine}>{party.detail}</span>
                   </td>
                   <td>{signature.branch_name || <span className={styles.dash}>—</span>}</td>
                   <td>

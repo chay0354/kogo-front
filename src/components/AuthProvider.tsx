@@ -25,7 +25,11 @@ const isPublicPath = (pathname: string | null) =>
   pathname?.startsWith('/widget') === true ||
   pathname?.startsWith('/pay/') === true ||
   pathname?.startsWith('/card-link/') === true ||
-  pathname?.startsWith('/update-card/') === true;
+  // The card link's short path — the same public page as /card-link/.
+  pathname?.startsWith('/c/') === true ||
+  pathname?.startsWith('/update-card/') === true ||
+  // The tenant's contract signing page: the link's token is its key, so no account is looked up.
+  pathname?.startsWith('/s/') === true;
 
 function AuthProviderInner({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();

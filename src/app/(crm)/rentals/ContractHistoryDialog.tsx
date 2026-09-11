@@ -3,24 +3,27 @@
 import { useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { Download, Loader2 } from 'lucide-react';
+import { Download, FileCheck2, Loader2, Send } from 'lucide-react';
 import { useDialogExit } from '@/components/ui/motion';
 import {
   downloadContractPdf,
+  downloadSignedContractPdf,
   fetchTenancyContracts,
   voidContract,
   type RentalContract,
   type Tenancy,
 } from '@/lib/rentalsApi';
 import DialogShell from './DialogShell';
-import { StaleChip, ToneChip } from './StatusChips';
+import { SigningChips, StaleChip, ToneChip } from './StatusChips';
 import {
   contractFileName,
   contractHistoryRow,
   currentContractOf,
+  formatDateTime,
   sortContracts,
   staleContractTitle,
 } from './contractUtils';
+import { sendForSigningState, signedByText } from './signingUtils';
 import { isUnknownOutcome, tenancyApiError, tenantName } from './tenancyUtils';
 import styles from './rentalsDialog.module.css';
 
@@ -30,6 +33,11 @@ interface ContractHistoryDialogProps {
   onClose: () => void;
   /** A version was voided, or may have been — the list should read the server again. */
   onChanged: () => void;
+  /**
+   * "שליחה לחתימה" on the version in force. The tenants view closes this
+   * dialog and opens the sending one in its place, so two dialogs never stack.
+   */
+  onSendForSigning?: (contract: RentalContract) => void;
 }
 
 /** A failure, shown under the version it happened to. */
@@ -47,7 +55,12 @@ interface Problem {
  * The reason is asked for under the version rather than in a confirmation
  * box: the shared ConfirmDialog opens beneath this dialog's overlay.
  */
-export default function ContractHistoryDialog({ tenancy, onClose, onChanged }: ContractHistoryDialogProps) {
+export default function ContractHistoryDialog({
+  tenancy,
+  onClose,
+  onChanged,
+  onSendForSigning,
+}: ContractHistoryDialogProps) {
   const { closing, requestClose } = useDialogExit(onClose);
   const contractsQuery = useQuery({
     queryKey: ['rentals', 'tenancy-contracts', tenancy.id],
@@ -130,13 +143,41 @@ export default function ContractHistoryDialog({ tenancy, onClose, onChanged }: C
     }
   }
 
+  /** The signed copy; its download is told apart from the version's own PDF by its key. */
+  async function downloadSigned(contract: RentalContract) {
+    if (downloadingId) return;
+    setDownloadingId(`signed:${contract.id}`);
+    setProblem(null);
+    try {
+      await downloadSignedContractPdf(
+        contract.id,
+        contractFileName({ tenantName: name, version: contract.version, signed: true }),
+      );
+    } catch (err) {
+      setProblem({ contractId: contract.id, text: tenancyApiError(err, 'הורדת העותק החתום נכשלה') });
+    } finally {
+      setDownloadingId(null);
+    }
+  }
+
   function renderItem(contract: RentalContract): ReactNode {
     const row = contractHistoryRow(contract);
     const isCurrent = current?.id === contract.id;
     const voiding = voidingId === contract.id && row.canVoid;
     const downloading = downloadingId === contract.id;
+    const downloadingSigned = downloadingId === `signed:${contract.id}`;
     const reasonId = `contract-void-reason-${contract.id}`;
     const meta = [row.issued, row.issuedBy].filter(Boolean).join(' · ');
+    // Only the version in force is sent, and only the row knows whether it still matches the agreement.
+    const send =
+      isCurrent && onSendForSigning
+        ? sendForSigningState({ status: contract.status, is_stale: Boolean(currentStaleTitle) })
+        : { offered: false, blockedReason: '' };
+    const blockedId = `contract-send-blocked-${contract.id}`;
+    const signedLine =
+      contract.status === 'signed'
+        ? [signedByText(contract.signer_name), formatDateTime(contract.signed_at)].filter(Boolean).join(' · ')
+        : '';
     const itemClass = [styles.historyItem, isCurrent ? styles.historyItemCurrent : '', row.isVoid ? styles.historyItemVoid : '']
       .filter(Boolean)
       .join(' ');
@@ -151,6 +192,19 @@ export default function ContractHistoryDialog({ tenancy, onClose, onChanged }: C
             {isCurrent && currentStaleTitle && <StaleChip title={currentStaleTitle} />}
           </div>
           <div className={styles.historyActions}>
+            {send.offered && (
+              <button
+                type="button"
+                className={styles.smallBtn}
+                onClick={() => onSendForSigning?.(contract)}
+                disabled={Boolean(send.blockedReason) || submitting}
+                aria-label={`שליחת ${row.title} לחתימה`}
+                aria-describedby={send.blockedReason ? blockedId : undefined}
+              >
+                <Send size={14} aria-hidden="true" />
+                שליחה לחתימה
+              </button>
+            )}
             <button
               type="button"
               className={styles.smallBtn}
@@ -165,6 +219,22 @@ export default function ContractHistoryDialog({ tenancy, onClose, onChanged }: C
               )}
               הורדה
             </button>
+            {contract.status === 'signed' && (
+              <button
+                type="button"
+                className={styles.smallBtn}
+                onClick={() => void downloadSigned(contract)}
+                disabled={downloadingId !== null}
+                aria-label={`הורדת העותק החתום של ${row.title}`}
+              >
+                {downloadingSigned ? (
+                  <Loader2 size={14} className={styles.spin} aria-hidden="true" />
+                ) : (
+                  <FileCheck2 size={14} aria-hidden="true" />
+                )}
+                הורדת עותק חתום
+              </button>
+            )}
             {row.canVoid && !voiding && (
               <button
                 type="button"
@@ -180,6 +250,13 @@ export default function ContractHistoryDialog({ tenancy, onClose, onChanged }: C
         </div>
 
         {meta && <p className={styles.historyMeta}>{meta}</p>}
+        {signedLine && <p className={styles.historyMeta}>{signedLine}</p>}
+        <SigningChips contract={contract} className={styles.historySign} />
+        {send.blockedReason && (
+          <p id={blockedId} className={styles.help}>
+            {send.blockedReason}
+          </p>
+        )}
         {row.isVoid && (
           <p className={styles.historyVoid}>
             {row.voided}

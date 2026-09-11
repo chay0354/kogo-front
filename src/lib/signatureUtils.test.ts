@@ -7,6 +7,8 @@ import { describe, expect, it } from 'vitest';
 import type { SignatureSummary } from '@/types/signature';
 import {
   FAMILY_SIGNATURES_EMPTY,
+  SIGNATURE_KIND_OPTIONS,
+  signatureParty,
   applySignatureFilterChange,
   consentRows,
   countSignatureFilters,
@@ -43,6 +45,7 @@ function summary(overrides: Partial<SignatureSummary> = {}): SignatureSummary {
     signer_id_number: '123456782',
     family_id: 'fam-1',
     family_name: 'ניסן',
+    business_customer_name: '',
     children: [{ id: 'child-1', full_name: 'נועה ניסן' }],
     branch_name: 'רמת גן',
     document_title: 'תקנון והרשמה לחוגים 2026-27',
@@ -77,6 +80,38 @@ describe('labels', () => {
     expect(signatureChildrenLabel([{ id: '3', full_name: '  ' }])).toBe('—');
     expect(signatureChildrenLabel([])).toBe('—');
     expect(signatureChildrenLabel(undefined)).toBe('—');
+  });
+});
+
+describe('whom it was signed for', () => {
+  it('names the tenant on a rental contract, where a family would be', () => {
+    expect(
+      signatureParty(
+        summary({ kind: 'rental_contract', family_name: '', children: [], business_customer_name: ' סטודיו אור בע״מ ' }),
+      ),
+    ).toEqual({ kind: 'tenant', name: 'סטודיו אור בע״מ', detail: 'שוכר' });
+    expect(signatureParty(summary({ kind: 'rental_contract', business_customer_name: '' })).name).toBe('—');
+  });
+
+  it('names the family and its children on a registration', () => {
+    expect(signatureParty(summary())).toEqual({ kind: 'family', name: 'ניסן', detail: 'נועה ניסן' });
+    expect(signatureParty(summary({ family_name: '', children: [] }))).toEqual({ kind: 'family', name: '—', detail: '—' });
+  });
+
+  it('reads the tenant’s name off the server’s row, and an empty one when it sent none', () => {
+    const [rental, registration] = readSignaturesPage({
+      results: [
+        { id: 's1', kind: 'rental_contract', business_customer_name: 'דנה לוי' },
+        { id: 's2', kind: 'registration_terms' },
+      ],
+    }).results;
+    expect(rental.business_customer_name).toBe('דנה לוי');
+    expect(registration.business_customer_name).toBe('');
+  });
+
+  it('offers the rental contract in the kind filter', () => {
+    expect(SIGNATURE_KIND_OPTIONS).toContainEqual({ value: 'rental_contract', label: 'חוזה שכירות' });
+    expect(SIGNATURE_KIND_OPTIONS).toContainEqual({ value: 'registration_terms', label: 'תקנון הרשמה' });
   });
 });
 

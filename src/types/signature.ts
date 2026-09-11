@@ -34,6 +34,11 @@ export interface SignatureSummary {
   signer_id_number: string;
   family_id: string | null;
   family_name: string;
+  /**
+   * The business customer a rental contract was signed for — the tenant, who
+   * stands where a family would on a registration. '' on every other kind.
+   */
+  business_customer_name: string;
   /** Every child the signature covered — one registration can cover several. */
   children: SignatureChild[];
   branch_name: string;
