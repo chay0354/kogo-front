@@ -843,6 +843,12 @@ export default function CourseRegistrationForm({
         // terms say so. A free trial's summary has no terms step, so it sends
         // false and nothing is recorded.
         computerized_docs_consent: termsConsent,
+        // Kept with the signature, so the office can later see what was ticked.
+        // A paid trial comes through the consents step; a free trial's summary
+        // has none — both are false and there is no signature to send.
+        terms_consent: termsConsent,
+        health_consent: healthConsent,
+        ...(signature ? { signature } : {}),
       });
       if (res.data.requires_payment) {
         // The catalog said free but the course now charges: the payment step
@@ -940,6 +946,9 @@ export default function CourseRegistrationForm({
         signature,
         // The accepted terms carry the consent (checked above: no submit without them).
         computerized_docs_consent: termsConsent,
+        // Kept with the signature, so the office can later see what was ticked.
+        terms_consent: termsConsent,
+        health_consent: healthConsent,
       };
 
       const registerChildLessons = async (

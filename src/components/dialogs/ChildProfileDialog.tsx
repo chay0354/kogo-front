@@ -41,6 +41,11 @@ import {
 } from '@/components/dialogs/computerizedDocsConsent';
 import EditMonthAmountDialog from '@/components/dialogs/EditMonthAmountDialog';
 import SendCardLinkDialog from '@/components/dialogs/SendCardLinkDialog';
+import FamilySignaturesTable, { type FamilySignaturesStatus } from '@/components/signatures/FamilySignaturesTable';
+import SignatureViewDialog from '@/components/signatures/SignatureViewDialog';
+import { downloadSignaturePdf, fetchSignatures } from '@/lib/signaturesApi';
+import { signaturePdfError } from '@/lib/signatureUtils';
+import type { SignatureSummary } from '@/types/signature';
 import { useAuth } from '@/components/AuthProvider';
 
 interface ChildProfileDialogProps {
@@ -521,6 +526,15 @@ export default function ChildProfileDialog({
   const [documents, setDocuments] = useState<ChildDocument[]>([]);
   const [documentsStatus, setDocumentsStatus] = useState<DocumentsStatus>('loading');
   const documentsRequest = useRef(0);
+  // What the family signed — the registration terms, and later rental contracts.
+  // Asked by family, not by child: one registration covers every child in it.
+  const [signatures, setSignatures] = useState<SignatureSummary[]>([]);
+  const [signaturesCount, setSignaturesCount] = useState(0);
+  const [signaturesStatus, setSignaturesStatus] = useState<FamilySignaturesStatus>('loading');
+  const signaturesRequest = useRef(0);
+  const [viewingSignature, setViewingSignature] = useState<SignatureSummary | null>(null);
+  const [downloadingSignatureIds, setDownloadingSignatureIds] = useState<string[]>([]);
+  const signatureDownloadsInFlight = useRef(new Set<string>());
   const [loadingPayments, setLoadingPayments] = useState(false);
   const [editingCharge, setEditingCharge] = useState<UpcomingCharge | null>(null);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
@@ -569,6 +583,8 @@ export default function ChildProfileDialog({
       fetchAbsenceHistory();
       fetchPaymentData();
       fetchDocsConsent();
+      // On open only, not with every payments refresh: a refund changes no signature.
+      fetchFamilySignatures();
     }
   }, [isOpen, child.id]);
   
@@ -601,6 +617,47 @@ export default function ChildProfileDialog({
       console.error('Error fetching child documents:', error);
       setDocuments([]);
       setDocumentsStatus('error');
+    }
+  };
+
+  // The family's signatures, newest first — the first page of 50, more than a
+  // family signs. Loaded like the documents: its own flag, and an answer for a
+  // card that has since moved on is dropped.
+  const fetchFamilySignatures = async () => {
+    const request = ++signaturesRequest.current;
+    if (!child.family_id) {
+      setSignatures([]);
+      setSignaturesCount(0);
+      setSignaturesStatus('ready');
+      return;
+    }
+    setSignaturesStatus('loading');
+    try {
+      const page = await fetchSignatures({ family: child.family_id });
+      if (request !== signaturesRequest.current) return;
+      setSignatures(page.results);
+      setSignaturesCount(page.count);
+      setSignaturesStatus('ready');
+    } catch (error) {
+      if (request !== signaturesRequest.current) return;
+      console.error('Error fetching the family signatures:', error);
+      setSignatures([]);
+      setSignaturesCount(0);
+      setSignaturesStatus('error');
+    }
+  };
+
+  const handleDownloadSignature = async (signature: SignatureSummary) => {
+    if (signatureDownloadsInFlight.current.has(signature.id)) return;
+    signatureDownloadsInFlight.current.add(signature.id);
+    setDownloadingSignatureIds((ids) => [...ids, signature.id]);
+    try {
+      await downloadSignaturePdf(signature);
+    } catch (error) {
+      alert(signaturePdfError(error));
+    } finally {
+      signatureDownloadsInFlight.current.delete(signature.id);
+      setDownloadingSignatureIds((ids) => ids.filter((id) => id !== signature.id));
     }
   };
 
@@ -1334,6 +1391,33 @@ export default function ChildProfileDialog({
 
                       <div>
                         <div className="flex items-baseline justify-between gap-3 mb-1">
+                          <h3 className="font-semibold text-lg">מה חתם</h3>
+                          {signaturesStatus === 'ready' && signatures.length > 0 && (
+                            <span className="text-sm text-muted-foreground tabular-nums">
+                              {signaturesCount > signatures.length
+                                ? `${signatures.length} האחרונות מתוך ${signaturesCount}`
+                                : signatures.length === 1
+                                  ? 'חתימה אחת'
+                                  : `${signatures.length} חתימות`}
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-sm text-muted-foreground mb-3">
+                          מה המשפחה חתמה — הטקסט, החתימה וההסכמות. הרשמה אחת חלה על כל הילדים שנרשמו בה
+                        </p>
+                        <FamilySignaturesTable
+                          status={signaturesStatus}
+                          signatures={signatures}
+                          childId={child.id}
+                          downloadingIds={downloadingSignatureIds}
+                          onView={setViewingSignature}
+                          onDownload={handleDownloadSignature}
+                          onRetry={fetchFamilySignatures}
+                        />
+                      </div>
+
+                      <div>
+                        <div className="flex items-baseline justify-between gap-3 mb-1">
                           <h3 className="font-semibold text-lg">הוראות קבע</h3>
                           {monthlyTotal > 0 && (
                             <span className="text-sm font-medium">
@@ -1573,6 +1657,8 @@ export default function ChildProfileDialog({
       onClose={() => setEditingCharge(null)}
       onSaved={fetchPaymentData}
     />
+    {/* The same view the history page opens: the text as signed, the image, the consents. */}
+    <SignatureViewDialog signature={viewingSignature} onClose={() => setViewingSignature(null)} />
     <ConfirmDialog
       isOpen={Boolean(dropGroup)}
       onClose={() => { if (!dropLoading) setDropGroup(null); }}

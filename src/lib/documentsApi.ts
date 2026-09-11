@@ -185,7 +185,8 @@ export async function downloadPeriodReport(params: {
   window.URL.revokeObjectURL(blobUrl);
 }
 
-function saveBlob(data: BlobPart, type: string, filename: string): void {
+/** Hand a file fetched as a blob to the browser under a name of our choosing. */
+export function saveBlob(data: BlobPart, type: string, filename: string): void {
   const blobUrl = window.URL.createObjectURL(new Blob([data], { type }));
   const link = document.createElement('a');
   link.href = blobUrl;
