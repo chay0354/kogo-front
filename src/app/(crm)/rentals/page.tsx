@@ -1,188 +1,87 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import PageHeader from '@/components/PageHeader';
-import { TableSkeleton } from '@/components/ui/skeleton';
-import RentalDialog from '@/components/dialogs/RentalDialog';
 import { useAuth } from '@/components/AuthProvider';
-import { ScheduleEvent, DAY_NAMES, type WeekDay } from '@/types/schedule';
-import { deleteEvent, downloadRentalAgreementPdf, fetchEvents } from '@/lib/eventUtils';
-import { formatWeeklyDayTimesHebrew, lessonDayOfWeekFromISODate } from '@/lib/scheduleUtils';
-import { Button } from '@/components/ui/button';
-import { Plus, Pencil, Trash2, Download } from 'lucide-react';
-import CrossFade from '@/components/ui/CrossFade';
+import theme from '@/components/dashboard/theme/dashboard.module.css';
+import CalendarSlotsView from './CalendarSlotsView';
+import TenanciesView from './TenanciesView';
+import styles from './rentals.module.css';
 
-function hasRentalAgreementData(ev: ScheduleEvent): boolean {
-  return Boolean(ev.renter_id_number && ev.contract_start_date && ev.contract_end_date);
-}
+type RentalsView = 'tenants' | 'slots';
 
-function rentalWeekdaysLabel(ev: ScheduleEvent): string {
-  if (ev.event_type === 'weekly') {
-    return formatWeeklyDayTimesHebrew(ev);
-  }
-  if (ev.event_date) {
-    return DAY_NAMES[lessonDayOfWeekFromISODate(ev.event_date) as WeekDay];
-  }
-  return '—';
-}
+/** The two views, in order, each with the line under the title that says what it is for. */
+const VIEWS: ReadonlyArray<{ key: RentalsView; label: string; subtitle: string }> = [
+  {
+    key: 'tenants',
+    label: 'שוכרים',
+    subtitle: 'כל שוכר הוא רשומה אחת: לקוח עסקי בסניף, ההסכם החודשי שלו והמשבצות שלו ביומן',
+  },
+  {
+    key: 'slots',
+    label: 'משבצות ביומן',
+    subtitle: 'ניהול תקופות שבהן סטודיו מושכר — מוצג בלוח הזמנים ונחשב כהכנסה בלוח הבקרה',
+  },
+];
 
+const PANEL_ID = 'rentals-view-panel';
+const tabId = (key: RentalsView) => `rentals-view-${key}`;
+
+/**
+ * שכירויות. The tenants open first — one record per tenant, with its
+ * agreement and the calendar slots that hang on it. The calendar's rental
+ * events, which is what this page used to be, are the second view, unchanged.
+ */
 export default function RentalsPage() {
   const { user } = useAuth();
   const router = useRouter();
-  const [items, setItems] = useState<ScheduleEvent[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [editing, setEditing] = useState<ScheduleEvent | null>(null);
+  const [view, setView] = useState<RentalsView>('tenants');
+  const isWorker = user?.role === 'worker';
 
-  const load = useCallback(async () => {
-    if (user?.role === 'worker') return;
-    setLoading(true);
-    setError('');
-    try {
-      const data = await fetchEvents({ studio_rental: true });
-      setItems(Array.isArray(data) ? data : []);
-    } catch (e) {
-      console.error(e);
-      setError('שגיאה בטעינת שכירויות');
-    } finally {
-      setLoading(false);
-    }
-  }, [user?.role]);
-
+  // An instructor has no rentals screen, as before; the server refuses them the rentals too.
   useEffect(() => {
-    if (user?.role === 'worker') {
-      router.replace('/schedule');
-      return;
-    }
-    load();
-  }, [user?.role, load, router]);
+    if (isWorker) router.replace('/schedule');
+  }, [isWorker, router]);
 
-  const handleDelete = async (ev: ScheduleEvent) => {
-    if (!confirm(`למחוק את השכירות "${ev.name}"?`)) return;
-    try {
-      await deleteEvent(ev.id);
-      await load();
-    } catch (e) {
-      console.error(e);
-      alert('מחיקה נכשלה');
-    }
-  };
+  if (isWorker) return null;
 
-  const handleDownloadAgreement = async (ev: ScheduleEvent) => {
-    try {
-      await downloadRentalAgreementPdf(ev.id);
-    } catch (e) {
-      console.error(e);
-      alert('הורדת הסכם השכירות נכשלה');
-    }
-  };
+  const current = VIEWS.find((item) => item.key === view) ?? VIEWS[0];
 
   return (
-    <>
-      <div dir="rtl" className="space-y-6">
-        <div className="flex flex-wrap items-center justify-between gap-4">
-          <PageHeader
-            title="שכירויות"
-            description="ניהול תקופות שבהן סטודיו מושכר — מוצג בלוח הזמנים ונחשב כהכנסה בלוח הבקרה"
-          />
-          <Button type="button" className="gap-2" onClick={() => { setEditing(null); setDialogOpen(true); }}>
-            <Plus className="h-4 w-4" />
-            הוסף שכירות
-          </Button>
+    <div dir="rtl" className={`${theme.tokens} ${theme.scope} ${styles.page}`}>
+      {/* The theme reserves room for AppLayout's sidebar toggle on the first
+          child of .tokens — on the wrong side for RTL. This spacer takes that
+          reservation, and the header clears the toggle's corner itself. */}
+      <div aria-hidden className={styles.toggleSpacer} />
+
+      <header className={`${theme.ph} ${styles.pageHead}`}>
+        <div>
+          <h1 className={theme.phTitle}>שכירויות</h1>
+          <p className={theme.phSub}>{current.subtitle}</p>
         </div>
 
-        {error && <p className="text-destructive text-sm">{error}</p>}
+        <div role="tablist" aria-label="תצוגת השכירויות" className={styles.switchRail}>
+          {VIEWS.map((item) => (
+            <button
+              key={item.key}
+              type="button"
+              role="tab"
+              id={tabId(item.key)}
+              aria-selected={view === item.key}
+              aria-controls={PANEL_ID}
+              className={styles.switchPill}
+              onClick={() => setView(item.key)}
+            >
+              {item.label}
+            </button>
+          ))}
+        </div>
+      </header>
 
-        <CrossFade swapKey={loading ? 'loading' : 'ready'}>
-          {loading ? (
-            <TableSkeleton columns={10} label="טוען שכירויות" />
-          ) : items.length === 0 ? (
-            <p className="text-muted-foreground">אין שכירויות. לחץ על &quot;הוסף שכירות&quot; כדי להתחיל.</p>
-          ) : (
-            <div className="rounded-xl border border-border/60 bg-card shadow-sm overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="bg-muted/50 text-right">
-                  <tr>
-                    <th className="p-3 font-medium">תיאור</th>
-                    <th className="p-3 font-medium">שוכר</th>
-                    <th className="p-3 font-medium">סוג</th>
-                    <th className="p-3 font-medium">ימים ושעות</th>
-                    <th className="p-3 font-medium">שעות</th>
-                    <th className="p-3 font-medium">סניף</th>
-                    <th className="p-3 font-medium">סטודיו</th>
-                    <th className="p-3 font-medium">מחיר לפעם אחת</th>
-                    <th className="p-3 font-medium w-28">פעולות</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {items.map((ev) => (
-                    <tr key={ev.id} className="border-t border-border/40 hover:bg-muted/20">
-                      <td className="p-3 font-medium">{ev.name}</td>
-                      <td className="p-3 text-muted-foreground">{ev.renter_name || '—'}</td>
-                      <td className="p-3">{ev.event_type === 'weekly' ? 'שבועי' : 'חד-פעמי'}</td>
-                      <td className="p-3 whitespace-nowrap">{rentalWeekdaysLabel(ev)}</td>
-                      <td className="p-3 whitespace-nowrap">
-                        {ev.event_type === 'one_time' && ev.start_time && ev.end_time
-                          ? `${ev.start_time} – ${ev.end_time}`
-                          : '—'}
-                      </td>
-                      <td className="p-3">{ev.branch_name || '—'}</td>
-                      <td className="p-3">{ev.studio_name || '—'}</td>
-                      <td className="p-3">₪{ev.price_per_session != null ? Number(ev.price_per_session).toLocaleString('he-IL') : '0'}</td>
-                      <td className="p-3">
-                        <div className="flex gap-1 justify-end">
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            className="h-8 w-8 p-0"
-                            aria-label="הורד הסכם שכירות"
-                            title={hasRentalAgreementData(ev) ? undefined : 'יש להשלים ת.ז/ח.פ ותאריכי הסכם בעריכת השכירות כדי להוריד הסכם'}
-                            disabled={!hasRentalAgreementData(ev)}
-                            onClick={() => handleDownloadAgreement(ev)}
-                          >
-                            <Download className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            className="h-8 w-8 p-0"
-                            aria-label="ערוך"
-                            onClick={() => { setEditing(ev); setDialogOpen(true); }}
-                          >
-                            <Pencil className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            className="h-8 w-8 p-0"
-                            aria-label="מחק"
-                            onClick={() => handleDelete(ev)}
-                          >
-                            <Trash2 className="h-4 w-4 text-destructive" />
-                          </Button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </CrossFade>
-
-        {dialogOpen && (
-          <RentalDialog
-            event={editing || undefined}
-            onClose={() => { setDialogOpen(false); setEditing(null); }}
-            onSuccess={load}
-          />
-        )}
+      {/* Keyed on the view, so each view gets the shell's entrance as it opens. */}
+      <div key={view} role="tabpanel" id={PANEL_ID} aria-labelledby={tabId(view)} className={styles.panel}>
+        {view === 'tenants' ? <TenanciesView /> : <CalendarSlotsView />}
       </div>
-    </>
+    </div>
   );
 }

@@ -1,0 +1,980 @@
+/*
+ * The tenants view's dialogs — a tenancy, linking slots, and connecting the
+ * existing rentals. The panel wears theme.scope, so the --kg-* tokens are in
+ * reach even though the dialog is portalled out of the page to <body>.
+ */
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  background: rgb(20 17 60 / 0.45);
+}
+
+.panel {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: min(100%, 720px);
+  max-height: 90vh;
+  overflow: hidden;
+  background: #fff;
+  border-radius: var(--kg-r);
+  box-shadow: 0 24px 60px rgba(35, 31, 110, 0.28);
+  font-size: 13px;
+}
+
+.panelWide {
+  width: min(100%, 960px);
+}
+
+/* The panel's one child — the form, when the dialog is one — lays out the
+   header, the scrolling body and the footer. */
+.frame {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 18px 22px 12px;
+  border-bottom: 1px solid var(--kg-line);
+}
+
+.headText {
+  min-width: 0;
+}
+
+.title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 900;
+  letter-spacing: -0.3px;
+  line-height: 1.25;
+}
+
+.hint {
+  margin: 4px 0 0;
+  font-size: 12.5px;
+  font-weight: 600;
+  line-height: 1.55;
+  color: var(--kg-muted);
+}
+
+.close {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--kg-muted);
+  cursor: pointer;
+}
+
+.close:hover:not(:disabled) {
+  background: #f3f1fc;
+  color: var(--kg-ink);
+}
+
+.close:focus-visible {
+  outline: 2px solid var(--kg-bar-a);
+  outline-offset: 1px;
+}
+
+.body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 14px 22px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.foot {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 12px 22px;
+  border-top: 1px solid var(--kg-line);
+  background: #fbfafe;
+}
+
+/* What the footer says beside its buttons — how many are chosen. */
+.footNote {
+  margin-inline-end: auto;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--kg-muted);
+}
+
+.footNote b {
+  color: var(--kg-ink);
+}
+
+.primaryBtn,
+.secondaryBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 38px;
+  border-radius: 999px;
+  padding: 0 16px;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 800;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.primaryBtn {
+  border: 0;
+  background: linear-gradient(135deg, #312a9e, #231f6e);
+  color: #fff;
+}
+
+.primaryBtn:hover:not(:disabled) {
+  box-shadow: 0 8px 22px rgba(35, 31, 110, 0.28);
+}
+
+.secondaryBtn {
+  border: 1px solid var(--kg-line);
+  background: #fff;
+  color: var(--kg-ink2);
+}
+
+.secondaryBtn:hover:not(:disabled) {
+  background: #faf9fe;
+}
+
+.primaryBtn:disabled,
+.secondaryBtn:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.primaryBtn:focus-visible,
+.secondaryBtn:focus-visible {
+  outline: 2px solid var(--kg-bar-a);
+  outline-offset: 2px;
+}
+
+.spin {
+  animation: spin 0.9s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* A refusal, or a save that went only part of the way. */
+.error {
+  margin: 0;
+  padding: 9px 12px;
+  border-radius: 11px;
+  background: #fff6f6;
+  border: 1px solid #f8d7d8;
+  color: #a92f34;
+  font-size: 12.5px;
+  font-weight: 700;
+  line-height: 1.55;
+  white-space: pre-line;
+}
+
+/* ---- sections ---- */
+.section {
+  border: 1px solid var(--kg-line);
+  border-radius: 14px;
+  padding: 14px 16px 16px;
+  min-width: 0;
+}
+
+.sectionHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+
+.sectionTitle {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 900;
+}
+
+.sectionSub {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--kg-muted);
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: 10px 12px;
+  align-items: start;
+}
+
+.full {
+  grid-column: 1 / -1;
+}
+
+.field {
+  display: block;
+  min-width: 0;
+}
+
+.label {
+  display: block;
+  margin-bottom: 5px;
+  font-size: 11.5px;
+  font-weight: 800;
+  color: var(--kg-muted);
+}
+
+.req {
+  color: #c93b40;
+  margin-inline-start: 2px;
+}
+
+.input {
+  width: 100%;
+  height: 40px;
+  border: 1px solid var(--kg-line);
+  border-radius: 11px;
+  background: #fff;
+  padding: 0 12px;
+  font-family: inherit;
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--kg-ink);
+}
+
+.input:focus {
+  outline: none;
+  border-color: var(--kg-bar-a);
+  box-shadow: 0 0 0 3px rgba(91, 84, 214, 0.14);
+}
+
+.input:disabled {
+  background: #faf9fe;
+  color: var(--kg-muted);
+  cursor: not-allowed;
+}
+
+/* Numbers, phones and addresses of mail read left to right, lined up with the Hebrew fields. */
+.ltr {
+  direction: ltr;
+  text-align: right;
+}
+
+.textarea {
+  height: auto;
+  min-height: 70px;
+  padding: 9px 12px;
+  line-height: 1.5;
+  resize: vertical;
+}
+
+.help {
+  margin: 5px 0 0;
+  font-size: 11.5px;
+  font-weight: 600;
+  line-height: 1.5;
+  color: var(--kg-muted);
+}
+
+/* ---- the tenant: new, or a business customer that exists ---- */
+.segment {
+  display: inline-flex;
+  gap: 2px;
+  padding: 3px;
+  margin-bottom: 12px;
+  border: 1px solid var(--kg-line);
+  border-radius: 999px;
+  background: #faf9fe;
+}
+
+.segmentBtn {
+  border: 0;
+  background: none;
+  border-radius: 999px;
+  padding: 6px 14px;
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--kg-ink2);
+  cursor: pointer;
+}
+
+.segmentBtn[aria-checked='true'] {
+  background: #fff;
+  color: var(--kg-ink);
+  font-weight: 800;
+  box-shadow: 0 2px 8px rgba(43, 37, 133, 0.13);
+}
+
+.segmentBtn:focus-visible {
+  outline: 2px solid var(--kg-bar-a);
+  outline-offset: 1px;
+}
+
+.picker {
+  position: relative;
+}
+
+.pickerList {
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 4px;
+  border: 1px solid var(--kg-line);
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: var(--kg-sh);
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+.pickerItem {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  width: 100%;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 9px;
+  background: none;
+  font-family: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+.pickerItem:hover,
+.pickerItem:focus-visible {
+  background: #f3f1fc;
+  outline: none;
+}
+
+.pickerName {
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--kg-ink);
+}
+
+.pickerMeta {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--kg-muted);
+  unicode-bidi: plaintext;
+}
+
+.pickerEmpty {
+  padding: 8px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--kg-muted);
+}
+
+/* The business customer chosen, or matched by its ID. */
+.chosen {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid #cfc9f3;
+  border-radius: 12px;
+  background: #f7f6fe;
+}
+
+.chosenName {
+  display: block;
+  font-size: 13.5px;
+  font-weight: 800;
+}
+
+.chosenMeta {
+  display: block;
+  margin-top: 2px;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--kg-muted);
+  unicode-bidi: plaintext;
+}
+
+.tag {
+  display: inline-block;
+  margin-inline-start: 6px;
+  padding: 1px 7px;
+  border-radius: 6px;
+  background: #efedfa;
+  color: var(--kg-ink2);
+  font-size: 10.5px;
+  font-weight: 800;
+  vertical-align: 1px;
+}
+
+.linkBtn {
+  flex: none;
+  border: 0;
+  background: none;
+  padding: 2px 4px;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--kg-bar-a);
+  cursor: pointer;
+  border-radius: 6px;
+}
+
+.linkBtn:hover {
+  text-decoration: underline;
+}
+
+.linkBtn:focus-visible {
+  outline: 2px solid var(--kg-bar-a);
+  outline-offset: 1px;
+}
+
+/* ---- the amount: before VAT, with it, and what the slots suggest ---- */
+.moneyLine {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  margin-top: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--kg-ink2);
+}
+
+.moneyLine b {
+  color: var(--kg-ink);
+}
+
+.suggest {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 4px 3px 10px;
+  border-radius: 999px;
+  background: #fff5dc;
+  color: #7a5500;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.suggestApply {
+  border: 0;
+  border-radius: 999px;
+  padding: 3px 9px;
+  background: #fff;
+  color: #7a5500;
+  font-family: inherit;
+  font-size: 11.5px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.suggestApply:hover {
+  background: #fffaf0;
+}
+
+.suggestApply:focus-visible {
+  outline: 2px solid #e0a81f;
+  outline-offset: 1px;
+}
+
+/* ---- slots to choose ---- */
+.checklist {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--kg-line);
+  border-radius: 12px;
+  max-height: 280px;
+  overflow-y: auto;
+}
+
+.checklist > li + li {
+  border-top: 1px solid var(--kg-line-soft);
+}
+
+.checkItem {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  cursor: pointer;
+}
+
+.checkItem input {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  margin-top: 2px;
+  accent-color: var(--kg-bar-a);
+}
+
+.checkItemOn {
+  background: #f7f6fe;
+}
+
+.checkMain {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.checkTitle {
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--kg-ink);
+}
+
+.checkMeta {
+  font-size: 11.5px;
+  font-weight: 700;
+  line-height: 1.45;
+  color: var(--kg-muted);
+}
+
+.checkOff {
+  margin-inline-start: 6px;
+  font-size: 10.5px;
+  font-weight: 800;
+  color: #9996b8;
+}
+
+.checkEmpty {
+  margin: 0;
+  padding: 14px 12px;
+  border: 1px dashed var(--kg-line);
+  border-radius: 12px;
+  font-size: 12.5px;
+  font-weight: 600;
+  line-height: 1.55;
+  color: var(--kg-muted);
+  text-align: center;
+}
+
+/* ---- connecting the existing rentals: a card per renter group ---- */
+.importList {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.importCard {
+  border: 1px solid var(--kg-line);
+  border-radius: 14px;
+  padding: 12px 14px 14px;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+
+.importCardOn {
+  border-color: #cfc9f3;
+  background: #fbfaff;
+}
+
+.importCardBad {
+  border-color: #f0b9bb;
+}
+
+.importHead {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+
+.importTitle {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 900;
+}
+
+.importMeta {
+  margin: 2px 0 0;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--kg-muted);
+  unicode-bidi: plaintext;
+}
+
+.includeToggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 12px;
+  border: 1px solid var(--kg-line);
+  border-radius: 999px;
+  background: #fff;
+  font-size: 12.5px;
+  font-weight: 800;
+  color: var(--kg-ink2);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.includeToggle input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--kg-bar-a);
+}
+
+.importCardOn .includeToggle {
+  border-color: #cfc9f3;
+  color: var(--kg-bar-b);
+}
+
+.importSlots {
+  list-style: none;
+  margin: 0 0 10px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: #faf9fe;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--kg-ink2);
+}
+
+.importSub {
+  margin: 10px 0 6px;
+  font-size: 11.5px;
+  font-weight: 800;
+  color: var(--kg-muted);
+}
+
+.cardErrors {
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.5;
+  color: #a92f34;
+}
+
+.stateBox {
+  padding: 28px 16px;
+  text-align: center;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.6;
+  color: var(--kg-muted);
+}
+
+.stateTitle {
+  margin: 0 0 4px;
+  font-size: 15px;
+  font-weight: 900;
+  color: var(--kg-ink);
+}
+
+/* ---- a save that left the contract behind: saved, and what that means for the version on file ---- */
+.savedNotice {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  padding: 11px 13px;
+  border-radius: 12px;
+  background: #fff8e8;
+  border: 1px solid #f5dfa8;
+}
+
+.savedTitle {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 900;
+  color: var(--kg-ink);
+}
+
+.savedText {
+  margin: 0;
+  font-size: 12.5px;
+  font-weight: 700;
+  line-height: 1.55;
+  color: #7a5500;
+}
+
+.savedAction {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+  height: 32px;
+  padding: 0 13px;
+  border: 1px solid #f0d48a;
+  border-radius: 999px;
+  background: #fff;
+  color: #7a5500;
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.savedAction:hover:not(:disabled) {
+  background: #fffaf0;
+}
+
+.savedAction:focus-visible {
+  outline: 2px solid #e0a81f;
+  outline-offset: 1px;
+}
+
+.savedAction:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+/* ---- the contract's history: a card per version, newest first ---- */
+.historyList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.historyItem {
+  border: 1px solid var(--kg-line);
+  border-radius: 14px;
+  padding: 11px 14px 12px;
+}
+
+/* The version in force stands out; the void ones step back. */
+.historyItemCurrent {
+  border-color: #cfc9f3;
+  background: #fbfaff;
+}
+
+.historyItemVoid .historyTitle {
+  color: var(--kg-muted);
+}
+
+.historyHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
+  flex-wrap: wrap;
+}
+
+.historyTitleLine {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.historyTitle {
+  font-size: 14px;
+  font-weight: 900;
+}
+
+.historyActions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.historyMeta {
+  margin: 5px 0 0;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--kg-muted);
+}
+
+.historyVoid {
+  margin: 3px 0 0;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.5;
+  color: #a92f34;
+  white-space: pre-line;
+}
+
+.historyItem .error {
+  margin-top: 8px;
+}
+
+.smallBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 30px;
+  padding: 0 11px;
+  border: 1px solid var(--kg-line);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--kg-ink2);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 800;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.smallBtn:hover:not(:disabled) {
+  background: #faf9fe;
+}
+
+/* "בטל": red, and quieter than the download beside it. */
+.voidBtn {
+  display: inline-flex;
+  align-items: center;
+  height: 30px;
+  padding: 0 10px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: none;
+  color: #c93b40;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 800;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.voidBtn:hover:not(:disabled) {
+  background: #fdecec;
+  border-color: #f5cdce;
+}
+
+.smallBtn:disabled,
+.voidBtn:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.smallBtn:focus-visible,
+.voidBtn:focus-visible {
+  outline: 2px solid var(--kg-bar-a);
+  outline-offset: 2px;
+}
+
+/* Asking why, under the version it is about. */
+.voidForm {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--kg-line);
+}
+
+.voidActions {
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.dangerBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 38px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 999px;
+  background: #c93b40;
+  color: #fff;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 800;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.dangerBtn:hover:not(:disabled) {
+  background: #b3262c;
+}
+
+.dangerBtn:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.dangerBtn:focus-visible {
+  outline: 2px solid #c93b40;
+  outline-offset: 2px;
+}
+
+/* A phone gets a sheet from the bottom edge, as the shared dialogs do. */
+@media (max-width: 639px) {
+  .overlay {
+    align-items: flex-end;
+    padding: 0;
+  }
+
+  .panel,
+  .panelWide {
+    width: 100%;
+    max-height: 92vh;
+    border-radius: 18px 18px 0 0;
+  }
+
+  .head {
+    padding: 16px 16px 10px;
+  }
+
+  .body {
+    padding: 12px 16px 16px;
+  }
+
+  .foot {
+    padding: 10px 16px;
+  }
+}
+
+@media (hover: none) and (pointer: coarse) {
+  .input,
+  .primaryBtn,
+  .secondaryBtn,
+  .close {
+    min-height: 44px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spin {
+    animation: none;
+  }
+
+  .importCard {
+    transition: none;
+  }
+}

@@ -36,6 +36,22 @@ export async function fetchEvent(eventId: string): Promise<ScheduleEvent> {
 }
 
 /**
+ * What to tell the user when an event request fails: the server's own words —
+ * `error`, `detail`, or the first field error — or the fallback when it gave
+ * none (no answer at all, or an error page instead of JSON).
+ */
+export function eventApiError(err: unknown, fallback: string): string {
+  const data = (err as { response?: { data?: unknown } } | null)?.response?.data;
+  if (!data || typeof data !== 'object' || Array.isArray(data)) return fallback;
+  const body = data as Record<string, unknown>;
+  for (const value of [body.error, body.detail, ...Object.values(body)]) {
+    const text = Array.isArray(value) ? value[0] : value;
+    if (typeof text === 'string' && text.trim()) return text.trim();
+  }
+  return fallback;
+}
+
+/**
  * Create a new schedule event
  */
 export async function createEvent(eventData: Partial<ScheduleEvent>): Promise<ScheduleEvent> {
