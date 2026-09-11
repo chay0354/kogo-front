@@ -26,7 +26,18 @@ const SERVER_CONTRACT = {
   tenant: { name: 'דנה לוי', id_number: '123456782', phone: '050-1234567', email: 'dana@example.com' },
   branch_name: 'רמת גן',
   studio: { name: 'קוגומלו', company_number: '516504412', phone: '050-9424755', email: 'office@example.com' },
-  slots: [{ label: 'סטודיו 2', weekday_or_date: 'ימי ג׳', hours: '17:00–19:00', rate: '120.00', monthly: '480.00' }],
+  // Exactly the server's shape (apps/rentals/signing.py _public_slot) — a fixture
+  // in the client's own words let both suites pass while the page showed nothing.
+  slots: [
+    {
+      kind: 'weekly', weekday: 1, date: null, day_label: 'ימי ג׳', start_time: '17:00:00', end_time: '19:00',
+      branch_name: 'רמת גן', studio: 'סטודיו 2', rate: '120.00', sum: '480.00',
+    },
+    {
+      kind: 'one_time', weekday: null, date: '2026-10-15', day_label: '15/10/2026', start_time: '10:00', end_time: '12:00',
+      branch_name: 'רמת גן', studio: null, rate: '150.00', sum: '150.00',
+    },
+  ],
   monthly_amount: '480.00',
   vat_rate: '0.18',
   vat_amount: '86.40',
@@ -51,7 +62,10 @@ describe('fetchSigningContract', () => {
     const contract = await fetchSigningContract('ab/c d');
     expect(api.get).toHaveBeenCalledWith('/rentals/sign/ab%2Fc%20d/');
     expect(contract.version).toBe(3);
-    expect(contract.slots).toHaveLength(1);
+    expect(contract.slots).toEqual([
+      { label: 'סטודיו 2', weekday_or_date: 'ימי ג׳', hours: '17:00–19:00', rate: '120.00', monthly: '480.00', one_time: false },
+      { label: 'רמת גן', weekday_or_date: '15/10/2026', hours: '10:00–12:00', rate: '150.00', monthly: '150.00', one_time: true },
+    ]);
     expect(contract.document).toEqual(['1. הצדדים', '2. המושכר']);
     expect(contract.signer_name).toBe('');
   });

@@ -30,7 +30,10 @@ export interface SigningSlot {
   weekday_or_date: string;
   hours: string;
   rate: string;
+  /** The row's sum: a month for a weekly slot, the whole rental for a one-time one. */
   monthly: string;
+  /** A single one-time rental: its sum is a total, not a month. */
+  one_time?: boolean;
 }
 
 export interface SigningContract {
@@ -91,6 +94,13 @@ function record(value: unknown): Record<string, unknown> {
   return value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
 }
 
+/** "17:00:00" or "17:00" → "17:00"; anything else as sent. */
+function clockTime(value: unknown): string {
+  const t = text(value);
+  const match = /^(\d{1,2}:\d{2})(:\d{2})?$/.exec(t);
+  return match ? match[1].padStart(5, '0') : t;
+}
+
 function positiveInteger(value: unknown): number | null {
   const n = Number(value);
   return Number.isInteger(n) && n > 0 ? n : null;
@@ -121,14 +131,18 @@ export function readSigningContract(raw: unknown): SigningContract {
       phone: text(studio.phone),
       email: text(studio.email),
     },
+    // The server words a slot as the contract's payment row: kind, day_label,
+    // start/end times, studio, rate and sum (apps/rentals/signing.py _public_slot).
     slots: (Array.isArray(row.slots) ? row.slots : []).map((item) => {
       const slot = record(item);
+      const hours = [clockTime(slot.start_time), clockTime(slot.end_time)].filter(Boolean).join('–');
       return {
-        label: text(slot.label),
-        weekday_or_date: text(slot.weekday_or_date),
-        hours: text(slot.hours),
+        label: text(slot.studio) || text(slot.branch_name),
+        weekday_or_date: text(slot.day_label),
+        hours,
         rate: text(slot.rate),
-        monthly: text(slot.monthly),
+        monthly: text(slot.sum),
+        one_time: text(slot.kind) === 'one_time',
       };
     }),
     monthly_amount: text(row.monthly_amount),

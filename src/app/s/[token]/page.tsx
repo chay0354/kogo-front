@@ -171,7 +171,9 @@ export default function RentalSigningPage() {
                     <span className={styles.slotWhen}>{[slot.weekday_or_date, slot.hours].filter(Boolean).join(' · ')}</span>
                   </div>
                   <div className={styles.slotMoney}>
-                    <span className={styles.slotMonthly}>{moneyText(slot.monthly)} לחודש</span>
+                    <span className={styles.slotMonthly}>
+                      {moneyText(slot.monthly)} {slot.one_time ? 'סה״כ' : 'לחודש'}
+                    </span>
                     {slot.rate && <span className={styles.slotRate}>{moneyText(slot.rate)} למפגש</span>}
                   </div>
                 </li>
@@ -343,7 +345,8 @@ export default function RentalSigningPage() {
             <FileText size={17} aria-hidden="true" />
             הורדת העותק החתום (PDF)
           </a>
-          <p className={styles.nextStep}>בשלב הבא יישלח אליכם קישור להזנת כרטיס אשראי להוראת הקבע</p>
+          {/* Neutral until the card step exists: the office arranges payment for now. */}
+          <p className={styles.nextStep}>המשרד ייצור איתכם קשר להסדרת התשלום החודשי</p>
         </div>
       </div>
     );
