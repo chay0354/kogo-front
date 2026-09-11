@@ -1,5 +1,21 @@
 import type { StoreInvoice } from '@/types/store';
-import type { AgingBucket, ChargeKind, CollectionRow, DocType, DocumentRow, PaymentLedgerItem, PaymentRecord } from './types';
+import type {
+  AgingBucket,
+  ChargeKind,
+  CollectionRow,
+  DocType,
+  DocumentRow,
+  LedgerDimensions,
+  LedgerFilters,
+  PaymentLedgerItem,
+  PaymentRecord,
+} from './types';
+import {
+  DEFAULT_RANGE_DAYS,
+  DELIVERY_FILTER,
+  LEDGER_BUSINESS_BRANCHES,
+  LEDGER_BUSINESS_STORE,
+} from './constants';
 import styles from './invoices.module.css';
 
 const HEBREW_MONTHS = [
@@ -30,6 +46,55 @@ export function getDocType(inv: StoreInvoice): DocType {
 
 export function getLedgerDocType(row: DocumentRow): string {
   return row.document_type || 'חשבונית מס/קבלה';
+}
+
+/**
+ * מסנן סניף אחד לכל הדף.
+ *
+ * '' = כל הסניפים. 'delivery' = הזמנות מהאתר, שאין להן סניף כלל — בלעדיו הן
+ * נעלמו בשקט ברגע שנבחר סניף כלשהו, ואי אפשר היה להגיע אליהן.
+ */
+export function matchesBranchFilter(
+  row: { branch_id?: string | null; website_order_number?: string | null },
+  branchFilter: string,
+): boolean {
+  if (!branchFilter) return true;
+  if (branchFilter === DELIVERY_FILTER) return Boolean(row.website_order_number);
+  return row.branch_id === branchFilter;
+}
+
+const ORIGIN_FALLBACK_LABELS: Record<string, string> = {
+  store: 'חנות',
+  crm: 'מנוי',
+  local: 'מסמך ידני',
+  tranzila: 'טרנזילה',
+};
+
+/** מאיזו מערכת הגיע המסמך. נופל חזרה ל-source עבור שורות שנשמרו לפני שהשדה נוסף. */
+export function getOriginLabel(row: DocumentRow): string {
+  return row.origin_label || ORIGIN_FALLBACK_LABELS[row.source ?? ''] || '—';
+}
+
+export function getOriginClass(row: DocumentRow): string {
+  const key = row.origin ?? '';
+  const map: Record<string, string> = {
+    store_website: styles.originStore_website,
+    store_counter: styles.originStore_counter,
+    subscription: styles.originSubscription,
+    manual: styles.originManual,
+    tranzila: styles.originTranzila,
+  };
+  return map[key] ?? '';
+}
+
+/**
+ * השורה השנייה תחת המקור: מה שמזהה מאיפה בדיוק הגיע המסמך — מספר הזמנה
+ * באתר, שם הסניף שבו נמכר, או אמצעי התשלום כשאין אף אחד מהם.
+ */
+export function getOriginDetail(row: DocumentRow): string {
+  if (row.website_order_number) return `הזמנה ${row.website_order_number}`;
+  if (row.branch) return row.branch;
+  return row.payment_method_label || '';
 }
 
 export function getStatusLabel(status: string): string {
@@ -417,4 +482,330 @@ export function matchesPaymentSearch(row: PaymentRecord, query: string): boolean
     return row.customer_phone.replace(/\D/g, '').includes(digits);
   }
   return false;
+}
+
+// ---------------------------------------------------------------------------
+// The shared ledger filters — the one filter model every tab narrows its rows
+// by. The page holds the values (useLedgerFilters); these are the rules.
+// ---------------------------------------------------------------------------
+
+/** What the page opens on: the last DEFAULT_RANGE_DAYS days, nothing else narrowed. */
+export function defaultLedgerFilters(): LedgerFilters {
+  return {
+    dateFrom: daysAgoLocalISO(DEFAULT_RANGE_DAYS),
+    dateTo: localISODate(),
+    business: '',
+    cityId: '',
+    branchId: '',
+    courseTypeId: '',
+    ageKey: '',
+    instructorId: '',
+    search: '',
+  };
+}
+
+/**
+ * The filter state after a change, kept coherent however the change arrived —
+ * from the bar, from a tab's own control, or from code.
+ *
+ * - עיר and סניף exist only under סניפים. Choosing either one therefore means
+ *   סניפים, and moving עסק anywhere else clears them: a place the bar no longer
+ *   shows would otherwise go on hiding rows unseen.
+ * - The range cannot invert. Moving one end past the other takes the other
+ *   along — the date just picked is the one that was meant — and a change that
+ *   sets both ends the wrong way round is swapped.
+ */
+export function applyLedgerFilterChange(
+  prev: LedgerFilters,
+  patch: Partial<LedgerFilters>,
+): LedgerFilters {
+  const changes = Object.fromEntries(
+    Object.entries(patch).filter(([, value]) => typeof value === 'string'),
+  ) as Partial<LedgerFilters>;
+  const next: LedgerFilters = { ...prev, ...changes };
+
+  if (changes.cityId || changes.branchId) {
+    next.business = LEDGER_BUSINESS_BRANCHES;
+  } else if (next.business !== LEDGER_BUSINESS_BRANCHES) {
+    next.cityId = '';
+    next.branchId = '';
+  }
+
+  if (next.dateFrom && next.dateTo && next.dateFrom > next.dateTo) {
+    if ('dateFrom' in changes && 'dateTo' in changes) {
+      [next.dateFrom, next.dateTo] = [next.dateTo, next.dateFrom];
+    } else if ('dateFrom' in changes) {
+      next.dateTo = next.dateFrom;
+    } else {
+      next.dateFrom = next.dateTo;
+    }
+  }
+
+  return next;
+}
+
+/**
+ * How many filters are narrowing the rows. The dates are not among them: they
+ * choose which rows are fetched at all, and the bar always shows them.
+ */
+export function countActiveLedgerFilters(filters: LedgerFilters): number {
+  return [
+    filters.business,
+    filters.cityId,
+    filters.branchId,
+    filters.courseTypeId,
+    filters.ageKey,
+    filters.instructorId,
+    filters.search.trim(),
+  ].filter(Boolean).length;
+}
+
+/** The range as the server takes it. An end left empty falls back to the default window. */
+export function ledgerRangeParams(filters: Pick<LedgerFilters, 'dateFrom' | 'dateTo'>) {
+  return {
+    start_date: filters.dateFrom || daysAgoLocalISO(DEFAULT_RANGE_DAYS),
+    end_date: filters.dateTo || localISODate(),
+  };
+}
+
+/**
+ * Whether a day falls inside the range. A row without a date stays: the server
+ * returned it for this range, and hiding it would leave it nowhere to be found.
+ */
+export function isWithinRange(
+  day: string | null | undefined,
+  filters: Pick<LedgerFilters, 'dateFrom' | 'dateTo'>,
+): boolean {
+  const date = String(day ?? '').slice(0, 10);
+  if (!date) return true;
+  if (filters.dateFrom && date < filters.dateFrom) return false;
+  if (filters.dateTo && date > filters.dateTo) return false;
+  return true;
+}
+
+/** A store sale — on the website or at a branch counter. */
+export function isStoreOrigin(origin: string | null | undefined): boolean {
+  return typeof origin === 'string' && origin.startsWith('store_');
+}
+
+/**
+ * One id-valued filter. Unset, it passes everything; set, it passes only a row
+ * carrying that exact value. A row without the dimension does not pass — the
+ * fields arrive row by row, and "unknown" is not "yes". Ids are compared as
+ * text, so a number from the server still matches the select's string.
+ */
+function matchesId(value: unknown, wanted: string): boolean {
+  if (!wanted) return true;
+  if (value === undefined || value === null || value === '') return false;
+  return String(value) === wanted;
+}
+
+/**
+ * Whether a row passes the shared dimension filters.
+ *
+ * עסק — '' is every income. 'branches' is what the branches earned themselves:
+ * not a store sale, and not tagged to a business. 'store' is every store sale,
+ * website and counter alike. Anything else is a business id, and only that
+ * business's rows pass.
+ * עיר, סניף, סוג חוג, גיל, מדריך — an exact match when set.
+ *
+ * The dates and the search are not decided here: the range is what the tab
+ * asked the server for, and which fields a search should read is each tab's
+ * own question.
+ */
+export function matchesLedgerFilters(
+  row: LedgerDimensions,
+  filters: Pick<LedgerFilters, 'business' | 'cityId' | 'branchId' | 'courseTypeId' | 'ageKey' | 'instructorId'>,
+): boolean {
+  const { business } = filters;
+  if (business === LEDGER_BUSINESS_BRANCHES) {
+    if (isStoreOrigin(row.origin) || row.business_id) return false;
+  } else if (business === LEDGER_BUSINESS_STORE) {
+    if (!isStoreOrigin(row.origin)) return false;
+  } else if (!matchesId(row.business_id, business)) {
+    return false;
+  }
+
+  return matchesId(row.city_id, filters.cityId)
+    && matchesId(row.branch_id, filters.branchId)
+    && matchesId(row.course_type_id, filters.courseTypeId)
+    && matchesId(row.age_key, filters.ageKey)
+    && matchesId(row.instructor_id, filters.instructorId);
+}
+
+/**
+ * A row that names its branch is in that branch's city. The backend is adding
+ * city_id to every row; until a row has one, the branch list answers for it,
+ * so choosing a city already finds the rows of its branches. A row that sent
+ * its own city_id — even null — keeps it.
+ */
+export function withBranchCity<T extends LedgerDimensions>(
+  row: T,
+  cityByBranch: ReadonlyMap<string, string>,
+): T {
+  if (row.city_id !== undefined || !row.branch_id) return row;
+  const cityId = cityByBranch.get(String(row.branch_id));
+  return cityId ? { ...row, city_id: cityId } : row;
+}
+
+export interface LedgerOption {
+  value: string;
+  label: string;
+}
+
+/** The filters whose options are read off the rows a tab loaded rather than asked of an endpoint. */
+export type LedgerRowDimension = 'courseTypeId' | 'ageKey' | 'instructorId';
+
+const ROW_DIMENSION_FIELDS = {
+  courseTypeId: { value: 'course_type_id', label: 'course_type_name' },
+  ageKey: { value: 'age_key', label: 'age_label' },
+  instructorId: { value: 'instructor_id', label: 'instructor_name' },
+} as const;
+
+/**
+ * The distinct values one dimension takes across the rows a tab loaded, as the
+ * options of its select: only what can match is offered, and no endpoint is
+ * needed for it.
+ *
+ * A value without a name is left out rather than shown as a bare id — except an
+ * age group, whose key reads on its own. Ages are ordered as ages, by key with
+ * digits compared as numbers (so 10 follows 9); the rest by name.
+ */
+export function ledgerRowOptions(
+  rows: readonly LedgerDimensions[],
+  dimension: LedgerRowDimension,
+): LedgerOption[] {
+  const fields = ROW_DIMENSION_FIELDS[dimension];
+  const byValue = new Map<string, string>();
+  rows.forEach((row) => {
+    const raw: unknown = row[fields.value];
+    if (raw === undefined || raw === null || raw === '') return;
+    const value = String(raw);
+    if (byValue.has(value)) return;
+    const name = row[fields.label];
+    const label = (typeof name === 'string' && name.trim()) || (dimension === 'ageKey' ? value : '');
+    if (label) byValue.set(value, label);
+  });
+  const options = Array.from(byValue, ([value, label]) => ({ value, label }));
+  return dimension === 'ageKey'
+    ? options.sort((a, b) => a.value.localeCompare(b.value, 'he', { numeric: true }))
+    : options.sort((a, b) => a.label.localeCompare(b.label, 'he'));
+}
+
+/**
+ * A select has to be able to show what is chosen. When the chosen value is not
+ * among the options — the rows reloaded for another range, the list has not
+ * arrived yet — it is kept as an option of its own under the given label, so a
+ * filter never goes on working unseen.
+ */
+export function withSelectedOption(
+  options: readonly LedgerOption[],
+  selected: string,
+  label: string,
+): LedgerOption[] {
+  if (!selected || options.some((option) => option.value === selected)) return [...options];
+  return [...options, { value: selected, label }];
+}
+
+/**
+ * Whether a document answers a free-text search. A store purchase is looked up
+ * by whatever the owner has in hand — our document number, the order number
+ * the buyer was mailed, the branch — and a class by its course or instructor.
+ */
+export function matchesDocumentSearch(doc: DocumentRow, query: string): boolean {
+  const q = query.trim().toLowerCase();
+  if (!q) return true;
+  return [
+    doc.document_number,
+    doc.customer_name,
+    doc.website_order_number,
+    doc.branch,
+    doc.business_name,
+    doc.course_name,
+    doc.instructor_name,
+  ].some((field) => String(field ?? '').toLowerCase().includes(q));
+}
+
+/**
+ * Newest first. issue_date is a day, so same-day documents fall back to the
+ * document number, highest first — digits compared as numbers, so 1000 sits
+ * above 999 — which keeps the order from shifting between renders. A document
+ * without a date goes last.
+ */
+export function compareDocumentsNewestFirst(a: DocumentRow, b: DocumentRow): number {
+  const dayA = String(a.issue_date ?? '').slice(0, 10);
+  const dayB = String(b.issue_date ?? '').slice(0, 10);
+  if (dayA !== dayB) return dayA < dayB ? 1 : -1;
+  return String(b.document_number ?? '').localeCompare(String(a.document_number ?? ''), 'he', {
+    numeric: true,
+  });
+}
+
+/** The totals of the documents shown — what the KPI row reports. */
+export function sumDocuments(rows: readonly DocumentRow[]): { total: number; paid: number; open: number } {
+  return rows.reduce(
+    (acc, doc) => ({
+      // A credit note is money going back: it comes off the total and is never
+      // an open debt, whatever an older ledger row says about its balance.
+      total: acc.total + (isCreditRow(doc) ? -1 : 1) * (Number(doc.total_amount) || 0),
+      paid: acc.paid + (isCreditRow(doc) ? 0 : Number(doc.amount_paid) || 0),
+      open: acc.open + (isCreditRow(doc) ? 0 : Number(doc.open_balance) || 0),
+    }),
+    { total: 0, paid: 0, open: 0 },
+  );
+}
+
+/**
+ * Whether a payment reminder can go out for a document from the list. The
+ * reminder endpoint knows only documents issued in the CRM (origin manual) — a
+ * subscription invoice or a store sale carries another model's id — and a
+ * draft, a credit note or a settled document has nothing to remind about.
+ */
+export function canSendDocumentReminder(doc: DocumentRow): boolean {
+  return doc.origin === 'manual'
+    && !doc.is_draft
+    && doc.document_type_code !== 'credit_invoice'
+    && (Number(doc.open_balance) || 0) > 0;
+}
+
+function dayNumber(iso: string): number | null {
+  const [year, month, day] = (iso || '').slice(0, 10).split('-').map(Number);
+  if (!year || !month || !day) return null;
+  return Date.UTC(year, month - 1, day) / 86400000;
+}
+
+/** A day moved by whole days, in the same YYYY-MM-DD form. */
+export function shiftISODate(iso: string, days: number): string {
+  const [year, month, day] = (iso || '').slice(0, 10).split('-').map(Number);
+  if (!year || !month || !day) return iso;
+  return localISODate(new Date(year, month - 1, day + days));
+}
+
+const WIDER_RANGES = [
+  { days: 90, label: 'הרחב לשלושה חודשים' },
+  { days: 365, label: 'הרחב לשנה' },
+] as const;
+
+/**
+ * A wider window to offer when a range turned up nothing: three months, then a
+ * year, both ending where the range ends. Null once the range already spans a
+ * year — past that the answer is another range, not a longer one.
+ */
+export function widerRange(
+  filters: Pick<LedgerFilters, 'dateFrom' | 'dateTo'>,
+): { dateFrom: string; label: string } | null {
+  const { start_date: start, end_date: end } = ledgerRangeParams(filters);
+  const startDay = dayNumber(start);
+  const endDay = dayNumber(end);
+  if (startDay === null || endDay === null) return null;
+  const span = endDay - startDay;
+  const step = WIDER_RANGES.find((option) => span < option.days);
+  return step ? { dateFrom: shiftISODate(end, -step.days), label: step.label } : null;
+}
+
+/** A credit note (חשבונית מס זיכוי), whichever system issued it. */
+export function isCreditRow(
+  doc: Pick<DocumentRow, 'is_credit' | 'document_type_code'>,
+): boolean {
+  return Boolean(doc.is_credit) || doc.document_type_code === 'credit_invoice' || doc.document_type_code === 'CN';
 }

@@ -94,6 +94,13 @@ export async function fetchPaymentLedger(params?: {
   status?: string;
   kind?: string;
   branch?: string;
+  /** 'branches' (courses with no business of their own), 'store' (no CRM charges), or a business id. */
+  business?: string;
+  city?: string;
+  course_type?: string;
+  instructor?: string;
+  /** The course's age key: '6-9', '6-', '-9'. */
+  age?: string;
 }): Promise<{
   results: PaymentLedgerItem[];
   count: number;

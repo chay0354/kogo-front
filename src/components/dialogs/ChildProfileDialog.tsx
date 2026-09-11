@@ -1,10 +1,11 @@
 'use client';
 
-import { useMemo, useState, useEffect } from 'react';
+import { useMemo, useState, useEffect, useRef } from 'react';
 import {
   ArrowLeftRight,
   Calendar,
   ChevronLeft,
+  Download,
   CreditCard,
   ExternalLink,
   GraduationCap,
@@ -166,6 +167,332 @@ function oneTimePaymentLabel(payment: {
   return (payment.description || payment.lesson_name || 'חיוב חד-פעמי') + creditNote;
 }
 
+/**
+ * One row of GET /customers/children/{id}/documents/: a lesson receipt, a store
+ * sale, or a manual document (credit notes included). The list arrives newest
+ * first, and each row names the API route that downloads its PDF.
+ */
+interface ChildDocument {
+  id: string;
+  kind: 'receipt' | 'store' | 'formal';
+  document_number: string;
+  /** The Hebrew label: "חשבונית מס/קבלה", "חשבונית עסקה", "חשבונית מס זיכוי", … */
+  document_type: string;
+  /** YYYY-MM-DD */
+  date: string;
+  amount: string;
+  status: string;
+  description: string;
+  /** On a receipt: the charge (Payment) it was issued for. */
+  payment_id: string | null;
+  /** Every charge the receipt covers — several when one family checkout paid for more than one. */
+  payment_ids?: string[];
+  /** Issued after the money came in. */
+  issued_late: boolean;
+  /** YYYY-MM-DD when the money came in, or ''. */
+  paid_at: string;
+  /** Relative to the API base, e.g. "/customers/invoices/<id>/pdf/". */
+  download_url: string;
+}
+
+type DocumentsStatus = 'loading' | 'ready' | 'error';
+
+function readChildDocuments(data: unknown): ChildDocument[] {
+  const rows = (data as { documents?: unknown } | null)?.documents;
+  return Array.isArray(rows) ? (rows as ChildDocument[]) : [];
+}
+
+/** "11.09.2026" from "2026-09-11", read off the string so no timezone can move the day. */
+function formatDocumentDate(value: string | null | undefined): string {
+  const match = String(value || '').match(/^(\d{4})-(\d{2})-(\d{2})/);
+  return match ? `${match[3]}.${match[2]}.${match[1]}` : '';
+}
+
+/** A credit note gives money back, so it has to read as one wherever it shows. */
+function isCreditDocument(doc: Pick<ChildDocument, 'document_type' | 'status'>): boolean {
+  return doc.status === 'credit' || String(doc.document_type || '').includes('זיכוי');
+}
+
+function documentKey(doc: Pick<ChildDocument, 'kind' | 'id'>): string {
+  return `${doc.kind}-${doc.id}`;
+}
+
+function documentTypeChipClass(doc: ChildDocument): string {
+  if (isCreditDocument(doc)) return 'bg-rose-100 text-rose-800';
+  // A transaction invoice asks for the money; it is not a receipt for it.
+  if (String(doc.document_type || '').includes('עסקה')) return 'bg-sky-100 text-sky-800';
+  return 'bg-slate-100 text-slate-700';
+}
+
+/** A store sale names only its products; say where they came from, as the charges table does. */
+function documentDescription(doc: ChildDocument): string {
+  const description = String(doc.description || '').trim();
+  if (doc.kind === 'store' && description && description !== 'רכישה בחנות') {
+    return `רכישה בחנות · ${description}`;
+  }
+  return description || '-';
+}
+
+/** Agorot always shown, and a credit note carries a real minus sign. */
+function formatDocumentAmount(doc: ChildDocument): string {
+  const amount = Math.abs(Number(doc.amount) || 0);
+  const shekels = `₪${amount.toLocaleString('he-IL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  return isCreditDocument(doc) ? `−${shekels}` : shekels;
+}
+
+/**
+ * Which document each charge row downloads. A lesson charge takes the receipt
+ * issued for its payment; a store purchase takes the sale's own document. The
+ * list is newest first, so a charge issued more than once gets the latest, and
+ * a credit note never stands in for the charge's own invoice.
+ */
+function matchChargeDocuments(
+  charges: ReadonlyArray<{ key: string; kind: 'payment' | 'store'; raw: { id?: unknown } | null }>,
+  documents: ReadonlyArray<ChildDocument>,
+): Map<string, ChildDocument> {
+  const byPayment = new Map<string, ChildDocument>();
+  const byStoreSale = new Map<string, ChildDocument>();
+  for (const doc of documents) {
+    if (isCreditDocument(doc)) continue;
+    // A family checkout issues one receipt for several charges; every one of
+    // them downloads that receipt, not just the first.
+    const covered = doc.payment_ids?.length ? doc.payment_ids : doc.payment_id ? [doc.payment_id] : [];
+    for (const raw of covered) {
+      const paymentId = String(raw);
+      if (paymentId && !byPayment.has(paymentId)) byPayment.set(paymentId, doc);
+    }
+    if (doc.kind === 'store' && !byStoreSale.has(String(doc.id))) byStoreSale.set(String(doc.id), doc);
+  }
+  const matched = new Map<string, ChildDocument>();
+  for (const charge of charges) {
+    const id = charge.raw?.id == null ? '' : String(charge.raw.id);
+    const doc = charge.kind === 'store' ? byStoreSale.get(id) : byPayment.get(id);
+    if (doc) matched.set(charge.key, doc);
+  }
+  return matched;
+}
+
+function documentFilename(doc: Pick<ChildDocument, 'document_number'>): string {
+  const name = String(doc.document_number || '').replace(/[\\/:*?"<>|]+/g, '-').trim();
+  return `${name || 'מסמך'}.pdf`;
+}
+
+/** The blob pattern the store download uses: hand the PDF over under the document's number. */
+function savePdf(data: BlobPart, filename: string): void {
+  const blobUrl = window.URL.createObjectURL(new Blob([data], { type: 'application/pdf' }));
+  const link = document.createElement('a');
+  link.href = blobUrl;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  // A beat later: some browsers still read the URL after click() returns.
+  window.setTimeout(() => window.URL.revokeObjectURL(blobUrl), 1000);
+}
+
+/** With responseType 'blob' the server's JSON error arrives as a Blob too. */
+async function downloadErrorMessage(error: unknown): Promise<string> {
+  const response = (error as { response?: { status?: number; data?: unknown } } | null)?.response;
+  const data = response?.data;
+  if (data instanceof Blob) {
+    try {
+      const body = JSON.parse(await data.text());
+      if (typeof body?.error === 'string' && body.error) return body.error;
+    } catch {
+      // Not JSON: the generic message below says enough.
+    }
+  }
+  if (response?.status === 404) return 'המסמך לא נמצא';
+  return 'שגיאה בהורדת המסמך';
+}
+
+/**
+ * The charge row's invoice action. While the documents load it holds the
+ * button's place; once they are in, it downloads the charge's own document or
+ * says quietly that none was issued. After a failed load it claims neither.
+ */
+function ChargeInvoiceAction({
+  status,
+  doc,
+  downloading,
+  onDownload,
+}: {
+  status: DocumentsStatus;
+  doc: ChildDocument | undefined;
+  downloading: boolean;
+  onDownload: (doc: ChildDocument) => void;
+}) {
+  // Every state takes the button's width, so the refund buttons line up down the column.
+  if (status === 'loading') {
+    return <Skeleton className="h-9 w-24 rounded-lg" />;
+  }
+  if (!doc) {
+    if (status === 'error') {
+      return (
+        <span
+          className="inline-flex h-9 w-24 items-center justify-center text-sm text-muted-foreground"
+          title="לא ניתן היה לטעון את המסמכים"
+        >
+          <span aria-hidden="true">—</span>
+          <span className="sr-only">המסמכים לא נטענו</span>
+        </span>
+      );
+    }
+    return (
+      <span
+        className="inline-flex h-9 w-24 items-center justify-center whitespace-nowrap text-sm text-muted-foreground"
+        title="לא הופקה חשבונית לחיוב הזה"
+      >
+        אין חשבונית
+      </span>
+    );
+  }
+  return (
+    <Button
+      type="button"
+      size="sm"
+      variant="outline"
+      className={`min-w-[6rem] ${downloading ? 'cursor-progress' : ''}`}
+      onClick={() => onDownload(doc)}
+      aria-busy={downloading || undefined}
+      title={`הורדת ${doc.document_type || 'חשבונית'} ${doc.document_number}`}
+    >
+      {downloading ? (
+        <Loader2 className="h-3 w-3 ml-1 animate-spin" aria-hidden="true" />
+      ) : (
+        <Download className="h-3 w-3 ml-1" aria-hidden="true" />
+      )}
+      חשבונית
+      <span className="sr-only"> {doc.document_number}</span>
+    </Button>
+  );
+}
+
+/**
+ * Every document issued for the child, newest first: lesson receipts, store
+ * sales, manual documents and credit notes, each with its own download.
+ */
+function ChildDocumentsTable({
+  status,
+  documents,
+  downloadingKeys,
+  onDownload,
+  onRetry,
+}: {
+  status: DocumentsStatus;
+  documents: ReadonlyArray<ChildDocument>;
+  downloadingKeys: ReadonlyArray<string>;
+  onDownload: (doc: ChildDocument) => void;
+  onRetry: () => void;
+}) {
+  if (status === 'error') {
+    return (
+      <div className="border rounded-lg px-4 py-6 text-center" role="alert">
+        <p className="text-sm text-muted-foreground">לא ניתן היה לטעון את המסמכים</p>
+        <Button type="button" size="sm" variant="outline" className="mt-3" onClick={onRetry}>
+          <RefreshCw className="h-3 w-3 ml-1" aria-hidden="true" />
+          נסה שוב
+        </Button>
+      </div>
+    );
+  }
+  if (status === 'ready' && documents.length === 0) {
+    return (
+      <div className="border rounded-lg px-4 py-8 text-center text-muted-foreground">
+        לא הופקו מסמכים לילד זה
+      </div>
+    );
+  }
+  const loading = status === 'loading';
+  return (
+    <div className="border rounded-lg overflow-x-auto" aria-busy={loading || undefined}>
+      <table className="w-full text-sm">
+        <caption className="sr-only">{loading ? 'טוען מסמכים' : 'מסמכים שהופקו'}</caption>
+        <thead className="bg-muted/50">
+          <tr>
+            <th scope="col" className="p-3 text-right font-medium">תאריך</th>
+            <th scope="col" className="p-3 text-right font-medium">מספר</th>
+            <th scope="col" className="p-3 text-right font-medium">סוג</th>
+            <th scope="col" className="p-3 text-right font-medium">תיאור</th>
+            <th scope="col" className="p-3 text-right font-medium">סכום</th>
+            <th scope="col" className="p-3">
+              <span className="sr-only">הורדה</span>
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          {loading
+            ? Array.from({ length: 3 }).map((_, row) => (
+                <tr key={row} className="border-t">
+                  <td className="px-3 py-2"><Skeleton className="h-4 w-20" /></td>
+                  <td className="px-3 py-2"><Skeleton className="h-4 w-28" /></td>
+                  <td className="px-3 py-2"><Skeleton className="h-5 w-24 rounded-full" /></td>
+                  <td className="px-3 py-2"><Skeleton className="h-4 w-40" /></td>
+                  <td className="px-3 py-2"><Skeleton className="h-4 w-16" /></td>
+                  <td className="px-3 py-2"><Skeleton className="h-9 w-24 rounded-lg" /></td>
+                </tr>
+              ))
+            : documents.map((doc) => {
+                const key = documentKey(doc);
+                const credit = isCreditDocument(doc);
+                const downloading = downloadingKeys.includes(key);
+                const paidAt = formatDocumentDate(doc.paid_at);
+                return (
+                  <tr key={key} className="border-t">
+                    <td className="px-3 py-2 whitespace-nowrap tabular-nums text-muted-foreground">
+                      {formatDocumentDate(doc.date) || '-'}
+                    </td>
+                    <td className="px-3 py-2 whitespace-nowrap">
+                      <span dir="ltr" className="font-mono text-[13px]">{doc.document_number || '-'}</span>
+                    </td>
+                    <td className="px-3 py-2 whitespace-nowrap">
+                      <span
+                        className={`inline-flex rounded-full px-2 py-0.5 text-[11px] font-semibold ${documentTypeChipClass(doc)}`}
+                      >
+                        {doc.document_type || 'מסמך'}
+                      </span>
+                    </td>
+                    <td className="px-3 py-2 min-w-[10rem] break-words">
+                      {documentDescription(doc)}
+                      {doc.issued_late && (
+                        <div className="mt-0.5 text-xs text-muted-foreground">
+                          הופק באיחור{paidAt ? ` · התשלום התקבל ${paidAt}` : ''}
+                        </div>
+                      )}
+                    </td>
+                    <td
+                      className={`px-3 py-2 whitespace-nowrap font-medium tabular-nums ${credit ? 'text-rose-700' : ''}`}
+                    >
+                      <span dir="ltr">{formatDocumentAmount(doc)}</span>
+                    </td>
+                    <td className="px-3 py-2">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className={downloading ? 'cursor-progress' : ''}
+                        onClick={() => onDownload(doc)}
+                        aria-busy={downloading || undefined}
+                        title={`הורדת ${doc.document_type || 'המסמך'} ${doc.document_number}`}
+                      >
+                        {downloading ? (
+                          <Loader2 className="h-3 w-3 ml-1 animate-spin" aria-hidden="true" />
+                        ) : (
+                          <Download className="h-3 w-3 ml-1" aria-hidden="true" />
+                        )}
+                        הורדה
+                        <span className="sr-only"> {doc.document_type} {doc.document_number}</span>
+                      </Button>
+                    </td>
+                  </tr>
+                );
+              })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 export default function ChildProfileDialog({
   child,
   isOpen,
@@ -183,9 +510,12 @@ export default function ChildProfileDialog({
   const [payments, setPayments] = useState<any[]>([]);
   const [storeInvoices, setStoreInvoices] = useState<any[]>([]);
   const [recurringPayments, setRecurringPayments] = useState<any[]>([]);
-  // The child's own formal documents. Scoped by child_id on purpose: a parent's
-  // other children have their own invoices and they do not belong on this card.
-  const [documents, setDocuments] = useState<any[]>([]);
+  // Every document issued for this child — receipts, store sales, manual documents
+  // and credit notes. Scoped to the child on purpose: a parent's other children have
+  // their own invoices and they do not belong on this card.
+  const [documents, setDocuments] = useState<ChildDocument[]>([]);
+  const [documentsStatus, setDocumentsStatus] = useState<DocumentsStatus>('loading');
+  const documentsRequest = useRef(0);
   const [loadingPayments, setLoadingPayments] = useState(false);
   const [editingCharge, setEditingCharge] = useState<UpcomingCharge | null>(null);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
@@ -199,6 +529,9 @@ export default function ChildProfileDialog({
     description: string;
   } | null>(null);
   const [refundLoading, setRefundLoading] = useState(false);
+  // Documents on their way down, by documentKey — more than one can be in flight.
+  const [downloadingKeys, setDownloadingKeys] = useState<string[]>([]);
+  const downloadsInFlight = useRef(new Set<string>());
   const [editingStandingOrder, setEditingStandingOrder] = useState<any | null>(null);
   const [dropGroup, setDropGroup] = useState<{
     courseName: string;
@@ -237,30 +570,51 @@ export default function ChildProfileDialog({
     }
   };
   
+  // Newest first, each with the route to its PDF. A response that lands after a newer
+  // request — another refresh, or a sibling opened meanwhile — is dropped, so one
+  // child's documents never reach another child's card.
+  const fetchDocuments = async () => {
+    const request = ++documentsRequest.current;
+    setDocumentsStatus('loading');
+    try {
+      const response = await api.get(`/customers/children/${child.id}/documents/`);
+      if (request !== documentsRequest.current) return;
+      setDocuments(readChildDocuments(response.data));
+      setDocumentsStatus('ready');
+    } catch (error) {
+      if (request !== documentsRequest.current) return;
+      console.error('Error fetching child documents:', error);
+      setDocuments([]);
+      setDocumentsStatus('error');
+    }
+  };
+
   const fetchPaymentData = async () => {
     setLoadingPayments(true);
+    // The documents come with the rest of the payment data, on their own flag: the
+    // charges do not wait for them, and each charge row picks up its invoice once
+    // they are in.
+    const documentsLoaded = fetchDocuments();
     try {
-      const [paymentsRes, storeInvoicesRes, recurringRes, documentsRes] = await Promise.all([
+      const [paymentsRes, storeInvoicesRes, recurringRes] = await Promise.all([
         api.get(`/customers/payments/?child_id=${child.id}`).catch(() => ({ data: [] })),
         api.get(`/store/invoices/?child_id=${child.id}`).catch(() => ({ data: [] })),
         api.get(`/customers/recurring-payments/?child_id=${child.id}`).catch(() => ({ data: [] })),
-        api.get(`/documents/documents/?child_id=${child.id}`).catch(() => ({ data: [] }))
       ]);
       
       const paymentsData = paymentsRes.data?.results || paymentsRes.data || [];
       const storeData = storeInvoicesRes.data?.results || storeInvoicesRes.data || [];
       const recurringData = recurringRes.data?.results || recurringRes.data || [];
-      const documentsData = documentsRes.data?.results || documentsRes.data || [];
       
       setPayments(Array.isArray(paymentsData) ? paymentsData : []);
       setStoreInvoices(Array.isArray(storeData) ? storeData : []);
       setRecurringPayments(Array.isArray(recurringData) ? recurringData : []);
-      setDocuments(Array.isArray(documentsData) ? documentsData : []);
     } catch (error) {
       console.error('Error fetching payment data:', error);
     } finally {
       setLoadingPayments(false);
     }
+    await documentsLoaded;
   };
   
   const handleCancelRecurring = async (recurringId: string) => {
@@ -301,6 +655,30 @@ export default function ChildProfileDialog({
     setRefundDialogOpen(true);
   };
   
+  // The חשבונית מס / קבלה used to live only in the mail we sent at charge time.
+  // Every download now goes through the route the documents list names for the
+  // row, so a receipt, a store sale and a credit note all come down the same way.
+  const handleDownloadDocument = async (doc: ChildDocument) => {
+    const key = documentKey(doc);
+    if (downloadsInFlight.current.has(key)) return;
+    // Only a path under the API base: the request carries the office's token.
+    if (!/^\/(?!\/)/.test(doc.download_url || '')) {
+      alert('למסמך הזה אין קובץ להורדה');
+      return;
+    }
+    downloadsInFlight.current.add(key);
+    setDownloadingKeys((keys) => [...keys, key]);
+    try {
+      const response = await api.get(doc.download_url, { responseType: 'blob' });
+      savePdf(response.data, documentFilename(doc));
+    } catch (error) {
+      alert(await downloadErrorMessage(error));
+    } finally {
+      downloadsInFlight.current.delete(key);
+      setDownloadingKeys((keys) => keys.filter((item) => item !== key));
+    }
+  };
+
   const handleRefundConfirm = async (amount: number | null, reason: string) => {
     if (!refundItem) return;
     
@@ -318,6 +696,7 @@ export default function ChildProfileDialog({
       alert(refundItem.type === 'payment' ? 'התשלום זוכה בהצלחה' : 'החשבונית זוכתה בהצלחה');
       setRefundDialogOpen(false);
       setRefundItem(null);
+      // Brings the documents back too — a refund can issue a credit note.
       fetchPaymentData();
     } catch (error: any) {
       console.error('Error processing refund:', error);
@@ -397,6 +776,11 @@ export default function ChildProfileDialog({
       return bTime - aTime;
     });
   }, [payments, storeInvoices]);
+
+  const chargeDocuments = useMemo(
+    () => matchChargeDocuments(oneTimeCharges, documents),
+    [oneTimeCharges, documents],
+  );
 
   const standingOrders = useMemo(() => {
     const rank = (status: string) => (status === 'active' ? 0 : 1);
@@ -788,7 +1172,7 @@ export default function ChildProfileDialog({
                           )}
                         </div>
                         <p className="text-sm text-muted-foreground mb-3">
-                          דמי רישום, שיעורי ניסיון, רכישות מהחנות וחיובים חודשיים — כאן גם מזכים
+                          דמי רישום, שיעורי ניסיון, רכישות מהחנות וחיובים חודשיים — כאן גם מורידים חשבונית ומזכים
                         </p>
                         {oneTimeCharges.length === 0 ? (
                           <div className="border rounded-lg px-4 py-8 text-center text-muted-foreground">
@@ -809,6 +1193,7 @@ export default function ChildProfileDialog({
                               <tbody>
                                 {oneTimeCharges.map((charge) => {
                                   const badge = paymentStatusBadge(charge.status);
+                                  const invoiceDoc = chargeDocuments.get(charge.key);
                                   return (
                                     <tr key={charge.key} className="border-t">
                                       <td className="p-3 text-sm text-muted-foreground whitespace-nowrap">
@@ -820,21 +1205,29 @@ export default function ChildProfileDialog({
                                         <Badge variant={badge.variant}>{badge.label}</Badge>
                                       </td>
                                       <td className="p-3">
-                                        {charge.canRefund && (
-                                          <Button
-                                            size="sm"
-                                            variant="outline"
-                                            onClick={() => (
-                                              charge.kind === 'store'
-                                                ? handleCreditStoreInvoice(charge.raw)
-                                                : handleCreditPayment(charge.raw)
-                                            )}
-                                            disabled={refundLoading}
-                                          >
-                                            <ArrowLeftRight className="h-3 w-3 ml-1" />
-                                            זיכוי
-                                          </Button>
-                                        )}
+                                        <div className="flex items-center gap-2">
+                                          <ChargeInvoiceAction
+                                            status={documentsStatus}
+                                            doc={invoiceDoc}
+                                            downloading={Boolean(invoiceDoc && downloadingKeys.includes(documentKey(invoiceDoc)))}
+                                            onDownload={handleDownloadDocument}
+                                          />
+                                          {charge.canRefund && (
+                                            <Button
+                                              size="sm"
+                                              variant="outline"
+                                              onClick={() => (
+                                                charge.kind === 'store'
+                                                  ? handleCreditStoreInvoice(charge.raw)
+                                                  : handleCreditPayment(charge.raw)
+                                              )}
+                                              disabled={refundLoading}
+                                            >
+                                              <ArrowLeftRight className="h-3 w-3 ml-1" />
+                                              זיכוי
+                                            </Button>
+                                          )}
+                                        </div>
                                       </td>
                                     </tr>
                                   );
@@ -843,6 +1236,27 @@ export default function ChildProfileDialog({
                             </table>
                           </div>
                         )}
+                      </div>
+
+                      <div>
+                        <div className="flex items-baseline justify-between gap-3 mb-1">
+                          <h3 className="font-semibold text-lg">מסמכים</h3>
+                          {documentsStatus === 'ready' && documents.length > 0 && (
+                            <span className="text-sm text-muted-foreground tabular-nums">
+                              {documents.length === 1 ? 'מסמך אחד' : `${documents.length} מסמכים`}
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-sm text-muted-foreground mb-3">
+                          כל החשבוניות, הקבלות והזיכויים של {child.first_name} — מסמכים של אחים אינם מוצגים כאן
+                        </p>
+                        <ChildDocumentsTable
+                          status={documentsStatus}
+                          documents={documents}
+                          downloadingKeys={downloadingKeys}
+                          onDownload={handleDownloadDocument}
+                          onRetry={fetchDocuments}
+                        />
                       </div>
 
                       <div>
@@ -987,60 +1401,6 @@ export default function ChildProfileDialog({
                           </div>
                         </div>
                       )}
-
-                      <div>
-                        <h3 className="font-semibold text-lg mb-1">מסמכים</h3>
-                        <p className="text-sm text-muted-foreground mb-3">
-                          חשבוניות וקבלות של {child.first_name} בלבד — מסמכים של אחים אינם מוצגים כאן
-                        </p>
-                        {documents.length === 0 ? (
-                          <div className="border rounded-lg px-4 py-8 text-center text-muted-foreground">
-                            אין מסמכים
-                          </div>
-                        ) : (
-                          <div className="border rounded-lg overflow-hidden">
-                            <table className="w-full">
-                              <thead className="bg-muted/50">
-                                <tr>
-                                  <th className="p-3 text-right font-medium">מספר</th>
-                                  <th className="p-3 text-right font-medium">סוג</th>
-                                  <th className="p-3 text-right font-medium">תאריך</th>
-                                  <th className="p-3 text-right font-medium">סכום</th>
-                                  <th className="p-3 text-right font-medium">פעולות</th>
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {documents.map((doc: any) => (
-                                  <tr key={doc.id} className="border-t">
-                                    <td className="p-3 font-medium whitespace-nowrap">{doc.document_number}</td>
-                                    <td className="p-3">{doc.document_type_display || doc.document_type}</td>
-                                    <td className="p-3 text-sm text-muted-foreground whitespace-nowrap">
-                                      {formatHebrewDate(doc.document_date)}
-                                    </td>
-                                    <td className="p-3 font-medium whitespace-nowrap">
-                                      {formatShekel(doc.total_amount)}
-                                    </td>
-                                    <td className="p-3">
-                                      {doc.pdf_url ? (
-                                        <a
-                                          href={doc.pdf_url}
-                                          target="_blank"
-                                          rel="noopener noreferrer"
-                                          className="text-sm underline"
-                                        >
-                                          פתיחה
-                                        </a>
-                                      ) : (
-                                        <span className="text-sm text-muted-foreground">אין קובץ</span>
-                                      )}
-                                    </td>
-                                  </tr>
-                                ))}
-                              </tbody>
-                            </table>
-                          </div>
-                        )}
-                      </div>
 
                       <div>
                         <h3 className="font-semibold text-lg mb-1">תשלומים עתידיים</h3>
