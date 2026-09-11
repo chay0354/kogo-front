@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { ScheduleEvent, DAY_NAMES, type WeekDay } from '@/types/schedule';
-import { createEvent, updateEvent } from '@/lib/eventUtils';
+import { createEvent, eventApiError, updateEvent } from '@/lib/eventUtils';
+import { useAuth } from '@/components/AuthProvider';
 import { initialWeeklyRepeatDays, lessonDayOfWeekFromISODate } from '@/lib/scheduleUtils';
 import api, { fetchInstructorsDropdown } from '@/lib/api';
 import { TimeField } from '@/components/ui/time-picker';
@@ -46,6 +47,8 @@ const COLOR_PRESETS = [
 
 export default function EventDialog({ event, onClose: dismiss, onSuccess, initialDate }: EventDialogProps) {
   const { closing, requestClose: onClose } = useDialogExit(dismiss);
+  const { user } = useAuth();
+  const isPartner = user?.role === 'partner';
   const isEditMode = !!event;
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
@@ -165,6 +168,13 @@ export default function EventDialog({ event, onClose: dismiss, onSuccess, initia
       return;
     }
 
+    // A partner's event must sit in one of their branches (the server refuses
+    // one with none), so ask for it here rather than after the round trip.
+    if (isPartner && !branchId) {
+      setError('יש לבחור סניף');
+      return;
+    }
+
     setIsLoading(true);
     setError('');
 
@@ -202,9 +212,7 @@ export default function EventDialog({ event, onClose: dismiss, onSuccess, initia
       onSuccess?.();
       onClose();
     } catch (err: any) {
-      const errorMsg = err.response?.data?.error || err.response?.data?.city?.[0] || 
-                       (isEditMode ? 'שגיאה בעדכון האירוע' : 'שגיאה ביצירת האירוע');
-      setError(errorMsg);
+      setError(eventApiError(err, isEditMode ? 'שגיאה בעדכון האירוע' : 'שגיאה ביצירת האירוע'));
       console.error(`Error ${isEditMode ? 'updating' : 'creating'} event:`, err);
     } finally {
       setIsLoading(false);

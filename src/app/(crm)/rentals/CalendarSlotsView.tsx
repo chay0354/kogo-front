@@ -9,7 +9,7 @@ import CrossFade from '@/components/ui/CrossFade';
 import RentalDialog from '@/components/dialogs/RentalDialog';
 import BodyPortal from '@/app/(crm)/invoices/BodyPortal';
 import { ScheduleEvent, DAY_NAMES, type WeekDay } from '@/types/schedule';
-import { deleteEvent, downloadRentalAgreementPdf, fetchEvents } from '@/lib/eventUtils';
+import { deleteEvent, downloadRentalAgreementPdf, eventApiError, fetchEvents } from '@/lib/eventUtils';
 import { formatWeeklyDayTimesHebrew, lessonDayOfWeekFromISODate } from '@/lib/scheduleUtils';
 import styles from './rentals.module.css';
 
@@ -68,7 +68,9 @@ export default function CalendarSlotsView() {
       await load();
     } catch (e) {
       console.error(e);
-      alert('מחיקה נכשלה');
+      // A slot a tenancy holds is refused with the reason and what to do
+      // (unlink it from the agreement first); pass that on.
+      alert(eventApiError(e, 'מחיקה נכשלה'));
     }
   };
 
