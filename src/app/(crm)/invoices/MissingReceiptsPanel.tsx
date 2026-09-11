@@ -6,6 +6,7 @@ import { Skeleton, TableSkeleton } from '@/components/ui/skeleton';
 import {
   downloadMissingReceiptsCsv,
   fetchMissingReceipts,
+  fetchMissingReceiptsNextNumber,
   issueMissingReceipts,
   MISSING_RECEIPTS_CONFIRM_WORD,
   MISSING_RECEIPTS_MAX_BATCH,
@@ -18,10 +19,17 @@ import {
   canConfirmIssue,
   canStartIssue,
   continuityGaps,
+  failedLines,
+  issueBatch,
   issueButtonLabel,
   issueConfirmationLines,
   issueSummary,
+  manualDocumentNote,
+  reconcileSelection,
+  selectAllLabel,
+  selectAllOrClear,
   serverErrorText,
+  toggleSelected,
   yearOptions,
   isConfirmWord,
 } from './missingReceipts';
@@ -32,31 +40,44 @@ export const MISSING_RECEIPTS_PANEL_ID = 'missing-receipts-panel';
 
 interface MissingReceiptsPanelProps {
   onClose: () => void;
-  /** Called after receipts were issued, so the documents list shows them. */
-  onIssued: () => void;
+  /**
+   * Called after every issue attempt, whatever came back — a request that
+   * failed or timed out may still have issued receipts — so the documents
+   * list is read again.
+   */
+  onIssueFinished: () => void;
+  /** Told while receipts are being issued, so the tab does not close the panel under them. */
+  onIssuingChange?: (issuing: boolean) => void;
 }
 
 /**
  * קבלות חסרות — completed charges that never got their חשבונית מס/קבלה, for a
  * year: the list, its CSV for the accountant, and, once the accountant
- * approved, one button that issues them the way `check_invoices --fix` does.
+ * approved, one button that issues the ticked rows the way `check_invoices
+ * --fix` does. A row a hand-issued document may already cover starts unticked.
  * Managers only; the server enforces it too.
  */
-export default function MissingReceiptsPanel({ onClose, onIssued }: MissingReceiptsPanelProps) {
+export default function MissingReceiptsPanel({ onClose, onIssueFinished, onIssuingChange }: MissingReceiptsPanelProps) {
   const currentYear = new Date().getFullYear();
   const [year, setYear] = useState(currentYear);
   const [report, setReport] = useState<MissingReceiptsReport | null>(null);
+  const [selected, setSelected] = useState<Set<string>>(() => new Set());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [exporting, setExporting] = useState(false);
   const [confirming, setConfirming] = useState(false);
+  const [nextNumber, setNextNumber] = useState('');
   const [typed, setTyped] = useState('');
   const [issuing, setIssuing] = useState(false);
   const [result, setResult] = useState<IssueMissingReceiptsResult | null>(null);
+  const [failures, setFailures] = useState<string[]>([]);
   const titleRef = useRef<HTMLHeadingElement>(null);
   const confirmInputRef = useRef<HTMLInputElement>(null);
   // Only the answer to the latest request is shown when the year changes quickly.
   const requestRef = useRef(0);
+  const numberRequestRef = useRef(0);
+  // The rows the ticks were made on, so a reload keeps the office's choices.
+  const reportRef = useRef<MissingReceiptsReport | null>(null);
 
   const load = useCallback(async (forYear: number) => {
     const request = ++requestRef.current;
@@ -64,10 +85,17 @@ export default function MissingReceiptsPanel({ onClose, onIssued }: MissingRecei
     setError('');
     try {
       const data = await fetchMissingReceipts(forYear);
-      if (request === requestRef.current) setReport(data);
+      if (request === requestRef.current) {
+        const previousRows = reportRef.current?.rows ?? [];
+        reportRef.current = data;
+        setReport(data);
+        setSelected((previous) => reconcileSelection(previousRows, previous, data.rows));
+      }
     } catch (err) {
       if (request === requestRef.current) {
+        reportRef.current = null;
         setReport(null);
+        setSelected(new Set());
         setError(await serverErrorText(err, 'טעינת הקבלות החסרות נכשלה'));
       }
     } finally {
@@ -88,16 +116,23 @@ export default function MissingReceiptsPanel({ onClose, onIssued }: MissingRecei
     if (confirming) confirmInputRef.current?.focus();
   }, [confirming]);
 
+  useEffect(() => {
+    onIssuingChange?.(issuing);
+  }, [issuing, onIssuingChange]);
+
   const rows = report?.rows ?? [];
-  const batch = rows.slice(0, MISSING_RECEIPTS_MAX_BATCH);
+  const selectedCount = rows.filter((row) => selected.has(row.payment_id)).length;
+  const flaggedCount = rows.filter((row) => manualDocumentNote(row)).length;
+  const batch = issueBatch(rows, selected);
+  const flaggedInBatch = batch.filter((row) => manualDocumentNote(row)).length;
   const gaps = continuityGaps(report?.continuity ?? []);
   const busy = exporting || issuing;
 
   function changeYear(next: number) {
     setYear(next);
-    setConfirming(false);
-    setTyped('');
+    cancelConfirm();
     setResult(null);
+    setFailures([]);
   }
 
   async function handleExport() {
@@ -112,28 +147,53 @@ export default function MissingReceiptsPanel({ onClose, onIssued }: MissingRecei
     }
   }
 
+  // The number shown is read as the confirmation opens: the one in the report
+  // may be long past if anything was issued since. Until it arrives, or if it
+  // cannot be read, the confirmation names no number rather than a stale one.
+  async function openConfirm() {
+    const request = ++numberRequestRef.current;
+    setNextNumber('');
+    setConfirming(true);
+    try {
+      const fresh = await fetchMissingReceiptsNextNumber();
+      if (request === numberRequestRef.current) setNextNumber(fresh);
+    } catch {
+      // No number is better than a wrong one; issuing itself is unaffected.
+    }
+  }
+
   function cancelConfirm() {
+    numberRequestRef.current += 1;
     setConfirming(false);
     setTyped('');
+    setNextNumber('');
   }
 
   async function handleIssue() {
-    if (!canConfirmIssue({ typed, issuing })) return;
+    if (!canConfirmIssue({ typed, issuing }) || batch.length === 0) return;
+    const sent = batch;
     setIssuing(true);
     setError('');
+    setResult(null);
+    setFailures([]);
+    let failure = '';
     try {
       const outcome = await issueMissingReceipts(
-        batch.map((row) => row.payment_id),
+        sent.map((row) => row.payment_id),
         typed.trim(),
       );
       setResult(outcome);
-      setConfirming(false);
-      setTyped('');
-      if (outcome.issued.length > 0) onIssued();
-      await load(year);
+      setFailures(failedLines(outcome, sent));
     } catch (err) {
-      setError(await serverErrorText(err, 'הפקת הקבלות נכשלה'));
+      failure = await serverErrorText(err, 'הפקת הקבלות נכשלה');
     } finally {
+      // Whatever came back — even a request that failed or timed out may have
+      // issued receipts on the server — the list and the documents are read
+      // again, and the confirmation (its count, its first number) goes with them.
+      cancelConfirm();
+      onIssueFinished();
+      await load(year);
+      if (failure) setError(failure);
       setIssuing(false);
     }
   }
@@ -143,6 +203,7 @@ export default function MissingReceiptsPanel({ onClose, onIssued }: MissingRecei
       id={MISSING_RECEIPTS_PANEL_ID}
       className={`${theme.card} ${styles.panel}`}
       aria-labelledby="missing-receipts-title"
+      aria-busy={issuing}
     >
       <div className={styles.head}>
         <div>
@@ -185,11 +246,18 @@ export default function MissingReceiptsPanel({ onClose, onIssued }: MissingRecei
             type="button"
             className={styles.issueBtn}
             disabled={!canStartIssue({ count: batch.length, loading, busy }) || confirming}
-            onClick={() => setConfirming(true)}
+            onClick={() => void openConfirm()}
           >
             {issueButtonLabel(batch.length)}
           </button>
-          <button type="button" className={tabStyles.iconBtn} onClick={onClose} aria-label="סגירת הקבלות החסרות">
+          <button
+            type="button"
+            className={tabStyles.iconBtn}
+            onClick={onClose}
+            disabled={issuing}
+            aria-label="סגירת הקבלות החסרות"
+            title={issuing ? 'אי אפשר לסגור בזמן שהקבלות מופקות' : undefined}
+          >
             <X size={16} aria-hidden="true" />
           </button>
         </div>
@@ -228,14 +296,38 @@ export default function MissingReceiptsPanel({ onClose, onIssued }: MissingRecei
       )}
 
       {result && (
-        <div className={styles.result} role="status">
-          <CheckCircle2 size={16} aria-hidden="true" className={styles.resultIcon} />
+        <div className={`${styles.result} ${failures.length > 0 ? styles.resultWarn : ''}`} role="status">
+          {failures.length > 0 ? (
+            <AlertTriangle size={16} aria-hidden="true" className={styles.resultIcon} />
+          ) : (
+            <CheckCircle2 size={16} aria-hidden="true" className={styles.resultIcon} />
+          )}
           <div>
             {issueSummary(result).map((line) => (
               <p key={line} className={styles.resultLine}>{line}</p>
             ))}
+            {failures.length > 0 && (
+              <>
+                <p className={styles.resultLine}>
+                  {failures.length === 1 ? 'לחיוב אחד לא הופקה קבלה:' : `ל-${failures.length} חיובים לא הופקה קבלה:`}
+                </p>
+                <ul className={styles.failedList}>
+                  {failures.map((line, index) => (
+                    <li key={`${index}-${line}`}>{line}</li>
+                  ))}
+                </ul>
+              </>
+            )}
           </div>
-          <button type="button" className={tabStyles.noticeClose} onClick={() => setResult(null)} aria-label="סגירת ההודעה">
+          <button
+            type="button"
+            className={tabStyles.noticeClose}
+            onClick={() => {
+              setResult(null);
+              setFailures([]);
+            }}
+            aria-label="סגירת ההודעה"
+          >
             <X size={14} aria-hidden="true" />
           </button>
         </div>
@@ -257,13 +349,13 @@ export default function MissingReceiptsPanel({ onClose, onIssued }: MissingRecei
             לפני שמפיקים
           </p>
           <ul id="missing-receipts-confirm-text" className={styles.confirmList}>
-            {issueConfirmationLines(batch.length, report?.next_number).map((line) => (
+            {issueConfirmationLines(batch.length, nextNumber || undefined, flaggedInBatch).map((line) => (
               <li key={line}>{line}</li>
             ))}
           </ul>
-          {rows.length > batch.length && (
+          {selectedCount > batch.length && (
             <p className={styles.confirmNote}>
-              בפעם אחת מופקות עד {MISSING_RECEIPTS_MAX_BATCH} קבלות — הוותיקות ביותר. את השאר מפיקים בסבב נוסף.
+              נבחרו {selectedCount.toLocaleString('he-IL')} חיובים, ובפעם אחת מופקות עד {MISSING_RECEIPTS_MAX_BATCH} קבלות — הוותיקות מביניהם. את השאר מפיקים בסבב נוסף.
             </p>
           )}
           <label htmlFor="missing-receipts-confirm-word" className={styles.confirmLabel}>
@@ -280,7 +372,11 @@ export default function MissingReceiptsPanel({ onClose, onIssued }: MissingRecei
               disabled={issuing}
               aria-invalid={typed !== '' && !isConfirmWord(typed)}
             />
-            <button type="submit" className={styles.issueBtn} disabled={!canConfirmIssue({ typed, issuing })}>
+            <button
+              type="submit"
+              className={styles.issueBtn}
+              disabled={!canConfirmIssue({ typed, issuing }) || batch.length === 0}
+            >
               {issuing ? 'מפיק…' : issueButtonLabel(batch.length)}
             </button>
             <button type="button" className={tabStyles.reportBtn} onClick={cancelConfirm} disabled={issuing}>
@@ -299,7 +395,7 @@ export default function MissingReceiptsPanel({ onClose, onIssued }: MissingRecei
       )}
 
       {loading ? (
-        <TableSkeleton columns={7} tableClassName={theme.table} label="טוען קבלות חסרות" />
+        <TableSkeleton columns={8} tableClassName={theme.table} label="טוען קבלות חסרות" />
       ) : rows.length === 0 ? (
         !error && (
           <p className={styles.empty} role="status">
@@ -307,35 +403,82 @@ export default function MissingReceiptsPanel({ onClose, onIssued }: MissingRecei
           </p>
         )
       ) : (
-        <div className={theme.tableScroll}>
-          <table className={`${theme.table} ${styles.table}`}>
-            <caption className={tabStyles.srOnly}>חיובים ללא קבלה ב-{year}, מהוותיק לחדש</caption>
-            <thead>
-              <tr>
-                <th scope="col">תאריך התשלום</th>
-                <th scope="col">משפחה</th>
-                <th scope="col">ילד</th>
-                <th scope="col">תיאור</th>
-                <th scope="col">ערוץ</th>
-                <th scope="col">אמצעי תשלום</th>
-                <th scope="col" className={theme.n}>סכום</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((row) => (
-                <tr key={row.payment_id}>
-                  <td>{formatDate(row.paid_at)}</td>
-                  <td className={tabStyles.wrapCell}>{row.family_name || '—'}</td>
-                  <td className={tabStyles.wrapCell}>{row.child_name || '—'}</td>
-                  <td className={tabStyles.wrapCell}>{row.description || '—'}</td>
-                  <td>{row.channel_label}</td>
-                  <td>{row.method_label}</td>
-                  <td className={`${theme.n} ${tabStyles.money}`}>{formatAmount(Number(row.amount))}</td>
+        <>
+          <div className={styles.selectBar}>
+            <span aria-live="polite">
+              נבחרו {selectedCount.toLocaleString('he-IL')} מתוך {rows.length.toLocaleString('he-IL')}
+            </span>
+            <button
+              type="button"
+              className={styles.linkBtn}
+              disabled={issuing}
+              onClick={() => setSelected((previous) => selectAllOrClear(rows, previous))}
+            >
+              {selectAllLabel(rows, selected)}
+            </button>
+            {flaggedCount > 0 && (
+              <span className={styles.selectHint}>
+                חיובים שייתכן שכבר הופק להם מסמך ידני לא נבחרו מראש.
+              </span>
+            )}
+          </div>
+          <div className={theme.tableScroll}>
+            <table className={`${theme.table} ${styles.table}`}>
+              <caption className={tabStyles.srOnly}>חיובים ללא קבלה ב-{year}, מהוותיק לחדש</caption>
+              <thead>
+                <tr>
+                  <th scope="col" className={styles.pick}>
+                    <span className={tabStyles.srOnly}>בחירה להפקה</span>
+                  </th>
+                  <th scope="col">תאריך התשלום</th>
+                  <th scope="col">משפחה</th>
+                  <th scope="col">ילד</th>
+                  <th scope="col">תיאור</th>
+                  <th scope="col">ערוץ</th>
+                  <th scope="col">אמצעי תשלום</th>
+                  <th scope="col" className={theme.n}>סכום</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {rows.map((row) => {
+                  const note = manualDocumentNote(row);
+                  const doc = row.possible_manual_document;
+                  return (
+                    <tr key={row.payment_id} className={note ? styles.flagged : undefined}>
+                      <td className={styles.pick}>
+                        <input
+                          type="checkbox"
+                          className={styles.check}
+                          checked={selected.has(row.payment_id)}
+                          disabled={issuing}
+                          onChange={() => setSelected((previous) => toggleSelected(previous, row.payment_id))}
+                          aria-label={`הפקת קבלה לחיוב של ${row.family_name || 'ללא משפחה'} מ-${formatDate(row.paid_at)}`}
+                        />
+                      </td>
+                      <td>{formatDate(row.paid_at)}</td>
+                      <td className={tabStyles.wrapCell}>{row.family_name || '—'}</td>
+                      <td className={tabStyles.wrapCell}>{row.child_name || '—'}</td>
+                      <td className={tabStyles.wrapCell}>
+                        {row.description || '—'}
+                        {note && doc && (
+                          <span
+                            className={styles.manualNote}
+                            title={`מסמך ${doc.number} מ-${formatDate(doc.date)} על ${formatAmount(Number(doc.amount))}`}
+                          >
+                            {note}
+                          </span>
+                        )}
+                      </td>
+                      <td>{row.channel_label}</td>
+                      <td>{row.method_label}</td>
+                      <td className={`${theme.n} ${tabStyles.money}`}>{formatAmount(Number(row.amount))}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </>
       )}
     </section>
   );

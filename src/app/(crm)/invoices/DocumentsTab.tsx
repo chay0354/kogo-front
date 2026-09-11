@@ -88,6 +88,8 @@ export default function DocumentsTab({ ledger, refreshKey = 0 }: DocumentsTabPro
   // Issuing late receipts is a manager's call; the server refuses anyone else too.
   const isManager = user?.role === 'manager';
   const [missingOpen, setMissingOpen] = useState(false);
+  // While the panel issues, closing it would lose the outcome of an irreversible action.
+  const [missingIssuing, setMissingIssuing] = useState(false);
 
   const [docType, setDocType] = useState('');
   const [status, setStatus] = useState('');
@@ -472,7 +474,11 @@ export default function DocumentsTab({ ledger, refreshKey = 0 }: DocumentsTabPro
       {/* Its own card above the list, inside the tab's themed scope: the late
           receipts it issues land in the list below once it reloads. */}
       {isManager && missingOpen && (
-        <MissingReceiptsPanel onClose={() => setMissingOpen(false)} onIssued={() => void reload()} />
+        <MissingReceiptsPanel
+          onClose={() => setMissingOpen(false)}
+          onIssueFinished={() => void reload()}
+          onIssuingChange={setMissingIssuing}
+        />
       )}
 
       <section className={theme.card} aria-labelledby="documents-list-title">
@@ -528,6 +534,7 @@ export default function DocumentsTab({ ledger, refreshKey = 0 }: DocumentsTabPro
                 className={styles.reportBtn}
                 aria-expanded={missingOpen}
                 aria-controls={missingOpen ? MISSING_RECEIPTS_PANEL_ID : undefined}
+                disabled={missingOpen && missingIssuing}
                 onClick={() => setMissingOpen((open) => !open)}
                 title="חיובים שהושלמו ולא הופקה להם קבלה — לשליחה לרואה החשבון ולהפקה אחרי שאישר"
               >

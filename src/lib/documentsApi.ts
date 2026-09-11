@@ -222,7 +222,16 @@ export async function downloadUniformExport(params: { start_date: string; end_da
 export const MISSING_RECEIPTS_CONFIRM_WORD = 'הפק';
 
 /** The server refuses more than this in one request; a longer list is issued in rounds. */
-export const MISSING_RECEIPTS_MAX_BATCH = 500;
+export const MISSING_RECEIPTS_MAX_BATCH = 100;
+
+/** A document issued by hand for the same family and sum near the charge — maybe its receipt already. */
+export interface PossibleManualDocument {
+  number: string;
+  /** YYYY-MM-DD. */
+  date: string;
+  /** Two decimals, as a string. */
+  amount: string;
+}
 
 /** A completed charge that never got its חשבונית מס/קבלה, as /documents/missing-receipts/ lists it. */
 export interface MissingReceiptRow {
@@ -239,6 +248,8 @@ export interface MissingReceiptRow {
   /** What the receipt will record: 'credit_card', or '' when the charge did not go through Tranzila. */
   method: string;
   method_label: string;
+  /** Set when a hand-issued document may already cover this charge; such a row starts unticked. */
+  possible_manual_document?: PossibleManualDocument | null;
 }
 
 /** One number run of the year, checked for numbers no document carries. */
@@ -269,7 +280,8 @@ export interface IssueMissingReceiptsResult {
   issued: Array<{ payment_id: string; number: string }>;
   /** Not missing any more (a receipt was issued meanwhile), not found, or not a completed charge. */
   skipped: Array<{ payment_id: string; reason: string; message: string }>;
-  failed: Array<{ payment_id: string; error: string }>;
+  /** The message is for the office; the error itself is only in the server's log. */
+  failed: Array<{ payment_id: string; message: string }>;
 }
 
 /** The charges of a year that never got their receipt — the same list `check_invoices` finds. */
@@ -284,6 +296,12 @@ export async function fetchMissingReceipts(year: number): Promise<MissingReceipt
     rows: Array.isArray(data.rows) ? data.rows : [],
     continuity: Array.isArray(data.continuity) ? data.continuity : [],
   };
+}
+
+/** The IR number issuing would start from right now — read as the confirmation opens, so it is not stale. */
+export async function fetchMissingReceiptsNextNumber(): Promise<string> {
+  const res = await api.get('/documents/missing-receipts/next-number/');
+  return String(res.data?.next_number ?? '');
 }
 
 /** The same list as a CSV for the accountant to approve, before anything is issued. */

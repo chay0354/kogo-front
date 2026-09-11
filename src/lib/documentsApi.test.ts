@@ -15,8 +15,10 @@ vi.mock('./api', () => ({ default: api }));
 import {
   downloadMissingReceiptsCsv,
   fetchMissingReceipts,
+  fetchMissingReceiptsNextNumber,
   issueMissingReceipts,
   MISSING_RECEIPTS_CONFIRM_WORD,
+  MISSING_RECEIPTS_MAX_BATCH,
 } from './documentsApi';
 
 beforeEach(() => {
@@ -58,6 +60,26 @@ describe('fetchMissingReceipts', () => {
     const refusal = { response: { status: 403, data: { detail: 'אין הרשאה. נדרש תפקיד מנהל.' } } };
     api.get.mockRejectedValue(refusal);
     await expect(fetchMissingReceipts(2026)).rejects.toBe(refusal);
+  });
+});
+
+describe('fetchMissingReceiptsNextNumber', () => {
+  it('reads the number issuing would start from now', async () => {
+    api.get.mockResolvedValue({ data: { next_number: 'IR-2026-000125' } });
+
+    expect(await fetchMissingReceiptsNextNumber()).toBe('IR-2026-000125');
+    expect(api.get).toHaveBeenCalledWith('/documents/missing-receipts/next-number/');
+  });
+
+  it('reads an empty body as no number', async () => {
+    api.get.mockResolvedValue({ data: null });
+    expect(await fetchMissingReceiptsNextNumber()).toBe('');
+  });
+});
+
+describe('the batch cap', () => {
+  it('matches the server: a hundred receipts per request', () => {
+    expect(MISSING_RECEIPTS_MAX_BATCH).toBe(100);
   });
 });
 
