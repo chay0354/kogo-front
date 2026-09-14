@@ -8,15 +8,16 @@ import {
   CheckCheck,
   ChevronDown,
   Copy,
+  CreditCard,
   History,
   Link2,
   Loader2,
-  Lock,
   MapPin,
   Plus,
   Receipt,
   RefreshCw,
   Repeat,
+  RotateCcw,
   Search,
   Send,
   User,
@@ -30,15 +31,28 @@ import type { ChildWithDetails } from '@/types/customer';
 import {
   cardLinkAction,
   createCardLink,
+  createCardUpdateLink,
   fetchCardLinkOptions,
   fetchCardLinks,
   formatShekels,
   type CardLink,
   type CardLinkInput,
-  type CardLinkKind,
   type CardLinkOption,
   type CardLinkQuote,
+  type CardUpdateLink,
+  type OptionStandingOrder,
 } from '@/lib/paymentLinksApi';
+import {
+  isSelectable,
+  monthsSummary,
+  opensNewStandingOrder,
+  optionAction,
+  renewAmountError,
+  renewAmountToSend,
+  splitUrl,
+  standingOrderRows,
+  standingOrderStatusLabel,
+} from './cardUpdateLink';
 import styles from './SendCardLinkDialog.module.css';
 
 interface SendCardLinkDialogProps {
@@ -46,6 +60,22 @@ interface SendCardLinkDialogProps {
   onOpenChange: (open: boolean) => void;
   child: ChildWithDetails;
 }
+
+/**
+ * The three things the office does from here.
+ *
+ * `standing_order` is one option with two faces: for a child with no standing
+ * order on the unit it opens one, exactly as before; for a child who has one it
+ * becomes חידוש — the months that were never collected, at their exact total.
+ * `card_change` swaps the card on a live order and charges nothing at all.
+ */
+type DialogKind = 'standing_order' | 'card_change' | 'one_time';
+
+const KIND_LABEL: Record<DialogKind, string> = {
+  standing_order: 'הוראת קבע לחוג',
+  card_change: 'שינוי פרטי אשראי',
+  one_time: 'חיוב חד-פעמי',
+};
 
 type LessonRow = {
   id: string;
@@ -137,14 +167,6 @@ function errorMessage(err: unknown, fallback: string) {
 }
 
 /**
- * Only a priced unit with no standing order on it can become a link the parent
- * can pay: the server refuses the one, and the parent's page cannot charge the other.
- */
-function isSelectable(option: CardLinkOption) {
-  return !option.has_standing_order && Boolean(option.quote) && !option.quote_error;
-}
-
-/**
  * The options are quoted with the registration fee in, so an unticked box takes
  * it off here. A paid trial's credit is capped at the charge on the server, so
  * the honest floor is zero; the ticket then shows the server's own figure.
@@ -153,16 +175,6 @@ function firstChargeFor(quote: CardLinkQuote, includeFee: boolean) {
   const first = Number(quote.first_charge);
   if (includeFee || !Number.isFinite(first)) return first;
   return Math.max(0, Math.round((first - Number(quote.registration_fee || 0)) * 100) / 100);
-}
-
-/** 'https://crm…' and '/c/Xa9kQ2mP7z', so the part that is the link can carry the weight. */
-function splitUrl(url: string) {
-  try {
-    const parsed = new URL(url);
-    return { host: `${parsed.protocol}//${parsed.host}`, path: `${parsed.pathname}${parsed.search}` };
-  } catch {
-    return { host: '', path: url };
-  }
 }
 
 function enrolledWord(gender: ChildWithDetails['gender']) {
@@ -203,15 +215,20 @@ function OptionCard({
   onSelect: () => void;
   onKeyDown: (e: KeyboardEvent<HTMLButtonElement>) => void;
 }) {
+  const action = optionAction(option);
   const selectable = isSelectable(option);
   const track = option.sessions.length > 1;
   const instructors = instructorsOf(option);
+  const sto = option.standing_order;
   const quote = option.quote && !option.quote_error ? option.quote : null;
-  const priceText = option.has_standing_order
-    ? 'כבר יש הוראת קבע'
-    : quote
-      ? `${formatShekels(quote.monthly_amount)} לחודש, ${formatShekels(firstChargeFor(quote, includeFee))} לחיוב עכשיו`
-      : option.quote_error || 'אין מחיר';
+  const priceText =
+    action === 'renew' && sto
+      ? `חידוש · ${formatShekels(sto.renew_amount)} עבור ${sto.months_label}`
+      : action === 'card_only'
+        ? 'הוראת קבע פעילה, אין חודשים פתוחים'
+        : quote
+          ? `${formatShekels(quote.monthly_amount)} לחודש, ${formatShekels(firstChargeFor(quote, includeFee))} לחיוב עכשיו`
+          : option.quote_error || 'אין מחיר';
 
   return (
     <button
@@ -228,10 +245,18 @@ function OptionCard({
       onClick={onSelect}
       onKeyDown={onKeyDown}
     >
-      {option.has_standing_order ? (
+      {action === 'renew' && sto ? (
+        <span className={styles.stub}>
+          <span className={styles.stubAmount}>{formatShekels(sto.renew_amount)}</span>
+          <span className={styles.stubPer}>לחידוש</span>
+          <span className={styles.stubNow}>
+            <b>{sto.months.length}</b> {sto.months.length === 1 ? 'חודש שלא נגבה' : 'חודשים שלא נגבו'}
+          </span>
+        </span>
+      ) : action === 'card_only' ? (
         <span className={`${styles.stub} ${styles.stubBlocked}`}>
-          <Lock className="h-4 w-4" aria-hidden />
-          כבר יש הוראת קבע
+          <CreditCard className="h-4 w-4" aria-hidden />
+          אין חודשים פתוחים
         </span>
       ) : quote ? (
         <span className={styles.stub}>
@@ -257,6 +282,11 @@ function OptionCard({
           </span>
           {option.enrolled ? <span className={`${styles.pill} ${styles.pillEnrolled}`}>{enrolledLabel}</span> : null}
           {option.is_trial ? <span className={`${styles.pill} ${styles.pillTrial}`}>ניסיון</span> : null}
+          {sto ? (
+            <span className={`${styles.pill} ${styles.pillFreq}`}>
+              הוראת קבע {standingOrderStatusLabel(sto.status)}
+            </span>
+          ) : null}
         </span>
 
         {option.sessions.length > 0 ? (
@@ -290,8 +320,12 @@ function OptionCard({
           </span>
         ) : null}
 
-        {option.has_standing_order ? (
-          <span className={styles.optionNote}>כבר מחויב בהוראת קבע פעילה — קישור חדש יידחה.</span>
+        {action === 'renew' && sto ? (
+          <span className={styles.optionNote}>{monthsSummary(sto)} — הקישור יחדש את הוראת הקבע.</span>
+        ) : action === 'card_only' ? (
+          <span className={styles.optionNote}>
+            הוראת הקבע מכוסה. להחלפת הכרטיס בלבד עברו ל&quot;{KIND_LABEL.card_change}&quot;.
+          </span>
         ) : option.quote_error ? (
           <span className={`${styles.optionNote} ${styles.optionNoteError}`}>{option.quote_error}</span>
         ) : null}
@@ -417,6 +451,173 @@ function Ticket({ link, childName, copied, onCopy }: { link: CardLink; childName
   );
 }
 
+/**
+ * The card-update link once it exists. It is never a CardLink row — it is a
+ * signed URL for one standing order — so it says in its own words which of the
+ * two things it will do, and carries only a copy button: WhatsApp stays on the
+ * standing-order link it always had.
+ */
+function UpdateTicket({
+  link,
+  unitLabel,
+  copied,
+  onCopy,
+}: {
+  link: CardUpdateLink;
+  unitLabel: string;
+  copied: boolean;
+  onCopy: () => void;
+}) {
+  const renew = link.mode === 'renew';
+  const { host, path } = splitUrl(link.url);
+
+  return (
+    <section className={styles.ticket} aria-label="הקישור שנוצר">
+      <div className={styles.ticketTop}>
+        <span className={styles.ticketEyebrow}>
+          <CheckCheck className="h-4 w-4" aria-hidden />
+          הקישור מוכן
+        </span>
+        <p className={styles.ticketTitle}>{unitLabel || (renew ? 'חידוש הוראת קבע' : 'שינוי פרטי אשראי')}</p>
+        <p className={styles.ticketSub}>
+          {link.child_name} · {renew ? 'חידוש הוראת קבע לחוג' : 'שינוי פרטי אשראי — ללא חיוב'}
+        </p>
+      </div>
+
+      <div className={styles.linkWrap}>
+        <p className={styles.linkLabel}>הקישור שההורה יקבל</p>
+        <div className={styles.linkPill} dir="ltr">
+          <a className={styles.linkUrl} href={link.url} target="_blank" rel="noopener noreferrer" title="פתיחת העמוד שההורה יראה">
+            {host ? <span className={styles.urlHost}>{host}</span> : null}
+            <wbr />
+            <span className={styles.urlPath}>{path}</span>
+          </a>
+          <button
+            type="button"
+            className={styles.copyBtn}
+            data-copied={copied}
+            onClick={onCopy}
+            aria-label={copied ? 'הקישור הועתק' : 'העתק קישור'}
+            title="העתק קישור"
+          >
+            {copied ? <Check className="h-5 w-5" aria-hidden /> : <Copy className="h-5 w-5" aria-hidden />}
+          </button>
+        </div>
+      </div>
+
+      <div className={styles.perforation} aria-hidden />
+
+      {renew ? (
+        <div className={styles.ticketStub}>
+          <div className={`${styles.tile} ${styles.tileHero}`}>
+            <span className={styles.tileLabel}>לחיוב עכשיו</span>
+            <span className={styles.tileValue}>{formatShekels(link.amount)}</span>
+          </div>
+          <div className={styles.tile}>
+            <span className={styles.tileLabel}>חודשים</span>
+            <span className={styles.tileValue}>{link.months.length}</span>
+          </div>
+          <div className={styles.tile}>
+            <span className={styles.tileLabel}>חודשי</span>
+            <span className={styles.tileValue}>{formatShekels(link.monthly_amount)}</span>
+          </div>
+          <p className={styles.ticketNote}>
+            עבור {link.months_label}. הסכום חתום בתוך הקישור — שינוי בכתובת לא ישנה את החיוב.
+          </p>
+        </div>
+      ) : (
+        <div className={`${styles.ticketStub} ${styles.ticketStubSingle}`}>
+          <div className={`${styles.tile} ${styles.tileHero}`}>
+            <span className={styles.tileLabel}>לחיוב עכשיו</span>
+            <span className={styles.tileValue}>₪0</span>
+          </div>
+          <p className={styles.ticketNote}>
+            שינוי פרטי אשראי בלבד — לא יבוצע חיוב. החיוב החודשי הבא ירד בתאריך שלו כרגיל.
+          </p>
+        </div>
+      )}
+    </section>
+  );
+}
+
+/** What the office sees and may change before it creates a renewal link. */
+function RenewPanel({
+  standingOrder,
+  amount,
+  amountError,
+  onAmount,
+  onReset,
+}: {
+  standingOrder: OptionStandingOrder;
+  amount: string;
+  amountError: string;
+  onAmount: (value: string) => void;
+  onReset: () => void;
+}) {
+  const computed = Number(standingOrder.renew_amount).toFixed(2);
+  const overridden = renewAmountToSend(standingOrder, amount) !== undefined;
+
+  return (
+    <div className={styles.formCard}>
+      <div className={styles.sectionHead}>
+        <h3 className={styles.sectionTitle}>
+          <RotateCcw className="h-4 w-4" aria-hidden />
+          חידוש הוראת הקבע
+        </h3>
+        <p className={styles.sectionHint}>הוראת קבע {standingOrderStatusLabel(standingOrder.status)}</p>
+      </div>
+
+      <ul className={styles.linkList} aria-label="החודשים שלא נגבו">
+        {standingOrder.months.map((month) => (
+          <li key={month.month} className={styles.linkRow}>
+            <span className={styles.rowIcon} aria-hidden>
+              <CalendarDays className="h-4 w-4" />
+            </span>
+            <div className={styles.rowMain}>
+              <p className={styles.rowTitle}>{month.label}</p>
+              <p className={styles.rowMeta}>לא נגבה</p>
+            </div>
+            <span className={styles.status}>{formatShekels(standingOrder.monthly_amount)}</span>
+          </li>
+        ))}
+      </ul>
+
+      <div>
+        <label className={styles.label} htmlFor="cl-renew-amount">
+          סכום לחיוב (₪)
+        </label>
+        <div className={styles.money}>
+          <span className={styles.moneySign} aria-hidden>
+            ₪
+          </span>
+          <input
+            id="cl-renew-amount"
+            className={styles.input}
+            inputMode="decimal"
+            value={amount}
+            onChange={(e) => onAmount(e.target.value)}
+            aria-describedby="cl-renew-note"
+          />
+        </div>
+        <p id="cl-renew-note" className={styles.formNote}>
+          {monthsSummary(standingOrder)} · {formatShekels(standingOrder.monthly_amount)} לחודש ={' '}
+          <b>{formatShekels(computed)}</b>. אין חישוב יחסי ואין דמי רישום.
+        </p>
+        {overridden ? (
+          <button type="button" className={styles.moreBtn} onClick={onReset}>
+            החזר לסכום המחושב ({formatShekels(computed)})
+          </button>
+        ) : null}
+        {amountError ? (
+          <p className={styles.errorBox} role="alert">
+            {amountError}
+          </p>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
 function LinkRow({
   link,
   isNew,
@@ -483,7 +684,7 @@ function LinkRow({
  * ticket; sending it is a separate, confirmed click.
  */
 export default function SendCardLinkDialog({ open, onOpenChange, child }: SendCardLinkDialogProps) {
-  const [kind, setKind] = useState<CardLinkKind>('standing_order');
+  const [kind, setKind] = useState<DialogKind>('standing_order');
   // null while loading; [] with optionsFailed when the request did not come back.
   const [options, setOptions] = useState<CardLinkOption[] | null>(null);
   const [optionsFailed, setOptionsFailed] = useState(false);
@@ -504,6 +705,11 @@ export default function SendCardLinkDialog({ open, onOpenChange, child }: SendCa
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [created, setCreated] = useState<CardLink | null>(null);
+  // The card-update link is a signed URL for one standing order, not a CardLink row.
+  const [updateLink, setUpdateLink] = useState<CardUpdateLink | null>(null);
+  const [updateLinkLabel, setUpdateLinkLabel] = useState('');
+  const [renewAmount, setRenewAmount] = useState('');
+  const [cardChangeId, setCardChangeId] = useState('');
   const [copiedUrl, setCopiedUrl] = useState('');
 
   const optionsRequest = useRef(0);
@@ -558,6 +764,10 @@ export default function SendCardLinkDialog({ open, onOpenChange, child }: SendCa
     if (!open) return;
     setError('');
     setCreated(null);
+    setUpdateLink(null);
+    setUpdateLinkLabel('');
+    setRenewAmount('');
+    setCardChangeId('');
     setAmount('');
     setDescription('');
     setKind('standing_order');
@@ -630,6 +840,31 @@ export default function SendCardLinkDialog({ open, onOpenChange, child }: SendCa
   const parentPhone = child.parent_phone || child.family_phone;
   const visibleLinks = showAllLinks ? links : links.slice(0, LINKS_PREVIEW);
 
+  // The child's standing orders, one row each, for "שינוי פרטי אשראי".
+  const stoRows = useMemo(() => standingOrderRows(options), [options]);
+  const cardChangeRow = stoRows.find((row) => row.standingOrder.id === cardChangeId) ?? null;
+  // A renewal only exists on the standing-order tab, and only for a unit that was
+  // picked from the child's own list — never for an "other lesson" chosen by hand.
+  const renewOrder =
+    kind === 'standing_order' && !otherLessonId && selectedOption?.standing_order
+      ? selectedOption.standing_order
+      : null;
+  const renewable = renewOrder?.can_renew ? renewOrder : null;
+  const renewError = renewable ? renewAmountError(renewAmount) : '';
+
+  // The computed total fills the box the moment a renewable unit is picked, so the
+  // office sees the figure it is about to charge rather than an empty field.
+  useEffect(() => {
+    setRenewAmount(renewable ? Number(renewable.renew_amount).toFixed(2) : '');
+  }, [renewable]);
+
+  useEffect(() => {
+    if (kind !== 'card_change') return;
+    setCardChangeId((current) =>
+      current && stoRows.some((row) => row.standingOrder.id === current) ? current : stoRows[0]?.standingOrder.id ?? '',
+    );
+  }, [kind, stoRows]);
+
   const chooseOption = (key: string) => {
     setSelectedKey(key);
     setOtherLessonId('');
@@ -659,19 +894,75 @@ export default function SendCardLinkDialog({ open, onOpenChange, child }: SendCa
     cardRefs.current.get(target)?.focus();
   };
 
-  const switchKind = (next: CardLinkKind) => {
+  const switchKind = (next: DialogKind) => {
     setKind(next);
     setCreated(null);
+    setUpdateLink(null);
+    setUpdateLinkLabel('');
     setError('');
+  };
+
+  /**
+   * The URL for a standing order's card page. Nothing is sent: the office copies
+   * it. The mode and the amount are signed into the token on the server, so the
+   * link cannot be edited into a different charge.
+   */
+  const makeUpdateLink = async (
+    standingOrder: OptionStandingOrder,
+    mode: 'renew' | 'card_only',
+    unitLabel: string,
+  ) => {
+    setError('');
+    if (mode === 'renew') {
+      const problem = renewAmountError(renewAmount);
+      if (problem) {
+        setError(problem);
+        return;
+      }
+    }
+    setBusy(true);
+    try {
+      const saved = await createCardUpdateLink(
+        standingOrder.id,
+        mode,
+        mode === 'renew' ? renewAmountToSend(standingOrder, renewAmount) : undefined,
+      );
+      setUpdateLink(saved);
+      setUpdateLinkLabel(unitLabel);
+      toast.success('הקישור נוצר');
+    } catch (err: unknown) {
+      setError(errorMessage(err, 'יצירת הקישור נכשלה'));
+    } finally {
+      setBusy(false);
+    }
   };
 
   const create = async () => {
     setError('');
+    if (kind === 'card_change') {
+      if (!cardChangeRow) {
+        setError('יש לבחור הוראת קבע');
+        return;
+      }
+      await makeUpdateLink(cardChangeRow.standingOrder, 'card_only', optionSummary(cardChangeRow.option));
+      return;
+    }
     let input: CardLinkInput;
     if (kind === 'standing_order') {
+      // A unit the child already has a standing order on is renewed, never
+      // opened a second time: a second order on the same lesson bills twice.
+      if (!otherLessonId && selectedOption?.standing_order) {
+        const sto = selectedOption.standing_order;
+        if (!sto.can_renew) {
+          setError(`אין חודשים שלא נגבו. להחלפת הכרטיס בלבד עברו ל"${KIND_LABEL.card_change}".`);
+          return;
+        }
+        await makeUpdateLink(sto, 'renew', optionSummary(selectedOption));
+        return;
+      }
       if (otherLessonId) {
         input = { kind: 'standing_order', child_id: child.id, lesson_id: otherLessonId, include_registration_fee: includeFee };
-      } else if (selectedOption && isSelectable(selectedOption)) {
+      } else if (selectedOption && opensNewStandingOrder(selectedOption)) {
         // A track goes by its bundle: the server hangs it on the first day and bills the combined price.
         input =
           selectedOption.kind === 'bundle' && selectedOption.bundle_id
@@ -766,7 +1057,27 @@ export default function SendCardLinkDialog({ open, onOpenChange, child }: SendCa
         <span className={`${styles.summaryValue} ${styles.summaryEmpty}`}>הזינו סכום ותיאור</span>
       );
     }
+    if (kind === 'card_change') {
+      return cardChangeRow ? (
+        <span className={styles.summaryValue}>
+          {optionSummary(cardChangeRow.option)} · <b>₪0</b> — ללא חיוב
+        </span>
+      ) : (
+        <span className={`${styles.summaryValue} ${styles.summaryEmpty}`}>בחרו הוראת קבע</span>
+      );
+    }
     if (otherLesson) return <span className={styles.summaryValue}>{lessonLabel(otherLesson)}</span>;
+    if (renewable) {
+      const figure = renewAmountError(renewAmount) ? renewable.renew_amount : renewAmount;
+      return (
+        <span className={styles.summaryValue}>
+          חידוש · {optionSummary(selectedOption!)} · <b>{formatShekels(figure)}</b> עבור {renewable.months_label}
+        </span>
+      );
+    }
+    if (renewOrder) {
+      return <span className={`${styles.summaryValue} ${styles.summaryEmpty}`}>אין חודשים שלא נגבו</span>;
+    }
     if (selectedOption?.quote) {
       return (
         <span className={styles.summaryValue}>
@@ -776,6 +1087,9 @@ export default function SendCardLinkDialog({ open, onOpenChange, child }: SendCa
     }
     return <span className={`${styles.summaryValue} ${styles.summaryEmpty}`}>בחרו חוג או מסלול</span>;
   })();
+
+  const createLabel =
+    kind === 'card_change' ? 'צור קישור ללא חיוב' : renewable ? 'צור קישור חידוש' : 'צור קישור';
 
   return (
     <Dialog open={open} onOpenChange={(next) => !busy && onOpenChange(next)}>
@@ -809,8 +1123,8 @@ export default function SendCardLinkDialog({ open, onOpenChange, child }: SendCa
               </div>
             </div>
 
-            <div className={styles.switch} role="radiogroup" aria-label="סוג הקישור">
-              {(['standing_order', 'one_time'] as const).map((k) => (
+            <div className={`${styles.switch} ${styles.switchThree}`} role="radiogroup" aria-label="סוג הקישור">
+              {(['standing_order', 'card_change', 'one_time'] as const).map((k) => (
                 <button
                   key={k}
                   type="button"
@@ -819,26 +1133,102 @@ export default function SendCardLinkDialog({ open, onOpenChange, child }: SendCa
                   className={styles.switchOption}
                   onClick={() => switchKind(k)}
                 >
-                  {k === 'standing_order' ? <Repeat className="h-4 w-4" aria-hidden /> : <Receipt className="h-4 w-4" aria-hidden />}
-                  {k === 'standing_order' ? 'הוראת קבע לחוג' : 'חיוב חד-פעמי'}
+                  {k === 'standing_order' ? (
+                    <Repeat className="h-4 w-4" aria-hidden />
+                  ) : k === 'card_change' ? (
+                    <CreditCard className="h-4 w-4" aria-hidden />
+                  ) : (
+                    <Receipt className="h-4 w-4" aria-hidden />
+                  )}
+                  {KIND_LABEL[k]}
                 </button>
               ))}
             </div>
           </header>
 
           <div className={styles.body}>
-            {created ? (
+            {updateLink ? (
+              <UpdateTicket
+                link={updateLink}
+                unitLabel={updateLinkLabel}
+                copied={copiedUrl === updateLink.url}
+                onCopy={() => void copy(updateLink.url)}
+              />
+            ) : created ? (
               <Ticket
                 link={created}
                 childName={child.full_name}
                 copied={copiedUrl === created.public_url}
                 onCopy={() => void copy(created.public_url)}
               />
+            ) : kind === 'card_change' ? (
+              <div className={`${styles.section} ${styles.rise}`}>
+                <div className={styles.sectionHead}>
+                  <h3 className={styles.sectionTitle}>על איזו הוראת קבע להחליף כרטיס</h3>
+                  <p className={styles.sectionHint}>לא יבוצע חיוב — גם אם יש חודש פתוח</p>
+                </div>
+
+                {options === null ? (
+                  <OptionsSkeleton />
+                ) : stoRows.length === 0 ? (
+                  <div className={styles.empty}>
+                    <span className={styles.emptyIcon}>
+                      <CreditCard className="h-5 w-5" aria-hidden />
+                    </span>
+                    <p className={styles.emptyTitle}>אין ל{child.first_name} הוראת קבע</p>
+                    <p className={styles.emptyText}>
+                      אפשר לפתוח הוראת קבע חדשה ב&quot;{KIND_LABEL.standing_order}&quot;.
+                    </p>
+                  </div>
+                ) : (
+                  <ul className={styles.linkList} role="radiogroup" aria-label="הוראת קבע להחלפת כרטיס">
+                    {stoRows.map(({ option, standingOrder }) => (
+                      <li key={standingOrder.id} className={styles.linkRow}>
+                        <span className={styles.rowIcon} aria-hidden>
+                          {cardChangeId === standingOrder.id ? <Check className="h-4 w-4" /> : <CreditCard className="h-4 w-4" />}
+                        </span>
+                        <button
+                          type="button"
+                          role="radio"
+                          aria-checked={cardChangeId === standingOrder.id}
+                          className={styles.pickRow}
+                          onClick={() => {
+                            setCardChangeId(standingOrder.id);
+                            setError('');
+                          }}
+                        >
+                          <p className={styles.rowTitle}>
+                            <span className={styles.rowKind}>הוראת קבע {standingOrderStatusLabel(standingOrder.status)}</span>
+                            {` · ${optionSummary(option)}`}
+                          </p>
+                          <p className={styles.rowMeta}>
+                            {formatShekels(standingOrder.monthly_amount)} לחודש
+                            {standingOrder.next_billing_date ? ` · החיוב הבא ${formatDay(standingOrder.next_billing_date)}` : ''}
+                            {standingOrder.can_renew ? (
+                              <span className={styles.rowWarn}> · {monthsSummary(standingOrder)}</span>
+                            ) : null}
+                          </p>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+
+                <p className={styles.formNote}>
+                  הקישור מחליף את הכרטיס בלבד ואינו מחייב. חודש שלא נגבה יישאר פתוח וייגבה בחיוב החודשי בתאריך שלו.
+                </p>
+              </div>
             ) : kind === 'standing_order' ? (
               <div className={`${styles.section} ${styles.rise}`}>
                 <div className={styles.sectionHead}>
-                  <h3 className={styles.sectionTitle}>על מה תיפתח הוראת הקבע</h3>
-                  <p className={styles.sectionHint}>המחיר מחושב כמו בהרשמה רגילה</p>
+                  <h3 className={styles.sectionTitle}>
+                    {renewOrder ? 'איזו הוראת קבע לחדש' : 'על מה תיפתח הוראת הקבע'}
+                  </h3>
+                  <p className={styles.sectionHint}>
+                    {renewOrder
+                      ? 'חידוש גובה חודש מלא לכל חודש שלא נגבה'
+                      : 'המחיר מחושב כמו בהרשמה רגילה'}
+                  </p>
                 </div>
 
                 {options === null ? (
@@ -901,7 +1291,33 @@ export default function SendCardLinkDialog({ open, onOpenChange, child }: SendCa
                   </div>
                 )}
 
-                {options !== null ? (
+                {/* A unit the child already pays for: the months that were never
+                    collected and their exact total, editable, instead of a refusal. */}
+                {renewable ? (
+                  <RenewPanel
+                    standingOrder={renewable}
+                    amount={renewAmount}
+                    amountError={renewError}
+                    onAmount={(value) => {
+                      setRenewAmount(value);
+                      setError('');
+                    }}
+                    onReset={() => setRenewAmount(Number(renewable.renew_amount).toFixed(2))}
+                  />
+                ) : renewOrder ? (
+                  <div className={styles.formCard}>
+                    <p className={styles.formNote}>
+                      הוראת הקבע {standingOrderStatusLabel(renewOrder.status)} ואין חודשים שלא נגבו — אין מה לחדש.
+                      להחלפת הכרטיס בלבד עברו ל&quot;{KIND_LABEL.card_change}&quot;.
+                    </p>
+                    <button type="button" className={styles.moreBtn} onClick={() => switchKind('card_change')}>
+                      <CreditCard className="h-4 w-4" aria-hidden />
+                      מעבר ל{KIND_LABEL.card_change}
+                    </button>
+                  </div>
+                ) : null}
+
+                {options !== null && !renewOrder ? (
                   <div className={`${styles.other} ${otherLessonId ? styles.otherActive : ''}`}>
                     <button
                       type="button"
@@ -943,13 +1359,16 @@ export default function SendCardLinkDialog({ open, onOpenChange, child }: SendCa
                   </div>
                 ) : null}
 
-                <label className={styles.fee}>
-                  <input type="checkbox" checked={includeFee} onChange={(e) => setIncludeFee(e.target.checked)} />
-                  <span className={styles.feeText}>לגבות דמי רישום (אם עוד לא שולמו לילד)</span>
-                  {!otherLessonId && selectedOption?.quote && Number(selectedOption.quote.registration_fee) > 0 ? (
-                    <span className={styles.feeAmount}>{formatShekels(selectedOption.quote.registration_fee)}</span>
-                  ) : null}
-                </label>
+                {/* A renewal charges whole months and nothing else — no registration fee. */}
+                {renewOrder ? null : (
+                  <label className={styles.fee}>
+                    <input type="checkbox" checked={includeFee} onChange={(e) => setIncludeFee(e.target.checked)} />
+                    <span className={styles.feeText}>לגבות דמי רישום (אם עוד לא שולמו לילד)</span>
+                    {!otherLessonId && selectedOption?.quote && Number(selectedOption.quote.registration_fee) > 0 ? (
+                      <span className={styles.feeAmount}>{formatShekels(selectedOption.quote.registration_fee)}</span>
+                    ) : null}
+                  </label>
+                )}
               </div>
             ) : (
               <div className={`${styles.formCard} ${styles.rise}`}>
@@ -1025,7 +1444,7 @@ export default function SendCardLinkDialog({ open, onOpenChange, child }: SendCa
               </div>
             )}
 
-            {links.length > 0 ? (
+            {links.length > 0 && !updateLink ? (
               <section className={styles.section} aria-labelledby="cl-links-title">
                 <div className={styles.sectionHead}>
                   <h3 id="cl-links-title" className={styles.sectionTitle}>
@@ -1061,7 +1480,29 @@ export default function SendCardLinkDialog({ open, onOpenChange, child }: SendCa
                 {error}
               </p>
             ) : null}
-            {created ? (
+            {updateLink ? (
+              <div className={styles.actions}>
+                <button
+                  type="button"
+                  className={styles.ghost}
+                  onClick={() => {
+                    setUpdateLink(null);
+                    setUpdateLinkLabel('');
+                    setError('');
+                  }}
+                  disabled={busy}
+                >
+                  <Plus className="h-4 w-4" aria-hidden />
+                  קישור נוסף
+                </button>
+                {/* Copy only: WhatsApp stays on the standing-order link it always had. */}
+                <button type="button" className={styles.primary} onClick={() => void copy(updateLink.url)}>
+                  <Copy className="h-4 w-4" aria-hidden />
+                  העתק קישור
+                </button>
+                <span className={styles.sendHint}>העתיקו את הקישור ושלחו להורה</span>
+              </div>
+            ) : created ? (
               <div className={styles.actions}>
                 <button
                   type="button"
@@ -1093,13 +1534,18 @@ export default function SendCardLinkDialog({ open, onOpenChange, child }: SendCa
             ) : (
               <div className={styles.footerRow}>
                 <div className={styles.summary} aria-live="polite">
-                  <span className={styles.summaryLabel}>{kind === 'standing_order' ? 'נבחר' : 'לחיוב'}</span>
+                  <span className={styles.summaryLabel}>{kind === 'one_time' ? 'לחיוב' : 'נבחר'}</span>
                   {summary}
                 </div>
                 <div className={styles.actions}>
-                  <button type="button" className={styles.primary} onClick={() => void create()} disabled={busy}>
+                  <button
+                    type="button"
+                    className={styles.primary}
+                    onClick={() => void create()}
+                    disabled={busy || Boolean(renewError) || Boolean(renewOrder && !renewable)}
+                  >
                     {busy ? <Loader2 className="h-4 w-4 motion-safe:animate-spin" aria-hidden /> : <Link2 className="h-4 w-4" aria-hidden />}
-                    {busy ? 'יוצר…' : 'צור קישור'}
+                    {busy ? 'יוצר…' : createLabel}
                   </button>
                 </div>
               </div>

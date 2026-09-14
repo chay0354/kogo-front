@@ -234,6 +234,26 @@ export type CardLinkQuote = {
   next_billing_date: string;
 };
 
+export type OutstandingMonth = { month: string; label: string };
+
+/**
+ * The standing order already on this unit — live or stopped, never cancelled.
+ * Its presence is what turns "הוראת קבע לחוג" from a dead end into חידוש.
+ */
+export type OptionStandingOrder = {
+  id: string;
+  status: 'active' | 'paused' | 'failed' | 'expired';
+  monthly_amount: string;
+  next_billing_date: string | null;
+  last_charge_date: string | null;
+  /** The months that were never collected, oldest first. */
+  months: OutstandingMonth[];
+  months_label: string;
+  /** Their exact total: the full monthly amount once per month, never prorated. */
+  renew_amount: string;
+  can_renew: boolean;
+};
+
 /** Something the office can send a standing-order link for — one lesson, or a whole track. */
 export type CardLinkOption = {
   key: string;
@@ -249,11 +269,43 @@ export type CardLinkOption = {
   /** The child is on this unit today (every day of it, for a track). */
   enrolled: boolean;
   is_trial: boolean;
-  /** Already billed by an active standing order — a new link would be refused. */
+  /** Already billed by an active standing order — a *new* link would be refused. */
   has_standing_order: boolean;
+  standing_order?: OptionStandingOrder;
   quote?: CardLinkQuote;
   quote_error?: string;
 };
+
+export type CardUpdateMode = 'renew' | 'card_only';
+
+export type CardUpdateLink = {
+  url: string;
+  mode: CardUpdateMode;
+  amount: string;
+  months: OutstandingMonth[];
+  months_label: string;
+  monthly_amount: string;
+  child_name: string;
+  standing_order_status: string;
+};
+
+/**
+ * The URL for a standing order's card page — made, never sent.
+ *
+ * The mode and the amount are signed into the token server-side, so the link the
+ * office copies cannot be edited into a different charge.
+ */
+export async function createCardUpdateLink(
+  recurringId: string,
+  mode: CardUpdateMode,
+  amount?: string,
+) {
+  const res = await api.post(`/customers/recurring-payments/${recurringId}/card-update-link/`, {
+    mode,
+    ...(mode === 'renew' && amount ? { amount } : {}),
+  });
+  return res.data as CardUpdateLink;
+}
 
 export async function fetchCardLinkOptions(childId: string) {
   const res = await api.get('/customers/card-links/options/', { params: { child_id: childId } });
