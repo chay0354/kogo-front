@@ -71,6 +71,17 @@ export function getDocumentDetailsLabel(docType: string | null): string {
   return 'פרטי מסמך';
 }
 
+/**
+ * A branch is what the category סניפים means. Ask for one only once that
+ * category is the one chosen — asking earlier is asking a question the
+ * category is about to answer, and a branch picked under any other category
+ * would ride along on a document that never asked for it.
+ */
+export function branchFieldApplies(category: string | null | undefined): boolean {
+  return (category ?? '').trim() === BRANCHES_CATEGORY;
+}
+
+
 export function getWizardSteps(
   clientType: ClientType | null,
   docType: string | null,
@@ -79,10 +90,7 @@ export function getWizardSteps(
   return ALL_WIZARD_STEPS.filter((step) => {
     if (step.id === 'businessClientDetails') return clientType === 'business';
     if (step.id === 'selectCustomer') return clientType === 'existing';
-    // A branch is one of the categories, not a dimension on top of all of them.
-    // Asking for it after "מותג קוגומלו" or "ספקים" was asking a question the
-    // category had already answered.
-    if (step.id === 'selectBranch') return (category ?? '') === BRANCHES_CATEGORY;
+    if (step.id === 'selectBranch') return branchFieldApplies(category);
     return true;
   }).map((step) =>
     step.id === 'documentDetails'
