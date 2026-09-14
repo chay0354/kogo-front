@@ -95,7 +95,12 @@ export function signingWhatsAppMessage({
  * 24 hours of the tenant's last message. The office has to know the difference:
  * a "sent" that silently went nowhere is worse than no button at all.
  */
-export function whatsAppSendNote(result: { sent?: boolean; method?: string } | null | undefined): string {
+export function whatsAppSendNote(
+  // The server's own shape: it says why when it did not send, and the office
+  // reads that elsewhere on the dialog — the note here only cares whether a
+  // template or free text went out.
+  result: { sent?: boolean; method?: string; reason?: string; error?: string } | null | undefined,
+): string {
   if (!result?.sent) return '';
   if (result.method === 'text') {
     return 'נשלח כהודעת טקסט רגילה — היא מגיעה רק אם השוכר כתב לנו ב-24 השעות האחרונות. אם לא בטוח שהגיעה, שלחו גם מהוואטסאפ שלכם.';
