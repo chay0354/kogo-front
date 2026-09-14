@@ -227,7 +227,14 @@ export default function EditProductDialog({ isOpen, onClose, product, onSuccess 
       onClose();
     } catch (error: any) {
       console.error('Error updating product:', error);
-      const d = error?.response?.data;
+      // No answer at all: the save may well have been applied server-side,
+      // so do not call it a failure. Reload the list and let them look.
+      if (!error?.response) {
+        onSuccess();
+        toast.error('השרת לא ענה בזמן. ייתכן שהעדכון בכל זאת נשמר — הרשימה רועננה, בדקו בה לפני שמירה חוזרת.');
+        return;
+      }
+      const d = error.response.data;
       const detail =
         (typeof d === 'string' && d) ||
         d?.error ||
