@@ -22,6 +22,10 @@ interface Props {
   onOpenChange: (open: boolean) => void;
   child: ChildWithDetails;
   onRegistered?: () => void;
+  /** Opened from the enrollment screen: the lesson is already decided there. */
+  lockedLessonId?: string | null;
+  /** The course's regular price, so the monthly figure is not retyped. */
+  defaultMonthlyAmount?: string;
 }
 
 type Row = { due_date: string; label: string; amount: string };
@@ -33,7 +37,14 @@ function thisMonthFirst(): string {
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
 }
 
-export default function RegisterCashDialog({ open, onOpenChange, child, onRegistered }: Props) {
+export default function RegisterCashDialog({
+  open,
+  onOpenChange,
+  child,
+  onRegistered,
+  lockedLessonId = null,
+  defaultMonthlyAmount = '',
+}: Props) {
   const [total, setTotal] = useState('');
   const [monthly, setMonthly] = useState('');
   const [startMonth, setStartMonth] = useState(thisMonthFirst());
@@ -54,14 +65,14 @@ export default function RegisterCashDialog({ open, onOpenChange, child, onRegist
   useEffect(() => {
     if (!open) return;
     setTotal('');
-    setMonthly('');
+    setMonthly(defaultMonthlyAmount || '');
     setStartMonth(thisMonthFirst());
-    setLessonId(lessons[0]?.id ?? '');
+    setLessonId(lockedLessonId || (lessons[0]?.id ?? ''));
     setRows([]);
     setError('');
     setDone(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open]);
+  }, [open, lockedLessonId, defaultMonthlyAmount]);
 
   const loadPreview = useCallback(async () => {
     if (!total || !monthly) {
@@ -154,7 +165,7 @@ export default function RegisterCashDialog({ open, onOpenChange, child, onRegist
                 <input id="cash-start" type="date" className="input w-full"
                   value={startMonth} onChange={(e) => setStartMonth(e.target.value)} />
               </div>
-              {lessons.length > 0 && (
+              {lessons.length > 0 && !lockedLessonId && (
                 <div>
                   <label className="block mb-1" htmlFor="cash-lesson">חוג</label>
                   <select id="cash-lesson" className="input w-full" value={lessonId}

@@ -6,6 +6,7 @@ import { X } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import api from '@/lib/api';
 import SubscriptionPaymentDialog from './SubscriptionPaymentDialog';
+import RegisterCashDialog from '@/components/dialogs/RegisterCashDialog';
 import RegisterChecksDialog from '@/app/(crm)/invoices/RegisterChecksDialog';
 import dialogMotion from '@/components/ui/motion.module.css';
 import { useDialogExit } from '@/components/ui/motion';
@@ -123,6 +124,7 @@ export default function EnrollToLessonDialog({ child, isOpen, onClose: dismiss, 
   const [loadingCourses, setLoadingCourses] = useState(false);
   const [loadingLessons, setLoadingLessons] = useState(false);
   const [paymentModalOpen, setPaymentModalOpen] = useState(false);
+  const [cashDialogOpen, setCashDialogOpen] = useState(false);
   const [checksDialogOpen, setChecksDialogOpen] = useState(false);
 
   useEffect(() => {
@@ -383,6 +385,39 @@ export default function EnrollToLessonDialog({ child, isOpen, onClose: dismiss, 
       return;
     }
     setChecksDialogOpen(true);
+  };
+
+  const handleCashRegistration = () => {
+    if (!selectedCourse) {
+      alert('נא לבחור קבוצה');
+      return;
+    }
+    if (lessons.length === 0) {
+      alert('לקבוצה זו אין שיעורים — הוסף שיעור לפני רישום');
+      return;
+    }
+    setCashDialogOpen(true);
+  };
+
+  // Cash registers the child exactly the way checks do: the documents are the
+  // money, and the enrollment follows them.
+  const handleCashCreated = async () => {
+    const bundle = bundles.find((item) => item.id === registrationMode);
+    const targetLessons = bundle
+      ? lessons.filter((lesson) => bundle.lessons_detail.some((item) => item.id === lesson.id))
+      : lessons;
+    setLoading(true);
+    try {
+      await enrollInLessons(targetLessons, bundle ? { bundleId: bundle.id } : undefined);
+      onEnroll();
+      setCashDialogOpen(false);
+      onClose();
+    } catch (error: any) {
+      const msg = error.response?.data?.lesson || error.response?.data?.detail || error.message;
+      alert(`הקבלה הופקה, אך הרישום לקבוצה נכשל: ${msg || 'שגיאה לא ידועה'}`);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleChecksCreated = async () => {
@@ -780,6 +815,14 @@ export default function EnrollToLessonDialog({ child, isOpen, onClose: dismiss, 
               </button>
               <button
                 type="button"
+                onClick={handleCashRegistration}
+                className="btn-secondary"
+                disabled={loading || !canEnroll}
+              >
+                רישום במזומן
+              </button>
+              <button
+                type="button"
                 onClick={handleSubscriptionRegistration}
                 className="btn-primary"
                 disabled={loading || !canEnroll}
@@ -807,6 +850,19 @@ export default function EnrollToLessonDialog({ child, isOpen, onClose: dismiss, 
           onSuccess={handlePaymentSuccess}
         />
       )}
+
+      <RegisterCashDialog
+        open={cashDialogOpen}
+        onOpenChange={setCashDialogOpen}
+        child={child}
+        lockedLessonId={paymentLessons[0]?.id || null}
+        defaultMonthlyAmount={
+          activeBundle
+            ? String(activeBundle.combined_price)
+            : (selectedCourseDetails?.price ? String(selectedCourseDetails.price) : '')
+        }
+        onRegistered={() => { void handleCashCreated(); }}
+      />
 
       <RegisterChecksDialog
         open={checksDialogOpen}

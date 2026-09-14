@@ -202,7 +202,13 @@ export default function CustomersPage() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [enrollDialogOpen, setEnrollDialogOpen] = useState(false);
   const [addCustomerDialogOpen, setAddCustomerDialogOpen] = useState(false);
-  const [addCustomerStep, setAddCustomerStep] = useState<'choice' | 'existing' | 'new'>('choice');
+  // No 'choice' step: the dialog opens on the family picker, which searches and
+  // offers to create in the same place. Asking "existing or new?" up front made
+  // the office decide before it had looked.
+  const [addCustomerStep, setAddCustomerStep] = useState<'existing' | 'new'>('existing');
+  // What was typed into the picker, carried into the new-family form so a name
+  // already entered is not entered twice.
+  const [newFamilySeed, setNewFamilySeed] = useState('');
   const [statusDialogOpen, setStatusDialogOpen] = useState(false);
   const [statusDialogValue, setStatusDialogValue] = useState('');
   const [statusSaving, setStatusSaving] = useState(false);
@@ -479,7 +485,8 @@ export default function CustomersPage() {
           <button 
             className="btn-primary flex items-center gap-2"
             onClick={() => {
-              setAddCustomerStep('choice');
+              setAddCustomerStep('existing');
+              setNewFamilySeed('');
               setAddCustomerDialogOpen(true);
             }}
           >
@@ -1052,66 +1059,41 @@ export default function CustomersPage() {
           </div>
           <DialogHeader>
             <DialogTitle className="text-xl">
-              {addCustomerStep === 'choice' && 'הוספת לקוח'}
-              {addCustomerStep === 'existing' && 'הוספת ילד למשפחה קיימת'}
+              {addCustomerStep === 'existing' && 'הוספת ילד — בחירת משפחה'}
               {addCustomerStep === 'new' && 'הוספת משפחה חדשה'}
             </DialogTitle>
           </DialogHeader>
 
           <div className="px-6 pb-6 pt-4">
-            {addCustomerStep === 'choice' && (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <button
-                  onClick={() => setAddCustomerStep('existing')}
-                  className="p-8 border-2 border-gray-200 rounded-lg hover:border-primary hover:bg-primary/5 transition-all flex flex-col items-center gap-4 group"
-                >
-                  <UserCheck className="w-12 h-12 text-primary" />
-                  <div className="text-center">
-                    <h3 className="font-semibold text-lg mb-1">משפחה קיימת</h3>
-                    <p className="text-sm text-muted-foreground">
-                      הוספת ילד למשפחה קיימת במערכת
-                    </p>
-                  </div>
-                </button>
-
-                <button
-                  onClick={() => setAddCustomerStep('new')}
-                  className="p-8 border-2 border-gray-200 rounded-lg hover:border-primary hover:bg-primary/5 transition-all flex flex-col items-center gap-4 group"
-                >
-                  <Users className="w-12 h-12 text-primary" />
-                  <div className="text-center">
-                    <h3 className="font-semibold text-lg mb-1">משפחה חדשה</h3>
-                    <p className="text-sm text-muted-foreground">
-                      הוספת ילד עם הורים חדשים
-                    </p>
-                  </div>
-                </button>
-              </div>
-            )}
-
             {addCustomerStep === 'existing' && (
-              <AddChildToExistingFamilyForm 
+              <AddChildToExistingFamilyForm
+                onCreateNewFamily={(typed) => {
+                  setNewFamilySeed(typed);
+                  setAddCustomerStep('new');
+                }}
                 onSuccess={() => {
                   setAddCustomerDialogOpen(false);
-                  setAddCustomerStep('choice');
+                  setAddCustomerStep('existing');
                   // Reset filters and refetch so the newly added child is visible
                   setChildrenPage(1);
                   setFilters(EMPTY_CUSTOMER_FILTERS);
                 }}
-                onCancel={() => setAddCustomerStep('choice')}
+                onCancel={() => setAddCustomerDialogOpen(false)}
               />
             )}
 
             {addCustomerStep === 'new' && (
-              <AddNewFamilyForm 
+              <AddNewFamilyForm
+                seedFamilyName={newFamilySeed}
+                onBackToSearch={() => setAddCustomerStep('existing')}
                 onSuccess={() => {
                   setAddCustomerDialogOpen(false);
-                  setAddCustomerStep('choice');
+                  setAddCustomerStep('existing');
                   // Reset filters and refetch so the newly added child is visible
                   setChildrenPage(1);
                   setFilters(EMPTY_CUSTOMER_FILTERS);
                 }}
-                onCancel={() => setAddCustomerStep('choice')}
+                onCancel={() => setAddCustomerDialogOpen(false)}
               />
             )}
           </div>
@@ -1122,7 +1104,16 @@ export default function CustomersPage() {
 }
 
 // Component for adding child to existing family
-function AddChildToExistingFamilyForm({ onSuccess, onCancel }: { onSuccess: () => void; onCancel: () => void }) {
+function AddChildToExistingFamilyForm({
+  onSuccess,
+  onCancel,
+  onCreateNewFamily,
+}: {
+  onSuccess: () => void;
+  onCancel: () => void;
+  /** Hand the typed text over to the new-family form rather than losing it. */
+  onCreateNewFamily: (typedName: string) => void;
+}) {
   const [families, setFamilies] = useState<any[]>([]);
   const [familiesLoading, setFamiliesLoading] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -1265,6 +1256,18 @@ function AddChildToExistingFamilyForm({ onSuccess, onCancel }: { onSuccess: () =
                 : 'חיפוש לפי שם משפחה, טלפון, ת"ז הורה או שם ההורה.'}
           </p>
         )}
+        {/* The answer to "it is not here" belongs on the screen that asked the
+            question, not three clicks back. */}
+        <button
+          type="button"
+          onClick={() => onCreateNewFamily(familySearchTerm.trim())}
+          className="mt-2 text-sm text-primary hover:underline flex items-center gap-1"
+        >
+          <Users className="w-4 h-4" aria-hidden="true" />
+          {familySearchTerm.trim() && filteredFamilies.length === 0
+            ? `המשפחה לא קיימת — צור משפחה חדשה`
+            : 'צור משפחה חדשה'}
+        </button>
         <datalist id="families-list">
           {filteredFamilies.map((family) => (
             <option key={family.id} value={getFamilyOptionValue(family)} />
@@ -1361,7 +1364,18 @@ function AddChildToExistingFamilyForm({ onSuccess, onCancel }: { onSuccess: () =
 }
 
 // Component for adding new family
-function AddNewFamilyForm({ onSuccess, onCancel }: { onSuccess: () => void; onCancel: () => void }) {
+function AddNewFamilyForm({
+  onSuccess,
+  onCancel,
+  seedFamilyName = '',
+  onBackToSearch,
+}: {
+  onSuccess: () => void;
+  onCancel: () => void;
+  /** What was typed into the family search, so it is not typed twice. */
+  seedFamilyName?: string;
+  onBackToSearch?: () => void;
+}) {
   const { user } = useAuth();
   const [loading, setLoading] = useState(false);
   const [branches, setBranches] = useState<Branch[]>([]);
@@ -1370,13 +1384,15 @@ function AddNewFamilyForm({ onSuccess, onCancel }: { onSuccess: () => void; onCa
     // Parent info
     parent_id_number: '',
     parent_first_name: '',
-    parent_last_name: '',
+    // What was typed into the family search: usually the family name, which is
+    // the parent's surname on this form.
+    parent_last_name: seedFamilyName.replace(/^משפחת\s+/, '').trim(),
     parent_phone: '',
     parent_phone_secondary: '',
     parent_email: '',
     // Child info
     child_first_name: '',
-    child_last_name: '',
+    child_last_name: seedFamilyName.replace(/^משפחת\s+/, '').trim(),
     child_id_number: '',
     child_phone_number: '',
     child_birth_date: '',
@@ -1734,8 +1750,12 @@ function AddNewFamilyForm({ onSuccess, onCancel }: { onSuccess: () => void; onCa
       </div>
 
       <div className="flex gap-2 pt-4">
-        <button type="button" onClick={onCancel} className="btn-secondary flex-1">
-          חזור
+        <button
+          type="button"
+          onClick={onBackToSearch ?? onCancel}
+          className="btn-secondary flex-1"
+        >
+          {onBackToSearch ? 'חזרה לחיפוש משפחה' : 'חזור'}
         </button>
         <button type="submit" disabled={loading} className="btn-primary flex-1">
           {loading ? 'שומר...' : 'הוסף משפחה וילד'}
