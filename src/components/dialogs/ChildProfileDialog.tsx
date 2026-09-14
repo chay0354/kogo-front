@@ -41,6 +41,7 @@ import {
 } from '@/components/dialogs/computerizedDocsConsent';
 import EditMonthAmountDialog from '@/components/dialogs/EditMonthAmountDialog';
 import SendCardLinkDialog from '@/components/dialogs/SendCardLinkDialog';
+import RegisterCashDialog from '@/components/dialogs/RegisterCashDialog';
 import FamilySignaturesTable, { type FamilySignaturesStatus } from '@/components/signatures/FamilySignaturesTable';
 import SignatureViewDialog from '@/components/signatures/SignatureViewDialog';
 import { downloadSignaturePdf, fetchSignatures } from '@/lib/signaturesApi';
@@ -513,6 +514,7 @@ export default function ChildProfileDialog({
   onOpenSibling,
 }: ChildProfileDialogProps) {
   const [cardLinkOpen, setCardLinkOpen] = useState(false);
+  const [cashOpen, setCashOpen] = useState(false);
   const { user: authUser } = useAuth();
   const canSendCardLink = authUser?.role === 'manager';
   const [absences, setAbsences] = useState<AbsenceRecord[]>([]);
@@ -1296,9 +1298,14 @@ export default function ChildProfileDialog({
                         <div className="flex items-start justify-between gap-3 mb-1">
                           <h3 className="font-semibold text-lg">חיובים שבוצעו</h3>
                           {canSendCardLink && (
-                            <Button type="button" variant="outline" size="sm" onClick={() => setCardLinkOpen(true)}>
-                              קישור להזנת כרטיס
-                            </Button>
+                            <div className="flex gap-2">
+                              <Button type="button" variant="outline" size="sm" onClick={() => setCashOpen(true)}>
+                                רישום במזומן
+                              </Button>
+                              <Button type="button" variant="outline" size="sm" onClick={() => setCardLinkOpen(true)}>
+                                קישור להזנת כרטיס
+                              </Button>
+                            </div>
                           )}
                         </div>
                         <p className="text-sm text-muted-foreground mb-3">
@@ -1631,6 +1638,9 @@ export default function ChildProfileDialog({
     
     {/* Refund Dialog */}
     {canSendCardLink && <SendCardLinkDialog open={cardLinkOpen} onOpenChange={setCardLinkOpen} child={child} />}
+    {canSendCardLink && (
+      <RegisterCashDialog open={cashOpen} onOpenChange={setCashOpen} child={child} />
+    )}
     {refundItem && (
       <RefundDialog
         isOpen={refundDialogOpen}

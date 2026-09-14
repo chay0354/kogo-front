@@ -422,3 +422,68 @@ export async function downloadDocumentPdf(id: string, documentNumber: string): P
   link.remove();
   window.URL.revokeObjectURL(blobUrl);
 }
+
+
+// ── Cash plans: paid up front, recognised month by month ─────────────────────
+
+export interface CashPlanMonth {
+  id: string;
+  due_date: string;
+  amount: string;
+  status: 'pending' | 'invoiced';
+  invoiced_at: string | null;
+  document_number: string;
+  document_type: string;
+}
+
+export interface CashPlan {
+  id: string;
+  child: string;
+  child_name: string;
+  lesson: string | null;
+  course_name: string;
+  branch_name: string;
+  description: string;
+  status: 'active' | 'completed' | 'cancelled';
+  total_amount: string;
+  monthly_amount: string;
+  monthly_document_type: 'combined' | 'tax_invoice';
+  receipt_number: string;
+  months: CashPlanMonth[];
+  months_paid: number;
+  months_total: number;
+  created_at: string;
+}
+
+export async function fetchCashPlans(childId: string): Promise<CashPlan[]> {
+  const res = await api.get('/documents/cash-plans/', { params: { child_id: childId } });
+  return res.data?.results ?? res.data ?? [];
+}
+
+/** The months and amounts, before anything is issued. */
+export async function previewCashPlan(input: {
+  total_amount: string;
+  monthly_amount: string;
+  start_month?: string;
+}) {
+  const res = await api.post('/documents/cash-plans/preview/', input);
+  return res.data as {
+    total_amount: string;
+    monthly_amount: string;
+    months: number;
+    schedule: Array<{ due_date: string; label: string; amount: string }>;
+  };
+}
+
+export async function registerCashPlan(input: {
+  child_id: string;
+  lesson_id?: string | null;
+  total_amount: string;
+  monthly_amount: string;
+  start_month?: string;
+  description?: string;
+  monthly_document_type?: 'combined' | 'tax_invoice';
+}): Promise<CashPlan> {
+  const res = await api.post('/documents/cash-plans/', input);
+  return res.data;
+}
