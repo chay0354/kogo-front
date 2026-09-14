@@ -1520,3 +1520,12 @@
     transition: none;
   }
 }
+
+/* Shown where the WhatsApp button sits for a standing order: a one-time link is
+   copied and sent by hand, because the only approved template speaks of a card update. */
+.sendHint {
+  font-size: 0.85rem;
+  color: var(--muted-foreground, #64748b);
+  align-self: center;
+  text-align: center;
+}
