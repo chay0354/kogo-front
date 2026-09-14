@@ -380,3 +380,43 @@
     transform: none;
   }
 }
+
+/* מספר הקצאה — a number fetched by hand from the Tax Authority portal. */
+.allocationValue {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  color: hsl(var(--foreground));
+}
+
+.allocationValue:hover {
+  text-decoration: underline;
+}
+
+.allocationEdit {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.allocationInput {
+  width: 7.5rem;
+  padding: 2px 6px;
+  border: 1px solid hsl(var(--border));
+  border-radius: 4px;
+  font-variant-numeric: tabular-nums;
+  font-size: 0.8125rem;
+}
+
+.allocationHint {
+  font-size: 0.6875rem;
+  color: hsl(var(--muted-foreground));
+}
+
+.allocationError {
+  font-size: 0.6875rem;
+  color: #b91c1c;
+}
