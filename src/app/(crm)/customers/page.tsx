@@ -1103,6 +1103,14 @@ export default function CustomersPage() {
   );
 }
 
+// A birth date as the office reads it, plus the age that actually identifies a child.
+function hebrewDate(iso: string): string {
+  const [y, m, d] = String(iso).slice(0, 10).split('-');
+  if (!y || !m || !d) return '';
+  const age = Math.floor((Date.now() - new Date(`${y}-${m}-${d}`).getTime()) / 31557600000);
+  return Number.isFinite(age) && age >= 0 ? `${d}/${m}/${y} · גיל ${age}` : `${d}/${m}/${y}`;
+}
+
 // Component for adding child to existing family
 function AddChildToExistingFamilyForm({
   onSuccess,
@@ -1118,6 +1126,9 @@ function AddChildToExistingFamilyForm({
   const [familiesLoading, setFamiliesLoading] = useState(false);
   const [loading, setLoading] = useState(false);
   const [selectedFamily, setSelectedFamily] = useState('');
+  // The chosen family itself, so picking one can show who is already in it
+  // — the confirmation that this is the right family, before adding to it.
+  const [selectedFamilyRow, setSelectedFamilyRow] = useState<any>(null);
   const [familySearchTerm, setFamilySearchTerm] = useState('');
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [formData, setFormData] = useState({
@@ -1241,6 +1252,7 @@ function AddChildToExistingFamilyForm({
             setFamilySearchTerm(value);
             const selected = families.find((family) => getFamilyOptionValue(family) === value);
             setSelectedFamily(selected?.id || '');
+            setSelectedFamilyRow(selected || null);
             setErrors((prev) => ({ ...prev, family: '' }));
           }}
           className={`input w-full ${errors.family ? 'border-red-500' : ''}`}
@@ -1256,6 +1268,64 @@ function AddChildToExistingFamilyForm({
                 : 'חיפוש לפי שם משפחה, טלפון, ת"ז הורה או שם ההורה.'}
           </p>
         )}
+        {selectedFamilyRow && (
+          <div className="mt-3 rounded-lg border bg-muted/30 p-3 text-sm">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="font-semibold">{getFamilyName(selectedFamilyRow) || 'משפחה ללא שם'}</p>
+                <p className="text-muted-foreground">
+                  {[
+                    getFamilyPhone(selectedFamilyRow),
+                    selectedFamilyRow.email,
+                    selectedFamilyRow.address,
+                  ].filter(Boolean).join(' · ') || 'אין פרטי קשר על הכרטיס'}
+                </p>
+                {(selectedFamilyRow.parents ?? []).length > 0 && (
+                  <p className="text-muted-foreground mt-1">
+                    הורים: {(selectedFamilyRow.parents ?? [])
+                      .map((p: any) => `${p.first_name ?? ''} ${p.last_name ?? ''}`.trim())
+                      .filter(Boolean)
+                      .join(' · ')}
+                  </p>
+                )}
+              </div>
+              <button
+                type="button"
+                className="text-xs text-primary hover:underline shrink-0"
+                onClick={() => {
+                  setSelectedFamily('');
+                  setSelectedFamilyRow(null);
+                  setFamilySearchTerm('');
+                }}
+              >
+                החלף משפחה
+              </button>
+            </div>
+
+            <div className="mt-3 border-t pt-2">
+              <p className="font-medium mb-1">
+                ילדים במשפחה ({(selectedFamilyRow.children ?? []).length})
+              </p>
+              {(selectedFamilyRow.children ?? []).length === 0 ? (
+                <p className="text-muted-foreground">אין עדיין ילדים במשפחה הזאת.</p>
+              ) : (
+                <ul className="space-y-0.5">
+                  {(selectedFamilyRow.children ?? []).map((c: any) => (
+                    <li key={c.id} className="flex justify-between gap-3">
+                      <span>{c.full_name || `${c.first_name ?? ''} ${c.last_name ?? ''}`.trim()}</span>
+                      <span className="text-muted-foreground">
+                        {[c.birth_date ? hebrewDate(c.birth_date) : '', c.status_display]
+                          .filter(Boolean)
+                          .join(' · ')}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* The answer to "it is not here" belongs on the screen that asked the
             question, not three clicks back. */}
         <button
