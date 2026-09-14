@@ -133,6 +133,18 @@
   background: rgba(255, 255, 255, 0.1);
 }
 
+/* Three things the office does, not two. On a phone the labels would be squeezed
+   to two characters each, so there they stack into one column. */
+.switchThree {
+  grid-template-columns: repeat(3, 1fr);
+}
+
+@media (max-width: 520px) {
+  .switchThree {
+    grid-template-columns: 1fr;
+  }
+}
+
 .switchOption {
   display: flex;
   align-items: center;
@@ -1230,6 +1242,33 @@
 .rowMain {
   flex: 1;
   min-width: 0;
+}
+
+/* A row that is itself the choice — one standing order to change the card on. */
+.pickRow {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 2px;
+  padding: 0;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+.pickRow:focus-visible {
+  outline: 2px solid var(--cl-indigo, #4f46e5);
+  outline-offset: 3px;
+}
+
+.pickRow[aria-checked='true'] .rowTitle {
+  color: var(--cl-indigo, #4f46e5);
 }
 
 .rowTitle {

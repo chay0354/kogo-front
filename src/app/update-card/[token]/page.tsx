@@ -7,18 +7,34 @@ import { israeliIdFieldError, sanitizeIsraeliIdInput } from '@/lib/israeliId';
 import formStyles from '@/app/widget/CourseRegistrationForm/index.module.css';
 import pageStyles from '../update-card.module.css';
 
+type OutstandingMonth = { month: string; label: string };
+
 type Preview = {
   child_name: string;
   course_name: string;
   branch_name: string;
+  /** The standing order's monthly figure — not necessarily what is charged now. */
   amount: string;
   amount_label: string;
+  /** What this link will actually take: a sum of whole months, or nothing. */
+  charge_amount_label?: string;
+  /** '' for a link issued before the two modes existed. */
+  mode?: '' | 'renew' | 'card_only';
+  months?: OutstandingMonth[];
+  months_label?: string;
+  /** The one line the server wrote: what happens when this card is submitted. */
+  headline?: string;
   will_charge: boolean;
   already_done: boolean;
   next_billing_date: string | null;
 };
 
 type Step = 'loading' | 'form' | 'success' | 'error';
+
+/** What the card is about to be charged, as the server computed it. */
+function chargeLabel(preview: Preview) {
+  return preview.charge_amount_label ?? preview.amount_label;
+}
 
 export default function UpdateCardPage() {
   const params = useParams();
@@ -36,6 +52,8 @@ export default function UpdateCardPage() {
   const [charging, setCharging] = useState(false);
   const [formError, setFormError] = useState('');
   const [chargedNow, setChargedNow] = useState(false);
+  // What the server said it did, so the page reports the outcome rather than a guess.
+  const [outcome, setOutcome] = useState('');
 
   useEffect(() => {
     if (!token) {
@@ -52,6 +70,7 @@ export default function UpdateCardPage() {
         setPreview(data);
         if (data.already_done) {
           setChargedNow(false);
+          setOutcome('הכרטיס כבר עודכן. לא בוצע חיוב נוסף.');
           setStep('success');
           return;
         }
@@ -96,14 +115,18 @@ export default function UpdateCardPage() {
       );
       if (res.data?.success) {
         setChargedNow(Boolean(res.data.charged));
+        setOutcome(String(res.data.message || ''));
         setStep('success');
         return;
       }
       setFormError(res.data?.error || 'התשלום נכשל');
     } catch (err: unknown) {
-      const axiosErr = err as { response?: { data?: { error?: string; success?: boolean; charged?: boolean } } };
+      const axiosErr = err as {
+        response?: { data?: { error?: string; success?: boolean; charged?: boolean; message?: string } };
+      };
       if (axiosErr.response?.data?.success) {
         setChargedNow(Boolean(axiosErr.response.data.charged));
+        setOutcome(String(axiosErr.response.data.message || ''));
         setStep('success');
         return;
       }
@@ -136,10 +159,14 @@ export default function UpdateCardPage() {
         <div className={formStyles.resultContainer}>
           <div className={formStyles.successIcon}>✓</div>
           <p className={formStyles.resultTitle}>הכרטיס עודכן בהצלחה</p>
+          {/* The server says what it did — which months it settled, or that it
+              charged nothing — so the parent is never told a charge happened
+              when it did not, or left guessing when it did. */}
           <p className={formStyles.resultSubtext}>
-            {chargedNow
-              ? 'החיוב החודשי עבר, הוראת הקבע תוקנה, והחיוב הבא ירד אוטומטית.'
-              : 'הוראת הקבע תוקנה עם הכרטיס החדש.'}
+            {outcome ||
+              (chargedNow
+                ? 'החיוב עבר, הוראת הקבע תוקנה, והחיוב הבא ירד אוטומטית.'
+                : 'הוראת הקבע תוקנה עם הכרטיס החדש. לא בוצע חיוב.')}
           </p>
         </div>
       )}
@@ -147,7 +174,17 @@ export default function UpdateCardPage() {
       {step === 'form' && preview && (
         <div className={formStyles.paymentContainer}>
           <div className={formStyles.paymentSummary}>
-            <p className={formStyles.summaryTitle}>עדכון כרטיס אשראי</p>
+            <p className={formStyles.summaryTitle}>
+              {preview.will_charge ? 'חידוש הוראת קבע' : 'שינוי פרטי אשראי'}
+            </p>
+            {/* Before a digit is typed: exactly what this link does, in the server's
+                own words, so the amount on screen is the amount that will be taken. */}
+            <p className={formStyles.billingNote}>
+              {preview.headline ||
+                (preview.will_charge
+                  ? `יחויב ₪${chargeLabel(preview)}`
+                  : 'עדכון פרטי אשראי בלבד — לא יבוצע חיוב')}
+            </p>
             <div className={formStyles.summaryRow}>
               <span>ילד/ה</span>
               <span>{preview.child_name}</span>
@@ -164,9 +201,23 @@ export default function UpdateCardPage() {
                 <span>{preview.branch_name}</span>
               </div>
             ) : null}
+            {preview.will_charge && (preview.months?.length ?? 0) > 0 ? (
+              <div className={formStyles.summaryRow}>
+                <span>{preview.months!.length === 1 ? 'חודש שלא נגבה' : 'חודשים שלא נגבו'}</span>
+                <span>{preview.months_label || preview.months!.map((m) => m.label).join(', ')}</span>
+              </div>
+            ) : null}
+            {preview.will_charge ? (
+              <div className={formStyles.summaryRow}>
+                <span>סכום חודשי</span>
+                <span>₪{preview.amount_label}</span>
+              </div>
+            ) : null}
             <div className={formStyles.totalRow}>
               <span>{preview.will_charge ? 'לחיוב עכשיו' : 'סכום חודשי'}</span>
-              <span className={formStyles.totalAmount}>₪{preview.amount_label}</span>
+              <span className={formStyles.totalAmount}>
+                ₪{preview.will_charge ? chargeLabel(preview) : preview.amount_label}
+              </span>
             </div>
             {preview.will_charge ? (
               <p className={formStyles.billingNote}>
@@ -174,7 +225,7 @@ export default function UpdateCardPage() {
               </p>
             ) : (
               <p className={formStyles.billingNote}>
-                נשמור את הכרטיס החדש להוראת הקבע. החיוב החודשי הבא ירד אוטומטית.
+                נשמור את הכרטיס החדש להוראת הקבע ולא יבוצע חיוב. החיוב החודשי הבא ירד בתאריך שלו כרגיל.
               </p>
             )}
           </div>
@@ -257,8 +308,8 @@ export default function UpdateCardPage() {
             {charging
               ? 'מעבד...'
               : preview.will_charge
-                ? `עדכן כרטיס וחייב ₪${preview.amount_label}`
-                : 'עדכן כרטיס'}
+                ? `עדכן כרטיס וחייב ₪${chargeLabel(preview)}`
+                : 'עדכן כרטיס ללא חיוב'}
           </button>
         </div>
       )}
