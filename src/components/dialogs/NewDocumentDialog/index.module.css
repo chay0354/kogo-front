@@ -287,6 +287,12 @@
   color: hsl(var(--foreground));
 }
 
+.fieldHint {
+  font-size: 0.75rem;
+  color: hsl(var(--muted-foreground));
+  margin: 0.25rem 0 0.5rem;
+}
+
 .fieldSelect {
   height: 2.75rem;
   border-radius: calc(var(--radius) - 4px);
