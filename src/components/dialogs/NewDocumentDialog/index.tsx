@@ -679,11 +679,20 @@ function BusinessClientStep({
     () => [...branches].sort((a, b) => a.name.localeCompare(b.name, 'he')),
     [branches],
   );
-  const { data: businesses = [] } = useQuery({ queryKey: ['businesses'], queryFn: fetchBusinesses });
+  // A business or a category added in הגדרות ← כספים has to be here the moment
+  // the step opens, so this copy is never served stale.
+  const { data: businesses = [] } = useQuery({
+    queryKey: ['businesses'],
+    queryFn: fetchBusinesses,
+    staleTime: 0,
+  });
   const businessCategories = useMemo(
     () => businesses.find((b) => b.id === formData.business_id)?.categories.filter((c) => c.is_active) ?? [],
     [businesses, formData.business_id],
   );
+  // The step will not advance without a category, so a business that has none
+  // is a dead end unless the screen says where categories come from.
+  const businessHasNoCategory = Boolean(formData.business_id) && businessCategories.length === 0;
 
   return (
     <div>
@@ -943,6 +952,11 @@ function BusinessClientStep({
               </option>
             ))}
           </Select>
+          {businessHasNoCategory ? (
+            <p className={styles.fieldNote}>
+              לעסק הזה אין עדיין קטגוריה פעילה. הוסיפו אחת בהגדרות ← כספים ← עסקים וקטגוריות, ואז חזרו לכאן.
+            </p>
+          ) : null}
         </div>
 
         <div className={`${styles.formRow} ${styles.formRowFull}`}>
