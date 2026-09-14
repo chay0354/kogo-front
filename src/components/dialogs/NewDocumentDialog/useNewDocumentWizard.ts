@@ -1,4 +1,5 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { BRANCHES_CATEGORY } from './constants';
 import { generateDocumentNumber, getWizardSteps } from './utils';
 import type {
   BusinessCustomerFormData,
@@ -124,7 +125,19 @@ export function useNewDocumentWizard(onClose: () => void) {
     createInitialCreditInvoiceDetails
   );
 
-  const steps = useMemo(() => getWizardSteps(clientType, docType), [clientType, docType]);
+  const branchCategory = businessFormData?.category ?? null;
+  const steps = useMemo(
+    () => getWizardSteps(clientType, docType, branchCategory),
+    [clientType, docType, branchCategory],
+  );
+
+  // A branch chosen before the category moved off "סניפים" would otherwise ride
+  // along on a document that no longer asks for one.
+  useEffect(() => {
+    if (branchCategory !== BRANCHES_CATEGORY && selectedBranchId !== null) {
+      setSelectedBranchId(null);
+    }
+  }, [branchCategory, selectedBranchId]);
   const stepIds = useMemo(() => steps.map((step) => step.id), [steps]);
 
   const reset = useCallback(() => {
