@@ -1146,8 +1146,17 @@ interface SelectBranchStepProps {
 function SelectBranchStep({ branches, selectedBranchId, onSelect }: SelectBranchStepProps) {
   return (
     <div>
-      <p className={styles.stepSubtitle}>בחר את הסניף המשויך למסמך (שדה חובה)</p>
+      <p className={styles.stepSubtitle}>
+        שיוך המסמך לסניף — לא חובה. השיוך החשבונאי נקבע כבר בעסק ובקטגוריה.
+      </p>
       <div className={styles.cardGrid} role="radiogroup" aria-label="בחירת סניף">
+        <SelectableCard
+          icon={Building2}
+          title="ללא סניף"
+          description="המסמך משויך לעסק בלבד"
+          selected={!selectedBranchId}
+          onSelect={() => onSelect(null)}
+        />
         {branches.map((branch) => (
           <SelectableCard
             key={branch.id}

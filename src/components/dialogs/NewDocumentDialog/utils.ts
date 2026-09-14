@@ -1,4 +1,4 @@
-import { ALL_WIZARD_STEPS } from './constants';
+import { ALL_WIZARD_STEPS, BRANCHES_CATEGORY } from './constants';
 import type {
   BusinessCustomerFormData,
   ClientType,
@@ -73,11 +73,16 @@ export function getDocumentDetailsLabel(docType: string | null): string {
 
 export function getWizardSteps(
   clientType: ClientType | null,
-  docType: string | null
+  docType: string | null,
+  category?: string | null
 ): StepDefinition[] {
   return ALL_WIZARD_STEPS.filter((step) => {
     if (step.id === 'businessClientDetails') return clientType === 'business';
     if (step.id === 'selectCustomer') return clientType === 'existing';
+    // A branch is one of the categories, not a dimension on top of all of them.
+    // Asking for it after "מותג קוגומלו" or "ספקים" was asking a question the
+    // category had already answered.
+    if (step.id === 'selectBranch') return (category ?? '') === BRANCHES_CATEGORY;
     return true;
   }).map((step) =>
     step.id === 'documentDetails'
@@ -111,7 +116,11 @@ export function canAdvanceFromStep(
   selectedBranchId?: string | null
 ): boolean {
   if (stepId === 'clientType') return clientType !== null;
-  if (stepId === 'selectBranch') return selectedBranchId !== null;
+  // The branch is optional on the server (null=True on FormalDocument, and no
+  // permission filter reads it), and the document's attribution is already
+  // answered by the business and category. Requiring it here only blocked a
+  // document that had nowhere sensible to point.
+  if (stepId === 'selectBranch') return true;
   if (stepId === 'selectCustomer') return selectedCustomerId !== null;
   if (stepId === 'businessClientDetails') {
     const hasId =
