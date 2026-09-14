@@ -17,6 +17,7 @@ import {
 import api from '@/lib/api';
 import type { StoreProduct, ProductSizeStock } from '@/types/store';
 import type { Branch } from '@/types/branch';
+import { DEFAULT_CATEGORY, describeApiError } from '@/lib/apiErrors';
 import dlg from './storeDialog.module.css';
 
 interface EditProductDialogProps {
@@ -162,6 +163,19 @@ export default function EditProductDialog({ isOpen, onClose, product, onSuccess 
   async function handleSubmit() {
     if (!product) return;
 
+    // Only complain about the price pair when this save actually moves a
+    // price. A product already stored with sale <= cost must stay editable —
+    // its name, notes and stock still need fixing — and the server applies the
+    // same rule, so refusing here would only hide a save it would accept.
+    const nextSale = Number(formData.sale_price) || 0;
+    const nextCost = Number(formData.cost_price) || 0;
+    const pricesChanged =
+      nextSale !== Number(product.sale_price) || nextCost !== Number(product.cost_price);
+    if (pricesChanged && nextSale > 0 && nextCost > 0 && nextSale <= nextCost) {
+      toast.error('מחיר מכירה חייב להיות גבוה ממחיר עלות.');
+      return;
+    }
+
     const cleanedSizeRows: Array<{
       size: string;
       stock_quantity: number;
@@ -205,7 +219,7 @@ export default function EditProductDialog({ isOpen, onClose, product, onSuccess 
 
     const payload = {
       name: formData.name,
-      category: formData.category ?? '',
+      category: (formData.category ?? '').trim() || DEFAULT_CATEGORY,
       size: cleanedSizeRows.length ? [...new Set(cleanedSizeRows.map((r) => r.size))].join(',') : (formData.size ?? ''),
       cost_price: Number(formData.cost_price) || 0,
       sale_price: Number(formData.sale_price) || 0,
@@ -234,18 +248,7 @@ export default function EditProductDialog({ isOpen, onClose, product, onSuccess 
         toast.error('השרת לא ענה בזמן. ייתכן שהעדכון בכל זאת נשמר — הרשימה רועננה, בדקו בה לפני שמירה חוזרת.');
         return;
       }
-      const d = error.response.data;
-      const detail =
-        (typeof d === 'string' && d) ||
-        d?.error ||
-        (d && typeof d === 'object'
-          ? Object.entries(d)
-              .map(([k, v]) => `${k}: ${Array.isArray(v) ? v.join(', ') : String(v)}`)
-              .join('\n')
-          : null) ||
-        error?.message ||
-        'שגיאה לא ידועה';
-      toast.error(`שגיאה בעדכון המוצר:\n${detail}`);
+      toast.error(`שגיאה בעדכון המוצר:\n${describeApiError(error.response.data, error)}`);
     } finally {
       setIsLoading(false);
     }

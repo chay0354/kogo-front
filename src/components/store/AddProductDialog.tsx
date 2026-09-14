@@ -16,6 +16,7 @@ import {
 import api from '@/lib/api';
 import type { ProductFormData, ProductSizeStock } from '@/types/store';
 import type { Branch } from '@/types/branch';
+import { DEFAULT_CATEGORY, describeApiError } from '@/lib/apiErrors';
 import dlg from './storeDialog.module.css';
 
 interface AddProductDialogProps {
@@ -26,7 +27,7 @@ interface AddProductDialogProps {
 
 const EMPTY_FORM: ProductFormData = {
   name: '',
-  category: 'כללי',
+  category: DEFAULT_CATEGORY,
   size: '',
   cost_price: 0,
   sale_price: 0,
@@ -168,7 +169,7 @@ export default function AddProductDialog({ isOpen, onClose, onSuccess }: AddProd
 
     const payload: ProductFormData = {
       name: formData.name,
-      category: formData.category,
+      category: formData.category.trim() || DEFAULT_CATEGORY,
       size: cleanedSizeRows.length ? [...new Set(cleanedSizeRows.map((r) => r.size))].join(',') : formData.size,
       cost_price: Number(formData.cost_price) || 0,
       sale_price: Number(formData.sale_price) || 0,
@@ -193,13 +194,7 @@ export default function AddProductDialog({ isOpen, onClose, onSuccess }: AddProd
     } catch (error: any) {
       console.error('Error creating product:', error);
       const d = error?.response?.data;
-      const detail =
-        (typeof d === 'string' && d) ||
-        d?.error ||
-        (d && typeof d === 'object' ? JSON.stringify(d) : null) ||
-        error?.message ||
-        'שגיאה לא ידועה';
-      toast.error(`שגיאה ביצירת המוצר:\n${detail}`);
+      toast.error(`שגיאה ביצירת המוצר:\n${describeApiError(d, error)}`);
     } finally {
       setIsLoading(false);
     }
