@@ -255,6 +255,44 @@ export const fetchStudentsData = async (filters: StudentsFilters) => {
   return response.data;
 };
 
+export interface TrialNotConvertedRow {
+  child_id: string;
+  child_name: string;
+  child_status: string;
+  family_id: string;
+  parent_name: string;
+  parent_phone: string;
+  course_name: string;
+  branch_id: string;
+  branch_name: string;
+  instructor_name: string;
+  trial_date: string | null;
+  days_since_trial: number | null;
+  trial_number: number;
+  outcome: 'attended' | 'no_show';
+  outcome_label: string;
+}
+
+/**
+ * Children booked for a trial who never signed up — the leads already in hand.
+ * Both outcomes are returned: one call asks how the lesson was, the other asks
+ * why they did not come. The outcome is read off the register, not the status.
+ */
+export const fetchTrialNotConverted = async (filters: {
+  branch_id?: string;
+  city_id?: string;
+  course_id?: string;
+  outcome?: 'attended' | 'no_show';
+}) => {
+  const response = await api.get('/core/dashboard/trial-not-converted/', { params: filters });
+  return response.data as {
+    count: number;
+    attended: number;
+    no_show: number;
+    results: TrialNotConvertedRow[];
+  };
+};
+
 /**
  * Fetch courses dashboard data
  */
