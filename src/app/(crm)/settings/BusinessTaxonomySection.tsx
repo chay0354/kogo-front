@@ -1,8 +1,10 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { Briefcase, Plus, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { readableError } from '@/lib/apiError';
 import {
   createBusiness,
   createBusinessCategory,
@@ -23,6 +25,7 @@ export default function BusinessTaxonomySection() {
   const [newBusiness, setNewBusiness] = useState('');
   const [newCategory, setNewCategory] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
+  const queryClient = useQueryClient();
 
   async function load() {
     setLoading(true);
@@ -45,8 +48,12 @@ export default function BusinessTaxonomySection() {
     try {
       await action();
       await load();
-    } catch {
-      setError('השמירה נכשלה');
+      // The document wizard, the ledger filters and the card-link dialog all read
+      // the same list. Without this, a category added here stays invisible there
+      // for as long as their copy is still fresh.
+      queryClient.invalidateQueries({ queryKey: ['businesses'] });
+    } catch (e) {
+      setError(readableError(e));
     } finally {
       setBusy(false);
     }
@@ -87,23 +94,30 @@ export default function BusinessTaxonomySection() {
                 </label>
               </div>
               <div className="mt-2 flex flex-wrap gap-2">
+                {/*
+                  The whole chip used to be the switch, so clicking a category you
+                  had just added quietly switched it off — and a category that is off
+                  is gone from the document wizard. The switch is its own button now.
+                */}
                 {b.categories.map((c) => (
-                  <label
+                  <span
                     key={c.id}
-                    className={`text-xs px-2 py-1 rounded-full border flex items-center gap-1 cursor-pointer ${
-                      c.is_active ? 'bg-muted' : 'opacity-60 line-through'
+                    className={`text-xs px-2 py-1 rounded-full border flex items-center gap-2 ${
+                      c.is_active ? 'bg-muted' : 'opacity-70'
                     }`}
-                    title={c.is_active ? 'לחיצה משביתה' : 'לחיצה מפעילה'}
                   >
-                    <input
-                      type="checkbox"
-                      className="hidden"
-                      checked={c.is_active}
+                    <span className={c.is_active ? '' : 'line-through'}>{c.name}</span>
+                    {c.is_active ? null : <span className="text-muted-foreground">כבויה</span>}
+                    <button
+                      type="button"
+                      className="underline text-muted-foreground hover:text-foreground disabled:opacity-50"
                       disabled={busy}
-                      onChange={(e) => run(() => updateBusinessCategory(c.id, { is_active: e.target.checked }))}
-                    />
-                    {c.name}
-                  </label>
+                      onClick={() => run(() => updateBusinessCategory(c.id, { is_active: !c.is_active }))}
+                      title={c.is_active ? 'קטגוריה כבויה לא תופיע בבחירת קטגוריה' : 'תחזור לבחירת הקטגוריה'}
+                    >
+                      {c.is_active ? 'כבה' : 'הפעל'}
+                    </button>
+                  </span>
                 ))}
                 {b.categories.length === 0 ? (
                   <span className="text-xs text-muted-foreground">אין קטגוריות עדיין</span>
