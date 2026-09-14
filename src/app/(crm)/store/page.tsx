@@ -27,6 +27,11 @@ import {
   filterBranchesForUser,
   unwrapApiList,
 } from '@/lib/scopedFilters';
+import {
+  productMatchesBranch,
+  productMatchesCity,
+  productStockInLocation,
+} from '@/lib/storeFilters';
 import type { StoreProduct, StoreCartLine } from '@/types/store';
 import type { Branch } from '@/types/branch';
 import AddProductDialog from '@/components/store/AddProductDialog';
@@ -39,21 +44,28 @@ import theme from '@/components/dashboard/theme/dashboard.module.css';
 import styles from './store.module.css';
 import { toast } from 'sonner';
 
-function productMatchesCity(product: StoreProduct, cityId: string, branches: Branch[]): boolean {
-  if (cityId === 'all') return true;
+const BACKGROUND_SYNC_EVERY_MS = 10 * 60 * 1000;
+const BACKGROUND_SYNC_KEY = 'kogo_store_last_website_sync';
 
-  const branchIdsInCity = new Set(
-    branches.filter((b) => b.city === cityId).map((b) => b.id)
-  );
-
-  if (product.branch && branchIdsInCity.has(product.branch)) {
+/** Storage can throw (private window, blocked site data); a sync we cannot
+ *  remember is better run than skipped, so failures fall through to true. */
+function shouldBackgroundSync(): boolean {
+  if (typeof window === 'undefined') return false;
+  try {
+    const last = Number(window.sessionStorage.getItem(BACKGROUND_SYNC_KEY) ?? 0);
+    return !Number.isFinite(last) || Date.now() - last > BACKGROUND_SYNC_EVERY_MS;
+  } catch {
     return true;
   }
+}
 
-  return (product.size_stocks ?? []).some((row) => {
-    const branchId = row.branch ?? null;
-    return branchId != null && branchIdsInCity.has(branchId);
-  });
+function markBackgroundSynced(): void {
+  if (typeof window === 'undefined') return;
+  try {
+    window.sessionStorage.setItem(BACKGROUND_SYNC_KEY, String(Date.now()));
+  } catch {
+    /* nothing to remember it with — the next visit syncs again */
+  }
 }
 
 /** ₪ with no decimals — prices here are whole shekels in practice. */
@@ -165,10 +177,19 @@ export default function StorePage() {
     );
   }
 
+  /**
+   * Pull the website catalog in the background, at most once every
+   * BACKGROUND_SYNC_EVERY_MS. It used to run on every single visit to the
+   * page, and a sync is not cheap: it fetches both brands' full catalogs and
+   * writes every product back. Walking in and out of the store ran it again
+   * each time. The "סנכרון מהאתר" button still syncs on demand, always.
+   */
   async function backgroundSync() {
+    if (!shouldBackgroundSync()) return;
     setIsSyncing(true);
     try {
       const result = await syncWebsiteProducts();
+      markBackgroundSynced();
       await refreshProducts();
       if (result.created > 0 || result.updated > 0) {
         toast.success(`סנכרון מהאתר: ${result.created} חדשים, ${result.updated} עודכנו`);
@@ -233,8 +254,7 @@ export default function StorePage() {
       const matchesSearch = product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
                            product.category.toLowerCase().includes(searchQuery.toLowerCase());
       const matchesCity = productMatchesCity(product, selectedCity, branches);
-      const matchesBranch = selectedBranch === 'all' ||
-                           (selectedBranch === 'delivery' ? !product.branch : product.branch === selectedBranch);
+      const matchesBranch = productMatchesBranch(product, selectedBranch);
       const matchesStock = stockFilter === 'all' ||
                           (stockFilter === 'low' && product.is_low_stock) ||
                           (stockFilter === 'normal' && !product.is_low_stock);
@@ -249,18 +269,20 @@ export default function StorePage() {
     });
 
   // KPIs use location filters so numbers match the active city/branch filter
-  const locationFilteredProducts = products.filter((product) => {
-    const matchesCity = productMatchesCity(product, selectedCity, branches);
-    const matchesBranch =
-      selectedBranch === 'all' ||
-      (selectedBranch === 'delivery' ? !product.branch : product.branch === selectedBranch);
-    return matchesCity && matchesBranch;
-  });
-  const kpiBase =
-    selectedCity === 'all' && selectedBranch === 'all' ? products : locationFilteredProducts;
+  const locationFilteredProducts = products.filter(
+    (product) =>
+      productMatchesCity(product, selectedCity, branches) &&
+      productMatchesBranch(product, selectedBranch),
+  );
+  const hasLocationFilter = selectedCity !== 'all' || selectedBranch !== 'all';
+  const kpiBase = hasLocationFilter ? locationFilteredProducts : products;
+  // Under a location filter, count what that location holds — not the whole
+  // stock of every product that happens to have a row there.
+  const stockOf = (product: StoreProduct) =>
+    productStockInLocation(product, selectedCity, selectedBranch, branches);
   const totalProducts = kpiBase.length;
-  const totalStock = kpiBase.reduce((sum, p) => sum + p.stock_quantity, 0);
-  const inventoryValue = kpiBase.reduce((sum, p) => sum + (p.stock_quantity * p.cost_price), 0);
+  const totalStock = kpiBase.reduce((sum, p) => sum + stockOf(p), 0);
+  const inventoryValue = kpiBase.reduce((sum, p) => sum + stockOf(p) * p.cost_price, 0);
   const lowStockProducts = kpiBase.filter(p => p.is_low_stock);
 
   function handleSort(field: typeof sortField) {
@@ -417,7 +439,9 @@ export default function StorePage() {
           <div className={theme.kpi}>
             <div className={theme.kpiLbl}>סה"כ במלאי</div>
             <div className={theme.kpiVal}>{totalStock.toLocaleString('he-IL')}</div>
-            <div className={theme.kpiFoot}>יחידות בכל המיקומים</div>
+            <div className={theme.kpiFoot}>
+              {hasLocationFilter ? 'יחידות במיקום המסונן' : 'יחידות בכל המיקומים'}
+            </div>
           </div>
           <div className={theme.kpi}>
             <div className={theme.kpiLbl}>שווי מלאי</div>
