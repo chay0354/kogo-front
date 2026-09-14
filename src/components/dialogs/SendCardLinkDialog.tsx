@@ -401,7 +401,7 @@ function Ticket({ link, childName, copied, onCopy }: { link: CardLink; childName
             <span className={styles.tileLabel}>לתשלום</span>
             <span className={styles.tileValue}>{formatShekels(link.amount || 0)}</span>
           </div>
-          <p className={styles.ticketNote}>חיוב חד-פעמי. הכרטיס לא יישמר.</p>
+          <p className={styles.ticketNote}>חיוב חד-פעמי. הכרטיס לא יישמר, והקישור נשלח בהעתקה ולא בוואטסאפ.</p>
         </div>
       )}
 
@@ -458,9 +458,11 @@ function LinkRow({
           <button type="button" className={styles.iconBtn} onClick={onCopy} disabled={!link.public_url} aria-label="העתק קישור" title="העתק קישור">
             <Copy className="h-4 w-4" aria-hidden />
           </button>
-          <button type="button" className={styles.iconBtn} onClick={onSend} disabled={busy} aria-label="שלח ב-WhatsApp" title="שלח ב-WhatsApp">
-            <Send className="h-4 w-4" aria-hidden />
-          </button>
+          {sto ? (
+            <button type="button" className={styles.iconBtn} onClick={onSend} disabled={busy} aria-label="שלח ב-WhatsApp" title="שלח ב-WhatsApp">
+              <Send className="h-4 w-4" aria-hidden />
+            </button>
+          ) : null}
           <button type="button" className={`${styles.iconBtn} ${styles.iconBtnDanger}`} onClick={onCancel} aria-label="בטל קישור" title="בטל קישור">
             <X className="h-4 w-4" aria-hidden />
           </button>
@@ -1077,10 +1079,16 @@ export default function SendCardLinkDialog({ open, onOpenChange, child }: SendCa
                   <Copy className="h-4 w-4" aria-hidden />
                   העתק קישור
                 </button>
-                <button type="button" className={styles.primary} onClick={() => void send(created)} disabled={busy}>
-                  {busy ? <Loader2 className="h-4 w-4 motion-safe:animate-spin" aria-hidden /> : <Send className="h-4 w-4" aria-hidden />}
-                  שלח ב-WhatsApp
-                </button>
+                {/* WhatsApp carries one approved template — the card-update one — so it
+                    fits a standing order only. A one-time charge is copied and sent by hand. */}
+                {created.kind === 'standing_order' ? (
+                  <button type="button" className={styles.primary} onClick={() => void send(created)} disabled={busy}>
+                    {busy ? <Loader2 className="h-4 w-4 motion-safe:animate-spin" aria-hidden /> : <Send className="h-4 w-4" aria-hidden />}
+                    שלח ב-WhatsApp
+                  </button>
+                ) : (
+                  <span className={styles.sendHint}>חיוב חד-פעמי — העתיקו את הקישור ושלחו ידנית</span>
+                )}
               </div>
             ) : (
               <div className={styles.footerRow}>
