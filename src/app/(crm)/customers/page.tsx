@@ -1124,6 +1124,7 @@ export default function CustomersPage() {
 // Component for adding child to existing family
 function AddChildToExistingFamilyForm({ onSuccess, onCancel }: { onSuccess: () => void; onCancel: () => void }) {
   const [families, setFamilies] = useState<any[]>([]);
+  const [familiesLoading, setFamiliesLoading] = useState(false);
   const [loading, setLoading] = useState(false);
   const [selectedFamily, setSelectedFamily] = useState('');
   const [familySearchTerm, setFamilySearchTerm] = useState('');
@@ -1146,17 +1147,32 @@ function AddChildToExistingFamilyForm({ onSuccess, onCancel }: { onSuccess: () =
     return phone ? `${name} - ${phone}` : name;
   };
 
+  // The families endpoint is paginated at 20, so loading it once and filtering
+  // in the browser meant only the twenty most recent families existed as far as
+  // this picker was concerned: every older family simply could not be found.
+  // The server already searches name, phone, e-mail, parent id and parent
+  // names, so the typing goes there.
   useEffect(() => {
-    const loadFamilies = async () => {
+    let cancelled = false;
+    const handle = setTimeout(async () => {
+      setFamiliesLoading(true);
       try {
-        const response = await api.get('/customers/families/');
+        const response = await api.get('/customers/families/', {
+          params: familySearchTerm.trim() ? { search: familySearchTerm.trim() } : undefined,
+        });
+        if (cancelled) return;
         setFamilies(response.data.results || response.data || []);
       } catch (error) {
-        console.error('Error loading families:', error);
+        if (!cancelled) console.error('Error loading families:', error);
+      } finally {
+        if (!cancelled) setFamiliesLoading(false);
       }
+    }, familySearchTerm.trim() ? 300 : 0);
+    return () => {
+      cancelled = true;
+      clearTimeout(handle);
     };
-    loadFamilies();
-  }, []);
+  }, [familySearchTerm]);
 
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
@@ -1215,18 +1231,10 @@ function AddChildToExistingFamilyForm({ onSuccess, onCancel }: { onSuccess: () =
     }
   };
   
-  const filteredFamilies = (Array.isArray(families) ? families : []).filter((family) => {
-    if (!family) return false;
-    const rawQuery = String(familySearchTerm ?? '').trim();
-    if (!rawQuery) return true;
-    const query = rawQuery.toLowerCase();
-
-    return (
-      getFamilyName(family).toLowerCase().includes(query) ||
-      getFamilyPhone(family).includes(rawQuery) ||
-      getFamilyParentId(family).includes(rawQuery)
-    );
-  });
+  // No second filter here: the server already answered the query, and filtering
+  // its results again would drop a family matched on a field this screen does
+  // not show — a parent's name, for instance.
+  const filteredFamilies = Array.isArray(families) ? families.filter(Boolean) : [];
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
@@ -1248,6 +1256,15 @@ function AddChildToExistingFamilyForm({ onSuccess, onCancel }: { onSuccess: () =
           required
         />
         {errors.family && <p className="text-red-500 text-xs mt-1">{errors.family}</p>}
+        {!errors.family && (
+          <p className="text-xs text-muted-foreground mt-1">
+            {familiesLoading
+              ? 'מחפש…'
+              : familySearchTerm.trim() && filteredFamilies.length === 0
+                ? 'לא נמצאה משפחה. אפשר לחפש גם לפי טלפון, ת"ז הורה או שם ההורה.'
+                : 'חיפוש לפי שם משפחה, טלפון, ת"ז הורה או שם ההורה.'}
+          </p>
+        )}
         <datalist id="families-list">
           {filteredFamilies.map((family) => (
             <option key={family.id} value={getFamilyOptionValue(family)} />
