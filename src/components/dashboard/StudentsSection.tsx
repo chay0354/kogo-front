@@ -13,7 +13,7 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
-import { fetchStudentsData } from '@/lib/api';
+import { fetchStudentsData, fetchTrialNotConverted } from '@/lib/api';
 import { useScopedBranches } from '@/hooks/useScopedBranches';
 import { filterBranchesByCity } from '@/lib/scopedFilters';
 import type { DateRange } from './GlobalDateFilter';
@@ -21,6 +21,11 @@ import { MONTHS } from './monthYearUtils';
 import { formatPercent } from './format';
 import theme from './theme/dashboard.module.css';
 import { SectionSkeleton } from './SectionSkeleton';
+
+function formatTrialDate(iso: string): string {
+  const [y, m, d] = iso.split('-');
+  return `${d}/${m}/${y}`;
+}
 
 interface Props {
   globalDateRange: DateRange;
@@ -50,6 +55,20 @@ export default function StudentsSection({ globalDateRange }: Props) {
     queryKey: ['dashboard-students', apiFilters],
     queryFn: () => fetchStudentsData(apiFilters),
   });
+
+  // The children who came to a trial and never signed up. Its own query: the
+  // list is a list of people to call, and it must not make the whole section
+  // wait or fail with it.
+  const [trialOutcome, setTrialOutcome] = useState<'all' | 'attended' | 'no_show'>('all');
+  const { data: notConverted } = useQuery({
+    queryKey: ['dashboard-trial-not-converted', cityId, branchId],
+    queryFn: () => fetchTrialNotConverted({ city_id: cityId, branch_id: branchId }),
+  });
+  const allTrialLeads = notConverted?.results ?? [];
+  const trialLeads =
+    trialOutcome === 'all'
+      ? allTrialLeads
+      : allTrialLeads.filter((row) => row.outcome === trialOutcome);
 
   const kpis = data?.kpis ?? {};
   // The endpoint returns a row per branch whether or not it has anyone; those
@@ -180,6 +199,102 @@ export default function StudentsSection({ globalDateRange }: Props) {
             <span>שיעור הגעה</span>
           </div>
         </div>
+      </div>
+
+      {/* The names behind "ביצעו ניסיון": children who were in the room and
+          never signed up. A count is a number; this is a call list. */}
+      <div className={`${theme.card} ${theme.mt}`}>
+        <h2 className={theme.cardTitle}>ניסיון שלא הבשיל להרשמה</h2>
+        <p className={theme.cardSub}>
+          {allTrialLeads.length > 0
+            ? `${notConverted?.attended ?? 0} הגיעו · ${notConverted?.no_show ?? 0} לא הגיעו · טרם נרשמו לחוג`
+            : 'כל מי שנקבע לו ניסיון נרשם'}
+        </p>
+        {allTrialLeads.length > 0 && (
+          <div className={theme.counts} style={{ marginTop: 0 }}>
+            {([
+              ['all', 'הכל', allTrialLeads.length],
+              ['attended', 'הגיעו', notConverted?.attended ?? 0],
+              ['no_show', 'לא הגיעו', notConverted?.no_show ?? 0],
+            ] as const).map(([key, label, n]) => (
+              <button
+                key={key}
+                type="button"
+                onClick={() => setTrialOutcome(key)}
+                aria-pressed={trialOutcome === key}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  cursor: 'pointer',
+                  opacity: trialOutcome === key ? 1 : 0.55,
+                  font: 'inherit',
+                  textAlign: 'center',
+                }}
+              >
+                <b>{n}</b>
+                <span>{label}</span>
+              </button>
+            ))}
+          </div>
+        )}
+        {trialLeads.length > 0 && (
+          <div className={theme.tableWrap}>
+            <table className={theme.table}>
+              <thead>
+                <tr>
+                  <th scope="col">ילד/ה</th>
+                  <th scope="col">תוצאה</th>
+                  <th scope="col">חוג</th>
+                  <th scope="col">סניף</th>
+                  <th scope="col">תאריך הניסיון</th>
+                  <th scope="col">עברו</th>
+                  <th scope="col">הורה</th>
+                </tr>
+              </thead>
+              <tbody>
+                {trialLeads.map((row) => (
+                  <tr
+                    key={row.child_id}
+                    onClick={() => router.push(`/customers?child=${row.child_id}`)}
+                    style={{ cursor: 'pointer' }}
+                  >
+                    <td>
+                      {row.child_name}
+                      {row.trial_number > 1 && ` · ניסיון ${row.trial_number}`}
+                    </td>
+                    <td style={{ color: row.outcome === 'no_show' ? '#b45309' : undefined }}>
+                      {row.outcome_label}
+                    </td>
+                    <td>{row.course_name || '—'}</td>
+                    <td>{row.branch_name || '—'}</td>
+                    <td>{row.trial_date ? formatTrialDate(row.trial_date) : '—'}</td>
+                    <td>
+                      {row.days_since_trial === null
+                        ? '—'
+                        : row.days_since_trial === 0
+                          ? 'היום'
+                          : `${row.days_since_trial} ימים`}
+                    </td>
+                    <td>
+                      {row.parent_name || '—'}
+                      {row.parent_phone && (
+                        <>
+                          {' · '}
+                          <a
+                            href={`tel:${row.parent_phone}`}
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            {row.parent_phone}
+                          </a>
+                        </>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
 
       {/* attendance trend — a line needs at least two months that were actually

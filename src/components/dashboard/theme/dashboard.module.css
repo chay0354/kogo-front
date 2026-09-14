@@ -683,3 +683,9 @@
   margin-bottom: -1px;
   pointer-events: none;
 }
+
+/* A table inside a dashboard card: scrolls on its own so the page never does. */
+.tableWrap {
+  overflow-x: auto;
+  margin-top: 12px;
+}
