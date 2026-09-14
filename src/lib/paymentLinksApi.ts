@@ -209,6 +209,76 @@ export async function fetchCardLinks(childId: string) {
   return res.data as CardLink[];
 }
 
+// ---------------------------------------------------------------------------
+// Every link the office sent, across all children — "what happened with it?"
+// ---------------------------------------------------------------------------
+
+/** A card link, or a standing-order card-update link. */
+export type LinkOverviewKind = CardLinkKind | 'card_update';
+/** The card-update link's own end states; a card link keeps CardLinkStatus. */
+export type CardUpdateLinkStatus = 'created' | 'opened' | 'card_saved' | 'charged' | 'declined';
+export type LinkOverviewStatus = CardLinkStatus | CardUpdateLinkStatus;
+
+/**
+ * One row of the links screen. The server says the Hebrew for `kind`, `mode`
+ * and `status` itself, so a link is described on screen in the same words the
+ * server acted on it in — and a status added later does not read as a raw
+ * `card_saved` here until the page is taught about it.
+ *
+ * It carries `branch_id`/`business_id` so the invoices page's shared filter bar
+ * narrows it like every other ledger row.
+ */
+export type LinkOverviewRow = {
+  id: string;
+  source: 'card_link' | 'card_update';
+  kind: LinkOverviewKind;
+  kind_label: string;
+  mode: '' | CardUpdateMode;
+  mode_label: string;
+  status: LinkOverviewStatus;
+  status_label: string;
+  child_id: string | null;
+  child_name: string;
+  family_name: string;
+  branch_id: string | null;
+  branch_name: string;
+  business_id: string | null;
+  business_name: string;
+  /** Blank on a standing-order link: its first charge is priced when it is paid. */
+  amount: string | null;
+  description: string;
+  created_at: string;
+  created_by_name: string;
+  sent_at: string | null;
+  /** 'whatsapp' — we sent it · 'copy' — the office copied it, so there is no send time. */
+  sent_via: '' | 'whatsapp' | 'copy';
+  /** Only a card-update link records a page view; a card link leaves this null. */
+  first_opened_at: string | null;
+  completed_at: string | null;
+  last_error: string;
+  /** Blank once the link has done its job — there is nothing left to resend. */
+  public_url: string;
+};
+
+export type LinkOverviewPage = {
+  results: LinkOverviewRow[];
+  count: number;
+  limit: number;
+  offset: number;
+  has_more: boolean;
+};
+
+export async function fetchLinkOverview(params: {
+  limit?: number;
+  offset?: number;
+  kind?: string;
+  status?: string;
+  q?: string;
+} = {}) {
+  const res = await api.get('/customers/card-links/', { params });
+  return res.data as LinkOverviewPage;
+}
+
 export async function createCardLink(data: CardLinkInput) {
   const res = await api.post('/customers/card-links/', data);
   return res.data as CardLink;
