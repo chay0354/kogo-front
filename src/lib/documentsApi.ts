@@ -42,6 +42,8 @@ export async function fetchTranzilaDocuments(params?: {
     store_invoice_id?: string;
     tranzila_issued?: boolean;
     is_draft?: boolean;
+    allocation_number?: string;
+    allocation_required?: boolean;
     tranzila_doc_id?: string;
     source?: string;
     branch?: string;
@@ -486,4 +488,12 @@ export async function registerCashPlan(input: {
 }): Promise<CashPlan> {
   const res = await api.post('/documents/cash-plans/', input);
   return res.data;
+}
+
+/** מספר הקצאה שנלקח ידנית מרשות המסים. מחרוזת ריקה מנקה אותו. */
+export async function setAllocationNumber(documentId: string, allocationNumber: string) {
+  const res = await api.post(`/documents/documents/${documentId}/allocation-number/`, {
+    allocation_number: allocationNumber,
+  });
+  return res.data as { allocation_number: string; allocation_entered_at: string | null };
 }

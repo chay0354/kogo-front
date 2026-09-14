@@ -12,6 +12,7 @@ import {
   downloadUniformExport,
   finalizeDraft,
   sendDocumentReminder,
+  setAllocationNumber,
 } from '@/lib/documentsApi';
 import { useScopedBranches } from '@/hooks/useScopedBranches';
 import theme from '@/components/dashboard/theme/dashboard.module.css';
@@ -79,6 +80,83 @@ interface DocumentsTabProps {
  * The tab owns its rows and its two own fields (סוג מסמך, סטטוס). The range
  * and the source filters belong to the page and are shared with every tab.
  */
+/**
+ * מספר הקצאה on one row.
+ *
+ * Three states, and the row says which: the number once entered, an input on a
+ * document that crosses the Tax Authority threshold and has none yet, and a
+ * dash on one that needs none. The number comes from the Tax Authority portal
+ * by hand — there is no API integration — so this is where it lands.
+ */
+function AllocationCell({
+  doc,
+  value,
+  busy,
+  error,
+  onSave,
+}: {
+  doc: DocumentRow;
+  value: string;
+  busy: boolean;
+  error: string;
+  onSave: (next: string) => void;
+}) {
+  const [draft, setDraft] = useState(value);
+  const [editing, setEditing] = useState(false);
+
+  if (!doc.allocation_required && !value) {
+    return <span className={styles.dash} title="לא נדרש מספר הקצאה לסכום הזה">—</span>;
+  }
+
+  if (value && !editing) {
+    return (
+      <button
+        type="button"
+        className={styles.allocationValue}
+        title="לחצו כדי לשנות את מספר ההקצאה"
+        onClick={() => {
+          setDraft(value);
+          setEditing(true);
+        }}
+      >
+        {value}
+      </button>
+    );
+  }
+
+  return (
+    <div className={styles.allocationEdit}>
+      <input
+        className={styles.allocationInput}
+        inputMode="numeric"
+        maxLength={11}
+        placeholder="9 ספרות"
+        aria-label={`מספר הקצאה למסמך ${doc.document_number}`}
+        value={draft}
+        disabled={busy}
+        onChange={(e) => setDraft(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') {
+            onSave(draft.trim());
+            setEditing(false);
+          }
+          if (e.key === 'Escape') {
+            setDraft(value);
+            setEditing(false);
+          }
+        }}
+        onBlur={() => {
+          onSave(draft.trim());
+          setEditing(false);
+        }}
+      />
+      {busy && <span className={styles.allocationHint}>שומר…</span>}
+      {!busy && !value && <span className={styles.allocationHint}>נדרש</span>}
+      {error && <span className={styles.allocationError}>{error}</span>}
+    </div>
+  );
+}
+
 export default function DocumentsTab({ ledger, refreshKey = 0 }: DocumentsTabProps) {
   const { filters } = ledger;
   const { dateFrom, dateTo } = filters;
@@ -98,6 +176,29 @@ export default function DocumentsTab({ ledger, refreshKey = 0 }: DocumentsTabPro
   const [reportBusy, setReportBusy] = useState(false);
   const [exportBusy, setExportBusy] = useState<'' | 'register' | 'uniform'>('');
   const [approvingId, setApprovingId] = useState<string | null>(null);
+  // מספר הקצאה is fetched by hand from the Tax Authority portal and typed in
+  // here, so the row keeps what was typed until the server confirms it.
+  const [allocations, setAllocations] = useState<Record<string, string>>({});
+  const [allocationErrors, setAllocationErrors] = useState<Record<string, string>>({});
+  const [allocationBusyId, setAllocationBusyId] = useState<string | null>(null);
+
+  async function handleAllocation(doc: DocumentRow, next: string) {
+    const current = doc.allocation_number ?? '';
+    if (next === current) return;
+    setAllocationBusyId(doc.id);
+    setAllocationErrors((prev) => ({ ...prev, [doc.id]: '' }));
+    try {
+      const saved = await setAllocationNumber(doc.id, next);
+      setAllocations((prev) => ({ ...prev, [doc.id]: saved.allocation_number }));
+    } catch (err) {
+      const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
+      setAllocationErrors((prev) => ({ ...prev, [doc.id]: msg || 'שמירת מספר ההקצאה נכשלה' }));
+      setAllocations((prev) => ({ ...prev, [doc.id]: current }));
+    } finally {
+      setAllocationBusyId(null);
+    }
+  }
+
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
   const [reminders, setReminders] = useState<Record<string, ReminderState>>({});
 
@@ -312,6 +413,7 @@ export default function DocumentsTab({ ledger, refreshKey = 0 }: DocumentsTabPro
               <th scope="col" className={theme.n}>שולם</th>
               <th scope="col" className={theme.n}>יתרה</th>
               <th scope="col">סטטוס</th>
+              <th scope="col">מספר הקצאה</th>
               <th scope="col" className={theme.n}>פעולות</th>
             </tr>
           </thead>
@@ -365,6 +467,15 @@ export default function DocumentsTab({ ledger, refreshKey = 0 }: DocumentsTabPro
                         לא הונפק בטרנזילה
                       </span>
                     )}
+                  </td>
+                  <td>
+                    <AllocationCell
+                      doc={doc}
+                      value={allocations[doc.id] ?? doc.allocation_number ?? ''}
+                      busy={allocationBusyId === doc.id}
+                      error={allocationErrors[doc.id] ?? ''}
+                      onSave={(next) => void handleAllocation(doc, next)}
+                    />
                   </td>
                   <td>
                     <div className={styles.actions}>

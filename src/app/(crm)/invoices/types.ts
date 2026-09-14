@@ -102,6 +102,10 @@ export interface DocumentRow extends LedgerDimensions {
   source?: string;
   tranzila_issued?: boolean;
   is_draft?: boolean;
+  /** מספר ההקצאה מרשות המסים, כפי שהוזן. ריק כשטרם הוזן. */
+  allocation_number?: string;
+  /** האם המסמך חוצה את הסף שמחייב מספר הקצאה. נקבע בשרת. */
+  allocation_required?: boolean;
   branch?: string;
   branch_id?: string | null;
   /** מאיזו מערכת הגיע המסמך — חנות/אתר, חנות/סניף, מנוי, מסמך ידני. */
