@@ -1,0 +1,33 @@
+/*
+ * The tenant's card page. The card-link page's module (card-link.module.css)
+ * carries the shell, the palette and the card form; these are only the parts a
+ * standing order has and a card link does not: a day with no charge, and a
+ * screen that waits on the office rather than failing.
+ */
+
+/* Waiting on someone — the office, or the switch — not a failure: the gold of the page, not its red. */
+.iconWait {
+  background: #fff7d6;
+  color: #8a6d00;
+}
+
+/* The card is only checked today: said as plainly as a charge would be, without the gold of money. */
+.verify {
+  margin-top: 12px;
+  padding: 13px 15px;
+  border-radius: 14px;
+  background: #eef0fb;
+}
+
+.verifyTitle {
+  font-size: 15px;
+  font-weight: 800;
+  color: #2b3090;
+}
+
+/* The success screen's lines: what was charged, and when the next charge comes. */
+.resultLines {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}

@@ -701,22 +701,69 @@
   }
 }
 
-/* Columns of later phases: present, empty, and saying when they fill in. */
-.phaseTag {
-  display: inline-block;
-  margin-inline-start: 5px;
-  padding: 1px 6px;
-  border-radius: 5px;
-  background: #f2f1f7;
-  color: #9996b8;
-  font-size: 10px;
-  font-weight: 800;
-  vertical-align: 1px;
+/* ---- the standing-order column (phase 4): where it stands, the month's total, the next charge, the card ---- */
+.table .orderCell {
+  min-width: 220px;
+  white-space: normal;
 }
 
-.later {
+.orderTotal {
+  font-size: 12.5px;
+  font-weight: 800;
+  color: var(--kg-ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.orderMeta {
+  font-size: 11.5px;
+  font-weight: 700;
+  line-height: 1.4;
   color: var(--kg-muted);
-  cursor: help;
+}
+
+.orderActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  margin-top: 2px;
+}
+
+/* Charging is off, or cannot tag its charges: said above the list in amber — a state, not a failure. */
+.billingBanner {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: #fff8e8;
+  border: 1px solid #f5dfa8;
+  color: #7a5500;
+  font-size: 12.5px;
+  font-weight: 800;
+  line-height: 1.55;
+}
+
+.billingBanner > svg {
+  flex: none;
+  margin-top: 2px;
+}
+
+.billingBanner > div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.billingBanner p {
+  margin: 0;
+}
+
+/* Which terminals charge, when not production's: said, but smaller than whether anything charges at all. */
+.billingBanner .bannerNote {
+  font-size: 11.5px;
+  font-weight: 700;
 }
 
 /* ---- row actions ---- */

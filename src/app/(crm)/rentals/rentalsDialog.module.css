@@ -1005,6 +1005,30 @@
   margin-top: 6px;
 }
 
+/* ---- a standing order's charges: a card per month, the history's shape ---- */
+.chargeAmounts {
+  color: var(--kg-ink);
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+/*
+ * A month whose outcome is unknown, and the decisions on it: check Tranzila
+ * first. Stronger than the saved notice's amber — either decision is final,
+ * and an unclear answer from Tranzila is common.
+ */
+.reviewBox {
+  margin: 8px 0 0;
+  padding: 10px 12px;
+  border-radius: 11px;
+  background: #fff3cd;
+  border: 1.5px solid #e0a81f;
+  color: #5c3d00;
+  font-size: 12.5px;
+  font-weight: 800;
+  line-height: 1.55;
+}
+
 /* A phone gets a sheet from the bottom edge, as the shared dialogs do. */
 @media (max-width: 639px) {
   .overlay {

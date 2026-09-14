@@ -44,6 +44,7 @@ import LinkSlotsDialog from './LinkSlotsDialog';
 import SigningLinkDialog from './SigningLinkDialog';
 import { SigningChips, StaleChip, ToneChip } from './StatusChips';
 import TenancyDialog from './TenancyDialog';
+import { useTenantBilling } from './useTenantBilling';
 import { contractCell, contractFileName, issueConfirmMessage, issuedMessage, type ContractCell } from './contractUtils';
 import { sendForSigningState, signedByText } from './signingUtils';
 import {
@@ -75,11 +76,6 @@ const NO_TENANCIES: Tenancy[] = [];
 const NO_SUGGESTIONS: TenancySuggestion[] = [];
 
 const TABLE_COLUMNS = 11;
-
-/** A later phase's column: on screen now, empty, and saying when it fills in. */
-const LATER_COLUMNS = [
-  { key: 'standing-order', label: 'הוראת קבע', phase: 'שלב 4', title: 'הוראת הקבע של השוכר תופיע כאן בשלב 4' },
-] as const;
 
 type DialogState =
   | { kind: 'create' }
@@ -113,7 +109,9 @@ function withoutKey<T>(record: Record<string, T>, key: string): Record<string, T
  * שוכרים — one row per tenancy: the tenant, its branch, the calendar slots it
  * holds, the agreement (the monthly amount before VAT and with it, the billing
  * day, the dates, the status), its contract — the version on file, its PDF and
- * whether it still matches the agreement — and the column a later phase fills.
+ * whether it still matches the agreement — and its standing order: where it
+ * stands, the month's total, the next charge and the card, with the office's
+ * actions on it (useTenantBilling).
  *
  * The list is small and arrives whole, scoped to the user's branches by the
  * server, so the branch, the status and the search narrow it here — instantly,
@@ -155,6 +153,7 @@ export default function TenanciesView() {
   const tenancies = tenanciesQuery.data ?? NO_TENANCIES;
   const suggestions = suggestionsQuery.data ?? NO_SUGGESTIONS;
   const isPartner = user?.role === 'partner';
+  const billing = useTenantBilling({ enabled: Boolean(user) });
 
   const visible = useMemo(
     () => sortTenancies(tenancies.filter((tenancy) => matchesTenancyFilters(tenancy, filters))),
@@ -191,6 +190,7 @@ export default function TenanciesView() {
   function refresh() {
     void queryClient.invalidateQueries({ queryKey: TENANCIES_KEY });
     void queryClient.invalidateQueries({ queryKey: SUGGESTIONS_KEY });
+    billing.refresh();
   }
 
   function saved(message: string) {
@@ -473,14 +473,7 @@ export default function TenanciesView() {
             </p>
           )}
         </td>
-        {LATER_COLUMNS.map((column) => (
-          <td key={column.key}>
-            <span className={styles.later} title={column.title} aria-hidden="true">
-              —
-            </span>
-            <span className={styles.srOnly}>{column.title}</span>
-          </td>
-        ))}
+        <td className={styles.orderCell}>{billing.renderCell(tenancy)}</td>
         <td>
           <div className={styles.actions}>
             <button
@@ -649,12 +642,7 @@ export default function TenanciesView() {
               <th scope="col">תקופת ההסכם</th>
               <th scope="col">סטטוס</th>
               <th scope="col">חוזה</th>
-              {LATER_COLUMNS.map((column) => (
-                <th key={column.key} scope="col" title={column.title}>
-                  {column.label}
-                  <span className={styles.phaseTag}>{column.phase}</span>
-                </th>
-              ))}
+              <th scope="col">הוראת קבע</th>
               <th scope="col" className={theme.n}>
                 פעולות
               </th>
@@ -700,6 +688,18 @@ export default function TenanciesView() {
           foot={unlinkedFoot}
         />
       </div>
+
+      {(billing.notices.length > 0 || billing.terminalNote) && (
+        <div className={styles.billingBanner} role="status">
+          <AlertCircle size={16} aria-hidden="true" />
+          <div>
+            {billing.notices.map((notice) => (
+              <p key={notice}>{notice}</p>
+            ))}
+            {billing.terminalNote && <p className={styles.bannerNote}>{billing.terminalNote}</p>}
+          </div>
+        </div>
+      )}
 
       <section className={theme.card} aria-label="סינון">
         <div className={styles.filterRow}>
@@ -886,6 +886,8 @@ export default function TenanciesView() {
           onImported={(count) => saved(count === 1 ? 'נוצר שוכר אחד' : `נוצרו ${count.toLocaleString('he-IL')} שוכרים`)}
         />
       )}
+
+      {billing.dialogs}
 
       <BodyPortal>
         <ConfirmDialog

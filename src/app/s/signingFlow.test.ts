@@ -12,6 +12,7 @@ import {
   UNAVAILABLE_TEXT,
   billingDayText,
   canSubmitSignature,
+  cardStepUrl,
   initialSigner,
   missingForSignature,
   missingLine,
@@ -134,7 +135,7 @@ describe('signingReducer — signing', () => {
   it('moves to the success screen with the time the server stamped and the name signed', () => {
     const next = signingReducer(open, {
       type: 'signed',
-      result: { state: 'signed', signed_at: '2026-09-11T18:05:00+03:00', pdf_url: null },
+      result: { state: 'signed', signed_at: '2026-09-11T18:05:00+03:00', pdf_url: null, next: 'done', card_url: null },
       signerName: '  דנה לוי ',
     });
     expect(next).toMatchObject({
@@ -307,5 +308,18 @@ describe('how it reads', () => {
     expect(telHref('+972 50 942 4755')).toBe('tel:+972509424755');
     expect(telHref('')).toBe('');
     expect(telHref('משרד')).toBe('');
+  });
+});
+
+describe('cardStepUrl', () => {
+  it('leads on to the card page only when the server says so, and only to an address a tenant can be sent to', () => {
+    expect(cardStepUrl({ next: 'card', card_url: 'https://kogo.example/rc/abc' }, 'https://other.example')).toBe(
+      'https://kogo.example/rc/abc',
+    );
+    expect(cardStepUrl({ next: 'card', card_url: '/rc/abc' }, 'https://kogo.example/')).toBe('https://kogo.example/rc/abc');
+    expect(cardStepUrl({ next: 'done', card_url: null }, 'https://kogo.example')).toBe('');
+    expect(cardStepUrl({ next: 'card', card_url: 'javascript:alert(1)' }, 'https://kogo.example')).toBe('');
+    expect(cardStepUrl({ next: 'card', card_url: '//evil.example/rc/abc' }, 'https://kogo.example')).toBe('');
+    expect(cardStepUrl(null, 'https://kogo.example')).toBe('');
   });
 });

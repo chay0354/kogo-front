@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
-import { israeliIdFieldError, sanitizeIsraeliIdInput } from '@/lib/israeliId';
+import { israeliIdFieldError } from '@/lib/israeliId';
+import CardFields from '../CardFields';
 import styles from '../card-link.module.css';
 import { fetchCardLinkPreview, formatShekels, submitCardLink, type CardLinkPreview } from '@/lib/paymentLinksApi';
 
@@ -286,78 +287,21 @@ export default function CardLinkPage() {
               )}
             </section>
 
-            <section className={styles.card}>
-              <h2 className={styles.cardTitle}>פרטי כרטיס אשראי</h2>
-              <div className={styles.fields}>
-                <div>
-                  <label className={styles.label} htmlFor="card-number">מספר כרטיס</label>
-                  <input
-                    id="card-number"
-                    className={styles.input}
-                    inputMode="numeric"
-                    autoComplete="cc-number"
-                    placeholder="4580 4580 4580 4580"
-                    value={cardNumber}
-                    onChange={(e) => setCardNumber(e.target.value)}
-                  />
-                </div>
-
-                <div className={styles.grid3}>
-                  <div>
-                    <label className={styles.label} htmlFor="exp-month">חודש</label>
-                    <input
-                      id="exp-month"
-                      className={styles.input}
-                      inputMode="numeric"
-                      autoComplete="cc-exp-month"
-                      placeholder="12"
-                      value={expiryMonth}
-                      onChange={(e) => setExpiryMonth(e.target.value)}
-                    />
-                  </div>
-                  <div>
-                    <label className={styles.label} htmlFor="exp-year">שנה</label>
-                    <input
-                      id="exp-year"
-                      className={styles.input}
-                      inputMode="numeric"
-                      autoComplete="cc-exp-year"
-                      placeholder="2028"
-                      value={expiryYear}
-                      onChange={(e) => setExpiryYear(e.target.value)}
-                    />
-                  </div>
-                  <div>
-                    <label className={styles.label} htmlFor="cvv">CVV</label>
-                    <input
-                      id="cvv"
-                      className={styles.input}
-                      inputMode="numeric"
-                      autoComplete="cc-csc"
-                      placeholder="123"
-                      value={cvv}
-                      onChange={(e) => setCvv(e.target.value)}
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className={styles.label} htmlFor="card-id">תעודת זהות בעל הכרטיס</label>
-                  <input
-                    id="card-id"
-                    className={`${styles.input} ${idError ? styles.inputInvalid : ''}`}
-                    inputMode="numeric"
-                    placeholder="012345678"
-                    value={cardHolderId}
-                    onChange={(e) => {
-                      setCardHolderId(sanitizeIsraeliIdInput(e.target.value));
-                      setIdError('');
-                    }}
-                  />
-                  {idError ? <p className={styles.fieldError}>{idError}</p> : null}
-                </div>
-              </div>
-            </section>
+            <CardFields
+              values={{ cardNumber, expiryMonth, expiryYear, cvv, cardHolderId }}
+              onChange={(field, value) => {
+                if (field === 'cardNumber') setCardNumber(value);
+                else if (field === 'expiryMonth') setExpiryMonth(value);
+                else if (field === 'expiryYear') setExpiryYear(value);
+                else if (field === 'cvv') setCvv(value);
+                else {
+                  // Kept to digits by the field itself; a new keystroke clears the last check's error.
+                  setCardHolderId(value);
+                  setIdError('');
+                }
+              }}
+              idError={idError}
+            />
 
             {formError ? <p className={styles.errorBox}>{formError}</p> : null}
 

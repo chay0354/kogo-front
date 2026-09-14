@@ -14,6 +14,7 @@ import {
   INITIAL_SIGNING_STATE,
   billingDayText,
   canSubmitSignature,
+  cardStepUrl,
   initialSigner,
   missingForSignature,
   missingLine,
@@ -52,6 +53,8 @@ export default function RentalSigningPage() {
   const [signature, setSignature] = useState<string | null>(null);
   const [accepted, setAccepted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  // Where the tenant goes once signed: the card page while billing is on; '' keeps the neutral line.
+  const [cardUrl, setCardUrl] = useState('');
   const submittingRef = useRef(false);
   const alive = useRef(true);
   const prefilled = useRef(false);
@@ -120,7 +123,10 @@ export default function RentalSigningPage() {
     const payload = signaturePayload(draft);
     try {
       const result = await submitContractSignature(token, payload);
-      if (alive.current) dispatch({ type: 'signed', result, signerName: payload.signer_name });
+      if (alive.current) {
+        dispatch({ type: 'signed', result, signerName: payload.signer_name });
+        setCardUrl(cardStepUrl(result, window.location.origin));
+      }
     } catch (error) {
       if (!alive.current) return;
       dispatch({ type: 'submitFailed', error });
@@ -345,8 +351,14 @@ export default function RentalSigningPage() {
             <FileText size={17} aria-hidden="true" />
             הורדת העותק החתום (PDF)
           </a>
-          {/* Neutral until the card step exists: the office arranges payment for now. */}
-          <p className={styles.nextStep}>המשרד ייצור איתכם קשר להסדרת התשלום החודשי</p>
+          {/* On to the card only when the server says so (tenant billing switched on); otherwise the office arranges payment. */}
+          {cardUrl ? (
+            <a className={`${card.submit} ${styles.cardStep}`} href={cardUrl}>
+              להמשך — הזנת כרטיס להוראת הקבע
+            </a>
+          ) : (
+            <p className={styles.nextStep}>המשרד ייצור איתכם קשר להסדרת התשלום החודשי</p>
+          )}
         </div>
       </div>
     );
