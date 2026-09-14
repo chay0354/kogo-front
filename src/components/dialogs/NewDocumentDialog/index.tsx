@@ -21,7 +21,12 @@ import {
   X,
 } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
-import api, { createBusinessCustomer, fetchBusinesses, searchBusinessCustomers } from '@/lib/api';
+import api, {
+  createBusinessCustomer,
+  fetchBusinesses,
+  searchBusinessCustomers,
+  updateBusinessCustomer,
+} from '@/lib/api';
 import { createDocument, fetchDocuments } from '@/lib/documentsApi';
 import type { CreateDocumentPayload } from '@/types/document';
 import { Select } from '@/components/ui/select';
@@ -166,16 +171,22 @@ export default function NewDocumentDialog({ open, onClose }: NewDocumentDialogPr
   async function handleNext() {
     setSubmitError(null);
 
-    // Create new business customer before advancing
-    if (currentStep === 'businessClientDetails' && businessCustomerId === null) {
-      if (
-        businessFormData.first_name.trim() !== '' &&
-        businessFormData.last_name.trim() !== ''
-      ) {
+    // Save the merchant before advancing: create a new one, or write back the
+    // edits to one that was picked from the search. Editing a saved merchant
+    // used to change nothing at all — the form moved on and the card kept its
+    // old details, which is how a corrected e-mail or phone quietly vanished.
+    if (currentStep === 'businessClientDetails') {
+      const named =
+        businessFormData.first_name.trim() !== '' && businessFormData.last_name.trim() !== '';
+      if (named) {
         setIsSubmitting(true);
         try {
-          const created = await createBusinessCustomer(businessFormData);
-          setBusinessCustomerId(created.id);
+          if (businessCustomerId === null) {
+            const created = await createBusinessCustomer(businessFormData);
+            setBusinessCustomerId(created.id);
+          } else {
+            await updateBusinessCustomer(businessCustomerId, businessFormData);
+          }
           goNext(true);
         } catch (err: unknown) {
           // Say why, so it can be fixed and saved again (isSubmitting clears below).
@@ -625,6 +636,18 @@ function BusinessClientStep({
     const value = e.target.value;
     setSearchQuery(value);
 
+    // The name typed here *is* the customer's name until an existing card is
+    // picked. Carrying it into the form is what stops it disappearing between
+    // this box and the two name fields below.
+    if (selectedBusinessCustomerId === null) {
+      const [first, ...rest] = value.trim().split(/\s+/);
+      onFormChange({
+        ...formData,
+        first_name: first ?? '',
+        last_name: rest.join(' '),
+      });
+    }
+
     if (debounceRef.current) clearTimeout(debounceRef.current);
 
     if (value.trim() === '') {
@@ -705,6 +728,9 @@ function BusinessClientStep({
         <label htmlFor="biz-search" className={styles.fieldLabel}>
           שם לקוח
         </label>
+        <p className={styles.fieldHint}>
+          הקלידו שם, אימייל, טלפון, ת&quot;ז או ח.פ כדי למצוא לקוח קיים — או שם חדש כדי לפתוח לקוח.
+        </p>
         <div className={styles.searchWrapper} ref={wrapperRef}>
           <input
             id="biz-search"

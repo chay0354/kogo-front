@@ -516,6 +516,14 @@ export const createBusinessCustomer = async (data: BusinessCustomerFormData): Pr
   return res.data;
 };
 
+export const updateBusinessCustomer = async (
+  id: string,
+  data: Partial<BusinessCustomerFormData>,
+): Promise<BusinessCustomer> => {
+  const res = await api.patch(`/customers/business-customers/${id}/`, data);
+  return res.data;
+};
+
 // ---- Businesses and their categories: what income (and later expenses) is tagged to ----
 export interface BusinessCategory {
   id: string;
