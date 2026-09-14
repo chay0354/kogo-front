@@ -25,6 +25,15 @@ import type {
   AdditionalLessonDiscountFormData,
 } from '@/types/discount';
 
+// A discount left at 0 ₪ never reaches a payment: the backend treats it as one
+// nobody configured, which is also how a discount is switched off here. Saying
+// "פעיל" over a 0 would promise parents a discount the widget will not give.
+function discountStatus(value: number, isActive: boolean): { label: string; className: string } {
+  if (!isActive) return { label: 'לא פעיל', className: 'bg-gray-100 text-gray-700' };
+  if (!(value > 0)) return { label: 'לא מוגדרת', className: 'bg-amber-100 text-amber-700' };
+  return { label: 'פעיל', className: 'bg-green-100 text-green-700' };
+}
+
 export default function DiscountsSection() {
   const [earlySignupDiscounts, setEarlySignupDiscounts] = useState<EarlySignupDiscount[]>([]);
   const [secondChildDiscount, setSecondChildDiscount] = useState<SecondChildDiscount | null>(null);
@@ -212,12 +221,10 @@ export default function DiscountsSection() {
                         <td className="py-3 px-4">
                           <span
                             className={`px-2 py-1 rounded-full text-xs font-medium ${
-                              discount.is_active
-                                ? 'bg-green-100 text-green-700'
-                                : 'bg-gray-100 text-gray-700'
+                              discountStatus(discount.value, discount.is_active).className
                             }`}
                           >
-                            {discount.is_active ? 'פעיל' : 'לא פעיל'}
+                            {discountStatus(discount.value, discount.is_active).label}
                           </span>
                         </td>
                         <td className="py-3 px-4">
@@ -286,12 +293,10 @@ export default function DiscountsSection() {
                     <div>
                       <span
                         className={`inline-block px-3 py-1 rounded-full text-sm font-medium ${
-                          secondChildDiscount.is_active
-                            ? 'bg-green-100 text-green-700'
-                            : 'bg-gray-100 text-gray-700'
+                          discountStatus(secondChildDiscount.value, secondChildDiscount.is_active).className
                         }`}
                       >
-                        {secondChildDiscount.is_active ? 'פעיל' : 'לא פעיל'}
+                        {discountStatus(secondChildDiscount.value, secondChildDiscount.is_active).label}
                       </span>
                     </div>
                   </div>
@@ -355,12 +360,10 @@ export default function DiscountsSection() {
                     <div>
                       <span
                         className={`inline-block px-3 py-1 rounded-full text-sm font-medium ${
-                          additionalLessonDiscount.is_active
-                            ? 'bg-green-100 text-green-700'
-                            : 'bg-gray-100 text-gray-700'
+                          discountStatus(additionalLessonDiscount.value, additionalLessonDiscount.is_active).className
                         }`}
                       >
-                        {additionalLessonDiscount.is_active ? 'פעיל' : 'לא פעיל'}
+                        {discountStatus(additionalLessonDiscount.value, additionalLessonDiscount.is_active).label}
                       </span>
                     </div>
                   </div>
