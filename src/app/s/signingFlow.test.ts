@@ -8,12 +8,14 @@ import {
   INITIAL_SIGNING_STATE,
   INVALID_LINK_TEXT,
   NO_ANSWER_TEXT,
+  SIGNED_CONTRACT_PARAM,
   SUBMIT_FAILED_TEXT,
   UNAVAILABLE_TEXT,
   billingDayText,
   canSubmitSignature,
   cardStepUrl,
   initialSigner,
+  signedContractToken,
   missingForSignature,
   missingLine,
   moneyText,
@@ -141,8 +143,25 @@ describe('signingReducer — signing', () => {
     expect(next).toMatchObject({
       view: 'signed',
       message: '',
-      contract: { state: 'signed', signed_at: '2026-09-11T18:05:00+03:00', signer_name: 'דנה לוי' },
+      contract: { state: 'signed', signed_at: '2026-09-11T18:05:00+03:00', signer_name: 'דנה לוי', next: 'done' },
     });
+  });
+
+  it('carries the step after signing onto the contract, so the page reads it from one place', () => {
+    // The version was read while it was still open, when there was nowhere to go yet.
+    expect(open.contract?.next).toBe('done');
+    const next = signingReducer(open, {
+      type: 'signed',
+      result: {
+        state: 'signed', signed_at: null, pdf_url: null, next: 'card', card_url: 'https://kogo.example/rc/abc',
+      },
+      signerName: 'דנה לוי',
+    });
+    expect(next.contract).toMatchObject({ next: 'card', card_url: 'https://kogo.example/rc/abc' });
+    // And that is what decides where the tenant is taken.
+    expect(cardStepUrl(next.contract, 'https://kogo.example', 'tok12345AB')).toBe(
+      'https://kogo.example/rc/abc?signed=tok12345AB',
+    );
   });
 
   it('keeps the form open with the server’s words for bad input and for a conflict', () => {
@@ -321,5 +340,45 @@ describe('cardStepUrl', () => {
     expect(cardStepUrl({ next: 'card', card_url: 'javascript:alert(1)' }, 'https://kogo.example')).toBe('');
     expect(cardStepUrl({ next: 'card', card_url: '//evil.example/rc/abc' }, 'https://kogo.example')).toBe('');
     expect(cardStepUrl(null, 'https://kogo.example')).toBe('');
+  });
+
+  it('is the same address whichever answer named it — the signing’s, or the link opened again', () => {
+    // The page reads both through one helper, so a tenant who comes back lands
+    // where the signature would have taken them, and on the same link.
+    const url = 'https://kogo.example/rc/abc';
+    const signed = cardStepUrl({ next: 'card', card_url: url }, 'https://kogo.example', 'tok12345AB');
+    const reopened = cardStepUrl(contract({ state: 'signed', next: 'card', card_url: url }), 'https://kogo.example', 'tok12345AB');
+    expect(reopened).toBe(signed);
+  });
+
+  it('carries the signing token over, so the card page can still offer the signed copy', () => {
+    expect(cardStepUrl({ next: 'card', card_url: '/rc/abc' }, 'https://kogo.example', 'tok12345AB')).toBe(
+      `https://kogo.example/rc/abc?${SIGNED_CONTRACT_PARAM}=tok12345AB`,
+    );
+    expect(cardStepUrl({ next: 'card', card_url: '/rc/abc?x=1' }, 'https://kogo.example', 'tok12345AB')).toBe(
+      'https://kogo.example/rc/abc?x=1&signed=tok12345AB',
+    );
+    // Nothing that is not a token the server makes goes into an address.
+    for (const bad of ['', 'tok 12345', 'abc', '../../etc', 'a'.repeat(40), 'tok&x=1']) {
+      expect(cardStepUrl({ next: 'card', card_url: '/rc/abc' }, 'https://kogo.example', bad)).toBe(
+        'https://kogo.example/rc/abc',
+      );
+    }
+    // And with nowhere to go, the token changes nothing.
+    expect(cardStepUrl({ next: 'done', card_url: null }, 'https://kogo.example', 'tok12345AB')).toBe('');
+  });
+});
+
+describe('signedContractToken', () => {
+  it('reads back the contract the card page was handed, and trusts nothing else', () => {
+    expect(signedContractToken('?signed=tok12345AB')).toBe('tok12345AB');
+    expect(signedContractToken('signed=tok12345AB&x=1')).toBe('tok12345AB');
+    expect(signedContractToken('?x=1')).toBe('');
+    expect(signedContractToken('')).toBe('');
+    expect(signedContractToken(null)).toBe('');
+    expect(signedContractToken(undefined)).toBe('');
+    for (const bad of ['?signed=../../secret', '?signed=a', '?signed=' + 'a'.repeat(40), '?signed=%3Cscript%3E']) {
+      expect(signedContractToken(bad)).toBe('');
+    }
   });
 });

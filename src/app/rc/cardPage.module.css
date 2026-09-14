@@ -31,3 +31,32 @@
   flex-direction: column;
   gap: 4px;
 }
+
+/*
+ * The contract carried over. A tenant moved straight here from the signing
+ * must never feel they lost it, so the page opens by saying it is signed and
+ * where the copy is — one quiet line above the form, never louder than it.
+ */
+.signedNote {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+  margin-bottom: 12px;
+  padding: 10px 14px;
+  border-radius: 13px;
+  background: #e8f7ee;
+  color: #0b6b3d;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.55;
+}
+
+.signedNoteLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: #0b6b3d;
+  font-weight: 800;
+  text-decoration: underline;
+}

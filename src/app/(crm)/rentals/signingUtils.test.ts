@@ -81,7 +81,12 @@ describe('signingWhatsAppMessage', () => {
     );
   });
 
-  it('leaves out what it does not know', () => {
+  it('leaves out what it does not know — and the link has no expiry to name', () => {
+    expect(
+      signingWhatsAppMessage({
+        tenant: { first_name: '', full_name: 'סטודיו אור' }, url: 'u', version: 1, expiresAt: null,
+      }),
+    ).toBe(['שלום סטודיו אור,', 'זה הקישור לקריאה ולחתימה על חוזה השכירות (גרסה 1):', 'u', 'תודה, קוגומלו'].join('\n'));
     expect(signingWhatsAppMessage({ tenant: { first_name: '', full_name: 'סטודיו אור' }, url: 'u', version: 1 })).toBe(
       ['שלום סטודיו אור,', 'זה הקישור לקריאה ולחתימה על חוזה השכירות (גרסה 1):', 'u', 'תודה, קוגומלו'].join('\n'),
     );
@@ -104,6 +109,7 @@ describe('the link’s expiry', () => {
   });
 
   it('says nothing, and calls nothing expired, without a readable time', () => {
+    // Which is every tenant link now: the server sends null, so the dialogs print no line at all.
     expect(signingExpiryText(null, NOW)).toBe('');
     expect(signingExpiryText('not a date', NOW)).toBe('');
     expect(isSigningLinkExpired(null, NOW)).toBe(false);
@@ -118,13 +124,16 @@ describe('liveSigningLink', () => {
     signing_expires_at: '2026-09-25T14:05:00+03:00',
   };
 
-  it('is the link of an unsigned version, until it expires', () => {
+  it('is the link of an unsigned version, and a link with no expiry stays live', () => {
     expect(liveSigningLink(sent, NOW)).toEqual({ url: 'https://kogo.example/s/tok', expiresAt: '2026-09-25T14:05:00+03:00' });
     expect(liveSigningLink({ ...sent, status: 'viewed' }, NOW)?.url).toBe('https://kogo.example/s/tok');
-    expect(liveSigningLink({ ...sent, signing_expires_at: null }, NOW)?.expiresAt).toBeNull();
+    // What the server sends now — and a year on it is still the live link.
+    const noExpiry = { ...sent, signing_expires_at: null };
+    expect(liveSigningLink(noExpiry, NOW)).toEqual({ url: 'https://kogo.example/s/tok', expiresAt: null });
+    expect(liveSigningLink(noExpiry, new Date('2027-09-11T12:00:00+03:00'))?.url).toBe('https://kogo.example/s/tok');
   });
 
-  it('is none once expired, cancelled (no link), signed or void', () => {
+  it('is none once cancelled (no link), signed or void — or past a date the server still gives', () => {
     expect(liveSigningLink({ ...sent, signing_expires_at: '2026-09-10T09:30:00+03:00' }, NOW)).toBeNull();
     expect(liveSigningLink({ ...sent, signing_url: '' }, NOW)).toBeNull();
     expect(liveSigningLink({ ...sent, signing_url: null }, NOW)).toBeNull();

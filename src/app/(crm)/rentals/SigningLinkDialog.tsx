@@ -259,11 +259,11 @@ export default function SigningLinkDialog({ tenancy, contractId, onClose, onChan
         </p>
       );
     }
-    const lapsed = !cancelledHere && contract?.signing_url ? signingExpiryText(contract.signing_expires_at) : '';
     return (
       <div className={styles.stateBox} role="status">
         <p className={styles.stateTitle}>{cancelledHere ? 'הקישור בוטל' : 'אין קישור פעיל'}</p>
-        <p>{cancelledHere ? 'השוכר כבר לא יכול לפתוח אותו.' : lapsed || 'לגרסה הזאת עדיין אין קישור לחתימה.'}</p>
+        {/* A link is never here because it ran out of time: it is cancelled, replaced, or was never made. */}
+        <p>{cancelledHere ? 'השוכר כבר לא יכול לפתוח אותו.' : 'לגרסה הזאת עדיין אין קישור לחתימה.'}</p>
         <button type="button" className={styles.primaryBtn} onClick={() => void run('create')} disabled={Boolean(busy)}>
           יצירת קישור
         </button>

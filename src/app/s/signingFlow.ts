@@ -31,6 +31,24 @@ export const NO_ANSWER_TEXT =
   'לא התקבלה תשובה מהשרת, ולכן לא ברור אם החתימה נקלטה. אם החוזה לא מופיע כחתום, נסו לחתום שוב.';
 export const SUBMIT_FAILED_TEXT = 'החתימה לא נשמרה. נסו שוב בעוד רגע.';
 
+/** The moment between the signature and the card page, so the tenant sees what just happened. */
+export const SIGNED_TITLE = 'החוזה נחתם ✓';
+export const CONTINUING_TEXT = 'ממשיכים להזנת כרטיס…';
+/** Long enough to read the line above, short enough not to feel stuck. */
+export const CONTINUE_DELAY_MS = 1200;
+/** If the move has still not happened by then, the signed page comes back with its button. */
+export const CONTINUE_GIVE_UP_MS = 8000;
+
+/**
+ * How the card page is told which contract was just signed: the signing token,
+ * so /rc/<token> can still offer the signed copy. It is the tenant's own token,
+ * on the tenant's own site, and it opens nothing the page they came from did not.
+ */
+export const SIGNED_CONTRACT_PARAM = 'signed';
+// A sign_token as the server makes them (apps/rentals/signing.py): letters and
+// digits only. Anything else is not carried over and not put into an address.
+const SIGN_TOKEN = /^[A-Za-z0-9]{6,32}$/;
+
 /** What an expired or cancelled link says above "בקשו מהמשרד קישור חדש". */
 export const GONE_COPY: Record<'expired' | 'cancelled', { title: string; text: string }> = {
   expired: { title: 'תוקף הקישור פג', text: 'הקישור לחתימה על החוזה כבר לא בתוקף.' },
@@ -136,6 +154,10 @@ export function signingReducer(state: SigningPageState, event: SigningEvent): Si
             state: 'signed',
             signed_at: event.result.signed_at ?? state.contract.signed_at,
             signer_name: event.signerName.trim() || state.contract.signer_name,
+            // Where to go next is the answer's, not the version's: the contract
+            // was read before it was signed, when there was nowhere to go yet.
+            next: event.result.next,
+            card_url: event.result.card_url,
           }
         : null;
       return { view: 'signed', contract, message: '' };
@@ -274,18 +296,44 @@ export function signedAtText(iso: string | null | undefined): string {
 }
 
 /**
- * Where "להמשך — הזנת כרטיס להוראת הקבע" leads once the contract is signed:
- * the card page the server named, made full on this site when it gave a path.
- * '' when the server says the page is done (billing switched off, or nothing to
- * pay by card) or gave no address a tenant can safely be sent to — the page
- * then keeps its neutral line.
+ * Where the tenant continues once the contract is signed: the card page the
+ * server named, made full on this site when it gave a path. The same rule for
+ * the answer to the signing and for opening the link again afterwards, so both
+ * lead to the same place.
+ *
+ * '' when the server says the page is done (billing switched off, or nothing
+ * to pay by card) or gave no address a tenant can safely be sent to — the page
+ * then keeps its neutral line and its button-less signed view.
+ *
+ * `signingToken` is carried along so the card page can still offer the signed
+ * copy; a token that is not one the server makes is left off rather than put
+ * into an address.
  */
 export function cardStepUrl(
-  result: Pick<SignatureResult, 'next' | 'card_url'> | null | undefined,
+  step: Pick<SignatureResult, 'next' | 'card_url'> | null | undefined,
   origin: string,
+  signingToken = '',
 ): string {
-  if (!result || result.next !== 'card') return '';
-  return absoluteSigningUrl(result.card_url, origin);
+  if (!step || step.next !== 'card') return '';
+  const url = absoluteSigningUrl(step.card_url, origin);
+  if (!url || !SIGN_TOKEN.test(signingToken)) return url;
+  return `${url}${url.includes('?') ? '&' : '?'}${SIGNED_CONTRACT_PARAM}=${signingToken}`;
+}
+
+/**
+ * The other end of it: the signing token the card page was handed, so the
+ * contract just signed stays one tap away. '' when the address carries none,
+ * or one that is not shaped like a token the server makes — the card page then
+ * simply says nothing about the contract.
+ */
+export function signedContractToken(search: string | null | undefined): string {
+  let raw = '';
+  try {
+    raw = new URLSearchParams(String(search ?? '')).get(SIGNED_CONTRACT_PARAM) ?? '';
+  } catch {
+    return '';
+  }
+  return SIGN_TOKEN.test(raw) ? raw : '';
 }
 
 /** A tel: link for the office's phone; '' when it is not a number a phone can dial. */

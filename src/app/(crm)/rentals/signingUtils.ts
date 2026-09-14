@@ -94,13 +94,21 @@ function timeOf(iso: string | null | undefined): number | null {
   return Number.isNaN(t) ? null : t;
 }
 
-/** Past its expiry. A link without a readable expiry is not called expired — the server has the last word. */
+/**
+  * Past its expiry. A link without a readable expiry is not called expired —
+  * the server has the last word, and for a tenant's signing or card link it now
+  * always sends none: those do not run out of time.
+  */
 export function isSigningLinkExpired(expiresAt: string | null | undefined, now: Date = new Date()): boolean {
   const t = timeOf(expiresAt);
   return t !== null && t <= now.getTime();
 }
 
-/** 'בתוקף עד 25.9.2026, 14:05 (עוד 14 ימים)', or 'פג תוקף ב־…' once past. '' without a readable time. */
+/**
+  * 'בתוקף עד 25.9.2026, 14:05 (עוד 14 ימים)', or 'פג תוקף ב־…' once past. ''
+  * without a readable time — which is what a tenant's link gives, since it has
+  * no expiry: the dialogs then print no line at all rather than a label.
+  */
 export function signingExpiryText(expiresAt: string | null | undefined, now: Date = new Date()): string {
   const t = timeOf(expiresAt);
   const until = formatDateTime(expiresAt);
@@ -116,9 +124,11 @@ export function signingExpiryText(expiresAt: string | null | undefined, now: Dat
 type LinkFields = { status: string } & Partial<Pick<RentalContract, 'signing_url' | 'signing_expires_at'>>;
 
 /**
- * The link the tenant can still open: issued for an unsigned version and not
- * past its expiry. null otherwise — none yet, cancelled, expired, or a version
- * signed or void — and the dialog makes a new one rather than hand out a dead one.
+ * The link the tenant can still open: issued for an unsigned version, and not
+ * past an expiry if the server ever gives one (it no longer does — a link to
+ * sign stays open until it is signed, cancelled or replaced). null otherwise —
+ * none yet, cancelled, or a version signed or void — and the dialog makes a new
+ * one rather than hand out a dead one.
  */
 export function liveSigningLink(
   contract: LinkFields | null | undefined,

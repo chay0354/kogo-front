@@ -131,8 +131,9 @@ function link(overrides: Partial<CardLinkInfo> = {}): CardLinkInfo {
     status: 'pending',
     status_label: 'ממתין',
     url: 'https://kogo.example/rc/abc',
+    // What the server sends now: a card link does not run out of time.
     expired: false,
-    expires_at: '2026-09-25T15:05:00Z',
+    expires_at: null,
     attempts: 0,
     last_error: '',
     review_reason: '',
@@ -372,9 +373,10 @@ describe('the order’s form', () => {
 });
 
 describe('the card link', () => {
-  it('is live with an address and before its expiry', () => {
-    expect(liveCardLink(link(), NOW)).toEqual({ url: 'https://kogo.example/rc/abc', expiresAt: '2026-09-25T15:05:00Z' });
+  it('is live with an address, and with no expiry to outlive', () => {
+    expect(liveCardLink(link(), NOW)).toEqual({ url: 'https://kogo.example/rc/abc', expiresAt: null });
     expect(liveCardLink(link({ url: '' }), NOW)).toBeNull();
+    // The server no longer sends either of these, and is still obeyed if it ever does.
     expect(liveCardLink(link({ expired: true }), NOW)).toBeNull();
     expect(liveCardLink(link({ expires_at: '2026-09-01T00:00:00Z' }), NOW)).toBeNull();
     expect(liveCardLink(null, NOW)).toBeNull();
@@ -392,9 +394,8 @@ describe('the card link', () => {
       'הכרטיס נקלט בקישור האחרון ב־11.9.2026, 18:05.',
     );
     expect(cardLinkStateText(link({ status: 'cancelled', url: '' }), NOW)).toBe('הקישור האחרון בוטל.');
-    expect(cardLinkStateText(link({ url: '', expired: true, expires_at: '2026-09-01T10:00:00Z' }), NOW)).toBe(
-      'תוקף הקישור האחרון פג ב־1.9.2026, 13:00.',
-    );
+    // Nothing is ever "expired" here any more: with no address and no status of its own, it just says so.
+    expect(cardLinkStateText(link({ url: '' }), NOW)).toBe('אין קישור פעיל לכרטיס.');
   });
 
   it('counts the tries on the link, with the last one’s failure', () => {

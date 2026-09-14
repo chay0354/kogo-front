@@ -376,7 +376,11 @@ export function buildOrderUpdatePayload(form: OrderForm, order: StandingOrder): 
 
 // ---- the card link ----
 
-/** The link the tenant can still open: one with an address, not past its expiry. Null otherwise. */
+/**
+ * The link the tenant can still open: one with an address, and not past an
+ * expiry if the server ever gives one — it no longer does, since a card link
+ * stays open until it is used, cancelled or replaced. Null otherwise.
+ */
 export function liveCardLink(
   link: Pick<CardLinkInfo, 'url' | 'expired' | 'expires_at'> | null | undefined,
   now: Date = new Date(),
@@ -395,8 +399,9 @@ const REVIEW_REASONS: Record<string, string> = {
 
 /**
  * Where the newest link stands when it is not live, for the dialog's line: in
- * use this moment, frozen for the office, used, cancelled or expired. '' for a
- * live link, which the dialog shows instead.
+ * use this moment, frozen for the office, used or cancelled. '' for a live
+ * link, which the dialog shows instead. Nothing here can be "expired" any more:
+ * a card link does not run out of time.
  */
 export function cardLinkStateText(
   link: Pick<CardLinkInfo, 'status' | 'expired' | 'expires_at' | 'used_at' | 'review_reason' | 'url'> | null | undefined,
@@ -414,8 +419,8 @@ export function cardLinkStateText(
   }
   if (link.status === 'cancelled') return 'הקישור האחרון בוטל.';
   if (liveCardLink(link, now)) return '';
-  const until = formatDateTime(link.expires_at);
-  return `תוקף הקישור האחרון פג${until ? ` ב־${until}` : ''}.`;
+  // A link with no address left and no status of its own to explain it.
+  return 'אין קישור פעיל לכרטיס.';
 }
 
 /** '2 ניסיונות · האחרון נכשל: הכרטיס נדחה'; '' before any try. */
