@@ -47,6 +47,15 @@ export interface StandingOrderTenant {
   email: string;
 }
 
+/** The charge that holds an order's charging up, as the order names it. */
+export interface BlockedCharge {
+  id: string;
+  /** 'YYYY-MM-01'. */
+  period: string;
+  status: ChargeStatus | (string & {});
+  status_label: string;
+}
+
 export interface StandingOrder {
   id: string;
   tenancy_id: string;
@@ -80,10 +89,17 @@ export interface StandingOrder {
   card_expiry: string;
   card_link: CardLinkInfo | null;
   /**
-   * Months that passed with no charge ('YYYY-MM-01') — never charged
-   * automatically. Optional: listed only by a server that sends them.
+   * The month waiting for a person to decide. While it is set nothing on this
+   * tenancy is charged — not this month and not the next. It clears when a
+   * manager marks that month charged or voids it. Optional: only a server that
+   * sends it.
    */
-  missed_periods?: string[] | null;
+  blocked_by_charge?: BlockedCharge | null;
+  /**
+   * Months before this one that were never charged at all ('YYYY-MM-01').
+   * They are never charged automatically. Optional, as above.
+   */
+  months_never_charged?: string[] | null;
   created_by_name: string;
   created_at: string;
   updated_at: string;
@@ -96,6 +112,8 @@ export interface ChargeReceipt {
   document_date: string;
   /** The server's own path to the file; downloadChargeReceipt fetches it by id instead (see there). */
   pdf_url: string;
+  /** Issued after its month had passed — the office settled the charge later. */
+  issued_late?: boolean;
 }
 
 /** One month of a standing order. */
@@ -150,8 +168,20 @@ export interface BillingStatus {
   /** The business the charges are tagged to (סוחרים), and whether it exists — charging refuses until it does. */
   business_name: string;
   business_found: boolean;
-  /** Which Tranzila terminal set charges — names only ('production', or e.g. 'rental_override'). '' when the server does not say. */
-  terminal_mode: string;
+  /** Which terminals the tenants' charges would run on. */
+  tranzila: TranzilaTerminals;
+}
+
+/** Where a tenant's charge would land. Names only — never a terminal's keys. */
+export interface TranzilaTerminals {
+  /** 'production', 'rental' (a set of its own for the rentals) or 'mixed'. '' when the server does not say. */
+  terminal_set: string;
+  /** The terminal a first charge runs on, by name. */
+  terminal: string;
+  /** The terminal the monthly charge runs on, by name. */
+  token_terminal: string;
+  /** The settings overridden for the rentals, by name. */
+  overridden: string[];
 }
 
 export interface StandingOrderCreatePayload {
@@ -245,6 +275,16 @@ export function chargeQueryParams(filters: ChargeFilters = {}): Record<string, s
 
 // ---- the switch ----
 
+function readTerminals(raw: unknown): TranzilaTerminals {
+  const row = (raw ?? {}) as Partial<TranzilaTerminals>;
+  return {
+    terminal_set: String(row.terminal_set ?? '').trim(),
+    terminal: String(row.terminal ?? '').trim(),
+    token_terminal: String(row.token_terminal ?? '').trim(),
+    overridden: Array.isArray(row.overridden) ? row.overridden.map((name) => String(name ?? '').trim()).filter(Boolean) : [],
+  };
+}
+
 /**
  * Whether charging is on. A body that does not say so reads as off: the office
  * is told nothing will be charged rather than promised a charge that will not come.
@@ -257,7 +297,7 @@ export async function fetchBillingStatus(): Promise<BillingStatus> {
     message: String(data.message ?? '').trim(),
     business_name: String(data.business_name ?? '').trim(),
     business_found: data.business_found !== false,
-    terminal_mode: String(data.terminal_mode ?? '').trim(),
+    tranzila: readTerminals(data.tranzila),
   };
 }
 

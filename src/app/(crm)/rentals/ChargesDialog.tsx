@@ -19,11 +19,13 @@ import type { Tenancy } from '@/lib/rentalsApi';
 import DialogShell from './DialogShell';
 import { ToneChip } from './StatusChips';
 import {
+  BLOCKED_ROW_TEXT,
   EMPTY_MARK_CHARGED_FORM,
   RETRY_OFF_TEXT,
   billingApiError,
   billingMoney,
   billingMonthLabel,
+  blockedChargeNotice,
   chargeActions,
   chargeAmountsLine,
   chargeChip,
@@ -31,7 +33,7 @@ import {
   markChargedCopy,
   markChargedErrors,
   markChargedPayload,
-  missedPeriods,
+  monthsNeverCharged,
   orderStatusLabel,
   orderStatusTone,
   receiptLine,
@@ -100,8 +102,8 @@ export default function ChargesDialog({
   const [problem, setProblem] = useState<Problem | null>(null);
 
   const charges = chargesQuery.data ?? [];
-  // Months that passed with no charge, when the server lists them; a month with a charge row is that row.
-  const missed = missedPeriods(order).filter(
+  // Months never charged at all, when the server lists them; a month with a charge row is that row.
+  const missed = monthsNeverCharged(order).filter(
     (period) => !charges.some((charge) => charge.period.slice(0, 7) === period.slice(0, 7)),
   );
   const rows = [
@@ -109,6 +111,9 @@ export default function ChargesDialog({
     ...missed.map((period) => ({ period, charge: null as TenantCharge | null })),
   ].sort((a, b) => b.period.localeCompare(a.period));
   const name = tenantName(tenancy.tenant);
+  // The month that holds this tenancy's charging up, and what it says at the top and on its own row.
+  const blockedNotice = blockedChargeNotice(order, canDecide);
+  const blockedId = order.blocked_by_charge?.id ?? '';
   // A decision in flight holds the dialog open, so how it ended is never hidden.
   const deciding = busy !== null && busy.action !== 'download';
 
@@ -381,7 +386,10 @@ export default function ChargesDialog({
     const showError = (charge.status === 'failed' || charge.status === 'review' || charge.undecided) && charge.error;
 
     return (
-      <li key={charge.id} className={styles.historyItem}>
+      <li
+        key={charge.id}
+        className={[styles.historyItem, charge.id === blockedId ? styles.historyItemCurrent : ''].filter(Boolean).join(' ')}
+      >
         <div className={styles.historyHead}>
           <div className={styles.historyTitleLine}>
             <span className={styles.historyTitle}>{billingMonthLabel(charge.period) || charge.period}</span>
@@ -452,9 +460,9 @@ export default function ChargesDialog({
         </div>
 
         <p className={`${styles.historyMeta} ${styles.chargeAmounts}`}>{chargeAmountsLine(charge)}</p>
-        {reviewText && (
+        {(reviewText || charge.id === blockedId) && (
           <p className={styles.reviewBox} role="note">
-            {reviewText}
+            {[charge.id === blockedId ? BLOCKED_ROW_TEXT : '', reviewText].filter(Boolean).join(' ')}
           </p>
         )}
         {chargeMetaLines(charge).map((line) => (
@@ -579,6 +587,12 @@ export default function ChargesDialog({
           {cardLine}
         </span>
       </div>
+
+      {blockedNotice && (
+        <p className={styles.reviewBox} role="note">
+          {blockedNotice}
+        </p>
+      )}
 
       {canDecide && !billingEnabled && (
         <div className={styles.savedNotice} role="note">

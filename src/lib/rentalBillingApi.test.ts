@@ -70,22 +70,38 @@ describe('query strings', () => {
 
 describe('fetchBillingStatus', () => {
   it('reads the switch and the business', async () => {
-    api.get.mockResolvedValue({ data: { enabled: true, message: '', business_name: 'סוחרים', business_found: true } });
+    api.get.mockResolvedValue({
+      data: {
+        enabled: true,
+        message: '',
+        business_name: 'סוחרים',
+        business_found: true,
+        tranzila: { terminal_set: 'rental', terminal: ' kogorent ', token_terminal: 'kogorenttok', overridden: ['TRANZILA_RENTAL_TERMINAL', ''] },
+      },
+    });
     expect(await fetchBillingStatus()).toEqual({
       enabled: true,
       message: '',
       business_name: 'סוחרים',
       business_found: true,
-      terminal_mode: '',
+      tranzila: {
+        terminal_set: 'rental',
+        terminal: 'kogorent',
+        token_terminal: 'kogorenttok',
+        overridden: ['TRANZILA_RENTAL_TERMINAL'],
+      },
     });
-    api.get.mockResolvedValue({ data: { enabled: true, terminal_mode: ' rental_override ' } });
-    expect((await fetchBillingStatus()).terminal_mode).toBe('rental_override');
     expect(api.get).toHaveBeenCalledWith('/rental-billing/status/');
   });
 
   it('reads a body that does not say it is on as off', async () => {
     api.get.mockResolvedValue({ data: { message: 'חיוב השכירויות כבוי כרגע.' } });
-    expect(await fetchBillingStatus()).toMatchObject({ enabled: false, message: 'חיוב השכירויות כבוי כרגע.', business_found: true });
+    expect(await fetchBillingStatus()).toMatchObject({
+      enabled: false,
+      message: 'חיוב השכירויות כבוי כרגע.',
+      business_found: true,
+      tranzila: { terminal_set: '', terminal: '', token_terminal: '', overridden: [] },
+    });
     api.get.mockResolvedValue({ data: null });
     expect((await fetchBillingStatus()).enabled).toBe(false);
   });

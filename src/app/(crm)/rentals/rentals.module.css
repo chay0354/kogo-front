@@ -612,6 +612,25 @@
   cursor: help;
 }
 
+/*
+ * A month waiting for a person to decide, which stops every charge on the
+ * tenancy. Red, not the stale chip's orange: nothing is being charged.
+ */
+.blockedChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 7px;
+  border-radius: 6px;
+  background: #fdecec;
+  border: 1px solid #f5cdce;
+  color: #a92f34;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1.35;
+  cursor: help;
+}
+
 /* A contract action that failed, in the server's words, under the controls it came from. */
 .contractError {
   display: flex;

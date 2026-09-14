@@ -24,7 +24,7 @@ import {
   billingNotices,
   lifecycleConfirmCopy,
   ordersByTenancy,
-  terminalModeNote,
+  terminalSetNote,
   type OrderLifecycle,
 } from './billingUtils';
 import { isUnknownOutcome, tenantName } from './tenancyUtils';
@@ -80,7 +80,7 @@ export function useTenantBilling({ enabled }: { enabled: boolean }) {
   // Off until the server says on: a promise of no charge is safe, a promise of one is not.
   const billingEnabled = statusQuery.data?.enabled === true;
   const notices = billingNotices(statusQuery.data);
-  const terminalNote = terminalModeNote(statusQuery.data);
+  const terminalNote = terminalSetNote(statusQuery.data);
   const { user } = useAuth();
   // The four money decisions on a charge are a manager's; the server refuses a partner (403), so a partner is offered none.
   const canDecide = user?.role === 'manager';

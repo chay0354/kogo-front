@@ -1,11 +1,11 @@
 'use client';
 
 import type { ReactNode } from 'react';
-import { AlertCircle, Ban, CreditCard, Loader2, Pause, Pencil, Play, Plus, Receipt } from 'lucide-react';
+import { AlertCircle, AlertTriangle, Ban, CreditCard, Loader2, Pause, Pencil, Play, Plus, Receipt } from 'lucide-react';
 import type { StandingOrder } from '@/lib/rentalBillingApi';
 import type { Tenancy } from '@/lib/rentalsApi';
 import { ToneChip } from './StatusChips';
-import { canOpenOrder, orderActions, orderCell, type OrderLifecycle } from './billingUtils';
+import { blockedChargeChip, canOpenOrder, orderActions, orderCell, type OrderLifecycle } from './billingUtils';
 import { tenantName } from './tenancyUtils';
 import styles from './rentals.module.css';
 
@@ -82,6 +82,7 @@ export default function StandingOrderCell({
 
   const cell = orderCell(order);
   const actions = orderActions(order);
+  const blocked = blockedChargeChip(order);
 
   return (
     <div className={styles.contractStack}>
@@ -89,6 +90,14 @@ export default function StandingOrderCell({
         <ToneChip tone={cell.tone}>{cell.statusLabel}</ToneChip>
         <span className={styles.orderTotal}>{cell.total}</span>
       </div>
+      {/* Nothing on this tenancy is charged while a month waits for a person to decide. */}
+      {blocked && (
+        <span className={styles.blockedChip} title={blocked.title}>
+          <AlertTriangle size={12} aria-hidden="true" />
+          {blocked.label}
+          <span className={styles.srOnly}> — {blocked.title}</span>
+        </span>
+      )}
       {cell.next && <span className={styles.orderMeta}>{cell.next}</span>}
       <span className={styles.orderMeta}>
         {cell.card ? (

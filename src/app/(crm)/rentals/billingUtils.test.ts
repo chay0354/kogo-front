@@ -4,9 +4,11 @@
  * is asked before a decision, and what is sent.
  */
 import { describe, expect, it } from 'vitest';
-import type { CardLinkInfo, StandingOrder, TenantCharge } from '@/lib/rentalBillingApi';
+import type { BillingStatus, CardLinkInfo, StandingOrder, TenantCharge } from '@/lib/rentalBillingApi';
 import {
   BILLING_OFF_TEXT,
+  BLOCKED_ROW_TEXT,
+  BLOCKED_TITLE_TEXT,
   EMPTY_MARK_CHARGED_FORM,
   MARK_CHARGED_WARNING,
   RETRY_OFF_TEXT,
@@ -16,6 +18,8 @@ import {
   billingMoney,
   billingMonthLabel,
   billingNotices,
+  blockedChargeChip,
+  blockedChargeNotice,
   buildOrderCreatePayload,
   buildOrderUpdatePayload,
   canOpenOrder,
@@ -34,7 +38,7 @@ import {
   markChargedCopy,
   markChargedErrors,
   markChargedPayload,
-  missedPeriods,
+  monthsNeverCharged,
   orderActions,
   orderCell,
   orderFormErrors,
@@ -47,7 +51,7 @@ import {
   retryConfirmText,
   retryOutcomeText,
   reviewRowText,
-  terminalModeNote,
+  terminalSetNote,
   voidCopy,
   voidErrors,
 } from './billingUtils';
@@ -138,27 +142,43 @@ function link(overrides: Partial<CardLinkInfo> = {}): CardLinkInfo {
   };
 }
 
+function status(overrides: Partial<BillingStatus> = {}): BillingStatus {
+  return {
+    enabled: true,
+    message: '',
+    business_name: 'סוחרים',
+    business_found: true,
+    tranzila: { terminal_set: 'production', terminal: 'kogo', token_terminal: 'kogotok', overridden: [] },
+    ...overrides,
+  };
+}
+
 const NOW = new Date('2026-09-11T12:00:00Z');
 
 describe('the switch', () => {
   it('says charging is off, and that charges cannot be tagged without the business', () => {
     expect(billingNotices(null)).toEqual([]);
-    expect(billingNotices({ enabled: true, message: '', business_name: 'סוחרים', business_found: true, terminal_mode: '' })).toEqual([]);
-    expect(billingNotices({ enabled: false, message: '', business_name: 'סוחרים', business_found: true, terminal_mode: '' })).toEqual([
-      BILLING_OFF_TEXT,
-    ]);
+    expect(billingNotices(status())).toEqual([]);
+    expect(billingNotices(status({ enabled: false }))).toEqual([BILLING_OFF_TEXT]);
     expect(BILLING_OFF_TEXT).toBe('חיוב שוכרים כבוי — אפשר לפתוח הוראות קבע ולשלוח קישורים, אבל שום כרטיס לא יחויב עד ההפעלה');
-    expect(
-      billingNotices({ enabled: true, message: '', business_name: '', business_found: false, terminal_mode: '' })[0],
-    ).toContain('"סוחרים" לא נמצא במערכת');
+    expect(billingNotices(status({ business_name: '', business_found: false }))[0]).toContain('"סוחרים" לא נמצא במערכת');
   });
 
-  it('notes a terminal set other than production’s, and nothing for production or none', () => {
-    expect(terminalModeNote({ terminal_mode: 'production' })).toBe('');
-    expect(terminalModeNote({ terminal_mode: '' })).toBe('');
-    expect(terminalModeNote(null)).toBe('');
-    expect(terminalModeNote({ terminal_mode: 'rental_override' })).toContain('מסוף טרנזילה ייעודי לשכירויות');
-    expect(terminalModeNote({ terminal_mode: 'sandbox' })).toBe('מצב מסופי טרנזילה: sandbox');
+  it('notes terminals other than production’s, by name, and nothing for production or none', () => {
+    expect(terminalSetNote(status())).toBe('');
+    expect(terminalSetNote(null)).toBe('');
+    expect(terminalSetNote(status({ tranzila: { terminal_set: '', terminal: '', token_terminal: '', overridden: [] } }))).toBe('');
+    expect(
+      terminalSetNote(
+        status({ tranzila: { terminal_set: 'rental', terminal: 'kogorent', token_terminal: 'kogorenttok', overridden: ['TRANZILA_RENTAL_TERMINAL'] } }),
+      ),
+    ).toBe('חיוב השוכרים מכוון למסוף טרנזילה ייעודי לשכירויות, ולא למסופי הייצור הרגילים (kogorent · kogorenttok).');
+    expect(
+      terminalSetNote(status({ tranzila: { terminal_set: 'mixed', terminal: 'kogo', token_terminal: 'kogo', overridden: [] } })),
+    ).toBe('חלק מחיובי השוכרים מכוונים למסוף טרנזילה אחר, ולא למסופי הייצור הרגילים (kogo).');
+    expect(
+      terminalSetNote(status({ tranzila: { terminal_set: 'sandbox', terminal: '', token_terminal: '', overridden: [] } })),
+    ).toBe('חיוב השוכרים מכוון למסופי טרנזילה מסוג sandbox.');
   });
 });
 
@@ -494,13 +514,44 @@ describe('how a charge reads', () => {
 
   it('writes the receipt line', () => {
     expect(receiptLine({ id: 'd-1', document_number: '20012', document_date: '2026-09-11', pdf_url: '' })).toBe('קבלה 20012 · 11.9.2026');
+    expect(
+      receiptLine({ id: 'd-1', document_number: '20012', document_date: '2026-10-02', pdf_url: '', issued_late: true }),
+    ).toBe('קבלה 20012 · 2.10.2026 · הופק באיחור');
     expect(receiptLine(null)).toBe('');
   });
 
-  it('lists the months that passed with no charge, newest first, once each', () => {
-    expect(missedPeriods(order({ missed_periods: ['2026-07-01', '2026-08-01', '2026-07-01', 'x'] }))).toEqual(['2026-08-01', '2026-07-01']);
-    expect(missedPeriods(order())).toEqual([]);
-    expect(missedPeriods(order({ missed_periods: null }))).toEqual([]);
+  it('lists the months that were never charged, newest first, once each', () => {
+    expect(monthsNeverCharged(order({ months_never_charged: ['2026-07-01', '2026-08-01', '2026-07-01', 'x'] }))).toEqual([
+      '2026-08-01',
+      '2026-07-01',
+    ]);
+    expect(monthsNeverCharged(order())).toEqual([]);
+    expect(monthsNeverCharged(order({ months_never_charged: null }))).toEqual([]);
+  });
+
+  it('says when a month waiting for a decision is holding every charge up', () => {
+    const held = order({ blocked_by_charge: { id: 'ch-9', period: '2026-09-01', status: 'review', status_label: 'בבדיקה' } });
+    expect(blockedChargeChip(held)).toEqual({
+      label: 'החיוב עצור — ספטמבר 2026 ממתין להחלטה',
+      title: BLOCKED_TITLE_TEXT,
+      month: 'ספטמבר 2026',
+      chargeId: 'ch-9',
+    });
+    expect(blockedChargeChip(order())).toBeNull();
+    expect(blockedChargeChip(order({ blocked_by_charge: null }))).toBeNull();
+    expect(blockedChargeChip(order({ blocked_by_charge: { id: 'ch-9', period: 'x', status: 'review', status_label: '' } }))?.label).toBe(
+      'החיוב עצור — חודש ממתין להחלטה',
+    );
+  });
+
+  it('points the charges dialog at the month that holds everything up, and tells a partner who decides', () => {
+    const held = order({ blocked_by_charge: { id: 'ch-9', period: '2026-09-01', status: 'review', status_label: 'בבדיקה' } });
+    expect(blockedChargeNotice(held, true)).toBe(
+      'החיוב של הוראת הקבע עצור: ספטמבר 2026 ממתין להחלטה. סמנו אותו כחויב או בטלו אותו — עד אז שום חודש נוסף לא ייגבה מהשוכר הזה.',
+    );
+    expect(blockedChargeNotice(held, false)).toContain('ממתין להחלטה של מנהל');
+    expect(blockedChargeNotice(order(), true)).toBe('');
+    expect(BLOCKED_ROW_TEXT).toContain('עוצר את הוראת הקבע');
   });
 });
 
@@ -573,6 +624,10 @@ describe('billingApiError', () => {
       ),
     ).toBe('הקבלה לא הופקה. החיוב נשאר רשום כחיוב שעבר.');
     expect(billingApiError({ response: { status: 404, data: { error: 'הסכם השכירות לא נמצא' } } }, 'x')).toBe('הסכם השכירות לא נמצא');
+    // A retry the server refuses because the month already went to Tranzila today.
+    expect(billingApiError({ response: { status: 409, data: { error: 'החיוב כבר נשלח לטרנזילה היום' } } }, 'x')).toBe(
+      'החיוב כבר נשלח לטרנזילה היום',
+    );
   });
 
   it('reads field errors and the rest as the tenants screen does', () => {

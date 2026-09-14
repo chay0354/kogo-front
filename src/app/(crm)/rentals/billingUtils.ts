@@ -66,19 +66,24 @@ export function billingNotices(status: BillingStatus | null | undefined): string
   return notices;
 }
 
-const TERMINAL_MODE_NOTES: Record<string, string> = {
-  rental_override: 'החיובים עוברים במסוף טרנזילה ייעודי לשכירויות, ולא במסופי הייצור הרגילים.',
+const TERMINAL_SET_NOTES: Record<string, string> = {
+  rental: 'חיוב השוכרים מכוון למסוף טרנזילה ייעודי לשכירויות, ולא למסופי הייצור הרגילים',
+  mixed: 'חלק מחיובי השוכרים מכוונים למסוף טרנזילה אחר, ולא למסופי הייצור הרגילים',
 };
 
 /**
- * A small line under the banner when the charges run on terminals other than
- * production's (the server names the set, never its credentials). '' when it
- * says production, or says nothing.
+ * A small line under the banner when tenant billing is pointed somewhere other
+ * than production's terminals. The server names the set and the terminals —
+ * names only, never their keys — so the office can tell where a charge would
+ * land. '' for production, or when the server says nothing.
  */
-export function terminalModeNote(status: Pick<BillingStatus, 'terminal_mode'> | null | undefined): string {
-  const mode = (status?.terminal_mode ?? '').trim();
-  if (!mode || mode === 'production') return '';
-  return TERMINAL_MODE_NOTES[mode] ?? `מצב מסופי טרנזילה: ${mode}`;
+export function terminalSetNote(status: Pick<BillingStatus, 'tranzila'> | null | undefined): string {
+  const tranzila = status?.tranzila;
+  const set = (tranzila?.terminal_set ?? '').trim();
+  if (!set || set === 'production') return '';
+  const head = TERMINAL_SET_NOTES[set] ?? `חיוב השוכרים מכוון למסופי טרנזילה מסוג ${set}`;
+  const names = [tranzila?.terminal, tranzila?.token_terminal].map((name) => (name ?? '').trim()).filter(Boolean);
+  return `${head}${names.length ? ` (${[...new Set(names)].join(' · ')})` : ''}.`;
 }
 
 // ---- money and months ----
@@ -213,6 +218,53 @@ export function orderCell(order: StandingOrder): OrderCell {
     problem: order.status === 'failed' ? (order.last_error ?? '').trim() || 'החיוב האחרון נכשל' : '',
   };
 }
+
+export interface BlockedChip {
+  /** 'החיוב עצור — ספטמבר 2026 ממתין להחלטה'. */
+  label: string;
+  /** What being blocked means, for the chip's title and for a screen reader. */
+  title: string;
+  /** The month, when the server named a readable one. */
+  month: string;
+  /** The charge holding it up — the charges dialog points at it. */
+  chargeId: string;
+}
+
+export const BLOCKED_TITLE_TEXT = 'עד שהחודש הזה יסומן כחויב או יבוטל, שום חודש נוסף לא ייגבה מהשוכר הזה.';
+
+/**
+ * A month waiting for a person to decide stops the whole tenancy: while the
+ * server names one in blocked_by_charge nothing is charged — not that month and
+ * not the next. The chip says so on the row; it clears once a manager marks
+ * that month charged or voids it. Null when nothing is held up.
+ */
+export function blockedChargeChip(order: Pick<StandingOrder, 'blocked_by_charge'> | null | undefined): BlockedChip | null {
+  const blocked = order?.blocked_by_charge;
+  if (!blocked?.id) return null;
+  const month = billingMonthLabel(blocked.period);
+  return {
+    label: month ? `החיוב עצור — ${month} ממתין להחלטה` : 'החיוב עצור — חודש ממתין להחלטה',
+    title: BLOCKED_TITLE_TEXT,
+    month,
+    chargeId: blocked.id,
+  };
+}
+
+/** The same in the charges dialog, pointing at the month that holds everything up. */
+export function blockedChargeNotice(
+  order: Pick<StandingOrder, 'blocked_by_charge'> | null | undefined,
+  canDecide: boolean,
+): string {
+  const blocked = order?.blocked_by_charge;
+  if (!blocked?.id) return '';
+  const month = billingMonthLabel(blocked.period) || 'חודש אחד';
+  return canDecide
+    ? `החיוב של הוראת הקבע עצור: ${month} ממתין להחלטה. סמנו אותו כחויב או בטלו אותו — עד אז שום חודש נוסף לא ייגבה מהשוכר הזה.`
+    : `החיוב של הוראת הקבע עצור: ${month} ממתין להחלטה של מנהל. עד אז שום חודש נוסף לא ייגבה מהשוכר הזה.`;
+}
+
+/** Said on the month itself, in the charges list. */
+export const BLOCKED_ROW_TEXT = 'החודש הזה עוצר את הוראת הקבע — עד שיוסדר, שום חודש נוסף לא ייגבה.';
 
 export type OrderLifecycle = 'pause' | 'resume' | 'end';
 
@@ -552,20 +604,26 @@ export function chargeMetaLines(
 }
 
 /**
- * Months that passed with no charge, when the server lists them on the order
- * (they are never charged automatically). Newest first, once each; [] when it
- * lists none.
+ * Months before this one that were never charged at all, as the server lists
+ * them on the order. They are never charged automatically. Newest first, once
+ * each; [] when it lists none.
  */
-export function missedPeriods(order: Pick<StandingOrder, 'missed_periods'> | null | undefined): string[] {
-  const list = Array.isArray(order?.missed_periods) ? order.missed_periods : [];
+export function monthsNeverCharged(order: Pick<StandingOrder, 'months_never_charged'> | null | undefined): string[] {
+  const list = Array.isArray(order?.months_never_charged) ? order.months_never_charged : [];
   const periods = list.map((item) => String(item ?? '').trim()).filter((item) => /^\d{4}-\d{2}/.test(item));
   return [...new Set(periods)].sort((a, b) => b.localeCompare(a));
 }
 
-/** 'קבלה 20012 · 1.10.2026'. */
+/** 'קבלה 20012 · 1.10.2026', saying so when it was issued after its month. */
 export function receiptLine(receipt: TenantCharge['receipt']): string {
   if (!receipt) return '';
-  return [`קבלה ${receipt.document_number || ''}`.trim(), formatDay(receipt.document_date)].filter(Boolean).join(' · ');
+  return [
+    `קבלה ${receipt.document_number || ''}`.trim(),
+    formatDay(receipt.document_date),
+    receipt.issued_late ? 'הופק באיחור' : '',
+  ]
+    .filter(Boolean)
+    .join(' · ');
 }
 
 // ---- the office's decisions on a charge ----
