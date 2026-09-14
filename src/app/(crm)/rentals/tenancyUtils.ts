@@ -774,6 +774,13 @@ const FIELD_LABELS: Record<string, string> = {
   slot_ids: 'משבצות',
   slot_id: 'משבצת',
   reason: 'סיבת הביטול',
+  // Tenant billing (phase 4): the standing order and its charges.
+  tenancy_id: 'הסכם השכירות',
+  amount_before_vat: 'סכום חודשי',
+  transaction_id: 'מזהה העסקה',
+  confirmation_code: 'מספר אישור',
+  note: 'הערה',
+  period: 'חודש',
 };
 
 /** Keys whose messages speak for themselves; a label in front would only add noise. */

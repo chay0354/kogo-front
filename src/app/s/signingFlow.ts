@@ -1,3 +1,4 @@
+import { absoluteSigningUrl } from '@/app/(crm)/rentals/signingUtils';
 import { israeliIdFieldError, sanitizeIsraeliIdInput } from '@/lib/israeliId';
 import { formatShekels } from '@/lib/paymentLinksApi';
 import type { SignaturePayload, SignatureResult, SigningContract } from '@/lib/rentalSigningApi';
@@ -7,7 +8,9 @@ import { formatDay, formatSignedDate, formatSignedTime } from '@/lib/signatureUt
 // The tenant's signing page (/s/<token>), pure — so signingFlow.test.ts can pin
 // it down without a browser: which screen shows for every answer the server
 // can give, when "חתימה ואישור" unlocks, what is sent, and how the money and
-// the dates read. Nothing here imports the CRM: the page is public and light.
+// the dates read. Nothing here imports the CRM's screens or its API client:
+// the page is public and light. (absoluteSigningUrl is a pure rule the office's
+// link dialog and this page share, so a link is made full one way everywhere.)
 // ---------------------------------------------------------------------------
 
 export type SigningView = 'loading' | 'open' | 'signed' | 'expired' | 'cancelled' | 'invalid' | 'unavailable';
@@ -268,6 +271,21 @@ export function periodText(start: string | null | undefined, end: string | null 
 export function signedAtText(iso: string | null | undefined): string {
   const date = formatSignedDate(iso);
   return date ? `${date} בשעה ${formatSignedTime(iso)}` : '';
+}
+
+/**
+ * Where "להמשך — הזנת כרטיס להוראת הקבע" leads once the contract is signed:
+ * the card page the server named, made full on this site when it gave a path.
+ * '' when the server says the page is done (billing switched off, or nothing to
+ * pay by card) or gave no address a tenant can safely be sent to — the page
+ * then keeps its neutral line.
+ */
+export function cardStepUrl(
+  result: Pick<SignatureResult, 'next' | 'card_url'> | null | undefined,
+  origin: string,
+): string {
+  if (!result || result.next !== 'card') return '';
+  return absoluteSigningUrl(result.card_url, origin);
 }
 
 /** A tel: link for the office's phone; '' when it is not a number a phone can dial. */

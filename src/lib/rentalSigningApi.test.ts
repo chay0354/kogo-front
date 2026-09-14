@@ -137,8 +137,21 @@ describe('submitContractSignature', () => {
       state: 'signed',
       signed_at: '2026-09-11T18:05:00+03:00',
       pdf_url: '/rentals/sign/t/pdf/',
+      next: 'done',
+      card_url: null,
     });
     expect(api.post).toHaveBeenCalledWith('/rentals/sign/t/', payload, { timeout: 60000 });
+  });
+
+  it('reads the step after signing: on to the card only with an address to go to', async () => {
+    api.post.mockResolvedValue({
+      data: { state: 'signed', signed_at: null, pdf_url: null, next: 'card', card_url: 'https://kogo.example/rc/abc' },
+    });
+    expect(await submitContractSignature('t', payload)).toMatchObject({ next: 'card', card_url: 'https://kogo.example/rc/abc' });
+    api.post.mockResolvedValue({ data: { state: 'signed', next: 'card', card_url: '' } });
+    expect(await submitContractSignature('t', payload)).toMatchObject({ next: 'done', card_url: null });
+    api.post.mockResolvedValue({ data: { state: 'signed', next: 'done', card_url: 'https://kogo.example/rc/abc' } });
+    expect(await submitContractSignature('t', payload)).toMatchObject({ next: 'done', card_url: null });
   });
 
   it('passes the server’s refusal through to the page', async () => {

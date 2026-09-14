@@ -224,6 +224,24 @@
   line-height: 1.6;
 }
 
+/*
+ * On to the card, once billing is on: a link in the shape of the gold button
+ * (card-link's .submit). `a.` outranks .submit's fixed height, so a long line
+ * on a narrow phone wraps instead of spilling out.
+ */
+a.cardStep {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: auto;
+  min-height: 54px;
+  margin-top: 18px;
+  padding: 8px 18px;
+  line-height: 1.35;
+  text-align: center;
+  text-decoration: none;
+}
+
 .askOffice {
   margin: 16px 0 8px;
   font-size: 15px;

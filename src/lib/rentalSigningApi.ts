@@ -73,6 +73,15 @@ export interface SignatureResult {
   signed_at: string | null;
   /** Kept as the server sent it; the page opens the signed copy by signingPdfUrl (see there). */
   pdf_url: string | null;
+  /**
+   * What the page does next (phase 4): 'card' sends the tenant on to the card
+   * page for their standing order, at card_url (/rc/<token>) — only while
+   * tenant billing is switched on; 'done' keeps the page's neutral line. A
+   * server that says neither, or 'card' with no address, is read as 'done'.
+   */
+  next: 'card' | 'done';
+  /** The card page's address; null unless next is 'card'. */
+  card_url: string | null;
 }
 
 /** Signing renders the signed PDF on the server, so it gets longer than the client's default wait. */
@@ -171,7 +180,16 @@ export async function fetchSigningContract(token: string): Promise<SigningContra
 export async function submitContractSignature(token: string, payload: SignaturePayload): Promise<SignatureResult> {
   const res = await api.post(signUrl(token), payload, { timeout: SIGN_TIMEOUT_MS });
   const data = record(res.data);
-  return { state: 'signed', signed_at: textOrNull(data.signed_at), pdf_url: textOrNull(data.pdf_url) };
+  const cardUrl = textOrNull(data.card_url);
+  // 'card' only with somewhere to go: a button to nowhere is worse than the neutral line.
+  const next = text(data.next) === 'card' && cardUrl ? 'card' : 'done';
+  return {
+    state: 'signed',
+    signed_at: textOrNull(data.signed_at),
+    pdf_url: textOrNull(data.pdf_url),
+    next,
+    card_url: next === 'card' ? cardUrl : null,
+  };
 }
 
 /**
