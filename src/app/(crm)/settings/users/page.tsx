@@ -22,6 +22,18 @@ import CrossFade from '@/components/ui/CrossFade';
 
 type UserRole = 'manager' | 'worker' | 'partner';
 
+type DeletionPreview = {
+  name: string;
+  email: string;
+  role: UserRole | null;
+  is_active: boolean;
+  refusal: string;
+  instructor: { id: string; name: string; active_lessons: number } | null;
+  linked_access_granted: number;
+  linked_access_received: number;
+  history_note: string;
+};
+
 type ManagedUser = {
   id: string;
   email: string;
@@ -112,6 +124,45 @@ export default function SettingsUsersPage() {
     loadUsers();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isManager]);
+
+  // Deletion asks the server what it costs before it offers the button, so the
+  // dialog can name the consequence instead of asking "are you sure?".
+  const [deleting, setDeleting] = useState<ManagedUser | null>(null);
+  const [preview, setPreview] = useState<DeletionPreview | null>(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [deleteBusy, setDeleteBusy] = useState(false);
+
+  const openDelete = async (u: ManagedUser) => {
+    setDeleting(u);
+    setPreview(null);
+    setPreviewLoading(true);
+    setError(null);
+    try {
+      const res = await api.get(`/core/users/${u.id}/deletion-preview/`);
+      setPreview(res.data as DeletionPreview);
+    } catch (e: any) {
+      setError(readableError(e));
+      setDeleting(null);
+    } finally {
+      setPreviewLoading(false);
+    }
+  };
+
+  const confirmDelete = async () => {
+    if (!deleting || preview?.refusal) return;
+    setDeleteBusy(true);
+    setError(null);
+    try {
+      await api.delete(`/core/users/${deleting.id}/`);
+      setDeleting(null);
+      setPreview(null);
+      await loadUsers();
+    } catch (e: any) {
+      setError(readableError(e));
+    } finally {
+      setDeleteBusy(false);
+    }
+  };
 
   const openCreate = () => {
     setEditing(null);
@@ -233,9 +284,19 @@ export default function SettingsUsersPage() {
                       <td className="py-2">{roleLabel(u.role_display)}</td>
                       <td className="py-2">{u.is_active ? 'פעיל' : 'מושבת'}</td>
                       <td className="py-2 text-left">
-                        <Button variant="outline" size="sm" onClick={() => openEdit(u)}>
-                          ערוך
-                        </Button>
+                        <div className="flex gap-2 justify-end">
+                          <Button variant="outline" size="sm" onClick={() => openEdit(u)}>
+                            ערוך
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="text-red-600 hover:bg-red-50"
+                            onClick={() => void openDelete(u)}
+                          >
+                            מחק
+                          </Button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -254,6 +315,84 @@ export default function SettingsUsersPage() {
       </CrossFade>
 
       {isManager && <PartnersSection />}
+
+      <Dialog open={Boolean(deleting)} onOpenChange={(o) => { if (!o) { setDeleting(null); setPreview(null); } }}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <DialogTitle className="text-lg">מחיקת משתמש</DialogTitle>
+                <DialogDescription>
+                  {deleting?.email || deleting?.username}
+                </DialogDescription>
+              </div>
+              <DialogCloseButton />
+            </div>
+          </DialogHeader>
+
+          {previewLoading && <p className="text-sm text-muted-foreground py-4">בודק מה המחיקה משפיעה עליו...</p>}
+
+          {!previewLoading && preview && (
+            <div className="space-y-3 text-sm">
+              {preview.refusal ? (
+                <div className="rounded-lg border border-red-300 bg-red-50 p-3 text-red-800">
+                  {preview.refusal}
+                </div>
+              ) : (
+                <>
+                  <div className="rounded-lg border bg-muted/40 p-3">{preview.history_note}</div>
+
+                  <div>
+                    <p className="font-medium mb-1">מה נמחק:</p>
+                    <ul className="list-disc pr-5 space-y-0.5 text-muted-foreground">
+                      <li>החשבון עצמו, ההרשאה שלו והאפשרות להתחבר</li>
+                      {preview.linked_access_granted > 0 && (
+                        <li>{preview.linked_access_granted} הרשאות צפייה שהוא העניק לאחרים</li>
+                      )}
+                      {preview.linked_access_received > 0 && (
+                        <li>{preview.linked_access_received} הרשאות צפייה שניתנו לו</li>
+                      )}
+                    </ul>
+                  </div>
+
+                  {preview.instructor && (
+                    <div className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-amber-900">
+                      <p className="font-medium">זהו חשבון של מדריך — {preview.instructor.name}</p>
+                      <p>
+                        כרטיס המדריך יישאר במערכת, אבל הוא יאבד את היכולת להתחבר
+                        {preview.instructor.active_lessons > 0
+                          ? ` — ויש לו ${preview.instructor.active_lessons} חוגים פעילים.`
+                          : '.'}
+                      </p>
+                    </div>
+                  )}
+
+                  {preview.is_active && (
+                    <p className="text-muted-foreground">
+                      אם המטרה היא רק לחסום כניסה — עדיף להשבית אותו בעריכה. זה הפיך, והשם נשאר על מה שהוא עשה.
+                    </p>
+                  )}
+                </>
+              )}
+            </div>
+          )}
+
+          <div className="flex justify-end gap-2 pt-2">
+            <Button variant="outline" onClick={() => { setDeleting(null); setPreview(null); }}>
+              ביטול
+            </Button>
+            {!preview?.refusal && (
+              <Button
+                className="bg-red-600 hover:bg-red-700 text-white"
+                disabled={deleteBusy || previewLoading || !preview}
+                onClick={() => void confirmDelete()}
+              >
+                {deleteBusy ? 'מוחק...' : 'מחק לצמיתות'}
+              </Button>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="max-w-lg">
