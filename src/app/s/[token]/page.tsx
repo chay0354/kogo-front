@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useReducer, useRef, useState, type ReactNode } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import { ChevronDown, FileText } from 'lucide-react';
 import SignatureCanvas from '@/app/widget/SignatureCanvas';
 import { useReadToEnd } from '@/hooks/useReadToEnd';
@@ -10,8 +10,12 @@ import { fetchSigningContract, signingPdfUrl, submitContractSignature } from '@/
 import card from '@/app/card-link/card-link.module.css';
 import styles from '../signing.module.css';
 import {
+  CONTINUE_DELAY_MS,
+  CONTINUE_GIVE_UP_MS,
+  CONTINUING_TEXT,
   GONE_COPY,
   INITIAL_SIGNING_STATE,
+  SIGNED_TITLE,
   billingDayText,
   canSubmitSignature,
   cardStepUrl,
@@ -38,9 +42,15 @@ const ACCEPT_TEXT = 'קראתי את החוזה ואני מאשר/ת את תנא
  * to its end before it can be accepted — the PDF, the name and ID, a finger
  * signature and one tick. Where the contract stands is the server's to say;
  * signingFlow.ts maps each answer to a screen.
+ *
+ * One flow: a contract that is signed and still wants a card does not offer a
+ * button, it goes — after a moment on "החוזה נחתם ✓" so the tenant sees what
+ * happened. The same on a link opened again days later, because the server
+ * answers a GET of a signed contract the way it answered the signing.
  */
 export default function RentalSigningPage() {
   const params = useParams();
+  const router = useRouter();
   const token = typeof params?.token === 'string' ? params.token : '';
   const [state, dispatch] = useReducer(signingReducer, INITIAL_SIGNING_STATE);
   const { view, contract, message } = state;
@@ -55,6 +65,10 @@ export default function RentalSigningPage() {
   const [submitting, setSubmitting] = useState(false);
   // Where the tenant goes once signed: the card page while billing is on; '' keeps the neutral line.
   const [cardUrl, setCardUrl] = useState('');
+  // The move never happened. The signed page comes back, with its button, rather than a spinner for ever.
+  const [continueFailed, setContinueFailed] = useState(false);
+  // On the way to the card page: the brief state the tenant reads before the move.
+  const continuing = Boolean(cardUrl) && !continueFailed;
   const submittingRef = useRef(false);
   const alive = useRef(true);
   const prefilled = useRef(false);
@@ -110,6 +124,29 @@ export default function RentalSigningPage() {
     if (view !== 'open' && view !== 'loading') window.scrollTo({ top: 0 });
   }, [view]);
 
+  // Where a signed contract leads, read from the contract itself — so the answer
+  // to the signing and the answer to opening the link again lead to one place.
+  useEffect(() => {
+    setCardUrl(view === 'signed' && contract ? cardStepUrl(contract, window.location.origin, token) : '');
+  }, [view, contract, token]);
+
+  // And then go: replace, so Back does not bounce the tenant into the signed page again.
+  useEffect(() => {
+    if (!continuing) return;
+    const go = window.setTimeout(() => {
+      try {
+        router.replace(cardUrl);
+      } catch {
+        setContinueFailed(true);
+      }
+    }, CONTINUE_DELAY_MS);
+    const giveUp = window.setTimeout(() => setContinueFailed(true), CONTINUE_DELAY_MS + CONTINUE_GIVE_UP_MS);
+    return () => {
+      window.clearTimeout(go);
+      window.clearTimeout(giveUp);
+    };
+  }, [continuing, cardUrl, router]);
+
   const draft: SignatureDraft = { signerName, signerId, signature, readToEnd: reader.reachedEnd, accepted };
   const missing = missingForSignature(draft);
   const canSubmit = canSubmitSignature(draft, { view, submitting });
@@ -123,10 +160,8 @@ export default function RentalSigningPage() {
     const payload = signaturePayload(draft);
     try {
       const result = await submitContractSignature(token, payload);
-      if (alive.current) {
-        dispatch({ type: 'signed', result, signerName: payload.signer_name });
-        setCardUrl(cardStepUrl(result, window.location.origin));
-      }
+      // The answer carries where to go next; the effect above reads it off the contract.
+      if (alive.current) dispatch({ type: 'signed', result, signerName: payload.signer_name });
     } catch (error) {
       if (!alive.current) return;
       dispatch({ type: 'submitFailed', error });
@@ -330,12 +365,23 @@ export default function RentalSigningPage() {
   }
 
   function renderSigned(): ReactNode {
+    if (continuing) {
+      return (
+        <div className={card.card}>
+          <div className={card.result} role="status">
+            <p className={styles.signedTitle}>{SIGNED_TITLE}</p>
+            <p className={card.resultText}>{CONTINUING_TEXT}</p>
+            <div className={card.spinner} />
+          </div>
+        </div>
+      );
+    }
     const when = signedAtText(contract?.signed_at);
     const who = contract?.signer_name ? `, על ידי ${contract.signer_name}` : '';
     return (
       <div className={card.card}>
         <div className={card.result} role="status">
-          <p className={styles.signedTitle}>החוזה נחתם ✓</p>
+          <p className={styles.signedTitle}>{SIGNED_TITLE}</p>
           {when && (
             <p className={card.resultText}>
               נחתם ב־{when}
@@ -351,7 +397,7 @@ export default function RentalSigningPage() {
             <FileText size={17} aria-hidden="true" />
             הורדת העותק החתום (PDF)
           </a>
-          {/* On to the card only when the server says so (tenant billing switched on); otherwise the office arranges payment. */}
+          {/* Only reached when the move itself could not happen: the button does by hand what the page meant to do on its own. */}
           {cardUrl ? (
             <a className={`${card.submit} ${styles.cardStep}`} href={cardUrl}>
               להמשך — הזנת כרטיס להוראת הקבע

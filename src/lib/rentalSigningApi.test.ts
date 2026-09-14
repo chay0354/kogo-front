@@ -108,9 +108,26 @@ describe('readSigningContract', () => {
       document: [],
       signed_at: null,
       signer_name: '',
+      next: 'done',
+      card_url: null,
     });
     expect(readSigningContract(null).state).toBe('');
     expect(readSigningContract({ slots: 'nope', document: 42 })).toMatchObject({ slots: [], document: [] });
+  });
+
+  it('reads where a signed contract sends the tenant, the way the signing’s own answer is read', () => {
+    // Opening the link again after signing: on to the card page, at the address the server named.
+    expect(
+      readSigningContract({ state: 'signed', next: 'card', card_url: 'https://kogo.example/rc/abc' }),
+    ).toMatchObject({ next: 'card', card_url: 'https://kogo.example/rc/abc' });
+    // Billing off, a card already on file, or a contract not signed yet: nowhere to go.
+    expect(readSigningContract({ state: 'signed', next: 'done' })).toMatchObject({ next: 'done', card_url: null });
+    expect(readSigningContract(SERVER_CONTRACT)).toMatchObject({ next: 'done', card_url: null });
+    // 'card' with no address is no address at all.
+    expect(readSigningContract({ state: 'signed', next: 'card', card_url: '' })).toMatchObject({
+      next: 'done',
+      card_url: null,
+    });
   });
 
   it('keeps the text as text, dropping what is not', () => {

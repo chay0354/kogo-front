@@ -2,12 +2,14 @@
 
 import { useCallback, useEffect, useReducer, useRef, useState, type ReactNode } from 'react';
 import { useParams } from 'next/navigation';
+import { FileText } from 'lucide-react';
 import CardFields, { type CardField } from '@/app/card-link/CardFields';
 import card from '@/app/card-link/card-link.module.css';
 import signing from '@/app/s/signing.module.css';
-import { billingDayText, moneyText, periodText } from '@/app/s/signingFlow';
+import { billingDayText, moneyText, periodText, signedContractToken } from '@/app/s/signingFlow';
 import { israeliIdFieldError } from '@/lib/israeliId';
 import { fetchCardPage, submitCardPage } from '@/lib/rentalBillingApi';
+import { signingPdfUrl } from '@/lib/rentalSigningApi';
 import styles from '../cardPage.module.css';
 import {
   BLOCKED_TITLE,
@@ -36,6 +38,10 @@ import {
  * dates, what today's card does — charges the month it owes, or only checks
  * the card — and the card form. Where the order and the link stand is the
  * server's to say; cardFlow.ts maps each answer to a screen.
+ *
+ * A tenant who arrived straight from the signing is told so at the top, with
+ * the signed copy one tap away: they were moved on without a click, and must
+ * never feel the contract was left behind.
  */
 export default function RentalCardPage() {
   const params = useParams();
@@ -46,6 +52,8 @@ export default function RentalCardPage() {
   const [draft, setDraft] = useState<CardDraft>(EMPTY_CARD_DRAFT);
   const [idTouched, setIdTouched] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  // The contract the tenant signed on the way here, when the signing page named it.
+  const [signedToken, setSignedToken] = useState('');
   // Read by a second tap before the state has re-rendered, so it sends nothing.
   const submittingRef = useRef(false);
   const alive = useRef(true);
@@ -76,6 +84,11 @@ export default function RentalCardPage() {
     }
     void load();
   }, [token, load]);
+
+  // Read once, from the address itself: nothing renders it on the server.
+  useEffect(() => {
+    setSignedToken(signedContractToken(window.location.search));
+  }, []);
 
   // The card is not kept a moment past the form that asked for it, and the
   // result screens are one card at the top while the tenant's thumb is at the bottom.
@@ -214,6 +227,21 @@ export default function RentalCardPage() {
       </header>
 
       <main className={card.body}>
+        {signedToken && (
+          <div className={styles.signedNote} role="status">
+            <span>החוזה נחתם ✓ והעותק החתום נשלח אליכם בדוא״ל.</span>
+            <a
+              className={styles.signedNoteLink}
+              href={signingPdfUrl(signedToken, { signed: true })}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              <FileText size={15} aria-hidden="true" />
+              הורדת העותק החתום
+            </a>
+          </div>
+        )}
+
         {view === 'loading' && (
           <div className={card.card}>
             <div className={card.result} role="status">

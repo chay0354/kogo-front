@@ -58,6 +58,14 @@ export interface SigningContract {
   document: string[];
   signed_at: string | null;
   signer_name: string;
+  /**
+   * Where a contract that is already signed sends the tenant, the same answer
+   * the signing itself gives (see SignatureResult): 'card' with an address
+   * while tenant billing is on and a card is still wanted, 'done' otherwise.
+   * Always 'done' for a contract that is not signed yet.
+   */
+  next: 'card' | 'done';
+  card_url: string | null;
 }
 
 export interface SignaturePayload {
@@ -78,10 +86,19 @@ export interface SignatureResult {
    * page for their standing order, at card_url (/rc/<token>) — only while
    * tenant billing is switched on; 'done' keeps the page's neutral line. A
    * server that says neither, or 'card' with no address, is read as 'done'.
+   * The GET of a signed contract answers the same way, so coming back to the
+   * link leads where the signing led (readSigningContract).
    */
   next: 'card' | 'done';
   /** The card page's address; null unless next is 'card'. */
   card_url: string | null;
+}
+
+/** The step after signing, as both answers carry it. 'card' only with somewhere to go: a page that leads nowhere is worse than the neutral line. */
+function readCardStep(row: Record<string, unknown>): { next: 'card' | 'done'; card_url: string | null } {
+  const cardUrl = textOrNull(row.card_url);
+  const next = text(row.next) === 'card' && cardUrl ? 'card' : 'done';
+  return { next, card_url: next === 'card' ? cardUrl : null };
 }
 
 /** Signing renders the signed PDF on the server, so it gets longer than the client's default wait. */
@@ -164,6 +181,7 @@ export function readSigningContract(raw: unknown): SigningContract {
     document: signatureParagraphs(row.document),
     signed_at: textOrNull(row.signed_at),
     signer_name: text(row.signer_name),
+    ...readCardStep(row),
   };
 }
 
@@ -180,15 +198,11 @@ export async function fetchSigningContract(token: string): Promise<SigningContra
 export async function submitContractSignature(token: string, payload: SignaturePayload): Promise<SignatureResult> {
   const res = await api.post(signUrl(token), payload, { timeout: SIGN_TIMEOUT_MS });
   const data = record(res.data);
-  const cardUrl = textOrNull(data.card_url);
-  // 'card' only with somewhere to go: a button to nowhere is worse than the neutral line.
-  const next = text(data.next) === 'card' && cardUrl ? 'card' : 'done';
   return {
     state: 'signed',
     signed_at: textOrNull(data.signed_at),
     pdf_url: textOrNull(data.pdf_url),
-    next,
-    card_url: next === 'card' ? cardUrl : null,
+    ...readCardStep(data),
   };
 }
 
