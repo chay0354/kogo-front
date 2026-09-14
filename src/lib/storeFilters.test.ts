@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   productIsDelivery,
+  productIsLowStockInLocation,
   productMatchesBranch,
   productMatchesCity,
   productStockInLocation,
@@ -145,5 +146,38 @@ describe('productStockInLocation', () => {
   it('keeps the single number for a product with no rows', () => {
     expect(productStockInLocation(deliveryOnly, 'all', 'delivery', branches)).toBe(40);
     expect(productStockInLocation(deliveryOnly, 'all', NORTH, branches)).toBe(0);
+  });
+});
+
+describe('productIsLowStockInLocation', () => {
+  const alertAt3 = product({
+    min_stock_alert: 3,
+    is_low_stock: false, // 9 units in total is comfortably above the threshold
+    stock_quantity: 9,
+    size_stocks: [
+      { size: 'S', stock_quantity: 2, branch: NORTH },
+      { size: 'M', stock_quantity: 7, branch: SOUTH },
+    ],
+  });
+
+  it('uses the server flag when nothing is filtered', () => {
+    expect(productIsLowStockInLocation(alertAt3, 'all', 'all', branches)).toBe(false);
+  });
+
+  it('is low in the branch that is nearly out, even when the total looks fine', () => {
+    expect(productIsLowStockInLocation(alertAt3, 'all', NORTH, branches)).toBe(true);
+  });
+
+  it('is not low in the branch that is well stocked', () => {
+    expect(productIsLowStockInLocation(alertAt3, 'all', SOUTH, branches)).toBe(false);
+  });
+
+  it('follows a city filter too', () => {
+    expect(productIsLowStockInLocation(alertAt3, HAIFA, 'all', branches)).toBe(true);
+    expect(productIsLowStockInLocation(alertAt3, TEL_AVIV, 'all', branches)).toBe(false);
+  });
+
+  it('counts a product with no stock in the location as low', () => {
+    expect(productIsLowStockInLocation(deliveryOnly, 'all', NORTH, branches)).toBe(true);
   });
 });

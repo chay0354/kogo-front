@@ -99,3 +99,25 @@ export function productStockInLocation(
   }
   return total;
 }
+
+/**
+ * Is this product low on stock *in the filtered location*?
+ *
+ * The server's `is_low_stock` weighs the product's whole stock against its
+ * alert level, which is the right answer when nothing is filtered. Under a
+ * location filter it is the wrong one: a shirt with 2 left in חיפה and 40 in
+ * פלורנטין is not "fine" when you are looking at חיפה. With a location chosen,
+ * the units in that location are what the threshold is compared against.
+ */
+export function productIsLowStockInLocation(
+  product: StoreProduct,
+  cityId: string,
+  branchFilter: string,
+  branches: Branch[],
+): boolean {
+  if (cityId === 'all' && branchFilter === 'all') return product.is_low_stock;
+  return (
+    productStockInLocation(product, cityId, branchFilter, branches) <=
+    (Number(product.min_stock_alert) || 0)
+  );
+}

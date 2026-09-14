@@ -28,6 +28,7 @@ import {
   unwrapApiList,
 } from '@/lib/scopedFilters';
 import {
+  productIsLowStockInLocation,
   productMatchesBranch,
   productMatchesCity,
   productStockInLocation,
@@ -248,6 +249,13 @@ export default function StorePage() {
     [branches, selectedCity],
   );
 
+  // Under a location filter, count what that location holds — not the whole
+  // stock of every product that happens to have a row there.
+  const stockOf = (product: StoreProduct) =>
+    productStockInLocation(product, selectedCity, selectedBranch, branches);
+  const lowStockOf = (product: StoreProduct) =>
+    productIsLowStockInLocation(product, selectedCity, selectedBranch, branches);
+
   // Filter and sort products
   const filteredAndSortedProducts = products
     .filter(product => {
@@ -255,16 +263,17 @@ export default function StorePage() {
                            product.category.toLowerCase().includes(searchQuery.toLowerCase());
       const matchesCity = productMatchesCity(product, selectedCity, branches);
       const matchesBranch = productMatchesBranch(product, selectedBranch);
+      const isLow = lowStockOf(product);
       const matchesStock = stockFilter === 'all' ||
-                          (stockFilter === 'low' && product.is_low_stock) ||
-                          (stockFilter === 'normal' && !product.is_low_stock);
+                          (stockFilter === 'low' && isLow) ||
+                          (stockFilter === 'normal' && !isLow);
       return matchesSearch && matchesCity && matchesBranch && matchesStock;
     })
     .sort((a, b) => {
       const modifier = sortOrder === 'asc' ? 1 : -1;
       if (sortField === 'name') return a.name.localeCompare(b.name) * modifier;
       if (sortField === 'sale_price') return (a.sale_price - b.sale_price) * modifier;
-      if (sortField === 'stock_quantity') return (a.stock_quantity - b.stock_quantity) * modifier;
+      if (sortField === 'stock_quantity') return (stockOf(a) - stockOf(b)) * modifier;
       return 0;
     });
 
@@ -276,14 +285,10 @@ export default function StorePage() {
   );
   const hasLocationFilter = selectedCity !== 'all' || selectedBranch !== 'all';
   const kpiBase = hasLocationFilter ? locationFilteredProducts : products;
-  // Under a location filter, count what that location holds — not the whole
-  // stock of every product that happens to have a row there.
-  const stockOf = (product: StoreProduct) =>
-    productStockInLocation(product, selectedCity, selectedBranch, branches);
   const totalProducts = kpiBase.length;
   const totalStock = kpiBase.reduce((sum, p) => sum + stockOf(p), 0);
   const inventoryValue = kpiBase.reduce((sum, p) => sum + stockOf(p) * p.cost_price, 0);
-  const lowStockProducts = kpiBase.filter(p => p.is_low_stock);
+  const lowStockProducts = kpiBase.filter(lowStockOf);
 
   function handleSort(field: typeof sortField) {
     if (sortField === field) {
@@ -478,7 +483,7 @@ export default function StorePage() {
             <div className={styles.alertList}>
               {lowStockProducts.map((product) => (
                 <span key={product.id} className={styles.alertItem}>
-                  {product.name} · {product.stock_quantity} יח׳
+                  {product.name} · {stockOf(product)} יח׳
                 </span>
               ))}
             </div>
@@ -635,8 +640,8 @@ export default function StorePage() {
                           </div>
                         </td>
                         <td>
-                          <span className={`${theme.tag} ${product.is_low_stock ? theme.tagLow : theme.tagOk}`}>
-                            {product.stock_quantity} יח׳
+                          <span className={`${theme.tag} ${lowStockOf(product) ? theme.tagLow : theme.tagOk}`}>
+                            {stockOf(product)} יח׳
                           </span>
                         </td>
                         <td>
@@ -674,9 +679,9 @@ export default function StorePage() {
                         </div>
                       </div>
                       <span
-                        className={`${theme.tag} ${product.is_low_stock ? theme.tagLow : theme.tagOk} ${styles.pcardStock}`}
+                        className={`${theme.tag} ${lowStockOf(product) ? theme.tagLow : theme.tagOk} ${styles.pcardStock}`}
                       >
-                        {product.stock_quantity} יח׳
+                        {stockOf(product)} יח׳
                       </span>
                     </div>
 
