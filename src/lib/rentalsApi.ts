@@ -400,6 +400,29 @@ export async function cancelSigningLink(contractId: string): Promise<RentalContr
   return res.data;
 }
 
+/** What a send that did go out says about itself; `reason` is why one did not. */
+export interface WhatsAppSendResult {
+  sent: boolean;
+  /** 'flow' — an approved WhatsApp template; 'text' — free text, which only arrives inside the 24-hour window. */
+  method?: string;
+  reason?: string;
+  error?: string;
+}
+
+/**
+ * Send the tenant the link the version already has, on WhatsApp (phase 5).
+ *
+ * The server sends; the link is not made or replaced here, so a second send is
+ * the same URL again. It answers 400 when there is no live link or the tenant
+ * has no phone — both with a Hebrew `error` saying what to do — and 502 with
+ * ManyChat's own reason when the message did not go out. Never a 200 for a
+ * message that was not sent.
+ */
+export async function sendSigningLinkWhatsApp(contractId: string): Promise<WhatsAppSendResult> {
+  const res = await api.post(`${contractUrl(contractId)}send-whatsapp/`, {});
+  return res.data?.whatsapp ?? { sent: false };
+}
+
 /** The signed copy: the version's PDF with the tenant's signature on it. */
 export async function fetchSignedContractPdf(contractId: string): Promise<Blob> {
   return fetchPdf(`${contractUrl(contractId)}signed-pdf/`);

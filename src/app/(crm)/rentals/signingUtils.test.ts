@@ -13,6 +13,7 @@ import {
   signingExpiryText,
   signingWhatsAppMessage,
   whatsAppNumber,
+  whatsAppSendNote,
   whatsAppUrl,
 } from './signingUtils';
 
@@ -203,5 +204,25 @@ describe('signingChips', () => {
     expect(signedByText(' דנה לוי ')).toBe('נחתם על ידי דנה לוי');
     expect(signedByText('')).toBe('');
     expect(signedByText(null)).toBe('');
+  });
+});
+
+describe('whatsAppSendNote', () => {
+  it('tells the office when a send went out as free text, which may never arrive', () => {
+    // WhatsApp delivers free text only inside the 24-hour window, so "נשלח"
+    // on its own would be a promise the system cannot keep.
+    const note = whatsAppSendNote({ sent: true, method: 'text' });
+    expect(note).toContain('24 השעות');
+    expect(note).toContain('מהוואטסאפ שלכם');
+  });
+
+  it('says plainly that it was sent when a template went out', () => {
+    expect(whatsAppSendNote({ sent: true, method: 'flow' })).toBe('ההודעה נשלחה לשוכר בוואטסאפ.');
+  });
+
+  it('says nothing at all when nothing was sent', () => {
+    expect(whatsAppSendNote({ sent: false, reason: 'no_live_link' })).toBe('');
+    expect(whatsAppSendNote(null)).toBe('');
+    expect(whatsAppSendNote(undefined)).toBe('');
   });
 });

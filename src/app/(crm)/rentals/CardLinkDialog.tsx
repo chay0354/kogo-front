@@ -2,9 +2,9 @@
 
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { toast } from 'sonner';
-import { Copy, MessageCircle, RefreshCw } from 'lucide-react';
+import { Copy, Loader2, MessageCircle, RefreshCw, Send } from 'lucide-react';
 import { useDialogExit } from '@/components/ui/motion';
-import { createCardLink, type CardLinkInfo, type StandingOrder } from '@/lib/rentalBillingApi';
+import { createCardLink, sendCardLinkWhatsApp, type CardLinkInfo, type StandingOrder } from '@/lib/rentalBillingApi';
 import type { Tenancy } from '@/lib/rentalsApi';
 import DialogShell from './DialogShell';
 import { ToneChip } from './StatusChips';
@@ -19,12 +19,12 @@ import {
   orderStatusLabel,
   orderStatusTone,
 } from './billingUtils';
-import { absoluteSigningUrl, signingExpiryText, whatsAppUrl } from './signingUtils';
+import { absoluteSigningUrl, signingExpiryText, whatsAppSendNote, whatsAppUrl } from './signingUtils';
 import { billingDayLabel, isUnknownOutcome, tenantName } from './tenancyUtils';
 import styles from './rentalsDialog.module.css';
 
 /** What the dialog is waiting on while a request is out. */
-type Busy = 'create' | 'rotate';
+type Busy = 'create' | 'rotate' | 'send';
 
 interface CardLinkDialogProps {
   /** The row it was opened from — for the tenant's name, phone and branch. */
@@ -57,6 +57,8 @@ export default function CardLinkDialog({ tenancy, order, billingEnabled, onClose
   const busyRef = useRef(false);
   const [confirming, setConfirming] = useState(false);
   const [problem, setProblem] = useState('');
+  // What the last automatic send did — free text or a template is not the same thing.
+  const [sendNote, setSendNote] = useState('');
   // Once the office has acted (or the first link was asked for), nothing is made without a click.
   const actedRef = useRef(false);
   const linkInputRef = useRef<HTMLInputElement>(null);
@@ -115,6 +117,33 @@ export default function CardLinkDialog({ tenancy, order, billingEnabled, onClose
     void run('create');
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [needsLink]);
+
+  /**
+   * The server sends the link itself, through ManyChat. It makes no link and
+   * replaces none, so this is safe to press twice — the tenant gets the same
+   * URL again. Everything the server refuses is shown in its own words.
+   */
+  async function send() {
+    if (busyRef.current) return;
+    busyRef.current = true;
+    setBusy('send');
+    setProblem('');
+    setSendNote('');
+    try {
+      const result = await sendCardLinkWhatsApp(order.id);
+      setSendNote(whatsAppSendNote(result));
+      toast.success('הקישור נשלח לשוכר בוואטסאפ');
+    } catch (err) {
+      setProblem(
+        isUnknownOutcome(err)
+          ? 'לא התקבלה תשובה מהשרת, ולכן לא ברור אם ההודעה נשלחה. בדקו מול השוכר לפני שליחה נוספת.'
+          : billingApiError(err, 'שליחת ההודעה נכשלה'),
+      );
+    } finally {
+      busyRef.current = false;
+      setBusy(null);
+    }
+  }
 
   async function copy() {
     if (!url) return;
@@ -181,14 +210,29 @@ export default function CardLinkDialog({ tenancy, order, billingEnabled, onClose
           {attempts && <p className={styles.help}>{attempts}</p>}
           {waUrl ? (
             <div className={styles.waBlock}>
-              <a className={styles.waBtn} href={waUrl} target="_blank" rel="noopener noreferrer">
-                <MessageCircle size={16} aria-hidden="true" />
-                פתיחה בוואטסאפ
-              </a>
+              <div className={styles.waRow}>
+                <a className={styles.waBtn} href={waUrl} target="_blank" rel="noopener noreferrer">
+                  <MessageCircle size={16} aria-hidden="true" />
+                  פתיחה בוואטסאפ
+                </a>
+                <button type="button" className={styles.waSendBtn} onClick={() => void send()} disabled={Boolean(busy)}>
+                  {busy === 'send' ? (
+                    <Loader2 size={16} className={styles.spin} aria-hidden="true" />
+                  ) : (
+                    <Send size={16} aria-hidden="true" />
+                  )}
+                  שליחה אוטומטית
+                </button>
+              </div>
               <p className={styles.help}>
-                נפתח הוואטסאפ שלכם, בשיחה עם <bdi dir="ltr">{phone}</bdi>, עם הודעה מוכנה ובה הקישור. שום דבר לא נשלח עד
-                שלוחצים שם על שליחה.
+                &quot;פתיחה בוואטסאפ&quot; פותח את הוואטסאפ שלכם, בשיחה עם <bdi dir="ltr">{phone}</bdi>, עם הודעה מוכנה
+                ובה הקישור — שום דבר לא נשלח עד שלוחצים שם על שליחה. &quot;שליחה אוטומטית&quot; שולחת מיד מהמערכת.
               </p>
+              {sendNote && (
+                <p className={styles.help} role="status">
+                  {sendNote}
+                </p>
+              )}
             </div>
           ) : (
             <p className={styles.help}>
@@ -228,7 +272,7 @@ export default function CardLinkDialog({ tenancy, order, billingEnabled, onClose
     <DialogShell
       id="card-link"
       title={`קישור לכרטיס — ${name}`}
-      hint="הקישור פותח לשוכר את פרטי הוראת הקבע וטופס להזנת כרטיס. שולחים אותו בעצמכם — בהעתקה או בוואטסאפ שלכם; שום דבר לא נשלח אוטומטית."
+      hint="הקישור פותח לשוכר את פרטי הוראת הקבע וטופס להזנת כרטיס. אפשר להעתיק אותו, לפתוח אותו בוואטסאפ שלכם, או לשלוח אותו מהמערכת — שליחה אוטומטית שולחת מיד."
       closing={closing}
       onRequestClose={requestClose}
       busy={busy !== null}
