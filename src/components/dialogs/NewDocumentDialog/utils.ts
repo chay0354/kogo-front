@@ -111,7 +111,11 @@ export function canAdvanceFromStep(
   selectedBranchId?: string | null
 ): boolean {
   if (stepId === 'clientType') return clientType !== null;
-  if (stepId === 'selectBranch') return selectedBranchId !== null;
+  // The branch is optional on the server (null=True on FormalDocument, and no
+  // permission filter reads it), and the document's attribution is already
+  // answered by the business and category. Requiring it here only blocked a
+  // document that had nowhere sensible to point.
+  if (stepId === 'selectBranch') return true;
   if (stepId === 'selectCustomer') return selectedCustomerId !== null;
   if (stepId === 'businessClientDetails') {
     const hasId =

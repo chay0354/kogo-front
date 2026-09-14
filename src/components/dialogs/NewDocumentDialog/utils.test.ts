@@ -3,7 +3,7 @@
  * and waited. It now says why, in the server's words when it gave any.
  */
 import { describe, expect, it } from 'vitest';
-import { businessCustomerErrorMessage } from './utils';
+import { businessCustomerErrorMessage, canAdvanceFromStep } from './utils';
 
 describe('businessCustomerErrorMessage', () => {
   it("reads the server's field error — the branch a partner has to choose", () => {
@@ -23,5 +23,33 @@ describe('businessCustomerErrorMessage', () => {
     expect(businessCustomerErrorMessage(new Error('Network Error'))).toBe('שמירת הלקוח העסקי נכשלה');
     expect(businessCustomerErrorMessage({ response: { data: '<html>' } })).toBe('שמירת הלקוח העסקי נכשלה');
     expect(businessCustomerErrorMessage(null)).toBe('שמירת הלקוח העסקי נכשלה');
+  });
+});
+
+/**
+ * The branch step used to block the wizard. A document whose attribution was
+ * already answered by the business and the category had nothing sensible to put
+ * there, and the server never wanted it: FormalDocument.branch is nullable and
+ * no permission filter reads it.
+ */
+describe('canAdvanceFromStep — the branch step', () => {
+  const advance = (branchId: string | null) =>
+    canAdvanceFromStep('selectBranch', 'business', null, null, null, null, null, null, null, branchId);
+
+  it('lets the document through with no branch chosen', () => {
+    expect(advance(null)).toBe(true);
+  });
+
+  it('still lets it through when a branch is chosen', () => {
+    expect(advance('b-1')).toBe(true);
+  });
+
+  it('does not loosen any other step', () => {
+    expect(
+      canAdvanceFromStep('clientType', null, null, null, null, null, null, null, null, null),
+    ).toBe(false);
+    expect(
+      canAdvanceFromStep('selectCustomer', 'existing', null, null, null, null, null, null, null, 'b-1'),
+    ).toBe(false);
   });
 });
