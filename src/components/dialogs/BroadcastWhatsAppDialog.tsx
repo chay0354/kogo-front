@@ -49,7 +49,9 @@ const KOGO_KIND_FALLBACK: WhatsAppAutomation[] = [
   ['trial_10am', 'תזכורת שיעור ניסיון (10:00)'],
   ['trial_after_test', 'אחרי שיעור ניסיון'],
   ['payment_failed', 'תשלום נכשל'],
+  ['card_update', 'עדכון כרטיס (הוראת קבע נכשלה)'],
   ['didnt_arrive', 'לא הגיע (3 פעמים)'],
+  ['card_link', 'קישור להזנת כרטיס'],
 ].map(([id, label]) => ({
   automation_type: 'kind' as const,
   automation_id: id,
@@ -137,16 +139,41 @@ export default function BroadcastWhatsAppDialog({
     (async () => {
       setLoadingAutomations(true);
       try {
-        const [status, data] = await Promise.all([fetchWhatsAppStatus(), fetchWhatsAppAutomations()]);
+        const status = await fetchWhatsAppStatus();
         if (cancelled) return;
         setConfigured(status.configured);
-        const list = data.automations?.length ? data.automations : KOGO_KIND_FALLBACK;
-        setAutomations(list);
-        setAutomationValue((prev) => prev || (list[0] ? automationOptionValue(list[0]) : ''));
+        try {
+          const data = await fetchWhatsAppAutomations();
+          if (cancelled) return;
+          const list = data.automations?.length ? data.automations : KOGO_KIND_FALLBACK;
+          setAutomations(list);
+          setAutomationValue((prev) =>
+            list.some((automation) => automationOptionValue(automation) === prev)
+              ? prev
+              : (list[0] ? automationOptionValue(list[0]) : ''),
+          );
+          if (!data.automations?.length) {
+            setError('ManyChat לא החזיר אוטומציות — מוצגות תבניות המערכת בלבד');
+          }
+        } catch {
+          if (cancelled) return;
+          setAutomations(KOGO_KIND_FALLBACK);
+          setAutomationValue((prev) =>
+            KOGO_KIND_FALLBACK.some((automation) => automationOptionValue(automation) === prev)
+              ? prev
+              : automationOptionValue(KOGO_KIND_FALLBACK[0]),
+          );
+          setError('לא ניתן לטעון את רשימת האוטומציות מ-ManyChat — מוצגות תבניות המערכת בלבד');
+        }
       } catch {
         if (cancelled) return;
         setConfigured(false);
         setAutomations(KOGO_KIND_FALLBACK);
+        setAutomationValue((prev) =>
+          KOGO_KIND_FALLBACK.some((automation) => automationOptionValue(automation) === prev)
+            ? prev
+            : automationOptionValue(KOGO_KIND_FALLBACK[0]),
+        );
         setError('לא ניתן לטעון את רשימת האוטומציות מ-ManyChat — מוצגות תבניות המערכת בלבד');
       } finally {
         if (!cancelled) setLoadingAutomations(false);
