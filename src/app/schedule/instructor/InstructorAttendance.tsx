@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Calendar, Check, ChevronDown, ChevronRight, Clock, MessageCircle, Phone, Plus, RotateCcw, Sparkles, Trash2, X } from 'lucide-react';
+import { Calendar, Check, ChevronDown, ChevronRight, Clock, Plus, RotateCcw, Sparkles, Trash2, X } from 'lucide-react';
 import {
   addWalkInStudent,
   fetchLessonDetail,
@@ -10,26 +10,13 @@ import {
   markAttendance,
   removeWalkInStudent,
 } from '@/lib/scheduleUtils';
+import ContactSheet from '@/components/ContactSheet';
 import type { AttendanceStatus, Lesson, LessonDetail } from '@/types/schedule';
 import { hebrewDayLetter, lessonTitle } from './instructorUtils';
 import styles from './InstructorAttendance.module.css';
 
 const INITIAL_VISIBLE = 8;
 const ISSUE_STATUSES = new Set(['payment_problem', 'not_paid', 'trial_signed', 'trial_completed']);
-
-/**
- * The number in the form wa.me expects: country code, no plus, no separators.
- *
- * Numbers are stored as they were typed — 052-123-4567, +972 52 123 4567, and
- * everything between — so a local leading zero becomes 972 and anything already
- * carrying the country code is left alone.
- */
-function whatsappNumber(raw: string): string {
-  const digits = raw.replace(/\D/g, '');
-  if (digits.startsWith('972')) return digits;
-  if (digits.startsWith('0')) return `972${digits.slice(1)}`;
-  return digits;
-}
 
 type InstructorAttendanceProps = {
   lesson: Lesson;
@@ -480,45 +467,7 @@ export default function InstructorAttendance({
         )}
       </div>
       {contact && (
-        <div
-          className={styles.contactScrim}
-          role="dialog"
-          aria-modal="true"
-          aria-label={`יצירת קשר עם ${contact.name}`}
-          onClick={(e) => {
-            if (e.target === e.currentTarget) setContact(null);
-          }}
-        >
-          <div className={styles.contactBox}>
-            <div className={styles.contactName}>{contact.name}</div>
-            <div className={styles.contactPhone}>{contact.phone}</div>
-            <div className={styles.contactActions}>
-              {/* Opens WhatsApp with the conversation ready. It never sends
-                  anything on its own — the instructor writes and sends. */}
-              <a
-                className={`${styles.contactAction} ${styles.contactWhatsapp}`}
-                href={`https://wa.me/${whatsappNumber(contact.phone)}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={() => setContact(null)}
-              >
-                <MessageCircle size={26} strokeWidth={2.2} />
-                <span>וואטסאפ</span>
-              </a>
-              <a
-                className={`${styles.contactAction} ${styles.contactCall}`}
-                href={`tel:${contact.phone.replace(/[^\d+]/g, '')}`}
-                onClick={() => setContact(null)}
-              >
-                <Phone size={26} strokeWidth={2.2} />
-                <span>שיחה</span>
-              </a>
-            </div>
-            <button type="button" className={styles.contactCancel} onClick={() => setContact(null)}>
-              ביטול
-            </button>
-          </div>
-        </div>
+        <ContactSheet name={contact.name} phone={contact.phone} onClose={() => setContact(null)} />
       )}
 
       {removing && (

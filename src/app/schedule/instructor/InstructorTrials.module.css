@@ -1,0 +1,211 @@
+/* Matches the cards beside it in InstructorDashboard.module.css. */
+
+.card {
+  background: #fff;
+  border-radius: 18px;
+  padding: 16px;
+  border: 1px solid rgba(30, 42, 110, 0.07);
+  box-shadow: 0 3px 12px rgba(30, 42, 110, 0.05);
+}
+
+.title {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 15px;
+  font-weight: 800;
+  color: #1e2a6e;
+}
+
+.badge {
+  margin-inline-start: auto;
+  background: rgba(30, 42, 110, 0.09);
+  color: #1e2a6e;
+  border-radius: 999px;
+  padding: 2px 10px;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.note {
+  margin: 6px 0 0;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: rgba(30, 42, 110, 0.58);
+}
+
+.error {
+  background: rgba(220, 38, 38, 0.08);
+  color: #b91c1c;
+  border-radius: 14px;
+  padding: 12px 14px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.skeleton {
+  height: 120px;
+  border-radius: 18px;
+  background: linear-gradient(100deg, #fff 30%, #f1f2fa 50%, #fff 70%);
+  background-size: 220% 100%;
+  animation: shimmer 1.3s ease-in-out infinite;
+}
+
+@keyframes shimmer {
+  from { background-position: 100% 0; }
+  to { background-position: -100% 0; }
+}
+
+/* --- filter chips --- */
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 12px;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px 6px 8px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: rgba(30, 42, 110, 0.06);
+  color: #1e2a6e;
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 140ms ease, transform 140ms ease;
+}
+
+.chip b {
+  display: grid;
+  place-items: center;
+  min-width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #fff;
+  font-size: 11.5px;
+  font-weight: 800;
+}
+
+.chipOn {
+  border-color: currentColor;
+  transform: translateY(-1px);
+}
+
+/* --- the five states. Each colour is used by both the chip and the row tag,
+       so a chip and the rows it selects always read as the same thing. --- */
+
+.upcoming { background: rgba(59, 130, 246, 0.13); color: #1d4ed8; }
+.attended { background: rgba(22, 163, 74, 0.13); color: #15803d; }
+.no_show { background: rgba(220, 38, 38, 0.11); color: #b91c1c; }
+.unmarked { background: rgba(30, 42, 110, 0.08); color: rgba(30, 42, 110, 0.65); }
+.registered { background: rgba(245, 197, 24, 0.26); color: #8a6d00; }
+
+/* --- the list --- */
+
+.list {
+  display: grid;
+  gap: 6px;
+  margin-top: 12px;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid rgba(30, 42, 110, 0.08);
+  border-radius: 12px;
+  background: #fbfbfe;
+}
+
+.identity {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.name {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  font-size: 14px;
+  font-weight: 700;
+  color: #1e2a6e;
+  overflow-wrap: anywhere;
+}
+
+.tag {
+  border-radius: 999px;
+  padding: 2px 8px;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.repeat {
+  border-radius: 999px;
+  padding: 2px 8px;
+  background: rgba(30, 42, 110, 0.07);
+  color: rgba(30, 42, 110, 0.65);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.meta {
+  font-size: 11.5px;
+  color: rgba(30, 42, 110, 0.55);
+}
+
+.callBtn {
+  flex: none;
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(30, 42, 110, 0.09);
+  color: #1e2a6e;
+  cursor: pointer;
+  transition: background-color 140ms ease;
+}
+
+.callBtn:hover,
+.callBtn:focus-visible {
+  background: rgba(245, 197, 24, 0.34);
+  outline: none;
+}
+
+.noPhone {
+  flex: none;
+  width: 36px;
+  text-align: center;
+  color: rgba(30, 42, 110, 0.35);
+}
+
+.more {
+  width: 100%;
+  margin-top: 8px;
+  border: 0;
+  border-radius: 999px;
+  padding: 9px;
+  background: rgba(30, 42, 110, 0.06);
+  color: #1e2a6e;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton { animation: none; }
+  .chip, .chipOn { transition: none; transform: none; }
+}

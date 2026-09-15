@@ -422,3 +422,51 @@ export async function fetchInstructorDashboard(params: {
   const res = await api.get(`/instructors/my-dashboard/${query.toString() ? `?${query}` : ''}`);
   return res.data as InstructorDashboard;
 }
+
+/**
+ * One trial student on one of the instructor's lessons.
+ *
+ * ``trial_date`` is the date the trial was held on, and it survives the child
+ * subscribing — the backend keeps it apart from the register's own date field
+ * exactly so the trials that worked do not disappear from this list.
+ */
+export interface InstructorTrial {
+  enrollment_id: string;
+  child_id: string;
+  child_name: string;
+  phone: string;
+  lesson_id: string;
+  course_name: string;
+  day_of_week: number;
+  start_time: string;
+  trial_date: string | null;
+  trial_number: number | null;
+  outcome: 'upcoming' | 'attended' | 'no_show' | 'unmarked' | 'registered';
+  outcome_label: string;
+  child_status: string;
+}
+
+export interface InstructorTrials {
+  counts: Record<string, number>;
+  total: number;
+  trials: InstructorTrial[];
+  labels: Record<string, string>;
+  date_from: string;
+  date_to: string;
+}
+
+/** The trial students on the signed-in instructor's own lessons. */
+export async function fetchInstructorTrials(params: {
+  date_from?: string;
+  date_to?: string;
+  branch_id?: string;
+  as_user?: string;
+}): Promise<InstructorTrials> {
+  const query = new URLSearchParams();
+  if (params.date_from) query.append('date_from', params.date_from);
+  if (params.date_to) query.append('date_to', params.date_to);
+  if (params.branch_id && params.branch_id !== 'all') query.append('branch_id', params.branch_id);
+  if (params.as_user) query.append('as_user', params.as_user);
+  const res = await api.get(`/instructors/my-trials/${query.toString() ? `?${query}` : ''}`);
+  return res.data as InstructorTrials;
+}
