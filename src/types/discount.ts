@@ -83,5 +83,7 @@ export interface DiscountEvaluationRequest {
   child_id: string;
   payment_date: string;
   base_price: number;
+  /** The lesson being priced — without it the additional-lesson discount cannot be seen. */
+  lesson_id?: string;
 }
 
