@@ -38,28 +38,13 @@ interface BroadcastWhatsAppDialogProps {
 }
 
 /**
- * The Kogo templates the server knows (apps/core/manychat_service.py
- * AUTOMATION_LABELS). Offered when ManyChat's own flow list is empty or
- * unreachable, so the office can still preview; a real send to an
- * unconfigured ManyChat is refused by the server.
+ * There used to be a hand-written copy of the Kogo templates here, shown
+ * whenever ManyChat's list came back empty. It had drifted — no card update, no
+ * card link — so the office saw six templates where the server knew ten, with
+ * nothing on screen to say a list had been substituted. The server now returns
+ * every template it knows and says whether ManyChat answered, so there is one
+ * list and it explains itself.
  */
-const KOGO_KIND_FALLBACK: WhatsAppAutomation[] = [
-  ['subscription', 'הרשמה למנוי'],
-  ['trial', 'רישום לשיעור ניסיון'],
-  ['trial_10am', 'תזכורת שיעור ניסיון (10:00)'],
-  ['trial_after_test', 'אחרי שיעור ניסיון'],
-  ['payment_failed', 'תשלום נכשל'],
-  ['card_update', 'עדכון כרטיס (הוראת קבע נכשלה)'],
-  ['didnt_arrive', 'לא הגיע (3 פעמים)'],
-  ['card_link', 'קישור להזנת כרטיס'],
-].map(([id, label]) => ({
-  automation_type: 'kind' as const,
-  automation_id: id,
-  flow_ns: '',
-  label,
-  kogo_label: label,
-  needs_enrollment_context: true,
-}));
 
 const REASON_LABELS: Record<string, string> = {
   no_parent_phone: 'ללא טלפון',
@@ -96,6 +81,8 @@ export default function BroadcastWhatsAppDialog({
   const [ids, setIds] = useState<string[]>([]);
   const [configured, setConfigured] = useState<boolean | null>(null);
   const [automations, setAutomations] = useState<WhatsAppAutomation[]>([]);
+  const [manychatOk, setManychatOk] = useState(true);
+  const [manychatCount, setManychatCount] = useState<number | null>(null);
   const [loadingAutomations, setLoadingAutomations] = useState(false);
   const [automationValue, setAutomationValue] = useState('');
 
@@ -145,36 +132,30 @@ export default function BroadcastWhatsAppDialog({
         try {
           const data = await fetchWhatsAppAutomations();
           if (cancelled) return;
-          const list = data.automations?.length ? data.automations : KOGO_KIND_FALLBACK;
+          const list = data.automations ?? [];
           setAutomations(list);
+          setManychatOk(data.manychat_ok !== false);
+          setManychatCount(typeof data.manychat_count === 'number' ? data.manychat_count : null);
           setAutomationValue((prev) =>
             list.some((automation) => automationOptionValue(automation) === prev)
               ? prev
               : (list[0] ? automationOptionValue(list[0]) : ''),
           );
-          if (!data.automations?.length) {
-            setError('ManyChat לא החזיר אוטומציות — מוצגות תבניות המערכת בלבד');
+          if (data.manychat_error) {
+            setError(`ManyChat: ${data.manychat_error}`);
           }
         } catch {
           if (cancelled) return;
-          setAutomations(KOGO_KIND_FALLBACK);
-          setAutomationValue((prev) =>
-            KOGO_KIND_FALLBACK.some((automation) => automationOptionValue(automation) === prev)
-              ? prev
-              : automationOptionValue(KOGO_KIND_FALLBACK[0]),
-          );
-          setError('לא ניתן לטעון את רשימת האוטומציות מ-ManyChat — מוצגות תבניות המערכת בלבד');
+          setAutomations([]);
+          setManychatOk(false);
+          setError('לא ניתן לטעון את רשימת האוטומציות מ-ManyChat');
         }
       } catch {
         if (cancelled) return;
         setConfigured(false);
-        setAutomations(KOGO_KIND_FALLBACK);
-        setAutomationValue((prev) =>
-          KOGO_KIND_FALLBACK.some((automation) => automationOptionValue(automation) === prev)
-            ? prev
-            : automationOptionValue(KOGO_KIND_FALLBACK[0]),
-        );
-        setError('לא ניתן לטעון את רשימת האוטומציות מ-ManyChat — מוצגות תבניות המערכת בלבד');
+        setAutomations([]);
+        setManychatOk(false);
+        setError('לא ניתן לטעון את רשימת האוטומציות מ-ManyChat');
       } finally {
         if (!cancelled) setLoadingAutomations(false);
       }
@@ -351,6 +332,27 @@ export default function BroadcastWhatsAppDialog({
                     </option>
                   ))}
                 </select>
+                {/*
+                  The count is here so "only some of my templates" can be
+                  checked instead of argued about: it is how many automations
+                  ManyChat itself returned, next to how many are on offer.
+                */}
+                {manychatOk && manychatCount !== null ? (
+                  <p className="text-xs text-muted-foreground">
+                    {automations.length} תבניות לבחירה · {manychatCount} אוטומציות הגיעו מ-ManyChat. תבנית ווטסאפ
+                    נשלחת רק אם היא יושבת בתוך אוטומציה — תבנית שאינה בתוך אוטומציה לא תופיע כאן.
+                  </p>
+                ) : null}
+                {!manychatOk ? (
+                  <p className="text-xs text-amber-900 bg-amber-50 border border-amber-200 rounded-md px-3 py-2">
+                    ManyChat לא החזיר את רשימת האוטומציות שלו. מוצגות תבניות המערכת בלבד, ושליחה אמיתית תיכשל עד שהחיבור חוזר.
+                  </p>
+                ) : selectedAutomation?.in_manychat === false ? (
+                  <p className="text-xs text-amber-900 bg-amber-50 border border-amber-200 rounded-md px-3 py-2">
+                    אין ב-ManyChat אוטומציה בשם הזה, ולכן ההודעה תצא כטקסט חופשי — שמגיע רק ללקוח שכתב לנו ב-24 השעות
+                    האחרונות. צרו אוטומציה בשם הזה והעלו אותה ל-Live כדי שתישלח כתבנית מאושרת.
+                  </p>
+                ) : null}
                 {selectedAutomation?.needs_enrollment_context ? (
                   <p className="text-xs text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-md px-3 py-2">
                     תבנית של המערכת: כל הורה יקבל את פרטי החוג, היום והשעה של הילד שלו. ילד ללא שיעור פעיל ידולג.
