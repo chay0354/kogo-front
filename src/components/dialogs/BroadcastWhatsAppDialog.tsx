@@ -82,6 +82,7 @@ export default function BroadcastWhatsAppDialog({
   const [configured, setConfigured] = useState<boolean | null>(null);
   const [automations, setAutomations] = useState<WhatsAppAutomation[]>([]);
   const [manychatOk, setManychatOk] = useState(true);
+  const [manychatCount, setManychatCount] = useState<number | null>(null);
   const [loadingAutomations, setLoadingAutomations] = useState(false);
   const [automationValue, setAutomationValue] = useState('');
 
@@ -134,6 +135,7 @@ export default function BroadcastWhatsAppDialog({
           const list = data.automations ?? [];
           setAutomations(list);
           setManychatOk(data.manychat_ok !== false);
+          setManychatCount(typeof data.manychat_count === 'number' ? data.manychat_count : null);
           setAutomationValue((prev) =>
             list.some((automation) => automationOptionValue(automation) === prev)
               ? prev
@@ -330,6 +332,17 @@ export default function BroadcastWhatsAppDialog({
                     </option>
                   ))}
                 </select>
+                {/*
+                  The count is here so "only some of my templates" can be
+                  checked instead of argued about: it is how many automations
+                  ManyChat itself returned, next to how many are on offer.
+                */}
+                {manychatOk && manychatCount !== null ? (
+                  <p className="text-xs text-muted-foreground">
+                    {automations.length} תבניות לבחירה · {manychatCount} אוטומציות הגיעו מ-ManyChat. תבנית ווטסאפ
+                    נשלחת רק אם היא יושבת בתוך אוטומציה — תבנית שאינה בתוך אוטומציה לא תופיע כאן.
+                  </p>
+                ) : null}
                 {!manychatOk ? (
                   <p className="text-xs text-amber-900 bg-amber-50 border border-amber-200 rounded-md px-3 py-2">
                     ManyChat לא החזיר את רשימת האוטומציות שלו. מוצגות תבניות המערכת בלבד, ושליחה אמיתית תיכשל עד שהחיבור חוזר.
