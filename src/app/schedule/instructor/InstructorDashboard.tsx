@@ -5,6 +5,7 @@ import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YA
 import { AlertTriangle, ChevronRight, UserCog, Users, X } from 'lucide-react';
 import { fetchLinkedUsers, type LinkedUser } from '@/lib/api';
 import { fetchInstructorDashboard, formatDateISO, type InstructorDashboard as Data } from '@/lib/scheduleUtils';
+import InstructorTrials from './InstructorTrials';
 import styles from './InstructorDashboard.module.css';
 
 const DAY_LETTERS = ['א', 'ב', 'ג', 'ד', 'ה', 'ו', 'ש'];
@@ -369,6 +370,14 @@ export default function InstructorDashboard({ onClose, onOpenLesson, onDismissCh
                   )}
                 </section>
               )}
+
+              {/* trial students — who trialled, what became of it, and the
+                  number to ring. Sits above the per-group chips because it is
+                  the only section anyone is expected to act on. */}
+              <InstructorTrials
+                branchId={branchId}
+                asUser={viewAs === 'self' ? undefined : viewAs}
+              />
 
               {/* headcount per group, compact */}
               {data.groups.length > 0 && (
