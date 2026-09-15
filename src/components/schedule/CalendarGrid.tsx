@@ -501,7 +501,14 @@ function Chip({
     ? [item.lesson.room_name, item.lesson.branch_name].filter(Boolean).join(' · ')
     : [item.event.studio_name, item.event.branch_name].filter(Boolean).join(' · ');
 
-  const capacity = isLesson ? item.lesson.room_capacity || 20 : 0;
+  // See ScheduleLessonCard: an uncapped lesson shows its headcount, not a
+  // ceiling nobody set.
+  const capacity = isLesson ? item.lesson.room_capacity || null : null;
+  const countLabel = isLesson
+    ? capacity
+      ? `${item.lesson.enrollment_count}/${capacity}`
+      : `${item.lesson.enrollment_count}`
+    : '';
   const cancelled = isLesson && item.lesson.status === 'cancelled';
 
   // Chips are read at four heights. Below ~44px only one line survives, so the
@@ -514,7 +521,7 @@ function Chip({
     title,
     timeLabel,
     where,
-    isLesson ? `${item.lesson.enrollment_count}/${capacity} תלמידים` : null,
+    isLesson ? `${countLabel} תלמידים` : null,
     isLesson ? item.lesson.instructor_name : item.event.renter_name,
     cancelled ? 'שיעור מבוטל' : null,
   ]
@@ -551,7 +558,7 @@ function Chip({
           {isRental ? <span className={styles.rentalTag}>שכירות</span> : null}
           {isLesson ? (
             <span className={styles.count}>
-              {item.lesson.enrollment_count}/{capacity}
+              {countLabel}
             </span>
           ) : null}
         </span>
