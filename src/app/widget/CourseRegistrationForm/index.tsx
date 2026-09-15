@@ -43,6 +43,56 @@ type IdFieldKey = 'parentIdNumber' | 'childIdNumber';
 type DetailsFieldKey = NameFieldKey | IdFieldKey | 'parentPhone' | 'parentEmail' | 'childBirthDate' | 'childGender';
 type ConsentFieldKey = 'health' | 'terms' | 'signature';
 
+/**
+ * One date in the trial picker.
+ *
+ * A full date stays in the list and is shown as full. Removing it was the older
+ * behaviour and it misled: a parent whose nearest date was taken saw a shorter
+ * list, which reads as "this class has no dates", rather than "that Wednesday is
+ * taken, the one after is free".
+ */
+function TrialDateRow({
+  occ,
+  checked = false,
+  onPick,
+}: {
+  occ: TrialOccurrence;
+  checked?: boolean;
+  onPick?: () => void;
+}) {
+  const full = Boolean(occ.is_full);
+  return (
+    <label
+      className={[
+        styles.trialDateOption,
+        checked ? styles.trialDateOptionSelected : '',
+        full ? styles.trialDateOptionFull : '',
+      ]
+        .filter(Boolean)
+        .join(' ')}
+      aria-disabled={full || undefined}
+    >
+      <input
+        type="radio"
+        name="trialLessonDate"
+        value={occ.date}
+        checked={checked}
+        disabled={full}
+        onChange={() => {
+          if (!full) onPick?.();
+        }}
+        className={styles.trialDateRadio}
+      />
+      <span className={styles.trialDateLabel}>
+        {occ.day_name} · {occ.label}
+      </span>
+      <span className={styles.trialDateTime}>
+        {full ? 'מלא' : `${occ.start_time}–${occ.end_time}`}
+      </span>
+    </label>
+  );
+}
+
 function nameFieldError(value: string): string | null {
   const trimmed = value.trim();
   if (!trimmed) return REQUIRED;
@@ -1456,32 +1506,30 @@ export default function CourseRegistrationForm({
               <SkeletonLessonOptions />
             ) : trialOccurrences.length === 0 ? (
               <p className={styles.errorText}>אין תאריכים פנויים לשיעור ניסיון כרגע.</p>
+            ) : trialOccurrences.every((occ) => occ.is_full) ? (
+              <>
+                <p className={styles.helperText}>
+                  כל התאריכים הקרובים מלאים. נסו שוב בקרוב או בחרו מפגש אחר.
+                </p>
+                <div className={styles.trialDateList}>
+                  {trialOccurrences.map((occ) => (
+                    <TrialDateRow key={`${occ.lesson_id ?? 'lesson'}-${occ.date}`} occ={occ} />
+                  ))}
+                </div>
+              </>
             ) : (
               <div className={styles.trialDateList}>
                 {trialOccurrences.map((occ) => (
-                  <label
+                  <TrialDateRow
                     key={`${occ.lesson_id ?? 'lesson'}-${occ.date}`}
-                    className={`${styles.trialDateOption} ${trialLessonDate === occ.date && effectiveTrialLessonId === (occ.lesson_id ?? effectiveTrialLessonId) ? styles.trialDateOptionSelected : ''}`}
-                  >
-                    <input
-                      type="radio"
-                      name="trialLessonDate"
-                      value={occ.date}
-                      checked={trialLessonDate === occ.date && effectiveTrialLessonId === (occ.lesson_id ?? effectiveTrialLessonId)}
-                      onChange={() => {
-                        setTrialLessonDate(occ.date);
-                        if (occ.lesson_id) setSelectedTrialLessonId(occ.lesson_id);
-                        setErrorMsg('');
-                      }}
-                      className={styles.trialDateRadio}
-                    />
-                    <span className={styles.trialDateLabel}>
-                      {occ.day_name} · {occ.label}
-                    </span>
-                    <span className={styles.trialDateTime}>
-                      {occ.start_time}–{occ.end_time}
-                    </span>
-                  </label>
+                    occ={occ}
+                    checked={trialLessonDate === occ.date && effectiveTrialLessonId === (occ.lesson_id ?? effectiveTrialLessonId)}
+                    onPick={() => {
+                      setTrialLessonDate(occ.date);
+                      if (occ.lesson_id) setSelectedTrialLessonId(occ.lesson_id);
+                      setErrorMsg('');
+                    }}
+                  />
                 ))}
               </div>
             )}

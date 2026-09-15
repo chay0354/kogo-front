@@ -55,6 +55,10 @@ export interface TrialOccurrence {
   day_name: string;
   start_time: string;
   end_time: string;
+  /** Seats left for a trial on this date. null when the lesson has no capacity set. */
+  seats_left?: number | null;
+  /** The room is already taken that day. The date is still listed, just not choosable. */
+  is_full?: boolean;
 }
 
 export type Step =
