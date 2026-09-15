@@ -98,9 +98,12 @@ export default function SubscriptionPaymentDialog({
             child_id: child.id,
             lesson_id: l.id,
             bundle_id: bundleId,
-            payment_date: new Date().toISOString().split('T')[0],
             include_registration_fee: true,
             include_monthly_amount: true,
+            // A price preview only: no pending Payment row is written until the
+            // office actually charges (charge_subscription prices again itself).
+            // The payment date is the server's Israeli day, not the browser's.
+            quote_only: true,
           })
         );
       }
