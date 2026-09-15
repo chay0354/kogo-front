@@ -104,11 +104,21 @@ export type WhatsAppAutomation = {
   manychat_name?: string | null;
   kogo_label?: string;
   needs_enrollment_context?: boolean;
+  /** False when ManyChat has no automation by this name — the send drops to free text. */
+  in_manychat?: boolean;
 };
 
 export async function fetchWhatsAppAutomations() {
   const res = await api.get('/core/whatsapp/automations/');
-  return res.data as { configured: boolean; automations: WhatsAppAutomation[] };
+  return res.data as {
+    configured: boolean;
+    automations: WhatsAppAutomation[];
+    /** Whether ManyChat's own list came back at all, and how long it was. */
+    manychat_ok?: boolean;
+    manychat_count?: number;
+    /** ManyChat's own reason, when its list could not be loaded. */
+    manychat_error?: string;
+  };
 }
 
 export type BulkFlowResult = BulkSendResult & {
