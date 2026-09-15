@@ -139,8 +139,8 @@ export interface PaymentInitiationRequest {
 }
 
 export interface PaymentInitiationResponse {
-  payment_id: string;
-  tranzila_url: string;
+  payment_id: string | null;
+  tranzila_url: string | null;
   course_index?: number;
   base_amount?: number;
   discount_amount?: number;
