@@ -6,6 +6,7 @@ import { Plus } from 'lucide-react';
 import NewDocumentDialog from '@/components/dialogs/NewDocumentDialog';
 import { useAuth } from '@/components/AuthProvider';
 import theme from '@/components/dashboard/theme/dashboard.module.css';
+import CardLinksTab from './CardLinksTab';
 import ChecksTab from './ChecksTab';
 import CollectionTab from './CollectionTab';
 import DocumentsTab from './DocumentsTab';
@@ -41,6 +42,11 @@ const TABS: ReadonlyArray<{ key: ActiveTab; label: string; subtitle: string }> =
     key: "צ'קים",
     label: 'צ׳קים',
     subtitle: 'רישום צ׳קים במשרד: קבלה ברישום, וחשבונית מס אוטומטית בכל חודש',
+  },
+  {
+    key: 'קישורי אשראי',
+    label: 'קישורי אשראי',
+    subtitle: 'כל קישור שנשלח להורה — מתי נשלח, אם נפתח, ומה קרה איתו בסוף',
   },
 ];
 
@@ -131,6 +137,7 @@ export default function InvoicesPage() {
           {activeTab === "צ'קים" && (
             <ChecksTab ledger={ledger} />
           )}
+          {activeTab === 'קישורי אשראי' && <CardLinksTab ledger={ledger} />}
         </div>
       </div>
 
