@@ -983,6 +983,47 @@
   outline-offset: 2px;
 }
 
+/* Two ways to send now (phase 5): the office's own WhatsApp, and the automatic
+   one through ManyChat. They sit on one line and wrap on a narrow panel. */
+.waRow {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* The automatic send: the same shape as the wa.me button, outlined rather than
+   filled, so the one that sends by itself does not look like the safer one. */
+.waSendBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 40px;
+  padding: 0 18px;
+  border-radius: 999px;
+  background: transparent;
+  color: #15803d;
+  border: 1.5px solid #15803d;
+  font-size: 13.5px;
+  font-weight: 800;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.waSendBtn:hover:not(:disabled) {
+  background: rgba(21, 128, 61, 0.08);
+}
+
+.waSendBtn:focus-visible {
+  outline: 2px solid #15803d;
+  outline-offset: 2px;
+}
+
+.waSendBtn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 /* The footer's actions on the link, apart from "סגירה" at the other end. */
 .footStart {
   display: inline-flex;

@@ -34,6 +34,7 @@ import {
   receiptFileName,
   resumeStandingOrder,
   retryCharge,
+  sendCardLinkWhatsApp,
   standingOrderQueryParams,
   submitCardPage,
   updateStandingOrder,
@@ -163,6 +164,23 @@ describe('standing orders', () => {
     const refusal = { response: { status: 409, data: { error: 'השוכר מזין כרטיס ממש עכשיו — נסו שוב בעוד דקה' } } };
     api.post.mockRejectedValue(refusal);
     await expect(createCardLink('o-1')).rejects.toBe(refusal);
+  });
+
+  it('sends the card link through the server, and reads back how it went (phase 5)', async () => {
+    api.post.mockResolvedValue({ data: { whatsapp: { sent: true, method: 'text' }, standing_order: { id: 'o-1' } } });
+    expect(await sendCardLinkWhatsApp('o-1')).toEqual({ sent: true, method: 'text' });
+    expect(api.post).toHaveBeenCalledWith('/rental-billing/standing-orders/o-1/send-card-link/', {});
+  });
+
+  it('never reports a send as done when the server said nothing about one', async () => {
+    api.post.mockResolvedValue({ data: {} });
+    expect(await sendCardLinkWhatsApp('o-1')).toEqual({ sent: false });
+  });
+
+  it("passes a refused send through, so the office sees the server's reason", async () => {
+    const refusal = { response: { status: 400, data: { error: 'אין קישור פעיל לכרטיס. צרו קישור ואז שלחו.' } } };
+    api.post.mockRejectedValue(refusal);
+    await expect(sendCardLinkWhatsApp('o-1')).rejects.toBe(refusal);
   });
 });
 

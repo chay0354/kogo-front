@@ -84,6 +84,30 @@ export function signingWhatsAppMessage({
     .join('\n');
 }
 
+// ---- the automatic send (phase 5) ----
+
+/**
+ * What to tell the office after the server sent the link itself.
+ *
+ * 'flow' means an approved WhatsApp template went out, which reaches the
+ * tenant whenever it is sent. 'text' means there was no automation for it, so
+ * the server fell back to free text — and WhatsApp only delivers that inside
+ * 24 hours of the tenant's last message. The office has to know the difference:
+ * a "sent" that silently went nowhere is worse than no button at all.
+ */
+export function whatsAppSendNote(
+  // The server's own shape: it says why when it did not send, and the office
+  // reads that elsewhere on the dialog — the note here only cares whether a
+  // template or free text went out.
+  result: { sent?: boolean; method?: string; reason?: string; error?: string } | null | undefined,
+): string {
+  if (!result?.sent) return '';
+  if (result.method === 'text') {
+    return 'נשלח כהודעת טקסט רגילה — היא מגיעה רק אם השוכר כתב לנו ב-24 השעות האחרונות. אם לא בטוח שהגיעה, שלחו גם מהוואטסאפ שלכם.';
+  }
+  return 'ההודעה נשלחה לשוכר בוואטסאפ.';
+}
+
 // ---- the link ----
 
 const DAY_MS = 24 * 60 * 60 * 1000;

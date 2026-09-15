@@ -17,6 +17,7 @@ vi.mock('./api', () => ({ default: api }));
 import {
   cancelSigningLink,
   createSigningLink,
+  sendSigningLinkWhatsApp,
   createTenancy,
   deleteTenancy,
   downloadContractPdf,
@@ -286,6 +287,23 @@ describe('signing (phase 3)', () => {
     const refusal = { response: { status: 400, data: { error: 'הגרסה כבר נחתמה' } } };
     api.post.mockRejectedValue(refusal);
     await expect(createSigningLink('k-2')).rejects.toBe(refusal);
+  });
+
+  it('sends the link through the server, and reads back how it went (phase 5)', async () => {
+    api.post.mockResolvedValue({ data: { whatsapp: { sent: true, method: 'flow' }, contract: { id: 'k-2' } } });
+    expect(await sendSigningLinkWhatsApp('k-2')).toEqual({ sent: true, method: 'flow' });
+    expect(api.post).toHaveBeenCalledWith('/rentals/contracts/k-2/send-whatsapp/', {});
+  });
+
+  it('never reports a send as done when the server said nothing about one', async () => {
+    api.post.mockResolvedValue({ data: {} });
+    expect(await sendSigningLinkWhatsApp('k-2')).toEqual({ sent: false });
+  });
+
+  it("passes a refused send through, so the office sees ManyChat's reason", async () => {
+    const refusal = { response: { status: 502, data: { whatsapp: { sent: false, reason: 'lookup_failed' } } } };
+    api.post.mockRejectedValue(refusal);
+    await expect(sendSigningLinkWhatsApp('k-2')).rejects.toBe(refusal);
   });
 
   it('fetches the signed copy as a blob, and reads a refusal back out of it', async () => {

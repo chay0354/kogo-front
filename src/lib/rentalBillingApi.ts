@@ -1,7 +1,9 @@
 import api from './api';
 import { saveBlob } from './documentsApi';
-import { readBlobError } from './rentalsApi';
+import { readBlobError, type WhatsAppSendResult } from './rentalsApi';
 import { unwrapApiList } from './scopedFilters';
+
+export type { WhatsAppSendResult };
 
 /**
  * Tenant billing (the tenant path, phase 4): a tenancy's monthly standing
@@ -350,6 +352,20 @@ export async function endStandingOrder(id: string): Promise<StandingOrder> {
 export async function createCardLink(orderId: string): Promise<CardLinkInfo> {
   const res = await api.post(`${orderUrl(orderId)}card-link/`, {});
   return res.data;
+}
+
+/**
+ * Send the tenant the card link the order already has, on WhatsApp (phase 5).
+ *
+ * The server sends; the link is not made or replaced here, so a second send is
+ * the same URL again. 400 with a Hebrew `error` when there is no live link or
+ * the tenant has no phone, 502 with ManyChat's own reason when the message did
+ * not go out. It works with RENTAL_BILLING_ENABLED off — a message is not a
+ * charge, and the page the link opens refuses on its own.
+ */
+export async function sendCardLinkWhatsApp(orderId: string): Promise<WhatsAppSendResult> {
+  const res = await api.post(`${orderUrl(orderId)}send-card-link/`, {});
+  return res.data?.whatsapp ?? { sent: false };
 }
 
 // ---- charges ----
