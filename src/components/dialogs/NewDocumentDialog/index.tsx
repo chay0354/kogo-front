@@ -34,8 +34,9 @@ import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import type { ChildWithDetails } from '@/types/customer';
 import { useScopedBranches } from '@/hooks/useScopedBranches';
 import styles from './index.module.css';
-import { CLIENT_TYPE_OPTIONS, DOCUMENT_TYPE_OPTIONS } from './constants';
+import { BRANCHES_CATEGORY, CLIENT_TYPE_OPTIONS, DOCUMENT_TYPE_OPTIONS } from './constants';
 import {
+  branchFieldApplies,
   businessCustomerErrorMessage,
   businessFormFromCustomer,
   canAdvanceFromStep,
@@ -716,6 +717,7 @@ function BusinessClientStep({
   // The step will not advance without a category, so a business that has none
   // is a dead end unless the screen says where categories come from.
   const businessHasNoCategory = Boolean(formData.business_id) && businessCategories.length === 0;
+  const branchApplies = branchFieldApplies(formData.category);
 
   return (
     <div>
@@ -921,6 +923,8 @@ function BusinessClientStep({
                 business_type: business?.name ?? '',
                 business_category_id: null,
                 category: '',
+                // The category is what asks for a branch, and it just went blank.
+                branch_id: null,
               });
             }}
           >
@@ -928,26 +932,6 @@ function BusinessClientStep({
             {businesses.filter((b) => b.is_active).map((b) => (
               <option key={b.id} value={b.id}>
                 {b.name}
-              </option>
-            ))}
-          </Select>
-        </div>
-
-        <div className={styles.formRow}>
-          <label htmlFor="biz-branch-affiliation" className={styles.fieldLabel}>
-            שיוך לסניף
-          </label>
-          <Select
-            id="biz-branch-affiliation"
-            className={styles.formSelect}
-            value={formData.branch_id ?? ''}
-            onChange={(e) => updateField('branch_id', e.target.value || null)}
-            disabled={branchesLoading}
-          >
-            <option value="">בחר סניף</option>
-            {sortedBranches.map((branch) => (
-              <option key={branch.id} value={branch.id}>
-                {branch.name}
               </option>
             ))}
           </Select>
@@ -968,6 +952,9 @@ function BusinessClientStep({
                 ...formData,
                 business_category_id: category?.id ?? null,
                 category: category?.name ?? '',
+                // A branch picked under סניפים must not ride along once the
+                // category is something else.
+                branch_id: branchFieldApplies(category?.name) ? formData.branch_id : null,
               });
             }}
           >
@@ -983,6 +970,31 @@ function BusinessClientStep({
               לעסק הזה אין עדיין קטגוריה פעילה. הוסיפו אחת בהגדרות ← כספים ← עסקים וקטגוריות, ואז חזרו לכאן.
             </p>
           ) : null}
+        </div>
+
+        {/*
+          A branch is what the category סניפים means, so the question is only
+          asked once that category is the one chosen — and it is asked after it,
+          not before. Same rule the wizard's own branch step follows.
+        */}
+        <div className={styles.formRow}>
+          <label htmlFor="biz-branch-affiliation" className={styles.fieldLabel}>
+            שיוך לסניף
+          </label>
+          <Select
+            id="biz-branch-affiliation"
+            className={styles.formSelect}
+            value={formData.branch_id ?? ''}
+            onChange={(e) => updateField('branch_id', e.target.value || null)}
+            disabled={branchesLoading || !branchApplies}
+          >
+            <option value="">{branchApplies ? 'בחר סניף' : `רק לקטגוריית ${BRANCHES_CATEGORY}`}</option>
+            {sortedBranches.map((branch) => (
+              <option key={branch.id} value={branch.id}>
+                {branch.name}
+              </option>
+            ))}
+          </Select>
         </div>
 
         <div className={`${styles.formRow} ${styles.formRowFull}`}>

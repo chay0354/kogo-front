@@ -3,7 +3,7 @@
  * and waited. It now says why, in the server's words when it gave any.
  */
 import { describe, expect, it } from 'vitest';
-import { businessCustomerErrorMessage, canAdvanceFromStep, getWizardSteps } from './utils';
+import { branchFieldApplies, businessCustomerErrorMessage, canAdvanceFromStep, getWizardSteps } from './utils';
 
 describe('businessCustomerErrorMessage', () => {
   it("reads the server's field error — the branch a partner has to choose", () => {
@@ -85,5 +85,16 @@ describe('getWizardSteps — the branch step appears with its category', () => {
   it('still splits business and existing customers', () => {
     expect(getWizardSteps('existing', 'קבלה', null).map((s) => s.id)).toContain('selectCustomer');
     expect(getWizardSteps('existing', 'קבלה', null).map((s) => s.id)).not.toContain('businessClientDetails');
+  });
+});
+
+describe('branchFieldApplies', () => {
+  it('asks for a branch only under the branches category', () => {
+    expect(branchFieldApplies('סניפים')).toBe(true);
+    expect(branchFieldApplies(' סניפים ')).toBe(true);
+    expect(branchFieldApplies('מותג קוגומלו')).toBe(false);
+    expect(branchFieldApplies('')).toBe(false);
+    expect(branchFieldApplies(null)).toBe(false);
+    expect(branchFieldApplies(undefined)).toBe(false);
   });
 });
