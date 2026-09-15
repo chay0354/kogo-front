@@ -16,7 +16,7 @@ import { hebrewDayLetter, lessonTitle } from './instructorUtils';
 import styles from './InstructorAttendance.module.css';
 
 const INITIAL_VISIBLE = 8;
-const ISSUE_STATUSES = new Set(['payment_problem', 'not_paid', 'trial_signed', 'trial_completed']);
+const ISSUE_STATUSES = new Set(['payment_problem', 'trial_signed', 'trial_completed']);
 
 type InstructorAttendanceProps = {
   lesson: Lesson;

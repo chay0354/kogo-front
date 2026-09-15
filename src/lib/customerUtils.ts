@@ -13,97 +13,86 @@ export interface ChildStatus {
 /**
  * Get child status based on explicit status field from backend
  */
-export function getChildStatus(child: ChildWithDetails): ChildStatus {
-  switch (child.status) {
-    case 'active':
-      return { 
-        color: 'green', 
-        description: 'פעיל - מנוי פעיל ושולם',
-        hebrewStatus: 'פעיל'
-      };
-    
-    case 'trial_signed':
-      return { 
-        color: 'orange', 
-        description: 'נרשם לניסיון - בתהליך רישום לשיעור ניסיון',
-        hebrewStatus: 'נרשם לניסיון'
-      };
-    
-    case 'trial_completed':
-      return { 
-        color: 'orange', 
-        description: 'ביצע ניסיון - סיים שיעור ניסיון',
-        hebrewStatus: 'ביצע ניסיון'
-      };
-    
-    case 'payment_problem':
-      return { 
-        color: 'red', 
-        description: 'בעיות באשראי - בעיה בתשלום באשראי',
-        hebrewStatus: 'בעיות באשראי'
-      };
-    
-    case 'not_paid':
-      return { 
-        color: 'red', 
-        description: 'לא שולם - חוב פתוח',
-        hebrewStatus: 'לא שולם'
-      };
-    
-    case 'pending':
-      return { 
-        color: 'blue', 
-        description: 'בתהליך רישום - בתהליך רישום למערכת',
-        hebrewStatus: 'בתהליך רישום'
-      };
-    
-    case 'ghost':
-      return { 
-        color: 'blue', 
-        description: 'רפאים - לקוח שלא פעיל',
-        hebrewStatus: 'רפאים'
-      };
-    
-    case 'inactive':
-      return { 
-        color: 'black', 
-        description: 'לא פעיל - לא פעיל במערכת',
-        hebrewStatus: 'לא פעיל'
-      };
-    
-    default:
-      return { 
-        color: 'blue', 
-        description: 'לא מוגדר',
-        hebrewStatus: 'לא מוגדר'
-      };
-  }
+/** The six statuses a child can be in. Kept in step with the backend's
+ *  apps/customers/child_status.py — that file is the source of truth. */
+export const CHILD_STATUSES = [
+  'active',
+  'trial_signed',
+  'trial_completed',
+  'pending',
+  'payment_problem',
+  'ghost',
+] as const;
+
+export type ChildStatusValue = (typeof CHILD_STATUSES)[number];
+
+const STATUS_DETAILS: Record<ChildStatusValue, ChildStatus> = {
+  active: {
+    color: 'green',
+    description: 'פעיל — שולם והכסף נכנס למערכת',
+    hebrewStatus: 'פעיל',
+  },
+  trial_signed: {
+    color: 'orange',
+    description: 'נרשם לניסיון — יש שיעור ניסיון שעוד לא התקיים',
+    hebrewStatus: 'נרשם לניסיון',
+  },
+  trial_completed: {
+    color: 'orange',
+    description: 'ביצע ניסיון — שיעור הניסיון כבר התקיים',
+    hebrewStatus: 'ביצע ניסיון',
+  },
+  pending: {
+    color: 'blue',
+    description: 'בתהליך רישום — הפרטים מולאו, טרם שולם',
+    hebrewStatus: 'בתהליך רישום',
+  },
+  payment_problem: {
+    color: 'red',
+    description: 'בעיה באשראי — החיוב לא עבר',
+    hebrewStatus: 'בעיה באשראי',
+  },
+  ghost: {
+    color: 'blue',
+    description: 'רפאים — תלמיד מזדמן שהמדריך הוסיף',
+    hebrewStatus: 'רפאים',
+  },
+};
+
+/** Statuses written before the list was settled, and what they read as now. */
+const LEGACY_STATUS_ALIASES: Record<string, ChildStatusValue> = {
+  not_paid: 'payment_problem',
+  inactive: 'pending',
+  non_active: 'pending',
+  expired: 'pending',
+  trial: 'trial_completed',
+};
+
+export function normalizeChildStatus(status: string | null | undefined): ChildStatusValue | null {
+  if (!status) return null;
+  if ((CHILD_STATUSES as readonly string[]).includes(status)) return status as ChildStatusValue;
+  return LEGACY_STATUS_ALIASES[status] ?? null;
 }
 
-const STATUS_OVERRIDE_KEEP = new Set([
-  'payment_problem',
-  'not_paid',
-  'ghost',
-  'inactive',
-]);
-
 /**
- * Customers-table status: trial-only kids stay נרשם לניסיון.
- * Any regular (paid) lesson, or both regular and trial, shows as פעיל.
+ * Get child status based on the explicit status field from the backend.
+ *
+ * The stored status is the answer. It used to be second-guessed here — a child
+ * with any non-trial enrolment was redrawn as פעיל whether or not a shekel had
+ * ever arrived, which is precisely what פעיל is supposed to mean.
  */
+export function getChildStatus(child: ChildWithDetails): ChildStatus {
+  const status = normalizeChildStatus(child.status);
+  if (status) return STATUS_DETAILS[status];
+  return {
+    color: 'blue',
+    description: 'לא מוגדר',
+    hebrewStatus: 'לא מוגדר',
+  };
+}
+
+/** The customers table shows the same status as everywhere else. */
 export function getCustomerTableStatus(child: ChildWithDetails): ChildStatus {
-  if (STATUS_OVERRIDE_KEEP.has(child.status)) {
-    return getChildStatus(child);
-  }
-  const enrollments = child.enrollments ?? [];
-  const hasRegular = enrollments.some((row) => !row.trial_lesson_date);
-  const hasTrial = enrollments.some((row) => Boolean(row.trial_lesson_date));
-  if (hasRegular) {
-    return getChildStatus({ ...child, status: 'active' });
-  }
-  if (hasTrial) {
-    return getChildStatus({ ...child, status: 'trial_signed' });
-  }
   return getChildStatus(child);
 }
 
