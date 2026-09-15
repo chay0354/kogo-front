@@ -31,13 +31,17 @@ export default function ScheduleLessonCard({
   showLocation = true,
 }: ScheduleLessonCardProps) {
   const isCancelled = lesson.status === 'cancelled';
-  const capacity = lesson.room_capacity || 20;
+  // No invented ceiling. A lesson with no capacity set anywhere shows its
+  // headcount alone — "/20" on a class nobody capped reads as a real limit and
+  // makes a full class of twelve look half empty.
+  const capacity = lesson.room_capacity || null;
+  const countLabel = capacity ? `${lesson.enrollment_count}/${capacity}` : `${lesson.enrollment_count}`;
   const timeLabel = `${formatTime(lesson.start_time)}–${formatTime(lesson.end_time)}`;
   const titleLabel = [
     lesson.course_display_id ? `${lesson.course_name} #${lesson.course_display_id}` : lesson.course_name,
     lesson.course_type_name,
     timeLabel,
-    showEnrollment ? `${lesson.enrollment_count}/${capacity}` : null,
+    showEnrollment ? countLabel : null,
     lesson.branch_name,
   ]
     .filter(Boolean)
@@ -76,7 +80,7 @@ export default function ScheduleLessonCard({
           </div>
           {showEnrollment ? (
             <span className="shrink-0 mr-1 text-[9px] tabular-nums text-gray-500">
-              {lesson.enrollment_count}/{capacity}
+              {countLabel}
             </span>
           ) : null}
         </div>
@@ -97,7 +101,7 @@ export default function ScheduleLessonCard({
             <span className="text-[9px] text-gray-500 tabular-nums truncate">{timeLabel}</span>
             {showEnrollment ? (
               <span className="shrink-0 text-[9px] tabular-nums text-gray-500">
-                {lesson.enrollment_count}/{capacity}
+                {countLabel}
               </span>
             ) : null}
           </div>
@@ -125,7 +129,7 @@ export default function ScheduleLessonCard({
             )}
             {showEnrollment ? (
               <span className="shrink-0 text-[9px] tabular-nums bg-gray-200/90 rounded px-1">
-                {lesson.enrollment_count}/{capacity}
+                {countLabel}
               </span>
             ) : null}
           </div>
@@ -156,7 +160,7 @@ export default function ScheduleLessonCard({
             )}
             {showEnrollment ? (
               <span className="shrink-0 inline-block px-1.5 py-0.5 bg-gray-200/90 rounded text-[10px] tabular-nums whitespace-nowrap">
-                {lesson.enrollment_count}/{capacity}
+                {countLabel}
               </span>
             ) : null}
           </div>
@@ -223,7 +227,7 @@ export default function ScheduleLessonCard({
       {showEnrollment && (
         <div className="mt-1">
           <span className="inline-block px-1.5 py-0.5 bg-gray-200 rounded text-[10px]">
-            {lesson.enrollment_count}/{capacity}
+            {countLabel}
           </span>
         </div>
       )}
