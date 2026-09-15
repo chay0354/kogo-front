@@ -13,7 +13,11 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
-import { fetchStudentsData, fetchTrialNotConverted } from '@/lib/api';
+import {
+  fetchChildrenWithoutStandingOrder,
+  fetchStudentsData,
+  fetchTrialNotConverted,
+} from '@/lib/api';
 import { useScopedBranches } from '@/hooks/useScopedBranches';
 import { filterBranchesByCity } from '@/lib/scopedFilters';
 import type { DateRange } from './GlobalDateFilter';
@@ -65,6 +69,14 @@ export default function StudentsSection({ globalDateRange }: Props) {
     queryFn: () => fetchTrialNotConverted({ city_id: cityId, branch_id: branchId }),
   });
   const allTrialLeads = notConverted?.results ?? [];
+  // Enrolled, paying, and billed by nothing. Its own query for the same reason
+  // as the trial list: a report must not be able to take the section down.
+  const { data: noStandingOrder } = useQuery({
+    queryKey: ['dashboard-no-standing-order', branchId],
+    queryFn: () => fetchChildrenWithoutStandingOrder(branchId === 'all' ? {} : { branch_id: branchId }),
+  });
+  const unbilled = noStandingOrder?.results ?? [];
+
   const trialLeads =
     trialOutcome === 'all'
       ? allTrialLeads
@@ -200,6 +212,56 @@ export default function StudentsSection({ globalDateRange }: Props) {
           </div>
         </div>
       </div>
+
+      {/* Nothing fails for these children, which is exactly why nobody knew.
+          A card the terminal could not save took the registration fee and left
+          no standing order behind it. */}
+      {unbilled.length > 0 && (
+        <div className={`${theme.card} ${theme.mt}`}>
+          <h2 className={theme.cardTitle}>רשומים ומשלמים — בלי הוראת קבע</h2>
+          <p className={theme.cardSub}>
+            {unbilled.length} ילדים שאף חיוב חודשי לא רץ עליהם. לרוב כרטיס שלא ניתן לשמירה בהרשמה.
+          </p>
+          <div className={theme.tableWrap}>
+            <table className={theme.table}>
+              <thead>
+                <tr>
+                  <th scope="col">ילד/ה</th>
+                  <th scope="col">חוג</th>
+                  <th scope="col">סניף</th>
+                  <th scope="col">שולם עד</th>
+                  <th scope="col">לא חויב</th>
+                  <th scope="col">טלפון</th>
+                </tr>
+              </thead>
+              <tbody>
+                {unbilled.map((row) => (
+                  <tr
+                    key={row.child_id}
+                    onClick={() => router.push(`/customers?child=${row.child_id}`)}
+                    style={{ cursor: 'pointer' }}
+                  >
+                    <td>{row.child_name}</td>
+                    <td>{row.course_name || '—'}</td>
+                    <td>{row.branch_name || '—'}</td>
+                    <td>{row.paid_until ? formatTrialDate(row.paid_until) : '—'}</td>
+                    <td style={{ color: row.days_unbilled > 0 ? '#b45309' : undefined }}>
+                      {row.days_unbilled > 0 ? `${row.days_unbilled} ימים` : '—'}
+                    </td>
+                    <td>
+                      {row.parent_phone ? (
+                        <a href={`tel:${row.parent_phone}`} onClick={(e) => e.stopPropagation()}>
+                          {row.parent_phone}
+                        </a>
+                      ) : '—'}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       {/* The names behind "ביצעו ניסיון": children who were in the room and
           never signed up. A count is a number; this is a call list. */}

@@ -1644,8 +1644,10 @@ export default function ChildProfileDialog({
     {/* Refund Dialog */}
     {canSendCardLink && <SendCardLinkDialog open={cardLinkOpen} onOpenChange={setCardLinkOpen} child={child} />}
     {canSendCardLink && (
-      <RegisterCashDialog open={cashOpen} onOpenChange={setCashOpen} child={child} />
-      <ReplaceCardDialog open={replaceCardOpen} onOpenChange={setReplaceCardOpen} child={child} />
+      <>
+        <RegisterCashDialog open={cashOpen} onOpenChange={setCashOpen} child={child} />
+        <ReplaceCardDialog open={replaceCardOpen} onOpenChange={setReplaceCardOpen} child={child} />
+      </>
     )}
     {refundItem && (
       <RefundDialog

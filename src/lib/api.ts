@@ -255,6 +255,28 @@ export const fetchStudentsData = async (filters: StudentsFilters) => {
   return response.data;
 };
 
+export interface ChildWithoutStandingOrder {
+  child_id: string;
+  child_name: string;
+  child_status: string;
+  family_id: string;
+  family_name: string;
+  parent_phone: string;
+  course_name: string;
+  branch_name: string;
+  paid_until: string | null;
+  days_unbilled: number;
+}
+
+/**
+ * Children enrolled and paying with no standing order behind them — nothing
+ * fails for these, so nothing ever reported them.
+ */
+export const fetchChildrenWithoutStandingOrder = async (params?: { branch_id?: string }) => {
+  const res = await api.get('/customers/children-without-standing-order/', { params });
+  return res.data as { count: number; results: ChildWithoutStandingOrder[] };
+};
+
 export interface TrialNotConvertedRow {
   child_id: string;
   child_name: string;
