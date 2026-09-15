@@ -574,12 +574,15 @@ export default function ChildProfileDialog({
   
   const genderText = child.gender === 'male' ? 'בן' : child.gender === 'female' ? 'בת' : 'בן/בת';
   const whatsapp = formatWhatsAppLink(child.parent_phone);
-  const renewVisible = useMemo(() => {
-    // subscription_status was removed on backend; rely on current explicit status + dates
-    if (child.status === 'inactive') return true;
-    const d = daysUntil(child.paid_until_date || child.subscription_end_date);
-    return d !== null && d <= 30;
-  }, [child.status, child.paid_until_date, child.subscription_end_date]);
+  // Days left on the subscription — the fact behind both the renew button and
+  // the badge below. This used to key off status 'inactive', which no longer
+  // exists: whether a subscription is running is a date, not a status.
+  const subscriptionDaysLeft = useMemo(
+    () => daysUntil(child.paid_until_date || child.subscription_end_date),
+    [child.paid_until_date, child.subscription_end_date],
+  );
+  const subscriptionEnded = subscriptionDaysLeft !== null && subscriptionDaysLeft < 0;
+  const renewVisible = subscriptionDaysLeft !== null && subscriptionDaysLeft <= 30;
   
   // Fetch absence history when dialog opens
   useEffect(() => {
@@ -1040,7 +1043,7 @@ export default function ChildProfileDialog({
                       <div className="bg-muted/50 rounded-lg p-4 space-y-3 mt-3">
                         <div className="flex justify-between gap-4 items-center">
                           <span className="text-muted-foreground text-sm">סטטוס מנוי</span>
-                          {child.status === 'inactive' ? (
+                          {subscriptionEnded ? (
                             <Badge variant="destructive">הסתיים</Badge>
                           ) : (
                             <Badge variant="secondary">פעיל</Badge>

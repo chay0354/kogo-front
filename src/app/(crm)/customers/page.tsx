@@ -55,11 +55,9 @@ const STATUS_OPTIONS = [
   { value: 'active', label: 'פעיל' },
   { value: 'trial_signed', label: 'נרשם לניסיון' },
   { value: 'trial_completed', label: 'ביצע ניסיון' },
-  { value: 'payment_problem', label: 'בעיות באשראי' },
-  { value: 'not_paid', label: 'לא שולם' },
+  { value: 'payment_problem', label: 'בעיה באשראי' },
   { value: 'pending', label: 'בתהליך רישום' },
   { value: 'ghost', label: 'רפאים' },
-  { value: 'inactive', label: 'לא פעיל' },
 ];
 
 const ABSENCE_OPTIONS = [
@@ -1035,11 +1033,9 @@ export default function CustomersPage() {
               <option value="active">פעיל</option>
               <option value="trial_signed">נרשם לניסיון</option>
               <option value="trial_completed">ביצע ניסיון</option>
-              <option value="payment_problem">בעיות באשראי</option>
-              <option value="not_paid">לא שולם</option>
+              <option value="payment_problem">בעיה באשראי</option>
               <option value="pending">בתהליך רישום</option>
               <option value="ghost">רפאים</option>
-              <option value="inactive">לא פעיל</option>
             </select>
           </div>
           <div className="flex gap-2 justify-end">

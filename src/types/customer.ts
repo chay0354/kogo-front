@@ -82,7 +82,7 @@ export interface ChildWithDetails {
   family_address?: string | null;
   
   // NEW: Explicit status field
-  status: "active" | "trial_signed" | "trial_completed" | "payment_problem" | "not_paid" | "pending" | "ghost" | "inactive";
+  status: "active" | "trial_signed" | "trial_completed" | "pending" | "payment_problem" | "ghost";
   paid_until_date: string | null;
   trial_classes_attended: number;
   absent_irregularly: boolean;
