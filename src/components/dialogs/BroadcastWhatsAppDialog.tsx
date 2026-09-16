@@ -1,17 +1,22 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AlertTriangle, Copy, MessageCircle, Send, Zap } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { AlertTriangle, Copy, Minimize2, MessageCircle, Send, Zap } from 'lucide-react';
 import { toast } from 'sonner';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogCloseButton } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
+import BroadcastProgress from '@/components/broadcast/BroadcastProgress';
+import type { BroadcastDraft } from '@/components/broadcast/BroadcastRunProvider';
+import {
+  previewCounts,
+  sentCounts,
+  type BroadcastRun,
+  type RunSnapshot,
+} from '@/lib/broadcastRun';
 import {
   automationDisplayLabel,
   automationOptionValue,
-  broadcastChunkSize,
-  broadcastToChildren,
-  chunkIds,
   fetchWhatsAppAutomations,
   fetchWhatsAppStatus,
   parseAutomationValue,
@@ -19,22 +24,21 @@ import {
   type WhatsAppAutomation,
 } from '@/lib/whatsappApi';
 
-type Step = 'pick' | 'preview' | 'sending' | 'done';
-
-type ChunkOutcome = { index: number; state: 'ok' | 'unknown' };
-
 interface BroadcastWhatsAppDialogProps {
   open: boolean;
-  onOpenChange: (open: boolean) => void;
-  /** Selected child ids, in the order the office picked them. */
-  childIds: string[];
-  /** Names for the ids we know (the list page has them); missing ones show the id's row from the preview. */
-  childNames: Record<string, string>;
-  /** Called after a real send finished (fully or partially) so the page can clear the selection. */
-  onSent?: () => void;
-  /** The lesson / weekday the list was filtered by, so a child in several slots gets that lesson's details. */
-  lessonHint?: string | null;
-  dayHint?: number | null;
+  /** The selection the office opened the broadcast with. */
+  draft: BroadcastDraft | null;
+  /** The run once a check has started; it outlives this dialog being closed. */
+  run: BroadcastRun | null;
+  snapshot: RunSnapshot | null;
+  /** The X, Escape or a click outside: minimises a run under way, ends anything else. */
+  onClose: () => void;
+  onMinimize: () => void;
+  onCheck: (automation: WhatsAppAutomation) => void;
+  onBack: () => void;
+  onCancel: () => void;
+  onStart: () => void;
+  onDismiss: () => void;
 }
 
 /**
@@ -65,40 +69,36 @@ function rowStatusLabel(row: BroadcastRow) {
  * Preview and Production share the ManyChat account, so a real send is
  * never implicit: the server defaults to dry_run and the checkbox here is
  * the only way to turn it off.
+ *
+ * The run itself lives in BroadcastRunProvider. This dialog only draws it, so
+ * closing it mid-run tucks the run into the corner, and opening it again shows
+ * the same run where it has got to.
  */
 export default function BroadcastWhatsAppDialog({
   open,
-  onOpenChange,
-  childIds,
-  childNames,
-  onSent,
-  lessonHint,
-  dayHint,
+  draft,
+  run,
+  snapshot,
+  onClose,
+  onMinimize,
+  onCheck,
+  onBack,
+  onCancel,
+  onStart,
+  onDismiss,
 }: BroadcastWhatsAppDialogProps) {
-  const [step, setStep] = useState<Step>('pick');
-  // The selection is snapshotted when the dialog opens: the page clears it
-  // after a send, and the title and the chunks must not follow that.
-  const [ids, setIds] = useState<string[]>([]);
+  const phase = snapshot?.phase ?? null;
+  // A dry run that failed goes back to choosing, with the reason on top.
+  const picking = !run || phase === 'failed';
+
   const [configured, setConfigured] = useState<boolean | null>(null);
   const [automations, setAutomations] = useState<WhatsAppAutomation[]>([]);
   const [manychatOk, setManychatOk] = useState(true);
   const [manychatCount, setManychatCount] = useState<number | null>(null);
   const [loadingAutomations, setLoadingAutomations] = useState(false);
   const [automationValue, setAutomationValue] = useState('');
-
-  const [previewRows, setPreviewRows] = useState<BroadcastRow[]>([]);
-  const [previewing, setPreviewing] = useState(false);
+  const [loadError, setLoadError] = useState('');
   const [confirmed, setConfirmed] = useState(false);
-
-  const [sentRows, setSentRows] = useState<BroadcastRow[]>([]);
-  const [chunkProgress, setChunkProgress] = useState<{ done: number; total: number }>({ done: 0, total: 0 });
-  const [paused, setPaused] = useState<ChunkOutcome | null>(null);
-  const [error, setError] = useState('');
-  const sendStateRef = useRef<{ skipPhones: string[]; chunks: string[][] } | null>(null);
-  const hintBody = {
-    ...(lessonHint ? { lesson_id: lessonHint } : {}),
-    ...(dayHint !== null && dayHint !== undefined ? { day_of_week: dayHint } : {}),
-  };
 
   const selectedAutomation = useMemo(() => {
     const parsed = parseAutomationValue(automationValue);
@@ -110,19 +110,20 @@ export default function BroadcastWhatsAppDialog({
     );
   }, [automationValue, automations]);
 
-  // Reset whenever the dialog opens with a new selection.
+  // The confirmation belongs to one preview: a new run starts unticked.
   useEffect(() => {
-    if (!open) return;
-    setIds(childIds);
-    setStep('pick');
-    setPreviewRows([]);
-    setSentRows([]);
     setConfirmed(false);
-    setPaused(null);
-    setError('');
-    setChunkProgress({ done: 0, total: 0 });
-    sendStateRef.current = null;
+  }, [run]);
+
+  // The automation list is fetched once per selection, the first time the
+  // choosing step is shown for it — going back from a preview keeps it.
+  const loadedFor = useRef<BroadcastDraft | null>(null);
+  useEffect(() => {
+    if (!open || !picking || !draft || loadedFor.current === draft) return;
+    loadedFor.current = draft;
+    setLoadError('');
     let cancelled = false;
+    let settled = false;
     (async () => {
       setLoadingAutomations(true);
       try {
@@ -142,130 +143,56 @@ export default function BroadcastWhatsAppDialog({
               : (list[0] ? automationOptionValue(list[0]) : ''),
           );
           if (data.manychat_error) {
-            setError(`ManyChat: ${data.manychat_error}`);
+            setLoadError(`ManyChat: ${data.manychat_error}`);
           }
         } catch {
           if (cancelled) return;
           setAutomations([]);
           setManychatOk(false);
-          setError('לא ניתן לטעון את רשימת האוטומציות מ-ManyChat');
+          setLoadError('לא ניתן לטעון את רשימת האוטומציות מ-ManyChat');
         }
       } catch {
         if (cancelled) return;
         setConfigured(false);
         setAutomations([]);
         setManychatOk(false);
-        setError('לא ניתן לטעון את רשימת האוטומציות מ-ManyChat');
+        setLoadError('לא ניתן לטעון את רשימת האוטומציות מ-ManyChat');
       } finally {
+        settled = true;
         if (!cancelled) setLoadingAutomations(false);
       }
     })();
     return () => {
       cancelled = true;
+      // Closed before the list came back: fetch it again next time.
+      if (!settled) {
+        setLoadingAutomations(false);
+        if (loadedFor.current === draft) loadedFor.current = null;
+      }
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open]);
+  }, [open, picking, draft]);
 
-  const runPreview = useCallback(async () => {
+  const runPreview = () => {
     if (!selectedAutomation) {
       toast.error('בחרו אוטומציה');
       return;
     }
-    setPreviewing(true);
-    setError('');
-    const chunks = chunkIds(ids, broadcastChunkSize(selectedAutomation.automation_type));
-    const rows: BroadcastRow[] = [];
-    let skipPhones: string[] = [];
-    try {
-      for (const chunk of chunks) {
-        const res = await broadcastToChildren({
-          child_ids: chunk,
-          automation_type: selectedAutomation.automation_type,
-          automation_id: selectedAutomation.automation_id,
-          dry_run: true,
-          skip_phones: skipPhones,
-          ...hintBody,
-        });
-        rows.push(...res.results);
-        skipPhones = skipPhones.concat(res.phones);
-      }
-      setPreviewRows(rows);
-      setStep('preview');
-    } catch (err: unknown) {
-      const msg =
-        (err as { response?: { data?: { error?: string } } })?.response?.data?.error || 'התצוגה המקדימה נכשלה';
-      setError(msg);
-    } finally {
-      setPreviewing(false);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ids, selectedAutomation, lessonHint, dayHint]);
+    onCheck(selectedAutomation);
+  };
+
+  const previewRows = snapshot?.previewRows ?? [];
+  const sentRows = snapshot?.sentRows ?? [];
 
   const previewSummary = useMemo(() => {
-    const willSend = previewRows.filter((r) => r.status === 'preview').length;
+    const { willSend, skipped } = previewCounts(previewRows);
     const reasons: Record<string, number> = {};
     for (const r of previewRows) {
       if (r.status === 'skipped') reasons[r.reason || 'other'] = (reasons[r.reason || 'other'] || 0) + 1;
     }
-    return { willSend, skipped: previewRows.length - willSend, reasons };
+    return { willSend, skipped, reasons };
   }, [previewRows]);
 
-  const sendChunksFrom = useCallback(
-    async (startIndex: number) => {
-      const state = sendStateRef.current;
-      if (!state || !selectedAutomation) return;
-      setStep('sending');
-      setPaused(null);
-      for (let i = startIndex; i < state.chunks.length; i += 1) {
-        try {
-          const res = await broadcastToChildren({
-            child_ids: state.chunks[i],
-            automation_type: selectedAutomation.automation_type,
-            automation_id: selectedAutomation.automation_id,
-            dry_run: false,
-            skip_phones: state.skipPhones,
-            ...hintBody,
-          });
-          state.skipPhones = state.skipPhones.concat(res.phones);
-          setSentRows((prev) => prev.concat(res.results));
-          setChunkProgress({ done: i + 1, total: state.chunks.length });
-        } catch {
-          // A timed-out chunk may well have gone out on the server (the client
-          // timeout is longer than the function's). Never retry it by itself,
-          // and treat its phones as used so a sibling in a later chunk does
-          // not get a second message when the office continues.
-          const chunk = new Set(state.chunks[i]);
-          const usedPhones = previewRows
-            .filter((r) => chunk.has(r.child_id) && r.status === 'preview' && r.phone)
-            .map((r) => r.phone);
-          state.skipPhones = state.skipPhones.concat(usedPhones);
-          setChunkProgress({ done: i, total: state.chunks.length });
-          setPaused({ index: i, state: 'unknown' });
-          return;
-        }
-      }
-      setStep('done');
-      onSent?.();
-    },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [onSent, selectedAutomation, previewRows, lessonHint, dayHint],
-  );
-
-  const startSending = useCallback(() => {
-    if (!selectedAutomation || !confirmed) return;
-    const chunks = chunkIds(ids, broadcastChunkSize(selectedAutomation.automation_type));
-    sendStateRef.current = { skipPhones: [], chunks };
-    setSentRows([]);
-    setChunkProgress({ done: 0, total: chunks.length });
-    void sendChunksFrom(0);
-  }, [ids, confirmed, selectedAutomation, sendChunksFrom]);
-
-  const sentSummary = useMemo(() => {
-    const sent = sentRows.filter((r) => r.status === 'sent').length;
-    const failed = sentRows.filter((r) => r.status === 'failed').length;
-    const skipped = sentRows.filter((r) => r.status === 'skipped').length;
-    return { sent, failed, skipped };
-  }, [sentRows]);
+  const sentSummary = useMemo(() => sentCounts(sentRows), [sentRows]);
 
   const copyFailures = async () => {
     const lines = sentRows
@@ -279,25 +206,37 @@ export default function BroadcastWhatsAppDialog({
     }
   };
 
-  const nameFor = (row: BroadcastRow) => childNames[row.child_id] || row.child_name;
-  const busy = previewing || step === 'sending';
+  const names = run?.names ?? draft?.childNames ?? {};
+  const nameFor = (row: BroadcastRow) => names[row.child_id] || row.child_name;
+  const total = run?.ids.length ?? draft?.childIds.length ?? 0;
+  const error = phase === 'failed' ? snapshot?.error ?? '' : loadError;
+  const paused = phase === 'paused' ? snapshot?.pausedAt ?? null : null;
+
+  const minimizeHint = (
+    <div className="flex flex-col items-center gap-1 pb-1">
+      <Button type="button" variant="outline" size="sm" onClick={onMinimize}>
+        <Minimize2 className="h-4 w-4 ml-1" />
+        מזער והמשך לעבוד
+      </Button>
+      <p className="text-xs text-muted-foreground">ההתקדמות ממשיכה בכפתור בפינה השמאלית התחתונה</p>
+    </div>
+  );
 
   return (
     <Dialog
       open={open}
       onOpenChange={(next) => {
-        if (!next && step === 'sending' && !paused) return; // do not close mid-send
-        onOpenChange(next);
+        if (!next) onClose();
       }}
     >
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto" dir="rtl">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <MessageCircle className="h-5 w-5 text-primary" />
-            שליחת WhatsApp ל-{ids.length} ילדים שנבחרו
+            שליחת WhatsApp ל-{total} ילדים שנבחרו
           </DialogTitle>
         </DialogHeader>
-        {step !== 'sending' && <DialogCloseButton />}
+        <DialogCloseButton />
 
         {error && (
           <div className="rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
@@ -305,7 +244,23 @@ export default function BroadcastWhatsAppDialog({
           </div>
         )}
 
-        {step === 'pick' && (
+        {phase === 'checking' && (
+          <div className="space-y-2">
+            <BroadcastProgress
+              phase="check"
+              done={previewRows.length}
+              total={total}
+              finished={total > 0 && previewRows.length >= total}
+              counts={[
+                { label: 'יישלחו', value: previewSummary.willSend, tone: 'will' },
+                { label: 'ידולגו', value: previewSummary.skipped, tone: 'skip' },
+              ]}
+            />
+            {minimizeHint}
+          </div>
+        )}
+
+        {picking && (
           <div className="space-y-4 py-2">
             <div className="flex items-center gap-2">
               <Zap className="h-4 w-4 text-primary" />
@@ -377,19 +332,19 @@ export default function BroadcastWhatsAppDialog({
               </span>
             </p>
             <div className="flex justify-start gap-2 pt-2">
-              <Button type="button" onClick={runPreview} disabled={busy || !selectedAutomation}>
-                {previewing ? 'בונה תצוגה מקדימה…' : 'המשך לתצוגה מקדימה'}
+              <Button type="button" onClick={runPreview} disabled={loadingAutomations || !selectedAutomation}>
+                המשך לתצוגה מקדימה
               </Button>
-              <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={busy}>
+              <Button type="button" variant="outline" onClick={onCancel}>
                 ביטול
               </Button>
             </div>
           </div>
         )}
 
-        {step === 'preview' && (
+        {phase === 'preview' && run && (
           <div className="space-y-4 py-2">
-            <h3 className="font-semibold">2. תצוגה מקדימה — {selectedAutomation ? automationDisplayLabel(selectedAutomation) : ''}</h3>
+            <h3 className="font-semibold">2. תצוגה מקדימה — {run.automation.label}</h3>
             <div className="flex flex-wrap gap-2 text-sm" aria-live="polite">
               <span className="rounded-full bg-emerald-100 text-emerald-900 px-3 py-1 font-medium">
                 יישלחו {previewSummary.willSend}
@@ -429,53 +384,63 @@ export default function BroadcastWhatsAppDialog({
               </span>
             </label>
             <div className="flex justify-start gap-2">
-              <Button type="button" onClick={startSending} disabled={!confirmed || previewSummary.willSend === 0}>
+              <Button type="button" onClick={onStart} disabled={!confirmed || previewSummary.willSend === 0}>
                 <Send className="h-4 w-4 ml-1" />
                 שליחה ל-{previewSummary.willSend} הורים
               </Button>
-              <Button type="button" variant="outline" onClick={() => { setConfirmed(false); setStep('pick'); }}>
+              <Button type="button" variant="outline" onClick={() => { setConfirmed(false); onBack(); }}>
                 חזרה
+              </Button>
+              <Button type="button" variant="ghost" onClick={onCancel}>
+                ביטול
               </Button>
             </div>
           </div>
         )}
 
-        {(step === 'sending' || step === 'done') && (
+        {run && (phase === 'sending' || phase === 'paused' || phase === 'done') && (
           <div className="space-y-4 py-2">
-            <h3 className="font-semibold">{step === 'done' ? '3. הסתיים' : '3. שולח…'}</h3>
-            <div className="flex flex-wrap gap-2 text-sm" aria-live="polite">
-              <span className="rounded-full bg-emerald-100 text-emerald-900 px-3 py-1 font-medium">נשלחו {sentSummary.sent}</span>
-              <span className={`rounded-full px-3 py-1 ${sentSummary.failed ? 'bg-red-100 text-red-900' : 'bg-muted'}`}>
-                נכשלו {sentSummary.failed}
-              </span>
-              <span className="rounded-full bg-muted px-3 py-1">דולגו {sentSummary.skipped}</span>
-              <span className="rounded-full border px-3 py-1 text-muted-foreground">
-                קבוצה {chunkProgress.done}/{chunkProgress.total}
-              </span>
-            </div>
-            {step === 'sending' && !paused && (
-              <div className="h-2 w-full rounded-full bg-muted overflow-hidden" role="progressbar"
-                aria-valuemin={0} aria-valuemax={chunkProgress.total} aria-valuenow={chunkProgress.done}>
-                <div
-                  className="h-full bg-primary transition-all"
-                  style={{ width: `${chunkProgress.total ? (chunkProgress.done / chunkProgress.total) * 100 : 0}%` }}
-                />
+            {/* While paused the ring gives way to the decision below, so the
+                counts it carried are shown here instead. */}
+            {paused !== null && (
+              <div className="flex flex-wrap gap-2 text-sm" aria-live="polite">
+                <span className="rounded-full bg-emerald-100 text-emerald-900 px-3 py-1 font-medium">נשלחו {sentSummary.sent}</span>
+                <span className={`rounded-full px-3 py-1 ${sentSummary.failed ? 'bg-red-100 text-red-900' : 'bg-muted'}`}>
+                  נכשלו {sentSummary.failed}
+                </span>
+                <span className="rounded-full bg-muted px-3 py-1">דולגו {sentSummary.skipped}</span>
+                <span className="rounded-full border px-3 py-1 text-muted-foreground">
+                  טופלו {sentRows.length} מתוך {total}
+                </span>
               </div>
             )}
-            {paused && (
+            {paused === null && (
+              <BroadcastProgress
+                phase="send"
+                done={sentRows.length}
+                total={total}
+                finished={phase === 'done'}
+                counts={[
+                  { label: 'נשלחו', value: sentSummary.sent, tone: 'sent' },
+                  { label: 'נכשלו', value: sentSummary.failed, tone: 'fail' },
+                  { label: 'דולגו', value: sentSummary.skipped, tone: 'skip' },
+                ]}
+              />
+            )}
+            {paused !== null && (
               <div className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm space-y-2">
                 <p className="font-medium flex items-center gap-2">
                   <AlertTriangle className="h-4 w-4" />
-                  קבוצה {paused.index + 1} לא ענתה בזמן — לא ידוע, ייתכן שנשלח חלקית.
+                  קבוצה {paused + 1} לא ענתה בזמן — לא ידוע, ייתכן שנשלח חלקית.
                 </p>
                 <p className="text-muted-foreground">
                   אפשר להמשיך לקבוצות הבאות (הקבוצה הזו לא תישלח שוב) או לעצור כאן.
                 </p>
                 <div className="flex gap-2">
-                  <Button type="button" size="sm" onClick={() => void sendChunksFrom(paused.index + 1)}>
+                  <Button type="button" size="sm" onClick={() => void run.resume()}>
                     המשך לקבוצה הבאה
                   </Button>
-                  <Button type="button" size="sm" variant="outline" onClick={() => { setStep('done'); onSent?.(); }}>
+                  <Button type="button" size="sm" variant="outline" onClick={() => run.stop()}>
                     עצור
                   </Button>
                 </div>
@@ -504,7 +469,8 @@ export default function BroadcastWhatsAppDialog({
                 ))}
               </div>
             )}
-            {step === 'done' && (
+            {phase === 'sending' && minimizeHint}
+            {phase === 'done' && (
               <div className="flex justify-start gap-2">
                 {sentSummary.failed > 0 && (
                   <Button type="button" variant="outline" onClick={copyFailures}>
@@ -512,7 +478,7 @@ export default function BroadcastWhatsAppDialog({
                     העתק את הכשלונות
                   </Button>
                 )}
-                <Button type="button" onClick={() => onOpenChange(false)}>סגור</Button>
+                <Button type="button" onClick={onDismiss}>סגור</Button>
               </div>
             )}
           </div>
