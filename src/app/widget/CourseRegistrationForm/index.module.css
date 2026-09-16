@@ -494,6 +494,18 @@
   line-height: 1.45;
   text-align: right;
 }
+/* Why the first month costs less. Same shape as the trial-credit note, in the
+   neutral blue the widget already uses for explanations rather than good news. */
+.prorateNote {
+  margin: 8px 0 0;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: #eef2fb;
+  color: #2b3090;
+  font-size: 0.82rem;
+  line-height: 1.45;
+  text-align: right;
+}
 .cardFields {
   @apply space-y-3;
 }

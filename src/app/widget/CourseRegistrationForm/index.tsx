@@ -456,6 +456,12 @@ export default function CourseRegistrationForm({
       prorated_amount: responses.reduce((sum, response) => sum + Number(response.prorated_amount ?? 0), 0),
       registration_fee: responses.reduce((sum, response) => sum + Number(response.registration_fee ?? 0), 0),
       monthly_amount: responses.reduce((sum, response) => sum + Number(response.monthly_amount ?? 0), 0),
+      // Two lessons on different weekdays have different counts, and summing
+      // them would say something untrue. Explained only when there is one.
+      prorate_lessons_remaining:
+        responses.length === 1 ? responses[0].prorate_lessons_remaining : undefined,
+      total_lessons_this_month:
+        responses.length === 1 ? responses[0].total_lessons_this_month : undefined,
       subscription_start_date: responses.find((response) => response.subscription_start_date)?.subscription_start_date,
       // Only one registration in a basket can hold the credit — the others see it
       // already taken — so summing gives the single amount that was applied.
@@ -480,6 +486,8 @@ export default function CourseRegistrationForm({
         prorated_amount: res.data.prorated_amount,
         registration_fee: res.data.registration_fee,
         monthly_amount: res.data.monthly_amount,
+        prorate_lessons_remaining: res.data.prorate_lessons_remaining,
+        total_lessons_this_month: res.data.total_lessons_this_month,
         subscription_start_date: res.data.subscription_start_date,
         trial_credit_amount: res.data.trial_credit_amount,
         trial_credit_paid: res.data.trial_credit_paid,
@@ -1804,10 +1812,23 @@ export default function CourseRegistrationForm({
             </>
           )}
           {(paymentData.prorated_amount ?? 0) > 0 && (
-            <div className={styles.summaryRow}>
-              <span>מנוי חודשי (יחסי)</span>
-              <span>{formatShekel(Number(paymentData.prorated_amount))}</span>
-            </div>
+            <>
+              <div className={styles.summaryRow}>
+                <span>
+                  החודש הנוכחי
+                  {(paymentData.prorate_lessons_remaining ?? 0) > 0
+                    && (paymentData.total_lessons_this_month ?? 0) > 0
+                    && ` \u2014 ${paymentData.prorate_lessons_remaining} מתוך ${paymentData.total_lessons_this_month} שיעורים`}
+                </span>
+                <span>{formatShekel(Number(paymentData.prorated_amount))}</span>
+              </div>
+              {monthlyAmount > 0 && Number(paymentData.prorated_amount) < monthlyAmount && (
+                <p className={styles.prorateNote}>
+                  נרשמתם באמצע החודש, ולכן החודש הראשון מחושב לפי השיעורים שנותרו —
+                  {' '}{formatShekel(Number(paymentData.prorated_amount))} במקום {formatShekel(monthlyAmount)}.
+                </p>
+              )}
+            </>
           )}
           {(paymentData.registration_fee ?? 0) > 0 && (
             <div className={styles.summaryRow}>

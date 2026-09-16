@@ -100,6 +100,11 @@ export interface PaymentResponse {
   base_amount: number;
   discount_amount: number;
   prorated_amount?: number;
+  /** How many of this month's lessons are still ahead, and how many it holds.
+      Returned by the server; the parent is owed the reason the first month
+      costs less, not just a smaller number. */
+  prorate_lessons_remaining?: number;
+  total_lessons_this_month?: number;
   registration_fee?: number;
   monthly_amount?: number;
   /** Set when monthly billing only starts later — nothing but דמי רישום is charged now. */
