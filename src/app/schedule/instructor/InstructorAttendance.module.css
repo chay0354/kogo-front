@@ -569,7 +569,7 @@
   .skeletonPill { animation: none; background: #f1effb; }
 }
 
-/* --- הוספת תלמיד שהגיע ללא רישום --- */
+/* --- הוספת תלמיד רפאים: ילד שהגיע ואינו ברשימת השיעור --- */
 
 /* Inside the list, so the list stays the only thing that scrolls: the register
    keeps its own height whether the form is open or shut, and the form rides the
@@ -705,16 +705,37 @@
   cursor: pointer;
 }
 
+/* A button now, not a label: the word "רפאים" explains nothing on its own, and
+   the instructor meets it on a child they did not put there. Underlined so it
+   reads as something to tap rather than a badge to ignore. */
 .walkInTag {
   display: inline-block;
   margin-inline-start: 8px;
   padding: 2px 8px;
+  border: none;
   border-radius: 999px;
   background: rgba(245, 197, 24, 0.22);
   color: #8a6d00;
   font-size: 11px;
   font-weight: 700;
+  font-family: inherit;
   vertical-align: middle;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.walkInTag:active {
+  background: rgba(245, 197, 24, 0.38);
+}
+
+/* The explanation behind the tag. */
+.ghostHint {
+  margin: 8px 0 0;
+  color: #4b5563;
+  font-size: 13px;
+  line-height: 1.55;
+  text-align: right;
 }
 
 /* Quiet next to the tag it follows: removing is the rare correction, not the
