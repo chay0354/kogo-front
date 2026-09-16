@@ -21,6 +21,7 @@ export const CHILD_STATUSES = [
   'trial_completed',
   'pending',
   'payment_problem',
+  'inactive',
   'ghost',
 ] as const;
 
@@ -52,6 +53,11 @@ const STATUS_DETAILS: Record<ChildStatusValue, ChildStatus> = {
     description: 'בעיה באשראי — החיוב לא עבר',
     hebrewStatus: 'בעיה באשראי',
   },
+  inactive: {
+    color: 'black',
+    description: 'לא פעיל — היה לו משהו, הוא בוטל, ולא נשאר כלום',
+    hebrewStatus: 'לא פעיל',
+  },
   ghost: {
     color: 'blue',
     description: 'רפאים — תלמיד מזדמן שהמדריך הוסיף',
@@ -62,9 +68,8 @@ const STATUS_DETAILS: Record<ChildStatusValue, ChildStatus> = {
 /** Statuses written before the list was settled, and what they read as now. */
 const LEGACY_STATUS_ALIASES: Record<string, ChildStatusValue> = {
   not_paid: 'payment_problem',
-  inactive: 'pending',
-  non_active: 'pending',
-  expired: 'pending',
+  non_active: 'inactive',
+  expired: 'inactive',
   trial: 'trial_completed',
 };
 
