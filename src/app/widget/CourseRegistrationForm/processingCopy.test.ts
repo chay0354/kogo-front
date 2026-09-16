@@ -36,3 +36,33 @@ describe('processingCopy', () => {
     }
   });
 });
+
+describe('a paid trial gets one state, not a procedure', () => {
+  it('shows no steps at all', () => {
+    expect(processingCopy('trial_charge', 0).steps).toEqual([]);
+    expect(processingCopy('trial_charge', 30_000).steps).toEqual([]);
+  });
+
+  it('says what it is doing and nothing more', () => {
+    expect(processingCopy('trial_charge', 0).title).toBe('מעבד פרטי תשלום');
+  });
+
+  it('keeps the same title however long the wait runs', () => {
+    // The charge → verify hand-off passes through here too. A title that
+    // changes mid-wait reads as something going wrong.
+    const titles = [0, 3_000, 10_000, 45_000].map((ms) => processingCopy('trial_charge', ms).title);
+    expect(new Set(titles).size).toBe(1);
+  });
+
+  it('still warns against closing the page or paying twice', () => {
+    // Dropping the steps must not drop the protection: a parent who presses
+    // again mid-charge can be charged twice on a trial exactly as on a plan.
+    expect(processingCopy('trial_charge', 0).subtitle).toContain('אל תלחצו שוב');
+    expect(processingCopy('trial_charge', 45_000).slowNote).toContain('אל תשלמו שוב');
+  });
+
+  it('leaves the subscription flow with its steps', () => {
+    expect(processingCopy('charge', 0).steps.length).toBe(3);
+    expect(processingCopy('register', 0).steps.length).toBe(3);
+  });
+});
