@@ -9,8 +9,15 @@
  * (`verify`, polled for up to a minute). Each gets its own steps, and the step
  * list advances on elapsed time so the screen visibly moves even though the
  * server sends nothing until it is done.
+ *
+ * A paid trial is the exception and uses `trial_charge` throughout, including
+ * across the charge → verify hand-off. It is one small payment, not a
+ * subscription being set up, so it gets one unchanging state with no step list:
+ * the same ring and bar, and the single line "מעבד פרטי תשלום". Narrating three
+ * stages of work a parent is not buying makes a short wait feel like a long
+ * procedure, and a title that changes mid-wait reads as something going wrong.
  */
-export type ProcessingPhase = 'register' | 'charge' | 'verify';
+export type ProcessingPhase = 'register' | 'charge' | 'verify' | 'trial_charge';
 
 export interface ProcessingCopy {
   title: string;
@@ -27,9 +34,15 @@ const STEP_STARTS_MS: Record<ProcessingPhase, number[]> = {
   register: [0, 2_500, 6_000],
   charge: [0, 3_000, 7_000],
   verify: [0, 0, 0],
+  trial_charge: [],
 };
 
 const STEPS: Record<ProcessingPhase, string[]> = {
+  // Deliberately none. A trial is a single small payment, over in a moment —
+  // a three-step list narrating a subscription's work makes a short wait feel
+  // like a long procedure, and the steps would be describing something the
+  // parent is not buying.
+  trial_charge: [],
   register: [
     'שומרים את פרטי ההורה והילד',
     'מחשבים את המחיר וההנחות',
@@ -48,12 +61,17 @@ const STEPS: Record<ProcessingPhase, string[]> = {
 };
 
 const TITLES: Record<ProcessingPhase, string> = {
+  trial_charge: 'מעבד פרטי תשלום',
   register: 'רושמים את הפרטים',
   charge: 'מבצעים את התשלום',
   verify: 'מאמתים את אישור התשלום',
 };
 
 const SUBTITLES: Record<ProcessingPhase, string> = {
+  // Kept to one line. The warning itself stays: a parent who closes the page or
+  // presses again mid-charge can be charged twice, and that is true of a trial
+  // exactly as it is of a subscription.
+  trial_charge: 'אל תסגרו את הדף ואל תלחצו שוב.',
   register: 'זה לוקח כמה שניות. אל תסגרו את הדף.',
   charge: 'הכרטיס נשלח לסליקה. אל תסגרו את הדף ואל תלחצו שוב.',
   verify: 'הכרטיס כבר נשלח. אל תשלמו שוב — ההרשמה תושלם ברגע שהאישור יגיע.',

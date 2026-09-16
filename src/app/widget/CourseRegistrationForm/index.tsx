@@ -1755,7 +1755,11 @@ export default function CourseRegistrationForm({
   if (step === 'payment' && paymentData && charging) {
     return (
       <ProcessingPanel
-        phase={chargePhase}
+        // A paid trial holds one state from the first click to the last, the
+        // charge → verify hand-off included. It is a single small payment, and
+        // a screen that renames itself halfway through a short wait reads as
+        // something having gone wrong.
+        phase={isTrial && trialLessonIsPaid ? 'trial_charge' : chargePhase}
         amountLabel={`₪${Number(paymentData.final_amount).toFixed(2)}`}
       />
     );

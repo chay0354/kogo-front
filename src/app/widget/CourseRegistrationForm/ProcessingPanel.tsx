@@ -51,6 +51,7 @@ export default function ProcessingPanel({ phase, amountLabel }: Props) {
         <span className={styles.barFill} />
       </div>
 
+      {copy.steps.length > 0 && (
       <ol className={styles.steps}>
         {copy.steps.map((label, index) => {
           const state = index < copy.activeStep ? 'done' : index === copy.activeStep ? 'active' : 'todo';
@@ -64,6 +65,7 @@ export default function ProcessingPanel({ phase, amountLabel }: Props) {
           );
         })}
       </ol>
+      )}
 
       {copy.slowNote && <p className={styles.slowNote}>{copy.slowNote}</p>}
     </div>
