@@ -57,6 +57,7 @@ const STATUS_OPTIONS = [
   { value: 'trial_completed', label: 'ביצע ניסיון' },
   { value: 'payment_problem', label: 'בעיה באשראי' },
   { value: 'pending', label: 'בתהליך רישום' },
+  { value: 'inactive', label: 'לא פעיל' },
   { value: 'ghost', label: 'רפאים' },
 ];
 
@@ -1035,6 +1036,7 @@ export default function CustomersPage() {
               <option value="trial_completed">ביצע ניסיון</option>
               <option value="payment_problem">בעיה באשראי</option>
               <option value="pending">בתהליך רישום</option>
+              <option value="inactive">לא פעיל</option>
               <option value="ghost">רפאים</option>
             </select>
           </div>

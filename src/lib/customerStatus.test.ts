@@ -20,15 +20,24 @@ function child(over: Record<string, unknown>): ChildWithDetails {
 }
 
 describe('the list of statuses', () => {
-  it('is exactly the six that exist', () => {
+  it('is exactly the seven that exist', () => {
     expect([...CHILD_STATUSES]).toEqual([
       'active',
       'trial_signed',
       'trial_completed',
       'pending',
       'payment_problem',
+      'inactive',
       'ghost',
     ]);
+  });
+
+  it('keeps בתהליך רישום and לא פעיל apart', () => {
+    // One never finished registering; the other had something and it was
+    // cancelled. Reading the same label for both is what made "לא פעיל"
+    // look redundant in the first place.
+    expect(getChildStatus(child({ status: 'pending' })).hebrewStatus).toBe('בתהליך רישום');
+    expect(getChildStatus(child({ status: 'inactive' })).hebrewStatus).toBe('לא פעיל');
   });
 
   it('gives each of them a Hebrew label', () => {
@@ -50,9 +59,9 @@ describe('statuses written before the list was settled', () => {
     expect(getChildStatus(child({ status: 'not_paid' })).hebrewStatus).toBe('בעיה באשראי');
   });
 
-  it('does not leave inactive or expired showing "לא מוגדר"', () => {
-    for (const legacy of ['inactive', 'non_active', 'expired', 'trial']) {
-      expect(getChildStatus(child({ status: legacy })).hebrewStatus).not.toBe('לא מוגדר');
+  it('reads non_active and expired as לא פעיל', () => {
+    for (const legacy of ['non_active', 'expired']) {
+      expect(getChildStatus(child({ status: legacy })).hebrewStatus).toBe('לא פעיל');
     }
   });
 
