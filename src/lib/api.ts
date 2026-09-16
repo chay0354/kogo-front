@@ -637,7 +637,46 @@ export interface TrialBlockedDate {
   reason: string;
   created_by_name: string;
   created_at: string;
+  /** Empty = the whole day is closed. Otherwise only these lessons are. */
+  lessons_detail?: BlockedLesson[];
 }
+
+export interface BlockedLesson {
+  id: string;
+  course_name: string;
+  branch_name: string;
+  day_name: string;
+  start_time: string;
+}
+
+/** A lesson that actually meets on the chosen date, for the picker. */
+export interface TrialLessonOnDate {
+  id: string;
+  course_id: string;
+  course_name: string;
+  branch_id: string | null;
+  branch_name: string;
+  instructor_name: string;
+  day_name: string;
+  start_time: string;
+  end_time: string;
+  /** Filter value for the age band. */
+  age_key: string;
+  /** Read as a school stage, not as years — see courses/age_stages.py. */
+  age_label: string;
+}
+
+export const fetchTrialLessonsOnDate = async (
+  date: string,
+  filters: { branch_id?: string; course_id?: string; age_key?: string } = {},
+): Promise<TrialLessonOnDate[]> => {
+  const params = new URLSearchParams({ date });
+  for (const [key, value] of Object.entries(filters)) {
+    if (value && value !== 'all') params.append(key, value);
+  }
+  const res = await api.get(`/enrollments/trial-blocked-dates/lessons-on-date/?${params}`);
+  return res.data?.lessons ?? [];
+};
 
 export const fetchTrialBlockedDates = async (): Promise<TrialBlockedDate[]> => {
   const res = await api.get('/enrollments/trial-blocked-dates/');
@@ -651,7 +690,7 @@ export const fetchConfiguredTrialBlockedDates = async (): Promise<string[]> => {
 };
 
 export const createTrialBlockedDate = async (
-  data: { date: string; reason?: string },
+  data: { date: string; reason?: string; lesson_ids?: string[] },
 ): Promise<TrialBlockedDate & { moved: number; unmoved: number }> => {
   const res = await api.post('/enrollments/trial-blocked-dates/', data);
   return res.data;

@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { CalendarX2, ChevronLeft, ChevronRight, Loader2, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import BlockTrialDateDialog from './BlockTrialDateDialog';
 import {
   createTrialBlockedDate,
   deleteTrialBlockedDate,
@@ -47,11 +48,12 @@ export default function TrialBlockedDatesSection() {
     const now = new Date();
     return new Date(now.getFullYear(), now.getMonth(), 1);
   });
-  const [reason, setReason] = useState('');
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
+  /** The day the office clicked, waiting on "all courses or some of them". */
+  const [pending, setPending] = useState<string | null>(null);
 
   async function load() {
     setLoading(true);
@@ -84,24 +86,34 @@ export default function TrialBlockedDatesSection() {
     return [...blanks, ...days];
   }, [month]);
 
-  async function block(date: string) {
+  async function block(date: string, choice: { reason: string; lessonIds: string[] }) {
     setBusy(date);
     setNotice('');
     try {
-      const created = await createTrialBlockedDate({ date, reason: reason.trim() });
+      const created = await createTrialBlockedDate({
+        date,
+        reason: choice.reason,
+        lesson_ids: choice.lessonIds,
+      });
       setRows((prev) => [...prev, created].sort((a, b) => a.date.localeCompare(b.date)));
-      setReason('');
+      setPending(null);
       const parts = [];
+      if (choice.lessonIds.length) {
+        parts.push(`${choice.lessonIds.length} שיעורים נחסמו ביום הזה`);
+      }
       if (created.moved === 1) parts.push('שיעור ניסיון אחד הועבר לתאריך הבא');
       if (created.moved > 1) parts.push(`${created.moved} שיעורי ניסיון הועברו לתאריך הבא`);
       if (created.unmoved === 1) parts.push('שיעור ניסיון אחד לא ניתן היה להעביר — יש לטפל ידנית');
       if (created.unmoved > 1) parts.push(`${created.unmoved} לא ניתן היה להעביר — יש לטפל ידנית`);
       setNotice(parts.length ? parts.join(' · ') : 'התאריך נחסם');
       setError('');
-    } catch {
+    } catch (err) {
       setError('חסימת התאריך נכשלה');
       // Another manager may have blocked it meanwhile — show what is really there.
       void load();
+      // Back to the dialog, which keeps the tick list: re-picking a dozen
+      // lessons because the save failed once is its own small punishment.
+      throw err;
     } finally {
       setBusy(null);
     }
@@ -159,9 +171,11 @@ export default function TrialBlockedDatesSection() {
                 const office = officeByDate.get(key);
                 const fixed = configuredSet.has(key);
                 const past = key < today;
+                const partial = Boolean(office?.lessons_detail?.length);
                 const classes = [
                   'h-10 rounded-md text-sm border transition-colors',
-                  office ? 'bg-red-100 border-red-300 text-red-800 font-medium' : '',
+                  office && !partial ? 'bg-red-100 border-red-300 text-red-800 font-medium' : '',
+                  partial ? 'bg-amber-100 border-amber-300 text-amber-900 font-medium' : '',
                   fixed ? 'bg-gray-200 border-gray-300 text-gray-500' : '',
                   !office && !fixed && !past ? 'hover:bg-red-50 border-transparent' : '',
                   past && !office && !fixed ? 'text-gray-300 border-transparent' : '',
@@ -172,10 +186,14 @@ export default function TrialBlockedDatesSection() {
                     type="button"
                     className={classes}
                     disabled={busy !== null || fixed || (past && !office)}
-                    title={fixed ? 'מוגדר בקונפיגורציה' : office ? (office.reason || 'חסום') : ''}
-                    aria-label={`${hebrewDate(key)}${office ? ' — חסום' : fixed ? ' — מוגדר בקונפיגורציה' : ''}`}
+                    title={
+                      fixed ? 'מוגדר בקונפיגורציה'
+                        : partial ? `${office?.lessons_detail?.length} שיעורים חסומים${office?.reason ? ` — ${office.reason}` : ''}`
+                        : office ? (office.reason || 'חסום') : ''
+                    }
+                    aria-label={`${hebrewDate(key)}${partial ? ' — חלק מהשיעורים חסומים' : office ? ' — חסום לכל החוגים' : fixed ? ' — מוגדר בקונפיגורציה' : ''}`}
                     aria-pressed={Boolean(office)}
-                    onClick={() => (office ? unblock(office) : block(key))}
+                    onClick={() => (office ? unblock(office) : setPending(key))}
                   >
                     {busy === key ? <Loader2 className="h-4 w-4 animate-spin mx-auto" /> : day.getDate()}
                   </button>
@@ -183,18 +201,10 @@ export default function TrialBlockedDatesSection() {
               })}
             </div>
             <div className="mt-3 flex items-center gap-3 text-xs text-muted-foreground">
-              <span className="inline-block h-3 w-3 rounded bg-red-100 border border-red-300" /> נחסם במשרד
+              <span className="inline-block h-3 w-3 rounded bg-red-100 border border-red-300" /> כל החוגים
+              <span className="inline-block h-3 w-3 rounded bg-amber-100 border border-amber-300" /> חלק מהשיעורים
               <span className="inline-block h-3 w-3 rounded bg-gray-200 border border-gray-300" /> מוגדר בקונפיגורציה
             </div>
-            <label className="block mt-4">
-              <span className="text-sm">סיבה לחסימה הבאה (לא חובה)</span>
-              <input
-                className="mt-1 w-full rounded-md border px-3 py-2 text-sm"
-                placeholder="למשל: ראש השנה"
-                value={reason}
-                onChange={(e) => setReason(e.target.value)}
-              />
-            </label>
           </div>
 
           <div>
@@ -205,9 +215,21 @@ export default function TrialBlockedDatesSection() {
               <ul className="divide-y rounded-lg border">
                 {upcoming.map((row) => (
                   <li key={row.id} className="flex items-center justify-between gap-3 px-3 py-2 text-sm">
-                    <div>
+                    <div className="min-w-0">
                       <span className="font-medium">{hebrewDate(row.date, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</span>
                       {row.reason && <span className="text-muted-foreground"> · {row.reason}</span>}
+                      {/* A row that names lessons closed only those. Saying so
+                          here is the whole point: "blocked" on its own would
+                          read as the day being shut. */}
+                      {row.lessons_detail && row.lessons_detail.length > 0 ? (
+                        <span className="mt-0.5 block text-xs text-muted-foreground">
+                          {row.lessons_detail.length} שיעורים ·{' '}
+                          {row.lessons_detail.map((l) => l.course_name).slice(0, 3).join(', ')}
+                          {row.lessons_detail.length > 3 ? ' ועוד' : ''}
+                        </span>
+                      ) : (
+                        <span className="mt-0.5 block text-xs text-muted-foreground">כל החוגים</span>
+                      )}
                     </div>
                     <Button variant="ghost" size="sm" onClick={() => unblock(row)} disabled={busy !== null} aria-label="פתיחה מחדש">
                       <Trash2 className="h-4 w-4" />
@@ -223,6 +245,15 @@ export default function TrialBlockedDatesSection() {
             )}
           </div>
         </div>
+      )}
+
+      {pending && (
+        <BlockTrialDateDialog
+          date={pending}
+          dateLabel={hebrewDate(pending, { weekday: 'long', day: 'numeric', month: 'long' })}
+          onCancel={() => setPending(null)}
+          onConfirm={(choice) => block(pending, choice)}
+        />
       )}
 
       {notice && <p className="mt-4 text-sm text-emerald-700">{notice}</p>}
