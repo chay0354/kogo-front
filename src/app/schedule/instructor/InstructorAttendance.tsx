@@ -53,6 +53,9 @@ export default function InstructorAttendance({
   const [contact, setContact] = useState<{ name: string; phone: string } | null>(null);
   // The walk-in whose removal is waiting to be confirmed.
   const [removing, setRemoving] = useState<{ id: string; child_id: string; name: string } | null>(null);
+  // Instructors meet this tag on a child they did not put there, and the word
+  // alone explains nothing. Tapping it says what a ghost is and what to do.
+  const [ghostInfo, setGhostInfo] = useState<string | null>(null);
   const [isRemoving, setIsRemoving] = useState(false);
   const addFormRef = useRef<HTMLDivElement>(null);
 
@@ -115,11 +118,12 @@ export default function InstructorAttendance({
   useEffect(() => {
     if (!onOverlayChange) return;
     if (removing) onOverlayChange(() => setRemoving(null));
+    if (ghostInfo) onOverlayChange(() => setGhostInfo(null));
     else if (contact) onOverlayChange(() => setContact(null));
     else if (addOpen) onOverlayChange(() => setAddOpen(false));
     else onOverlayChange(null);
     return () => onOverlayChange(null);
-  }, [removing, contact, addOpen, onOverlayChange]);
+  }, [removing, ghostInfo, contact, addOpen, onOverlayChange]);
 
   /* The form is revealed below a list that can be longer than the screen. The
      layout keeps it on screen on its own, but a short phone with a long header
@@ -317,7 +321,14 @@ export default function InstructorAttendance({
                         )
                       )}
                       {student.child_status === 'ghost' && (
-                        <span className={styles.walkInTag}>הגיע ללא רישום</span>
+                        <button
+                          type="button"
+                          className={styles.walkInTag}
+                          onClick={() => setGhostInfo(student.child_name)}
+                          aria-label="תלמיד רפאים — למה הוא מופיע כאן"
+                        >
+                          תלמיד רפאים
+                        </button>
                       )}
                       {/* Only on a walk-in. A registered child belongs to the
                           office, and this screen offers no way to remove one. */}
@@ -468,6 +479,42 @@ export default function InstructorAttendance({
       </div>
       {contact && (
         <ContactSheet name={contact.name} phone={contact.phone} onClose={() => setContact(null)} />
+      )}
+
+      {ghostInfo && (
+        <div
+          className={styles.contactScrim}
+          role="dialog"
+          aria-modal="true"
+          aria-label="תלמיד רפאים"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setGhostInfo(null);
+          }}
+        >
+          <div className={styles.contactBox}>
+            <div className={styles.contactName}>{ghostInfo}</div>
+            <p className={styles.ghostHint}>
+              הילד הזה לא נמצא ברשימת השיעור — מישהו הוסיף אותו כאן כדי שאפשר יהיה
+              לסמן לו נוכחות.
+            </p>
+            <p className={styles.ghostHint}>
+              הוא לא נספר בקיבולת השיעור, לא מחויב בכלום, ולא מקבל הודעות. הוא מוצג
+              רק לשיעורים הקרובים, ונעלם מעצמו ברגע שהמשרד רושם אותו כתלמיד.
+            </p>
+            <p className={styles.ghostHint}>
+              אם הוא ממשיך להגיע — כדאי לומר למשרד שירשמו אותו.
+            </p>
+            <div className={styles.removeActions}>
+              <button
+                type="button"
+                className={styles.contactCancel}
+                onClick={() => setGhostInfo(null)}
+              >
+                הבנתי
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {removing && (
