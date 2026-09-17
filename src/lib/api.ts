@@ -654,6 +654,9 @@ export interface TrialLessonOnDate {
   id: string;
   course_id: string;
   course_name: string;
+  /** The kind of class — קפוארה, ריקוד — the filter the office picks by. */
+  course_type_id: string | null;
+  course_type_name: string;
   branch_id: string | null;
   branch_name: string;
   instructor_name: string;

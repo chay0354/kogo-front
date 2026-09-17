@@ -18,6 +18,18 @@ interface Props {
 const ALL = 'all';
 
 /**
+ * Sort key for an age band '5-6': by its youngest stage, then its oldest, so
+ * 'גן 3-4.5' comes before 'גן 3-4.5–גן 4.5-6'. Unknowns last.
+ */
+function ageOrder(key: string): number {
+  const [lowRaw, highRaw] = key.split('-');
+  const low = Number.parseInt(lowRaw ?? '', 10);
+  const high = Number.parseInt(highRaw ?? '', 10);
+  if (!Number.isFinite(low)) return 1_000_000;
+  return low * 100 + (Number.isFinite(high) ? high : 99);
+}
+
+/**
  * Closing a date for trials — for everything, or for chosen lessons.
  *
  * The two answers are asked before anything is written, because they are not
@@ -39,7 +51,7 @@ export default function BlockTrialDateDialog({ date, dateLabel, onCancel, onConf
   const [error, setError] = useState('');
 
   const [branch, setBranch] = useState(ALL);
-  const [course, setCourse] = useState(ALL);
+  const [kind, setKind] = useState(ALL);
   const [age, setAge] = useState(ALL);
 
   // Loaded once for the date; the filters below narrow it in the browser so
@@ -63,24 +75,48 @@ export default function BlockTrialDateDialog({ date, dateLabel, onCancel, onConf
     };
   }, [scope, date, lessons.length]);
 
-  const options = useMemo(() => {
-    const byId = <T extends { id: string; label: string }>(rows: T[]) =>
-      [...new Map(rows.map((r) => [r.id, r])).values()].sort((a, b) => a.label.localeCompare(b.label, 'he'));
-    return {
-      branches: byId(lessons.filter((l) => l.branch_id).map((l) => ({ id: l.branch_id as string, label: l.branch_name }))),
-      courses: byId(lessons.map((l) => ({ id: l.course_id, label: l.course_name }))),
-      ages: byId(lessons.filter((l) => l.age_key).map((l) => ({ id: l.age_key, label: l.age_label }))),
-    };
-  }, [lessons]);
-
-  const shown = useMemo(
-    () => lessons.filter((l) => (
-      (branch === ALL || l.branch_id === branch)
-      && (course === ALL || l.course_id === course)
-      && (age === ALL || l.age_key === age)
-    )),
-    [lessons, branch, course, age],
+  // The filters narrow in order — branch, then kind of class, then age — and
+  // each one offers only what is left after the ones before it. Independent
+  // lists let the office pick a class that does not run in the chosen branch
+  // and be told "no lessons match", with no hint why.
+  const inBranch = useMemo(
+    () => lessons.filter((l) => branch === ALL || l.branch_id === branch),
+    [lessons, branch],
   );
+  const inKind = useMemo(
+    () => inBranch.filter((l) => kind === ALL || l.course_type_id === kind),
+    [inBranch, kind],
+  );
+  const shown = useMemo(
+    () => inKind.filter((l) => age === ALL || l.age_key === age),
+    [inKind, age],
+  );
+
+  const options = useMemo(() => {
+    const unique = (rows: { id: string; label: string }[]) =>
+      [...new Map(rows.map((r) => [r.id, r])).values()];
+    return {
+      branches: unique(
+        lessons.filter((l) => l.branch_id).map((l) => ({ id: l.branch_id as string, label: l.branch_name })),
+      ).sort((a, b) => a.label.localeCompare(b.label, 'he')),
+      kinds: unique(
+        inBranch.filter((l) => l.course_type_id).map((l) => ({ id: l.course_type_id as string, label: l.course_type_name })),
+      ).sort((a, b) => a.label.localeCompare(b.label, 'he')),
+      // Youngest first, the order a timetable reads in — not alphabetical,
+      // which would put כיתה א after גן.
+      ages: unique(inKind.filter((l) => l.age_key).map((l) => ({ id: l.age_key, label: l.age_label })))
+        .sort((a, b) => ageOrder(a.id) - ageOrder(b.id)),
+    };
+  }, [lessons, inBranch, inKind]);
+
+  // A narrower choice upstream can leave a later filter pointing at something
+  // no longer on offer; drop it rather than show an empty list.
+  useEffect(() => {
+    if (kind !== ALL && !options.kinds.some((o) => o.id === kind)) setKind(ALL);
+  }, [kind, options.kinds]);
+  useEffect(() => {
+    if (age !== ALL && !options.ages.some((o) => o.id === age)) setAge(ALL);
+  }, [age, options.ages]);
 
   function toggle(id: string) {
     setPicked((prev) => {
@@ -175,7 +211,7 @@ export default function BlockTrialDateDialog({ date, dateLabel, onCancel, onConf
                   <div className="grid gap-2 sm:grid-cols-3">
                     {([
                       ['סניף', branch, setBranch, options.branches],
-                      ['חוג', course, setCourse, options.courses],
+                      ['חוג', kind, setKind, options.kinds],
                       ['גיל', age, setAge, options.ages],
                     ] as const).map(([label, value, set, opts]) => (
                       <label key={label} className="text-sm">
