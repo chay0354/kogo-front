@@ -1,8 +1,8 @@
 'use client';
 
-import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import PageHeader from '@/components/PageHeader';
+import { LiquidGlassTabBar } from '@/components/liquid-glass';
 import { SETTINGS_TABS } from './settingsTabs';
 
 /**
@@ -19,29 +19,17 @@ export default function SettingsLayout({ children }: { children: React.ReactNode
   return (
     <>
       <PageHeader title="הגדרות" description={active?.description ?? 'ניהול המערכת לפי נושא'} />
-      <nav aria-label="קטגוריות הגדרות" className="mb-6 -mt-2 sm:-mt-4 animate-fade-in">
-        <ul className="flex flex-wrap gap-1 rounded-lg bg-muted/40 p-1" role="tablist">
-          {SETTINGS_TABS.map((tab) => {
-            const isActive = active?.href === tab.href;
-            return (
-              <li key={tab.href} role="presentation">
-                <Link
-                  href={tab.href}
-                  role="tab"
-                  aria-selected={isActive}
-                  className={`inline-flex items-center rounded-md px-3 py-1.5 text-sm transition-colors ${
-                    isActive
-                      ? 'bg-background text-foreground shadow-sm font-semibold'
-                      : 'text-muted-foreground hover:text-foreground hover:bg-background/60'
-                  }`}
-                >
-                  {tab.label}
-                </Link>
-              </li>
-            );
-          })}
-        </ul>
-      </nav>
+      {/*
+        The category bar is the settings hub's navigation layer, so it is the one
+        thing here made of Liquid Glass: it floats, stays pinned, and the page's
+        content scrolls beneath it — which is what gives the glass something to
+        bend. Everything under it stays plain content. The wrapper carries no
+        opacity animation of its own: an element fading in is, for that moment, a
+        backdrop root, and glass inside one cannot see the page.
+      */}
+      <div className="sticky top-16 sm:top-3 z-30 mb-6 -mt-2 sm:-mt-4">
+        <LiquidGlassTabBar tabs={SETTINGS_TABS} activeHref={active?.href} ariaLabel="קטגוריות הגדרות" />
+      </div>
       {children}
     </>
   );
