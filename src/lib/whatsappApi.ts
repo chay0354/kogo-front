@@ -51,6 +51,19 @@ export async function fetchWhatsAppContacts(filters?: {
   return (res.data?.contacts || []) as WhatsAppContact[];
 }
 
+/**
+ * Link a phone to its ManyChat contact by hand.
+ *
+ * ManyChat's API cannot search by WhatsApp number, so a parent who first wrote
+ * to the business on WhatsApp can exist there and still be unreachable — the
+ * broadcast row says 'contact_unfindable'. `contact` is the contact's address
+ * in ManyChat (or its id). The server refuses a contact of another number.
+ */
+export async function linkManyChatContact(phone: string, contact: string) {
+  const res = await api.post('/core/whatsapp/link-contact/', { phone, contact });
+  return res.data as { subscriber_id: number; display_name: string; phone_verified: boolean };
+}
+
 export async function resolveWhatsAppSubscriber(phone: string, name: string) {
   const res = await api.post('/core/whatsapp/resolve/', { phone, name });
   return res.data as {
@@ -211,7 +224,8 @@ export type BroadcastRow = {
   parent_name: string;
   phone: string;
   status: BroadcastRowStatus;
-  reason?: 'no_parent_phone' | 'duplicate_phone' | 'no_active_lesson' | null;
+  /** Why a row was skipped — or, on a failed row, 'contact_unfindable' when it can be fixed by linking the contact. */
+  reason?: 'no_parent_phone' | 'duplicate_phone' | 'no_active_lesson' | 'contact_unfindable' | null;
   method?: string | null;
   error?: string | null;
 };

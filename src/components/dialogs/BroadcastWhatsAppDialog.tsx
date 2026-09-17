@@ -7,6 +7,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogCloseButton } f
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import BroadcastProgress from '@/components/broadcast/BroadcastProgress';
+import LinkContactPanel from '@/components/broadcast/LinkContactPanel';
 import type { BroadcastDraft } from '@/components/broadcast/BroadcastRunProvider';
 import {
   previewCounts,
@@ -99,6 +100,9 @@ export default function BroadcastWhatsAppDialog({
   const [automationValue, setAutomationValue] = useState('');
   const [loadError, setLoadError] = useState('');
   const [confirmed, setConfirmed] = useState(false);
+  // Phones linked to their ManyChat contact from this run's failed rows, with
+  // the name ManyChat has for the contact.
+  const [linked, setLinked] = useState<Record<string, string>>({});
 
   const selectedAutomation = useMemo(() => {
     const parsed = parseAutomationValue(automationValue);
@@ -113,6 +117,7 @@ export default function BroadcastWhatsAppDialog({
   // The confirmation belongs to one preview: a new run starts unticked.
   useEffect(() => {
     setConfirmed(false);
+    setLinked({});
   }, [run]);
 
   // The automation list is fetched once per selection, the first time the
@@ -449,22 +454,31 @@ export default function BroadcastWhatsAppDialog({
             {sentRows.length > 0 && (
               <div className="max-h-64 overflow-y-auto rounded-lg border divide-y text-sm">
                 {sentRows.map((row) => (
-                  <div key={row.child_id} className="flex items-center justify-between gap-3 px-3 py-2">
-                    <div className="min-w-0">
-                      <span className="font-medium">{nameFor(row)}</span>
-                      {row.parent_name && <span className="text-muted-foreground"> · {row.parent_name}</span>}
+                  <div key={row.child_id} className="px-3 py-2 space-y-2">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="min-w-0">
+                        <span className="font-medium">{nameFor(row)}</span>
+                        {row.parent_name && <span className="text-muted-foreground"> · {row.parent_name}</span>}
+                      </div>
+                      <span
+                        className={
+                          row.status === 'sent'
+                            ? 'text-emerald-700'
+                            : row.status === 'failed'
+                              ? 'text-red-700'
+                              : 'text-muted-foreground'
+                        }
+                      >
+                        {rowStatusLabel(row)}
+                      </span>
                     </div>
-                    <span
-                      className={
-                        row.status === 'sent'
-                          ? 'text-emerald-700'
-                          : row.status === 'failed'
-                            ? 'text-red-700'
-                            : 'text-muted-foreground'
-                      }
-                    >
-                      {rowStatusLabel(row)}
-                    </span>
+                    {row.status === 'failed' && row.reason === 'contact_unfindable' && row.phone && (
+                      <LinkContactPanel
+                        phone={row.phone}
+                        linkedAs={linked[row.phone]}
+                        onLinked={(displayName) => setLinked((prev) => ({ ...prev, [row.phone]: displayName }))}
+                      />
+                    )}
                   </div>
                 ))}
               </div>
