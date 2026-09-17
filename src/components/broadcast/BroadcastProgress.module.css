@@ -1,0 +1,184 @@
+/*
+ * The broadcast progress screen.
+ *
+ * The percentage is real: both phases already run in chunks, so it moves when
+ * a chunk comes back and not on a timer. What the animation adds is only the
+ * glide between two true values, so a jump from 40% to 48% reads as progress
+ * rather than as a flicker.
+ */
+
+.wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 18px;
+  padding: 28px 8px 12px;
+  text-align: center;
+}
+
+.ringBox {
+  position: relative;
+  width: 168px;
+  height: 168px;
+}
+
+.ring {
+  width: 100%;
+  height: 100%;
+  transform: rotate(-90deg);
+}
+
+.track {
+  fill: none;
+  stroke: hsl(var(--muted));
+  stroke-width: 10;
+}
+
+.bar {
+  fill: none;
+  stroke-width: 10;
+  stroke-linecap: round;
+  transition: stroke-dashoffset 600ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.barCheck {
+  stroke: #2b3090;
+}
+
+.barSend {
+  stroke: #16a34a;
+}
+
+/* A soft glow that breathes while work is still happening. */
+.glow {
+  position: absolute;
+  inset: 14px;
+  border-radius: 50%;
+  animation: breathe 2.2s ease-in-out infinite;
+  pointer-events: none;
+}
+
+.glowCheck {
+  box-shadow: 0 0 0 0 rgba(43, 48, 144, 0.28);
+}
+
+.glowSend {
+  box-shadow: 0 0 0 0 rgba(22, 163, 74, 0.28);
+}
+
+@keyframes breathe {
+  0%, 100% { box-shadow: 0 0 0 0 var(--glow, rgba(43, 48, 144, 0.22)); }
+  50% { box-shadow: 0 0 0 14px rgba(0, 0, 0, 0); }
+}
+
+.center {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+}
+
+.percent {
+  font-size: 2.6rem;
+  font-weight: 800;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  color: hsl(var(--foreground));
+}
+
+.percentSign {
+  font-size: 1.2rem;
+  font-weight: 700;
+  margin-inline-start: 2px;
+  color: hsl(var(--muted-foreground));
+}
+
+.icon {
+  color: hsl(var(--muted-foreground));
+}
+
+/* The icon swaps to a check when the phase completes. */
+.done .icon {
+  color: #16a34a;
+  animation: pop 420ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes pop {
+  0% { transform: scale(0.4); opacity: 0; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+.title {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: hsl(var(--foreground));
+}
+
+.sub {
+  font-size: 0.875rem;
+  color: hsl(var(--muted-foreground));
+  font-variant-numeric: tabular-nums;
+}
+
+/* Three dots that trail the title while work runs. */
+.dots::after {
+  content: '';
+  display: inline-block;
+  width: 1.2em;
+  text-align: start;
+  animation: dots 1.4s steps(4, end) infinite;
+}
+
+@keyframes dots {
+  0% { content: ''; }
+  25% { content: '.'; }
+  50% { content: '..'; }
+  75% { content: '...'; }
+}
+
+.counts {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  border-radius: 999px;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  /* A count that changes nudges once, so the eye catches it. */
+  transition: transform 180ms ease;
+}
+
+.chipBump {
+  transform: scale(1.08);
+}
+
+.chipSent { background: #dcfce7; color: #14532d; }
+.chipWill { background: #e0e7ff; color: #1e1b4b; }
+.chipSkip { background: hsl(var(--muted)); color: hsl(var(--muted-foreground)); }
+.chipFail { background: #fee2e2; color: #7f1d1d; }
+
+@media (prefers-reduced-motion: reduce) {
+  .bar,
+  .chip { transition: none; }
+  .glow,
+  .dots::after,
+  .done .icon { animation: none; }
+}
+
+.reassure {
+  margin-top: 4px;
+  font-size: 0.75rem;
+  color: hsl(var(--muted-foreground));
+  opacity: 0.85;
+}

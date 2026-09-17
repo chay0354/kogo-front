@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Users, MoreHorizontal, Eye, Edit, UserPlus, Trash2, UserCheck, Search, MessageCircle } from 'lucide-react';
 import { toast } from 'sonner';
-import BroadcastWhatsAppDialog from '@/components/dialogs/BroadcastWhatsAppDialog';
+import { useBroadcastRun } from '@/components/broadcast/BroadcastRunProvider';
 import PageHeader from '@/components/PageHeader';
 import { TableSkeleton } from '@/components/ui/skeleton';
 import api, { fetchInstructorsDropdown } from '@/lib/api';
@@ -127,7 +127,7 @@ export default function CustomersPage() {
   // office can build one audience out of several filter passes.
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
   const [selectedNames, setSelectedNames] = useState<Record<string, string>>({});
-  const [broadcastOpen, setBroadcastOpen] = useState(false);
+  const { openBroadcast, dockVisible: broadcastDocked } = useBroadcastRun();
   const [selectingAll, setSelectingAll] = useState(false);
   const isManager = user?.role === 'manager';
   
@@ -849,9 +849,10 @@ export default function CustomersPage() {
         </CrossFade>
       </div>
       
-      {/* Floating broadcast bar — bottom-left, managers only, once something is selected */}
+      {/* Floating broadcast bar — bottom-left, managers only, once something is selected.
+          It rises above the minimised broadcast when one is in the corner. */}
       {isManager && selectedIds.size > 0 && (
-        <div className="fixed bottom-6 left-6 z-40">
+        <div className={`fixed left-6 z-40 transition-[bottom] duration-300 ${broadcastDocked ? 'bottom-24' : 'bottom-6'}`}>
           <div className="flex items-center gap-4 rounded-full bg-gray-900 text-white shadow-xl px-5 py-3" dir="rtl">
             <div className="flex items-center gap-2">
               <div className="relative">
@@ -865,7 +866,15 @@ export default function CustomersPage() {
             <button
               type="button"
               className="rounded-full bg-teal-500 hover:bg-teal-600 text-white text-sm font-medium px-4 py-1.5"
-              onClick={() => setBroadcastOpen(true)}
+              onClick={() =>
+                openBroadcast({
+                  childIds: selectedIdList,
+                  childNames: selectedNames,
+                  onSent: clearSelection,
+                  lessonHint: filters.course !== 'all' && filters.lesson !== 'all' ? filters.lesson : null,
+                  dayHint: filters.day_of_week !== 'all' ? Number(filters.day_of_week) : null,
+                })
+              }
             >
               שליחת WhatsApp
             </button>
@@ -878,18 +887,6 @@ export default function CustomersPage() {
             </button>
           </div>
         </div>
-      )}
-
-      {isManager && (
-        <BroadcastWhatsAppDialog
-          open={broadcastOpen}
-          onOpenChange={setBroadcastOpen}
-          childIds={selectedIdList}
-          childNames={selectedNames}
-          onSent={clearSelection}
-          lessonHint={filters.course !== 'all' && filters.lesson !== 'all' ? filters.lesson : null}
-          dayHint={filters.day_of_week !== 'all' ? Number(filters.day_of_week) : null}
-        />
       )}
 
       {/* Dialogs */}

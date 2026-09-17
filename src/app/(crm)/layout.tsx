@@ -1,4 +1,5 @@
 import AppLayout from '@/components/AppLayout';
+import { BroadcastRunProvider } from '@/components/broadcast/BroadcastRunProvider';
 import PageTransition from '@/components/PageTransition';
 import RevealChildren from '@/components/RevealChildren';
 
@@ -17,13 +18,18 @@ import RevealChildren from '@/components/RevealChildren';
  * The dissolve between screens wraps the reveal rather than sitting inside it,
  * so the reveal's root stays the direct parent of the page and the depths it
  * counts down from are the ones the pages were written against.
+ *
+ * A WhatsApp broadcast is held here as well, so it keeps going — minimised to
+ * the corner — while the office moves between screens.
  */
 export default function CrmLayout({ children }: { children: React.ReactNode }) {
   return (
     <AppLayout>
-      <PageTransition>
-        <RevealChildren depths={[1, 2]}>{children}</RevealChildren>
-      </PageTransition>
+      <BroadcastRunProvider>
+        <PageTransition>
+          <RevealChildren depths={[1, 2]}>{children}</RevealChildren>
+        </PageTransition>
+      </BroadcastRunProvider>
     </AppLayout>
   );
 }
