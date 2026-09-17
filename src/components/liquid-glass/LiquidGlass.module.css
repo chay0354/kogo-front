@@ -1,0 +1,339 @@
+/*
+ * Liquid Glass — the material.
+ *
+ * Not a frosted card. The surface is built from layers that each do one optical
+ * job, all clipped to the element's own bounds:
+ *
+ *   .backdrop  the background seen through the slab: bent at the rim by an SVG
+ *              displacement map where the browser can (see RefractionFilter),
+ *              and only lightly scattered — the content behind stays readable.
+ *   .rimLens   the curved lip. A second, narrow backdrop pass masked to the
+ *              bezel: brighter and more saturated, the way light concentrates
+ *              at the edge of a thick piece of glass. This is also what carries
+ *              the lensing impression where displacement is unavailable.
+ *   .ambient   colour picked up from the surroundings, as faint off-axis
+ *              reflections — never a gradient fill.
+ *   .light     light inside the material, born at the pointer.
+ *   .rim       the specular edge: a 1px ring whose brightness changes around
+ *              the perimeter and follows the pointer. Never a uniform border.
+ *
+ * Every knob is a custom property so size, variant and tone are declarative.
+ */
+
+.glass {
+  /* geometry */
+  --lg-radius: 999px;
+  /* optics: overridden by size */
+  --lg-blur: 1.5px;
+  --lg-saturate: 1.55;
+  /* Extra scatter a surface may ask for — a bar of labels over running text, a
+     menu grown to full height. Thicker glass scatters more. */
+  --lg-extra-blur: 0px;
+  /* What passes behind is softened a touch so type on the glass stays on top. */
+  --lg-contrast: 0.92;
+  --lg-brightness: 1.04;
+  --lg-bezel: 14px;
+  --lg-fill: 0.1;
+  --lg-rim-strength: 1;
+  --lg-shadow-y: 8px;
+  --lg-shadow-blur: 24px;
+  --lg-shadow-alpha: 0.1;
+  /* pointer, in % of the box; rests top-leading like a key light */
+  --lg-px: 28%;
+  --lg-py: -10%;
+  --lg-light: 0;
+  /* environment, as HSL triplets */
+  --lg-ambient-a: var(--primary);
+  --lg-ambient-b: var(--accent);
+  /* tone: over bright content */
+  --lg-ink: 222 47% 11%;
+  --lg-sheen: 255 255 255;
+  --lg-shade: 15 23 42;
+  --lg-tint: transparent;
+
+  position: relative;
+  isolation: isolate;
+  border-radius: var(--lg-radius);
+  color: hsl(var(--lg-ink));
+  /* Depth is several soft shadows, not one: a tight contact line, the floating
+     ambient shadow, and the two inset lips that give the slab a top and a bottom. */
+  box-shadow:
+    0 0.5px 0.5px rgb(var(--lg-shade) / 0.1),
+    0 2px 5px -1px rgb(var(--lg-shade) / calc(var(--lg-shadow-alpha) * 0.9)),
+    0 var(--lg-shadow-y) var(--lg-shadow-blur) -6px rgb(var(--lg-shade) / var(--lg-shadow-alpha)),
+    0 calc(var(--lg-shadow-y) * 2.2) calc(var(--lg-shadow-blur) * 2) -12px rgb(var(--lg-shade) / calc(var(--lg-shadow-alpha) * 0.55));
+  transition:
+    transform 420ms cubic-bezier(0.22, 1.2, 0.36, 1),
+    box-shadow 320ms cubic-bezier(0.32, 0.72, 0, 1),
+    color 320ms ease;
+  transform: translateZ(0);
+}
+
+/* ---- layers ---------------------------------------------------------- */
+
+.layer {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+}
+
+.backdrop {
+  z-index: -3;
+  background: rgb(var(--lg-sheen) / var(--lg-fill));
+  transition: background-color 360ms ease;
+  -webkit-backdrop-filter: blur(calc(var(--lg-blur) * 3 + var(--lg-extra-blur))) saturate(var(--lg-saturate)) contrast(var(--lg-contrast)) brightness(var(--lg-brightness));
+  backdrop-filter: blur(calc(var(--lg-blur) * 3 + var(--lg-extra-blur))) saturate(var(--lg-saturate)) contrast(var(--lg-contrast)) brightness(var(--lg-brightness));
+}
+
+/* Set from script only where `backdrop-filter: url()` is known to render. The
+   blur and saturation then live inside the SVG filter, after the bend. */
+.glass[data-refract='on'] .backdrop {
+  -webkit-backdrop-filter: var(--lg-refraction) blur(var(--lg-extra-blur)) contrast(var(--lg-contrast)) brightness(var(--lg-brightness));
+  backdrop-filter: var(--lg-refraction) blur(var(--lg-extra-blur)) contrast(var(--lg-contrast)) brightness(var(--lg-brightness));
+}
+
+.rimLens {
+  z-index: -2;
+  -webkit-backdrop-filter: blur(calc(var(--lg-blur) * 0.6)) saturate(calc(var(--lg-saturate) * 1.15)) brightness(1.06);
+  backdrop-filter: blur(calc(var(--lg-blur) * 0.6)) saturate(calc(var(--lg-saturate) * 1.15)) brightness(1.06);
+  /* Only the bezel, and feathered: four edge fades, strongest at the lip and
+     gone by --lg-bezel. A hard inner line here reads as a picture frame; a
+     falloff reads as the material curving away. */
+  -webkit-mask-image:
+    linear-gradient(to bottom, #000, transparent var(--lg-bezel)),
+    linear-gradient(to top, #000, transparent var(--lg-bezel)),
+    linear-gradient(to right, #000, transparent var(--lg-bezel)),
+    linear-gradient(to left, #000, transparent var(--lg-bezel));
+  mask-image:
+    linear-gradient(to bottom, #000, transparent var(--lg-bezel)),
+    linear-gradient(to top, #000, transparent var(--lg-bezel)),
+    linear-gradient(to right, #000, transparent var(--lg-bezel)),
+    linear-gradient(to left, #000, transparent var(--lg-bezel));
+  opacity: calc(0.5 * var(--lg-rim-strength));
+}
+
+.ambient {
+  z-index: -1;
+  background:
+    radial-gradient(60% 120% at 104% -30%, hsl(var(--lg-ambient-a) / 0.16), transparent 62%),
+    radial-gradient(55% 110% at -6% 130%, hsl(var(--lg-ambient-b) / 0.12), transparent 60%),
+    linear-gradient(180deg, rgb(var(--lg-sheen) / 0.1), rgb(var(--lg-sheen) / 0) 42%, rgb(var(--lg-shade) / 0.035));
+  background-color: var(--lg-tint);
+}
+
+.light {
+  z-index: -1;
+  background: radial-gradient(
+    circle at var(--lg-px) var(--lg-py),
+    rgb(var(--lg-sheen) / 0.5),
+    rgb(var(--lg-sheen) / 0.16) 26%,
+    rgb(var(--lg-sheen) / 0) 58%
+  );
+  /* Plain alpha, on purpose. A blend mode on any layer in here makes the browser
+     render the whole surface as an isolated group — and a backdrop-filter inside
+     an isolated group sees only that group, i.e. nothing: the glass goes blind
+     to the page behind it. */
+  opacity: calc(var(--lg-light) * 0.55);
+  transition: opacity 380ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+.rim {
+  z-index: 1;
+  padding: 1px;
+  background:
+    /* the key highlight, which the pointer drags around the perimeter */
+    radial-gradient(
+      75% 130% at var(--lg-px) var(--lg-py),
+      rgb(var(--lg-sheen) / 0.95),
+      rgb(var(--lg-sheen) / 0.35) 38%,
+      rgb(var(--lg-sheen) / 0) 66%
+    ),
+    /* the counter-highlight on the far lip, and the shaded underside */
+    linear-gradient(
+      160deg,
+      rgb(var(--lg-sheen) / 0.55) 0%,
+      rgb(var(--lg-sheen) / 0.04) 30%,
+      rgb(var(--lg-shade) / 0.1) 62%,
+      rgb(var(--lg-sheen) / 0.4) 100%
+    );
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box exclude,
+    linear-gradient(#000 0 0);
+  mask:
+    linear-gradient(#000 0 0) content-box exclude,
+    linear-gradient(#000 0 0);
+  opacity: var(--lg-rim-strength);
+}
+
+/* A hairline of shade just inside the rim: on a bright page white highlights
+   alone cannot draw the shape, and real glass darkens where it turns away. */
+.rim::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  box-shadow:
+    inset 0 1px 0.5px rgb(var(--lg-sheen) / 0.7),
+    inset 0 -1px 1px rgb(var(--lg-shade) / 0.07),
+    inset 0 0 calc(var(--lg-bezel) * 0.7) rgb(var(--lg-sheen) / 0.06);
+}
+
+.content {
+  position: relative;
+  z-index: 2;
+  border-radius: inherit;
+}
+
+/* ---- size = thickness ------------------------------------------------ */
+
+.sm {
+  --lg-blur: 1.4px;
+  --lg-bezel: 9px;
+  --lg-fill: 0.07;
+  --lg-rim-strength: 0.85;
+  --lg-shadow-y: 4px;
+  --lg-shadow-blur: 12px;
+  --lg-shadow-alpha: 0.07;
+}
+
+.md {
+  --lg-blur: 2px;
+  --lg-bezel: 14px;
+  --lg-fill: 0.1;
+  --lg-rim-strength: 1;
+  --lg-shadow-y: 8px;
+  --lg-shadow-blur: 22px;
+  --lg-shadow-alpha: 0.09;
+}
+
+.lg {
+  --lg-blur: 2.8px;
+  --lg-bezel: 20px;
+  --lg-fill: 0.13;
+  --lg-rim-strength: 1.15;
+  --lg-shadow-y: 12px;
+  --lg-shadow-blur: 32px;
+  --lg-shadow-alpha: 0.12;
+}
+
+/* ---- variant --------------------------------------------------------- */
+
+/* Clear: for rich media behind it. Almost no fill and barely any scatter; the
+   rim and the bend do all the work of saying "there is glass here". */
+.clear {
+  --lg-fill: 0.015;
+  --lg-saturate: 1.25;
+  --lg-contrast: 1;
+  --lg-brightness: 1.02;
+}
+
+.clear .backdrop {
+  -webkit-backdrop-filter: blur(calc(var(--lg-blur) * 1.2)) saturate(var(--lg-saturate));
+  backdrop-filter: blur(calc(var(--lg-blur) * 1.2)) saturate(var(--lg-saturate));
+}
+
+/* ---- tone: what is behind the glass ---------------------------------- */
+
+/* Over dark content the ink turns light, the fill turns to a faint smoke rather
+   than a veil of white, and the highlights are allowed to be brighter. */
+.toneDark {
+  --lg-ink: 0 0% 100%;
+  --lg-shade: 0 0 0;
+  --lg-fill: 0.07;
+  --lg-brightness: 0.94;
+  --lg-shadow-alpha: 0.32;
+}
+
+.toneDark .backdrop {
+  background: rgb(18 24 38 / calc(var(--lg-fill) * 2.4));
+}
+
+.toneDark .rim::after {
+  box-shadow:
+    inset 0 1px 0.5px rgb(255 255 255 / 0.42),
+    inset 0 -1px 1px rgb(0 0 0 / 0.3),
+    inset 0 0 calc(var(--lg-bezel) * 0.9) rgb(255 255 255 / 0.05);
+}
+
+.tinted {
+  --lg-tint: hsl(var(--lg-tint-hsl) / 0.14);
+}
+
+/* ---- interaction ----------------------------------------------------- */
+
+.interactive {
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+@media (hover: hover) {
+  .interactive:hover {
+    --lg-light: 0.55;
+    transform: translateZ(0) scale(1.012);
+  }
+}
+
+/* Pressed: the slab gives a little — wider than tall, like something soft being
+   pushed — sinks toward the page, and lights up from the touch point. */
+.interactive:active,
+.interactive[data-pressed='true'] {
+  --lg-light: 1;
+  --lg-shadow-y: 3px;
+  --lg-shadow-blur: 10px;
+  transform: translateZ(0) scale(1.03, 0.965);
+  transition-duration: 140ms, 140ms;
+}
+
+.interactive:focus-visible {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: 3px;
+}
+
+/* ---- the people this must still work for ----------------------------- */
+
+@media (prefers-reduced-motion: reduce) {
+  .glass,
+  .light {
+    transition: none;
+  }
+  .interactive:hover,
+  .interactive:active,
+  .interactive[data-pressed='true'] {
+    transform: none;
+  }
+}
+
+/* More contrast asked for: the glass becomes a solid, bordered surface. */
+@media (prefers-contrast: more) {
+  .glass {
+    box-shadow: 0 0 0 1.5px hsl(var(--lg-ink) / 0.85);
+  }
+  .backdrop {
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+    background: hsl(var(--card)) !important;
+  }
+  .toneDark .backdrop {
+    background: hsl(var(--sidebar-background)) !important;
+  }
+  .rimLens,
+  .ambient,
+  .light,
+  .rim {
+    display: none;
+  }
+}
+
+/* No backdrop-filter at all: enough fill that text stays readable. */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .backdrop {
+    background: rgb(var(--lg-sheen) / 0.82);
+  }
+  .toneDark .backdrop {
+    background: rgb(18 24 38 / 0.86);
+  }
+  .rimLens {
+    display: none;
+  }
+}
