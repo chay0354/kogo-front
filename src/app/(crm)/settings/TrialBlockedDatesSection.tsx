@@ -138,33 +138,33 @@ export default function TrialBlockedDatesSection() {
   const monthLabel = month.toLocaleDateString('he-IL', { month: 'long', year: 'numeric' });
 
   return (
-    <section className="mt-10 rounded-xl border bg-white p-6" dir="rtl">
+    <section className="rounded-xl border bg-white p-6" dir="rtl">
       <div className="flex items-center gap-2 mb-1">
         <CalendarX2 className="h-5 w-5 text-primary" />
-        <h2 className="text-base font-semibold">תאריכים חסומים לשיעורי ניסיון</h2>
+        <h2 className="text-lg font-semibold">לוח שיעורי ניסיון</h2>
       </div>
       <p className="text-sm text-muted-foreground mb-4">
-        לחצו על יום כדי לחסום אותו. יום חסום לא יוצע להורים לשיעור ניסיון, ומי שכבר נרשם אליו יועבר לתאריך הבא.
+        לחצו על יום כדי לסגור אותו לשיעורי ניסיון — לכל החוגים או לחלקם. יום סגור לא יוצע להורים, ומי שכבר נרשם אליו יועבר לתאריך הבא. לחיצה על יום סגור פותחת אותו מחדש.
       </p>
 
       {loading ? (
         <div className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /> טוען…</div>
       ) : (
-        <div className="grid gap-6 md:grid-cols-[minmax(0,420px)_1fr]">
+        <div className="grid gap-8">
           <div>
-            <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center justify-between mb-4">
               <Button variant="ghost" size="sm" onClick={() => setMonth(new Date(month.getFullYear(), month.getMonth() - 1, 1))} aria-label="חודש קודם">
-                <ChevronRight className="h-4 w-4" />
+                <ChevronRight className="h-5 w-5" />
               </Button>
-              <span className="font-medium">{monthLabel}</span>
+              <span className="text-xl font-semibold">{monthLabel}</span>
               <Button variant="ghost" size="sm" onClick={() => setMonth(new Date(month.getFullYear(), month.getMonth() + 1, 1))} aria-label="חודש הבא">
-                <ChevronLeft className="h-4 w-4" />
+                <ChevronLeft className="h-5 w-5" />
               </Button>
             </div>
-            <div className="grid grid-cols-7 gap-1 text-center text-xs text-muted-foreground mb-1">
+            <div className="grid grid-cols-7 gap-2 text-center text-sm font-medium text-muted-foreground mb-2">
               {DAY_HEADERS.map((d) => <div key={d}>{d}</div>)}
             </div>
-            <div className="grid grid-cols-7 gap-1">
+            <div className="grid grid-cols-7 gap-2">
               {cells.map((day, index) => {
                 if (!day) return <div key={`blank-${index}`} />;
                 const key = ymd(day);
@@ -173,7 +173,7 @@ export default function TrialBlockedDatesSection() {
                 const past = key < today;
                 const partial = Boolean(office?.lessons_detail?.length);
                 const classes = [
-                  'h-10 rounded-md text-sm border transition-colors',
+                  'h-14 sm:h-20 rounded-lg text-base sm:text-lg border transition-colors',
                   office && !partial ? 'bg-red-100 border-red-300 text-red-800 font-medium' : '',
                   partial ? 'bg-amber-100 border-amber-300 text-amber-900 font-medium' : '',
                   fixed ? 'bg-gray-200 border-gray-300 text-gray-500' : '',
@@ -200,7 +200,7 @@ export default function TrialBlockedDatesSection() {
                 );
               })}
             </div>
-            <div className="mt-3 flex items-center gap-3 text-xs text-muted-foreground">
+            <div className="mt-4 flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
               <span className="inline-block h-3 w-3 rounded bg-red-100 border border-red-300" /> כל החוגים
               <span className="inline-block h-3 w-3 rounded bg-amber-100 border border-amber-300" /> חלק מהשיעורים
               <span className="inline-block h-3 w-3 rounded bg-gray-200 border border-gray-300" /> מוגדר בקונפיגורציה
@@ -208,9 +208,9 @@ export default function TrialBlockedDatesSection() {
           </div>
 
           <div>
-            <h3 className="font-medium mb-2">תאריכים חסומים קרובים</h3>
+            <h3 className="font-medium mb-2">ימים סגורים קרובים</h3>
             {upcoming.length === 0 ? (
-              <p className="text-sm text-muted-foreground">אין תאריכים חסומים קדימה.</p>
+              <p className="text-sm text-muted-foreground">אין ימים סגורים קדימה.</p>
             ) : (
               <ul className="divide-y rounded-lg border">
                 {upcoming.map((row) => (
