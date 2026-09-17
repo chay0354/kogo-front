@@ -15,7 +15,7 @@ import {
   X,
 } from 'lucide-react';
 import { LessonDetail, AttendanceStatus } from '@/types/schedule';
-import { fetchLessonDetail, cancelLesson, restoreLesson, markAttendance, formatTime } from '@/lib/scheduleUtils';
+import { attendeeKey, fetchLessonDetail, cancelLesson, restoreLesson, markAttendance, formatTime } from '@/lib/scheduleUtils';
 import { useAuth } from '@/components/AuthProvider';
 import { GroupIdBadge } from '@/components/GroupIdBadge/GroupIdBadge';
 import api from '@/lib/api';
@@ -132,7 +132,7 @@ export default function LessonDetailsDialog({
     if (!occurrenceDate) return visibleEnrollments;
     return visibleEnrollments.filter((enrollment) => {
       const attendanceRecord = lesson?.attendance.find(
-        (a) => a.child_id === enrollment.child_id,
+        (a) => attendeeKey(a) === attendeeKey(enrollment),
       );
       const trial = isTrialEnrollment(enrollment, occurrenceDate);
       const ghost = isGhostEnrollment(enrollment, attendanceRecord);
@@ -164,14 +164,15 @@ export default function LessonDetailsDialog({
 
       const attendanceMap: Record<string, AttendanceStatus> = {};
       data.attendance.forEach((record) => {
-        const childId = record.child_id || record.child;
-        if (childId) {
-          attendanceMap[childId] = record.status;
+        const key = attendeeKey(record) || record.child || '';
+        if (key) {
+          attendanceMap[key] = record.status;
         }
       });
       data.enrollments.forEach((enrollment) => {
-        if (!attendanceMap[enrollment.child_id]) {
-          attendanceMap[enrollment.child_id] = 'not_marked';
+        const key = attendeeKey(enrollment);
+        if (key && !attendanceMap[key]) {
+          attendanceMap[key] = 'not_marked';
         }
       });
 
@@ -191,7 +192,8 @@ export default function LessonDetailsDialog({
     if (!lesson) return;
     const next: Record<string, AttendanceStatus> = {};
     lesson.enrollments.forEach((e) => {
-      next[e.child_id] = status;
+      const key = attendeeKey(e);
+      if (key) next[key] = status;
     });
     setAttendance(next);
   };
@@ -203,10 +205,20 @@ export default function LessonDetailsDialog({
     setError('');
 
     try {
-      const enrolledChildIds = new Set(lesson.enrollments.map((e) => e.child_id));
+      // Keyed by attendee, so a municipality child and a registered child can
+      // never be mistaken for one another on the way out.
+      const byKey = new Map(lesson.enrollments.map((e) => [attendeeKey(e), e]));
       const marks = Object.entries(attendance)
-        .filter(([child_id]) => enrolledChildIds.has(child_id))
-        .map(([child_id, status]) => ({ child_id, status }));
+        .filter(([key]) => byKey.has(key))
+        .map(([key, status]) => {
+          const row = byKey.get(key)!;
+          return {
+            attendee_id: key,
+            attendee_kind: row.attendee_kind ?? ('child' as const),
+            child_id: row.child_id ?? undefined,
+            status,
+          };
+        });
 
       await markAttendance(lesson.id, occurrenceDate, marks);
       onSuccess?.();
@@ -597,9 +609,9 @@ export default function LessonDetailsDialog({
                     <div className="space-y-2">
                       {filteredEnrollments.map((enrollment) => {
                         const { firstName, lastName, initials } = splitChildName(enrollment.child_name);
-                        const currentStatus = attendance[enrollment.child_id] || 'not_marked';
+                        const currentStatus = attendance[attendeeKey(enrollment)] || 'not_marked';
                         const attendanceRecord = lesson.attendance.find(
-                          (a) => a.child_id === enrollment.child_id
+                          (a) => attendeeKey(a) === attendeeKey(enrollment)
                         );
                         const isGhost = isGhostEnrollment(enrollment, attendanceRecord);
                         const isTrial = isTrialEnrollment(enrollment, occurrenceDate);
@@ -669,7 +681,7 @@ export default function LessonDetailsDialog({
                             <div className="flex rounded-lg border border-gray-200 overflow-hidden shrink-0 self-end sm:self-auto">
                               <button
                                 type="button"
-                                onClick={() => handleAttendanceChange(enrollment.child_id, 'present')}
+                                onClick={() => handleAttendanceChange(attendeeKey(enrollment), 'present')}
                                 disabled={isCancelled}
                                 className={`px-4 py-2.5 text-sm font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
                                   currentStatus === 'present'
@@ -682,7 +694,7 @@ export default function LessonDetailsDialog({
                               </button>
                               <button
                                 type="button"
-                                onClick={() => handleAttendanceChange(enrollment.child_id, 'absent')}
+                                onClick={() => handleAttendanceChange(attendeeKey(enrollment), 'absent')}
                                 disabled={isCancelled}
                                 className={`px-4 py-2.5 text-sm font-medium border-r border-gray-200 transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
                                   currentStatus === 'absent'

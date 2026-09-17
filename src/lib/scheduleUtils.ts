@@ -89,6 +89,19 @@ export async function fetchLessonAttendance(lessonId: string, date: string): Pro
 }
 
 /**
+ * The one id a register row is keyed by, whichever table it came from.
+ *
+ * A registered child and a municipality child on an external branch's list live
+ * in different tables. Keying on `child_id` alone would give every external row
+ * the same empty key — they would share one toggle and look broken — and a
+ * server that predates `attendee_id` still sends only `child_id`, so both are
+ * read here rather than at each call site.
+ */
+export function attendeeKey(row: { attendee_id?: string; child_id?: string | null }): string {
+  return row.attendee_id ?? row.child_id ?? '';
+}
+
+/**
  * Mark attendance for a lesson
  */
 export async function markAttendance(
@@ -387,6 +400,12 @@ export interface InstructorDashboard {
     start_time: string;
     active_students: number;
     is_low: boolean;
+    /**
+     * True for an external branch's lesson before anyone has typed up the
+     * municipality's sheet: the count is unknown, not zero, so the group is
+     * left out of the low-enrolment alert instead of leading it.
+     */
+    roster_unknown?: boolean;
   }>;
   unmarked_lessons: Array<{
     lesson_id: string;

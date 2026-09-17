@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Calendar, Check, ChevronDown, ChevronRight, Clock, Plus, RotateCcw, Sparkles, Trash2, X } from 'lucide-react';
 import {
   addWalkInStudent,
+  attendeeKey,
   fetchLessonDetail,
   peekLessonDetail,
   formatTime,
@@ -12,6 +13,9 @@ import {
 } from '@/lib/scheduleUtils';
 import ContactSheet from '@/components/ContactSheet';
 import type { AttendanceStatus, Lesson, LessonDetail } from '@/types/schedule';
+
+/** One row on the register: a registered child or a municipality child. */
+type Student = LessonDetail['enrollments'][number];
 import { hebrewDayLetter, lessonTitle } from './instructorUtils';
 import styles from './InstructorAttendance.module.css';
 
@@ -73,8 +77,8 @@ export default function InstructorAttendance({
         setDetail(data);
         const next: Record<string, AttendanceStatus> = {};
         data.attendance.forEach((record) => {
-          const childId = record.child_id || record.child;
-          if (childId) next[childId] = record.status;
+          const key = attendeeKey(record) || record.child || '';
+          if (key) next[key] = record.status;
         });
         setAttendance(next);
       };
@@ -140,7 +144,7 @@ export default function InstructorAttendance({
   // Paying students first, trial students after them, walk-ins last — the
   // order an instructor calls the register in. Within a group the server's
   // order stands.
-  const students = useMemo(() => {
+  const students = useMemo<Student[]>(() => {
     const rows = detail?.enrollments ?? [];
     const rank = (row: (typeof rows)[number]) =>
       row.child_status === 'ghost' ? 2 : row.is_trial ? 1 : 0;
@@ -159,17 +163,31 @@ export default function InstructorAttendance({
 
   const isCancelled = (detail?.status || lesson.status) === 'cancelled';
 
-  const handleToggle = async (childId: string, next: AttendanceStatus) => {
+  const handleToggle = async (student: Student, next: AttendanceStatus) => {
     if (isCancelled) return;
-    const current = attendance[childId] || 'not_marked';
+    const key = attendeeKey(student);
+    if (!key) return;
+    const current = attendance[key] || 'not_marked';
     const status = current === next ? 'not_marked' : next;
     const previous = current;
-    setAttendance((prev) => ({ ...prev, [childId]: status }));
+    setAttendance((prev) => ({ ...prev, [key]: status }));
     try {
-      await markAttendance(lesson.id, occurrenceDate, [{ child_id: childId, status }], asUser);
+      // child_id rides along so a backend that predates attendee_id still
+      // resolves a registered child during the deploy window.
+      await markAttendance(
+        lesson.id,
+        occurrenceDate,
+        [{
+          attendee_id: key,
+          attendee_kind: student.attendee_kind ?? 'child',
+          child_id: student.child_id ?? undefined,
+          status,
+        }],
+        asUser,
+      );
     } catch (err) {
       console.error(err);
-      setAttendance((prev) => ({ ...prev, [childId]: previous }));
+      setAttendance((prev) => ({ ...prev, [key]: previous }));
       setToast('לא הצלחנו לשמור את הנוכחות');
     }
   };
@@ -205,7 +223,7 @@ export default function InstructorAttendance({
       // from the answer already in hand rather than by asking for the register
       // again — one request, and the row lands finished.
       if (added.attendance_status) {
-        setAttendance((prev) => ({ ...prev, [added.child_id]: added.attendance_status as AttendanceStatus }));
+        setAttendance((prev) => ({ ...prev, [attendeeKey(added)]: added.attendance_status as AttendanceStatus }));
       }
       setExpanded(true);
       setAddForm({ first_name: '', last_name: '', phone: '' });
@@ -292,7 +310,10 @@ export default function InstructorAttendance({
             <div className={styles.empty}>אין תלמידים רשומים לשיעור זה</div>
           )}
           {visibleStudents.map((student, index) => {
-            const status = attendance[student.child_id] || 'not_marked';
+            const status = attendance[attendeeKey(student)] || 'not_marked';
+            // A municipality child is an ordinary student, not a problem to
+            // flag, so 'external' is deliberately absent from ISSUE_STATUSES.
+            const isExternal = student.attendee_kind === 'external';
             const flagged = Boolean(student.is_trial) || ISSUE_STATUSES.has(student.child_status || '');
             return (
               <article
@@ -339,7 +360,7 @@ export default function InstructorAttendance({
                           onClick={() =>
                             setRemoving({
                               id: student.id,
-                              child_id: student.child_id,
+                              child_id: student.child_id ?? '',
                               name: student.child_name,
                             })
                           }
@@ -370,7 +391,7 @@ export default function InstructorAttendance({
                     type="button"
                     data-tour-mark className={status === 'present' ? styles.presentOn : ''}
                     disabled={isCancelled}
-                    onClick={() => handleToggle(student.child_id, 'present')}
+                    onClick={() => handleToggle(student, 'present')}
                     aria-label={`נוכח: ${student.child_name}`}
                     aria-pressed={status === 'present'}
                   >
@@ -380,7 +401,7 @@ export default function InstructorAttendance({
                     type="button"
                     className={status === 'absent' ? styles.absentOn : ''}
                     disabled={isCancelled}
-                    onClick={() => handleToggle(student.child_id, 'absent')}
+                    onClick={() => handleToggle(student, 'absent')}
                     aria-label={`נעדר: ${student.child_name}`}
                     aria-pressed={status === 'absent'}
                   >
