@@ -47,19 +47,40 @@ export function generateDocumentNumber(): string {
 }
 
 /**
+ * What the server said went wrong, or `fallback` when it said nothing useful.
+ * Reads `error`, then `detail`, then the first field error — one level of
+ * nesting deep, so a document section's own field error (the original number a
+ * credit note must name) reaches the office too.
+ */
+export function serverErrorMessage(error: unknown, fallback: string): string {
+  const data = (error as { response?: { data?: unknown } } | null)?.response?.data;
+  const firstString = (value: unknown, depth: number): string | null => {
+    const first = Array.isArray(value) ? value[0] : value;
+    if (typeof first === 'string' && first.trim()) return first;
+    if (depth > 0 && first && typeof first === 'object') {
+      for (const inner of Object.values(first as Record<string, unknown>)) {
+        const found = firstString(inner, depth - 1);
+        if (found) return found;
+      }
+    }
+    return null;
+  };
+  if (data && typeof data === 'object') {
+    const record = data as Record<string, unknown>;
+    for (const value of [record.error, record.detail, ...Object.values(record)]) {
+      const found = firstString(value, 1);
+      if (found) return found;
+    }
+  }
+  return fallback;
+}
+
+/**
  * Why saving a merchant failed, in the server's words when it gave any — a
  * partner with several branches, say, has to choose the merchant's branch.
  */
 export function businessCustomerErrorMessage(error: unknown): string {
-  const data = (error as { response?: { data?: unknown } } | null)?.response?.data;
-  if (data && typeof data === 'object') {
-    const record = data as Record<string, unknown>;
-    for (const value of [record.error, record.detail, ...Object.values(record)]) {
-      const first = Array.isArray(value) ? value[0] : value;
-      if (typeof first === 'string' && first.trim()) return first;
-    }
-  }
-  return 'שמירת הלקוח העסקי נכשלה';
+  return serverErrorMessage(error, 'שמירת הלקוח העסקי נכשלה');
 }
 
 export function getDocumentDetailsLabel(docType: string | null): string {
