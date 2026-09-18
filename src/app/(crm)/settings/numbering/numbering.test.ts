@@ -236,6 +236,25 @@ describe('prefill from the legacy import', () => {
     expect(legacyLastNumbers([{ name: 'קבלה', max_number: 33403 }])).toEqual({ 'קבלה': 33403 });
   });
 
+  it('reads the legacy import\'s own answer by its document types', () => {
+    const answer = {
+      series: [
+        { doc_type: 'combined', label: 'חשבונית מס/קבלה', original_labels: ['חשבונית מס קבלה'], count: 900, first_number: 100, last_number: 121882, last_date: '2026-09-02' },
+        { doc_type: 'tax_invoice', label: 'חשבונית מס', last_number: 40413, last_date: '2026-09-15' },
+        { doc_type: 'receipt', label: 'קבלה', last_number: 33403, last_date: '2026-09-16' },
+        { doc_type: 'transaction_invoice', label: 'חשבונית עסקה', last_number: 60012, last_date: '2025-04-09' },
+        { doc_type: 'credit_invoice', label: 'חשבונית מס זיכוי', last_number: 41047, last_date: '2026-08-09' },
+      ],
+    };
+    expect(legacyLastNumbers(answer)).toEqual({
+      'חשבונית מס קבלה': 121882,
+      'חשבונית מס': 40413,
+      'קבלה': 33403,
+      'חשבון עיסקה': 60012,
+      'חשבונית מס זיכוי': 41047,
+    });
+  });
+
   it('is nothing when the import is not there', () => {
     expect(legacyLastNumbers(null)).toEqual({});
     expect(legacyLastNumbers('<html>')).toEqual({});

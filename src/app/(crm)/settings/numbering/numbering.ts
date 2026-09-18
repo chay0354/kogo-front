@@ -139,9 +139,26 @@ const TYPE_ALIASES: Record<string, string> = {
   'חשבונית מס / קבלה': 'חשבונית מס קבלה',
 };
 
+/** The legacy import's own document types (its `doc_type`), by the name the server knows each by. */
+const DOC_TYPE_LABELS: Record<string, string> = {
+  tax_invoice: 'חשבונית מס',
+  receipt: 'קבלה',
+  credit_invoice: 'חשבונית מס זיכוי',
+  transaction_invoice: 'חשבון עיסקה',
+  combined: 'חשבונית מס קבלה',
+};
+
 function knownType(raw: unknown): string {
   const text = String(raw ?? '').replace(/\s+/g, ' ').trim();
   return TYPE_ALIASES[text] ?? '';
+}
+
+function itemType(item: Record<string, unknown>): string {
+  const byKind = DOC_TYPE_LABELS[String(item.doc_type ?? item.document_type ?? '')];
+  if (byKind) return byKind;
+  return knownType(
+    item.previous_type_label ?? item.type_label ?? item.label ?? item.document_type_label ?? item.type ?? item.name,
+  );
 }
 
 function firstNumber(item: Record<string, unknown>, keys: string[]): number | null {
@@ -156,8 +173,10 @@ function firstNumber(item: Record<string, unknown>, keys: string[]): number | nu
 
 /**
  * The previous software's last number per type, read from the legacy import's
- * answer, whatever its exact shape: a list, or a list under `series`,
- * `results` or `runs`, each item naming its type and its last number. What
+ * answer (kogo-back apps/legacy_import: `{series: [{doc_type, label,
+ * last_number, last_date, …}]}`), or any close shape: a list, or a list under
+ * `series`, `results` or `runs`, each item naming its type — by `doc_type` or
+ * by its Hebrew name — and its last number. What
  * cannot be read is left out — the office types it instead. When a type
  * appears twice, the higher number wins: the export is a subset, so every
  * number in it is a floor.
@@ -174,9 +193,7 @@ export function legacyLastNumbers(data: unknown): Record<string, number> {
   for (const entry of items) {
     if (!entry || typeof entry !== 'object') continue;
     const item = entry as Record<string, unknown>;
-    const label = knownType(
-      item.previous_type_label ?? item.type_label ?? item.label ?? item.document_type_label ?? item.type ?? item.name,
-    );
+    const label = itemType(item);
     if (!label) continue;
     const last = firstNumber(item, ['previous_last_number', 'last_number', 'last', 'max_number', 'max']);
     if (last === null) continue;
