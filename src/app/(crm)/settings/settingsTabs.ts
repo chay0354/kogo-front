@@ -2,6 +2,7 @@
 export const SETTINGS_TABS = [
   { href: '/settings/users', label: 'משתמשים והרשאות', description: 'משתמשי המערכת, תפקידים, ושותפים לפי סניף' },
   { href: '/settings/finance', label: 'כספים', description: 'עסקים וקטגוריות להכנסות, והנחות' },
+  { href: '/settings/numbering', label: 'מספור מסמכים', description: 'סדרות המספור של המסמכים, והמשך המספור של התוכנה הקודמת' },
   { href: '/settings/payment-links', label: 'קישורי תשלום', description: 'קישור לתשלום בכרטיס לכל מטרה — הכסף נכנס תחת העסק והקטגוריה של הקישור' },
   { href: '/settings/billing', label: 'סליקה', description: 'מיפוי המסופים של Tranzila — מה רץ דרך מה — ובדיקות סליקה' },
   { href: '/settings/whatsapp', label: 'הודעות', description: 'WhatsApp / ManyChat' },

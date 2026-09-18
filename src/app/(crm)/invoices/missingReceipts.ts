@@ -145,6 +145,17 @@ export function continuityGaps(runs: SeriesRunCheck[]): string[] {
     });
 }
 
+/**
+ * Every run of the year that continues the previous software's run, as a line:
+ * 'IR-2026 ממשיך את הסדרה של התוכנה הקודמת (אחרון 121882)'. Its numbers start
+ * there, so a reader checking the run knows why it does not start at 1.
+ */
+export function continuityOpenings(runs: SeriesRunCheck[]): string[] {
+  return runs
+    .filter((run) => run.series && run.continues)
+    .map((run) => `${run.name} ${run.continues}`);
+}
+
 // ---------------------------------------------------------------- the outcome
 
 /** The outcome in sentences: what was issued, and what was skipped and why. Failures are failedLines'. */
