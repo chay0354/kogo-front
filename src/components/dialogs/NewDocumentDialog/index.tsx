@@ -33,6 +33,8 @@ import { Select } from '@/components/ui/select';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import type { ChildWithDetails } from '@/types/customer';
 import { useScopedBranches } from '@/hooks/useScopedBranches';
+import { useAuth } from '@/components/AuthProvider';
+import LegacyHistoryPanel from '@/components/LegacyHistory/LegacyHistoryPanel';
 import styles from './index.module.css';
 import { BRANCHES_CATEGORY, CLIENT_TYPE_OPTIONS, DOCUMENT_TYPE_OPTIONS } from './constants';
 import {
@@ -621,6 +623,7 @@ function BusinessClientStep({
   onSelectExisting,
   onClearSelection,
 }: BusinessClientStepProps) {
+  const { user } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<BusinessCustomer[]>([]);
   const [isSearching, setIsSearching] = useState(false);
@@ -824,6 +827,15 @@ function BusinessClientStep({
           </button>
         </div>
       )}
+
+      {/*
+        What the previous software issued to this customer, and its last
+        numbers — so the office sees where the customer stands before issuing
+        the next one. Managers only, like the import it comes from.
+      */}
+      {selectedBusinessCustomerId !== null && user?.role === 'manager' ? (
+        <LegacyHistoryPanel businessCustomerId={selectedBusinessCustomerId} />
+      ) : null}
 
       {/* Form grid */}
       <div className={styles.businessFormGrid}>
