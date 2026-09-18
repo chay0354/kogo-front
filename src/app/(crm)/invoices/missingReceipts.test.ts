@@ -10,6 +10,7 @@ import {
   canConfirmIssue,
   canStartIssue,
   continuityGaps,
+  continuityOpenings,
   defaultSelection,
   failedLines,
   isAllSelected,
@@ -209,6 +210,28 @@ describe('continuityGaps', () => {
   it('names the closed shared run by its label', () => {
     expect(continuityGaps([run({ series: '', name: '2026', label: 'משותפת', missing: ['2026-0002'], complete: false })]))
       .toEqual(['חור בסדרה משותפת 2026: 2026-0002']);
+  });
+});
+
+describe('continuityOpenings', () => {
+  const run = (over: Partial<SeriesRunCheck>): SeriesRunCheck => ({
+    series: 'IR', year: 2026, name: 'IR-2026', label: 'lessons', issued: 3,
+    first: 'IR-2026-000001', last: 'IR-2026-000003', missing: [], complete: true, ...over,
+  });
+
+  it('names each run that continues the previous software, and only those', () => {
+    expect(continuityOpenings([
+      run({}),
+      run({
+        series: 'TI', name: 'TI-2026', start: 40414, first: 'TI-2026-040414', last: 'TI-2026-040420',
+        previous_last_number: 40413, continues: 'ממשיך את הסדרה של התוכנה הקודמת (אחרון 40413)',
+      }),
+      run({ series: 'RC', name: 'RC-2026', continues: '' }),
+    ])).toEqual(['TI-2026 ממשיך את הסדרה של התוכנה הקודמת (אחרון 40413)']);
+  });
+
+  it('is nothing from a server that does not send openings', () => {
+    expect(continuityOpenings([run({})])).toEqual([]);
   });
 });
 

@@ -1,0 +1,344 @@
+/*
+ * מספור מסמכים — the numbering screen's own furniture, on the dashboard
+ * theme's --kg-* tokens (cards, tables and tags come from dashboard.module.css).
+ *
+ * Document numbers are identifiers, not Hebrew prose: they stay LTR so
+ * 'TI-2026-040414' reads the way it is printed on the document.
+ */
+
+.explain {
+  margin: 0;
+  padding-inline-start: 18px;
+  display: grid;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.7;
+  color: var(--kg-ink2);
+}
+
+.explain strong {
+  color: var(--kg-ink);
+  font-weight: 800;
+}
+
+.number {
+  direction: ltr;
+  unicode-bidi: isolate;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12.5px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.muted {
+  color: var(--kg-muted);
+}
+
+/* ---- the suggested mapping ---- */
+.mapping {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.mappingRow {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  padding: 8px 11px;
+  border-radius: 11px;
+  background: var(--kg-line-soft);
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--kg-ink);
+}
+
+.arrow {
+  color: var(--kg-muted);
+}
+
+/* ---- the table ---- */
+.statusCell {
+  min-width: 15rem;
+}
+
+.statusDetail {
+  margin-top: 4px;
+  font-size: 11.5px;
+  font-weight: 600;
+  line-height: 1.6;
+  color: var(--kg-muted);
+  overflow-wrap: anywhere;
+}
+
+.continued {
+  color: #0b8a4c;
+}
+
+/* Anchors the visually hidden header text: absolutely positioned, it would
+   otherwise escape the table's sideways scroll and widen the whole page. */
+.actionHead {
+  position: relative;
+}
+
+.actionCell {
+  width: 1%;
+  white-space: nowrap;
+}
+
+.actionBtn {
+  height: 32px;
+  border: 1px solid var(--kg-line);
+  border-radius: 10px;
+  padding: 0 12px;
+  background: #fff;
+  color: var(--kg-bar-b);
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 800;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.actionBtn:hover:not(:disabled) {
+  border-color: var(--kg-bar-a);
+}
+
+.actionBtn:focus-visible,
+.primaryBtn:focus-visible,
+.ghostBtn:focus-visible {
+  outline: 2px solid var(--kg-bar-a);
+  outline-offset: 2px;
+}
+
+.actionBtn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+/* The form opens under the table of its year, never inside the sideways-scrolling table. */
+.formPanel {
+  margin-top: 12px;
+  padding: 14px 16px;
+  border-radius: 14px;
+  background: #fcfbff;
+  border: 1px solid var(--kg-line);
+}
+
+/* ---- the form: continue the previous software's run ---- */
+.form {
+  display: grid;
+  gap: 12px;
+  padding: 4px 2px;
+}
+
+.formTitle {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 900;
+  color: var(--kg-ink);
+}
+
+.fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+  gap: 10px 14px;
+}
+
+.field {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+}
+
+.label {
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--kg-ink);
+}
+
+.hint {
+  font-size: 11.5px;
+  font-weight: 600;
+  line-height: 1.6;
+  color: var(--kg-muted);
+}
+
+.control {
+  height: 38px;
+  width: 100%;
+  border: 1px solid var(--kg-line);
+  border-radius: 11px;
+  background: #fff;
+  padding: 0 10px;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--kg-ink);
+}
+
+.control:focus,
+.textarea:focus {
+  outline: none;
+  border-color: var(--kg-bar-a);
+  box-shadow: 0 0 0 3px rgba(91, 84, 214, 0.14);
+}
+
+.control[aria-invalid='true'] {
+  border-color: var(--kg-neg);
+}
+
+.numberInput {
+  direction: ltr;
+  text-align: right;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.textarea {
+  min-height: 60px;
+  width: 100%;
+  border: 1px solid var(--kg-line);
+  border-radius: 11px;
+  background: #fff;
+  padding: 8px 10px;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--kg-ink);
+  resize: vertical;
+}
+
+/* The one fact the office must see before confirming: the number that results. */
+.preview {
+  padding: 10px 13px;
+  border-radius: 12px;
+  background: #efedfa;
+  color: var(--kg-ink);
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.7;
+}
+
+.previewNumber {
+  font-size: 15px;
+}
+
+.confirm {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  padding: 10px 13px;
+  border-radius: 12px;
+  background: #fffaeb;
+  border: 1px solid #f3dc96;
+  color: #4a3400;
+  font-size: 12.5px;
+  font-weight: 700;
+  line-height: 1.7;
+  cursor: pointer;
+}
+
+.check {
+  flex: none;
+  width: 17px;
+  height: 17px;
+  margin-top: 3px;
+  accent-color: #312a9e;
+  cursor: pointer;
+}
+
+.buttons {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.primaryBtn {
+  height: 38px;
+  border: 0;
+  border-radius: 11px;
+  padding: 0 16px;
+  background: linear-gradient(135deg, #312a9e, #231f6e);
+  color: #fff;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.primaryBtn:hover:not(:disabled) {
+  filter: brightness(1.08);
+}
+
+.primaryBtn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.ghostBtn {
+  height: 38px;
+  border: 1px solid var(--kg-line);
+  border-radius: 11px;
+  padding: 0 14px;
+  background: #fff;
+  color: var(--kg-ink);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.ghostBtn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.problems {
+  margin: 0;
+  padding-inline-start: 18px;
+  font-size: 11.5px;
+  font-weight: 600;
+  line-height: 1.6;
+  color: var(--kg-muted);
+}
+
+.error,
+.success {
+  /* Scrolled into view under the settings' sticky tab bar, not beneath it. */
+  scroll-margin-top: 140px;
+  margin: 0;
+  padding: 9px 12px;
+  border-radius: 11px;
+  font-size: 12.5px;
+  font-weight: 700;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+
+.error {
+  background: #fff6f6;
+  border: 1px solid #f8d7d8;
+  color: #a92f34;
+}
+
+.success {
+  background: #eefaf3;
+  border: 1px solid #bfe8d2;
+  color: #0b6b3d;
+}
+
+.banner {
+  margin-bottom: 12px;
+}
+
+@media (max-width: 640px) {
+  .statusCell {
+    min-width: 12rem;
+  }
+}

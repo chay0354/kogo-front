@@ -19,6 +19,7 @@ import {
   canConfirmIssue,
   canStartIssue,
   continuityGaps,
+  continuityOpenings,
   failedLines,
   issueBatch,
   issueButtonLabel,
@@ -126,6 +127,7 @@ export default function MissingReceiptsPanel({ onClose, onIssueFinished, onIssui
   const batch = issueBatch(rows, selected);
   const flaggedInBatch = batch.filter((row) => manualDocumentNote(row)).length;
   const gaps = continuityGaps(report?.continuity ?? []);
+  const openings = continuityOpenings(report?.continuity ?? []);
   const busy = exporting || issuing;
 
   function changeYear(next: number) {
@@ -389,6 +391,14 @@ export default function MissingReceiptsPanel({ onClose, onIssueFinished, onIssui
       {gaps.length > 0 && !loading && (
         <div className={styles.gaps} role="note">
           {gaps.map((line) => (
+            <p key={line} className={styles.gapLine}>{line}</p>
+          ))}
+        </div>
+      )}
+
+      {openings.length > 0 && !loading && (
+        <div className={styles.openings} role="note">
+          {openings.map((line) => (
             <p key={line} className={styles.gapLine}>{line}</p>
           ))}
         </div>

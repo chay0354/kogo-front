@@ -265,6 +265,12 @@ export interface SeriesRunCheck {
   last: string;
   missing: string[];
   complete: boolean;
+  /** The run's first number: above 1 when it continues the previous software's run. Older servers omit it. */
+  start?: number;
+  previous_type_label?: string;
+  previous_last_number?: number | null;
+  /** 'ממשיך את הסדרה של התוכנה הקודמת (אחרון 40413)', or '' for a run that starts at 1. */
+  continues?: string;
 }
 
 export interface MissingReceiptsReport {
