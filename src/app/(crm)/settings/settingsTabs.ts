@@ -8,5 +8,6 @@ export const SETTINGS_TABS = [
   { href: '/settings/whatsapp', label: 'הודעות', description: 'WhatsApp / ManyChat' },
   { href: '/settings/trials', label: 'שיעורי ניסיון', description: 'לוח שנה לסגירת ימים לשיעורי ניסיון — לכל החוגים או לחלקם' },
   { href: '/settings/terms', label: 'תקנון', description: 'תקנון הרישום שמוצג בווידג\'ט ובטופס ההרשמה' },
+  { href: '/settings/import', label: 'ייבוא מהתוכנה הקודמת', description: 'לקוחות עסקיים והיסטוריית המסמכים מקובץ הייצוא של התוכנה הקודמת' },
   { href: '/settings/system', label: 'מערכת', description: 'חיבורים, אבחון מדריכים, ספר-מערכת' },
 ] as const;
