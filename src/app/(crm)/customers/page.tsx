@@ -29,6 +29,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogCloseButton } f
 import ChildProfileDialog from '@/components/dialogs/ChildProfileDialog';
 import EditChildDialog from '@/components/dialogs/EditChildDialog';
 import DeleteChildDialog from '@/components/dialogs/DeleteChildDialog';
+import { serverErrorMessage } from '@/components/dialogs/NewDocumentDialog/utils';
 import EnrollToLessonDialog from '@/components/dialogs/EnrollToLessonDialog';
 import ChangeChildLessonDialog from '@/components/dialogs/ChangeChildLessonDialog';
 import CrossFade from '@/components/ui/CrossFade';
@@ -417,7 +418,9 @@ export default function CustomersPage() {
       setChildren(prev => prev.filter(c => c.id !== selectedChild.id));
     } catch (error) {
       console.error('Error deleting child:', error);
-      alert('שגיאה במחיקת הפרופיל');
+      // A child named on an issued receipt is kept (7-year retention); the
+      // server says so and what to do instead.
+      alert(serverErrorMessage(error, 'שגיאה במחיקת הפרופיל'));
     }
   };
   

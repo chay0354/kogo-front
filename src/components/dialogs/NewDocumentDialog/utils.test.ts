@@ -3,7 +3,13 @@
  * and waited. It now says why, in the server's words when it gave any.
  */
 import { describe, expect, it } from 'vitest';
-import { branchFieldApplies, businessCustomerErrorMessage, canAdvanceFromStep, getWizardSteps } from './utils';
+import {
+  branchFieldApplies,
+  businessCustomerErrorMessage,
+  canAdvanceFromStep,
+  getWizardSteps,
+  serverErrorMessage,
+} from './utils';
 
 describe('businessCustomerErrorMessage', () => {
   it("reads the server's field error — the branch a partner has to choose", () => {
@@ -23,6 +29,32 @@ describe('businessCustomerErrorMessage', () => {
     expect(businessCustomerErrorMessage(new Error('Network Error'))).toBe('שמירת הלקוח העסקי נכשלה');
     expect(businessCustomerErrorMessage({ response: { data: '<html>' } })).toBe('שמירת הלקוח העסקי נכשלה');
     expect(businessCustomerErrorMessage(null)).toBe('שמירת הלקוח העסקי נכשלה');
+  });
+});
+
+/**
+ * Issuing a document used to show axios's "Request failed with status code 400"
+ * whatever the server said. It now shows the server's reason — including a
+ * field error inside a document section, which arrives one level deeper.
+ */
+describe('serverErrorMessage', () => {
+  it("reads a section's field error — the original number a credit note must name", () => {
+    expect(
+      serverErrorMessage(
+        { response: { data: { credit_invoice_details: { linked_invoice_id: ['חשבונית זיכוי חייבת לציין את מספר המסמך המקורי'] } } } },
+        'שגיאה ביצירת המסמך',
+      ),
+    ).toBe('חשבונית זיכוי חייבת לציין את מספר המסמך המקורי');
+  });
+
+  it('reads the refusal to delete a child who holds documents', () => {
+    expect(serverErrorMessage({ response: { data: { error: 'לא ניתן למחוק' } } }, 'שגיאה')).toBe('לא ניתן למחוק');
+  });
+
+  it('falls back when the server said nothing useful', () => {
+    expect(serverErrorMessage(new Error('Request failed with status code 500'), 'שגיאה ביצירת המסמך')).toBe(
+      'שגיאה ביצירת המסמך',
+    );
   });
 });
 

@@ -40,6 +40,7 @@ import { BRANCHES_CATEGORY, CLIENT_TYPE_OPTIONS, DOCUMENT_TYPE_OPTIONS } from '.
 import {
   branchFieldApplies,
   businessCustomerErrorMessage,
+  serverErrorMessage,
   businessFormFromCustomer,
   canAdvanceFromStep,
   getNextButtonLabel,
@@ -214,8 +215,9 @@ export default function NewDocumentDialog({ open, onClose }: NewDocumentDialogPr
           close();
         }, 1500);
       } catch (err: unknown) {
-        const msg = err instanceof Error ? err.message : 'שגיאה ביצירת המסמך';
-        setSubmitError(msg);
+        // The server's reason (a credit note with no original, say), not axios's
+        // "Request failed with status code 400".
+        setSubmitError(serverErrorMessage(err, 'שגיאה ביצירת המסמך'));
       } finally {
         setIsSubmitting(false);
       }
