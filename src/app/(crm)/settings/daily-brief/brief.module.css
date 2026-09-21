@@ -1,0 +1,188 @@
+/*
+ * The brief is read standing up, coffee in hand: the headline says whether the
+ * morning is calm, and colour carries the urgency before any word is read.
+ */
+
+.headline {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border-radius: 16px;
+  padding: 18px 20px;
+  border: 1px solid;
+}
+
+.headlineCalm {
+  background: linear-gradient(180deg, #ecfdf5, #ffffff);
+  border-color: #a7f3d0;
+}
+
+.headlineAlert {
+  background: linear-gradient(180deg, #fef2f2, #ffffff);
+  border-color: #fecaca;
+}
+
+.headlineTitle {
+  font-size: 1.25rem;
+  font-weight: 800;
+  color: hsl(var(--foreground));
+}
+
+.headlineSub {
+  margin-top: 2px;
+  font-size: 0.8125rem;
+  color: hsl(var(--muted-foreground));
+  font-variant-numeric: tabular-nums;
+}
+
+.sectionTitle {
+  font-size: 0.8125rem;
+  font-weight: 700;
+  color: hsl(var(--muted-foreground));
+  letter-spacing: 0.02em;
+}
+
+.item {
+  border: 1px solid hsl(var(--border));
+  border-radius: 14px;
+  background: #fff;
+  overflow: hidden;
+}
+
+/* The left edge carries the urgency, so a glance down the page is enough. */
+.red { border-inline-start: 4px solid #dc2626; }
+.yellow { border-inline-start: 4px solid #f59e0b; }
+.green { border-inline-start: 4px solid #16a34a; }
+
+.itemHead {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  width: 100%;
+  padding: 14px 16px;
+  background: transparent;
+  border: 0;
+  text-align: start;
+  cursor: pointer;
+}
+
+.itemHead:disabled { cursor: default; }
+
+.red .itemIcon { color: #dc2626; }
+.yellow .itemIcon { color: #b45309; }
+.green .itemIcon { color: #16a34a; }
+
+.itemIcon { flex-shrink: 0; margin-top: 2px; }
+
+.itemText {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
+.itemTitle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 700;
+  color: hsl(var(--foreground));
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 7px;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  background: hsl(var(--muted));
+  color: hsl(var(--foreground));
+}
+
+.red .badge { background: #fee2e2; color: #7f1d1d; }
+.yellow .badge { background: #fef3c7; color: #78350f; }
+
+.itemSummary {
+  font-size: 0.875rem;
+  color: hsl(var(--muted-foreground));
+}
+
+.chevron {
+  flex-shrink: 0;
+  color: hsl(var(--muted-foreground));
+  transition: transform 200ms ease;
+}
+
+.chevronOpen { transform: rotate(180deg); }
+
+.rows {
+  border-top: 1px solid hsl(var(--border));
+  padding: 6px 16px 14px;
+}
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 7px 0;
+  border-bottom: 1px dashed hsl(var(--border));
+  font-size: 0.875rem;
+}
+
+.row:last-of-type { border-bottom: 0; }
+
+.rowLabel { font-weight: 600; }
+
+.rowLink { text-decoration: underline; text-underline-offset: 3px; }
+
+.rowDetail {
+  color: hsl(var(--muted-foreground));
+  font-variant-numeric: tabular-nums;
+}
+
+.action {
+  margin-top: 10px;
+  font-size: 0.8125rem;
+  color: hsl(var(--foreground));
+  background: hsl(var(--muted) / 0.5);
+  border-radius: 10px;
+  padding: 8px 10px;
+}
+
+/* The quiet findings are worth seeing, never worth reading one by one. */
+.greenGrid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.greenChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: #ecfdf5;
+  color: #14532d;
+  border: 1px solid #a7f3d0;
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+
+.spin { animation: spin 1s linear infinite; }
+
+@keyframes spin { to { transform: rotate(360deg); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .chevron, .spin { transition: none; animation: none; }
+}
