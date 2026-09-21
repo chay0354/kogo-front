@@ -1,5 +1,6 @@
 /** The settings hub's categories — each is a route under /settings. */
 export const SETTINGS_TABS = [
+  { href: '/settings/daily-brief', label: 'בריף יומי', description: 'מה דורש טיפול היום — גבייה, סטטוסים, מסמכים ותקינות המערכת' },
   { href: '/settings/users', label: 'משתמשים והרשאות', description: 'משתמשי המערכת, תפקידים, ושותפים לפי סניף' },
   { href: '/settings/finance', label: 'כספים', description: 'עסקים וקטגוריות להכנסות, והנחות' },
   { href: '/settings/numbering', label: 'מספור מסמכים', description: 'סדרות המספור של המסמכים, והמשך המספור של התוכנה הקודמת' },
