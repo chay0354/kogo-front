@@ -1,5 +1,6 @@
 import AppLayout from '@/components/AppLayout';
 import { BroadcastRunProvider } from '@/components/broadcast/BroadcastRunProvider';
+import { BriefRunProvider } from '@/components/brief/BriefRunProvider';
 import PageTransition from '@/components/PageTransition';
 import RevealChildren from '@/components/RevealChildren';
 
@@ -26,9 +27,12 @@ export default function CrmLayout({ children }: { children: React.ReactNode }) {
   return (
     <AppLayout>
       <BroadcastRunProvider>
-        <PageTransition>
-          <RevealChildren depths={[1, 2]}>{children}</RevealChildren>
-        </PageTransition>
+        {/* The daily brief runs check by check; held here it survives leaving the screen. */}
+        <BriefRunProvider>
+          <PageTransition>
+            <RevealChildren depths={[1, 2]}>{children}</RevealChildren>
+          </PageTransition>
+        </BriefRunProvider>
       </BroadcastRunProvider>
     </AppLayout>
   );

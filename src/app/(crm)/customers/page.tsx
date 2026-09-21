@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { Users, MoreHorizontal, Eye, Edit, UserPlus, Trash2, UserCheck, Search, MessageCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import { useBroadcastRun } from '@/components/broadcast/BroadcastRunProvider';
@@ -369,6 +370,34 @@ export default function CustomersPage() {
     }
   };
   const selectedIdList = useMemo(() => Array.from(selectedIds), [selectedIds]);
+
+  /**
+   * `?child=<id>` opens that child straight away.
+   *
+   * The daily brief names a child and links here; landing on an unfiltered
+   * list of everyone and being left to search for the name is not an answer.
+   */
+  const searchParams = useSearchParams();
+  const requestedChildId = searchParams?.get('child') || '';
+  const openedFromLink = useRef('');
+  useEffect(() => {
+    if (!requestedChildId || openedFromLink.current === requestedChildId) return;
+    openedFromLink.current = requestedChildId;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await api.get(`/customers/children/${requestedChildId}/`);
+        if (cancelled || !res.data?.id) return;
+        setSelectedChild(res.data);
+        setProfileDialogOpen(true);
+      } catch {
+        toast.error('לא נמצא ילד לפי הקישור');
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [requestedChildId]);
 
   // Handler functions
   const handleViewProfile = (child: ChildWithDetails) => {
