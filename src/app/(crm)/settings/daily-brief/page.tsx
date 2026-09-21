@@ -106,18 +106,54 @@ export default function DailyBriefPage() {
     void load();
   }, [load]);
 
-  const refresh = async () => {
+  /**
+   * Ask for a fresh brief.
+   *
+   * The server finishes and stores it whether or not this request is still
+   * listening, so the answer is taken from whichever arrives first: the reply,
+   * or a newly stored brief the screen notices while waiting. Walking away from
+   * the page no longer throws the work away.
+   */
+  const refresh = async (includeExternal: boolean) => {
     setRefreshing(true);
     setError('');
+    const before = storedAt;
+    let settled = false;
+
+    const poll = window.setInterval(async () => {
+      try {
+        const data = await fetchDailyBrief();
+        if (!settled && data.stored_at && data.stored_at !== before) {
+          settled = true;
+          setBrief(data.brief);
+          setStoredAt(data.stored_at);
+          setRefreshing(false);
+          window.clearInterval(poll);
+          toast.success('הבריף עודכן');
+        }
+      } catch {
+        // The waiting is what matters; a single failed poll is not news.
+      }
+    }, 4000);
+
     try {
-      const data = await refreshDailyBrief(true);
-      setBrief(data.brief);
-      setStoredAt(data.stored_at);
-      toast.success('הבריף עודכן');
+      const data = await refreshDailyBrief(includeExternal);
+      if (!settled) {
+        settled = true;
+        setBrief(data.brief);
+        setStoredAt(data.stored_at);
+        toast.success('הבריף עודכן');
+      }
     } catch (err) {
-      setError(readableError(err, 'בניית הבריף נכשלה'));
+      if (!settled) {
+        setError(
+          `${readableError(err, 'בניית הבריף לא הספיקה להסתיים')} — הבדיקה ממשיכה בשרת. אפשר לרענן את הדף בעוד דקה.`,
+        );
+      }
     } finally {
-      setRefreshing(false);
+      window.clearInterval(poll);
+      if (!settled) setRefreshing(false);
+      settled = true;
     }
   };
 
@@ -145,10 +181,16 @@ export default function DailyBriefPage() {
               : 'הבריף נבנה כל בוקר אוטומטית. אפשר לבנות אחד עכשיו.'}
           </p>
         </div>
-        <Button type="button" variant="outline" onClick={refresh} disabled={refreshing}>
-          <RefreshCw className={`h-4 w-4 ml-1 ${refreshing ? styles.spin : ''}`} />
-          {refreshing ? 'בודק…' : 'בדוק עכשיו'}
-        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button type="button" variant="outline" onClick={() => void refresh(false)} disabled={refreshing}>
+            <RefreshCw className={`h-4 w-4 ml-1 ${refreshing ? styles.spin : ''}`} />
+            {refreshing ? 'בודק…' : 'בדוק עכשיו'}
+          </Button>
+          {/* The slow half: it waits on Tranzila and on ManyChat. */}
+          <Button type="button" variant="ghost" onClick={() => void refresh(true)} disabled={refreshing}>
+            בדיקה מלאה, כולל טרנזילה
+          </Button>
+        </div>
       </div>
 
       {error && (
@@ -159,7 +201,7 @@ export default function DailyBriefPage() {
 
       {refreshing && (
         <p className="text-sm text-muted-foreground">
-          הבדיקה עוברת על הגבייה, הסטטוסים, המסמכים ומול טרנזילה. זה לוקח עד דקה.
+          הבדיקה רצה בשרת. אפשר להישאר כאן או לעבור לדף אחר — היא תסתיים בכל מקרה, והתוצאה תופיע כאן.
         </p>
       )}
 
