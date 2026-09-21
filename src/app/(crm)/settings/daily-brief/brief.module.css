@@ -186,3 +186,32 @@
 @media (prefers-reduced-motion: reduce) {
   .chevron, .spin { transition: none; animation: none; }
 }
+
+
+/* One request per check, so the page can say where it is. */
+.progress {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.progressBar {
+  height: 6px;
+  border-radius: 999px;
+  background: hsl(var(--muted));
+  overflow: hidden;
+}
+
+.progressBar span {
+  display: block;
+  height: 100%;
+  background: #2b3090;
+  border-radius: 999px;
+  transition: width 300ms ease;
+}
+
+.progressText {
+  font-size: 0.8125rem;
+  color: hsl(var(--muted-foreground));
+  font-variant-numeric: tabular-nums;
+}

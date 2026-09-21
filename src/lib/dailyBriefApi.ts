@@ -35,21 +35,29 @@ export async function fetchDailyBrief() {
   return res.data as { brief: DailyBrief | null; stored_at: string | null };
 }
 
+export interface BriefCheck {
+  key: string;
+  title: string;
+  /** Waits on another company's server, so it is slower and may be left out. */
+  external: boolean;
+}
+
+/** The checks to run, cheapest first. The screen walks this list itself. */
+export async function fetchBriefChecks() {
+  const res = await api.get('/core/daily-brief/check/');
+  return (res.data?.checks || []) as BriefCheck[];
+}
+
 /**
- * Build a fresh brief.
+ * Run one check and keep its answer.
  *
- * The server stores every brief it finishes, so this request is only the
- * fastest way to hear about it — the screen also watches for a newly stored
- * one, and a check that outlives the request (or the page) is not lost.
- * Including Tranzila and ManyChat means waiting on another company's server.
+ * One request per check: that is what survives the server's limit on how long
+ * a single request may take, and it means an interrupted run keeps whatever it
+ * already found instead of losing everything.
  */
-export async function refreshDailyBrief(includeExternal = false) {
-  const res = await api.post(
-    '/core/daily-brief/',
-    { include_external: includeExternal ? '1' : '0' },
-    { timeout: 70_000 },
-  );
-  return res.data as { brief: DailyBrief; stored_at: string };
+export async function runBriefCheck(key: string) {
+  const res = await api.post('/core/daily-brief/check/', { key }, { timeout: 60_000 });
+  return res.data as { item: BriefItem; brief: DailyBrief; stored_at: string };
 }
 
 /** Red first, then yellow, then the quiet ones — the order the office reads in. */
