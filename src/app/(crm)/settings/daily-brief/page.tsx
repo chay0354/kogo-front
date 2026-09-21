@@ -15,9 +15,10 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { readableError } from '@/lib/apiError';
 import {
+  fetchBriefChecks,
   fetchDailyBrief,
   groupBySeverity,
-  refreshDailyBrief,
+  runBriefCheck,
   type BriefItem,
   type DailyBrief,
 } from '@/lib/dailyBriefApi';
@@ -89,6 +90,8 @@ export default function DailyBriefPage() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
+  const [progress, setProgress] = useState({ done: 0, total: 0, current: '' });
+  const [failedChecks, setFailedChecks] = useState<string[]>([]);
 
   const load = useCallback(async () => {
     try {
@@ -107,53 +110,39 @@ export default function DailyBriefPage() {
   }, [load]);
 
   /**
-   * Ask for a fresh brief.
+   * Run the checks, one request each.
    *
-   * The server finishes and stores it whether or not this request is still
-   * listening, so the answer is taken from whichever arrives first: the reply,
-   * or a newly stored brief the screen notices while waiting. Walking away from
-   * the page no longer throws the work away.
+   * A single request cannot hold all of them — the server cuts a request that
+   * runs too long, which is how this screen used to hang on "בודק…" and end
+   * with nothing kept. Each check now answers on its own and is stored as it
+   * lands, so the page fills in as it goes and a check that fails costs only
+   * itself.
    */
   const refresh = async (includeExternal: boolean) => {
     setRefreshing(true);
     setError('');
-    const before = storedAt;
-    let settled = false;
-
-    const poll = window.setInterval(async () => {
-      try {
-        const data = await fetchDailyBrief();
-        if (!settled && data.stored_at && data.stored_at !== before) {
-          settled = true;
+    setFailedChecks([]);
+    try {
+      const checks = (await fetchBriefChecks()).filter((c) => includeExternal || !c.external);
+      setProgress({ done: 0, total: checks.length, current: checks[0]?.title ?? '' });
+      for (let index = 0; index < checks.length; index += 1) {
+        const check = checks[index];
+        setProgress({ done: index, total: checks.length, current: check.title });
+        try {
+          const data = await runBriefCheck(check.key);
           setBrief(data.brief);
           setStoredAt(data.stored_at);
-          setRefreshing(false);
-          window.clearInterval(poll);
-          toast.success('הבריף עודכן');
+        } catch (err) {
+          // One check that will not answer must not stop the rest.
+          setFailedChecks((prev) => [...prev, `${check.title}: ${readableError(err, 'לא הסתיימה')}`]);
         }
-      } catch {
-        // The waiting is what matters; a single failed poll is not news.
       }
-    }, 4000);
-
-    try {
-      const data = await refreshDailyBrief(includeExternal);
-      if (!settled) {
-        settled = true;
-        setBrief(data.brief);
-        setStoredAt(data.stored_at);
-        toast.success('הבריף עודכן');
-      }
+      setProgress({ done: checks.length, total: checks.length, current: '' });
+      toast.success('הבדיקה הסתיימה');
     } catch (err) {
-      if (!settled) {
-        setError(
-          `${readableError(err, 'בניית הבריף לא הספיקה להסתיים')} — הבדיקה ממשיכה בשרת. אפשר לרענן את הדף בעוד דקה.`,
-        );
-      }
+      setError(readableError(err, 'לא ניתן להתחיל את הבדיקה'));
     } finally {
-      window.clearInterval(poll);
-      if (!settled) setRefreshing(false);
-      settled = true;
+      setRefreshing(false);
     }
   };
 
@@ -199,10 +188,25 @@ export default function DailyBriefPage() {
         </div>
       )}
 
-      {refreshing && (
-        <p className="text-sm text-muted-foreground">
-          הבדיקה רצה בשרת. אפשר להישאר כאן או לעבור לדף אחר — היא תסתיים בכל מקרה, והתוצאה תופיע כאן.
-        </p>
+      {refreshing && progress.total > 0 && (
+        <div className={styles.progress}>
+          <div className={styles.progressBar}>
+            <span style={{ width: `${Math.round((progress.done / progress.total) * 100)}%` }} />
+          </div>
+          <p className={styles.progressText}>
+            בודק {progress.done + 1} מתוך {progress.total}
+            {progress.current ? ` · ${progress.current}` : ''}
+          </p>
+        </div>
+      )}
+
+      {failedChecks.length > 0 && (
+        <div className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+          <p className="font-medium">בדיקות שלא הסתיימו:</p>
+          <ul className="mt-1 list-disc pr-5">
+            {failedChecks.map((line) => <li key={line}>{line}</li>)}
+          </ul>
+        </div>
       )}
 
       {brief && (
