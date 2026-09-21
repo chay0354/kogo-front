@@ -17,6 +17,7 @@ export interface BriefItem {
   summary: string;
   action: string;
   rows: BriefRow[];
+  duration_ms?: number;
 }
 
 export interface DailyBrief {
@@ -34,9 +35,20 @@ export async function fetchDailyBrief() {
   return res.data as { brief: DailyBrief | null; stored_at: string | null };
 }
 
-/** Build a fresh brief. The outside services (Tranzila, ManyChat) make it slower. */
-export async function refreshDailyBrief(includeExternal = true) {
-  const res = await api.post('/core/daily-brief/', { include_external: includeExternal ? '1' : '0' }, { timeout: 180_000 });
+/**
+ * Build a fresh brief.
+ *
+ * The server stores every brief it finishes, so this request is only the
+ * fastest way to hear about it — the screen also watches for a newly stored
+ * one, and a check that outlives the request (or the page) is not lost.
+ * Including Tranzila and ManyChat means waiting on another company's server.
+ */
+export async function refreshDailyBrief(includeExternal = false) {
+  const res = await api.post(
+    '/core/daily-brief/',
+    { include_external: includeExternal ? '1' : '0' },
+    { timeout: 70_000 },
+  );
   return res.data as { brief: DailyBrief; stored_at: string };
 }
 
