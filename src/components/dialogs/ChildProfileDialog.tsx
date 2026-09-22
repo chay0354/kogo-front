@@ -20,6 +20,7 @@ import {
   User,
   Users,
 } from 'lucide-react';
+import { childDiscounts } from '@/lib/childDiscounts';
 
 import { ChildWithDetails, AbsenceRecord, EnrollmentDetail } from '@/types/customer';
 import { formatWhatsAppLink, formatHebrewDate, formatEnrollmentSlot, groupEnrollmentsForTable } from '@/lib/customerUtils';
@@ -902,6 +903,9 @@ export default function ChildProfileDialog({
     return [...recurringPayments].sort((a, b) => rank(a.status) - rank(b.status));
   }, [recurringPayments]);
 
+  // What the family actually pays, and why — read off the standing order itself.
+  const discountRows = useMemo(() => childDiscounts(recurringPayments), [recurringPayments]);
+
   const monthlyTotal = standingOrders
     .filter((item) => item.status === 'active')
     .reduce((sum, item) => sum + Number(item.amount || 0), 0);
@@ -1299,6 +1303,49 @@ export default function ChildProfileDialog({
                     <div className="text-center py-8 text-muted-foreground">טוען נתוני תשלומים...</div>
                   ) : (
                     <>
+                      {discountRows.length > 0 && (
+                        <div>
+                          <h3 className="font-semibold text-lg mb-1">הנחות</h3>
+                          <p className="text-sm text-muted-foreground mb-3">
+                            מה שמוריד את החיוב החודשי של {child.first_name}, ולמה
+                          </p>
+                          <div className="border rounded-lg divide-y">
+                            {discountRows.map((row) => (
+                              <div key={row.id} className="p-3 space-y-2">
+                                <div className="flex flex-wrap items-baseline justify-between gap-2">
+                                  <span className="font-medium">{row.courseName}</span>
+                                  <span className="text-sm tabular-nums">
+                                    {row.base !== null && (
+                                      <span className="text-muted-foreground line-through ml-2">
+                                        {formatShekel(row.base)}
+                                      </span>
+                                    )}
+                                    <span className="font-semibold">{formatShekel(row.final)}</span>
+                                    <span className="text-muted-foreground"> לחודש</span>
+                                  </span>
+                                </div>
+                                <div className="flex flex-wrap gap-2">
+                                  {row.lines.map((line) => (
+                                    <span
+                                      key={`${row.id}-${line.name}`}
+                                      className="rounded-full bg-emerald-50 border border-emerald-200 text-emerald-900 px-3 py-1 text-xs font-medium"
+                                    >
+                                      {line.name}
+                                      {line.detail ? ` · ${line.detail}` : ''}
+                                    </span>
+                                  ))}
+                                  {row.discount > 0 && (
+                                    <span className="rounded-full bg-muted px-3 py-1 text-xs text-muted-foreground tabular-nums">
+                                      סה״כ הנחה {formatShekel(row.discount)} לחודש
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
                       <div>
                         <div className="flex items-start justify-between gap-3 mb-1">
                           <h3 className="font-semibold text-lg">חיובים שבוצעו</h3>
