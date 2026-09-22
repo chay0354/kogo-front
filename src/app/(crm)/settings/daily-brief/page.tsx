@@ -14,11 +14,11 @@ import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { readableError } from '@/lib/apiError';
+import { useBriefRun } from '@/components/brief/BriefRunProvider';
+import { briefEtaText } from '@/lib/briefEta';
 import {
-  fetchBriefChecks,
   fetchDailyBrief,
   groupBySeverity,
-  runBriefCheck,
   type BriefItem,
   type DailyBrief,
 } from '@/lib/dailyBriefApi';
@@ -88,10 +88,7 @@ export default function DailyBriefPage() {
   const [brief, setBrief] = useState<DailyBrief | null>(null);
   const [storedAt, setStoredAt] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
-  const [progress, setProgress] = useState({ done: 0, total: 0, current: '' });
-  const [failedChecks, setFailedChecks] = useState<string[]>([]);
 
   const load = useCallback(async () => {
     try {
@@ -109,41 +106,23 @@ export default function DailyBriefPage() {
     void load();
   }, [load]);
 
-  /**
-   * Run the checks, one request each.
-   *
-   * A single request cannot hold all of them — the server cuts a request that
-   * runs too long, which is how this screen used to hang on "בודק…" and end
-   * with nothing kept. Each check now answers on its own and is stored as it
-   * lands, so the page fills in as it goes and a check that fails costs only
-   * itself.
-   */
-  const refresh = async (includeExternal: boolean) => {
-    setRefreshing(true);
-    setError('');
-    setFailedChecks([]);
-    try {
-      const checks = (await fetchBriefChecks()).filter((c) => includeExternal || !c.external);
-      setProgress({ done: 0, total: checks.length, current: checks[0]?.title ?? '' });
-      for (let index = 0; index < checks.length; index += 1) {
-        const check = checks[index];
-        setProgress({ done: index, total: checks.length, current: check.title });
-        try {
-          const data = await runBriefCheck(check.key);
-          setBrief(data.brief);
-          setStoredAt(data.stored_at);
-        } catch (err) {
-          // One check that will not answer must not stop the rest.
-          setFailedChecks((prev) => [...prev, `${check.title}: ${readableError(err, 'לא הסתיימה')}`]);
-        }
-      }
-      setProgress({ done: checks.length, total: checks.length, current: '' });
-      toast.success('הבדיקה הסתיימה');
-    } catch (err) {
-      setError(readableError(err, 'לא ניתן להתחיל את הבדיקה'));
-    } finally {
-      setRefreshing(false);
+  // The run itself lives above the page, so leaving this screen does not stop
+  // it and coming back shows where it got to.
+  const run = useBriefRun();
+  const refreshing = run.running;
+  const progress = { done: run.done, total: run.total, current: run.current };
+  const failedChecks = run.failed;
+
+  useEffect(() => {
+    if (run.brief) {
+      setBrief(run.brief);
+      setStoredAt(run.storedAt);
     }
+  }, [run.brief, run.storedAt]);
+
+  const refresh = (includeExternal: boolean) => {
+    setError('');
+    void run.start(includeExternal);
   };
 
   if (loading) {
@@ -194,8 +173,15 @@ export default function DailyBriefPage() {
             <span style={{ width: `${Math.round((progress.done / progress.total) * 100)}%` }} />
           </div>
           <p className={styles.progressText}>
-            בודק {progress.done + 1} מתוך {progress.total}
+            בודק {Math.min(progress.done + 1, progress.total)} מתוך {progress.total}
             {progress.current ? ` · ${progress.current}` : ''}
+            {(() => {
+              const eta = briefEtaText({ done: run.done, total: run.total, elapsedMs: Date.now() - run.startedAt });
+              return eta ? ` · ${eta}` : '';
+            })()}
+          </p>
+          <p className={styles.progressText}>
+            אפשר לעבור לדף אחר — הבדיקה ממשיכה, וכפתור בפינה השמאלית התחתונה יחזיר לכאן.
           </p>
         </div>
       )}

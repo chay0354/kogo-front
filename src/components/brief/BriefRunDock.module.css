@@ -1,0 +1,120 @@
+/*
+ * Same corner and same dark pill as the broadcast's button: one place where
+ * the office looks to see that something is still running.
+ */
+
+.dock {
+  position: fixed;
+  bottom: 1.5rem;
+  left: 1.5rem;
+  z-index: 40;
+  max-width: calc(100vw - 3rem);
+  animation: rise 360ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* A minimised broadcast owns the corner; the brief sits above it. */
+.raised {
+  bottom: 6rem;
+}
+
+@keyframes rise {
+  from { opacity: 0; transform: translateY(16px) scale(0.94); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.pill {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: 0;
+  cursor: pointer;
+  border-radius: 999px;
+  background: #111827;
+  color: #fff;
+  padding: 6px 16px 6px 6px;
+  box-shadow: 0 12px 28px -8px rgba(17, 24, 39, 0.45), 0 0 0 1px rgba(255, 255, 255, 0.06) inset;
+}
+
+.pill:focus-visible {
+  outline: 2px solid #38bdf8;
+  outline-offset: 3px;
+}
+
+.ringBox {
+  position: relative;
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+}
+
+/* It breathes while it works, so a still screen still reads as busy. */
+.halo {
+  position: absolute;
+  inset: 3px;
+  border-radius: 50%;
+  background: #38bdf8;
+  opacity: 0.35;
+  animation: halo 1.8s ease-out infinite;
+}
+
+@keyframes halo {
+  0% { transform: scale(0.85); opacity: 0.35; }
+  100% { transform: scale(1.45); opacity: 0; }
+}
+
+.ring {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  transform: rotate(-90deg);
+}
+
+.track {
+  fill: #111827;
+  stroke: rgba(255, 255, 255, 0.14);
+  stroke-width: 4;
+}
+
+.bar {
+  fill: none;
+  stroke: #38bdf8;
+  stroke-width: 4;
+  stroke-linecap: round;
+  transition: stroke-dashoffset 500ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.center {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #38bdf8;
+}
+
+.text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  line-height: 1.2;
+  text-align: start;
+}
+
+.label {
+  font-size: 0.875rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.detail {
+  font-size: 0.75rem;
+  color: #d1d5db;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dock, .halo { animation: none; }
+  .bar { transition: none; }
+}
