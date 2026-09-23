@@ -215,3 +215,84 @@
   color: hsl(var(--muted-foreground));
   font-variant-numeric: tabular-nums;
 }
+
+/* The week: one tile a day, the colour saying how the day went. */
+.weekGrid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 8px;
+}
+
+@media (max-width: 720px) {
+  .weekGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+.tile {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid hsl(var(--border));
+  background: #fff;
+  text-align: start;
+  cursor: pointer;
+  transition: transform 150ms ease, box-shadow 150ms ease;
+}
+
+.tile:hover { transform: translateY(-1px); }
+
+.tileSelected { box-shadow: 0 0 0 2px #2b3090; }
+
+.tileDay { font-size: 0.75rem; color: hsl(var(--muted-foreground)); font-weight: 600; }
+.tileArea { font-size: 0.8125rem; font-weight: 700; line-height: 1.25; color: hsl(var(--foreground)); }
+.tileVerdict { font-size: 0.75rem; }
+
+.tileGreen { border-color: #a7f3d0; background: #f0fdf4; color: #15803d; }
+.tileYellow { border-color: #fde68a; background: #fffbeb; color: #b45309; }
+.tileRed { border-color: #fecaca; background: #fef2f2; color: #b91c1c; }
+.tileRunning { border-color: #bae6fd; background: #f0f9ff; color: #0369a1; }
+.tileNone { color: hsl(var(--muted-foreground)); }
+
+.auditDetail {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  border: 1px solid hsl(var(--border));
+  border-radius: 14px;
+  padding: 14px 16px;
+  background: #fff;
+}
+
+.detailHead {
+  font-size: 0.8125rem;
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+
+.probe {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 0.875rem;
+  padding: 4px 0;
+}
+
+.probeDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  margin-top: 7px;
+  flex-shrink: 0;
+}
+
+.dot_green { background: #16a34a; }
+.dot_yellow { background: #f59e0b; }
+.dot_red { background: #dc2626; }
+
+.probeRows {
+  display: block;
+  font-size: 0.75rem;
+  color: hsl(var(--muted-foreground));
+}
