@@ -23,6 +23,7 @@ import {
   type DailyBrief,
 } from '@/lib/dailyBriefApi';
 import styles from './brief.module.css';
+import WeeklyAudit from './WeeklyAudit';
 
 const TONE = {
   red: { className: styles.red, Icon: AlertTriangle, label: 'דורש טיפול היום' },
@@ -135,7 +136,7 @@ export default function DailyBriefPage() {
     );
   }
 
-  const groups = brief ? groupBySeverity(brief.items) : { red: [], yellow: [], green: [] };
+  const groups = brief ? groupBySeverity(brief.items) : { fixed: [], red: [], yellow: [], green: [] };
   const calm = brief && brief.red_count === 0;
 
   return (
@@ -197,6 +198,14 @@ export default function DailyBriefPage() {
 
       {brief && (
         <>
+          {/* Always shown, even on a quiet morning: "nothing needed fixing" is worth knowing too. */}
+          {groups.fixed.length > 0 && (
+            <section className="space-y-2">
+              <h3 className={styles.sectionTitle}>תוקן אוטומטית הבוקר</h3>
+              {groups.fixed.map((item) => <ItemCard key={item.key} item={item} open />)}
+            </section>
+          )}
+
           {groups.red.length > 0 && (
             <section className="space-y-2">
               <h3 className={styles.sectionTitle}>דורש טיפול היום</h3>
@@ -226,6 +235,8 @@ export default function DailyBriefPage() {
           )}
         </>
       )}
+
+      <WeeklyAudit />
     </div>
   );
 }

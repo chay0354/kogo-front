@@ -19,13 +19,17 @@ const CIRCUMFERENCE = 2 * Math.PI * RADIUS;
 const BRIEF_PATH = '/settings/daily-brief';
 
 interface Props {
+  /** What is running — "בריף יומי" or "בדיקת עומק". */
+  label: string;
+  /** What is being counted, when it is not checks. */
+  unit?: string;
   done: number;
   total: number;
   current: string;
   startedAt: number;
 }
 
-export default function BriefRunDock({ done, total, current, startedAt }: Props) {
+export default function BriefRunDock({ label, unit = '', done, total, current, startedAt }: Props) {
   const router = useRouter();
   const pathname = usePathname() || '';
   // A broadcast can be minimised to the same corner; this sits above it.
@@ -49,7 +53,7 @@ export default function BriefRunDock({ done, total, current, startedAt }: Props)
         type="button"
         className={styles.pill}
         onClick={() => router.push(BRIEF_PATH)}
-        aria-label={`הבריף היומי רץ · ${percent}% · ${eta}`}
+        aria-label={`${label} רץ · ${percent}% · ${eta}`}
       >
         <span className={styles.ringBox} aria-hidden>
           <span className={styles.halo} />
@@ -70,7 +74,7 @@ export default function BriefRunDock({ done, total, current, startedAt }: Props)
         </span>
         <span className={styles.text}>
           <span className={styles.label}>
-            בריף יומי · {total > 0 ? `${Math.min(done + 1, total)} מתוך ${total}` : 'מתחיל'}
+            {label} · {total > 0 ? `${Math.min(done + 1, total)} מתוך ${total}${unit ? ` ${unit}` : ''}` : 'מתחיל'}
           </span>
           <span className={styles.detail} aria-live="polite">
             {current ? `${current}${eta ? ` · ${eta}` : ''}` : eta || 'בודק…'}

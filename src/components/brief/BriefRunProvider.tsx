@@ -12,10 +12,20 @@ import { createContext, useCallback, useContext, useMemo, useRef, useState } fro
 import { toast } from 'sonner';
 import BriefRunDock from './BriefRunDock';
 import { readableError } from '@/lib/apiError';
-import { fetchBriefChecks, runBriefCheck, type DailyBrief } from '@/lib/dailyBriefApi';
+import {
+  advanceSystemAudit,
+  fetchBriefChecks,
+  runBriefCheck,
+  type AuditDay,
+  type DailyBrief,
+} from '@/lib/dailyBriefApi';
 
 interface BriefRunState {
   running: boolean;
+  /** What is running: the brief's checks, or today's slice of the weekly audit. */
+  mode: 'brief' | 'audit';
+  /** The audit day as it stood after the last slice. */
+  audit: AuditDay | null;
   done: number;
   total: number;
   current: string;
@@ -27,6 +37,8 @@ interface BriefRunState {
 
 const EMPTY: BriefRunState = {
   running: false,
+  mode: 'brief',
+  audit: null,
   done: 0,
   total: 0,
   current: '',
@@ -38,6 +50,8 @@ const EMPTY: BriefRunState = {
 
 interface BriefRunContextValue extends BriefRunState {
   start: (includeExternal: boolean) => Promise<void>;
+  /** Run today's weekly audit to the end, a slice per request. */
+  startAudit: () => Promise<void>;
   /** Cleared when the brief screen has taken the result. */
   clearFailures: () => void;
 }
@@ -78,17 +92,53 @@ export function BriefRunProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
+  const startAudit = useCallback(async () => {
+    if (running.current) return;
+    running.current = true;
+    setState({ ...EMPTY, running: true, mode: 'audit', startedAt: Date.now(), current: 'בדיקת עומק' });
+    try {
+      // Each call moves the day forward by what fits in one request. The server
+      // keeps the progress, so a slice that fails loses only itself.
+      for (let attempt = 0; attempt < 60; attempt += 1) {
+        const day = await advanceSystemAudit();
+        setState((prev) => ({
+          ...prev,
+          audit: day,
+          done: day.checked_routes ?? 0,
+          total: day.total_routes ?? 0,
+          current: day.title,
+        }));
+        if (day.verdict !== 'running') break;
+      }
+      toast.success('בדיקת העומק של היום הסתיימה');
+    } catch (err) {
+      toast.error(readableError(err, 'בדיקת העומק נעצרה'));
+    } finally {
+      running.current = false;
+      setState((prev) => ({ ...prev, running: false }));
+    }
+  }, []);
+
   const clearFailures = useCallback(() => setState((prev) => ({ ...prev, failed: [] })), []);
 
   const value = useMemo(
-    () => ({ ...state, start, clearFailures }),
-    [state, start, clearFailures],
+    () => ({ ...state, start, startAudit, clearFailures }),
+    [state, start, startAudit, clearFailures],
   );
 
   return (
     <BriefRunContext.Provider value={value}>
       {children}
-      {state.running && <BriefRunDock done={state.done} total={state.total} current={state.current} startedAt={state.startedAt} />}
+      {state.running && (
+        <BriefRunDock
+          label={state.mode === 'audit' ? 'בדיקת עומק' : 'בריף יומי'}
+          unit={state.mode === 'audit' ? 'מסכים' : ''}
+          done={state.done}
+          total={state.total}
+          current={state.current}
+          startedAt={state.startedAt}
+        />
+      )}
     </BriefRunContext.Provider>
   );
 }
