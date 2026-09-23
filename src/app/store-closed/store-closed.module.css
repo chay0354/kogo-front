@@ -1,0 +1,33 @@
+/* The "temporarily closed" page: the card-link shell (indigo header, gold
+   accent) with a warmer, calmer body. */
+
+.hero {
+  font-size: 44px;
+  line-height: 1;
+  text-align: center;
+  margin: 4px 0 14px;
+}
+
+.lead {
+  margin: 0;
+  text-align: center;
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.6;
+  color: #1e2a6e;
+}
+
+.note {
+  margin: 12px 0 0;
+  text-align: center;
+  font-size: 14px;
+  line-height: 1.6;
+  color: #6b7280;
+}
+
+.signoff {
+  text-align: center;
+  font-size: 14px;
+  color: #6b7280;
+  margin: 18px 0 8px;
+}
