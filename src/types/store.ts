@@ -113,6 +113,8 @@ export interface StoreCartLine {
 
 export interface PaymentInitiationResponse {
   requires_iframe: boolean;
+  /** The hosted page is off: charge by typing the card (store/payment/charge-card/). */
+  use_direct_card?: boolean;
   iframe_url?: string;
   invoice_id?: string;
   invoice?: StoreInvoice;

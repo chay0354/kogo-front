@@ -11,6 +11,7 @@ import { toast } from 'sonner';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { Minus, Plus, Trash2, X } from 'lucide-react';
 import { initiatePayment, createCashInvoice } from '@/lib/storeApi';
+import { chargeTillCard, newCheckoutKey } from '@/lib/tillCardCharge';
 import api from '@/lib/api';
 import type { StoreCartLine, CartItem, CustomerInfo } from '@/types/store';
 import type { ChildWithDetails } from '@/types/customer';
@@ -74,10 +75,18 @@ export default function CartCheckoutDialog({
   const [expiryYear, setExpiryYear] = useState('');
   const [cvv, setCvv] = useState('');
   const [cardHolderId, setCardHolderId] = useState('');
+  // One key per checkout: a repeat of a charge that went through, or of one
+  // Tranzila did not answer, charges nothing. A new key only after a decline.
+  const [checkoutKey, setCheckoutKey] = useState(() => newCheckoutKey());
+  const [uncertainNote, setUncertainNote] = useState<string | null>(null);
 
   const productsTotal = lines.reduce((sum, line) => sum + line.sale_price * line.quantity, 0);
   const deliveryTotal = lines.reduce((sum, line) => sum + lineDelivery(line), 0);
   const total = productsTotal + deliveryTotal;
+
+  // A walk-in pays by typing the card, on the business terminal. Tranzila's
+  // hosted page is off: it ran on a test terminal and charged nobody.
+  const showCardForm = paymentMethod === 'credit_card' && (useDirectCard || customerType === 'walkin');
 
   /**
    * The list is one page of children, and the page is 20. Filtering it here meant
@@ -118,46 +127,40 @@ export default function CartCheckoutDialog({
   async function handleDirectCardCharge() {
     setIsLoading(true);
     try {
-      const customerInfo: CustomerInfo | undefined =
-        customerType === 'walkin' ? { name: walkInName, phone: walkInPhone } : undefined;
+      const outcome = await chargeTillCard({
+        items: toCartItems(lines),
+        child_id: customerType === 'existing' ? selectedChild?.id : undefined,
+        customer_info:
+          customerType === 'walkin' ? { name: walkInName.trim(), phone: walkInPhone.trim() } : undefined,
+        card_details: {
+          card_number: cardNumber.replace(/\s/g, ''),
+          expiry_month: parseInt(expiryMonth),
+          expiry_year: parseInt(expiryYear),
+          cvv: cvv,
+          card_holder_id: cardHolderId,
+        },
+        idempotency_key: checkoutKey,
+      });
 
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1'}/store/payment/charge-card/`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          body: JSON.stringify({
-            items: toCartItems(lines),
-            child_id: customerType === 'existing' ? selectedChild?.id : undefined,
-            customer_info: customerInfo,
-            card_details: {
-              card_number: cardNumber.replace(/\s/g, ''),
-              expiry_month: parseInt(expiryMonth),
-              expiry_year: parseInt(expiryYear),
-              cvv: cvv,
-              card_holder_id: cardHolderId,
-            },
-          }),
-        }
-      );
-
-      const result = await response.json();
-
-      if (result.success) {
-        const message = `תשלום בוצע בהצלחה!\nחשבונית: ${result.invoice.invoice_number}${
-          result.token_saved ? '\n✓ הכרטיס נשמר לשימוש עתידי' : ''
-        }`;
-        toast.success(message);
+      if (outcome.kind === 'paid') {
+        toast.success(
+          outcome.alreadyPaid
+            ? 'התשלום על הקנייה הזאת כבר התקבל'
+            : `תשלום בוצע בהצלחה!\nחשבונית: ${outcome.invoice?.invoice_number ?? ''}`
+        );
         handleReset();
         onSuccess();
-      } else {
-        toast.error(`התשלום נכשל:\n${result.error}`);
+        return;
       }
-    } catch (error: unknown) {
-      console.error('Error charging card:', error);
-      const errorMessage = (error as Error)?.message || 'שגיאה לא ידועה';
-      toast.error(`שגיאה בעיבוד התשלום:\n${errorMessage}`);
+      if (outcome.kind === 'uncertain') {
+        const note = outcome.invoiceNumber ? `${outcome.message} (חשבונית ${outcome.invoiceNumber})` : outcome.message;
+        setUncertainNote(note);
+        toast.error(note);
+        return;
+      }
+      toast.error(`התשלום נכשל:\n${outcome.message}`);
+      // A plain decline: the next try is a new checkout.
+      setCheckoutKey(newCheckoutKey());
     } finally {
       setIsLoading(false);
     }
@@ -169,7 +172,7 @@ export default function CartCheckoutDialog({
       return;
     }
 
-    if (useDirectCard) {
+    if (showCardForm) {
       handleDirectCardCharge();
       return;
     }
@@ -208,6 +211,13 @@ export default function CartCheckoutDialog({
           customerInfo,
           callbackUrl
         );
+
+        if (response.use_direct_card) {
+          // No saved card for this child: type it, on the business terminal.
+          setUseDirectCard(true);
+          toast.info('לילד אין כרטיס שמור. הזינו את פרטי הכרטיס ולחצו שוב על "שלם".');
+          return;
+        }
 
         if (response.requires_iframe) {
           if (customerType === 'walkin') {
@@ -268,6 +278,8 @@ export default function CartCheckoutDialog({
     setExpiryYear('');
     setCvv('');
     setCardHolderId('');
+    setCheckoutKey(newCheckoutKey());
+    setUncertainNote(null);
   }
 
   function handlePaymentChoice(useDirectEntry: boolean) {
@@ -457,13 +469,15 @@ export default function CartCheckoutDialog({
           </div>
 
           {/* Direct Card Entry Form */}
-          {paymentMethod === 'credit_card' && useDirectCard && (
+          {showCardForm && (
             <div className="border rounded-lg p-4 bg-blue-50 space-y-4">
               <div className="flex items-center justify-between mb-2">
                 <h4 className="font-medium text-blue-900">פרטי כרטיס אשראי</h4>
-                <Button size="sm" variant="outline" onClick={() => setUseDirectCard(false)}>
-                  חזור
-                </Button>
+                {customerType !== 'walkin' && (
+                  <Button size="sm" variant="outline" onClick={() => setUseDirectCard(false)}>
+                    חזור
+                  </Button>
+                )}
               </div>
 
               <div>
@@ -547,6 +561,12 @@ export default function CartCheckoutDialog({
             </div>
           </div>
 
+          {uncertainNote && (
+            <div className="border border-amber-300 bg-amber-50 text-amber-900 rounded-lg p-3 text-sm" role="alert">
+              {uncertainNote}
+            </div>
+          )}
+
           {/* Actions */}
           <div className="flex gap-3 justify-end pt-4 border-t">
             <Button variant="outline" onClick={handleClose}>
@@ -558,7 +578,8 @@ export default function CartCheckoutDialog({
                 isLoading ||
                 lines.length === 0 ||
                 (customerType === 'existing' && !selectedChild) ||
-                (useDirectCard && (!cardNumber || !expiryMonth || !expiryYear || !cvv || !cardHolderId))
+                (showCardForm && (!cardNumber || !expiryMonth || !expiryYear || !cvv || !cardHolderId)) ||
+                Boolean(uncertainNote)
               }
             >
               {isLoading ? 'מעבד...' : `שלם ₪${total.toFixed(2)}`}
