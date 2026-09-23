@@ -35,6 +35,8 @@ import type { ChildWithDetails } from '@/types/customer';
 import { useScopedBranches } from '@/hooks/useScopedBranches';
 import { useAuth } from '@/components/AuthProvider';
 import LegacyHistoryPanel from '@/components/LegacyHistory/LegacyHistoryPanel';
+import BusinessDocsConsentField from '@/components/dialogs/BusinessDocsConsentField';
+import { setBusinessCustomerConsent } from '@/lib/signingApi';
 import styles from './index.module.css';
 import { BRANCHES_CATEGORY, CLIENT_TYPE_OPTIONS, DOCUMENT_TYPE_OPTIONS } from './constants';
 import {
@@ -43,8 +45,10 @@ import {
   serverErrorMessage,
   businessFormFromCustomer,
   canAdvanceFromStep,
+  emptyCheckRow,
   getNextButtonLabel,
   getStepStatus,
+  receiptDetailsPayload,
 } from './utils';
 import { useNewDocumentWizard } from './useNewDocumentWizard';
 import type {
@@ -124,6 +128,12 @@ export default function NewDocumentDialog({ open, onClose }: NewDocumentDialogPr
   useEffect(() => {
     setSaveAsDraft(false);
   }, [docType]);
+  // A new business customer's consent to documents by email (18ב(ג)), recorded
+  // once the customer is saved. A saved customer's box writes straight away.
+  const [pendingDocsConsent, setPendingDocsConsent] = useState(false);
+  useEffect(() => {
+    if (!open) setPendingDocsConsent(false);
+  }, [open]);
   const queryClient = useQueryClient();
 
   const { data: childrenData } = useQuery({
@@ -188,6 +198,17 @@ export default function NewDocumentDialog({ open, onClose }: NewDocumentDialogPr
           if (businessCustomerId === null) {
             const created = await createBusinessCustomer(businessFormData);
             setBusinessCustomerId(created.id);
+            // Only a server that keeps consent for business customers is asked to record it.
+            if (pendingDocsConsent && typeof created.accepts_computerized_documents === 'boolean') {
+              setPendingDocsConsent(false);
+              try {
+                await setBusinessCustomerConsent(created.id, true);
+              } catch {
+                // The customer is saved; its box now shows the server's answer and can be ticked again.
+                setSubmitError('הלקוח נשמר, אבל רישום ההסכמה למסמכים במייל נכשל. סמנו אותה שוב ולחצו "הבא".');
+                return;
+              }
+            }
           } else {
             await updateBusinessCustomer(businessCustomerId, businessFormData);
           }
@@ -248,7 +269,7 @@ export default function NewDocumentDialog({ open, onClose }: NewDocumentDialogPr
     };
 
     if (mappedType === 'receipt') {
-      return { ...base, receipt_details: receiptDetails as unknown as CreateDocumentPayload['receipt_details'] };
+      return { ...base, receipt_details: receiptDetailsPayload(receiptDetails) };
     }
     if (mappedType === 'credit_invoice') {
       return {
@@ -406,7 +427,10 @@ export default function NewDocumentDialog({ open, onClose }: NewDocumentDialogPr
                 setBusinessCustomerId(customer.id);
                 setBusinessFormData(businessFormFromCustomer(customer));
               }}
+              docsConsentPending={pendingDocsConsent}
+              onDocsConsentPendingChange={setPendingDocsConsent}
               onClearSelection={() => {
+                setPendingDocsConsent(false);
                 setBusinessCustomerId(null);
                 setBusinessFormData({
                   first_name: '',
@@ -614,6 +638,9 @@ interface BusinessClientStepProps {
   onFormChange: (data: BusinessCustomerFormData) => void;
   onSelectExisting: (customer: BusinessCustomer) => void;
   onClearSelection: () => void;
+  /** A new customer's consent to documents by email, to record once it is saved. */
+  docsConsentPending: boolean;
+  onDocsConsentPendingChange: (pending: boolean) => void;
 }
 
 function BusinessClientStep({
@@ -624,6 +651,8 @@ function BusinessClientStep({
   onFormChange,
   onSelectExisting,
   onClearSelection,
+  docsConsentPending,
+  onDocsConsentPendingChange,
 }: BusinessClientStepProps) {
   const { user } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
@@ -1010,6 +1039,19 @@ function BusinessClientStep({
             ))}
           </Select>
         </div>
+
+        {/* סעיף 18ב(ג): tax documents go by email only to a customer that agreed. */}
+        <BusinessDocsConsentField
+          customerId={selectedBusinessCustomerId}
+          pending={docsConsentPending}
+          onPendingChange={onDocsConsentPendingChange}
+          classNames={{
+            row: `${styles.formRow} ${styles.formRowFull}`,
+            label: styles.checkboxLabel,
+            note: styles.fieldNote,
+            error: styles.fieldError,
+          }}
+        />
 
         <div className={`${styles.formRow} ${styles.formRowFull}`}>
           <label htmlFor="biz-notes" className={styles.fieldLabel}>
@@ -2218,21 +2260,7 @@ function CheckPanel({ data, onChange }: ReceiptDetailsStepProps) {
   function deleteCheck(id: string) {
     const remaining = data.checks.filter((c) => c.id !== id);
     const today = new Date().toISOString().split('T')[0];
-    const next =
-      remaining.length > 0
-        ? remaining
-        : [
-            {
-              id: String(Date.now()),
-              date: today,
-              bank: '',
-              branch: '',
-              accountNumber: '',
-              checkNumber: '',
-              amount: 0,
-              confirmed: false,
-            },
-          ];
+    const next = remaining.length > 0 ? remaining : [emptyCheckRow(String(Date.now()), today)];
     onChange({ ...data, checks: next });
   }
 
@@ -2334,6 +2362,20 @@ function CheckPanel({ data, onChange }: ReceiptDetailsStepProps) {
                   onChange={(e) => updateCheck(check.id, 'amount', Number(e.target.value))}
                 />
               </div>
+              {/* הוראה 18ב(ד): only a crossed check in the customer's name lets the signed original go by email. */}
+              <div role="cell" className={styles.checkCrossedCell}>
+                <label className={styles.checkboxLabel}>
+                  <input
+                    type="checkbox"
+                    checked={check.crossed}
+                    onChange={(e) => updateCheck(check.id, 'crossed', e.target.checked)}
+                  />
+                  שיק משורטט, &apos;לא סחיר&apos;, על שם הלקוח
+                </label>
+                {!check.crossed && (
+                  <p className={styles.checkCrossedHint}>בלי סימון — המקור יימסר על נייר ולא יישלח במייל</p>
+                )}
+              </div>
             </div>
           ))}
         </div>
@@ -2347,10 +2389,7 @@ function CheckPanel({ data, onChange }: ReceiptDetailsStepProps) {
           const today = new Date().toISOString().split('T')[0];
           onChange({
             ...data,
-            checks: [
-              ...data.checks,
-              { id: String(Date.now()), date: today, bank: '', branch: '', accountNumber: '', checkNumber: '', amount: 0, confirmed: false },
-            ],
+            checks: [...data.checks, emptyCheckRow(String(Date.now()), today)],
           });
         }}
       >

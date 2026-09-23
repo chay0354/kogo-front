@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { FilePlus2, Loader2, Search } from 'lucide-react';
 import { useDialogExit } from '@/components/ui/motion';
 import { searchBusinessCustomers } from '@/lib/api';
+import BusinessDocsConsentField from '@/components/dialogs/BusinessDocsConsentField';
 import type { BusinessCustomer } from '@/components/dialogs/NewDocumentDialog/types';
 import type { BranchOption } from '@/lib/scopedFilters';
 import {
@@ -487,6 +488,19 @@ export default function TenancyDialog({
                 </div>
               );
             })}
+            {/* סעיף 18ב(ג): the saved tenant's consent to tax documents by email. */}
+            {editing && saved?.tenancy.tenant?.id ? (
+              <BusinessDocsConsentField
+                customerId={saved.tenancy.tenant.id}
+                disabled={saving}
+                classNames={{
+                  row: `${styles.field} ${styles.full}`,
+                  label: styles.consentLabel,
+                  note: styles.help,
+                  error: styles.error,
+                }}
+              />
+            ) : null}
           </div>
         )}
       </section>

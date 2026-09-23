@@ -46,6 +46,9 @@ export interface BusinessCustomer {
   business_category_id: string | null;
   branch_id: string | null;
   notes: string;
+  /** Consent to computerized documents (18ב(ג)) — on a server that keeps it for business customers. */
+  computerized_docs_consent_at?: string | null;
+  accepts_computerized_documents?: boolean;
 }
 
 export interface BusinessCustomerFormData {
@@ -81,6 +84,11 @@ export interface CheckRow {
   checkNumber: string;
   amount: number;
   confirmed: boolean;
+  /**
+   * Crossed "לא סחיר" and drawn in the customer's name (הוראה 18ב(ד)). Unticked,
+   * the receipt's signed original is handed over on paper, not emailed.
+   */
+  crossed: boolean;
 }
 
 export interface ReceiptDetailsData {

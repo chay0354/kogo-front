@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { Plus } from 'lucide-react';
 import NewDocumentDialog from '@/components/dialogs/NewDocumentDialog';
@@ -10,8 +10,11 @@ import CardLinksTab from './CardLinksTab';
 import ChecksTab from './ChecksTab';
 import CollectionTab from './CollectionTab';
 import DocumentsTab from './DocumentsTab';
+import ManualDeliveryTab from './ManualDeliveryTab';
 import PaymentsTab from './PaymentsTab';
 import RecurringTab from './RecurringTab';
+import { fetchSigningStatus, type SigningStatus } from '@/lib/signingApi';
+import { invoiceTabs, MANUAL_DELIVERY_TAB_KEY } from './manualDelivery';
 import type { ActiveTab } from './types';
 import { useLedgerFilters } from './useLedgerFilters';
 import styles from './invoices.module.css';
@@ -72,8 +75,32 @@ export default function InvoicesPage() {
   // reloads and the one just issued is there.
   const [documentsVersion, setDocumentsVersion] = useState(0);
 
-  const activeIndex = Math.max(0, TABS.findIndex((tab) => tab.key === activeTab));
-  const current = TABS[activeIndex];
+  // The electronic signature's status. Until it says enabled the page is exactly
+  // what it was: the manual-delivery tab is not there at all. Only a manager
+  // asks — the endpoint and the tab are theirs.
+  const [signing, setSigning] = useState<SigningStatus | null>(null);
+  useEffect(() => {
+    if (!isManager) {
+      setSigning(null);
+      return undefined;
+    }
+    let live = true;
+    fetchSigningStatus()
+      .then((status) => {
+        if (live) setSigning(status);
+      })
+      .catch(() => {
+        if (live) setSigning(null);
+      });
+    return () => {
+      live = false;
+    };
+  }, [isManager]);
+
+  const tabs = useMemo(() => invoiceTabs(TABS, { isManager, signing }), [isManager, signing]);
+  const activeIndex = Math.max(0, tabs.findIndex((tab) => tab.key === activeTab));
+  // What the panel shows follows the tab rail, so a tab that is not offered is never shown.
+  const current = tabs[activeIndex];
 
   return (
     <>
@@ -92,13 +119,13 @@ export default function InvoicesPage() {
           <div className={styles.headActions}>
             <div className={styles.tabRail}>
               <div role="tablist" aria-label="מסכי החשבוניות" className={styles.tabList}>
-                {TABS.map((tab, index) => (
+                {tabs.map((tab, index) => (
                   <button
                     key={tab.key}
                     type="button"
                     role="tab"
                     id={tabId(index)}
-                    aria-selected={activeTab === tab.key}
+                    aria-selected={current.key === tab.key}
                     aria-controls={PANEL_ID}
                     className={styles.tabPill}
                     onClick={() => setActiveTab(tab.key)}
@@ -124,20 +151,21 @@ export default function InvoicesPage() {
 
         {/* Keyed on the tab, so each tab gets the shell's entrance as it opens. */}
         <div
-          key={activeTab}
+          key={current.key}
           role="tabpanel"
           id={PANEL_ID}
           aria-labelledby={tabId(activeIndex)}
           className={styles.panel}
         >
-          {activeTab === 'מסמכים' && <DocumentsTab ledger={ledger} refreshKey={documentsVersion} />}
-          {activeTab === 'תשלומים' && <PaymentsTab ledger={ledger} />}
-          {activeTab === 'גבייה' && <CollectionTab ledger={ledger} refreshKey={documentsVersion} />}
-          {activeTab === 'הוראת קבע' && <RecurringTab ledger={ledger} />}
-          {activeTab === "צ'קים" && (
+          {current.key === 'מסמכים' && <DocumentsTab ledger={ledger} refreshKey={documentsVersion} />}
+          {current.key === 'תשלומים' && <PaymentsTab ledger={ledger} />}
+          {current.key === 'גבייה' && <CollectionTab ledger={ledger} refreshKey={documentsVersion} />}
+          {current.key === 'הוראת קבע' && <RecurringTab ledger={ledger} />}
+          {current.key === "צ'קים" && (
             <ChecksTab ledger={ledger} />
           )}
-          {activeTab === 'קישורי אשראי' && <CardLinksTab ledger={ledger} />}
+          {current.key === 'קישורי אשראי' && <CardLinksTab ledger={ledger} />}
+          {current.key === MANUAL_DELIVERY_TAB_KEY && signing && <ManualDeliveryTab status={signing} />}
         </div>
       </div>
 
