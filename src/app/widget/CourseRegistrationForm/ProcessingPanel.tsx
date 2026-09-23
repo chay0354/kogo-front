@@ -8,6 +8,12 @@ interface Props {
   phase: ProcessingPhase;
   /** Shown under the title on the charge phases, e.g. "₪235.00". */
   amountLabel?: string;
+  /**
+   * Registrations the server has confirmed so far, when there are several —
+   * two children, or one child in two classes. Real progress, counted from
+   * answers that came back, not from a clock.
+   */
+  progress?: { done: number; total: number };
 }
 
 const TICK_MS = 500;
@@ -19,7 +25,7 @@ const TICK_MS = 500;
  * taking longer than usual and asks the parent to stay. There is nothing to
  * click — once a card is on its way, the only safe action is to wait.
  */
-export default function ProcessingPanel({ phase, amountLabel }: Props) {
+export default function ProcessingPanel({ phase, amountLabel, progress }: Props) {
   const [elapsedMs, setElapsedMs] = useState(0);
 
   useEffect(() => {
@@ -46,6 +52,11 @@ export default function ProcessingPanel({ phase, amountLabel }: Props) {
         <p className={styles.amount}>{amountLabel}</p>
       )}
       <p className={styles.subtitle}>{copy.subtitle}</p>
+      {progress && progress.total > 1 && (
+        <p className={styles.progress}>
+          נרשמו {progress.done} מתוך {progress.total}
+        </p>
+      )}
 
       <div className={styles.bar} aria-hidden="true">
         <span className={styles.barFill} />
