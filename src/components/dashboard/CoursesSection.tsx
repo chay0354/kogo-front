@@ -275,20 +275,47 @@ export default function CoursesSection({ globalDateRange }: Props) {
                         </td>
                         <td style={{ color: 'var(--kg-muted)', fontSize: 12 }}>{c.branch || '—'}</td>
                         <td className={theme.n}>{Number(c.lessons ?? 0)}</td>
-                        <td className={theme.n}>{Number(c.students ?? 0)}</td>
                         <td className={theme.n}>
-                          {formatPercent(occ, 0)}
-                          <span className={theme.mini}>
-                            <i
-                              className={occ >= 80 ? '' : occ >= 50 ? theme.miniW : theme.miniB}
-                              style={{ width: `${Math.min(100, occ)}%` }}
-                            />
-                          </span>
+                          {Number(c.students ?? 0)}
+                          {Number(c.external_students ?? 0) > 0 && (
+                            <span className={theme.tagType} style={{ marginRight: 6 }}>
+                              +{Number(c.external_students)} עירייה
+                            </span>
+                          )}
                         </td>
-                        <td className={theme.n}>{formatCurrency(c.revenue)}</td>
-                        <td className={`${theme.n} ${Number(c.profit ?? 0) >= 0 ? theme.up : theme.down}`}>
-                          {formatCurrency(c.profit)}
-                        </td>
+                        {/* An external course with no list yet knows nothing
+                            about its own size. A red 0% would be a claim we
+                            cannot make. */}
+                        {c.roster_unknown ? (
+                          <td className={theme.n} style={{ color: 'var(--kg-muted)', fontSize: 12 }}>
+                            ללא רשימה
+                          </td>
+                        ) : (
+                          <td className={theme.n}>
+                            {formatPercent(occ, 0)}
+                            <span className={theme.mini}>
+                              <i
+                                className={occ >= 80 ? '' : occ >= 50 ? theme.miniW : theme.miniB}
+                                style={{ width: `${Math.min(100, occ)}%` }}
+                              />
+                            </span>
+                          </td>
+                        )}
+                        {/* An external course collects nothing through us, so a
+                            ₪0 next to a real instructor cost reads as a loss it
+                            never made. Say where the money is instead. */}
+                        {c.is_external ? (
+                          <td className={theme.n} colSpan={2} style={{ color: 'var(--kg-muted)', fontSize: 12 }}>
+                            נגבה בעירייה
+                          </td>
+                        ) : (
+                          <>
+                            <td className={theme.n}>{formatCurrency(c.revenue)}</td>
+                            <td className={`${theme.n} ${Number(c.profit ?? 0) >= 0 ? theme.up : theme.down}`}>
+                              {formatCurrency(c.profit)}
+                            </td>
+                          </>
+                        )}
                       </tr>
                     );
                   })}

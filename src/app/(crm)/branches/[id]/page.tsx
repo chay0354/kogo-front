@@ -7,6 +7,7 @@ import EditBranchDialog from '@/components/dialogs/EditBranchDialog';
 import CourseDetailsDialog from '@/components/dialogs/CourseDetailsDialog';
 import { GroupIdBadge } from '@/components/GroupIdBadge/GroupIdBadge';
 import BranchSectionFilters from '@/components/branches/BranchSectionFilters';
+import ExternalStudentsSection from '@/components/branches/ExternalStudentsSection';
 import { Skeleton, StatCardsSkeleton } from '@/components/ui/skeleton';
 import api from '@/lib/api';
 import { BranchDetail, BranchStatistics } from '@/types/branch';
@@ -111,6 +112,7 @@ export default function BranchDetailsPage() {
     queryClient.invalidateQueries({ queryKey: ['branch-lessons', branchId] });
     queryClient.invalidateQueries({ queryKey: ['branch-instructors', branchId] });
     queryClient.invalidateQueries({ queryKey: ['branch-students', branchId] });
+    queryClient.invalidateQueries({ queryKey: ['branch-external-students', branchId] });
   };
 
   const handleEditSuccess = () => invalidateAll();
@@ -577,6 +579,12 @@ export default function BranchDetailsPage() {
           </div>
         )}
       </div>
+
+      {/* Municipality roster — external branches only. Placed after the courses
+          card so the page reads courses, then the people in them. */}
+      {branch.is_external && (
+        <ExternalStudentsSection branchId={branchId} lessons={lessons} />
+      )}
 
       {/* Lessons in Branch */}
       <div className="card mb-6 animate-slide-up" style={{ animationDelay: '600ms' }}>
