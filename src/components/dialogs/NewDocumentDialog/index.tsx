@@ -308,6 +308,8 @@ export default function NewDocumentDialog({ open, onClose }: NewDocumentDialogPr
         customer_notes: invoiceDetails.customerNotes,
         internal_notes: invoiceDetails.internalNotes,
         payment_methods: invoiceDetails.paymentMethods,
+        // An invoice-receipt has no check lines, so one flag covers every check it records.
+        ...(invoiceDetails.paymentMethods.includes("צ'ק") ? { check_crossed: invoiceDetails.checkCrossed } : {}),
       },
     };
   }
@@ -2083,6 +2085,22 @@ function InvoiceDetailsStep({ data, onChange, docType }: InvoiceDetailsStepProps
               );
             })}
           </div>
+          {/* הוראה 18ב(ד): only a crossed check in the customer's name lets the signed original go by email. */}
+          {data.paymentMethods.includes("צ'ק") && (
+            <div className={styles.checkCrossedCell}>
+              <label className={styles.checkboxLabel}>
+                <input
+                  type="checkbox"
+                  checked={data.checkCrossed}
+                  onChange={(e) => onChange({ ...data, checkCrossed: e.target.checked })}
+                />
+                צ&apos;ק משורטט, &apos;לא סחיר&apos;, על שם הלקוח
+              </label>
+              {!data.checkCrossed && (
+                <p className={styles.checkCrossedHint}>בלי סימון — המקור יימסר על נייר ולא יישלח במייל</p>
+              )}
+            </div>
+          )}
         </div>
       )}
 
@@ -2370,7 +2388,7 @@ function CheckPanel({ data, onChange }: ReceiptDetailsStepProps) {
                     checked={check.crossed}
                     onChange={(e) => updateCheck(check.id, 'crossed', e.target.checked)}
                   />
-                  שיק משורטט, &apos;לא סחיר&apos;, על שם הלקוח
+                  צ&apos;ק משורטט, &apos;לא סחיר&apos;, על שם הלקוח
                 </label>
                 {!check.crossed && (
                   <p className={styles.checkCrossedHint}>בלי סימון — המקור יימסר על נייר ולא יישלח במייל</p>

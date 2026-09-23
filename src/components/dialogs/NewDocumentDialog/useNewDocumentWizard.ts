@@ -92,6 +92,7 @@ function createInitialInvoiceDetails(): InvoiceDetailsData {
     paymentTerms: 'שוטף + 30',
     dueDate: '',
     paymentMethods: [],
+    checkCrossed: false,
     linkedInvoiceId: '',
     receiptNotes: '',
   };

@@ -138,6 +138,8 @@ export interface InvoiceDetailsData {
   paymentTerms: string;
   dueDate: string;
   paymentMethods: string[];
+  /** הוראה 18ב(ד): a check paid against an invoice-receipt is crossed, 'לא סחיר', in the customer's name. */
+  checkCrossed: boolean;
   linkedInvoiceId: string;
   receiptNotes: string;
 }
