@@ -5,12 +5,15 @@ import { Calendar, Check, ChevronDown, ChevronRight, Clock, Plus, RotateCcw, Spa
 import {
   addWalkInStudent,
   fetchLessonDetail,
+  forgetMark,
   peekLessonDetail,
+  rememberMark,
   formatTime,
   markAttendance,
   removeWalkInStudent,
 } from '@/lib/scheduleUtils';
 import ContactSheet from '@/components/ContactSheet';
+import { MarkRefusedError } from '@/lib/attendanceMarks';
 import type { AttendanceStatus, Lesson, LessonDetail } from '@/types/schedule';
 import { hebrewDayLetter, lessonTitle } from './instructorUtils';
 import styles from './InstructorAttendance.module.css';
@@ -165,12 +168,20 @@ export default function InstructorAttendance({
     const status = current === next ? 'not_marked' : next;
     const previous = current;
     setAttendance((prev) => ({ ...prev, [childId]: status }));
+    // Before the request, not after it: the refresh behind the painted register
+    // may land while this is in flight, and must find the tap already there.
+    rememberMark(lesson.id, occurrenceDate, asUser, childId, status);
     try {
       await markAttendance(lesson.id, occurrenceDate, [{ child_id: childId, status }], asUser);
     } catch (err) {
       console.error(err);
+      forgetMark(lesson.id, occurrenceDate, asUser, childId, previous);
       setAttendance((prev) => ({ ...prev, [childId]: previous }));
-      setToast('לא הצלחנו לשמור את הנוכחות');
+      setToast(
+        err instanceof MarkRefusedError
+          ? `הסימון לא נשמר: ${err.message}`
+          : 'לא הצלחנו לשמור את הנוכחות',
+      );
     }
   };
 

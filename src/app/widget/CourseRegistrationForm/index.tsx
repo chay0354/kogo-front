@@ -18,6 +18,7 @@ import AdditionalChildSection, {
 import ExtraLessonPicker from './ExtraLessonPicker';
 import SelectedLessonCard from './SelectedLessonCard';
 import ProcessingPanel from './ProcessingPanel';
+import { registerDeadlineMs, useWaitDeadline, WAIT_SLACK_MS } from './waitDeadline';
 import type { ProcessingPhase } from './processingCopy';
 import { SkeletonLessonOptions, SkeletonTextLines } from '../WidgetSkeletons/WidgetSkeletons';
 import { trialNextStep } from './trialFlow';
@@ -32,6 +33,17 @@ const MAX_ADDITIONAL_CHILDREN = 3;
 const CHARGE_TIMEOUT_MS = 90_000;
 const CHARGE_POLL_INTERVAL_MS = 2_000;
 const CHARGE_POLL_MAX_MS = 60_000;
+/** The whole charge — the request, then the settlement polling — on the wall clock. */
+const CHARGE_DEADLINE_MS = CHARGE_TIMEOUT_MS + CHARGE_POLL_MAX_MS + WAIT_SLACK_MS;
+/** On the "checking the payment" screen: how often, and for how long, to ask. */
+const PENDING_POLL_INTERVAL_MS = 5_000;
+const PENDING_POLL_MAX_MS = 120_000;
+
+const REGISTER_OVERDUE_MESSAGE =
+  'לא קיבלנו תשובה מהשרת כבר זמן רב, וההרשמה עוד לא הושלמה. בדקו את החיבור לאינטרנט ונסו שוב. '
+  + 'אם זה חוזר על עצמו — התקשרו אלינו ונשלים את ההרשמה יחד.';
+const CHARGE_OVERDUE_MESSAGE =
+  'הכרטיס נשלח לחברת הסליקה ועדיין לא קיבלנו אישור. אל תשלמו שוב — אם החיוב עבר, ההרשמה תופיע תוך רגע.';
 
 type DiscountQueueItem = {
   id: 'primary' | string;
@@ -261,6 +273,18 @@ export default function CourseRegistrationForm({
   // 'charge' while the card round trip is open; 'verify' once the gateway
   // accepted the card and we are polling for the settled status.
   const [chargePhase, setChargePhase] = useState<ProcessingPhase>('charge');
+  // Each submit is an attempt. An answer that arrives after a newer attempt has
+  // started belongs to nobody and is dropped; one that arrives after the wait
+  // gave up, with no newer attempt, is still news and is shown.
+  const attemptRef = useRef(0);
+  const [registerProgress, setRegisterProgress] = useState<{ done: number; total: number } | null>(null);
+  const [registerDeadline, setRegisterDeadline] = useState(registerDeadlineMs(1));
+  // The screen a registration was sent from, which is where a wait that gave up
+  // puts the parent back — with the message, and with everything they typed.
+  const submittedFromRef = useRef<'error' | 'trial_confirm'>('error');
+  // The "checking the payment" screen asks by itself, and stops asking in time.
+  const [pendingChecking, setPendingChecking] = useState(false);
+  const pendingRoundRef = useRef(0);
   const [lookingUp, setLookingUp] = useState(false);
   const [showTerms, setShowTerms] = useState(false);
   const [termsContent, setTermsContent] = useState('');
@@ -542,8 +566,28 @@ export default function CourseRegistrationForm({
     return additionalChildren.find((child) => child.id === targetId)?.lookup ?? null;
   };
 
+  /** One question to the server about this basket's payments. */
+  const checkChargeOnce = async (): Promise<'completed' | 'failed' | 'processing'> => {
+    if (!paymentData) return 'failed';
+    const ids = paymentData.payment_ids?.length ? paymentData.payment_ids : [paymentData.payment_id];
+    const res = await api.get('/customers/widget/payment-status/', {
+      params: { payment_ids: ids.join(',') },
+      timeout: 15_000,
+    });
+    if (res.data?.success) return 'completed';
+    if (res.data?.processing) return 'processing';
+    return 'failed';
+  };
+
+  const chargeAttemptRef = useRef(0);
+
   const handleCardCharge = async () => {
     if (!paymentData || !cardNumber || !expiryMonth || !expiryYear || !cvv) return;
+    const chargeAttempt = ++chargeAttemptRef.current;
+    // A late answer from an older charge may still report success — that is
+    // true and worth showing, since it stops a second payment. Anything else
+    // from it is dropped once a newer charge owns the screen.
+    const mine = () => chargeAttemptRef.current === chargeAttempt;
     setCharging(true);
     setChargePhase('charge');
     setErrorMsg('');
@@ -581,6 +625,8 @@ export default function CourseRegistrationForm({
     };
 
     const showSuccess = () => setStep(isTrial ? 'trial_success' : 'payment_success');
+    const setStepIfMine = (next: Step) => { if (mine()) setStep(next); };
+    const setErrorIfMine = (message: string) => { if (mine()) setErrorMsg(message); };
 
     try {
       const res = await api.post(
@@ -610,8 +656,8 @@ export default function CourseRegistrationForm({
           return;
         }
         if (settled === 'processing') {
-          setErrorMsg('התשלום התקבל אצל חברת הסליקה ועדיין מאושר אצלנו. אל תשלמו שוב — פנו למשרד אם ההרשמה לא מופיעה.');
-          setStep('payment_pending');
+          setErrorIfMine('התשלום התקבל אצל חברת הסליקה ועדיין מאושר אצלנו. אל תשלמו שוב — פנו למשרד אם ההרשמה לא מופיעה.');
+          setStepIfMine('payment_pending');
           return;
         }
       }
@@ -622,8 +668,8 @@ export default function CourseRegistrationForm({
         showSuccess();
         return;
       }
-      setErrorMsg(firstError || 'התשלום נכשל');
-      setStep('payment_failed');
+      setErrorIfMine(firstError || 'התשלום נכשל');
+      setStepIfMine('payment_failed');
     } catch (err: unknown) {
       const axiosErr = err as { response?: { data?: { success?: boolean; processing?: boolean; error?: string } }; code?: string };
       if (axiosErr.response?.data?.success) {
@@ -636,21 +682,100 @@ export default function CourseRegistrationForm({
         return;
       }
       if (settled === 'processing' || axiosErr.code === 'ECONNABORTED' || !axiosErr.response) {
-        setErrorMsg(
+        setErrorIfMine(
           axiosErr.response?.data?.error
           || 'התשלום נשלח ועדיין מאושר. אל תשלמו שוב — אם החיוב עבר, ההרשמה תופיע תוך רגע.',
         );
-        setStep('payment_pending');
+        setStepIfMine('payment_pending');
         return;
       }
       const msg = axiosErr.response?.data?.error ?? 'שגיאה בסליקה';
-      setErrorMsg(msg);
-      setStep('payment_failed');
+      setErrorIfMine(msg);
+      setStepIfMine('payment_failed');
     } finally {
-      setCharging(false);
-      setChargePhase('charge');
+      if (mine()) {
+        setCharging(false);
+        setChargePhase('charge');
+      }
     }
   };
+
+  // No wait on this form outlives its deadline — see waitDeadline.ts for why a
+  // request's own timeout was not enough on a phone.
+  useWaitDeadline(step === 'submitting', registerDeadline, () => {
+    // The registration may still land; if it does before anything newer is
+    // sent, handleFinalSubmit moves on to payment from here by itself.
+    setErrorMsg(REGISTER_OVERDUE_MESSAGE);
+    setStep(submittedFromRef.current);
+  });
+
+  useWaitDeadline(charging, CHARGE_DEADLINE_MS, () => {
+    // The card was sent. Never "failed" on a guess — ask once, and otherwise
+    // hand over to the screen that keeps asking.
+    chargeAttemptRef.current += 1;
+    setCharging(false);
+    setChargePhase('charge');
+    checkChargeOnce()
+      .then((settled) => {
+        if (settled === 'completed') {
+          setStep(isTrial ? 'trial_success' : 'payment_success');
+          return;
+        }
+        setErrorMsg(CHARGE_OVERDUE_MESSAGE);
+        setStep('payment_pending');
+      })
+      .catch(() => {
+        setErrorMsg(CHARGE_OVERDUE_MESSAGE);
+        setStep('payment_pending');
+      });
+  });
+
+  // "Checking the payment" used to be a spinner that never asked anything: it
+  // span until the parent pressed a button. It now asks every few seconds, moves
+  // on the moment there is an answer, and stops spinning when it runs out of
+  // time — saying so, instead of leaving a spinner up for good.
+  useEffect(() => {
+    if (step !== 'payment_pending' || !pendingChecking) return undefined;
+    const round = ++pendingRoundRef.current;
+    const deadline = Date.now() + PENDING_POLL_MAX_MS;
+    let timer: number | undefined;
+    const tick = async () => {
+      if (pendingRoundRef.current !== round) return;
+      let settled: 'completed' | 'failed' | 'processing' = 'processing';
+      try {
+        settled = await checkChargeOnce();
+      } catch {
+        settled = 'processing';
+      }
+      if (pendingRoundRef.current !== round) return;
+      if (settled === 'completed') {
+        setStep(isTrial ? 'trial_success' : 'payment_success');
+        return;
+      }
+      if (settled === 'failed') {
+        setErrorMsg('חברת הסליקה לא אישרה את החיוב. אפשר לנסות שוב עם אותו כרטיס או עם כרטיס אחר.');
+        setStep('payment_failed');
+        return;
+      }
+      if (Date.now() >= deadline) {
+        setPendingChecking(false);
+        return;
+      }
+      timer = window.setTimeout(tick, PENDING_POLL_INTERVAL_MS);
+    };
+    timer = window.setTimeout(tick, PENDING_POLL_INTERVAL_MS);
+    return () => {
+      pendingRoundRef.current += 1;
+      if (timer) window.clearTimeout(timer);
+    };
+    // checkChargeOnce reads paymentData at call time; the loop restarts only
+    // when the screen or the checking state changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step, pendingChecking]);
+
+  useEffect(() => {
+    if (step === 'payment_pending') setPendingChecking(true);
+  }, [step]);
 
   const handleDetailsSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -882,7 +1007,7 @@ export default function CourseRegistrationForm({
     firstName: string;
     lastName: string;
     idNumber: string;
-  }): Promise<string | null> => {
+  }, attempt: number): Promise<string | null> => {
     try {
       const res = await api.post('/customers/widget/trial-register/', {
         parent_id_number: parentIdNumber,
@@ -909,6 +1034,7 @@ export default function CourseRegistrationForm({
         health_consent: healthConsent,
         ...(signature ? { signature } : {}),
       });
+      if (attemptRef.current !== attempt) return null;
       if (res.data.requires_payment) {
         // The catalog said free but the course now charges: the payment step
         // reads nothing from the consents, so it can take over from here.
@@ -935,13 +1061,17 @@ export default function CourseRegistrationForm({
   /** The free trial's one confirm: summary → registered. */
   const handleTrialConfirm = async () => {
     setErrorMsg('');
+    const attempt = ++attemptRef.current;
+    submittedFromRef.current = 'trial_confirm';
+    setRegisterProgress(null);
+    setRegisterDeadline(registerDeadlineMs(1));
     setStep('submitting');
     const failure = await submitTrialRegistration({
       firstName: selfRegistering ? parentFirstName : childFirstName,
       lastName: selfRegistering ? parentLastName : childLastName,
       idNumber: selfRegistering ? parentIdNumber : childIdNumber,
-    });
-    if (failure) {
+    }, attempt);
+    if (failure && attemptRef.current === attempt) {
       setErrorMsg(failure);
       setStep('trial_confirm');
     }
@@ -971,6 +1101,16 @@ export default function CourseRegistrationForm({
     }
     setConsentErrors({});
 
+    const attempt = ++attemptRef.current;
+    const totalCalls = isTrial
+      ? 1
+      : 1 + primaryExtraLessons.length + additionalChildren.reduce(
+        (sum, child) => sum + childLessonSelections(child).length,
+        0,
+      );
+    submittedFromRef.current = 'error';
+    setRegisterProgress(totalCalls > 1 ? { done: 0, total: totalCalls } : null);
+    setRegisterDeadline(registerDeadlineMs(totalCalls));
     setStep('submitting');
     setErrorMsg('');
 
@@ -986,8 +1126,8 @@ export default function CourseRegistrationForm({
         firstName: registerChildFirstName,
         lastName: registerChildLastName,
         idNumber: registerChildIdNumber,
-      });
-      if (failure) {
+      }, attempt);
+      if (failure && attemptRef.current === attempt) {
         setErrorMsg(failure);
         setStep('error');
       }
@@ -1037,6 +1177,9 @@ export default function CourseRegistrationForm({
             resolvedChildId = response.child_id;
           }
           paymentResponses.push(response);
+          if (attemptRef.current === attempt) {
+            setRegisterProgress((prev) => (prev ? { ...prev, done: paymentResponses.length } : prev));
+          }
         }
       };
 
@@ -1078,11 +1221,15 @@ export default function CourseRegistrationForm({
         (sum, child) => sum + childLessonSelections(child).length,
         0,
       );
+      // A newer attempt owns the screen now. This one's answer is dropped.
+      if (attemptRef.current !== attempt) return;
       setRegisteredChildCount(1 + additionalChildren.length);
       setRegisteredLessonCount(lessonCount);
       setPaymentData(mergePaymentResponses(paymentResponses));
+      setErrorMsg('');
       setStep('payment');
     } catch (err: unknown) {
+      if (attemptRef.current !== attempt) return;
       const msg =
         (err as { response?: { data?: { error?: string } } })?.response?.data?.error ??
         'אירעה שגיאה. נסה שנית.';
@@ -1946,18 +2093,26 @@ export default function CourseRegistrationForm({
   if (step === 'payment_pending') {
     return (
       <div className={styles.resultContainer} dir="rtl">
-        <span className={styles.submittingSpinner} />
-        <p className={styles.resultTitle}>בודקים את התשלום</p>
+        {pendingChecking ? <span className={styles.submittingSpinner} /> : <div className={styles.failIcon}>!</div>}
+        <p className={styles.resultTitle}>{pendingChecking ? 'בודקים את התשלום' : 'עדיין אין אישור מחברת הסליקה'}</p>
         <p className={styles.resultSubtext}>
           {errorMsg || 'הכרטיס כבר נשלח לסליקה. אל תשלמו שוב.'}
         </p>
+        {!pendingChecking && (
+          <p className={styles.resultSubtext}>
+            אל תשלמו שוב. אם ההרשמה לא מופיעה תוך כמה דקות — צרו איתנו קשר ונבדוק מול חברת הסליקה.
+          </p>
+        )}
         <div className={styles.resultActions}>
+          {/* Asks the server again. It used to reopen the card form, which on
+              this screen is an invitation to pay twice. */}
           <button
             type="button"
-            onClick={() => { setErrorMsg(''); setStep('payment'); }}
+            onClick={() => setPendingChecking(true)}
             className={styles.primaryButton}
+            disabled={pendingChecking}
           >
-            בדקו שוב
+            {pendingChecking ? 'בודקים…' : 'בדקו שוב'}
           </button>
           <button type="button" onClick={onComplete} className={styles.outlineButton}>
             סגור
@@ -1989,5 +2144,28 @@ export default function CourseRegistrationForm({
     );
   }
 
-  return <ProcessingPanel phase="register" />;
+  if (step === 'submitting') {
+    return <ProcessingPanel phase="register" progress={registerProgress ?? undefined} />;
+  }
+
+  // Nothing else should arrive here. When something does — a payment step with
+  // no payment to show — it used to fall through to the spinner above and spin
+  // for good. Say so, and give the parent a way back.
+  return (
+    <div className={styles.resultContainer} dir="rtl">
+      <div className={styles.failIcon}>!</div>
+      <p className={styles.resultTitle}>משהו השתבש בדרך</p>
+      <p className={styles.resultSubtext}>
+        {errorMsg || 'הפרטים שמילאתם נשמרו בטופס. חזרו אליו ונסו שוב.'}
+      </p>
+      <div className={styles.resultActions}>
+        <button type="button" onClick={() => { setErrorMsg(''); setStep('details'); }} className={styles.primaryButton}>
+          חזרה לטופס
+        </button>
+        <button type="button" onClick={onComplete} className={styles.outlineButton}>
+          סגור
+        </button>
+      </div>
+    </div>
+  );
 }

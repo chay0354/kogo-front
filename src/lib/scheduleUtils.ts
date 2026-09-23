@@ -1,5 +1,6 @@
 import api from '@/lib/api';
-import { Lesson, LessonDetail, LessonFilters, AttendanceMark, AttendanceRecord, InstructorSalary, SalaryHistory, type ScheduleEvent, type WalkInStudent, DAY_NAMES, type WeekDay, type WeeklyDayTimes } from '@/types/schedule';
+import { applyLocalMarks, firstRefusedMark, MarkRefusedError, withMark, type LocalMarks } from '@/lib/attendanceMarks';
+import { Lesson, LessonDetail, LessonFilters, AttendanceMark, AttendanceRecord, type AttendanceStatus, InstructorSalary, SalaryHistory, type ScheduleEvent, type WalkInStudent, DAY_NAMES, type WeekDay, type WeeklyDayTimes } from '@/types/schedule';
 
 /**
  * Fetch lessons with optional filters
@@ -37,8 +38,11 @@ export async function fetchLessonDetail(
   if (asUser) params.append('as_user', asUser);
   const query = params.toString();
   const res = await api.get(`/scheduling/lessons/${lessonId}/${query ? `?${query}` : ''}`);
-  const detail = res.data as LessonDetail;
-  lessonDetailCache.set(detailCacheKey(lessonId, date, asUser), detail);
+  const key = detailCacheKey(lessonId, date, asUser);
+  // A read that set off before the instructor's last taps does not know about
+  // them. They are laid back over it, so a refresh never takes a tick away.
+  const detail = withLocalMarks(key, res.data as LessonDetail);
+  lessonDetailCache.set(key, detail);
   return detail;
 }
 
@@ -53,7 +57,52 @@ function detailCacheKey(lessonId: string, date?: string, asUser?: string) {
 
 /** The roster already read for this lesson and day, if any. */
 export function peekLessonDetail(lessonId: string, date?: string, asUser?: string): LessonDetail | undefined {
-  return lessonDetailCache.get(detailCacheKey(lessonId, date, asUser));
+  const key = detailCacheKey(lessonId, date, asUser);
+  const cached = lessonDetailCache.get(key);
+  return cached ? withLocalMarks(key, cached) : undefined;
+}
+
+// Marks tapped on this device, per lesson and day, until the server shows them.
+// See attendanceMarks.ts for why a read cannot simply replace the register.
+const localMarks = new Map<string, LocalMarks>();
+
+function withLocalMarks(key: string, detail: LessonDetail): LessonDetail {
+  const marks = localMarks.get(key);
+  if (!marks) return detail;
+  const result = applyLocalMarks(detail, marks, Date.now());
+  if (result.marks.size) localMarks.set(key, result.marks);
+  else localMarks.delete(key);
+  return result.detail;
+}
+
+/**
+ * Remember a mark from the moment it is tapped — before the request goes out,
+ * so a refresh landing while it is in flight cannot undo it — and write it into
+ * the memory copy, so opening the lesson again paints it.
+ */
+export function rememberMark(
+  lessonId: string, date: string, asUser: string | undefined, childId: string, status: AttendanceStatus,
+): void {
+  const key = detailCacheKey(lessonId, date, asUser);
+  const marks = new Map(localMarks.get(key) ?? []);
+  marks.set(childId, { status, at: Date.now() });
+  localMarks.set(key, marks);
+  const cached = lessonDetailCache.get(key);
+  if (cached) lessonDetailCache.set(key, withMark(cached, childId, status));
+}
+
+/** Take back a mark the server refused, restoring what was there before it. */
+export function forgetMark(
+  lessonId: string, date: string, asUser: string | undefined, childId: string, previous: AttendanceStatus,
+): void {
+  const key = detailCacheKey(lessonId, date, asUser);
+  const marks = localMarks.get(key);
+  if (marks) {
+    marks.delete(childId);
+    if (!marks.size) localMarks.delete(key);
+  }
+  const cached = lessonDetailCache.get(key);
+  if (cached) lessonDetailCache.set(key, withMark(cached, childId, previous));
 }
 
 /** Read the rosters of a day's lessons in the background. Failures are silent — the register fetches again on open. */
@@ -100,7 +149,12 @@ export async function markAttendance(
   // as_user rides in the query string: the scope is resolved from there before
   // the body is looked at.
   const suffix = asUser ? `?as_user=${encodeURIComponent(asUser)}` : '';
-  await api.post(`/scheduling/lessons/${lessonId}/mark_attendance/${suffix}`, { date, attendance });
+  const res = await api.post(`/scheduling/lessons/${lessonId}/mark_attendance/${suffix}`, { date, attendance });
+  // The server answers 200 even when it refused a row, and says so per row. A
+  // refusal read as success used to leave a tick on screen that was never
+  // stored, and it vanished at the next refresh.
+  const refused = firstRefusedMark(res.data);
+  if (refused) throw new MarkRefusedError(refused);
 }
 
 /**

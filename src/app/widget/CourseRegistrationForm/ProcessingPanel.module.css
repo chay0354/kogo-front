@@ -173,3 +173,12 @@
     animation: none;
   }
 }
+
+/* Registrations confirmed so far, when a basket holds more than one. */
+.progress {
+  margin: 4px 0 0;
+  font-size: 14px;
+  font-weight: 700;
+  color: #2B3090;
+  font-variant-numeric: tabular-nums;
+}
