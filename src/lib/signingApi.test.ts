@@ -433,6 +433,9 @@ describe('the archive status', () => {
       { kind: 'store', label: 'חנות', eligible: 40, archived: 40, originals: 12, remaining: 0 },
     ],
     last_signed_at: '2026-09-24T09:15:00+03:00',
+    blocked: '',
+    issued_before: '2026-09-24T09:55:00+03:00',
+    backup: { enabled: true, copied: 160, pending: 0, last_error: '' },
   };
 
   it('asks the status route and reads the answer as sent', async () => {
@@ -452,6 +455,27 @@ describe('the archive status', () => {
       enabled: false,
       kinds: [{ kind: 'formal', label: '', eligible: 10, archived: 4, originals: 0, remaining: 6 }],
       last_signed_at: null,
+      blocked: '',
+      issued_before: null,
+      backup: null,
+    });
+  });
+
+  it('reads the cutoff, a blocked archive and the locked backup', () => {
+    expect(readArchiveStatus({
+      enabled: true,
+      kinds: [],
+      last_signed_at: null,
+      blocked: 'DOCUMENT_SIGNING_ENABLED is on and SIGNING_ARCHIVE_ISSUED_BEFORE is not set',
+      issued_before: '2026-09-24T09:55:00+03:00',
+      backup: { enabled: true, copied: '12', pending: 3, last_error: 'backup upload refused (HTTP 403 PERMISSION_DENIED)' },
+    })).toEqual({
+      enabled: true,
+      kinds: [],
+      last_signed_at: null,
+      blocked: 'DOCUMENT_SIGNING_ENABLED is on and SIGNING_ARCHIVE_ISSUED_BEFORE is not set',
+      issued_before: '2026-09-24T09:55:00+03:00',
+      backup: { enabled: true, copied: 12, pending: 3, last_error: 'backup upload refused (HTTP 403 PERMISSION_DENIED)' },
     });
   });
 });

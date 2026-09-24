@@ -236,7 +236,8 @@ export function kindPercent(kind: Pick<ArchiveKindStatus, 'archived' | 'eligible
 
 /** The run button: the archive switch is on, something is left, and nothing is running. */
 export function canRunArchive(status: ArchiveStatus | null | undefined, busy: boolean): boolean {
-  return Boolean(status?.enabled) && archiveTotals(status).remaining > 0 && !busy;
+  // A blocked archive (signing on, no cutoff on the server) is refused by the server anyway.
+  return Boolean(status?.enabled) && !status?.blocked && archiveTotals(status).remaining > 0 && !busy;
 }
 
 // ---------------------------------------------------------------- the archive run

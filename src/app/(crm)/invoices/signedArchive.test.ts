@@ -96,6 +96,9 @@ function archiveStatus(overrides: Partial<ArchiveStatus> = {}): ArchiveStatus {
       { kind: 'store', label: '', eligible: 40, archived: 40, originals: 12, remaining: 0 },
     ],
     last_signed_at: null,
+    blocked: '',
+    issued_before: null,
+    backup: null,
     ...overrides,
   };
 }
@@ -256,6 +259,7 @@ describe('the archive status', () => {
     expect(canRunArchive(archiveStatus({ enabled: false }), false)).toBe(false);
     expect(canRunArchive(archiveStatus({ kinds: [] }), false)).toBe(false);
     expect(canRunArchive(null, false)).toBe(false);
+    expect(canRunArchive(archiveStatus({ blocked: 'DOCUMENT_SIGNING_ENABLED is on and no cutoff' }), false)).toBe(false);
   });
 });
 

@@ -466,12 +466,29 @@ export interface ArchiveKindStatus {
   remaining: number;
 }
 
+/** The copy of every signed file in the locked Google Cloud Storage bucket. */
+export interface ArchiveBackupStatus {
+  enabled: boolean;
+  copied: number;
+  pending: number;
+  last_error: string;
+}
+
 export interface ArchiveStatus {
   /** The archive switch on the server. Off, nothing can be run from here. */
   enabled: boolean;
   kinds: ArchiveKindStatus[];
   /** The last archive copy signed. */
   last_signed_at: string | null;
+  /**
+   * Why a run would be refused even with the switch on ('' when it would run):
+   * signing for customers is on and the server was not told when it went on.
+   * The counts are left out (kinds is empty) while it is set.
+   */
+  blocked: string;
+  /** The archive covers documents created before this moment (when signing went on). */
+  issued_before: string | null;
+  backup: ArchiveBackupStatus | null;
 }
 
 /**
@@ -499,7 +516,23 @@ export function readArchiveStatus(data: unknown): ArchiveStatus | null {
           : count(item.remaining),
       };
     });
-  return { enabled: row.enabled, kinds, last_signed_at: text(row.last_signed_at) };
+  const backupRow = row.backup && typeof row.backup === 'object' ? (row.backup as Record<string, unknown>) : null;
+  const backup = backupRow
+    ? {
+        enabled: backupRow.enabled === true,
+        copied: count(backupRow.copied),
+        pending: count(backupRow.pending),
+        last_error: typeof backupRow.last_error === 'string' ? backupRow.last_error : '',
+      }
+    : null;
+  return {
+    enabled: row.enabled,
+    kinds,
+    last_signed_at: text(row.last_signed_at),
+    blocked: typeof row.blocked === 'string' ? row.blocked : '',
+    issued_before: text(row.issued_before),
+    backup,
+  };
 }
 
 export async function fetchArchiveStatus(): Promise<ArchiveStatus | null> {

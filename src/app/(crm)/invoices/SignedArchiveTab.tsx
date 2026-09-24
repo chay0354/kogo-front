@@ -439,6 +439,51 @@ export default function SignedArchiveTab() {
           </span>
         </p>
 
+        {status.issued_before && (
+          <p className={styles.statusLine}>
+            <span>
+              הארכיון כולל מסמכים שהונפקו לפני שהחתימה הופעלה: <b>{formatSigningStamp(status.issued_before)}</b>
+            </span>
+          </p>
+        )}
+
+        {status.backup?.enabled && (
+          <p className={styles.statusLine}>
+            <span>
+              גיבוי נעול ב-Google (תל אביב, 10 שנים): <b>{count(status.backup.copied)}</b> קבצים הועתקו
+            </span>
+            {status.backup.pending > 0 && (
+              <>
+                <span className={styles.sep} aria-hidden="true">·</span>
+                <span>ממתינים להעתקה: <b>{count(status.backup.pending)}</b></span>
+              </>
+            )}
+          </p>
+        )}
+
+        {status.backup?.enabled && status.backup.last_error && (
+          <div className={`${styles.notice} ${styles.noticeInfo}`} role="note">
+            <Info size={16} aria-hidden="true" className={styles.noticeIcon} />
+            <div className={styles.noticeBody}>
+              <p className={styles.noticeText}>
+                העתקה לגיבוי הנעול נכשלה בפעם האחרונה, והיא תנוסה שוב אוטומטית בתוך כמה דקות.
+              </p>
+            </div>
+          </div>
+        )}
+
+        {status.enabled && status.blocked && (
+          <div className={`${styles.notice} ${styles.noticeInfo}`} role="note">
+            <Info size={16} aria-hidden="true" className={styles.noticeIcon} />
+            <div className={styles.noticeBody}>
+              <p className={styles.noticeText}>
+                חתימת הארכיון מושהית: החתימה ללקוחות פעילה, ועוד לא הוגדר בשרת ממתי. בלי המועד הזה הארכיון לא
+                רץ, כדי שלא ייקח מסמך חדש שצריך להיחתם כמקור.
+              </p>
+            </div>
+          </div>
+        )}
+
         {!status.enabled && (
           <div className={`${styles.notice} ${styles.noticeInfo}`} role="note">
             <Info size={16} aria-hidden="true" className={styles.noticeIcon} />
@@ -451,7 +496,7 @@ export default function SignedArchiveTab() {
           </div>
         )}
 
-        {status.enabled && totals.remaining === 0 && run.phase !== 'finished' && (
+        {status.enabled && !status.blocked && totals.remaining === 0 && run.phase !== 'finished' && (
           <div className={`${styles.notice} ${styles.noticeDone}`} role="status">
             <CheckCircle2 size={16} aria-hidden="true" className={styles.noticeIcon} />
             <div className={styles.noticeBody}>
