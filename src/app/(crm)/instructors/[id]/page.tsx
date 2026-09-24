@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, Fragment } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import {
   ArrowRight, Phone, Mail, MapPin, Edit, Gift, Award, Building2, BookOpen, Calendar, List,
@@ -22,6 +22,7 @@ import {
 import EditInstructorDialog from '@/components/dialogs/EditInstructorDialog';
 import AddInstructorBonusDialog from '@/components/dialogs/AddInstructorBonusDialog';
 import InstructorWeeklySchedule from '@/components/instructors/InstructorWeeklySchedule';
+import { groupByDay } from '@/lib/lessonSchedule';
 import PairPhotoSection from '@/components/instructors/PairPhotoSection';
 
 type LessonFilter = 'all' | 'profitable' | 'loss';
@@ -536,44 +537,60 @@ export default function InstructorDetailPage() {
                 </tr>
               </thead>
               <tbody>
-                {filteredLessons.map(lesson => {
-                  const profit = parseFloat(lesson.profit);
-                  return (
-                    <tr key={lesson.lesson_id} className={profit < 0 ? 'bg-red-50' : profit > 0 ? 'bg-green-50' : ''}>
-                      <td>
-                        <div>
-                          <p className="font-medium">{DAY_OF_WEEK_HEBREW[lesson.day_of_week]}</p>
-                          <p className="text-xs text-muted-foreground">
-                            {lesson.start_time} - {lesson.end_time}
-                          </p>
-                        </div>
-                      </td>
-                      <td>
-                        <span className="badge badge-blue text-xs">
-                          {lesson.branch_name}
+                {/* The week in order — Sunday first, each day's groups from the
+                    earliest start — so the counts can be written straight down. */}
+                {groupByDay(filteredLessons).map(day => (
+                  <Fragment key={`day-${day.day}`}>
+                    <tr className="bg-muted/40">
+                      <td colSpan={7} className="py-2 font-semibold">
+                        {DAY_OF_WEEK_HEBREW[day.day]}
+                        <span className="mr-2 text-xs font-normal text-muted-foreground">
+                          {day.lessons.length === 1 ? 'קבוצה אחת' : `${day.lessons.length} קבוצות`}
+                          {' · '}
+                          {day.students} תלמידים פעילים
                         </span>
-                      </td>
-                      <td className="font-medium">
-                        {lesson.course_name}
-                        <GroupIdBadge displayId={lesson.course_display_id} />
-                      </td>
-                      <td className="text-center">
-                        <span className="badge badge-gray">
-                          {lesson.student_count}
-                        </span>
-                      </td>
-                      <td className="text-left text-green-600 font-medium">
-                        {formatCurrency(lesson.revenue)}
-                      </td>
-                      <td className="text-left text-orange-600 font-medium">
-                        {formatCurrency(lesson.salary)}
-                      </td>
-                      <td className={`text-left font-bold ${getProfitColorClass(profit)}`}>
-                        {profit < 0 && '↓'}{profit > 0 && '↑'} {formatCurrency(lesson.profit)}
                       </td>
                     </tr>
-                  );
-                })}
+                    {day.lessons.map(lesson => {
+                      const profit = parseFloat(lesson.profit);
+                      return (
+                        <tr key={lesson.lesson_id} className={profit < 0 ? 'bg-red-50' : profit > 0 ? 'bg-green-50' : ''}>
+                          <td>
+                            <div>
+                              <p className="font-medium">{DAY_OF_WEEK_HEBREW[lesson.day_of_week]}</p>
+                              <p className="text-xs text-muted-foreground">
+                                {lesson.start_time} - {lesson.end_time}
+                              </p>
+                            </div>
+                          </td>
+                          <td>
+                            <span className="badge badge-blue text-xs">
+                              {lesson.branch_name}
+                            </span>
+                          </td>
+                          <td className="font-medium">
+                            {lesson.course_name}
+                            <GroupIdBadge displayId={lesson.course_display_id} />
+                          </td>
+                          <td className="text-center">
+                            <span className="badge badge-gray">
+                              {lesson.student_count}
+                            </span>
+                          </td>
+                          <td className="text-left text-green-600 font-medium">
+                            {formatCurrency(lesson.revenue)}
+                          </td>
+                          <td className="text-left text-orange-600 font-medium">
+                            {formatCurrency(lesson.salary)}
+                          </td>
+                          <td className={`text-left font-bold ${getProfitColorClass(profit)}`}>
+                            {profit < 0 && '↓'}{profit > 0 && '↑'} {formatCurrency(lesson.profit)}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </Fragment>
+                ))}
               </tbody>
             </table>
           </div>
