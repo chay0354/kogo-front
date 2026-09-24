@@ -1,0 +1,174 @@
+/* The public certificate page: the card-link shell (indigo header, gold
+   accent, white cards on a cool grey ground), a little wider so a
+   fingerprint fits in two lines. */
+
+.body {
+  max-width: 600px;
+}
+
+.lead {
+  margin: 0;
+  font-size: 14.5px;
+  font-weight: 600;
+  line-height: 1.7;
+  color: #1e2a6e;
+}
+
+.lead + .lead {
+  margin-top: 8px;
+}
+
+/* ---- the certificate's fields ---- */
+.field + .field {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid #f2f3f8;
+}
+
+.fieldLabel {
+  display: block;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #6b7280;
+  margin-bottom: 4px;
+}
+
+.fieldValue {
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 13px;
+  font-weight: 600;
+  direction: ltr;
+  text-align: left;
+  unicode-bidi: isolate;
+  word-break: break-all;
+}
+
+.fingerprintRow {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.fingerprintRow .mono {
+  flex: 1;
+  min-width: 0;
+  background: #f5f6fb;
+  border-radius: 10px;
+  padding: 8px 10px;
+  line-height: 1.6;
+}
+
+.copyBtn {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 36px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid #dfe2ee;
+  background: #fff;
+  color: #1e2a6e;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.copyBtn:hover {
+  background: #f3f4fa;
+}
+
+.copyBtn:focus-visible,
+.download:focus-visible {
+  outline: 2px solid #f5c518;
+  outline-offset: 2px;
+}
+
+.download {
+  margin-top: 16px;
+  width: 100%;
+  height: 48px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 0;
+  border-radius: 999px;
+  background: #f5c518;
+  color: #4a3400;
+  font-family: inherit;
+  font-size: 15.5px;
+  font-weight: 900;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(245, 197, 24, 0.35);
+}
+
+.download:hover {
+  background: #ffd234;
+}
+
+/* ---- the Acrobat steps ---- */
+.steps {
+  margin: 0;
+  padding-inline-start: 20px;
+  list-style: decimal;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.7;
+  color: #1e2a6e;
+}
+
+.steps li + li {
+  margin-top: 6px;
+}
+
+.quote {
+  font-weight: 800;
+}
+
+.en {
+  color: #6b7280;
+  font-weight: 600;
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+
+.note {
+  margin: 12px 0 0;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.6;
+  color: #6b7280;
+}
+
+.state {
+  text-align: center;
+  font-size: 14.5px;
+  font-weight: 700;
+  line-height: 1.6;
+  color: #1e2a6e;
+  margin: 6px 0;
+}
+
+.stateNote {
+  text-align: center;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.6;
+  color: #6b7280;
+  margin: 0;
+}
+
+@media (hover: none) and (pointer: coarse) {
+  .copyBtn {
+    min-height: 44px;
+  }
+}

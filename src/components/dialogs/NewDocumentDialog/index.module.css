@@ -1214,6 +1214,27 @@
   align-items: center;
 }
 
+/* The crossed-check line closes each check: its own full-width row under the
+   fields, so the fields above it drop their rule and it draws the row's. */
+.checkRow > :not(.checkCrossedCell) {
+  border-bottom: none;
+}
+
+.checkRow > .checkCrossedCell {
+  grid-column: 1 / -1;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.125rem;
+  padding: 0.125rem 0.25rem 0.5rem;
+  padding-inline-start: 3.25rem;
+}
+
+.checkCrossedHint {
+  margin: 0;
+  font-size: 0.75rem;
+  color: hsl(var(--muted-foreground));
+}
+
 .checkActionCell {
   display: flex;
   align-items: center;

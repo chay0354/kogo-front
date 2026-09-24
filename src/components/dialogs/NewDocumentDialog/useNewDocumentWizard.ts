@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { BRANCHES_CATEGORY } from './constants';
-import { generateDocumentNumber, getWizardSteps } from './utils';
+import { emptyCheckRow, generateDocumentNumber, getWizardSteps } from './utils';
 import type {
   BusinessCustomerFormData,
   CheckRow,
@@ -40,16 +40,7 @@ const INITIAL_LINE_ITEM: LineItem = {
 
 function createInitialReceiptDetails(): ReceiptDetailsData {
   const today = new Date().toISOString().split('T')[0];
-  const initialCheck: CheckRow = {
-    id: '1',
-    date: today,
-    bank: '',
-    branch: '',
-    accountNumber: '',
-    checkNumber: '',
-    amount: 0,
-    confirmed: false,
-  };
+  const initialCheck: CheckRow = emptyCheckRow('1', today);
   return {
     paymentMethod: 'מזומן',
     linkedInvoiceId: '',
@@ -101,6 +92,7 @@ function createInitialInvoiceDetails(): InvoiceDetailsData {
     paymentTerms: 'שוטף + 30',
     dueDate: '',
     paymentMethods: [],
+    checkCrossed: false,
     linkedInvoiceId: '',
     receiptNotes: '',
   };

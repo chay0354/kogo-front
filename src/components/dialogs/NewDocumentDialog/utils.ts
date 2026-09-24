@@ -1,6 +1,8 @@
+import type { ReceiptDetailsInput } from '@/types/document';
 import { ALL_WIZARD_STEPS, BRANCHES_CATEGORY } from './constants';
 import type {
   BusinessCustomerFormData,
+  CheckRow,
   ClientType,
   InvoiceDetailsData,
   ReceiptDetailsData,
@@ -38,6 +40,58 @@ export function businessFormFromCustomer(customer: {
     category: customer.category,
     branch_id: customer.branch_id ?? null,
     notes: customer.notes,
+  };
+}
+
+/** A blank check line, dated today. Not crossed until the office says so. */
+export function emptyCheckRow(id: string, date: string): CheckRow {
+  return {
+    id,
+    date,
+    bank: '',
+    branch: '',
+    accountNumber: '',
+    checkNumber: '',
+    amount: 0,
+    confirmed: false,
+    crossed: false,
+  };
+}
+
+/**
+ * The receipt section of the create payload, under the names the server reads
+ * (ReceiptDetailsInputSerializer). Each check carries `check_crossed`: only a
+ * check crossed "לא סחיר" in the customer's name lets the signed original go
+ * by email (הוראה 18ב(ד)); any other is handed over on paper.
+ */
+export function receiptDetailsPayload(data: ReceiptDetailsData): ReceiptDetailsInput {
+  return {
+    payment_method: data.paymentMethod,
+    linked_invoice_id: data.linkedInvoiceId,
+    cash_amount: data.cashAmount,
+    cash_notes: data.cashNotes,
+    checks: data.checks.map((check) => ({
+      date: check.date,
+      bank: check.bank,
+      branch: check.branch,
+      account_number: check.accountNumber,
+      check_number: check.checkNumber,
+      amount: check.amount,
+      confirmed: check.confirmed,
+      check_crossed: check.crossed === true,
+    })),
+    withholding: data.withholding,
+    check_notes: data.checkNotes,
+    card_last_four: data.cardLastFour,
+    card_expiry: data.cardExpiry,
+    card_amount: data.cardAmount,
+    card_installments: data.cardInstallments,
+    card_notes: data.cardNotes,
+    // The server takes a date or null — an empty field is null, not ''.
+    bank_date: data.bankDate || null,
+    bank_reference: data.bankReference,
+    bank_amount: data.bankAmount,
+    bank_notes: data.bankNotes,
   };
 }
 

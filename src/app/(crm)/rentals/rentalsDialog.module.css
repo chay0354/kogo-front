@@ -304,6 +304,24 @@
   color: var(--kg-muted);
 }
 
+/* The saved tenant's consent to documents by email — a box on its own line. */
+.consentLabel {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--kg-ink);
+  cursor: pointer;
+}
+
+.consentLabel input {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  accent-color: var(--kg-bar-a);
+}
+
 /* ---- the tenant: new, or a business customer that exists ---- */
 .segment {
   display: inline-flex;

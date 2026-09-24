@@ -7,9 +7,12 @@ import {
   branchFieldApplies,
   businessCustomerErrorMessage,
   canAdvanceFromStep,
+  emptyCheckRow,
   getWizardSteps,
+  receiptDetailsPayload,
   serverErrorMessage,
 } from './utils';
+import type { ReceiptDetailsData } from './types';
 
 describe('businessCustomerErrorMessage', () => {
   it("reads the server's field error — the branch a partner has to choose", () => {
@@ -128,5 +131,76 @@ describe('branchFieldApplies', () => {
     expect(branchFieldApplies('')).toBe(false);
     expect(branchFieldApplies(null)).toBe(false);
     expect(branchFieldApplies(undefined)).toBe(false);
+  });
+});
+
+describe('receiptDetailsPayload — a receipt as the server reads it', () => {
+  function receipt(overrides: Partial<ReceiptDetailsData> = {}): ReceiptDetailsData {
+    return {
+      paymentMethod: "צ'ק",
+      linkedInvoiceId: 'IR-2026-000001',
+      cashAmount: 0,
+      cashNotes: '',
+      checks: [],
+      withholding: 0,
+      checkNotes: 'שני צ׳קים',
+      cardLastFour: '',
+      cardExpiry: '',
+      cardAmount: 0,
+      cardInstallments: 1,
+      cardNotes: '',
+      bankDate: '',
+      bankReference: '',
+      bankAmount: 0,
+      bankNotes: '',
+      ...overrides,
+    };
+  }
+
+  it('starts every new check uncrossed', () => {
+    expect(emptyCheckRow('9', '2026-09-23')).toMatchObject({ id: '9', date: '2026-09-23', confirmed: false, crossed: false });
+  });
+
+  it('sends each check with check_crossed, under the names the serializer reads', () => {
+    const crossed = { ...emptyCheckRow('1', '2026-10-01'), bank: '12', branch: '345', accountNumber: '678', checkNumber: '1001', amount: 500, confirmed: true, crossed: true };
+    const plain = { ...emptyCheckRow('2', '2026-11-01'), checkNumber: '1002', amount: 500, confirmed: true };
+    const payload = receiptDetailsPayload(receipt({ checks: [crossed, plain] }));
+    expect(payload.payment_method).toBe("צ'ק");
+    expect(payload.linked_invoice_id).toBe('IR-2026-000001');
+    expect(payload.check_notes).toBe('שני צ׳קים');
+    expect(payload.checks).toEqual([
+      { date: '2026-10-01', bank: '12', branch: '345', account_number: '678', check_number: '1001', amount: 500, confirmed: true, check_crossed: true },
+      { date: '2026-11-01', bank: '', branch: '', account_number: '', check_number: '1002', amount: 500, confirmed: true, check_crossed: false },
+    ]);
+  });
+
+  it('carries no camelCase key the server would ignore — the receipt used to be refused for want of payment_method', () => {
+    const payload = receiptDetailsPayload(receipt({ checks: [emptyCheckRow('1', '2026-10-01')] }));
+    const keys = [...Object.keys(payload), ...Object.keys(payload.checks?.[0] ?? {})];
+    expect(keys.filter((key) => /[A-Z]/.test(key))).toEqual([]);
+  });
+
+  it('sends an empty bank date as null, and a filled one as it is', () => {
+    expect(receiptDetailsPayload(receipt({ bankDate: '' })).bank_date).toBeNull();
+    expect(receiptDetailsPayload(receipt({ paymentMethod: 'העברה בנקאית', bankDate: '2026-09-23', bankAmount: 300 }))).toMatchObject({
+      payment_method: 'העברה בנקאית',
+      bank_date: '2026-09-23',
+      bank_amount: 300,
+    });
+  });
+
+  it('keeps the cash and card sections as they were entered', () => {
+    expect(receiptDetailsPayload(receipt({ paymentMethod: 'מזומן', cashAmount: 120, cashNotes: 'בקופה' }))).toMatchObject({
+      payment_method: 'מזומן',
+      cash_amount: 120,
+      cash_notes: 'בקופה',
+    });
+    expect(receiptDetailsPayload(receipt({ paymentMethod: 'אשראי', cardLastFour: '4242', cardExpiry: '12/28', cardAmount: 90, cardInstallments: 3 }))).toMatchObject({
+      payment_method: 'אשראי',
+      card_last_four: '4242',
+      card_expiry: '12/28',
+      card_amount: 90,
+      card_installments: 3,
+    });
   });
 });

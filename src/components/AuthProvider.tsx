@@ -30,6 +30,8 @@ const isPublicPath = (pathname: string | null) =>
   pathname?.startsWith('/update-card/') === true ||
   // Where the website's checkout lands while card payment on the website is off.
   pathname === '/store-closed' ||
+  // The public page of our document-signing certificate: anyone holding one of our documents may check it.
+  pathname === '/signing-certificate' ||
   // The tenant's contract signing page: the link's token is its key, so no account is looked up.
   pathname?.startsWith('/s/') === true ||
   // The tenant's card page for their standing order — the same: the token is the key.

@@ -5,12 +5,14 @@ import { Button } from '@/components/ui/button';
 import { useAuth } from '@/components/AuthProvider';
 import IntegrationCredentials from '../IntegrationCredentials';
 import InstructorLoginDiagnostics from '../InstructorLoginDiagnostics';
+import SigningStatusSection from '../SigningStatusSection';
 
 export default function SettingsSystemPage() {
   const { user } = useAuth();
   return (
     <div className="space-y-4">
       <IntegrationCredentials />
+      <SigningStatusSection />
       <InstructorLoginDiagnostics />
       <div className="card">
         <h2 className="text-base font-semibold">ספר-מערכת</h2>

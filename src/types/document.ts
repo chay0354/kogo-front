@@ -119,6 +119,8 @@ export interface ReceiptDetailsInput {
     check_number: string;
     amount: number;
     confirmed: boolean;
+    /** Crossed "לא סחיר" in the customer's name — only then may the signed original go by email. */
+    check_crossed: boolean;
   }>;
   withholding?: number;
   check_notes?: string;
