@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -8,12 +9,12 @@ import { Select } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from 'sonner';
-import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { Minus, Plus, Trash2, X } from 'lucide-react';
-import { initiatePayment, createCashInvoice } from '@/lib/storeApi';
+import { initiatePayment, createCashInvoice, fetchInvoice } from '@/lib/storeApi';
 import { chargeTillCard, newCheckoutKey } from '@/lib/tillCardCharge';
+import { hostedPagePaid, readTillInitiateOutcome } from '@/lib/tillHostedPage';
 import api from '@/lib/api';
-import type { StoreCartLine, CartItem, CustomerInfo } from '@/types/store';
+import type { StoreCartLine, CartItem, CustomerInfo, StoreInvoice } from '@/types/store';
 import type { ChildWithDetails } from '@/types/customer';
 import dlg from './storeDialog.module.css';
 
@@ -68,7 +69,9 @@ export default function CartCheckoutDialog({
   const [showTranzilaModal, setShowTranzilaModal] = useState(false);
   const [iframeUrl, setIframeUrl] = useState('');
   const [useDirectCard, setUseDirectCard] = useState(false);
-  const [showPaymentChoice, setShowPaymentChoice] = useState(false);
+  // The invoice the open hosted page will complete; watched until it is paid.
+  const [hostedInvoiceId, setHostedInvoiceId] = useState('');
+  const hostedDone = useRef(false);
 
   const [cardNumber, setCardNumber] = useState('');
   const [expiryMonth, setExpiryMonth] = useState('');
@@ -84,9 +87,10 @@ export default function CartCheckoutDialog({
   const deliveryTotal = lines.reduce((sum, line) => sum + lineDelivery(line), 0);
   const total = productsTotal + deliveryTotal;
 
-  // A walk-in pays by typing the card, on the business terminal. Tranzila's
-  // hosted page is off: it ran on a test terminal and charged nobody.
-  const showCardForm = paymentMethod === 'credit_card' && (useDirectCard || customerType === 'walkin');
+  // A card is paid on Tranzila's hosted page (cogolive: card, Bit, Apple Pay —
+  // the card never passes through us). The typed-card form is the fallback:
+  // when the hosted page is off, or when the seller asks for it.
+  const showCardForm = paymentMethod === 'credit_card' && useDirectCard;
 
   /**
    * The list is one page of children, and the page is 20. Filtering it here meant
@@ -100,6 +104,32 @@ export default function CartCheckoutDialog({
     const timer = window.setTimeout(() => { fetchChildren(query); }, query ? 250 : 0);
     return () => window.clearTimeout(timer);
   }, [isOpen, customerType, searchQuery]);
+
+  /**
+   * The hosted page is Tranzila's, so the till cannot see the customer pay.
+   * The server completes the invoice when Tranzila's notify arrives and the
+   * charge is found on the terminal's report; the till watches that invoice.
+   */
+  useEffect(() => {
+    if (!showTranzilaModal || !hostedInvoiceId) return;
+    hostedDone.current = false;
+    const timer = window.setInterval(async () => {
+      try {
+        const invoice = await fetchInvoice(hostedInvoiceId);
+        if (!hostedDone.current && hostedPagePaid(invoice)) finishHostedPayment(invoice);
+      } catch {
+        // A missed look is not an answer; the next one asks again.
+      }
+    }, 3000);
+    return () => window.clearInterval(timer);
+  }, [showTranzilaModal, hostedInvoiceId]);
+
+  function finishHostedPayment(invoice: StoreInvoice) {
+    hostedDone.current = true;
+    toast.success(`התשלום התקבל!\nחשבונית: ${invoice.invoice_number}`);
+    handleReset();
+    onSuccess();
+  }
 
   async function fetchChildren(query: string) {
     setLoadingChildren(true);
@@ -183,13 +213,8 @@ export default function CartCheckoutDialog({
       const cartItems = toCartItems(lines);
 
       if (paymentMethod === 'credit_card') {
-        if (customerType === 'walkin') {
-          if (!walkInName || !walkInPhone) {
-            toast.error('יש למלא שם וטלפון עבור לקוח חדש');
-            setIsLoading(false);
-            return;
-          }
-        } else if (customerType === 'existing' && !selectedChild) {
+        // A walk-in's name and phone are optional, as on the typed card.
+        if (customerType === 'existing' && !selectedChild) {
           toast.error('יש לבחור לקוח קיים');
           setIsLoading(false);
           return;
@@ -212,31 +237,29 @@ export default function CartCheckoutDialog({
           callbackUrl
         );
 
-        if (response.use_direct_card) {
-          // No saved card for this child: type it, on the business terminal.
+        const outcome = readTillInitiateOutcome(response);
+        if (outcome.kind === 'type_card') {
+          // The hosted page is off: type the card, on the business terminal.
           setUseDirectCard(true);
-          toast.info('לילד אין כרטיס שמור. הזינו את פרטי הכרטיס ולחצו שוב על "שלם".');
+          toast.info(
+            customerType === 'walkin'
+              ? 'עמוד התשלום של טרנזילה סגור כרגע. הזינו את פרטי הכרטיס ולחצו שוב על "שלם".'
+              : 'לילד אין כרטיס שמור. הזינו את פרטי הכרטיס ולחצו שוב על "שלם".'
+          );
           return;
         }
-
-        if (response.requires_iframe) {
-          if (customerType === 'walkin') {
-            setIframeUrl(response.iframe_url || '');
-            setShowTranzilaModal(true);
-          } else {
-            setIframeUrl(response.iframe_url || '');
-            setShowPaymentChoice(true);
-            setIsLoading(false);
-            return;
-          }
+        if (outcome.kind === 'hosted_page') {
+          setIframeUrl(outcome.url);
+          setHostedInvoiceId(outcome.invoiceId);
+          setShowTranzilaModal(true);
+          return;
+        }
+        if (outcome.kind === 'paid') {
+          toast.success(`תשלום בוצע בהצלחה!\nחשבונית: ${outcome.invoice?.invoice_number ?? ''}`);
+          handleReset();
+          onSuccess();
         } else {
-          if (response.success) {
-            toast.success(`תשלום בוצע בהצלחה!\nחשבונית: ${response.invoice?.invoice_number}`);
-            handleReset();
-            onSuccess();
-          } else {
-            toast.error(`התשלום נכשל:\n${response.error}`);
-          }
+          toast.error(`התשלום נכשל:\n${outcome.message}`);
         }
       } else {
         if (!selectedChild) {
@@ -271,8 +294,8 @@ export default function CartCheckoutDialog({
     setWalkInPhone('');
     setShowTranzilaModal(false);
     setIframeUrl('');
+    setHostedInvoiceId('');
     setUseDirectCard(false);
-    setShowPaymentChoice(false);
     setCardNumber('');
     setExpiryMonth('');
     setExpiryYear('');
@@ -282,12 +305,27 @@ export default function CartCheckoutDialog({
     setUncertainNote(null);
   }
 
-  function handlePaymentChoice(useDirectEntry: boolean) {
-    if (useDirectEntry) {
-      setUseDirectCard(true);
-    } else {
-      setShowTranzilaModal(true);
+  /**
+   * The fallback from the hosted page to typing the card. The customer may
+   * have just paid on the page, so its invoice is asked once first; a sale
+   * already paid is finished, never charged again.
+   */
+  async function handleTypeCardInstead() {
+    if (hostedInvoiceId) {
+      try {
+        const invoice = await fetchInvoice(hostedInvoiceId);
+        if (hostedPagePaid(invoice)) {
+          finishHostedPayment(invoice);
+          return;
+        }
+      } catch {
+        // Unknown: the warning next to the button still stands.
+      }
     }
+    setShowTranzilaModal(false);
+    setIframeUrl('');
+    setHostedInvoiceId('');
+    setUseDirectCard(true);
   }
 
   function handleClose() {
@@ -588,34 +626,40 @@ export default function CartCheckoutDialog({
         </DialogContent>
       </Dialog>
 
-      {/* Tranzila Iframe Modal */}
-      {showTranzilaModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+      {/* Tranzila Iframe Modal — on document.body: the page's fade-in wrapper
+          is a stacking context of its own, and kept it under the sidebar. */}
+      {showTranzilaModal && createPortal(
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-[60] flex items-center justify-center p-4">
           <div className="bg-white rounded-lg w-full max-w-4xl max-h-[90vh] overflow-auto">
-            <div className="p-4 border-b flex justify-between items-center">
-              <h3 className="text-xl font-semibold">תשלום</h3>
-              <Button variant="outline" onClick={handleClose}>
-                ביטול
-              </Button>
+            <div className="p-4 border-b flex justify-between items-center gap-3">
+              <div>
+                <h3 className="text-xl font-semibold">תשלום</h3>
+                <p className="text-sm text-gray-500">
+                  ההזמנה תיסגר כאן לבד כשהתשלום יאושר. הקלדת כרטיס — רק אם הלקוח לא שילם בעמוד.
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button variant="outline" onClick={handleTypeCardInstead}>
+                  הקלדת כרטיס במקום
+                </Button>
+                <Button variant="outline" onClick={handleClose}>
+                  ביטול
+                </Button>
+              </div>
             </div>
             <div className="p-4">
-              <iframe src={iframeUrl} className="w-full h-[600px] border-0" title="Tranzila Payment" />
+              {/* allow="payment": Apple Pay and Google Pay inside the frame. */}
+              <iframe
+                src={iframeUrl}
+                allow="payment"
+                className="w-full h-[600px] border-0"
+                title="Tranzila Payment"
+              />
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
-
-      {/* Payment Method Choice Dialog */}
-      <ConfirmDialog
-        isOpen={showPaymentChoice}
-        onClose={() => setShowPaymentChoice(false)}
-        onConfirm={handlePaymentChoice}
-        title="בחר אמצעי תשלום"
-        message="כיצד תרצה להזין את פרטי התשלום?"
-        confirmText="הזנה ישירה"
-        cancelText="דף תשלום מאובטח"
-        type="question"
-      />
     </>
   );
 }
