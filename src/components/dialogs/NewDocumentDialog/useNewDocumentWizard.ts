@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { BRANCHES_CATEGORY } from './constants';
-import { emptyCheckRow, generateDocumentNumber, getWizardSteps } from './utils';
+import { emptyCheckRow, generateDocumentNumber, getWizardSteps, israelToday } from './utils';
 import type {
   BusinessCustomerFormData,
   CheckRow,
@@ -39,7 +39,7 @@ const INITIAL_LINE_ITEM: LineItem = {
 };
 
 function createInitialReceiptDetails(): ReceiptDetailsData {
-  const today = new Date().toISOString().split('T')[0];
+  const today = israelToday();
   const initialCheck: CheckRow = emptyCheckRow('1', today);
   return {
     paymentMethod: 'מזומן',
@@ -64,7 +64,7 @@ function createInitialReceiptDetails(): ReceiptDetailsData {
 function createInitialCreditInvoiceDetails(): CreditInvoiceData {
   return {
     documentNumber: generateDocumentNumber(),
-    documentDate: new Date().toISOString().split('T')[0],
+    documentDate: israelToday(),
     linkedInvoiceId: '',
     creditReason: '',
     creditAmountBeforeVat: 0,
@@ -77,7 +77,7 @@ function createInitialCreditInvoiceDetails(): CreditInvoiceData {
 function createInitialInvoiceDetails(): InvoiceDetailsData {
   return {
     documentNumber: generateDocumentNumber(),
-    documentDate: new Date().toISOString().split('T')[0],
+    documentDate: israelToday(),
     description: '',
     currency: 'ILS',
     pricesIncludeVat: false,

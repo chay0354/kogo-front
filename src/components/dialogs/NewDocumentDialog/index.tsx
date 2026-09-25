@@ -45,9 +45,11 @@ import {
   serverErrorMessage,
   businessFormFromCustomer,
   canAdvanceFromStep,
+  documentDateBounds,
   emptyCheckRow,
   getNextButtonLabel,
   getStepStatus,
+  israelToday,
   receiptDetailsPayload,
 } from './utils';
 import { useNewDocumentWizard } from './useNewDocumentWizard';
@@ -1312,6 +1314,8 @@ function TransactionInvoiceStep({ data, onChange }: TransactionInvoiceStepProps)
             type="date"
             className={styles.formInput}
             value={data.documentDate}
+            min={documentDateBounds().min}
+            max={documentDateBounds().max}
             onChange={(e) => onChange({ ...data, documentDate: e.target.value })}
           />
         </div>
@@ -1614,6 +1618,8 @@ function CreditInvoiceStep({ data, onChange, childId, businessCustomerId }: Cred
             type="date"
             className={styles.formInput}
             value={data.documentDate}
+            min={documentDateBounds().min}
+            max={documentDateBounds().max}
             onChange={(e) => onChange({ ...data, documentDate: e.target.value })}
           />
         </div>
@@ -1791,6 +1797,8 @@ function InvoiceDetailsStep({ data, onChange, docType }: InvoiceDetailsStepProps
             type="date"
             className={styles.formInput}
             value={data.documentDate}
+            min={documentDateBounds().min}
+            max={documentDateBounds().max}
             onChange={(e) => onChange({ ...data, documentDate: e.target.value })}
           />
         </div>
@@ -2277,7 +2285,7 @@ function CheckPanel({ data, onChange }: ReceiptDetailsStepProps) {
 
   function deleteCheck(id: string) {
     const remaining = data.checks.filter((c) => c.id !== id);
-    const today = new Date().toISOString().split('T')[0];
+    const today = israelToday();
     const next = remaining.length > 0 ? remaining : [emptyCheckRow(String(Date.now()), today)];
     onChange({ ...data, checks: next });
   }
@@ -2404,7 +2412,7 @@ function CheckPanel({ data, onChange }: ReceiptDetailsStepProps) {
         type="button"
         className={styles.addCheckBtn}
         onClick={() => {
-          const today = new Date().toISOString().split('T')[0];
+          const today = israelToday();
           onChange({
             ...data,
             checks: [...data.checks, emptyCheckRow(String(Date.now()), today)],

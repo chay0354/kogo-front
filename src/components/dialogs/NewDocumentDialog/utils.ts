@@ -95,6 +95,34 @@ export function receiptDetailsPayload(data: ReceiptDetailsData): ReceiptDetailsI
   };
 }
 
+const ISRAEL_DAY = new Intl.DateTimeFormat('en-GB', {
+  timeZone: 'Asia/Jerusalem',
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+});
+
+/**
+ * Today on Israel's calendar as 'YYYY-MM-DD', whatever the browser's clock.
+ * `toISOString()` is UTC: between midnight and 02:00/03:00 in Israel it gave
+ * yesterday, and the document was dated a day early.
+ */
+export function israelToday(now: Date = new Date()): string {
+  const parts: Record<string, string> = {};
+  for (const part of ISRAEL_DAY.formatToParts(now)) parts[part.type] = part.value;
+  return `${parts.year}-${parts.month}-${parts.day}`;
+}
+
+/**
+ * The dates a document issued today may carry (the server's rule, owner
+ * decision D3): not after today, and inside this tax year. The server also
+ * refuses a date before the latest one already issued in the document's run.
+ */
+export function documentDateBounds(now: Date = new Date()): { min: string; max: string } {
+  const today = israelToday(now);
+  return { min: `${today.slice(0, 4)}-01-01`, max: today };
+}
+
 // The number is the server's to give, at issuance; nothing is promised before that.
 export function generateDocumentNumber(): string {
   return 'יוקצה בהפקה';

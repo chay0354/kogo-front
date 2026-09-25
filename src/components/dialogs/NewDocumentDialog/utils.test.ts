@@ -7,8 +7,10 @@ import {
   branchFieldApplies,
   businessCustomerErrorMessage,
   canAdvanceFromStep,
+  documentDateBounds,
   emptyCheckRow,
   getWizardSteps,
+  israelToday,
   receiptDetailsPayload,
   serverErrorMessage,
 } from './utils';
@@ -202,5 +204,31 @@ describe('receiptDetailsPayload — a receipt as the server reads it', () => {
       card_amount: 90,
       card_installments: 3,
     });
+  });
+});
+
+/**
+ * A document's date defaulted to toISOString() — UTC — so an invoice typed in
+ * Israel after midnight was dated the day before. It is Israel's day now.
+ */
+describe('israelToday', () => {
+  it("gives Israel's day after midnight there, while UTC is still on the day before", () => {
+    // 22:30 UTC on 25.9 is 01:30 on 26.9 in Israel (summer time, UTC+3).
+    expect(israelToday(new Date('2026-09-25T22:30:00Z'))).toBe('2026-09-26');
+  });
+
+  it("gives Israel's day in winter time too", () => {
+    // 22:30 UTC on 31.12 is 00:30 on 1.1 in Israel (UTC+2).
+    expect(israelToday(new Date('2026-12-31T22:30:00Z'))).toBe('2027-01-01');
+  });
+
+  it('matches UTC in the middle of the day', () => {
+    expect(israelToday(new Date('2026-09-25T09:00:00Z'))).toBe('2026-09-25');
+  });
+});
+
+describe('documentDateBounds', () => {
+  it('allows this tax year up to today, never tomorrow', () => {
+    expect(documentDateBounds(new Date('2026-09-25T22:30:00Z'))).toEqual({ min: '2026-01-01', max: '2026-09-26' });
   });
 });
