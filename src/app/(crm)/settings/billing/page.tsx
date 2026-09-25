@@ -9,6 +9,7 @@ import { initiatePayment } from '@/lib/storeApi';
 import type { ChildWithDetails } from '@/types/customer';
 import RealCardTestSection from './RealCardTestSection';
 import TerminalMapSection from './TerminalMapSection';
+import TranzilaCheckSection from './TranzilaCheckSection';
 
 function Row({ label, value, mono }: { label: string; value: string | number | boolean; mono?: boolean }) {
   return (
@@ -466,6 +467,7 @@ export default function SettingsBillingPage() {
           </p>
         </div>
         <TerminalMapSection />
+        <TranzilaCheckSection />
         <RealCardTestSection />
         <DirectCardSection products={products} />
         <IframeSection products={products} />
