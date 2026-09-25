@@ -1,4 +1,4 @@
-import type { ReceiptDetailsInput } from '@/types/document';
+import type { InvoicePaymentInput, ReceiptDetailsInput } from '@/types/document';
 import { ALL_WIZARD_STEPS, BRANCHES_CATEGORY } from './constants';
 import type {
   BusinessCustomerFormData,
@@ -83,6 +83,7 @@ export function receiptDetailsPayload(data: ReceiptDetailsData): ReceiptDetailsI
     withholding: data.withholding,
     check_notes: data.checkNotes,
     card_last_four: data.cardLastFour,
+    card_brand: data.cardBrand,
     card_expiry: data.cardExpiry,
     card_amount: data.cardAmount,
     card_installments: data.cardInstallments,
@@ -121,6 +122,117 @@ export function israelToday(now: Date = new Date()): string {
 export function documentDateBounds(now: Date = new Date()): { min: string; max: string } {
   const today = israelToday(now);
   return { min: `${today.slice(0, 4)}-01-01`, max: today };
+}
+
+/** round-half-up of n / d for non-negative integers — Decimal's ROUND_HALF_UP, without floats. */
+function divRoundHalfUp(n: number, d: number): number {
+  return Math.floor((2 * n + d) / (2 * d));
+}
+
+const toAgorot = (shekels: number): number => Math.round((Number(shekels) || 0) * 100);
+
+export interface InvoiceTotals {
+  /** All in agorot (integers), so they compare exactly. */
+  subtotal: number;
+  discount: number;
+  vat: number;
+  total: number;
+}
+
+/**
+ * The totals the server will store (apps/documents/service.py _compute_totals),
+ * worked out the same way — to the agora, half up — so the payment rows an
+ * invoice-receipt is issued with can be matched to its total exactly.
+ */
+export function computeInvoiceTotals(data: InvoiceDetailsData): InvoiceTotals {
+  const subtotal = data.lineItems.reduce(
+    (sum, item) => sum + divRoundHalfUp(Math.max(0, Math.round(item.quantity * 100)) * Math.max(0, toAgorot(item.price)), 100),
+    0,
+  );
+  const discount =
+    data.discountAmount > 0
+      ? toAgorot(data.discountAmount)
+      : divRoundHalfUp(subtotal * Math.max(0, Math.round(data.discountPercent * 100)), 10000);
+  const base = Math.max(0, subtotal - discount);
+  if (data.vatExempt) return { subtotal, discount, vat: 0, total: base };
+  if (data.pricesIncludeVat) {
+    const net = divRoundHalfUp(base * 100, 118);
+    return { subtotal: subtotal - (base - net), discount, vat: base - net, total: base };
+  }
+  const vat = divRoundHalfUp(base * 18, 100);
+  return { subtotal, discount, vat, total: base + vat };
+}
+
+/** Agorot as shekels with two decimals, the way the documents print them. */
+export function formatAgorot(agorot: number): string {
+  return (agorot / 100).toFixed(2);
+}
+
+/**
+ * An invoice-receipt's payment rows (G): one per way it was paid, from the
+ * receipt panels of the methods chosen — the cash sum, each confirmed check,
+ * the card, the transfer — each for its own amount. A method chosen with no
+ * amount yet gives no row.
+ */
+export function invoicePaymentRows(methods: string[], payments: ReceiptDetailsData): InvoicePaymentInput[] {
+  const rows: InvoicePaymentInput[] = [];
+  if (methods.includes('מזומן') && payments.cashAmount > 0) {
+    rows.push({ method: 'cash', amount: payments.cashAmount, notes: payments.cashNotes });
+  }
+  if (methods.includes("צ'ק")) {
+    for (const check of payments.checks) {
+      if (!check.confirmed || !(check.amount > 0)) continue;
+      rows.push({
+        method: 'check',
+        amount: check.amount,
+        check_number: check.checkNumber,
+        check_bank: check.bank,
+        check_branch: check.branch,
+        check_account: check.accountNumber,
+        check_date: check.date || null,
+        check_crossed: check.crossed === true,
+      });
+    }
+  }
+  if (methods.includes('אשראי') && payments.cardAmount > 0) {
+    rows.push({
+      method: 'credit_card',
+      amount: payments.cardAmount,
+      card_last_four: payments.cardLastFour,
+      card_brand: payments.cardBrand,
+      installments: Math.max(1, payments.cardInstallments || 1),
+      notes: payments.cardNotes,
+    });
+  }
+  if (methods.includes('העברה בנקאית') && payments.bankAmount > 0) {
+    rows.push({
+      method: 'bank_transfer',
+      amount: payments.bankAmount,
+      reference: payments.bankReference,
+      paid_on: payments.bankDate || null,
+      notes: payments.bankNotes,
+    });
+  }
+  return rows;
+}
+
+/**
+ * Where an invoice-receipt's payments stand against its total, in agorot:
+ * `remaining` is what is still to be accounted for (negative when the rows
+ * come to more than the total). It can be issued only at exactly zero.
+ */
+export function invoicePaymentBalance(data: InvoiceDetailsData): {
+  total: number;
+  paid: number;
+  withholding: number;
+  remaining: number;
+  rows: InvoicePaymentInput[];
+} {
+  const { total } = computeInvoiceTotals(data);
+  const rows = invoicePaymentRows(data.paymentMethods, data.payments);
+  const paid = rows.reduce((sum, row) => sum + toAgorot(row.amount), 0);
+  const withholding = Math.max(0, toAgorot(data.withholdingAmount));
+  return { total, paid, withholding, remaining: total - paid - withholding, rows };
 }
 
 // The number is the server's to give, at issuance; nothing is promised before that.
@@ -262,6 +374,11 @@ export function canAdvanceFromStep(
       if (!baseValid) return false;
       if (invoiceDetails.dueDate && invoiceDetails.documentDate) {
         if (invoiceDetails.dueDate < invoiceDetails.documentDate) return false;
+      }
+      if (docType === 'חשבונית מס/קבלה') {
+        // Paid, and every shekel of it once: the rows and the withholding come to the total.
+        const balance = invoicePaymentBalance(invoiceDetails);
+        return balance.rows.length > 0 && balance.remaining === 0;
       }
       return true;
     }

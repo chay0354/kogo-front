@@ -100,6 +100,8 @@ export interface ReceiptDetailsData {
   withholding: number;
   checkNotes: string;
   cardLastFour: string;
+  /** The card's brand (ויזה, מאסטרקארד…), as the office reads it off the slip. Optional. */
+  cardBrand: string;
   cardExpiry: string;
   cardAmount: number;
   cardInstallments: number;
@@ -137,9 +139,16 @@ export interface InvoiceDetailsData {
   internalNotes: string;
   paymentTerms: string;
   dueDate: string;
+  /** The methods an invoice-receipt was paid with — each opens its panel in `payments`. */
   paymentMethods: string[];
-  /** הוראה 18ב(ד): a check paid against an invoice-receipt is crossed, 'לא סחיר', in the customer's name. */
-  checkCrossed: boolean;
+  /**
+   * How an invoice-receipt was paid, in the receipt's own panels (cash, checks,
+   * card, transfer): each method chosen above becomes payment rows of its own
+   * amount, and the rows plus any withholding come to the total exactly (G).
+   */
+  payments: ReceiptDetailsData;
+  /** ניכוי במקור the customer withheld from an invoice-receipt. */
+  withholdingAmount: number;
   linkedInvoiceId: string;
   receiptNotes: string;
 }

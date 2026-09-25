@@ -48,7 +48,10 @@ import {
   documentDateBounds,
   emptyCheckRow,
   getNextButtonLabel,
+  formatAgorot,
   getStepStatus,
+  invoicePaymentBalance,
+  invoicePaymentRows,
   israelToday,
   receiptDetailsPayload,
 } from './utils';
@@ -309,9 +312,14 @@ export default function NewDocumentDialog({ open, onClose }: NewDocumentDialogPr
         payment_terms: invoiceDetails.paymentTerms,
         customer_notes: invoiceDetails.customerNotes,
         internal_notes: invoiceDetails.internalNotes,
-        payment_methods: invoiceDetails.paymentMethods,
-        // An invoice-receipt has no check lines, so one flag covers every check it records.
-        ...(invoiceDetails.paymentMethods.includes("צ'ק") ? { check_crossed: invoiceDetails.checkCrossed } : {}),
+        // An invoice-receipt says how much was paid each way (G): its rows and
+        // the withholding come to its total exactly.
+        ...(mappedType === 'combined'
+          ? {
+              payments: invoicePaymentRows(invoiceDetails.paymentMethods, invoiceDetails.payments),
+              withholding_amount: invoiceDetails.withholdingAmount,
+            }
+          : {}),
       },
     };
   }
@@ -1754,6 +1762,8 @@ interface InvoiceDetailsStepProps {
 
 function InvoiceDetailsStep({ data, onChange, docType }: InvoiceDetailsStepProps) {
   const isReceipt = docType === 'חשבונית מס/קבלה';
+  const balance = invoicePaymentBalance(data);
+  const setPayments = (payments: ReceiptDetailsData) => onChange({ ...data, payments });
 
   function togglePaymentMethod(method: string) {
     const methods = data.paymentMethods.includes(method)
@@ -2093,21 +2103,54 @@ function InvoiceDetailsStep({ data, onChange, docType }: InvoiceDetailsStepProps
               );
             })}
           </div>
-          {/* הוראה 18ב(ד): only a crossed check in the customer's name lets the signed original go by email. */}
+          {/* Each method chosen opens the receipt's own panel: an amount per method, a line per check (G). */}
+          {data.paymentMethods.includes('מזומן') && (
+            <CashPanel data={data.payments} onChange={setPayments} />
+          )}
           {data.paymentMethods.includes("צ'ק") && (
-            <div className={styles.checkCrossedCell}>
-              <label className={styles.checkboxLabel}>
-                <input
-                  type="checkbox"
-                  checked={data.checkCrossed}
-                  onChange={(e) => onChange({ ...data, checkCrossed: e.target.checked })}
-                />
-                צ&apos;ק משורטט, &apos;לא סחיר&apos;, על שם הלקוח
-              </label>
-              {!data.checkCrossed && (
-                <p className={styles.checkCrossedHint}>בלי סימון — המקור יימסר על נייר ולא יישלח במייל</p>
-              )}
+            <CheckPanel data={data.payments} onChange={setPayments} forInvoice />
+          )}
+          {data.paymentMethods.includes('אשראי') && (
+            <CreditPanel data={data.payments} onChange={setPayments} />
+          )}
+          {data.paymentMethods.includes('העברה בנקאית') && (
+            <BankPanel data={data.payments} onChange={setPayments} />
+          )}
+
+          {/* ניכוי במקור */}
+          <div className={styles.witholdingRow}>
+            <span className={styles.witholdingLabel}>ניכוי במקור</span>
+            <div className={styles.witholdingInputWrap}>
+              <input
+                type="number"
+                min={0}
+                step={0.01}
+                className={styles.formInput}
+                value={data.withholdingAmount}
+                aria-label="ניכוי במקור בשקלים"
+                onChange={(e) => onChange({ ...data, withholdingAmount: Math.max(0, Number(e.target.value)) })}
+              />
+              <span className={styles.witholdingSymbol} aria-hidden="true">₪</span>
             </div>
+          </div>
+
+          {/* Paid against the total — issued only when they meet exactly. */}
+          <div className={styles.checkSummaryBar}>
+            <span className={styles.checkSummaryLabel}>
+              שולם ₪{formatAgorot(balance.paid + balance.withholding)} מתוך ₪{formatAgorot(balance.total)}
+            </span>
+            <span className={styles.checkSummaryAmount}>
+              {balance.remaining === 0
+                ? 'התשלומים שווים לסכום ✓'
+                : balance.remaining > 0
+                ? `חסר ₪${formatAgorot(balance.remaining)}`
+                : `עודף ₪${formatAgorot(-balance.remaining)}`}
+            </span>
+          </div>
+          {balance.remaining !== 0 && (
+            <p className={styles.fieldError}>
+              סכומי אמצעי התשלום (וניכוי במקור) צריכים להיות שווים בדיוק לסכום החשבונית. צ&apos;ק נספר רק אחרי אישורו (✓).
+            </p>
           )}
         </div>
       )}
@@ -2268,7 +2311,12 @@ function CashPanel({ data, onChange }: ReceiptDetailsStepProps) {
   );
 }
 
-function CheckPanel({ data, onChange }: ReceiptDetailsStepProps) {
+interface CheckPanelProps extends ReceiptDetailsStepProps {
+  /** Inside an invoice-receipt: its withholding is asked once for the document, and no invoice follows a check. */
+  forInvoice?: boolean;
+}
+
+function CheckPanel({ data, onChange, forInvoice = false }: CheckPanelProps) {
   const confirmedChecks = data.checks.filter((c) => c.confirmed);
   const confirmedTotal = confirmedChecks.reduce((sum, c) => sum + c.amount, 0);
 
@@ -2423,20 +2471,22 @@ function CheckPanel({ data, onChange }: ReceiptDetailsStepProps) {
       </button>
 
       {/* ניכוי במקור */}
-      <div className={styles.witholdingRow}>
-        <span className={styles.witholdingLabel}>ניכוי במקור</span>
-        <div className={styles.witholdingInputWrap}>
-          <input
-            type="number"
-            min={0}
-            className={styles.formInput}
-            value={data.withholding}
-            aria-label="ניכוי במקור בשקלים"
-            onChange={(e) => onChange({ ...data, withholding: Number(e.target.value) })}
-          />
-          <span className={styles.witholdingSymbol} aria-hidden="true">₪</span>
+      {!forInvoice && (
+        <div className={styles.witholdingRow}>
+          <span className={styles.witholdingLabel}>ניכוי במקור</span>
+          <div className={styles.witholdingInputWrap}>
+            <input
+              type="number"
+              min={0}
+              className={styles.formInput}
+              value={data.withholding}
+              aria-label="ניכוי במקור בשקלים"
+              onChange={(e) => onChange({ ...data, withholding: Number(e.target.value) })}
+            />
+            <span className={styles.witholdingSymbol} aria-hidden="true">₪</span>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Summary bar */}
       <div className={styles.checkSummaryBar}>
@@ -2447,9 +2497,11 @@ function CheckPanel({ data, onChange }: ReceiptDetailsStepProps) {
       </div>
 
       {/* Info note */}
-      <p className={styles.checkInfoNote}>
-        כל צ&apos;ק ייצור טיוט חשבונית מס — הטיוטה תהפוך אוטומטית לחשבונית מס בתאריך הפירעון
-      </p>
+      {!forInvoice && (
+        <p className={styles.checkInfoNote}>
+          כל צ&apos;ק ייצור טיוט חשבונית מס — הטיוטה תהפוך אוטומטית לחשבונית מס בתאריך הפירעון
+        </p>
+      )}
 
       <div className={styles.formRow}>
         <label htmlFor="check-notes" className={styles.sectionHeading}>
@@ -2484,6 +2536,20 @@ function CreditPanel({ data, onChange }: ReceiptDetailsStepProps) {
             className={styles.formInput}
             value={data.cardLastFour}
             onChange={(e) => onChange({ ...data, cardLastFour: e.target.value })}
+          />
+        </div>
+        <div className={styles.formRow}>
+          <label htmlFor="card-brand" className={styles.sectionHeading}>
+            סוג כרטיס <span className={styles.optionalLabel}>(אופציונלי)</span>
+          </label>
+          <input
+            id="card-brand"
+            type="text"
+            placeholder="ויזה / מאסטרקארד / אמריקן אקספרס"
+            maxLength={30}
+            className={styles.formInput}
+            value={data.cardBrand}
+            onChange={(e) => onChange({ ...data, cardBrand: e.target.value })}
           />
         </div>
         <div className={styles.formRow}>

@@ -50,6 +50,7 @@ function createInitialReceiptDetails(): ReceiptDetailsData {
     withholding: 0,
     checkNotes: '',
     cardLastFour: '',
+    cardBrand: '',
     cardExpiry: '',
     cardAmount: 0,
     cardInstallments: 1,
@@ -92,7 +93,8 @@ function createInitialInvoiceDetails(): InvoiceDetailsData {
     paymentTerms: 'שוטף + 30',
     dueDate: '',
     paymentMethods: [],
-    checkCrossed: false,
+    payments: createInitialReceiptDetails(),
+    withholdingAmount: 0,
     linkedInvoiceId: '',
     receiptNotes: '',
   };

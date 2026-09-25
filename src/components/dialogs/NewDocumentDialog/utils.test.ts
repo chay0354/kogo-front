@@ -7,14 +7,17 @@ import {
   branchFieldApplies,
   businessCustomerErrorMessage,
   canAdvanceFromStep,
+  computeInvoiceTotals,
   documentDateBounds,
   emptyCheckRow,
   getWizardSteps,
+  invoicePaymentBalance,
+  invoicePaymentRows,
   israelToday,
   receiptDetailsPayload,
   serverErrorMessage,
 } from './utils';
-import type { ReceiptDetailsData } from './types';
+import type { InvoiceDetailsData, ReceiptDetailsData } from './types';
 
 describe('businessCustomerErrorMessage', () => {
   it("reads the server's field error — the branch a partner has to choose", () => {
@@ -147,6 +150,7 @@ describe('receiptDetailsPayload — a receipt as the server reads it', () => {
       withholding: 0,
       checkNotes: 'שני צ׳קים',
       cardLastFour: '',
+      cardBrand: '',
       cardExpiry: '',
       cardAmount: 0,
       cardInstallments: 1,
@@ -230,5 +234,79 @@ describe('israelToday', () => {
 describe('documentDateBounds', () => {
   it('allows this tax year up to today, never tomorrow', () => {
     expect(documentDateBounds(new Date('2026-09-25T22:30:00Z'))).toEqual({ min: '2026-01-01', max: '2026-09-26' });
+  });
+});
+
+/**
+ * An invoice-receipt wrote every method chosen for its whole total — paid in
+ * cash and by check, it recorded twice its money. It now sends one row per
+ * payment, and can be issued only when the rows come to the total exactly.
+ */
+describe('invoice-receipt payments (G)', () => {
+  function payments(overrides: Partial<ReceiptDetailsData> = {}): ReceiptDetailsData {
+    return {
+      paymentMethod: 'מזומן', linkedInvoiceId: '', cashAmount: 0, cashNotes: '', checks: [], withholding: 0,
+      checkNotes: '', cardLastFour: '', cardBrand: '', cardExpiry: '', cardAmount: 0, cardInstallments: 1,
+      cardNotes: '', bankDate: '', bankReference: '', bankAmount: 0, bankNotes: '',
+      ...overrides,
+    };
+  }
+
+  function invoice(overrides: Partial<InvoiceDetailsData> = {}): InvoiceDetailsData {
+    return {
+      documentNumber: '', documentDate: '2026-09-25', description: 'סדנה', currency: 'ILS',
+      pricesIncludeVat: false,
+      lineItems: [{ id: '1', sku: '', description: 'סדנה', quantity: 1, price: 200 }],
+      discountAmount: 0, discountPercent: 0, vatExempt: false, roundTotal: false, closeInvoice: false,
+      customerNotes: '', internalNotes: '', paymentTerms: '', dueDate: '',
+      paymentMethods: [], payments: payments(), withholdingAmount: 0, linkedInvoiceId: '', receiptNotes: '',
+      ...overrides,
+    };
+  }
+
+  const check = (amount: number, confirmed = true) => ({
+    id: String(amount), date: '2026-10-01', bank: '12', branch: '600', accountNumber: '456',
+    checkNumber: '0001', amount, confirmed, crossed: true,
+  });
+
+  it('works the total out as the server does, to the agora', () => {
+    expect(computeInvoiceTotals(invoice())).toEqual({ subtotal: 20000, discount: 0, vat: 3600, total: 23600 });
+    // 100.25 + 18% = 18.045 of VAT, half up to 18.05 (Decimal ROUND_HALF_UP), not 18.04.
+    const odd = invoice({ lineItems: [{ id: '1', sku: '', description: '', quantity: 1, price: 100.25 }] });
+    expect(computeInvoiceTotals(odd)).toMatchObject({ vat: 1805, total: 11830 });
+    // Prices with VAT in: the total is what was typed, VAT comes out of it.
+    expect(computeInvoiceTotals(invoice({ pricesIncludeVat: true }))).toMatchObject({ total: 20000, vat: 3051 });
+    expect(computeInvoiceTotals(invoice({ discountPercent: 10 }))).toMatchObject({ discount: 2000, total: 21240 });
+  });
+
+  it('sends one row per payment, each for its own amount', () => {
+    const rows = invoicePaymentRows(
+      ['מזומן', "צ'ק"],
+      payments({ cashAmount: 100, checks: [check(136), check(50, false)] }),
+    );
+    expect(rows).toEqual([
+      { method: 'cash', amount: 100, notes: '' },
+      {
+        method: 'check', amount: 136, check_number: '0001', check_bank: '12', check_branch: '600',
+        check_account: '456', check_date: '2026-10-01', check_crossed: true,
+      },
+    ]);
+  });
+
+  it('leaves out a method that was not chosen, whatever its panel holds', () => {
+    expect(invoicePaymentRows(['אשראי'], payments({ cashAmount: 100, cardAmount: 236, cardBrand: 'ויזה' }))).toEqual([
+      { method: 'credit_card', amount: 236, card_last_four: '', card_brand: 'ויזה', installments: 1, notes: '' },
+    ]);
+  });
+
+  it('can be issued only when the rows and the withholding meet the total exactly', () => {
+    const advance = (data: InvoiceDetailsData) =>
+      canAdvanceFromStep('documentDetails', 'existing', 'c', null, null, 'חשבונית מס/קבלה', data);
+    expect(advance(invoice())).toBe(false);
+    expect(advance(invoice({ paymentMethods: ['מזומן'], payments: payments({ cashAmount: 236 }) }))).toBe(true);
+    expect(advance(invoice({ paymentMethods: ['מזומן', "צ'ק"], payments: payments({ cashAmount: 236, checks: [check(236)] }) }))).toBe(false);
+    const withheld = invoice({ paymentMethods: ['העברה בנקאית'], payments: payments({ bankAmount: 200 }), withholdingAmount: 36 });
+    expect(invoicePaymentBalance(withheld)).toMatchObject({ total: 23600, paid: 20000, withholding: 3600, remaining: 0 });
+    expect(advance(withheld)).toBe(true);
   });
 });
