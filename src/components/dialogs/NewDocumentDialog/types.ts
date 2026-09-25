@@ -154,6 +154,8 @@ export interface InvoiceDetailsData {
   payments: ReceiptDetailsData;
   /** ניכוי במקור the customer withheld from an invoice-receipt. */
   withholdingAmount: number;
+  /** מספר הקצאה from the Tax Authority's portal, when the office already has it (9 digits). */
+  allocationNumber: string;
   linkedInvoiceId: string;
   receiptNotes: string;
 }

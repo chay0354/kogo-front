@@ -38,8 +38,16 @@ import LegacyHistoryPanel from '@/components/LegacyHistory/LegacyHistoryPanel';
 import BusinessDocsConsentField from '@/components/dialogs/BusinessDocsConsentField';
 import { setBusinessCustomerConsent } from '@/lib/signingApi';
 import styles from './index.module.css';
-import { BRANCHES_CATEGORY, CLIENT_TYPE_OPTIONS, DOCUMENT_TYPE_OPTIONS } from './constants';
 import {
+  ALLOCATION_THRESHOLD_ILS,
+  BRANCHES_CATEGORY,
+  CLIENT_TYPE_OPTIONS,
+  DOCUMENT_TYPE_OPTIONS,
+} from './constants';
+import {
+  allocationApplies,
+  allocationNumberError,
+  allocationRequired,
   branchFieldApplies,
   businessCustomerErrorMessage,
   serverErrorMessage,
@@ -314,6 +322,10 @@ export default function NewDocumentDialog({ open, onClose }: NewDocumentDialogPr
         payment_terms: invoiceDetails.paymentTerms,
         customer_notes: invoiceDetails.customerNotes,
         internal_notes: invoiceDetails.internalNotes,
+        // מספר הקצאה given at issue (B): on the original from its first print.
+        ...(allocationApplies(docType, clientType) && invoiceDetails.allocationNumber.trim()
+          ? { allocation_number: invoiceDetails.allocationNumber.replace(/\D/g, '') }
+          : {}),
         // An invoice-receipt says how much was paid each way (G): its rows and
         // the withholding come to its total exactly.
         ...(mappedType === 'combined'
@@ -487,6 +499,7 @@ export default function NewDocumentDialog({ open, onClose }: NewDocumentDialogPr
                 data={invoiceDetails}
                 onChange={setInvoiceDetails}
                 docType={docType}
+                clientType={clientType}
               />
             )}
           {currentStep === 'documentDetails' && docType === 'קבלה' && (
@@ -1787,9 +1800,10 @@ interface InvoiceDetailsStepProps {
   data: InvoiceDetailsData;
   onChange: (data: InvoiceDetailsData) => void;
   docType: string;
+  clientType?: ClientType | null;
 }
 
-function InvoiceDetailsStep({ data, onChange, docType }: InvoiceDetailsStepProps) {
+function InvoiceDetailsStep({ data, onChange, docType, clientType = null }: InvoiceDetailsStepProps) {
   const isReceipt = docType === 'חשבונית מס/קבלה';
   const balance = invoicePaymentBalance(data);
   const setPayments = (payments: ReceiptDetailsData) => onChange({ ...data, payments });
@@ -2049,6 +2063,34 @@ function InvoiceDetailsStep({ data, onChange, docType }: InvoiceDetailsStepProps
           <span className={styles.totalsCheckboxLabel}>לסגור חשבונית</span>
         </label>
       </div>
+
+      {/* מספר הקצאה — a tax invoice to a business customer (B) */}
+      {allocationApplies(docType, clientType) && (
+        <div className={styles.detailsSection}>
+          <label htmlFor="inv-allocation" className={styles.sectionHeading}>
+            מספר הקצאה <span className={styles.optionalLabel}>(9 ספרות, מאתר רשות המסים)</span>
+          </label>
+          <input
+            id="inv-allocation"
+            type="text"
+            inputMode="numeric"
+            maxLength={11}
+            className={styles.formInput}
+            placeholder="123456789"
+            value={data.allocationNumber}
+            onChange={(e) => onChange({ ...data, allocationNumber: e.target.value })}
+          />
+          {allocationNumberError(data.allocationNumber) && (
+            <p className={styles.fieldError}>{allocationNumberError(data.allocationNumber)}</p>
+          )}
+          {allocationRequired(data) && !data.allocationNumber.trim() && (
+            <p className={styles.checkCrossedHint}>
+              סכום החשבונית לפני מע&quot;מ עולה על ₪{ALLOCATION_THRESHOLD_ILS.toLocaleString('he-IL')}: לקוח עסקי
+              צריך מספר הקצאה כדי לקזז את המע&quot;מ. בלעדיו המסמך יוחזק ולא יישלח עד שיוזן.
+            </p>
+          )}
+        </div>
+      )}
 
       {/* Notes — two columns */}
       <div className={styles.notesGrid}>

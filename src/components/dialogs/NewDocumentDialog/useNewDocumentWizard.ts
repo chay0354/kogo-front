@@ -96,6 +96,7 @@ function createInitialInvoiceDetails(): InvoiceDetailsData {
     paymentMethods: [],
     payments: createInitialReceiptDetails(),
     withholdingAmount: 0,
+    allocationNumber: '',
     linkedInvoiceId: '',
     receiptNotes: '',
   };

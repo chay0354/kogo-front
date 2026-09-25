@@ -4,6 +4,9 @@
  */
 import { describe, expect, it } from 'vitest';
 import {
+  allocationApplies,
+  allocationNumberError,
+  allocationRequired,
   branchFieldApplies,
   businessCustomerErrorMessage,
   canAdvanceFromStep,
@@ -260,7 +263,8 @@ describe('invoice-receipt payments (G)', () => {
       lineItems: [{ id: '1', sku: '', description: 'סדנה', quantity: 1, price: 200 }],
       discountAmount: 0, discountPercent: 0, vatExempt: false, roundTotal: false, closeInvoice: false,
       customerNotes: '', internalNotes: '', paymentTerms: '', dueDate: '',
-      paymentMethods: [], payments: payments(), withholdingAmount: 0, linkedInvoiceId: '', receiptNotes: '',
+      paymentMethods: [], payments: payments(), withholdingAmount: 0, allocationNumber: '',
+      linkedInvoiceId: '', receiptNotes: '',
       ...overrides,
     };
   }
@@ -309,6 +313,19 @@ describe('invoice-receipt payments (G)', () => {
     const withheld = invoice({ paymentMethods: ['העברה בנקאית'], payments: payments({ bankAmount: 200 }), withholdingAmount: 36 });
     expect(invoicePaymentBalance(withheld)).toMatchObject({ total: 23600, paid: 20000, withholding: 3600, remaining: 0 });
     expect(advance(withheld)).toBe(true);
+  });
+
+  it('asks a business customer for the allocation number above ₪5,000 before VAT', () => {
+    expect(allocationApplies('חשבונית מס', 'business')).toBe(true);
+    expect(allocationApplies('חשבונית מס/קבלה', 'business')).toBe(true);
+    expect(allocationApplies('חשבונית מס', 'existing')).toBe(false);
+    expect(allocationApplies('חשבונית עסקה', 'business')).toBe(false);
+    const priced = (price: number) => invoice({ lineItems: [{ id: '1', sku: '', description: '', quantity: 1, price }] });
+    expect(allocationRequired(priced(5000))).toBe(false); // "עולה על": exactly 5,000 needs none
+    expect(allocationRequired(priced(5000.01))).toBe(true);
+    expect(allocationNumberError('123-456-789')).toBe('');
+    expect(allocationNumberError('')).toBe('');
+    expect(allocationNumberError('12345')).toBe('מספר הקצאה הוא 9 ספרות');
   });
 });
 

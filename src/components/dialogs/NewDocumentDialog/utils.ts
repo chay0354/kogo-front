@@ -1,5 +1,5 @@
 import type { InvoicePaymentInput, ReceiptDetailsInput } from '@/types/document';
-import { ALL_WIZARD_STEPS, BRANCHES_CATEGORY } from './constants';
+import { ALL_WIZARD_STEPS, ALLOCATION_THRESHOLD_ILS, BRANCHES_CATEGORY } from './constants';
 import type {
   BusinessCustomerFormData,
   CheckRow,
@@ -233,6 +233,23 @@ export function invoicePaymentBalance(data: InvoiceDetailsData): {
   const paid = rows.reduce((sum, row) => sum + toAgorot(row.amount), 0);
   const withholding = Math.max(0, toAgorot(data.withholdingAmount));
   return { total, paid, withholding, remaining: total - paid - withholding, rows };
+}
+
+/** Whether the document asks for a מספר הקצאה at all: a tax invoice or invoice-receipt to a business customer. */
+export function allocationApplies(docType: string | null, clientType: ClientType | null): boolean {
+  return clientType === 'business' && (docType === 'חשבונית מס' || docType === 'חשבונית מס/קבלה');
+}
+
+/** Whether its amount before VAT is above the threshold — "עולה על", so exactly ₪5,000 needs none. */
+export function allocationRequired(data: InvoiceDetailsData): boolean {
+  const { subtotal, discount } = computeInvoiceTotals(data);
+  return subtotal - discount > ALLOCATION_THRESHOLD_ILS * 100;
+}
+
+/** '' for a valid number (nine digits, dashes and spaces allowed) or none; otherwise why not. */
+export function allocationNumberError(value: string): string {
+  const digits = value.replace(/\D/g, '');
+  return value.trim() && digits.length !== 9 ? 'מספר הקצאה הוא 9 ספרות' : '';
 }
 
 /** What a credit note may credit (the server's rule): a tax invoice or a tax invoice-receipt. */
