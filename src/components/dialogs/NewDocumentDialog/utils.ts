@@ -235,6 +235,24 @@ export function invoicePaymentBalance(data: InvoiceDetailsData): {
   return { total, paid, withholding, remaining: total - paid - withholding, rows };
 }
 
+/** What a credit note may credit (the server's rule): a tax invoice or a tax invoice-receipt. */
+export const CREDITABLE_DOCUMENT_TYPES = ['tax_invoice', 'combined'];
+
+/**
+ * The customer's documents a credit note can be issued against, and the one
+ * the typed number names (if kogo issued it): its date is then the document's
+ * own, not typed. Any other number — a lesson receipt (IR), a store sale (ST),
+ * the previous software's — is typed with its date.
+ */
+export function creditableMatch<T extends { document_number: string; document_type: string }>(
+  documents: T[],
+  typed: string,
+): { options: T[]; match: T | null } {
+  const options = documents.filter((doc) => CREDITABLE_DOCUMENT_TYPES.includes(doc.document_type));
+  const number = typed.trim();
+  return { options, match: options.find((doc) => doc.document_number === number) ?? null };
+}
+
 // The number is the server's to give, at issuance; nothing is promised before that.
 export function generateDocumentNumber(): string {
   return 'יוקצה בהפקה';
@@ -334,7 +352,12 @@ export function canAdvanceFromStep(
   businessFormData: BusinessCustomerFormData | null,
   docType: string | null,
   invoiceDetails: InvoiceDetailsData | null,
-  creditInvoiceDetails?: { linkedInvoiceId: string; creditReason: string; creditAmountBeforeVat: number } | null,
+  creditInvoiceDetails?: {
+    linkedInvoiceId: string;
+    linkedDocumentDate?: string;
+    creditReason: string;
+    creditAmountBeforeVat: number;
+  } | null,
   receiptDetails?: ReceiptDetailsData | null,
   selectedBranchId?: string | null
 ): boolean {
@@ -384,8 +407,11 @@ export function canAdvanceFromStep(
     }
     if (docType === 'חשבונית מס זיכוי') {
       if (!creditInvoiceDetails) return false;
+      // The original's number and its date (סעיף 9(ה)(4)) — a document kogo
+      // issued fills its own date in.
       return (
         creditInvoiceDetails.linkedInvoiceId.trim() !== '' &&
+        (creditInvoiceDetails.linkedDocumentDate ?? '') !== '' &&
         creditInvoiceDetails.creditReason.trim() !== '' &&
         creditInvoiceDetails.creditAmountBeforeVat > 0
       );

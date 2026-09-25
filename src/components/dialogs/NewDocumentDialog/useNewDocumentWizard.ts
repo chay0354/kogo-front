@@ -67,6 +67,7 @@ function createInitialCreditInvoiceDetails(): CreditInvoiceData {
     documentNumber: generateDocumentNumber(),
     documentDate: israelToday(),
     linkedInvoiceId: '',
+    linkedDocumentDate: '',
     creditReason: '',
     creditAmountBeforeVat: 0,
     vatExempt: false,

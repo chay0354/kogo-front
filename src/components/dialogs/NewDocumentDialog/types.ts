@@ -116,6 +116,11 @@ export interface CreditInvoiceData {
   documentNumber: string;
   documentDate: string;
   linkedInvoiceId: string;
+  /**
+   * The original's date (סעיף 9(ה)(4)): filled in from the document when kogo
+   * issued it, typed for a number from the previous software.
+   */
+  linkedDocumentDate: string;
   creditReason: string;
   creditAmountBeforeVat: number;
   vatExempt: boolean;

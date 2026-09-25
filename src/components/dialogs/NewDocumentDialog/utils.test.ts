@@ -8,6 +8,7 @@ import {
   businessCustomerErrorMessage,
   canAdvanceFromStep,
   computeInvoiceTotals,
+  creditableMatch,
   documentDateBounds,
   emptyCheckRow,
   getWizardSteps,
@@ -308,5 +309,36 @@ describe('invoice-receipt payments (G)', () => {
     const withheld = invoice({ paymentMethods: ['העברה בנקאית'], payments: payments({ bankAmount: 200 }), withholdingAmount: 36 });
     expect(invoicePaymentBalance(withheld)).toMatchObject({ total: 23600, paid: 20000, withholding: 3600, remaining: 0 });
     expect(advance(withheld)).toBe(true);
+  });
+});
+
+/**
+ * A credit note names its original's number and date (סעיף 9(ה)(4)). The
+ * picker offers the customer's tax invoices and invoice-receipts; any other
+ * number is typed, with its date.
+ */
+describe('credit note original', () => {
+  const docs = [
+    { id: '1', document_number: 'TI-2026-000001', document_type: 'tax_invoice', document_date: '2026-09-01' },
+    { id: '2', document_number: 'IRM-2026-000004', document_type: 'combined', document_date: '2026-09-02' },
+    { id: '3', document_number: 'RC-2026-000002', document_type: 'receipt', document_date: '2026-09-03' },
+    { id: '4', document_number: 'TX-2026-000001', document_type: 'transaction_invoice', document_date: '2026-09-04' },
+  ];
+
+  it('offers only what may be credited, and finds the one typed', () => {
+    const { options, match } = creditableMatch(docs, ' IRM-2026-000004 ');
+    expect(options.map((d) => d.document_number)).toEqual(['TI-2026-000001', 'IRM-2026-000004']);
+    expect(match?.document_date).toBe('2026-09-02');
+    expect(creditableMatch(docs, 'IR-2026-000123').match).toBeNull();
+    expect(creditableMatch(docs, 'RC-2026-000002').match).toBeNull();
+  });
+
+  it("can't be issued without the original's date", () => {
+    const advance = (linkedDocumentDate: string) =>
+      canAdvanceFromStep('documentDetails', 'existing', 'c', null, null, 'חשבונית מס זיכוי', null, {
+        linkedInvoiceId: '30112', linkedDocumentDate, creditReason: 'ביטול', creditAmountBeforeVat: 100,
+      });
+    expect(advance('')).toBe(false);
+    expect(advance('2026-08-30')).toBe(true);
   });
 });

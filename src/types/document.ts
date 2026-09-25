@@ -78,6 +78,8 @@ export interface FormalDocumentSummary {
   currency: DocumentCurrency;
   tranzila_issued: boolean;
   pdf_url: string;
+  allocation_number?: string;
+  allocation_required?: boolean;
 }
 
 // ── Create payload types ─────────────────────────────────────────────────────
@@ -162,6 +164,8 @@ export interface ReceiptDetailsInput {
 export interface CreditInvoiceInput {
   document_date: string;
   linked_invoice_id?: string;
+  /** The original's date — required by the server for a number kogo never issued. */
+  linked_document_date?: string | null;
   credit_reason: string;
   credit_amount_before_vat: number;
   vat_exempt?: boolean;

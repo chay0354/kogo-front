@@ -45,6 +45,7 @@ import {
   serverErrorMessage,
   businessFormFromCustomer,
   canAdvanceFromStep,
+  creditableMatch,
   documentDateBounds,
   emptyCheckRow,
   getNextButtonLabel,
@@ -281,7 +282,8 @@ export default function NewDocumentDialog({ open, onClose }: NewDocumentDialogPr
         ...base,
         credit_invoice_details: {
           document_date: creditInvoiceDetails.documentDate,
-          linked_invoice_id: creditInvoiceDetails.linkedInvoiceId,
+          linked_invoice_id: creditInvoiceDetails.linkedInvoiceId.trim(),
+          linked_document_date: creditInvoiceDetails.linkedDocumentDate || null,
           credit_reason: creditInvoiceDetails.creditReason,
           credit_amount_before_vat: creditInvoiceDetails.creditAmountBeforeVat,
           vat_exempt: creditInvoiceDetails.vatExempt,
@@ -1601,6 +1603,17 @@ function CreditInvoiceStep({ data, onChange, childId, businessCustomerId }: Cred
     }),
     staleTime: 60_000,
   });
+  const { options, match } = creditableMatch(openInvoices, data.linkedInvoiceId);
+
+  function pickOriginal(number: string) {
+    // A document kogo issued brings its own date; a typed number keeps what was typed.
+    const found = creditableMatch(openInvoices, number).match;
+    onChange({
+      ...data,
+      linkedInvoiceId: number,
+      linkedDocumentDate: found ? found.document_date : match ? '' : data.linkedDocumentDate,
+    });
+  }
 
   return (
     <div>
@@ -1638,31 +1651,47 @@ function CreditInvoiceStep({ data, onChange, childId, businessCustomerId }: Cred
         <label htmlFor="credit-linked-invoice" className={styles.sectionHeading}>
           מספר חשבונית לזיכוי <span className={styles.requiredMark}>*</span>
         </label>
-        {openInvoices.length > 0 ? (
-          <Select
-            id="credit-linked-invoice"
-            className={styles.formSelect}
-            value={data.linkedInvoiceId}
-            onChange={(e) => onChange({ ...data, linkedInvoiceId: e.target.value })}
-            aria-required="true"
-          >
-            <option value="">בחר חשבונית לזיכוי</option>
-            {openInvoices.map((inv) => (
-              <option key={inv.id} value={inv.document_number}>
-                {inv.document_number} — ₪{inv.total_amount} ({inv.document_date})
-              </option>
-            ))}
-          </Select>
-        ) : (
-          <input
-            id="credit-linked-invoice"
-            type="text"
-            className={styles.formInput}
-            placeholder="הזן מספר חשבונית (לדוגמה: INV-2025-1234)"
-            value={data.linkedInvoiceId}
-            onChange={(e) => onChange({ ...data, linkedInvoiceId: e.target.value })}
-            aria-required="true"
-          />
+        {/* Searchable: the customer's tax invoices and invoice-receipts, or any number typed —
+            a lesson receipt (IR), a store sale (ST), the previous software's. */}
+        <input
+          id="credit-linked-invoice"
+          type="text"
+          list="credit-linked-options"
+          className={styles.formInput}
+          placeholder="חפשו או הקלידו מספר מסמך (TI / IRM / IR / ST / מספר מהתוכנה הקודמת)"
+          value={data.linkedInvoiceId}
+          onChange={(e) => pickOriginal(e.target.value)}
+          aria-required="true"
+          autoComplete="off"
+        />
+        <datalist id="credit-linked-options">
+          {options.map((inv) => (
+            <option key={inv.id} value={inv.document_number}>
+              {`${inv.document_type_display} — ₪${inv.total_amount} (${inv.document_date})`}
+            </option>
+          ))}
+        </datalist>
+      </div>
+
+      {/* תאריך המסמך המקורי — סעיף 9(ה)(4) */}
+      <div className={styles.detailsSection}>
+        <label htmlFor="credit-linked-date" className={styles.sectionHeading}>
+          תאריך המסמך המקורי <span className={styles.requiredMark}>*</span>
+        </label>
+        <input
+          id="credit-linked-date"
+          type="date"
+          className={match ? styles.readOnlyInput : styles.formInput}
+          value={data.linkedDocumentDate}
+          readOnly={match !== null}
+          max={documentDateBounds().max}
+          onChange={(e) => onChange({ ...data, linkedDocumentDate: e.target.value })}
+          aria-required="true"
+        />
+        {match === null && data.linkedInvoiceId.trim() !== '' && (
+          <p className={styles.checkCrossedHint}>
+            מסמך שלא נמצא ברשימה (קבלת חוג, מכירה בחנות, מסמך מהתוכנה הקודמת) — הזינו את התאריך המודפס עליו.
+          </p>
         )}
       </div>
 
