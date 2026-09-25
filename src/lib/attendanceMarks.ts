@@ -105,3 +105,22 @@ export function firstRefusedMark(response: unknown): string | null {
   }
   return null;
 }
+
+/**
+ * The server no longer knows this device's sign-in (401).
+ *
+ * The sign-in key is one per user and shared by every device the user is on,
+ * so signing out anywhere signs out everywhere. On 24.9.2026 a phone had 23
+ * marks refused in a row, each shown as a vague "could not save", because the
+ * same account had signed out on another device a few minutes earlier. Tapping
+ * again cannot help; signing in again does, so that is what the screen says.
+ */
+export function isSessionLost(err: unknown): boolean {
+  const response = (err as { response?: { status?: unknown } } | null)?.response;
+  return response?.status === 401;
+}
+
+export const SESSION_LOST_MESSAGE = 'החיבור נותק — המשתמש הזה התנתק ממכשיר אחר. צריך להתחבר שוב.';
+
+/** Long enough to read the message before the sign-in screen replaces it. */
+export const SESSION_LOST_REDIRECT_MS = 2800;

@@ -407,9 +407,24 @@ export const unlinkUserAccount = async (userId: string, linkedUserId: string) =>
   );
 };
 
+/**
+ * Recount this month's dashboard.
+ *
+ * The whole month is longer than the server may spend on one request, so each
+ * call does a slice and answers `finished: false` until it is done; the next
+ * call carries on from there. An older server answers without `finished` and
+ * has done it all in one go.
+ */
+export const REFRESH_MONTH_MAX_CALLS = 12;
+
 export const refreshCurrentMonthSnapshots = async () => {
-  const response = await api.post('/core/dashboard/refresh-current-month/');
-  return response.data;
+  let data: { finished?: boolean; message?: string; summary?: unknown } = {};
+  for (let call = 0; call < REFRESH_MONTH_MAX_CALLS; call += 1) {
+    const response = await api.post('/core/dashboard/refresh-current-month/', {}, { timeout: 150_000 });
+    data = response.data;
+    if (data?.finished !== false) break;
+  }
+  return data;
 };
 
 export interface CreditCardChargeRequest {

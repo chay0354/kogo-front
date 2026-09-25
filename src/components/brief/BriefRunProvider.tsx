@@ -15,6 +15,7 @@ import { readableError } from '@/lib/apiError';
 import {
   advanceSystemAudit,
   fetchBriefChecks,
+  MAX_CHECK_SLICES,
   runBriefCheck,
   type AuditDay,
   type DailyBrief,
@@ -74,7 +75,19 @@ export function BriefRunProvider({ children }: { children: React.ReactNode }) {
         const check = checks[index];
         setState((prev) => ({ ...prev, done: index, current: check.title }));
         try {
-          const data = await runBriefCheck(check.key);
+          let data = await runBriefCheck(check.key);
+          // The morning fixes do a slice per request and say when they are not
+          // finished; the next request carries on from where this one stopped.
+          for (let slice = 1; data.item?.continues && slice < MAX_CHECK_SLICES; slice += 1) {
+            const progress = data;
+            setState((prev) => ({
+              ...prev,
+              brief: progress.brief,
+              storedAt: progress.stored_at,
+              current: `${check.title} — ${progress.item.summary}`,
+            }));
+            data = await runBriefCheck(check.key);
+          }
           setState((prev) => ({ ...prev, brief: data.brief, storedAt: data.stored_at }));
         } catch (err) {
           // One check that will not answer must not stop the rest.

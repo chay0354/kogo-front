@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { LessonDetail, AttendanceStatus } from '@/types/schedule';
 import { fetchLessonDetail, cancelLesson, restoreLesson, markAttendance, formatTime } from '@/lib/scheduleUtils';
+import { isSessionLost, SESSION_LOST_MESSAGE } from '@/lib/attendanceMarks';
 import { useAuth } from '@/components/AuthProvider';
 import { GroupIdBadge } from '@/components/GroupIdBadge/GroupIdBadge';
 import api from '@/lib/api';
@@ -216,7 +217,7 @@ export default function LessonDetailsDialog({
         err && typeof err === 'object' && 'response' in err
           ? (err as { response?: { data?: { error?: string } } }).response?.data?.error
           : undefined;
-      setError(message || 'שגיאה בשמירת נוכחות');
+      setError(isSessionLost(err) ? SESSION_LOST_MESSAGE : message || 'שגיאה בשמירת נוכחות');
     } finally {
       setIsSaving(false);
     }

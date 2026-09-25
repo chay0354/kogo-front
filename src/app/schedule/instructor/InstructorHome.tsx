@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { isSessionLost, SESSION_LOST_MESSAGE, SESSION_LOST_REDIRECT_MS } from '@/lib/attendanceMarks';
 import {
   BarChart3,
   Calendar,
@@ -133,7 +134,13 @@ export default function InstructorHome() {
         if (cancelled) return;
         console.error(err);
         setLessons([]);
-        setError('שגיאה בטעינת השיעורים');
+        if (isSessionLost(err)) {
+          // Signed out on another device: only signing in again helps.
+          setError(SESSION_LOST_MESSAGE);
+          window.setTimeout(() => router.replace('/signin'), SESSION_LOST_REDIRECT_MS);
+        } else {
+          setError('שגיאה בטעינת השיעורים');
+        }
       } finally {
         if (!cancelled) setIsLoading(false);
       }

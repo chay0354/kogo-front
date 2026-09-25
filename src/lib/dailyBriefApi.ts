@@ -18,6 +18,9 @@ export interface BriefItem {
   action: string;
   rows: BriefRow[];
   duration_ms?: number;
+  /** A morning fix that did one slice and carries on in the next call. */
+  continues?: boolean;
+  progress?: Record<string, unknown>;
 }
 
 export interface DailyBrief {
@@ -40,6 +43,8 @@ export interface BriefCheck {
   title: string;
   /** Waits on another company's server, so it is slower and may be left out. */
   external: boolean;
+  /** Longer than one request: runs in slices until its answer stops saying `continues`. */
+  resumable?: boolean;
 }
 
 /** The checks to run, cheapest first. The screen walks this list itself. */
@@ -56,9 +61,14 @@ export async function fetchBriefChecks() {
  * already found instead of losing everything.
  */
 export async function runBriefCheck(key: string) {
-  const res = await api.post('/core/daily-brief/check/', { key }, { timeout: 60_000 });
+  // A slice of a morning fix runs for up to a minute on the server, plus the
+  // item it was working on.
+  const res = await api.post('/core/daily-brief/check/', { key }, { timeout: 120_000 });
   return res.data as { item: BriefItem; brief: DailyBrief; stored_at: string };
 }
+
+/** How many slices one press runs of a check that keeps saying `continues`. */
+export const MAX_CHECK_SLICES = 20;
 
 /** What the morning routine put right by itself — shown on its own, never as a quiet chip. */
 export const MORNING_FIX_KEYS = ['fix_child_statuses', 'refresh_dashboard'];
