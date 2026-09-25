@@ -161,6 +161,25 @@
   line-height: 1.35;
 }
 
+/* A business customer's name opens their card. */
+.customerLink {
+  padding: 0;
+  border: none;
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-weight: 800;
+  text-align: right;
+  cursor: pointer;
+  text-decoration: underline dotted;
+  text-underline-offset: 3px;
+}
+
+.customerLink:hover,
+.customerLink:focus-visible {
+  text-decoration-style: solid;
+}
+
 .subLine {
   display: block;
   margin-top: 3px;

@@ -118,6 +118,8 @@ export interface DocumentRow extends LedgerDimensions {
   allocation_required?: boolean;
   branch?: string;
   branch_id?: string | null;
+  /** מסמך ללקוח עסקי (כולל שוכר) — השם פותח את כרטיס הלקוח. */
+  business_customer_id?: string | null;
   /** מאיזו מערכת הגיע המסמך — חנות/אתר, חנות/סניף, מנוי, מסמך ידני. */
   origin?: DocOrigin;
   origin_label?: string;
