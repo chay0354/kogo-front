@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import type { LessonDetail } from '@/types/schedule';
-import { applyLocalMarks, firstRefusedMark, LOCAL_MARK_TTL_MS, withMark, type LocalMarks } from './attendanceMarks';
+import {
+  applyLocalMarks,
+  firstRefusedMark,
+  isSessionLost,
+  LOCAL_MARK_TTL_MS,
+  withMark,
+  type LocalMarks,
+} from './attendanceMarks';
 
 function roster(attendance: Array<{ child_id: string; status: 'present' | 'absent' | 'not_marked' }>): LessonDetail {
   return {
@@ -84,5 +91,19 @@ describe('a refusal hidden inside a 200', () => {
 
   it('still reads as a refusal without a message', () => {
     expect(firstRefusedMark({ results: [{ success: false, error: { attendee_id: ['x'] } }] })).toBe('הסימון לא נשמר');
+  });
+});
+
+describe('isSessionLost', () => {
+  it('is a 401 from the server — signed out, here or on another device', () => {
+    expect(isSessionLost({ response: { status: 401 } })).toBe(true);
+  });
+
+  it('is not any other failure', () => {
+    expect(isSessionLost({ response: { status: 403 } })).toBe(false);
+    expect(isSessionLost({ response: { status: 500 } })).toBe(false);
+    expect(isSessionLost(new Error('Network Error'))).toBe(false);
+    expect(isSessionLost(null)).toBe(false);
+    expect(isSessionLost(undefined)).toBe(false);
   });
 });

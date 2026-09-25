@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Lesson, AttendanceRecord, AttendanceMark, AttendanceStatus } from '@/types/schedule';
 import { fetchLessonAttendance, markAttendance } from '@/lib/scheduleUtils';
+import { isSessionLost, SESSION_LOST_MESSAGE } from '@/lib/attendanceMarks';
 import { GroupIdBadge } from '@/components/GroupIdBadge/GroupIdBadge';
 import { Skeleton } from '@/components/ui/skeleton';
 import dialogMotion from '@/components/ui/motion.module.css';
@@ -85,7 +86,7 @@ export default function AttendanceDialog({
       onSuccess();
       onClose();
     } catch (err: any) {
-      setError(err.response?.data?.error || 'שגיאה בשמירת נוכחות');
+      setError(isSessionLost(err) ? SESSION_LOST_MESSAGE : err.response?.data?.error || 'שגיאה בשמירת נוכחות');
     } finally {
       setIsSubmitting(false);
     }

@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { Calendar, Check, ChevronDown, ChevronRight, Clock, Plus, RotateCcw, Sparkles, Trash2, X } from 'lucide-react';
 import {
   addWalkInStudent,
@@ -13,7 +14,12 @@ import {
   removeWalkInStudent,
 } from '@/lib/scheduleUtils';
 import ContactSheet from '@/components/ContactSheet';
-import { MarkRefusedError } from '@/lib/attendanceMarks';
+import {
+  isSessionLost,
+  MarkRefusedError,
+  SESSION_LOST_MESSAGE,
+  SESSION_LOST_REDIRECT_MS,
+} from '@/lib/attendanceMarks';
 import type { AttendanceStatus, Lesson, LessonDetail } from '@/types/schedule';
 import { hebrewDayLetter, lessonTitle } from './instructorUtils';
 import styles from './InstructorAttendance.module.css';
@@ -43,6 +49,7 @@ export default function InstructorAttendance({
   asUser,
   onOverlayChange,
 }: InstructorAttendanceProps) {
+  const router = useRouter();
   const [detail, setDetail] = useState<LessonDetail | null>(null);
   const [attendance, setAttendance] = useState<Record<string, AttendanceStatus>>({});
   const [isLoading, setIsLoading] = useState(true);
@@ -63,6 +70,17 @@ export default function InstructorAttendance({
   const addFormRef = useRef<HTMLDivElement>(null);
 
   const occurrenceDate = lesson.lesson_date || '';
+
+  /**
+   * Signed out — on this device or, far more often, the same account on
+   * another one. Nothing on this screen can be saved until they sign in again,
+   * so say that plainly and take them there, rather than a vague "could not
+   * save" on every tap.
+   */
+  const signedOutElsewhere = () => {
+    setToast(SESSION_LOST_MESSAGE);
+    window.setTimeout(() => router.replace('/signin'), SESSION_LOST_REDIRECT_MS);
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -97,7 +115,12 @@ export default function InstructorAttendance({
       } catch (err) {
         if (cancelled) return;
         console.error(err);
-        if (!cached) setError('שגיאה בטעינת רשימת הנוכחות');
+        if (isSessionLost(err)) {
+          setError(SESSION_LOST_MESSAGE);
+          window.setTimeout(() => router.replace('/signin'), SESSION_LOST_REDIRECT_MS);
+        } else if (!cached) {
+          setError('שגיאה בטעינת רשימת הנוכחות');
+        }
       } finally {
         if (!cancelled) setIsLoading(false);
       }
@@ -177,6 +200,10 @@ export default function InstructorAttendance({
       console.error(err);
       forgetMark(lesson.id, occurrenceDate, asUser, childId, previous);
       setAttendance((prev) => ({ ...prev, [childId]: previous }));
+      if (isSessionLost(err)) {
+        signedOutElsewhere();
+        return;
+      }
       setToast(
         err instanceof MarkRefusedError
           ? `הסימון לא נשמר: ${err.message}`
@@ -223,7 +250,8 @@ export default function InstructorAttendance({
       setAddOpen(false);
     } catch (err) {
       console.error(err);
-      setToast('לא הצלחנו להוסיף את התלמיד');
+      if (isSessionLost(err)) signedOutElsewhere();
+      else setToast('לא הצלחנו להוסיף את התלמיד');
     } finally {
       setIsAdding(false);
     }
@@ -253,7 +281,8 @@ export default function InstructorAttendance({
       setRemoving(null);
     } catch (err) {
       console.error(err);
-      setToast('לא הצלחנו להסיר את התלמיד');
+      if (isSessionLost(err)) signedOutElsewhere();
+      else setToast('לא הצלחנו להסיר את התלמיד');
     } finally {
       setIsRemoving(false);
     }
