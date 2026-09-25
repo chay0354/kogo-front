@@ -50,6 +50,8 @@ import { downloadSignaturePdf, fetchSignatures } from '@/lib/signaturesApi';
 import { signaturePdfError } from '@/lib/signatureUtils';
 import type { SignatureSummary } from '@/types/signature';
 import { useAuth } from '@/components/AuthProvider';
+import DeliveryChip from '@/components/dialogs/DeliveryChip';
+import { readDeliveryStatus, type DocumentDeliveryStatus } from '@/lib/documentDelivery';
 
 interface ChildProfileDialogProps {
   child: ChildWithDetails;
@@ -206,13 +208,19 @@ interface ChildDocument {
   paid_at: string;
   /** Relative to the API base, e.g. "/customers/invoices/<id>/pdf/". */
   download_url: string;
+  /** How the signed original reached the family; null when none is stored (or the server sends none). */
+  delivery_status: DocumentDeliveryStatus | null;
 }
 
 type DocumentsStatus = 'loading' | 'ready' | 'error';
 
 function readChildDocuments(data: unknown): ChildDocument[] {
   const rows = (data as { documents?: unknown } | null)?.documents;
-  return Array.isArray(rows) ? (rows as ChildDocument[]) : [];
+  if (!Array.isArray(rows)) return [];
+  return rows.map((row) => ({
+    ...(row as ChildDocument),
+    delivery_status: readDeliveryStatus((row as { delivery_status?: unknown } | null)?.delivery_status),
+  }));
 }
 
 /** "11.09.2026" from "2026-09-11", read off the string so no timezone can move the day. */
@@ -428,6 +436,7 @@ function ChildDocumentsTable({
             <th scope="col" className="p-3 text-right font-medium">סוג</th>
             <th scope="col" className="p-3 text-right font-medium">תיאור</th>
             <th scope="col" className="p-3 text-right font-medium">סכום</th>
+            <th scope="col" className="p-3 text-right font-medium">מסירה</th>
             <th scope="col" className="p-3">
               <span className="sr-only">הורדה</span>
             </th>
@@ -442,6 +451,7 @@ function ChildDocumentsTable({
                   <td className="px-3 py-2"><Skeleton className="h-5 w-24 rounded-full" /></td>
                   <td className="px-3 py-2"><Skeleton className="h-4 w-40" /></td>
                   <td className="px-3 py-2"><Skeleton className="h-4 w-16" /></td>
+                  <td className="px-3 py-2"><Skeleton className="h-5 w-20 rounded-full" /></td>
                   <td className="px-3 py-2"><Skeleton className="h-9 w-24 rounded-lg" /></td>
                 </tr>
               ))
@@ -477,6 +487,9 @@ function ChildDocumentsTable({
                       className={`px-3 py-2 whitespace-nowrap font-medium tabular-nums ${credit ? 'text-rose-700' : ''}`}
                     >
                       <span dir="ltr">{formatDocumentAmount(doc)}</span>
+                    </td>
+                    <td className="px-3 py-2">
+                      <DeliveryChip status={doc.delivery_status} />
                     </td>
                     <td className="px-3 py-2">
                       <Button
