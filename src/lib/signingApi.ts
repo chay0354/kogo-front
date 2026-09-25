@@ -80,16 +80,30 @@ export async function fetchSigningStatus(): Promise<SigningStatus | null> {
 
 export type SignedOriginalKind = 'ir' | 'store' | 'formal';
 export type SignedOriginalDelivery = 'email' | 'paper' | 'held' | 'none';
+/**
+ * Why the signed file exists: `original` — the מקור, signed when the document
+ * was issued; `archive` — a signed העתק לארכיון of a document issued before
+ * signing existed. The archive copy never replaces or alters the original.
+ */
+export type SignedOriginalPurpose = 'original' | 'archive';
 
 export interface SignedOriginalRow {
   id: string;
   /** The fiscal number, e.g. IR-2026-000123. */
   number: string;
+  /** A server that lists no purpose lists originals only, so a row without one is an original. */
+  purpose: SignedOriginalPurpose;
   kind: SignedOriginalKind;
   document_type_label: string;
   customer_name: string;
+  /** YYYY-MM-DD, or '' when the server sent none. */
   document_date: string;
-  total: number;
+  /** Null when the server sent no total. */
+  total: number | null;
+  /** SHA-256 of the stored file, lower-case hex; '' while the row is not signed yet. */
+  sha256: string;
+  /** The stored file's size in bytes; 0 while the row is not signed yet. */
+  size: number;
   delivery: SignedOriginalDelivery;
   /** Why it is delivered this way, in the server's words. */
   delivery_reason: string;
@@ -103,12 +117,41 @@ export interface SignedOriginalsPage {
   results: SignedOriginalRow[];
 }
 
-export interface SignedOriginalsQuery {
+/** What narrows the signed files — the archive's filter, shared by its list and its export. */
+export interface SignedOriginalsFilter {
+  purpose?: SignedOriginalPurpose | '';
+  kind?: SignedOriginalKind | '';
+  /** Free text: a document number or a customer name. */
+  q?: string;
+  /** YYYY-MM-DD, on the document's date. */
+  date_from?: string;
+  date_to?: string;
+}
+
+export interface SignedOriginalsQuery extends SignedOriginalsFilter {
   delivery?: SignedOriginalDelivery;
   /** false: only originals whose one paper print has not been made yet. */
   printed?: boolean;
   limit?: number;
   offset?: number;
+}
+
+const ISO_DAY = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
+ * The filter as query parameters — only what narrows, so an empty field is not
+ * sent. The list and the export both build their query here, so an export
+ * always covers exactly the files the list shows.
+ */
+export function signedOriginalsFilterParams(filter: SignedOriginalsFilter = {}): Record<string, string> {
+  const params: Record<string, string> = {};
+  if (filter.purpose === 'original' || filter.purpose === 'archive') params.purpose = filter.purpose;
+  if (filter.kind === 'ir' || filter.kind === 'store' || filter.kind === 'formal') params.kind = filter.kind;
+  const q = String(filter.q ?? '').trim();
+  if (q) params.q = q;
+  if (filter.date_from && ISO_DAY.test(filter.date_from)) params.date_from = filter.date_from;
+  if (filter.date_to && ISO_DAY.test(filter.date_to)) params.date_to = filter.date_to;
+  return params;
 }
 
 /** A row off the wire. A total can arrive as a decimal string; it is read as a number. */
@@ -120,15 +163,18 @@ export function readSignedOriginal(data: unknown): SignedOriginalRow | null {
   const delivery = row.delivery === 'email' || row.delivery === 'paper' || row.delivery === 'held'
     ? row.delivery
     : 'none';
-  const total = Number(row.total);
+  const total = row.total === null || row.total === undefined || row.total === '' ? NaN : Number(row.total);
   return {
     id: String(row.id),
     number: String(row.number ?? ''),
+    purpose: row.purpose === 'archive' ? 'archive' : 'original',
     kind,
     document_type_label: String(row.document_type_label ?? ''),
     customer_name: String(row.customer_name ?? ''),
     document_date: String(row.document_date ?? ''),
-    total: Number.isFinite(total) ? total : 0,
+    total: Number.isFinite(total) ? total : null,
+    sha256: typeof row.sha256 === 'string' ? row.sha256.trim().toLowerCase() : '',
+    size: count(row.size),
     delivery,
     delivery_reason: String(row.delivery_reason ?? ''),
     signed_at: text(row.signed_at),
@@ -141,6 +187,7 @@ export async function fetchSignedOriginals(query: SignedOriginalsQuery = {}): Pr
   const params: Record<string, string | number> = {};
   if (query.delivery) params.delivery = query.delivery;
   if (query.printed !== undefined) params.printed = query.printed ? 'true' : 'false';
+  Object.assign(params, signedOriginalsFilterParams(query));
   if (query.limit !== undefined) params.limit = query.limit;
   if (query.offset !== undefined) params.offset = query.offset;
   const res = await api.get('/documents/signing/originals/', { params });
@@ -223,6 +270,336 @@ export async function printOriginal(id: string): Promise<PrintOriginalResult> {
       return { outcome: 'already_printed', message: errorSentence(read) || ORIGINAL_ALREADY_PRINTED_MESSAGE };
     }
     throw read;
+  }
+}
+
+// ── A signed file, exactly as stored (managers) ──────────────────────────────
+
+/**
+ * A header off a response, whichever way the client handed the headers over
+ * (axios' own object, or a plain record), matched without regard to case.
+ * Undefined when it is not there — or when the browser was not allowed to read
+ * it: across origins only the headers the server exposes are readable.
+ */
+export function responseHeader(headers: unknown, name: string): string | undefined {
+  if (!headers || typeof headers !== 'object') return undefined;
+  const getter = (headers as { get?: unknown }).get;
+  if (typeof getter === 'function') {
+    const value = (getter as (key: string) => unknown).call(headers, name);
+    if (value !== undefined && value !== null && typeof value !== 'boolean') return String(value);
+  }
+  const wanted = name.toLowerCase();
+  for (const [key, value] of Object.entries(headers as Record<string, unknown>)) {
+    if (key.toLowerCase() === wanted && value !== undefined && value !== null) return String(value);
+  }
+  return undefined;
+}
+
+const SHA256_HEX = /^[0-9a-f]{64}$/;
+
+/** A SHA-256 written as 64 hex digits, lower-cased — or '' for anything else. */
+export function normalizeSha256(raw: string | null | undefined): string {
+  const value = String(raw ?? '').trim().toLowerCase();
+  return SHA256_HEX.test(value) ? value : '';
+}
+
+/** The SHA-256 of the bytes, as hex — or null where the browser offers no digest (an http page). */
+export async function sha256Hex(blob: Blob): Promise<string | null> {
+  const subtle = typeof globalThis.crypto !== 'undefined' ? globalThis.crypto.subtle : undefined;
+  if (!subtle) return null;
+  const digest = await subtle.digest('SHA-256', await blob.arrayBuffer());
+  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('');
+}
+
+/** `<number>.pdf`, with the characters no file name may hold replaced. */
+export function signedOriginalFilename(number: string | null | undefined): string {
+  const name = String(number ?? '').replace(/[\\/:*?"<>|]+/g, '-').trim();
+  return `${name || 'מסמך'}.pdf`;
+}
+
+export interface SignedOriginalFile {
+  pdf: Blob;
+  /** The server's X-Content-SHA256, or '' when it sent none (or the browser could not read it). */
+  sha256: string;
+}
+
+/** Thrown when the bytes that arrived are not the bytes the server says it stored. */
+export class SignedFileMismatchError extends Error {
+  constructor(message = 'The downloaded file does not match the stored SHA-256') {
+    super(message);
+    this.name = 'SignedFileMismatchError';
+  }
+}
+
+/**
+ * The stored signed PDF, byte for byte. Asked for as a blob so the request
+ * carries the same token as every other; a refusal's body is read back out of
+ * its blob before it is thrown, so it reads like any other request's error.
+ */
+export async function fetchSignedOriginalFile(id: string): Promise<SignedOriginalFile> {
+  try {
+    const res = await api.get(`/documents/signing/originals/${encodeURIComponent(id)}/file/`, {
+      responseType: 'blob',
+      timeout: 60000,
+    });
+    const data = res.data;
+    const pdf = typeof Blob !== 'undefined' && data instanceof Blob
+      ? data
+      : new Blob([data as BlobPart], { type: 'application/pdf' });
+    return { pdf, sha256: normalizeSha256(responseHeader(res.headers, 'X-Content-SHA256')) };
+  } catch (err) {
+    throw await readBlobErrorBody(err);
+  }
+}
+
+export type SignedFileCheck = 'verified' | 'unchecked';
+
+/**
+ * Save one signed file as `<number>.pdf`. Before it is saved, its SHA-256 is
+ * checked against the server's header (or, when the header is unreadable,
+ * the row's own) — a file that does not match is not saved at all, since a
+ * copy that differs by one byte no longer carries a valid signature.
+ * `unchecked` when there was nothing to check against, or no digest to check with.
+ */
+export async function downloadSignedOriginal(
+  row: Pick<SignedOriginalRow, 'id' | 'number' | 'sha256'>,
+): Promise<{ check: SignedFileCheck }> {
+  const file = await fetchSignedOriginalFile(row.id);
+  const expected = file.sha256 || normalizeSha256(row.sha256);
+  let check: SignedFileCheck = 'unchecked';
+  if (expected) {
+    const actual = await sha256Hex(file.pdf);
+    if (actual !== null) {
+      if (actual !== expected) throw new SignedFileMismatchError();
+      check = 'verified';
+    }
+  }
+  saveBlob(file.pdf, 'application/pdf', signedOriginalFilename(row.number));
+  return { check };
+}
+
+// ── The accountant's export: the signed files as ZIP parts (managers) ────────
+
+/** The server puts at most this many files in one ZIP; a longer export comes in parts. */
+export const SIGNED_EXPORT_PART_SIZE = 40;
+
+export interface SignedExportPart {
+  zip: Blob;
+  /** Files in the whole export — X-Export-Total, or the count the caller already had. Null when neither. */
+  total: number | null;
+  /** Where the next part starts; null when this part was the last. */
+  nextOffset: number | null;
+}
+
+const wholeNumber = (raw: string | undefined): number | null => {
+  const value = String(raw ?? '').trim();
+  if (!/^\d+$/.test(value)) return null;
+  const n = Number(value);
+  return Number.isSafeInteger(n) ? n : null;
+};
+
+/**
+ * Where an export stands after one part, from the part's headers.
+ *
+ * X-Export-Next-Offset empty means the export is finished. A next offset that
+ * does not move forward is read as finished too — asking for it again would
+ * ask for the same part forever. When the header is not readable at all (a
+ * server that does not expose it across origins), the next part is worked out
+ * from the count: `offset + limit`, until the count is reached.
+ */
+export function readExportPartHeaders(
+  headers: unknown,
+  position: { offset: number; limit: number; knownTotal?: number | null },
+): { total: number | null; nextOffset: number | null } {
+  const headerTotal = wholeNumber(responseHeader(headers, 'X-Export-Total'));
+  const known = position.knownTotal;
+  const total = headerTotal ?? (typeof known === 'number' && Number.isFinite(known) && known >= 0 ? known : null);
+  const nextRaw = responseHeader(headers, 'X-Export-Next-Offset');
+  if (nextRaw !== undefined) {
+    const next = wholeNumber(nextRaw);
+    return { total, nextOffset: next !== null && next > position.offset ? next : null };
+  }
+  if (total === null) return { total, nextOffset: null };
+  const next = position.offset + position.limit;
+  return { total, nextOffset: next < total ? next : null };
+}
+
+/**
+ * One part of the export: the files of the filter from `offset`, zipped. The
+ * signal lets the office cancel a part still on its way.
+ */
+export async function fetchSignedExportPart(
+  filter: SignedOriginalsFilter,
+  offset: number,
+  options: { limit?: number; knownTotal?: number | null; signal?: AbortSignal } = {},
+): Promise<SignedExportPart> {
+  const limit = options.limit ?? SIGNED_EXPORT_PART_SIZE;
+  try {
+    const res = await api.get('/documents/signing/originals/export/', {
+      params: { ...signedOriginalsFilterParams(filter), offset, limit },
+      responseType: 'blob',
+      // Forty signed PDFs read out of the database and zipped: longer than a page load.
+      timeout: 120000,
+      signal: options.signal,
+    });
+    const data = res.data;
+    const zip = typeof Blob !== 'undefined' && data instanceof Blob
+      ? data
+      : new Blob([data as BlobPart], { type: 'application/zip' });
+    return { zip, ...readExportPartHeaders(res.headers, { offset, limit, knownTotal: options.knownTotal }) };
+  } catch (err) {
+    throw await readBlobErrorBody(err);
+  }
+}
+
+// ── The archive run: signed copies of documents issued before signing ────────
+
+export interface ArchiveKindStatus {
+  kind: string;
+  label: string;
+  /** Documents of this kind issued before signing, that the archive covers. */
+  eligible: number;
+  /** Of those, how many already have their signed archive copy. */
+  archived: number;
+  /** Signed originals of this kind — documents issued since signing began. */
+  originals: number;
+  remaining: number;
+}
+
+/** The copy of every signed file in the locked Google Cloud Storage bucket. */
+export interface ArchiveBackupStatus {
+  enabled: boolean;
+  copied: number;
+  pending: number;
+  last_error: string;
+}
+
+export interface ArchiveStatus {
+  /** The archive switch on the server. Off, nothing can be run from here. */
+  enabled: boolean;
+  kinds: ArchiveKindStatus[];
+  /** The last archive copy signed. */
+  last_signed_at: string | null;
+  /**
+   * Why a run would be refused even with the switch on ('' when it would run):
+   * signing for customers is on and the server was not told when it went on.
+   * The counts are left out (kinds is empty) while it is set.
+   */
+  blocked: string;
+  /** The archive covers documents created before this moment (when signing went on). */
+  issued_before: string | null;
+  backup: ArchiveBackupStatus | null;
+}
+
+/**
+ * The archive's status as the screen reads it, or null when the answer is not
+ * one (a server without the archive). Counts that are missing or not numbers
+ * are 0; `remaining` missing is what the other two leave.
+ */
+export function readArchiveStatus(data: unknown): ArchiveStatus | null {
+  if (!data || typeof data !== 'object') return null;
+  const row = data as Record<string, unknown>;
+  if (typeof row.enabled !== 'boolean') return null;
+  const kinds = (Array.isArray(row.kinds) ? row.kinds : [])
+    .filter((item): item is Record<string, unknown> => Boolean(item) && typeof item === 'object')
+    .map((item) => {
+      const eligible = count(item.eligible);
+      const archived = count(item.archived);
+      return {
+        kind: String(item.kind ?? ''),
+        label: String(item.label ?? ''),
+        eligible,
+        archived,
+        originals: count(item.originals),
+        remaining: item.remaining === undefined || item.remaining === null
+          ? Math.max(0, eligible - archived)
+          : count(item.remaining),
+      };
+    });
+  const backupRow = row.backup && typeof row.backup === 'object' ? (row.backup as Record<string, unknown>) : null;
+  const backup = backupRow
+    ? {
+        enabled: backupRow.enabled === true,
+        copied: count(backupRow.copied),
+        pending: count(backupRow.pending),
+        last_error: typeof backupRow.last_error === 'string' ? backupRow.last_error : '',
+      }
+    : null;
+  return {
+    enabled: row.enabled,
+    kinds,
+    last_signed_at: text(row.last_signed_at),
+    blocked: typeof row.blocked === 'string' ? row.blocked : '',
+    issued_before: text(row.issued_before),
+    backup,
+  };
+}
+
+export async function fetchArchiveStatus(): Promise<ArchiveStatus | null> {
+  const res = await api.get('/documents/signing/archive/status/');
+  return readArchiveStatus(res.data);
+}
+
+/** The server signs at most this many archive copies in one call. */
+export const ARCHIVE_RUN_MAX_LIMIT = 50;
+
+export interface ArchiveRunFailure {
+  number: string;
+  error: string;
+}
+
+export interface ArchiveRunBatch {
+  signed: number;
+  skipped: number;
+  failed: ArchiveRunFailure[];
+  /** Documents still without an archive copy, after this batch. */
+  remaining: number;
+  done: boolean;
+}
+
+export type ArchiveRunResult =
+  | { outcome: 'ran'; batch: ArchiveRunBatch }
+  /** 409 — the archive switch is off on the server. */
+  | { outcome: 'off'; message: string }
+  /** 503 — the signing key could not be reached; nothing in the batch was signed. */
+  | { outcome: 'unavailable'; message: string };
+
+export function readArchiveRunBatch(data: unknown): ArchiveRunBatch {
+  const row = (data && typeof data === 'object' ? data : {}) as Record<string, unknown>;
+  const failed = (Array.isArray(row.failed) ? row.failed : [])
+    .filter((item): item is Record<string, unknown> => Boolean(item) && typeof item === 'object')
+    .map((item) => ({ number: String(item.number ?? ''), error: String(item.error ?? '') }));
+  return {
+    signed: count(row.signed),
+    skipped: count(row.skipped),
+    failed,
+    remaining: count(row.remaining),
+    done: row.done === true,
+  };
+}
+
+/**
+ * Sign one batch of archive copies. The server skips a document that already
+ * has one, so a batch asked again — after a lost answer, say — never signs a
+ * document twice. 409 and 503 are answers, not failures, and come back as
+ * such with the server's sentence; any other refusal is thrown.
+ */
+export async function runArchiveBatch(options: { limit?: number; since?: string } = {}): Promise<ArchiveRunResult> {
+  const body: { limit?: number; since?: string } = {};
+  if (options.limit !== undefined) {
+    const limit = Math.floor(Number(options.limit));
+    body.limit = Math.min(ARCHIVE_RUN_MAX_LIMIT, Math.max(1, Number.isFinite(limit) ? limit : ARCHIVE_RUN_MAX_LIMIT));
+  }
+  if (options.since && ISO_DAY.test(options.since)) body.since = options.since;
+  try {
+    // Every copy is drawn and signed through the key: a batch takes a while.
+    const res = await api.post('/documents/signing/archive/run/', body, { timeout: 120000 });
+    return { outcome: 'ran', batch: readArchiveRunBatch(res.data) };
+  } catch (err) {
+    const status = (err as { response?: { status?: number } } | null)?.response?.status;
+    if (status === 409) return { outcome: 'off', message: errorSentence(err) };
+    if (status === 503) return { outcome: 'unavailable', message: errorSentence(err) };
+    throw err;
   }
 }
 

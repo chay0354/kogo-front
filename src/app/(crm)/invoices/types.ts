@@ -7,7 +7,9 @@ export type ActiveTab =
   | "צ'קים"
   | 'קישורי אשראי'
   // Only while the electronic signature is on (manualDelivery.ts).
-  | 'למסירה ידנית';
+  | 'למסירה ידנית'
+  // Once anything was ever signed, or while signing is on (signedArchive.ts).
+  | 'ארכיון חתום';
 
 /** שורה בדף הגבייה — חשבונית חנות ומסמך פורמלי מגיעים לאותה טבלה. */
 export interface CollectionRow {

@@ -4,6 +4,8 @@
  * a paper original is told apart from its refusal (409) and from a failure.
  * The HTTP client and the file save are stand-ins; nothing leaves the test.
  */
+import { createHash } from 'node:crypto';
+import { AxiosHeaders } from 'axios';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('./api', () => ({ default: { get: vi.fn(), post: vi.fn() } }));
@@ -12,15 +14,30 @@ vi.mock('./documentsApi', () => ({ saveBlob: vi.fn() }));
 import api from './api';
 import { saveBlob } from './documentsApi';
 import {
+  ARCHIVE_RUN_MAX_LIMIT,
   downloadCertificatePem,
+  downloadSignedOriginal,
+  fetchArchiveStatus,
   fetchBusinessCustomerConsent,
+  fetchSignedExportPart,
+  fetchSignedOriginalFile,
   fetchSignedOriginals,
   fetchSigningCertificate,
   fetchSigningStatus,
+  normalizeSha256,
   ORIGINAL_ALREADY_PRINTED_MESSAGE,
   printOriginal,
+  readArchiveStatus,
+  readExportPartHeaders,
+  readSignedOriginal,
   readSigningStatus,
+  responseHeader,
+  runArchiveBatch,
   setBusinessCustomerConsent,
+  SIGNED_EXPORT_PART_SIZE,
+  SignedFileMismatchError,
+  signedOriginalFilename,
+  signedOriginalsFilterParams,
   SIGNING_CERTIFICATE_FILENAME,
 } from './signingApi';
 
@@ -217,5 +234,292 @@ describe('business customer consent', () => {
     const consent = await setBusinessCustomerConsent('bc-1', false);
     expect(post).toHaveBeenCalledWith('/customers/business-customers/bc-1/computerized-consent/', { consent: false });
     expect(consent?.accepts_computerized_documents).toBe(false);
+  });
+});
+
+// ── The signed archive ───────────────────────────────────────────────────────
+
+const sha = (text: string) => createHash('sha256').update(text).digest('hex');
+
+describe('the signed files list — the archive filter', () => {
+  it('asks with the archive filter, only what narrows', async () => {
+    get.mockResolvedValue({ data: { count: 0, results: [] } } as never);
+    await fetchSignedOriginals({
+      purpose: 'archive',
+      kind: 'ir',
+      q: '  IR-2019  ',
+      date_from: '2019-01-01',
+      date_to: '2019-12-31',
+      limit: 50,
+      offset: 100,
+    });
+    expect(get).toHaveBeenCalledWith('/documents/signing/originals/', {
+      params: {
+        purpose: 'archive',
+        kind: 'ir',
+        q: 'IR-2019',
+        date_from: '2019-01-01',
+        date_to: '2019-12-31',
+        limit: 50,
+        offset: 100,
+      },
+    });
+  });
+
+  it('leaves out empty, unknown and malformed fields', () => {
+    expect(signedOriginalsFilterParams({ purpose: '', kind: '', q: '   ', date_from: '', date_to: '' })).toEqual({});
+    expect(signedOriginalsFilterParams({
+      purpose: 'copy' as never,
+      kind: 'rent' as never,
+      date_from: '1.1.2020',
+      date_to: '2020-13',
+    })).toEqual({});
+    expect(signedOriginalsFilterParams()).toEqual({});
+  });
+
+  it('reads the new fields, and a row from a server that lists none of them as an original', () => {
+    expect(readSignedOriginal({
+      id: 'a-1',
+      number: 'IR-2019-000044',
+      purpose: 'archive',
+      kind: 'ir',
+      document_date: '2019-03-02',
+      total: '180.00',
+      sha256: 'AB'.repeat(32),
+      size: 84211,
+      delivery: 'none',
+      signed_at: '2026-09-24T10:00:00+03:00',
+    })).toMatchObject({ purpose: 'archive', total: 180, sha256: 'ab'.repeat(32), size: 84211 });
+
+    expect(readSignedOriginal({ id: 'o-1', number: 'IR-2026-000001', total: '90.00' })).toMatchObject({
+      purpose: 'original',
+      sha256: '',
+      size: 0,
+      total: 90,
+    });
+  });
+
+  it('reads a missing total as none, not as zero', () => {
+    expect(readSignedOriginal({ id: 'o-1', total: null })?.total).toBeNull();
+    expect(readSignedOriginal({ id: 'o-1' })?.total).toBeNull();
+    expect(readSignedOriginal({ id: 'o-1', total: '' })?.total).toBeNull();
+    expect(readSignedOriginal({ id: 'o-1', total: '-40.00' })?.total).toBe(-40);
+  });
+});
+
+describe('responseHeader', () => {
+  it('reads axios headers and plain records alike, whatever the case', () => {
+    const axiosHeaders = new AxiosHeaders({ 'X-Export-Total': '87' });
+    expect(responseHeader(axiosHeaders, 'x-export-total')).toBe('87');
+    expect(responseHeader({ 'x-content-sha256': 'ab' }, 'X-Content-SHA256')).toBe('ab');
+  });
+
+  it('is undefined for a header that is not there — or that the browser was not allowed to read', () => {
+    expect(responseHeader(new AxiosHeaders({}), 'X-Export-Total')).toBeUndefined();
+    expect(responseHeader({}, 'X-Export-Total')).toBeUndefined();
+    expect(responseHeader(undefined, 'X-Export-Total')).toBeUndefined();
+  });
+
+  it('keeps an empty header apart from a missing one', () => {
+    expect(responseHeader({ 'x-export-next-offset': '' }, 'X-Export-Next-Offset')).toBe('');
+  });
+});
+
+describe('one signed file', () => {
+  const bytes = '%PDF-1.7 signed';
+
+  it('asks the file route for a blob, with the time a big file needs', async () => {
+    get.mockResolvedValue({ data: new Blob([bytes]), headers: { 'x-content-sha256': sha(bytes) } } as never);
+    const file = await fetchSignedOriginalFile('o 1');
+    expect(get).toHaveBeenCalledWith('/documents/signing/originals/o%201/file/', { responseType: 'blob', timeout: 60000 });
+    expect(file.sha256).toBe(sha(bytes));
+  });
+
+  it('saves the bytes as <number>.pdf once they match the server’s SHA-256', async () => {
+    const pdf = new Blob([bytes], { type: 'application/pdf' });
+    get.mockResolvedValue({ data: pdf, headers: new AxiosHeaders({ 'X-Content-SHA256': sha(bytes).toUpperCase() }) } as never);
+    const result = await downloadSignedOriginal({ id: 'o-1', number: 'IR-2026-000123', sha256: '' });
+    expect(result).toEqual({ check: 'verified' });
+    expect(save).toHaveBeenCalledWith(pdf, 'application/pdf', 'IR-2026-000123.pdf');
+  });
+
+  it('checks against the row’s own SHA-256 when the header cannot be read', async () => {
+    get.mockResolvedValue({ data: new Blob([bytes]), headers: {} } as never);
+    expect(await downloadSignedOriginal({ id: 'o-1', number: 'IR-1', sha256: sha(bytes) })).toEqual({ check: 'verified' });
+    expect(save).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not save a file whose bytes differ from what is stored', async () => {
+    get.mockResolvedValue({ data: new Blob([`${bytes} changed`]), headers: { 'x-content-sha256': sha(bytes) } } as never);
+    await expect(downloadSignedOriginal({ id: 'o-1', number: 'IR-1', sha256: '' })).rejects.toBeInstanceOf(SignedFileMismatchError);
+    expect(save).not.toHaveBeenCalled();
+  });
+
+  it('saves unchecked when there is nothing to check against', async () => {
+    get.mockResolvedValue({ data: new Blob([bytes]), headers: {} } as never);
+    expect(await downloadSignedOriginal({ id: 'o-1', number: 'IR-1', sha256: 'not-a-digest' })).toEqual({ check: 'unchecked' });
+    expect(save).toHaveBeenCalledTimes(1);
+  });
+
+  it('throws a refusal with its body read out of the blob', async () => {
+    get.mockRejectedValue({ response: { status: 404, data: new Blob([JSON.stringify({ error: 'המקור לא נמצא' })]) } });
+    await expect(fetchSignedOriginalFile('o-1')).rejects.toMatchObject({ response: { status: 404, data: { error: 'המקור לא נמצא' } } });
+  });
+
+  it('names a file safely', () => {
+    expect(signedOriginalFilename('IR-2026-000123')).toBe('IR-2026-000123.pdf');
+    expect(signedOriginalFilename('A/B:C')).toBe('A-B-C.pdf');
+    expect(signedOriginalFilename('')).toBe('מסמך.pdf');
+  });
+
+  it('reads only a real SHA-256', () => {
+    expect(normalizeSha256(` ${'AB'.repeat(32)} `)).toBe('ab'.repeat(32));
+    expect(normalizeSha256('abc')).toBe('');
+    expect(normalizeSha256(null)).toBe('');
+  });
+});
+
+describe('the export, a ZIP part at a time', () => {
+  it('asks for one part of the filter, as a blob, with a way to cancel', async () => {
+    const zip = new Blob(['PK']);
+    get.mockResolvedValue({
+      data: zip,
+      headers: new AxiosHeaders({ 'X-Export-Total': '87', 'X-Export-Next-Offset': '40' }),
+    } as never);
+    const controller = new AbortController();
+    const part = await fetchSignedExportPart({ purpose: 'archive', q: ' ' }, 0, { signal: controller.signal });
+    expect(get).toHaveBeenCalledWith('/documents/signing/originals/export/', {
+      params: { purpose: 'archive', offset: 0, limit: SIGNED_EXPORT_PART_SIZE },
+      responseType: 'blob',
+      timeout: 120000,
+      signal: controller.signal,
+    });
+    expect(part).toEqual({ zip, total: 87, nextOffset: 40 });
+  });
+
+  it('reads an empty next offset as the last part', () => {
+    expect(readExportPartHeaders({ 'x-export-total': '87', 'x-export-next-offset': '' }, { offset: 80, limit: 40 }))
+      .toEqual({ total: 87, nextOffset: null });
+  });
+
+  it('reads a next offset that does not move forward as the last part, never asking for the same part again', () => {
+    expect(readExportPartHeaders({ 'x-export-next-offset': '40' }, { offset: 40, limit: 40 }).nextOffset).toBeNull();
+    expect(readExportPartHeaders({ 'x-export-next-offset': 'soon' }, { offset: 0, limit: 40 }).nextOffset).toBeNull();
+  });
+
+  it('works the next part out from the count when the headers cannot be read', () => {
+    expect(readExportPartHeaders({}, { offset: 0, limit: 40, knownTotal: 87 })).toEqual({ total: 87, nextOffset: 40 });
+    expect(readExportPartHeaders({}, { offset: 80, limit: 40, knownTotal: 87 })).toEqual({ total: 87, nextOffset: null });
+    expect(readExportPartHeaders({}, { offset: 40, limit: 40, knownTotal: 80 })).toEqual({ total: 80, nextOffset: null });
+    // Nothing to go by: one part, and stop.
+    expect(readExportPartHeaders({}, { offset: 0, limit: 40 })).toEqual({ total: null, nextOffset: null });
+  });
+
+  it('prefers the server’s total to the count the screen had', () => {
+    expect(readExportPartHeaders({ 'x-export-total': '90' }, { offset: 0, limit: 40, knownTotal: 87 }).total).toBe(90);
+  });
+
+  it('throws a refusal with its body read out of the blob', async () => {
+    get.mockRejectedValue({ response: { status: 400, data: new Blob([JSON.stringify({ error: 'טווח לא תקין' })]) } });
+    await expect(fetchSignedExportPart({}, 0)).rejects.toMatchObject({ response: { data: { error: 'טווח לא תקין' } } });
+  });
+});
+
+describe('the archive status', () => {
+  const answer = {
+    enabled: true,
+    kinds: [
+      { kind: 'ir', label: 'קבלות חוג', eligible: 300, archived: 120, originals: 45, remaining: 180 },
+      { kind: 'store', label: 'חנות', eligible: 40, archived: 40, originals: 12, remaining: 0 },
+    ],
+    last_signed_at: '2026-09-24T09:15:00+03:00',
+    blocked: '',
+    issued_before: '2026-09-24T09:55:00+03:00',
+    backup: { enabled: true, copied: 160, pending: 0, last_error: '' },
+  };
+
+  it('asks the status route and reads the answer as sent', async () => {
+    get.mockResolvedValue({ data: answer } as never);
+    expect(await fetchArchiveStatus()).toEqual(answer);
+    expect(get).toHaveBeenCalledWith('/documents/signing/archive/status/');
+  });
+
+  it('reads an answer it cannot trust as no status', () => {
+    expect(readArchiveStatus(null)).toBeNull();
+    expect(readArchiveStatus('<html>')).toBeNull();
+    expect(readArchiveStatus({ kinds: [] })).toBeNull();
+  });
+
+  it('fills what is missing: counts as 0, remaining as what is left', () => {
+    expect(readArchiveStatus({ enabled: false, kinds: [{ kind: 'formal', eligible: '10', archived: 4 }, null] })).toEqual({
+      enabled: false,
+      kinds: [{ kind: 'formal', label: '', eligible: 10, archived: 4, originals: 0, remaining: 6 }],
+      last_signed_at: null,
+      blocked: '',
+      issued_before: null,
+      backup: null,
+    });
+  });
+
+  it('reads the cutoff, a blocked archive and the locked backup', () => {
+    expect(readArchiveStatus({
+      enabled: true,
+      kinds: [],
+      last_signed_at: null,
+      blocked: 'DOCUMENT_SIGNING_ENABLED is on and SIGNING_ARCHIVE_ISSUED_BEFORE is not set',
+      issued_before: '2026-09-24T09:55:00+03:00',
+      backup: { enabled: true, copied: '12', pending: 3, last_error: 'backup upload refused (HTTP 403 PERMISSION_DENIED)' },
+    })).toEqual({
+      enabled: true,
+      kinds: [],
+      last_signed_at: null,
+      blocked: 'DOCUMENT_SIGNING_ENABLED is on and SIGNING_ARCHIVE_ISSUED_BEFORE is not set',
+      issued_before: '2026-09-24T09:55:00+03:00',
+      backup: { enabled: true, copied: 12, pending: 3, last_error: 'backup upload refused (HTTP 403 PERMISSION_DENIED)' },
+    });
+  });
+});
+
+describe('runArchiveBatch', () => {
+  it('asks for one batch and reads what it did', async () => {
+    post.mockResolvedValue({
+      data: { signed: 24, skipped: 0, failed: [{ number: 'IR-2019-000007', error: 'PDF חסר' }], remaining: 156, done: false },
+    } as never);
+    const result = await runArchiveBatch({ limit: 25 });
+    expect(post).toHaveBeenCalledWith('/documents/signing/archive/run/', { limit: 25 }, { timeout: 120000 });
+    expect(result).toEqual({
+      outcome: 'ran',
+      batch: { signed: 24, skipped: 0, failed: [{ number: 'IR-2019-000007', error: 'PDF חסר' }], remaining: 156, done: false },
+    });
+  });
+
+  it('never asks for more than the server signs at once, and sends a date only as a date', async () => {
+    post.mockResolvedValue({ data: { done: true } } as never);
+    await runArchiveBatch({ limit: 500, since: '2019-01-01' });
+    expect(post).toHaveBeenLastCalledWith(
+      '/documents/signing/archive/run/',
+      { limit: ARCHIVE_RUN_MAX_LIMIT, since: '2019-01-01' },
+      { timeout: 120000 },
+    );
+    await runArchiveBatch({ limit: 0, since: '1.1.2019' });
+    expect(post).toHaveBeenLastCalledWith('/documents/signing/archive/run/', { limit: 1 }, { timeout: 120000 });
+    await runArchiveBatch();
+    expect(post).toHaveBeenLastCalledWith('/documents/signing/archive/run/', {}, { timeout: 120000 });
+  });
+
+  it('reads 409 as "the switch is off" and 503 as "the key is out of reach", with the server’s words', async () => {
+    post.mockRejectedValue({ response: { status: 409, data: { error: 'הארכיון כבוי' } } });
+    expect(await runArchiveBatch({ limit: 25 })).toEqual({ outcome: 'off', message: 'הארכיון כבוי' });
+    post.mockRejectedValue({ response: { status: 503, data: {} } });
+    expect(await runArchiveBatch({ limit: 25 })).toEqual({ outcome: 'unavailable', message: '' });
+  });
+
+  it('throws any other refusal, and a request that got no answer, as they came', async () => {
+    const refusal = { response: { status: 500, data: { error: 'boom' } } };
+    post.mockRejectedValue(refusal);
+    await expect(runArchiveBatch({ limit: 25 })).rejects.toBe(refusal);
+    const timeout = { code: 'ECONNABORTED' };
+    post.mockRejectedValue(timeout);
+    await expect(runArchiveBatch({ limit: 25 })).rejects.toBe(timeout);
   });
 });

@@ -13,8 +13,10 @@ import DocumentsTab from './DocumentsTab';
 import ManualDeliveryTab from './ManualDeliveryTab';
 import PaymentsTab from './PaymentsTab';
 import RecurringTab from './RecurringTab';
+import SignedArchiveTab from './SignedArchiveTab';
 import { fetchSigningStatus, type SigningStatus } from '@/lib/signingApi';
-import { invoiceTabs, MANUAL_DELIVERY_TAB_KEY } from './manualDelivery';
+import { MANUAL_DELIVERY_TAB_KEY } from './manualDelivery';
+import { invoicePageTabs, SIGNED_ARCHIVE_TAB_KEY } from './signedArchive';
 import type { ActiveTab } from './types';
 import { useLedgerFilters } from './useLedgerFilters';
 import styles from './invoices.module.css';
@@ -76,8 +78,9 @@ export default function InvoicesPage() {
   const [documentsVersion, setDocumentsVersion] = useState(0);
 
   // The electronic signature's status. Until it says enabled the page is exactly
-  // what it was: the manual-delivery tab is not there at all. Only a manager
-  // asks — the endpoint and the tab are theirs.
+  // what it was: the manual-delivery tab is not there at all. The signed
+  // archive joins it, and stays once anything was ever signed. Only a manager
+  // asks — the endpoint and the tabs are theirs.
   const [signing, setSigning] = useState<SigningStatus | null>(null);
   useEffect(() => {
     if (!isManager) {
@@ -97,7 +100,7 @@ export default function InvoicesPage() {
     };
   }, [isManager]);
 
-  const tabs = useMemo(() => invoiceTabs(TABS, { isManager, signing }), [isManager, signing]);
+  const tabs = useMemo(() => invoicePageTabs(TABS, { isManager, signing }), [isManager, signing]);
   const activeIndex = Math.max(0, tabs.findIndex((tab) => tab.key === activeTab));
   // What the panel shows follows the tab rail, so a tab that is not offered is never shown.
   const current = tabs[activeIndex];
@@ -166,6 +169,7 @@ export default function InvoicesPage() {
           )}
           {current.key === 'קישורי אשראי' && <CardLinksTab ledger={ledger} />}
           {current.key === MANUAL_DELIVERY_TAB_KEY && signing && <ManualDeliveryTab status={signing} />}
+          {current.key === SIGNED_ARCHIVE_TAB_KEY && <SignedArchiveTab />}
         </div>
       </div>
 
