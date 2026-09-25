@@ -89,15 +89,24 @@ describe('formatFingerprint', () => {
 });
 
 describe('formatSigningStamp and formatValidity', () => {
-  it('reads the day and time off the text, not the browser clock', () => {
+  it('shows a moment on Israel\'s clock, whatever offset it came with', () => {
     expect(formatSigningStamp('2026-09-23T14:05:59+03:00')).toBe('23.9.2026 14:05');
+    // The API writes UTC: 15:19Z is 18:19 in Israel (summer time).
+    expect(formatSigningStamp('2026-09-24T15:19:26.734501Z')).toBe('24.9.2026 18:19');
+    expect(formatSigningStamp('2026-09-24T22:30:00+00:00')).toBe('25.9.2026 01:30');
+    // Winter: UTC+2.
+    expect(formatSigningStamp('2026-12-01T10:00:00Z')).toBe('1.12.2026 12:00');
+  });
+
+  it('reads a value without an offset off the text, not the browser clock', () => {
+    expect(formatSigningStamp('2026-09-23T14:05:59')).toBe('23.9.2026 14:05');
     expect(formatSigningStamp('2026-09-03')).toBe('3.9.2026');
     expect(formatSigningStamp(null)).toBe('');
     expect(formatSigningStamp('garbage')).toBe('');
   });
 
   it('writes a validity range, or the side of it that is known', () => {
-    expect(formatValidity('2026-09-01T00:00:00Z', '2036-08-31T23:59:59Z')).toBe('1.9.2026 – 31.8.2036');
+    expect(formatValidity('2026-09-01T00:00:00Z', '2036-08-31T20:59:59Z')).toBe('1.9.2026 – 31.8.2036');
     expect(formatValidity(null, '2036-08-31')).toBe('עד 31.8.2036');
     expect(formatValidity('2026-09-01', null)).toBe('מ-1.9.2026');
     expect(formatValidity(null, null)).toBe('');
