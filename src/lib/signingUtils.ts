@@ -43,14 +43,38 @@ export function formatFingerprint(raw: string | null | undefined): string {
   return (hex.toUpperCase().match(/.{2}/g) ?? []).join(':');
 }
 
+const ISRAEL_CLOCK = new Intl.DateTimeFormat('en-GB', {
+  timeZone: 'Asia/Jerusalem',
+  year: 'numeric',
+  month: 'numeric',
+  day: 'numeric',
+  hour: '2-digit',
+  minute: '2-digit',
+  hourCycle: 'h23',
+});
+
 /**
- * D.M.YYYY, and HH:MM when the value carries a time. The server writes Israel
- * time, so it is read off the text rather than moved by the browser's clock.
+ * D.M.YYYY, and HH:MM when the value carries a time — always on Israel's clock.
+ *
+ * A moment that says where it is on the world clock (…Z, +00:00, +03:00) is
+ * moved to Israel time: the API writes signed_at, sent_at and the like in UTC,
+ * and read off the text they came out three hours early. A value with no
+ * offset (a plain date, or a time already written as Israel time) is read off
+ * the text, never moved by the browser's own clock.
  */
 export function formatSigningStamp(iso: string | null | undefined): string {
-  const match = /^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2}))?/.exec(String(iso ?? ''));
+  const text = String(iso ?? '');
+  const match = /^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2}))?/.exec(text);
   if (!match) return '';
   const [, year, month, day, hour, minute] = match;
+  if (hour !== undefined && /(?:Z|[+-]\d{2}:?\d{2})$/i.test(text)) {
+    const moment = new Date(text);
+    if (!Number.isNaN(moment.getTime())) {
+      const parts = ISRAEL_CLOCK.formatToParts(moment);
+      const part = (type: Intl.DateTimeFormatPartTypes) => parts.find((p) => p.type === type)?.value ?? '';
+      return `${Number(part('day'))}.${Number(part('month'))}.${part('year')} ${part('hour')}:${part('minute')}`;
+    }
+  }
   const date = `${Number(day)}.${Number(month)}.${year}`;
   return hour !== undefined ? `${date} ${hour}:${minute}` : date;
 }
