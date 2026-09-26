@@ -496,10 +496,31 @@ export async function registerCashPlan(input: {
   return res.data;
 }
 
-/** מספר הקצאה שנלקח ידנית מרשות המסים. מחרוזת ריקה מנקה אותו. */
-export async function setAllocationNumber(documentId: string, allocationNumber: string) {
+/**
+ * What the server answers to an allocation number. The fields after the first
+ * two came on 25.9.2026 (a server before that sends only the first two):
+ * whether the document's original is signed now and where it went, and
+ * `copy_only` when the original was signed before the number and it will be
+ * printed on copies only (`message` says so).
+ */
+export interface AllocationNumberAnswer {
+  allocation_number: string;
+  allocation_entered_at: string | null;
+  copy_only?: boolean;
+  signed?: boolean;
+  delivery?: 'email' | 'paper' | 'held' | 'none' | null;
+  delivery_reason?: string;
+  message?: string;
+}
+
+/**
+ * מספר הקצאה שנלקח ידנית מרשות המסים. מחרוזת ריקה מנקה אותו.
+ * A document held for its number is signed and mailed once it is entered; once
+ * the original is signed the server refuses a change (409, with its reason).
+ */
+export async function setAllocationNumber(documentId: string, allocationNumber: string): Promise<AllocationNumberAnswer> {
   const res = await api.post(`/documents/documents/${documentId}/allocation-number/`, {
     allocation_number: allocationNumber,
   });
-  return res.data as { allocation_number: string; allocation_entered_at: string | null };
+  return res.data as AllocationNumberAnswer;
 }

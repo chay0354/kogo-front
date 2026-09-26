@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
-import { AlertCircle, CheckCircle2, Hourglass, Loader2, Printer } from 'lucide-react';
+import { AlertCircle, CheckCircle2, Hourglass, Loader2, Printer, Send } from 'lucide-react';
 import { toast } from 'sonner';
 import { Skeleton, TableSkeleton } from '@/components/ui/skeleton';
 import theme from '@/components/dashboard/theme/dashboard.module.css';
@@ -14,9 +14,12 @@ import {
   type SigningStatus,
 } from '@/lib/signingApi';
 import { formatSigningStamp, localIsoStamp } from '@/lib/signingUtils';
+import AllocationEntry from './AllocationEntry';
+import SendOriginalDialog from './SendOriginalDialog';
 import {
   heldStatusLabel,
   MANUAL_DELIVERY_PAGE_SIZE,
+  paperRowCanBeMailed,
   markAfterPrint,
   originalFilename,
   paperRowView,
@@ -40,7 +43,7 @@ interface OriginalsList {
 const EMPTY_LIST: OriginalsList = { rows: [], count: 0, loadState: 'loading', loadingMore: false };
 
 const PAPER_COLUMNS = 7;
-const HELD_COLUMNS = 6;
+const HELD_COLUMNS = 7;
 
 /** How long a PDF opened in a new tab stays readable there, for its viewer's own print and save. */
 const OPENED_PDF_LIFETIME_MS = 10 * 60 * 1000;
@@ -149,6 +152,8 @@ export default function ManualDeliveryTab({ status }: ManualDeliveryTabProps) {
   const paper = useOriginals({ delivery: 'paper', printed: false });
   const held = useOriginals({ delivery: 'held' });
   const [marks, setMarks] = useState<Record<string, PrintMark>>({});
+  // The row whose "שלח" dialog is open.
+  const [sending, setSending] = useState<SignedOriginalRow | null>(null);
   // Guards a double press before the "printing" mark has rendered.
   const inFlight = useRef(new Set<string>());
 
@@ -196,6 +201,12 @@ export default function ManualDeliveryTab({ status }: ManualDeliveryTabProps) {
     }
   }
 
+  /** A row left a list (mailed, or signed after its allocation number): both lists are read again. */
+  const reloadLists = () => {
+    paper.retry();
+    held.retry();
+  };
+
   const paperLoading = paper.list.loadState === 'loading';
   const heldLoading = held.list.loadState === 'loading';
   const paperWaiting = waitingToPrint(paper.list.rows, marks)
@@ -225,6 +236,18 @@ export default function ManualDeliveryTab({ status }: ManualDeliveryTabProps) {
               הודפס
             </span>
           ) : (
+            <span className={styles.actions}>
+            {paperRowCanBeMailed(row) && view.state === 'ready' && (
+              <button
+                type="button"
+                className={styles.actionBtn}
+                aria-label={`שליחת המקור של ${row.number} במייל`}
+                onClick={() => setSending(row)}
+              >
+                <Send size={14} aria-hidden="true" />
+                שלח במייל
+              </button>
+            )}
             <button
               type="button"
               className={styles.actionBtn}
@@ -237,6 +260,7 @@ export default function ManualDeliveryTab({ status }: ManualDeliveryTabProps) {
                 : <Printer size={14} aria-hidden="true" />}
               {view.action}
             </button>
+            </span>
           )}
         </td>
       </tr>
@@ -256,6 +280,13 @@ export default function ManualDeliveryTab({ status }: ManualDeliveryTabProps) {
         <td className={styles.wrapCell}>
           <span className={`${pageStyles.statusBadge} ${pageStyles.statusPending}`}>{heldStatusLabel(row)}</span>
           {row.delivery_reason && <span className={styles.subLine}>{row.delivery_reason}</span>}
+        </td>
+        <td className={theme.n}>
+          {row.awaiting_allocation ? (
+            <AllocationEntry documentId={row.kind === 'formal' ? row.source_id : ''} number={row.number} onSaved={reloadLists} />
+          ) : (
+            <span className={styles.dash}>—</span>
+          )}
         </td>
       </tr>
     );
@@ -284,7 +315,7 @@ export default function ManualDeliveryTab({ status }: ManualDeliveryTabProps) {
         <EmptyPanel
           icon={<Printer className={styles.emptyIcon} aria-hidden="true" />}
           title="אין מסמכים שממתינים למסירה על נייר"
-          text="מסמך ששולם במזומן או בצ׳ק שאינו משורטט על שם הלקוח לא נשלח במייל — הוא יופיע כאן להדפסת המקור."
+          text="מסמך ששולם במזומן או בצ׳ק שאינו משורטט על שם הלקוח, או שאין ללקוח כתובת מייל, יופיע כאן להדפסת המקור."
         />
       );
     }
@@ -315,7 +346,8 @@ export default function ManualDeliveryTab({ status }: ManualDeliveryTabProps) {
           </div>
         )}
         <p className={styles.footnote}>
-          המקור החתום מודפס פעם אחת בלבד, ומועד ההדפסה נרשם. כל הדפסה אחרת של המסמך היא העתק.
+          המקור החתום מודפס פעם אחת בלבד, ומועד ההדפסה נרשם. כל הדפסה אחרת של המסמך היא העתק. מסמך שכאן רק כי
+          אין ללקוח כתובת מייל אפשר לשלוח במייל עם כתובת — והוא יישלח לבד כשתירשם כתובת בכרטיס.
         </p>
       </>
     );
@@ -361,6 +393,7 @@ export default function ManualDeliveryTab({ status }: ManualDeliveryTabProps) {
                 <th scope="col">תאריך</th>
                 <th scope="col" className={theme.n}>סכום</th>
                 <th scope="col">ממתין ל…</th>
+                <th scope="col" className={theme.n}>מספר הקצאה</th>
               </tr>
             </thead>
             <tbody>{list.rows.map(renderHeldRow)}</tbody>
@@ -375,7 +408,8 @@ export default function ManualDeliveryTab({ status }: ManualDeliveryTabProps) {
         )}
         <p className={styles.footnote}>
           מסמך שממתין לחתימה נחתם ונשלח אוטומטית בהרצה הבאה, בתוך כמה דקות. מסמך שממתין להסכמה יישלח אחרי שתירשם
-          ההסכמה של הלקוח לקבל מסמכים במייל.
+          ההסכמה של הלקוח לקבל מסמכים במייל. חשבונית שממתינה למספר הקצאה נחתמת ונשלחת ברגע שמזינים את המספר שהתקבל
+          מרשות המסים — אחרי החתימה אי אפשר לשנות אותו.
         </p>
       </>
     );
@@ -394,10 +428,12 @@ export default function ManualDeliveryTab({ status }: ManualDeliveryTabProps) {
           negative={paperWaiting > 0}
         />
         <Kpi
-          label="ממתינים לחתימה או להסכמה"
+          label="ממתינים"
           loading={heldLoading}
           value={count(held.list.count)}
-          foot={status.consent_enforced ? 'אכיפת ההסכמה פעילה' : 'ההסכמה רק מדווחת, לא עוצרת שליחה'}
+          foot={status.counts.awaiting_allocation > 0
+            ? `מהם ${count(status.counts.awaiting_allocation)} ממתינים למספר הקצאה`
+            : status.consent_enforced ? 'אכיפת ההסכמה פעילה' : 'ההסכמה רק מדווחת, לא עוצרת שליחה'}
         />
         <Kpi
           label="נחתמו היום"
@@ -413,7 +449,7 @@ export default function ManualDeliveryTab({ status }: ManualDeliveryTabProps) {
             <h2 id="manual-delivery-paper-title" className={theme.cardTitle}>
               למסירה על נייר
             </h2>
-            <p className={styles.cardSub}>שולמו במזומן או בצ׳ק לא משורטט — לא נשלחים במייל (הוראה 18ב(ד))</p>
+            <p className={styles.cardSub}>שולמו במזומן או בצ׳ק לא משורטט (הוראה 18ב(ד)), או שאין ללקוח כתובת מייל</p>
           </div>
         </div>
         {renderPaper()}
@@ -425,11 +461,13 @@ export default function ManualDeliveryTab({ status }: ManualDeliveryTabProps) {
             <h2 id="manual-delivery-held-title" className={theme.cardTitle}>
               ממתינים
             </h2>
-            <p className={styles.cardSub}>הונפקו ועוד לא נשלחו — ממתינים לחתימה, או להסכמת הלקוח לקבל מסמכים במייל</p>
+            <p className={styles.cardSub}>הונפקו ועוד לא נשלחו — ממתינים למספר הקצאה, לחתימה, או להסכמת הלקוח לקבל מסמכים במייל</p>
           </div>
         </div>
         {renderHeld()}
       </section>
+
+      <SendOriginalDialog row={sending} onClose={() => setSending(null)} onSent={reloadLists} />
     </div>
   );
 }
