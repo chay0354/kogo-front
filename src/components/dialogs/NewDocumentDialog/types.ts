@@ -138,7 +138,6 @@ export interface InvoiceDetailsData {
   discountAmount: number;
   discountPercent: number;
   vatExempt: boolean;
-  roundTotal: boolean;
   closeInvoice: boolean;
   customerNotes: string;
   internalNotes: string;

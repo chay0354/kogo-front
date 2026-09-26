@@ -261,7 +261,7 @@ describe('invoice-receipt payments (G)', () => {
       documentNumber: '', documentDate: '2026-09-25', description: 'סדנה', currency: 'ILS',
       pricesIncludeVat: false,
       lineItems: [{ id: '1', sku: '', description: 'סדנה', quantity: 1, price: 200 }],
-      discountAmount: 0, discountPercent: 0, vatExempt: false, roundTotal: false, closeInvoice: false,
+      discountAmount: 0, discountPercent: 0, vatExempt: false, closeInvoice: false,
       customerNotes: '', internalNotes: '', paymentTerms: '', dueDate: '',
       paymentMethods: [], payments: payments(), withholdingAmount: 0, allocationNumber: '',
       linkedInvoiceId: '', receiptNotes: '',
@@ -313,6 +313,18 @@ describe('invoice-receipt payments (G)', () => {
     const withheld = invoice({ paymentMethods: ['העברה בנקאית'], payments: payments({ bankAmount: 200 }), withholdingAmount: 36 });
     expect(invoicePaymentBalance(withheld)).toMatchObject({ total: 23600, paid: 20000, withholding: 3600, remaining: 0 });
     expect(advance(withheld)).toBe(true);
+  });
+
+  it('refuses what the server refuses: a negative price, a discount outside 0–100%', () => {
+    const advance = (data: InvoiceDetailsData) =>
+      canAdvanceFromStep('documentDetails', 'existing', 'c', null, null, 'חשבונית מס', data);
+    expect(advance(invoice())).toBe(true);
+    expect(advance(invoice({ lineItems: [
+      { id: '1', sku: '', description: '', quantity: 1, price: 200 },
+      { id: '2', sku: '', description: '', quantity: 1, price: -50 },
+    ] }))).toBe(false);
+    expect(advance(invoice({ discountPercent: 101 }))).toBe(false);
+    expect(advance(invoice({ discountAmount: -1 }))).toBe(false);
   });
 
   it('asks a business customer for the allocation number above ₪5,000 before VAT', () => {

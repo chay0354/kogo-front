@@ -410,7 +410,12 @@ export function canAdvanceFromStep(
       if (!invoiceDetails) return false;
       const baseValid =
         invoiceDetails.description.trim() !== '' &&
-        invoiceDetails.lineItems.some((item) => item.price > 0);
+        invoiceDetails.lineItems.some((item) => item.price > 0) &&
+        // The server's rules (M): no negative price or quantity, a discount of 0–100%.
+        invoiceDetails.lineItems.every((item) => item.price >= 0 && item.quantity > 0) &&
+        invoiceDetails.discountAmount >= 0 &&
+        invoiceDetails.discountPercent >= 0 &&
+        invoiceDetails.discountPercent <= 100;
       if (!baseValid) return false;
       if (invoiceDetails.dueDate && invoiceDetails.documentDate) {
         if (invoiceDetails.dueDate < invoiceDetails.documentDate) return false;

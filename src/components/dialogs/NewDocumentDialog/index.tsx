@@ -53,6 +53,7 @@ import {
   serverErrorMessage,
   businessFormFromCustomer,
   canAdvanceFromStep,
+  computeInvoiceTotals,
   creditableMatch,
   documentDateBounds,
   emptyCheckRow,
@@ -306,7 +307,8 @@ export default function NewDocumentDialog({ open, onClose }: NewDocumentDialogPr
         document_date: invoiceDetails.documentDate,
         due_date: invoiceDetails.dueDate || null,
         description: invoiceDetails.description,
-        currency: invoiceDetails.currency as 'ILS' | 'USD' | 'EUR',
+        // Shekels only (D6): the server refuses any other currency.
+        currency: 'ILS',
         prices_include_vat: invoiceDetails.pricesIncludeVat,
         line_items: invoiceDetails.lineItems.map((i) => ({
           sku: i.sku,
@@ -316,9 +318,9 @@ export default function NewDocumentDialog({ open, onClose }: NewDocumentDialogPr
         })),
         discount_amount: invoiceDetails.discountAmount,
         discount_percent: invoiceDetails.discountPercent,
-        // transaction_invoice has no VAT by Israeli accounting law
-        vat_exempt: mappedType === 'transaction_invoice' ? true : invoiceDetails.vatExempt,
-        round_total: invoiceDetails.roundTotal,
+        // A transaction invoice shows the VAT its tax invoice will charge; it is
+        // VAT-free only when the sale is (Eilat, abroad) — as chosen, not forced.
+        vat_exempt: invoiceDetails.vatExempt,
         payment_terms: invoiceDetails.paymentTerms,
         customer_notes: invoiceDetails.customerNotes,
         internal_notes: invoiceDetails.internalNotes,
@@ -1308,10 +1310,11 @@ function TransactionInvoiceStep({ data, onChange }: TransactionInvoiceStepProps)
     onChange({ ...data, lineItems: updated });
   }
 
-  const subtotal = data.lineItems.reduce((sum, item) => sum + item.quantity * item.price, 0);
-  // חשבונית עסקה is a non-VAT document by Israeli accounting law
-  const totalBeforeRounding = subtotal - data.discountAmount;
-  const finalTotal = data.roundTotal ? Math.round(totalBeforeRounding) : totalBeforeRounding;
+  // Worked out as the server stores it — to the agora, VAT as it will be charged.
+  const totals = computeInvoiceTotals(data);
+  const subtotal = totals.subtotal / 100;
+  const vatAmount = totals.vat / 100;
+  const finalTotal = totals.total / 100;
 
   return (
     <div>
@@ -1363,15 +1366,8 @@ function TransactionInvoiceStep({ data, onChange }: TransactionInvoiceStepProps)
       <div className={styles.detailsSection}>
         <span className={styles.sectionHeading}>מטבע</span>
         <div className={styles.currencyRow}>
-          <Select
-            value={data.currency}
-            onChange={(e) => onChange({ ...data, currency: e.target.value })}
-            className={styles.currencySelect}
-          >
-            <option value="ILS">שקל ₪</option>
-            <option value="USD">דולר $</option>
-            <option value="EUR">אירו €</option>
-          </Select>
+          {/* Shekels only (D6): no rate is kept for another currency. */}
+          <span className={styles.currencySelect}>שקל ₪</span>
           <label className={styles.checkboxLabel}>
             <input
               type="checkbox"
@@ -1499,26 +1495,34 @@ function TransactionInvoiceStep({ data, onChange }: TransactionInvoiceStepProps)
           </div>
         </div>
 
+        {/* The VAT the tax invoice will charge on payment — a demand asks for the whole sum. */}
+        <div className={styles.vatRow}>
+          <span className={styles.totalsLabel}>מע&quot;מ 18%</span>
+          <div className={styles.vatRowContent}>
+            <label className={styles.vatRadioLabel}>
+              <input
+                type="checkbox"
+                checked={data.vatExempt}
+                onChange={(e) => onChange({ ...data, vatExempt: e.target.checked })}
+              />
+              ללא מע&quot;מ (אילת / חו&quot;ל)
+            </label>
+            <span className={styles.vatAmount}>₪{vatAmount.toFixed(2)}</span>
+          </div>
+        </div>
+
         <div className={`${styles.totalsRow} ${styles.totalsRowBold}`}>
           <span className={styles.totalsLabel}>סה&quot;כ בח&quot;ן</span>
           <span className={styles.totalsValue}>₪{finalTotal.toFixed(2)}</span>
         </div>
 
-        <label className={styles.totalsCheckboxRow}>
-          <input
-            type="checkbox"
-            checked={data.roundTotal}
-            onChange={(e) => onChange({ ...data, roundTotal: e.target.checked })}
-          />
-          <span className={styles.totalsCheckboxLabel}>עגל סכום - ללא אגורות</span>
-        </label>
       </div>
 
       {/* Info banner */}
       <div className={styles.infoBanner}>
         <FileText size={16} className={styles.infoBannerIcon} />
         <span className={styles.infoBannerText}>
-          חשבונית עסקה – דרישת תשלום. אינה כוללת תשלום בפועל. אינה כוללת מע&quot;מ.
+          חשבונית עסקה – דרישת תשלום, לא מסמך מס. המע&quot;מ שבה יחויב בחשבונית המס שתופק עם התשלום.
         </span>
       </div>
 
@@ -1821,10 +1825,11 @@ function InvoiceDetailsStep({ data, onChange, docType, clientType = null }: Invo
     onChange({ ...data, lineItems: updated });
   }
 
-  const subtotal = data.lineItems.reduce((sum, item) => sum + item.quantity * item.price, 0);
-  const vatAmount = data.vatExempt ? 0 : (subtotal - data.discountAmount) * 0.18;
-  const totalBeforeRounding = subtotal - data.discountAmount + vatAmount;
-  const finalTotal = data.roundTotal ? Math.round(totalBeforeRounding) : totalBeforeRounding;
+  // Worked out as the server stores it (utils.computeInvoiceTotals) — no rounding to the shekel.
+  const totals = computeInvoiceTotals(data);
+  const subtotal = totals.subtotal / 100;
+  const vatAmount = totals.vat / 100;
+  const finalTotal = totals.total / 100;
 
   return (
     <div>
@@ -1876,15 +1881,8 @@ function InvoiceDetailsStep({ data, onChange, docType, clientType = null }: Invo
       <div className={styles.detailsSection}>
         <span className={styles.sectionHeading}>מטבע</span>
         <div className={styles.currencyRow}>
-          <Select
-            value={data.currency}
-            onChange={(e) => onChange({ ...data, currency: e.target.value })}
-            className={styles.currencySelect}
-          >
-            <option value="ILS">שקל ₪</option>
-            <option value="USD">דולר $</option>
-            <option value="EUR">אירו €</option>
-          </Select>
+          {/* Shekels only (D6): no rate is kept for another currency. */}
+          <span className={styles.currencySelect}>שקל ₪</span>
           <label className={styles.checkboxLabel}>
             <input
               type="checkbox"
@@ -2045,14 +2043,6 @@ function InvoiceDetailsStep({ data, onChange, docType, clientType = null }: Invo
           <span className={styles.totalsValue}>₪{finalTotal.toFixed(2)}</span>
         </div>
 
-        <label className={styles.totalsCheckboxRow}>
-          <input
-            type="checkbox"
-            checked={data.roundTotal}
-            onChange={(e) => onChange({ ...data, roundTotal: e.target.checked })}
-          />
-          <span className={styles.totalsCheckboxLabel}>עגל סכום - ללא אגורות</span>
-        </label>
 
         <label className={styles.totalsCheckboxRow}>
           <input
@@ -2779,17 +2769,10 @@ function SummaryStep({
 
   const isInvoice = docType === 'חשבונית מס';
 
-  const subtotal = invoiceDetails.lineItems.reduce(
-    (s, i) => s + i.quantity * i.price,
-    0
-  );
-  const vatAmount = invoiceDetails.vatExempt
-    ? 0
-    : (subtotal - invoiceDetails.discountAmount) * 0.18;
-  const totalBeforeRounding = subtotal - invoiceDetails.discountAmount + vatAmount;
-  const finalTotal = invoiceDetails.roundTotal
-    ? Math.round(totalBeforeRounding)
-    : totalBeforeRounding;
+  const totals = computeInvoiceTotals(invoiceDetails);
+  const subtotal = (totals.subtotal - totals.discount) / 100;
+  const vatAmount = totals.vat / 100;
+  const finalTotal = totals.total / 100;
 
   return (
     <div className={styles.summaryCards}>

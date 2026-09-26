@@ -87,7 +87,6 @@ function createInitialInvoiceDetails(): InvoiceDetailsData {
     discountAmount: 0,
     discountPercent: 0,
     vatExempt: false,
-    roundTotal: false,
     closeInvoice: false,
     customerNotes: '',
     internalNotes: '',
