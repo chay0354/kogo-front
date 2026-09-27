@@ -44,6 +44,19 @@ export function checkoutOutcome(status: string | undefined): CheckoutOutcome {
   }
 }
 
+/** The card passed Tranzila's check and the server is charging it: show the working panel. */
+export function cardAccepted(status: string | undefined): boolean {
+  return status === 'verified' || status === 'charging';
+}
+
+/** The checkout's answer, as the "checking the payment" screen reads it. */
+export function checkoutSettlement(status: string | undefined): 'completed' | 'failed' | 'processing' {
+  const outcome = checkoutOutcome(status);
+  if (outcome === 'paid') return 'completed';
+  if (outcome === 'declined' || outcome === 'failed') return 'failed';
+  return 'processing';
+}
+
 /** The message the result page inside Tranzila's frame sends up. */
 export type CheckoutFrameMessage = {
   type: 'kogo-course-checkout';
@@ -67,3 +80,6 @@ export function readFrameMessage(data: unknown, checkoutId: string): CheckoutFra
 }
 
 export const CHECKOUT_POLL_MS = 3000;
+// From the card's approval to a settled checkout, including one retry of the
+// report (15 s on the server). Past it, the screen that keeps asking takes over.
+export const HOSTED_CHARGE_DEADLINE_MS = 60_000;

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { checkoutOutcome, readCheckoutStart, readFrameMessage } from './courseCheckout';
+import { cardAccepted, checkoutOutcome, checkoutSettlement, readCheckoutStart, readFrameMessage } from './courseCheckout';
 
 describe('readCheckoutStart', () => {
   it('keeps the card form when the server says so', () => {
@@ -55,5 +55,22 @@ describe('readFrameMessage', () => {
     );
     expect(msg?.index).toBe('');
     expect(msg?.code).toBe('');
+  });
+});
+
+describe('cardAccepted / checkoutSettlement', () => {
+  it('shows the working panel once the card passed and the charge runs', () => {
+    expect(cardAccepted('verified')).toBe(true);
+    expect(cardAccepted('charging')).toBe(true);
+    expect(cardAccepted('page_open')).toBe(false);
+  });
+
+  it('the checking screen never reads an unknown charge as failed', () => {
+    expect(checkoutSettlement('completed')).toBe('completed');
+    expect(checkoutSettlement('declined')).toBe('failed');
+    expect(checkoutSettlement('failed')).toBe('failed');
+    for (const status of ['uncertain', 'review', 'page_open', 'charging']) {
+      expect(checkoutSettlement(status)).toBe('processing');
+    }
   });
 });
