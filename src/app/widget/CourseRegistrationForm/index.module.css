@@ -835,3 +835,36 @@
 .trialDateOptionFull .trialDateTime {
   font-weight: 700;
 }
+
+/* Tranzila's page for the course (COURSE_HOSTED_PAGE_ENABLED). */
+.hostedFrameWrap {
+  width: 100%;
+  margin-top: 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #fff;
+}
+
+.hostedFrame {
+  width: 100%;
+  height: 560px;
+  border: 0;
+  display: block;
+}
+
+.hostedNote {
+  text-align: center;
+  color: #6b7280;
+  font-size: 13px;
+  margin: 10px 12px;
+}
+
+.hostedLoading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 24px 0;
+  color: #6b7280;
+}

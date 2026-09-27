@@ -22,6 +22,15 @@ import { registerDeadlineMs, useWaitDeadline, WAIT_SLACK_MS } from './waitDeadli
 import type { ProcessingPhase } from './processingCopy';
 import { SkeletonLessonOptions, SkeletonTextLines } from '../WidgetSkeletons/WidgetSkeletons';
 import { trialNextStep } from './trialFlow';
+import {
+  CHECKOUT_POLL_MS,
+  HOSTED_CHARGE_DEADLINE_MS,
+  cardAccepted,
+  checkoutOutcome,
+  checkoutSettlement,
+  readCheckoutStart,
+  readFrameMessage,
+} from '@/lib/courseCheckout';
 import type { AppliedDiscount, Props, Step, LookupResult, PaymentResponse, TrialOccurrence } from './types';
 
 export type { CourseLesson } from './types';
@@ -285,6 +294,16 @@ export default function CourseRegistrationForm({
   // The "checking the payment" screen asks by itself, and stops asking in time.
   const [pendingChecking, setPendingChecking] = useState(false);
   const pendingRoundRef = useRef(0);
+  // Tranzila's page for the course (COURSE_HOSTED_PAGE_ENABLED on the server):
+  // 'unknown' until the server is asked; 'card' when it says to keep the card
+  // form below, exactly as before.
+  const [hostedMode, setHostedMode] = useState<'unknown' | 'asking' | 'hosted' | 'card' | 'error'>('unknown');
+  const [hostedCheckout, setHostedCheckout] = useState<{ id: string; url: string } | null>(null);
+  // One answer per page: a late poll must not move a screen already moved on.
+  const hostedDoneRef = useRef(false);
+  // The card passed Tranzila's check and the server is charging it: the
+  // working panel replaces the frame until the answer comes.
+  const [hostedProcessing, setHostedProcessing] = useState(false);
   const [lookingUp, setLookingUp] = useState(false);
   const [showTerms, setShowTerms] = useState(false);
   const [termsContent, setTermsContent] = useState('');
@@ -568,6 +587,12 @@ export default function CourseRegistrationForm({
 
   /** One question to the server about this basket's payments. */
   const checkChargeOnce = async (): Promise<'completed' | 'failed' | 'processing'> => {
+    if (hostedCheckout) {
+      // Asking the checkout also lets the server finish one whose verdict is
+      // still missing; the payments alone would only say "pending".
+      const res = await api.get(`/customers/widget/checkout/${hostedCheckout.id}/`, { timeout: 15_000 });
+      return checkoutSettlement(res.data?.status);
+    }
     if (!paymentData) return 'failed';
     const ids = paymentData.payment_ids?.length ? paymentData.payment_ids : [paymentData.payment_id];
     const res = await api.get('/customers/widget/payment-status/', {
@@ -776,6 +801,109 @@ export default function CourseRegistrationForm({
   useEffect(() => {
     if (step === 'payment_pending') setPendingChecking(true);
   }, [step]);
+
+  // A new basket asks the server again.
+  useEffect(() => {
+    setHostedMode('unknown');
+    setHostedCheckout(null);
+  }, [paymentData]);
+
+  // On the payment step, ask once whether this basket pays on Tranzila's page.
+  useEffect(() => {
+    if (step !== 'payment' || !paymentData || hostedMode !== 'unknown') return;
+    const ids = paymentData.payment_ids?.length ? paymentData.payment_ids : [paymentData.payment_id];
+    setHostedMode('asking');
+    api.post('/customers/widget/checkout/start/', { payment_ids: ids }, { timeout: 30_000 })
+      .then((res) => readCheckoutStart(res.data))
+      .catch((err: { response?: { status?: number; data?: unknown } }) => (
+        // A server without the page (404), a server error or no answer at all:
+        // keep the card form rather than stop the parent from paying. Only a
+        // plain refusal (a full class, a basket too old) is shown as such.
+        !err?.response || err.response.status === 404 || (err.response.status ?? 500) >= 500
+          ? ({ kind: 'card_form' } as const)
+          : readCheckoutStart(err.response.data)
+      ))
+      .then((start) => {
+        if (start.kind === 'card_form') {
+          setHostedMode('card');
+          return;
+        }
+        if (start.kind === 'hosted') {
+          hostedDoneRef.current = false;
+          setHostedProcessing(false);
+          setHostedCheckout({ id: start.checkoutId, url: start.url });
+          setHostedMode('hosted');
+          return;
+        }
+        setErrorMsg(start.message);
+        setHostedMode('error');
+      });
+  }, [step, paymentData, hostedMode]);
+
+  const applyCheckout = (status: string | undefined, message?: string) => {
+    if (hostedDoneRef.current) return;
+    const outcome = checkoutOutcome(status);
+    if (outcome === 'waiting') {
+      if (cardAccepted(status)) setHostedProcessing(true);
+      return;
+    }
+    hostedDoneRef.current = true;
+    setHostedProcessing(false);
+    if (outcome === 'paid') {
+      setStep(isTrial ? 'trial_success' : 'payment_success');
+      return;
+    }
+    setErrorMsg(message || '');
+    if (outcome === 'pending') {
+      // The card may be charged: the screen that keeps asking, never a new page.
+      setStep('payment_pending');
+      return;
+    }
+    // Declined or refused before any charge: a new try opens a new page.
+    setHostedMode('unknown');
+    setHostedCheckout(null);
+    setStep('payment_failed');
+  };
+
+  const askCheckout = async (extra?: { index: string; code: string }) => {
+    if (!hostedCheckout) return;
+    try {
+      const res = await api.get(`/customers/widget/checkout/${hostedCheckout.id}/`, { params: extra, timeout: 15_000 });
+      applyCheckout(res.data?.status, res.data?.message);
+    } catch {
+      // A missed look is not an answer; the next one asks again.
+    }
+  };
+
+  // The card was approved and the charge is running. Never "failed" on a
+  // guess: past the deadline, the screen that keeps asking takes over.
+  useWaitDeadline(step === 'payment' && hostedProcessing, HOSTED_CHARGE_DEADLINE_MS, () => {
+    if (hostedDoneRef.current) return;
+    hostedDoneRef.current = true;
+    setHostedProcessing(false);
+    setErrorMsg('הכרטיס אושר ועדיין משלימים את התשלום. אל תשלמו שוב — ההרשמה תושלם בעוד רגע.');
+    setStep('payment_pending');
+  });
+
+  // While the page is up: ask every few seconds, and at once when the result
+  // page inside Tranzila's frame says it is done.
+  useEffect(() => {
+    if (step !== 'payment' || hostedMode !== 'hosted' || !hostedCheckout) return undefined;
+    const timer = window.setInterval(() => { void askCheckout(); }, CHECKOUT_POLL_MS);
+    const onMessage = (event: MessageEvent) => {
+      const msg = readFrameMessage(event.data, hostedCheckout.id);
+      if (!msg) return;
+      if (msg.result === 'ok') setHostedProcessing(true);
+      void askCheckout(msg.index ? { index: msg.index, code: msg.code } : undefined);
+    };
+    window.addEventListener('message', onMessage);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener('message', onMessage);
+    };
+    // askCheckout reads the checkout at call time.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step, hostedMode, hostedCheckout]);
 
   const handleDetailsSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -1907,6 +2035,15 @@ export default function CourseRegistrationForm({
     );
   }
 
+  if (step === 'payment' && paymentData && hostedMode === 'hosted' && hostedProcessing) {
+    return (
+      <ProcessingPanel
+        phase={isTrial && trialLessonIsPaid ? 'trial_charge' : 'charge'}
+        amountLabel={`₪${Number(paymentData.final_amount).toFixed(2)}`}
+      />
+    );
+  }
+
   if (step === 'payment' && paymentData && charging) {
     return (
       <ProcessingPanel
@@ -2017,47 +2154,74 @@ export default function CourseRegistrationForm({
           )}
         </div>
 
-        <div className={styles.cardFields}>
-          <p className={styles.cardSectionTitle}>פרטי כרטיס אשראי</p>
-          <div>
-            <label className={styles.label}>מספר כרטיס</label>
-            <input
-              className={styles.input}
-              placeholder="4580 4580 4580 4580"
-              value={cardNumber}
-              onChange={e => setCardNumber(e.target.value)}
-            />
-          </div>
-          <div className={styles.grid3}>
+        {hostedMode === 'card' ? (
+          <>
+          <div className={styles.cardFields}>
+            <p className={styles.cardSectionTitle}>פרטי כרטיס אשראי</p>
             <div>
-              <label className={styles.label}>חודש תפוגה</label>
-              <input className={styles.input} placeholder="12" value={expiryMonth} onChange={e => setExpiryMonth(e.target.value)} />
+              <label className={styles.label}>מספר כרטיס</label>
+              <input
+                className={styles.input}
+                placeholder="4580 4580 4580 4580"
+                value={cardNumber}
+                onChange={e => setCardNumber(e.target.value)}
+              />
+            </div>
+            <div className={styles.grid3}>
+              <div>
+                <label className={styles.label}>חודש תפוגה</label>
+                <input className={styles.input} placeholder="12" value={expiryMonth} onChange={e => setExpiryMonth(e.target.value)} />
+              </div>
+              <div>
+                <label className={styles.label}>שנת תפוגה</label>
+                <input className={styles.input} placeholder="2026" value={expiryYear} onChange={e => setExpiryYear(e.target.value)} />
+              </div>
+              <div>
+                <label className={styles.label}>CVV</label>
+                <input className={styles.input} placeholder="123" value={cvv} onChange={e => setCvv(e.target.value)} />
+              </div>
             </div>
             <div>
-              <label className={styles.label}>שנת תפוגה</label>
-              <input className={styles.input} placeholder="2026" value={expiryYear} onChange={e => setExpiryYear(e.target.value)} />
-            </div>
-            <div>
-              <label className={styles.label}>CVV</label>
-              <input className={styles.input} placeholder="123" value={cvv} onChange={e => setCvv(e.target.value)} />
+              <label className={styles.label}>תעודת זהות בעל הכרטיס</label>
+              <input className={styles.input} placeholder="012345678" value={cardHolderId} onChange={e => setCardHolderId(e.target.value)} />
             </div>
           </div>
-          <div>
-            <label className={styles.label}>תעודת זהות בעל הכרטיס</label>
-            <input className={styles.input} placeholder="012345678" value={cardHolderId} onChange={e => setCardHolderId(e.target.value)} />
-          </div>
-        </div>
 
-        {errorMsg && <p className={styles.errorText}>{errorMsg}</p>}
+          {errorMsg && <p className={styles.errorText}>{errorMsg}</p>}
 
-        <button
-          type="button"
-          onClick={handleCardCharge}
-          disabled={charging || !cardNumber || !expiryMonth || !expiryYear || !cvv}
-          className={styles.submitButton}
-        >
-          {charging ? 'מעבד...' : `שלם ₪${Number(paymentData.final_amount).toFixed(2)}`}
-        </button>
+          <button
+            type="button"
+            onClick={handleCardCharge}
+            disabled={charging || !cardNumber || !expiryMonth || !expiryYear || !cvv}
+            className={styles.submitButton}
+          >
+            {charging ? 'מעבד...' : `שלם ₪${Number(paymentData.final_amount).toFixed(2)}`}
+          </button>
+          </>
+        ) : hostedMode === 'hosted' && hostedCheckout ? (
+          <div className={styles.hostedFrameWrap}>
+            <iframe className={styles.hostedFrame} src={hostedCheckout.url} title="תשלום מאובטח" allow="payment" />
+            <p className={styles.hostedNote}>
+              הכרטיס נבדק ונשמר בעמוד המאובטח של חברת הסליקה, והחיוב מתבצע מיד אחרי האישור. אל תסגרו את החלון.
+            </p>
+          </div>
+        ) : hostedMode === 'error' ? (
+          <>
+            {errorMsg && <p className={styles.errorText}>{errorMsg}</p>}
+            <button
+              type="button"
+              onClick={() => { setErrorMsg(''); setHostedMode('unknown'); }}
+              className={styles.submitButton}
+            >
+              נסו שוב
+            </button>
+          </>
+        ) : (
+          <div className={styles.hostedLoading}>
+            <span className={styles.submittingSpinner} />
+            <span>פותחים את עמוד התשלום…</span>
+          </div>
+        )}
       </div>
     );
   }
