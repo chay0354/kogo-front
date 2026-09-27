@@ -436,16 +436,20 @@ export default function CourseTypeDetailsPage() {
                   monthlySalary: course.monthly_salary || 0,
                   monthlyProfit: course.monthly_profit || 0,
                 };
-                // Active paying students per lesson (bundle members included, trial signups
-                // excluded). The header lists every day on its own — "שני 14 · חמישי 16" —
-                // because a distinct-children total next to a per-lesson capacity misleads.
+                // Students per lesson — the child is פעיל or בעיית תשלום (owner, 24.9); trial
+                // signups and sign-ups still waiting to pay are out. The header lists every day
+                // on its own — "שני 14 · חמישי 16" — because a distinct-children total next to a
+                // per-lesson capacity misleads.
                 const headcounts = course.lesson_headcounts ?? [];
                 const headcountDisplay = headcounts.length
                   ? headcounts.map((h) => `${getDayName(h.day_of_week)} ${h.count}`).join(' · ')
                   : String(course.course_enrollment_count ?? 0);
+                // A lesson the header does not list (cancelled, completed) reads the same kind
+                // of number. enrolled_count is seats — a sign-up waiting to pay holds one — and
+                // is only the last resort for an older server without active_students_count.
                 const lessonEnrollmentDisplay = (lesson: any) => {
                   const fromHeader = headcounts.find((h) => h.lesson_id === lesson.id);
-                  return String(fromHeader?.count ?? lesson.enrolled_count ?? 0);
+                  return String(fromHeader?.count ?? lesson.active_students_count ?? lesson.enrolled_count ?? 0);
                 };
 
                 return (

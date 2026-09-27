@@ -94,8 +94,10 @@ export interface Lesson {
   branch?: { id: string; name: string } | null;
   room?: Room | null;
   instructor: Instructor | null;
-  enrolled_count: number; // Paying active students (trial signups excluded)
-  total_students_count?: number; // All students regardless of status (for display)
+  enrolled_count: number; // Paying rows — seats and the salary tier (trial signups excluded, sign-ups waiting to pay included)
+  total_students_count?: number; // The same number as enrolled_count
+  /** Students by the owner's rule: the child is פעיל or בעיית תשלום (lessons_detail only). */
+  active_students_count?: number;
   price?: number | null;
   lesson_price_override?: number | null;
   additional_course_prices?: LessonPriceTier[];
@@ -163,9 +165,9 @@ export interface CourseWithLessons {
   branch_name?: string;
   instructor?: Instructor | null;
   instructor_salary_override?: number | null;
-  /** Distinct active students (paying + trial) across all lessons in this course */
+  /** Distinct students (פעיל or בעיית תשלום) across all lessons in this course */
   course_enrollment_count?: number;
-  /** Scheduled lessons in day/time order, each with its own active paying headcount */
+  /** Scheduled lessons in day/time order, each with its own student headcount (פעיל or בעיית תשלום) */
   lesson_headcounts?: LessonHeadcount[];
   /** Count from the backend — lessons[] starts empty and is filled lazily (see fetchCourseLessons) */
   lessons_count: number;
