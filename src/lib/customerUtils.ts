@@ -87,7 +87,12 @@ export function normalizeChildStatus(status: string | null | undefined): ChildSt
  * ever arrived, which is precisely what פעיל is supposed to mean.
  */
 export function getChildStatus(child: ChildWithDetails): ChildStatus {
-  const status = normalizeChildStatus(child.status);
+  return getChildStatusByValue(child.status);
+}
+
+/** The same answer for a bare status value — for screens whose rows are not a full child card. */
+export function getChildStatusByValue(value: string | null | undefined): ChildStatus {
+  const status = normalizeChildStatus(value);
   if (status) return STATUS_DETAILS[status];
   return {
     color: 'blue',

@@ -11,6 +11,13 @@ import { Skeleton, StatCardsSkeleton } from '@/components/ui/skeleton';
 import api from '@/lib/api';
 import { BranchDetail, BranchStatistics } from '@/types/branch';
 import { formatCurrency, getBranchStatusBadge } from '@/lib/branchUtils';
+import {
+  BRANCH_STUDENT_STATUS_OPTIONS,
+  branchStudentBadge,
+  branchStudentsCountLabel,
+  fetchAllPages,
+  filterBranchStudents,
+} from '@/lib/branchStudents';
 import { DAY_OF_WEEK_HEBREW } from '@/types/branch';
 import {
   Users, BookOpen, Calendar, GraduationCap, TrendingUp, TrendingDown, DollarSign,
@@ -46,7 +53,7 @@ export default function BranchDetailsPage() {
     { data: courses = [] },
     { data: lessons = [] },
     { data: instructors = [] },
-    { data: students = [] },
+    { data: students = [], isLoading: studentsLoading, isError: studentsError },
   ] = useQueries({
     queries: [
       {
@@ -95,8 +102,13 @@ export default function BranchDetailsPage() {
       },
       {
         queryKey: ['branch-students', branchId],
+        // Every page, not the first: the list endpoint pages at a fixed 20.
+        // The query settles only once all of them are in, so the list and its
+        // count never show part of the branch as if it were all of it.
         queryFn: () =>
-          api.get(`/customers/children/?branch=${branchId}`).then(r => toArray(r.data)),
+          fetchAllPages<any>((page) =>
+            api.get('/customers/children/', { params: { branch: branchId, page } }).then(r => r.data)
+          ),
         staleTime: STALE,
         enabled: !!branchId,
       },
@@ -145,14 +157,7 @@ export default function BranchDetailsPage() {
     return true;
   });
 
-  const filteredStudents = students.filter(student => {
-    if (studentFilters.status !== 'all' && student.status !== studentFilters.status) return false;
-    if (studentFilters.course_id !== 'all') {
-      const enrollments = student.enrollments || [];
-      if (!enrollments.some((e: any) => e.course_id === studentFilters.course_id)) return false;
-    }
-    return true;
-  });
+  const filteredStudents = filterBranchStudents(students, studentFilters);
 
   const uniqueInstructors = Array.from(
     new Map(
@@ -171,13 +176,6 @@ export default function BranchDetailsPage() {
   );
 
   const courseOptions = courses.map((c: any) => ({ value: c.id, label: c.name }));
-
-  const statusOptions = [
-    { value: 'trial', label: 'ניסיון' },
-    { value: 'active', label: 'פעיל' },
-    { value: 'payment_problem', label: 'בעיית תשלום' },
-    { value: 'expired', label: 'פג תוקף' },
-  ];
 
   if (isLoading) {
     return (
@@ -688,7 +686,9 @@ export default function BranchDetailsPage() {
       <div className="card mb-6 animate-slide-up" style={{ animationDelay: '800ms' }}>
         <div className="flex items-center gap-2 mb-4">
           <Users className="w-5 h-5" />
-          <h2 className="text-xl font-bold">רשימת תלמידים ({filteredStudents.length})</h2>
+          <h2 className="text-xl font-bold">
+            רשימת תלמידים {studentsLoading || studentsError ? '' : branchStudentsCountLabel(filteredStudents.length, students.length)}
+          </h2>
         </div>
 
         {students.length > 0 && (
@@ -698,12 +698,16 @@ export default function BranchDetailsPage() {
             onClearFilters={handleClearStudentFilters}
             filterOptions={[
               { key: 'course_id', label: 'כל החוגים', options: courseOptions },
-              { key: 'status', label: 'כל הסטטוסים', options: statusOptions },
+              { key: 'status', label: 'כל הסטטוסים', options: [...BRANCH_STUDENT_STATUS_OPTIONS] },
             ]}
           />
         )}
 
-        {filteredStudents.length === 0 ? (
+        {studentsLoading ? (
+          <div className="text-center py-8 text-muted-foreground">טוען תלמידים…</div>
+        ) : studentsError ? (
+          <div className="text-center py-8 text-destructive">שגיאה בטעינת רשימת התלמידים</div>
+        ) : filteredStudents.length === 0 ? (
           <div className="text-center py-8 text-muted-foreground">
             {students.length === 0 ? 'אין תלמידים רשומים בסניף זה' : 'לא נמצאו תלמידים מתאימים לפילטר'}
           </div>
@@ -723,13 +727,7 @@ export default function BranchDetailsPage() {
                 {filteredStudents.map((student: any) => {
                   const enrollments = student.enrollments || [];
 
-                  const statusConfig: Record<string, { label: string; className: string }> = {
-                    trial: { label: 'ניסיון', className: 'bg-warning/10 text-warning border-warning/20' },
-                    active: { label: 'פעיל', className: 'bg-success/10 text-success border-success/20' },
-                    payment_problem: { label: 'בעיית תשלום', className: 'bg-destructive/10 text-destructive border-destructive/20' },
-                    expired: { label: 'פג תוקף', className: 'bg-muted/50 text-muted-foreground border-muted' },
-                  };
-                  const statusStyle = statusConfig[student.status] || statusConfig.trial;
+                  const statusStyle = branchStudentBadge(student.status);
 
                   return (
                     <tr key={student.id} className="border-b border-border/50 hover:bg-accent/50">
