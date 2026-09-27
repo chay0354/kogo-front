@@ -23,6 +23,7 @@ import { filterBranchesByCity } from '@/lib/scopedFilters';
 import type { DateRange } from './GlobalDateFilter';
 import { MONTHS } from './monthYearUtils';
 import { formatPercent } from './format';
+import { activeStudentsFoot, dropoutFromRows } from './studentCounts';
 import theme from './theme/dashboard.module.css';
 import { SectionSkeleton } from './SectionSkeleton';
 
@@ -45,15 +46,20 @@ export default function StudentsSection({ globalDateRange }: Props) {
   const [branchId, setBranchId] = useState('all');
   const [quitBy, setQuitBy] = useState<'course_type' | 'course'>('course_type');
 
-  const apiFilters = useMemo(
-    () => ({
+  const apiFilters = useMemo(() => {
+    const from = format(globalDateRange.date_from, 'yyyy-MM-dd');
+    const to = format(globalDateRange.date_to, 'yyyy-MM-dd');
+    return {
       city_id: cityId,
       branch_id: branchId,
-      date_from: format(globalDateRange.date_from, 'yyyy-MM-dd'),
-      date_to: format(globalDateRange.date_to, 'yyyy-MM-dd'),
-    }),
-    [cityId, branchId, globalDateRange],
-  );
+      date_from: from,
+      date_to: to,
+      // The dropout card says "בתקופה". Without these the endpoint counts
+      // every departure since 2020, whatever period is picked above.
+      quit_date_from: from,
+      quit_date_to: to,
+    };
+  }, [cityId, branchId, globalDateRange]);
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['dashboard-students', apiFilters],
@@ -89,6 +95,7 @@ export default function StudentsSection({ globalDateRange }: Props) {
     (b: any) => Number(b.count ?? 0) > 0,
   );
   const quit = data?.quit_percentage ?? { total_quit: 0, by_status: [], by_course_type: [], by_course: [] };
+  const leftFrom = dropoutFromRows(quit);
   const quitRows: any[] = (quitBy === 'course_type' ? quit.by_course_type : quit.by_course) ?? [];
 
   const branchesForFilter = useMemo(
@@ -171,7 +178,7 @@ export default function StudentsSection({ globalDateRange }: Props) {
           <div className={theme.kpi}>
             <div className={theme.kpiLbl}>תלמידים פעילים</div>
             <div className={`${theme.kpiVal} ${theme.up}`}>{Number(kpis.active_students ?? 0)}</div>
-            <div className={theme.kpiFoot}>משלמים ומשתתפים</div>
+            <div className={theme.kpiFoot}>{activeStudentsFoot(Number(kpis.credit_problems ?? 0))}</div>
           </div>
           <div className={theme.kpi}>
             <div className={theme.kpiLbl}>בעיות אשראי</div>
@@ -453,7 +460,7 @@ export default function StudentsSection({ globalDateRange }: Props) {
           <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10 }}>
             <div>
               <h2 className={theme.cardTitle}>נושרים</h2>
-              <p className={theme.cardSub}>סה״כ {Number(quit.total_quit ?? 0)} בתקופה</p>
+              <p className={theme.cardSub}>{Number(quit.total_quit ?? 0)} ילדים עברו ללא פעיל בתקופה</p>
             </div>
             <select
               value={quitBy}
@@ -489,23 +496,27 @@ export default function StudentsSection({ globalDateRange }: Props) {
         </div>
       </div>
 
-      {/* quit by status */}
-      {(quit.by_status ?? []).length > 0 ? (
+      {/* Where the dropouts left from. A dropout is a child who moved to לא
+          פעיל, so "where they went" would be one row. A failed card on its own
+          is not leaving — most come back once the card is replaced — and the
+          open ones are the בעיות אשראי tile above. A failure that did end in
+          leaving shows here, as בעיה באשראי. */}
+      {leftFrom.length > 0 ? (
         <div className={`${theme.card} ${theme.mt}`}>
-          <h2 className={theme.cardTitle}>נשירה לפי סטטוס</h2>
-          <p className={theme.cardSub}>לאן עברו התלמידים שעזבו</p>
+          <h2 className={theme.cardTitle}>נשירה לפי מצב קודם</h2>
+          <p className={theme.cardSub}>מאיזה מצב עברו ללא פעיל · כשל באשראי לבדו אינו נשירה</p>
           <div className={theme.tableScroll}>
             <table className={theme.table}>
               <thead>
                 <tr>
-                  <th>סטטוס</th>
-                  <th className={theme.n}>תלמידים</th>
+                  <th>עזבו מתוך</th>
+                  <th className={theme.n}>ילדים</th>
                   <th className={theme.n}>אחוז</th>
                 </tr>
               </thead>
               <tbody>
-                {quit.by_status.map((s: any, i: number) => (
-                  <tr key={s.status_key ?? i}>
+                {leftFrom.map((s, i) => (
+                  <tr key={s.status_key || i}>
                     <td className={theme.name}>{s.status}</td>
                     <td className={theme.n}>{Number(s.count ?? 0)}</td>
                     <td className={theme.n}>{formatPercent(Number(s.percentage ?? 0), 1)}</td>

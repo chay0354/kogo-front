@@ -18,6 +18,7 @@ import { formatCurrency, formatPercent, SOURCE_LABELS } from './format';
 import EmptyState from './EmptyState';
 import KpiCard from './KpiCard';
 import { deriveTrends } from './trends';
+import { activeStudentsFoot } from './studentCounts';
 import CssBars from './charts/CssBars';
 import theme from './theme/dashboard.module.css';
 import { SectionSkeleton } from './SectionSkeleton';
@@ -170,10 +171,11 @@ export default function MainSection({ globalDateRange }: Props) {
             series={trends.profit}
             foot={`${formatPercent(margin, 1)} מרווח`}
           />
+          {/* The figure is פעיל + בעיה באשראי (owner, 24.9.2026); the foot says so. */}
           <KpiCard
             label="תלמידים פעילים"
             value={String(Number(stu.active_students ?? 0))}
-            foot={`${Number(stu.signed_for_trial ?? 0)} בניסיון · ${Number(stu.done_trial ?? 0)} ביצעו`}
+            foot={`${activeStudentsFoot(creditProblems)} · ${Number(stu.signed_for_trial ?? 0)} בניסיון · ${Number(stu.done_trial ?? 0)} ביצעו`}
           />
           <KpiCard
             label="מדריכים פעילים"
