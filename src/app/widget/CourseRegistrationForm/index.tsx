@@ -799,8 +799,12 @@ export default function CourseRegistrationForm({
     api.post('/customers/widget/checkout/start/', { payment_ids: ids }, { timeout: 30_000 })
       .then((res) => readCheckoutStart(res.data))
       .catch((err: { response?: { status?: number; data?: unknown } }) => (
-        // A server without the page answers 404: keep the card form.
-        err?.response?.status === 404 ? ({ kind: 'card_form' } as const) : readCheckoutStart(err?.response?.data)
+        // A server without the page (404), a server error or no answer at all:
+        // keep the card form rather than stop the parent from paying. Only a
+        // plain refusal (a full class, a basket too old) is shown as such.
+        !err?.response || err.response.status === 404 || (err.response.status ?? 500) >= 500
+          ? ({ kind: 'card_form' } as const)
+          : readCheckoutStart(err.response.data)
       ))
       .then((start) => {
         if (start.kind === 'card_form') {
