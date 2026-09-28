@@ -35,6 +35,7 @@ import api from '@/lib/api';
 import RefundDialog from '@/components/dialogs/RefundDialog';
 import EditStandingOrderDialog from '@/components/dialogs/EditStandingOrderDialog';
 import { upcomingCharges, type UpcomingCharge } from '@/components/dialogs/upcomingCharges';
+import { subscriptionBadge } from '@/components/dialogs/subscriptionStatus';
 import {
   computerizedDocsConsentLine,
   readComputerizedDocsConsent,
@@ -575,15 +576,15 @@ export default function ChildProfileDialog({
   
   const genderText = child.gender === 'male' ? 'בן' : child.gender === 'female' ? 'בת' : 'בן/בת';
   const whatsapp = formatWhatsAppLink(child.parent_phone);
-  // Days left on the subscription — the fact behind both the renew button and
-  // the badge below. This used to key off status 'inactive', which no longer
-  // exists: whether a subscription is running is a date, not a status.
+  // Days left on the subscription — the fact behind the renew button.
   const subscriptionDaysLeft = useMemo(
     () => daysUntil(child.paid_until_date || child.subscription_end_date),
     [child.paid_until_date, child.subscription_end_date],
   );
-  const subscriptionEnded = subscriptionDaysLeft !== null && subscriptionDaysLeft < 0;
   const renewVisible = subscriptionDaysLeft !== null && subscriptionDaysLeft <= 30;
+  // The "סטטוס מנוי" badge follows the child's status, not the dates alone: a
+  // child with no paid-until date used to read as פעיל whatever they were.
+  const subscription = subscriptionBadge(child);
   
   // Fetch absence history when dialog opens
   useEffect(() => {
@@ -1047,11 +1048,7 @@ export default function ChildProfileDialog({
                       <div className="bg-muted/50 rounded-lg p-4 space-y-3 mt-3">
                         <div className="flex justify-between gap-4 items-center">
                           <span className="text-muted-foreground text-sm">סטטוס מנוי</span>
-                          {subscriptionEnded ? (
-                            <Badge variant="destructive">הסתיים</Badge>
-                          ) : (
-                            <Badge variant="secondary">פעיל</Badge>
-                          )}
+                          <Badge variant={subscription.variant}>{subscription.label}</Badge>
                         </div>
                         <div className="flex justify-between gap-4">
                           <span className="text-muted-foreground text-sm">תאריך התחלה</span>
