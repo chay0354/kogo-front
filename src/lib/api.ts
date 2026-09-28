@@ -211,7 +211,10 @@ export interface StudentsFilters extends DashboardFilters {
   search_query?: string;
   course_id?: string;
   student_status?: string;
-  /** When set with quit_date_to, churn stats use this window instead of date_from/date_to */
+  /**
+   * When set with quit_date_to, dropout (children who moved to לא פעיל) is
+   * counted in this window. Without them it is all-time, not date_from/date_to.
+   */
   quit_date_from?: string;
   quit_date_to?: string;
   /** Bar chart grouping: course_type (תחום) or course (חוג) */

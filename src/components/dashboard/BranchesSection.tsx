@@ -22,6 +22,7 @@ import { useScopedBranches } from '@/hooks/useScopedBranches';
 import { filterBranchesByCity } from '@/lib/scopedFilters';
 import type { DateRange } from './GlobalDateFilter';
 import { formatCurrency, formatPercent } from './format';
+import { branchStudentsFoot } from './studentCounts';
 import theme from './theme/dashboard.module.css';
 import { SectionSkeleton } from './SectionSkeleton';
 
@@ -164,7 +165,14 @@ export default function BranchesSection({ globalDateRange }: Props) {
         <div className={theme.kpi}>
           <div className={theme.kpiLbl}>סה״כ תלמידים</div>
           <div className={theme.kpiVal}>{Number(kpis.total_students ?? 0)}</div>
-          <div className={theme.kpiFoot}>{rows.length} סניפים מוצגים</div>
+          {/* פעיל or בעיה באשראי, in the branch of the lesson — the figure
+              each branch page shows in its header. */}
+          <div className={theme.kpiFoot}>
+            {branchStudentsFoot(
+              Number(kpis.total_students ?? 0),
+              rows.map((b) => Number(b.students ?? 0)),
+            )}
+          </div>
         </div>
       </div>
 
