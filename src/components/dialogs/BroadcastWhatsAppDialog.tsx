@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import BroadcastProgress from '@/components/broadcast/BroadcastProgress';
 import LinkContactPanel from '@/components/broadcast/LinkContactPanel';
+import ContactIndexPanel, { unfindablePhones } from '@/components/broadcast/ContactIndexPanel';
 import type { BroadcastDraft } from '@/components/broadcast/BroadcastRunProvider';
 import {
   previewCounts,
@@ -450,6 +451,13 @@ export default function BroadcastWhatsAppDialog({
                   </Button>
                 </div>
               </div>
+            )}
+            {phase === 'done' && unfindablePhones(sentRows).length > 0 && (
+              <ContactIndexPanel
+                phones={unfindablePhones(sentRows)}
+                collapsible
+                onFound={(phone, displayName) => setLinked((prev) => ({ ...prev, [phone]: displayName }))}
+              />
             )}
             {sentRows.length > 0 && (
               <div className="max-h-64 overflow-y-auto rounded-lg border divide-y text-sm">
