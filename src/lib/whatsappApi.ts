@@ -244,6 +244,16 @@ export const BROADCAST_CHUNK_FLOW = 8;
 
 export type BroadcastRowStatus = 'sent' | 'failed' | 'preview' | 'skipped';
 
+/** One of the family's extra phones on a broadcast row — it gets the message too, once. */
+export type BroadcastExtraPhone = {
+  parent_name: string;
+  phone: string;
+  status: BroadcastRowStatus;
+  reason?: 'duplicate_phone' | 'contact_unfindable' | null;
+  method?: string | null;
+  error?: string | null;
+};
+
 export type BroadcastRow = {
   child_id: string;
   child_name: string;
@@ -254,6 +264,8 @@ export type BroadcastRow = {
   reason?: 'no_parent_phone' | 'duplicate_phone' | 'no_active_lesson' | 'contact_unfindable' | null;
   method?: string | null;
   error?: string | null;
+  /** The status above is the primary parent's; these are the family's other phones. */
+  extra_phones?: BroadcastExtraPhone[];
 };
 
 export type BroadcastResult = {
@@ -293,7 +305,12 @@ export async function broadcastToChildren(payload: {
   lesson_id?: string;
   day_of_week?: number;
 }) {
-  const res = await api.post('/customers/children/broadcast/', payload, { timeout: 120_000 });
+  // This screen shows and counts the families' extra phones, so it asks for them.
+  const res = await api.post(
+    '/customers/children/broadcast/',
+    { ...payload, include_extra_phones: true },
+    { timeout: 120_000 },
+  );
   return res.data as BroadcastResult;
 }
 

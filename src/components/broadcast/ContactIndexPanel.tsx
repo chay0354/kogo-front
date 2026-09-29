@@ -26,7 +26,9 @@ import { localPhone } from './LinkContactPanel';
 
 /** The phones of the rows ManyChat has but Kogo cannot find — each once. */
 export function unfindablePhones(rows: BroadcastRow[]): string[] {
+  // A family's extra phones fail the same way, and are fixed the same way.
   const phones = rows
+    .flatMap((row) => [row, ...(row.extra_phones ?? [])])
     .filter((row) => row.status === 'failed' && row.reason === 'contact_unfindable' && row.phone)
     .map((row) => row.phone);
   return Array.from(new Set(phones));

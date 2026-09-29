@@ -80,6 +80,16 @@ export interface ChildWithDetails {
   parent_email?: string | null;
   family_email?: string | null;
   family_address?: string | null;
+  /** The primary parent's name in parts, for the card's edit form. */
+  parent_first_name?: string | null;
+  parent_last_name?: string | null;
+  family_notes?: string | null;
+  /** The child's own notes. */
+  notes?: string | null;
+  /** The family's other phones — they get the group WhatsApp messages too. */
+  extra_phones?: ExtraPhone[];
+  /** False for a walk-in: its family is a placeholder and is not edited from the card. */
+  family_editable?: boolean;
   
   // NEW: Explicit status field
   status: "active" | "trial_signed" | "trial_completed" | "pending" | "payment_problem" | "inactive" | "ghost";
@@ -115,6 +125,13 @@ export interface ChildWithDetails {
     gender: string | null;
     status: string | null;
   }[];
+}
+
+export interface ExtraPhone {
+  /** The Parent row behind the phone. */
+  id: string;
+  name: string;
+  phone: string;
 }
 
 export interface Branch {

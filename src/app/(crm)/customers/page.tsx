@@ -28,7 +28,6 @@ import { sortWidgetCourseTypes } from '@/app/widget/courseTypeOrder';
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from '@/components/DropdownMenu';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogCloseButton } from '@/components/ui/dialog';
 import ChildProfileDialog from '@/components/dialogs/ChildProfileDialog';
-import EditChildDialog from '@/components/dialogs/EditChildDialog';
 import DeleteChildDialog from '@/components/dialogs/DeleteChildDialog';
 import { serverErrorMessage } from '@/components/dialogs/NewDocumentDialog/utils';
 import EnrollToLessonDialog from '@/components/dialogs/EnrollToLessonDialog';
@@ -199,7 +198,8 @@ export default function CustomersPage() {
   const selectedChildRef = useRef<ChildWithDetails | null>(null);
   useEffect(() => { selectedChildRef.current = selectedChild; }, [selectedChild]);
   const [profileDialogOpen, setProfileDialogOpen] = useState(false);
-  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  // The list's "עריכת פרופיל" opens the same card, already in edit mode.
+  const [profileStartsEditing, setProfileStartsEditing] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [enrollDialogOpen, setEnrollDialogOpen] = useState(false);
   const [addCustomerDialogOpen, setAddCustomerDialogOpen] = useState(false);
@@ -388,7 +388,22 @@ export default function CustomersPage() {
       try {
         const res = await api.get(`/customers/children/${requestedChildId}/`);
         if (cancelled || !res.data?.id) return;
-        setSelectedChild(res.data);
+        // The detail route serves the slim record, without the parent, the
+        // phones or the enrollments. The list, asked for the family, returns
+        // the full card under the same scoping — as a sibling is opened.
+        let card: ChildWithDetails = res.data;
+        if (res.data.family) {
+          try {
+            const full = await api.get('/customers/children/', { params: { family: res.data.family } });
+            const rows: ChildWithDetails[] = full.data?.results ?? full.data ?? [];
+            card = rows.find((row) => row.id === res.data.id) ?? card;
+          } catch {
+            // The slim record still opens the card.
+          }
+        }
+        if (cancelled) return;
+        setSelectedChild(card);
+        setProfileStartsEditing(false);
         setProfileDialogOpen(true);
       } catch {
         toast.error('לא נמצא ילד לפי הקישור');
@@ -402,12 +417,14 @@ export default function CustomersPage() {
   // Handler functions
   const handleViewProfile = (child: ChildWithDetails) => {
     setSelectedChild(child);
+    setProfileStartsEditing(false);
     setProfileDialogOpen(true);
   };
   
   const handleEditProfile = (child: ChildWithDetails) => {
     setSelectedChild(child);
-    setEditDialogOpen(true);
+    setProfileStartsEditing(true);
+    setProfileDialogOpen(true);
   };
   
   const handleEnrollToLesson = (child: ChildWithDetails) => {
@@ -420,21 +437,25 @@ export default function CustomersPage() {
     setDeleteDialogOpen(true);
   };
   
-  const handleSaveEdit = async (data: any) => {
-    if (!selectedChild) return;
-    
+  // The card saved the customer's details. The card takes the fresh row at
+  // once; the list is read again, since the family's phone, names and extra
+  // phones show on every sibling's row too.
+  const handleChildUpdated = async (fresh: ChildWithDetails | null) => {
+    if (fresh) {
+      setSelectedChild(fresh);
+      setChildren((prev) => prev.map((row) => (row.id === fresh.id ? fresh : row)));
+    } else {
+      // The save folded this record into another card of the same child.
+      setProfileDialogOpen(false);
+      toast.success('הפרטים נשמרו, והכרטיס אוחד עם כרטיס קיים של אותו ילד');
+    }
     try {
-      await api.put(`/customers/children/${selectedChild.id}/`, data);
-      // Refresh the list with ALL current filters
       const params = childrenListParams(filters, childrenPage);
-      
       const response = await api.get(`/customers/children/?${params.toString()}`);
       setChildren(response.data.results || response.data || []);
       setChildrenTotalCount(typeof response.data.count === 'number' ? response.data.count : (response.data.results || response.data || []).length);
     } catch (error) {
-      console.error('Error updating child:', error);
-      alert('שגיאה בעדכון הפרופיל');
-      throw error;
+      console.error('Error refreshing children:', error);
     }
   };
 
@@ -928,6 +949,8 @@ export default function CustomersPage() {
             child={selectedChild}
             isOpen={profileDialogOpen}
             onClose={() => setProfileDialogOpen(false)}
+            startInEditMode={profileStartsEditing}
+            onChildUpdated={handleChildUpdated}
             onOpenEnroll={() => {
               setProfileDialogOpen(false);
               setEnrollDialogOpen(true);
@@ -969,13 +992,6 @@ export default function CustomersPage() {
                 prev.map((row) => (row.id === selectedChild.id ? apply(row) : row)),
               );
             }}
-          />
-          
-          <EditChildDialog
-            child={selectedChild}
-            isOpen={editDialogOpen}
-            onClose={() => setEditDialogOpen(false)}
-            onSave={handleSaveEdit}
           />
           
           <DeleteChildDialog
