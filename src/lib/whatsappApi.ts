@@ -249,7 +249,8 @@ export type BroadcastExtraPhone = {
   parent_name: string;
   phone: string;
   status: BroadcastRowStatus;
-  reason?: 'duplicate_phone' | 'contact_unfindable' | null;
+  /** not_mobile: a landline, which WhatsApp does not reach; other_family_phone: that family's own phone. */
+  reason?: 'duplicate_phone' | 'contact_unfindable' | 'not_mobile' | 'other_family_phone' | null;
   method?: string | null;
   error?: string | null;
 };

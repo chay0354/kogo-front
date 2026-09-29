@@ -56,6 +56,8 @@ const REASON_LABELS: Record<string, string> = {
   no_parent_phone: 'ללא טלפון',
   duplicate_phone: 'כפול (אותו טלפון)',
   no_active_lesson: 'ללא שיעור פעיל',
+  not_mobile: 'מספר קווי',
+  other_family_phone: 'הטלפון של משפחה אחרת',
 };
 
 /** The family's extra phones under a row, each with what happened to it. */
@@ -87,7 +89,7 @@ function ExtraPhoneLines({ row }: { row: BroadcastRow }) {
   );
 }
 
-function rowStatusLabel(row: Pick<BroadcastRow, 'status' | 'method' | 'error' | 'reason'>) {
+function rowStatusLabel(row: Pick<BroadcastRow, 'status' | 'method' | 'error'> & { reason?: string | null }) {
   if (row.status === 'sent') return row.method === 'flow' ? 'נשלח' : 'נשלח (טקסט חופשי)';
   if (row.status === 'failed') return `נכשל${row.error ? ` · ${row.error}` : ''}`;
   if (row.status === 'preview') return 'יישלח';

@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import {
   AlertTriangle,
   ArrowLeft,
@@ -39,6 +39,8 @@ interface CustomerDetailsEditorProps {
   onCancel: () => void;
   /** The card's fresh row (null when the save folded it into another record), and what changed. */
   onSaved: (child: ChildWithDetails | null, changes: DetailChange[]) => void;
+  /** Whether there are edits not yet saved — so the card can ask before it closes. */
+  onDirtyChange?: (dirty: boolean) => void;
 }
 
 // Every path a field below renders; any other server error is listed at the top.
@@ -94,7 +96,7 @@ let draftCounter = 0;
  * that belongs to another family has to be confirmed; then one request saves
  * all of it or none of it.
  */
-export default function CustomerDetailsEditor({ child, onCancel, onSaved }: CustomerDetailsEditorProps) {
+export default function CustomerDetailsEditor({ child, onCancel, onSaved, onDirtyChange }: CustomerDetailsEditorProps) {
   // Frozen at the start of the edit: a list refresh underneath must not move
   // the baseline the changes are measured against.
   const [initial] = useState<CustomerDetailsForm>(() => formFromChild(child));
@@ -108,6 +110,11 @@ export default function CustomerDetailsEditor({ child, onCancel, onSaved }: Cust
 
   const changes = useMemo(() => describeChanges(form, initial), [form, initial]);
   const changedPaths = useMemo(() => new Set(changes.map((change) => change.path)), [changes]);
+  const dirty = changes.length > 0;
+  useEffect(() => {
+    onDirtyChange?.(dirty);
+  }, [dirty, onDirtyChange]);
+  useEffect(() => () => onDirtyChange?.(false), [onDirtyChange]);
   const otherErrors = Object.entries(errors).filter(([path]) => !FIELD_PATHS.has(path) && !/^extra_phones\.\d+\.phone$/.test(path));
 
   const backToEditing = () => {
@@ -174,9 +181,9 @@ export default function CustomerDetailsEditor({ child, onCancel, onSaved }: Cust
     setStage('review');
   };
 
-  const handleOutcome = (outcome: SaveOutcome, savedChanges: DetailChange[]) => {
+  const handleOutcome = (outcome: SaveOutcome) => {
     if (outcome.kind === 'saved') {
-      onSaved(outcome.child, savedChanges);
+      onSaved(outcome.child, outcome.changes);
       return;
     }
     if (outcome.kind === 'invalid') {
@@ -196,13 +203,12 @@ export default function CustomerDetailsEditor({ child, onCancel, onSaved }: Cust
     if (saving) return;
     setSaving(true);
     setFailure('');
-    const summary = changes;
     try {
       const res = await api.patch(
         `/customers/children/${child.id}/details/`,
         buildPayload(form, initial, confirmDuplicates),
       );
-      handleOutcome(readSaveResponse(res.status, res.data), summary);
+      handleOutcome(readSaveResponse(res.status, res.data));
     } catch (error) {
       const response = (error as { response?: { status?: number; data?: unknown } } | null)?.response;
       if (!response) {
@@ -210,7 +216,7 @@ export default function CustomerDetailsEditor({ child, onCancel, onSaved }: Cust
         setFailure('אין תשובה מהשרת. ייתכן שהשינויים נשמרו — סגרו ופתחו את הכרטיס מחדש לפני ניסיון נוסף.');
         return;
       }
-      handleOutcome(readSaveResponse(response.status ?? 0, response.data), summary);
+      handleOutcome(readSaveResponse(response.status ?? 0, response.data));
     } finally {
       setSaving(false);
     }

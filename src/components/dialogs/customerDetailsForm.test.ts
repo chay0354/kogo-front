@@ -118,6 +118,7 @@ describe('changes and payload', () => {
         { id: 'parent-2', name: 'סבתא רחל', phone: '0525556666' },
         { name: '', phone: '0521112233' },
       ],
+      extra_phone_ids_seen: ['parent-2'],
     });
     expect(describeChanges(form, initial).at(-1)?.path).toBe('extra_phones');
   });
@@ -175,7 +176,10 @@ describe('validateDetails', () => {
 describe('readSaveResponse', () => {
   it('reads each answer the server gives', () => {
     expect(readSaveResponse(200, { child: { id: 'x' } })).toMatchObject({ kind: 'saved', child: { id: 'x' } });
-    expect(readSaveResponse(200, { child: null })).toEqual({ kind: 'saved', child: null });
+    expect(readSaveResponse(200, { child: null })).toEqual({ kind: 'saved', child: null, changes: [] });
+    // The saved note says what the server changed, not what the form expected.
+    expect(readSaveResponse(200, { child: null, changes: [{ field: 'parent.phone', label: 'טלפון הורה', old: 'a', new: 'b' }] }))
+      .toMatchObject({ changes: [{ path: 'parent.phone', label: 'טלפון הורה', old: 'a', new: 'b' }] });
     expect(readSaveResponse(400, { errors: { 'parent.phone': 'x' } })).toEqual({ kind: 'invalid', errors: { 'parent.phone': 'x' } });
     expect(readSaveResponse(409, { duplicates: [{ field: 'parent.phone', message: 'm' }] }))
       .toEqual({ kind: 'duplicates', duplicates: [{ field: 'parent.phone', message: 'm' }] });
@@ -188,5 +192,29 @@ describe('normalisePhone', () => {
   it('reads 972 as the leading zero', () => {
     expect(normalisePhone('+972 52-111-2233')).toBe('0521112233');
     expect(normalisePhone('052-111-2233')).toBe('0521112233');
+  });
+});
+
+describe('review round', () => {
+  const initial = formFromChild(card());
+
+  it('takes an ID of up to nine digits, as the widget does', () => {
+    const short = edit(initial, (d) => { d.parent.id_number = '31972540'; });
+    expect(validateDetails(short, initial)).toEqual({});
+    const tooShort = edit(initial, (d) => { d.parent.id_number = '1234'; });
+    expect(validateDetails(tooShort, initial)).toHaveProperty(['parent.id_number']);
+  });
+
+  it('does not let the parent phone take an extra phone', () => {
+    const form = edit(initial, (d) => { d.parent.phone = '052-555-6666'; });
+    expect(validateDetails(form, initial)).toHaveProperty(['parent.phone']);
+  });
+
+  it('lets an old extra that fails today stay while another is added', () => {
+    const legacy = formFromChild(card({
+      extra_phones: [{ id: 'old', name: 'בית', phone: '03-5551234' }, { id: 'empty', name: 'ישן', phone: '' }],
+    }));
+    const form = edit(legacy, (d) => { d.extra_phones.push({ key: 'n', name: '', phone: '0521112233' }); });
+    expect(validateDetails(form, legacy)).toEqual({});
   });
 });

@@ -92,10 +92,10 @@ function idDigits(raw: string): string {
   return (raw || '').replace(/\D/g, '');
 }
 
+/** Up to nine digits, leading zeros optional — as the widget takes it, and stored as typed. */
 function idError(raw: string): string | null {
   const digits = idDigits(raw);
-  if (digits.length !== 9) return 'ת.ז. חייבת להכיל 9 ספרות';
-  if (!isValidIsraeliId(digits)) return 'מספר ת.ז. לא תקין';
+  if (digits.length < 5 || digits.length > 9 || !isValidIsraeliId(digits)) return 'מספר ת.ז. לא תקין';
   return null;
 }
 
@@ -222,6 +222,9 @@ export function buildPayload(
       name: row.name.trim(),
       phone: row.phone.trim(),
     }));
+    // The list replaces what is there; the server refuses it if someone else
+    // changed the extra phones since this card was opened.
+    payload.extra_phone_ids_seen = initial.extra_phones.map((row) => row.id).filter(Boolean);
   }
   if (confirmDuplicates) payload.confirm_duplicates = true;
   return payload;
@@ -267,6 +270,9 @@ export function validateDetails(form: CustomerDetailsForm, initial: CustomerDeta
     const digits = normalisePhone(parent.phone);
     if (!digits) errors['parent.phone'] = 'טלפון ההורה הוא שדה חובה';
     else if (!isPhone(digits)) errors['parent.phone'] = 'מספר טלפון לא תקין';
+    else if (!extrasChanged(form, initial) && form.extra_phones.some((row) => samePhone(row.phone, parent.phone))) {
+      errors['parent.phone'] = 'המספר רשום כטלפון נוסף של המשפחה — הסירו אותו משם קודם';
+    }
   }
   if (changed('parent.email', parent.email, initial.parent.email) && parent.email.trim()) {
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(parent.email.trim())) errors['parent.email'] = 'כתובת אימייל לא תקינה';
@@ -291,11 +297,14 @@ export function validateDetails(form: CustomerDetailsForm, initial: CustomerDeta
     form.extra_phones.forEach((row, index) => {
       const digits = normalisePhone(row.phone);
       const path = `extra_phones.${index}.phone`;
+      // A phone the office did not touch stays, even if an old record would not pass today.
       const unchanged = row.id !== undefined && samePhone(row.phone, before.get(row.id) ?? '');
-      if (!digits) errors[path] = 'חסר מספר';
-      else if (!unchanged && !isMobile(digits)) errors[path] = 'מספר נייד לא תקין (05X-XXXXXXX)';
-      else if (seen.has(digits)) errors[path] = 'המספר כבר מופיע בכרטיס';
-      seen.add(digits);
+      if (!unchanged) {
+        if (!digits) errors[path] = 'חסר מספר';
+        else if (!isMobile(digits)) errors[path] = 'מספר נייד לא תקין (05X-XXXXXXX)';
+        else if (seen.has(digits)) errors[path] = 'המספר כבר מופיע בכרטיס';
+      }
+      if (digits) seen.add(digits);
     });
   }
   return errors;
@@ -307,7 +316,7 @@ export interface DuplicateWarning {
 }
 
 export type SaveOutcome =
-  | { kind: 'saved'; child: ChildWithDetails | null }
+  | { kind: 'saved'; child: ChildWithDetails | null; changes: DetailChange[] }
   | { kind: 'invalid'; errors: FieldErrors }
   | { kind: 'duplicates'; duplicates: DuplicateWarning[] }
   | { kind: 'failed'; message: string };
@@ -316,12 +325,22 @@ export type SaveOutcome =
 export function readSaveResponse(status: number, data: unknown): SaveOutcome {
   const body = (data ?? {}) as {
     child?: ChildWithDetails | null;
+    changes?: Array<{ field?: string; label?: string; old?: string; new?: string }>;
     errors?: FieldErrors;
     duplicates?: DuplicateWarning[];
     error?: string;
     detail?: string;
   };
-  if (status >= 200 && status < 300) return { kind: 'saved', child: body.child ?? null };
+  if (status >= 200 && status < 300) {
+    // What the server says it changed — not what the form thought it would.
+    const changes = (Array.isArray(body.changes) ? body.changes : []).map((change) => ({
+      path: change.field ?? '',
+      label: change.label ?? change.field ?? '',
+      old: change.old ?? '',
+      new: change.new ?? '',
+    }));
+    return { kind: 'saved', child: body.child ?? null, changes };
+  }
   if (status === 400 && body.errors && typeof body.errors === 'object') {
     return { kind: 'invalid', errors: body.errors };
   }

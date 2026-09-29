@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState, useEffect, useRef } from 'react';
+import { useCallback, useMemo, useState, useEffect, useRef } from 'react';
 import {
   ArrowLeftRight,
   Calendar,
@@ -532,6 +532,10 @@ export default function ChildProfileDialog({
   // lost to a tab switch.
   const [editing, setEditing] = useState(false);
   const [savedNote, setSavedNote] = useState('');
+  const editorDirty = useRef(false);
+  const handleEditorDirty = useCallback((dirty: boolean) => {
+    editorDirty.current = dirty;
+  }, []);
   const [cardLinkOpen, setCardLinkOpen] = useState(false);
   const [cashOpen, setCashOpen] = useState(false);
   const [replaceCardOpen, setReplaceCardOpen] = useState(false);
@@ -613,7 +617,8 @@ export default function ChildProfileDialog({
     if (!isOpen) return;
     setEditing(startInEditMode);
     setSavedNote('');
-    if (startInEditMode) setTab('details');
+    // Every open starts on the details, as it did when the tabs lived inside the dialog.
+    setTab('details');
   }, [isOpen, startInEditMode]);
 
   const handleDetailsSaved = (fresh: ChildWithDetails | null, changes: { label: string }[]) => {
@@ -960,7 +965,14 @@ export default function ChildProfileDialog({
 
   return (
     <>
-    <Dialog open={isOpen} onOpenChange={(open) => (open ? undefined : onClose())}>
+    <Dialog
+      open={isOpen}
+      onOpenChange={(open) => {
+        if (open) return;
+        if (editing && editorDirty.current && !window.confirm('יש שינויים שלא נשמרו. לסגור בלי לשמור?')) return;
+        onClose();
+      }}
+    >
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto" dir="rtl">
         <Tabs defaultValue="details" value={tab} onValueChange={(next) => { if (!editing) setTab(next); }}>
           <div className="sticky top-0 bg-white z-10 border-b">
@@ -1006,6 +1018,7 @@ export default function ChildProfileDialog({
                     child={child}
                     onCancel={() => setEditing(false)}
                     onSaved={handleDetailsSaved}
+                    onDirtyChange={handleEditorDirty}
                   />
                 ) : (
                 <>
