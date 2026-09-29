@@ -144,7 +144,7 @@ export default function ContactIndexPanel({ phones = [], collapsible = false, on
       <p>
         ManyChat לא מאפשר לקוגו לחפש איש קשר לפי מספר וואטסאפ, רק לפי השדה{' '}
         <span dir="ltr" className="font-mono text-xs">kogo_whatsapp_phone</span>. באנשי הקשר שיובאו מהמערכת הקודמת
-        השדה ריק, ולכן ההודעות אליהם נכשלות. ייבוא אחד של הקובץ הזה ב-ManyChat ממלא את השדה לכולם.{' '}
+        השדה ריק, ולכן ההודעות אליהם נכשלות. ייבוא אחד של הקובץ הזה ב-ManyChat ממלא את השדה לכולם, ורושם לכל הורה את השם שלו בקוגו.{' '}
         <strong>הייבוא לא שולח אף הודעה.</strong>
       </p>
 
@@ -169,9 +169,11 @@ export default function ContactIndexPanel({ phones = [], collapsible = false, on
           אקסל משבש מספרים ארוכים.
         </li>
         <li>
-          בהתאמת העמודות: <span dir="ltr" className="font-mono text-xs">WhatsApp ID</span> לשדה המערכת{' '}
-          <span dir="ltr">WhatsApp ID</span>, ו-<span dir="ltr" className="font-mono text-xs">kogo_whatsapp_phone</span>{' '}
-          לשדה <span dir="ltr" className="font-mono text-xs">kogo_whatsapp_phone</span>. לא מוסיפים תגית.
+          בהתאמת העמודות, כל אחת לשדה בשם שלה: <span dir="ltr" className="font-mono text-xs">WhatsApp ID</span>,{' '}
+          <span dir="ltr" className="font-mono text-xs">kogo_whatsapp_phone</span>,{' '}
+          <span dir="ltr" className="font-mono text-xs">First Name</span> ו-
+          <span dir="ltr" className="font-mono text-xs">Last Name</span>. לא מדלגים על עמודת שם: ManyChat מוחק שם
+          של איש קשר כשאין לו עמודה בקובץ. לא מוסיפים תגית.
         </li>
         <li>
           <span dir="ltr">Confirm</span>. בסוף ManyChat מראה כמה אנשי קשר עודכנו, נוצרו והתעלמו. אלה שעודכנו הם אלה
