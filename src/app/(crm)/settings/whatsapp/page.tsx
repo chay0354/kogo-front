@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
+import ContactIndexPanel from '@/components/broadcast/ContactIndexPanel';
 import { Input } from '@/components/ui/input';
 import { ListSkeleton, Skeleton } from '@/components/ui/skeleton';
 import {
@@ -535,6 +536,11 @@ export default function SettingsWhatsAppPage() {
               שלח אוטומציה
             </Button>
           </div>
+        </section>
+
+        {/* Parents ManyChat has but Kogo cannot find — fixed for all at once. */}
+        <section id="unfindable-contacts" className="rounded-xl border bg-card p-5 shadow-sm">
+          <ContactIndexPanel />
         </section>
       </div>
     </>

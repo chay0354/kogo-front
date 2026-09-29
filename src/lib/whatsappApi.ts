@@ -1,4 +1,5 @@
 import api from './api';
+import { saveBlob } from './documentsApi';
 
 export type WhatsAppContact = {
   id: string;
@@ -62,6 +63,31 @@ export async function fetchWhatsAppContacts(filters?: {
 export async function linkManyChatContact(phone: string, contact: string) {
   const res = await api.post('/core/whatsapp/link-contact/', { phone, contact });
   return res.data as { subscriber_id: number; display_name: string; phone_verified: boolean };
+}
+
+export type ContactIndexScope = 'current' | 'all';
+
+/**
+ * How many phones the ManyChat import file carries per scope.
+ *
+ * The file makes every parent findable in ManyChat at once: the contacts
+ * imported from the previous system lack kogo_whatsapp_phone, the only field
+ * Kogo can search them by, and ManyChat's own import fills it.
+ */
+export async function fetchContactIndexCounts() {
+  const res = await api.get('/core/whatsapp/contact-index/');
+  return res.data as { field_name: string; scopes: Record<ContactIndexScope, number> };
+}
+
+export async function downloadContactIndex(scope: ContactIndexScope): Promise<void> {
+  const res = await api.get('/core/whatsapp/contact-index/export/', { params: { scope }, responseType: 'blob' });
+  saveBlob(res.data, 'text/csv;charset=utf-8', `manychat-contacts-${scope}.csv`);
+}
+
+/** Whether Kogo finds the contact behind a phone now. Searches only — creates and sends nothing. */
+export async function checkContactFound(phone: string) {
+  const res = await api.post('/core/whatsapp/contact-index/check/', { phone });
+  return res.data as { phone: string; found: boolean; subscriber_id: number | null; display_name: string };
 }
 
 export async function resolveWhatsAppSubscriber(phone: string, name: string) {
