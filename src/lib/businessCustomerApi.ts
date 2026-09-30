@@ -2,6 +2,7 @@ import api from './api';
 import { readDeliveryStatus, type DocumentDeliveryStatus } from './documentDelivery';
 import type { LegacyDocument } from './legacyImportApi';
 import type { TenancySlot } from './rentalsApi';
+import { readOpenInvoice, type OpenInvoice } from './settlements';
 import {
   readComputerizedDocsConsent,
   type ComputerizedDocsConsent,
@@ -111,6 +112,20 @@ export interface BusinessCustomerLegacy {
   results: LegacyDocument[];
 }
 
+/**
+ * What the customer still owes (WS-3, settlement.customer_balance): every
+ * tax / transaction invoice with something open, oldest first, and the sums.
+ */
+export interface BusinessCustomerBalance {
+  open_total: number;
+  open_count: number;
+  /** What receipts paid on the customer's invoices. */
+  paid_total: number;
+  /** What credit notes took off them. */
+  credited_total: number;
+  open_invoices: OpenInvoice[];
+}
+
 export interface BusinessCustomerSummary {
   customer: BusinessCustomerIdentity;
   /** Null on a server whose answer carries no consent fields. */
@@ -122,8 +137,8 @@ export interface BusinessCustomerSummary {
   is_tenant: boolean;
   tenancies: BusinessCustomerTenancy[];
   totals: BusinessCustomerTotals;
-  /** Coming with settlements; until then always null and the card says nothing about it. */
-  balance: null;
+  /** Null on a server from before settlements (30.9.2026): the card then says nothing about it. */
+  balance: BusinessCustomerBalance | null;
 }
 
 type Raw = Record<string, unknown>;
@@ -255,6 +270,19 @@ function isPresent<T>(value: T | null): value is T {
   return value !== null;
 }
 
+function readBalance(raw: unknown): BusinessCustomerBalance | null {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+  const row = raw as Raw;
+  const openInvoices = list(row.open_invoices).map(readOpenInvoice).filter(isPresent);
+  return {
+    open_total: num(row.open_total),
+    open_count: row.open_count !== undefined ? num(row.open_count) : openInvoices.length,
+    paid_total: num(row.paid_total),
+    credited_total: num(row.credited_total),
+    open_invoices: openInvoices,
+  };
+}
+
 /** The whole answer off the wire. */
 export function readBusinessCustomerSummary(data: unknown): BusinessCustomerSummary {
   const row = obj(data);
@@ -267,7 +295,7 @@ export function readBusinessCustomerSummary(data: unknown): BusinessCustomerSumm
     is_tenant: row.is_tenant === true,
     tenancies: list(row.tenancies).map(readTenancy).filter(isPresent),
     totals: readTotals(row.totals),
-    balance: null,
+    balance: readBalance(row.balance),
   };
 }
 

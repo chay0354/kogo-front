@@ -10,6 +10,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { useAuth } from '@/components/AuthProvider';
 import BusinessDocsConsentField from '@/components/dialogs/BusinessDocsConsentField';
 import DeliveryChip from '@/components/dialogs/DeliveryChip';
+import DocumentDetailButton from '@/components/dialogs/DocumentDetailButton';
 import { computerizedDocsConsentLine } from '@/components/dialogs/computerizedDocsConsent';
 import LegacyDocumentsTable from '@/components/LegacyHistory/LegacyDocumentsTable';
 import legacyStyles from '@/components/LegacyHistory/LegacyHistory.module.css';
@@ -22,6 +23,7 @@ import {
   fetchBusinessCustomerSummary,
   formatCardAmount,
   formatCardDate,
+  type BusinessCustomerBalance,
   type BusinessCustomerDocument,
   type BusinessCustomerDraft,
   type BusinessCustomerSummary,
@@ -271,6 +273,78 @@ function DraftsTable({
 }
 
 /**
+ * What the customer still owes (WS-3): the sum, and each invoice still open —
+ * its number opens the document's detail (what paid it, what credited it).
+ */
+function OpenInvoicesTable({
+  balance,
+  onChanged,
+}: {
+  balance: BusinessCustomerBalance;
+  onChanged: () => void;
+}) {
+  if (balance.open_invoices.length === 0) {
+    return (
+      <div className="border rounded-lg px-4 py-6 text-center text-muted-foreground text-sm">
+        אין חשבוניות פתוחות — כל החשבוניות שולמו או זוכו
+      </div>
+    );
+  }
+  return (
+    <div className="border rounded-lg overflow-x-auto">
+      <table className="w-full text-sm">
+        <caption className="sr-only">חשבוניות פתוחות, מהישנה לחדשה</caption>
+        <thead className="bg-muted/50">
+          <tr>
+            <th scope="col" className="p-3 text-right font-medium">חשבונית</th>
+            <th scope="col" className="p-3 text-right font-medium">תאריך</th>
+            <th scope="col" className="p-3 text-right font-medium">סה״כ</th>
+            <th scope="col" className="p-3 text-right font-medium">שולם / זוכה</th>
+            <th scope="col" className="p-3 text-right font-medium">פתוח</th>
+          </tr>
+        </thead>
+        <tbody>
+          {balance.open_invoices.map((invoice) => (
+            <tr key={invoice.id} className="border-t align-top">
+              <td className="px-3 py-2 whitespace-nowrap">
+                <DocumentDetailButton
+                  documentId={invoice.id}
+                  number={invoice.document_number}
+                  className="font-mono text-[13px] underline decoration-dotted underline-offset-4 hover:decoration-solid"
+                  onChanged={onChanged}
+                />
+                <div className="text-xs text-muted-foreground">
+                  {invoice.document_type_label}
+                  {invoice.status === 'partial' ? ` · ${invoice.status_label}` : ''}
+                </div>
+              </td>
+              <td className="px-3 py-2 whitespace-nowrap tabular-nums text-muted-foreground">
+                {formatCardDate(invoice.document_date) || '-'}
+                {invoice.due_date && <div className="text-xs">לתשלום עד {formatCardDate(invoice.due_date)}</div>}
+              </td>
+              <td className="px-3 py-2 whitespace-nowrap tabular-nums">
+                <span dir="ltr">{formatCardAmount(invoice.total)}</span>
+              </td>
+              <td className="px-3 py-2 whitespace-nowrap tabular-nums text-muted-foreground">
+                <span dir="ltr">{formatCardAmount(invoice.paid)}</span>
+                {invoice.credited > 0 && (
+                  <div className="text-xs">
+                    זוכה <span dir="ltr">{formatCardAmount(invoice.credited)}</span>
+                  </div>
+                )}
+              </td>
+              <td className="px-3 py-2 whitespace-nowrap font-semibold tabular-nums text-rose-700">
+                <span dir="ltr">{formatCardAmount(invoice.open)}</span>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+/**
  * כרטיס לקוח עסקי — a merchant's or a studio tenant's card: who they are,
  * their consent to computerized documents, the tenancies they hold, every
  * document kogo issued to them with how its signed original reached them,
@@ -342,6 +416,7 @@ export default function BusinessCustomerProfileDialog({
   const documents = summary?.documents ?? [];
   const drafts = summary?.drafts ?? [];
   const totals = summary?.totals;
+  const balance = summary?.balance ?? null;
   const lastNumbers = legacy ? lastNumbersByType(legacy.results) : [];
 
   return (
@@ -461,12 +536,37 @@ export default function BusinessCustomerProfileDialog({
                         <Kpi label="חויב (חשבוניות מס)" value={formatCardAmount(totals.invoiced)} />
                         <Kpi label="התקבל (קבלות)" value={formatCardAmount(totals.received)} />
                         <Kpi label="זיכויים" value={formatCardAmount(totals.credited, totals.credited > 0)} negative={totals.credited > 0} />
+                        {balance && (
+                          <Kpi
+                            label={balance.open_count > 0
+                              ? `יתרה פתוחה · ${countWord(balance.open_count, 'חשבונית אחת', 'חשבוניות')}`
+                              : 'יתרה פתוחה'}
+                            value={formatCardAmount(balance.open_total)}
+                            negative={balance.open_total > 0}
+                          />
+                        )}
                       </div>
                       <p className="mt-2 text-xs text-muted-foreground">
-                        יתרה פתוחה תוצג כאן כשקבלות יקושרו לחשבוניות.
+                        {balance
+                          ? 'יתרה: סה״כ החשבוניות פחות הקבלות ששילמו אותן והזיכויים שנרשמו עליהן.'
+                          : 'יתרה פתוחה תוצג כאן כשקבלות יקושרו לחשבוניות.'}
                         {totals.drafts_count > 0 && ` · ${countWord(totals.drafts_count, 'טיוטה אחת', 'טיוטות')} שטרם אושרו`}
                       </p>
                     </div>
+
+                    {balance && (
+                      <div>
+                        <SectionTitle icon={<FileText className="h-5 w-5 text-primary" />}>חשבוניות פתוחות</SectionTitle>
+                        <div className="mt-3">
+                          <OpenInvoicesTable
+                            balance={balance}
+                            onChanged={() => {
+                              if (customerId) void load(customerId);
+                            }}
+                          />
+                        </div>
+                      </div>
+                    )}
 
                     {summary.is_tenant && (
                       <div>
