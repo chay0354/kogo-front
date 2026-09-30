@@ -98,7 +98,7 @@ function CancelCashPlanDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Banknote className="w-5 h-5 text-primary" aria-hidden="true" />
-            ביטול מנוי במזומן — {plan?.course_name || plan?.description || plan?.child_name}
+            ביטול מנוי במזומן — {plan?.course_name ? `${plan.child_name} · ${plan.course_name}` : plan?.child_name}
           </DialogTitle>
           <DialogCloseButton />
         </DialogHeader>

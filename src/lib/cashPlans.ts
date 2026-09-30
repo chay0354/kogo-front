@@ -80,7 +80,10 @@ export function cashPlanCancelSummary(answer: CancelCashPlanAnswer, documentNumb
 }
 
 /** The months as a short line: how many began, and the next one still ahead. */
-export function cashPlanMonthsLine(plan: Pick<CashPlan, 'months' | 'months_paid' | 'months_total'>, today: string): string {
+export function cashPlanMonthsLine(
+  plan: Pick<CashPlan, 'months' | 'months_paid' | 'months_total'> & { status?: string },
+  today: string,
+): string {
   const total = plan.months_total || plan.months?.length || 0;
   const begun = (plan.months ?? []).filter((month) => String(month.due_date ?? '').slice(0, 10) <= today).length;
   const next = (plan.months ?? [])
@@ -88,7 +91,8 @@ export function cashPlanMonthsLine(plan: Pick<CashPlan, 'months' | 'months_paid'
     .filter((day) => day > today)
     .sort()[0];
   const parts = [`${begun} מתוך ${total} חודשים התחילו`];
-  if (next) {
+  // A cancelled or finished plan has no month ahead of it.
+  if (next && (plan.status === undefined || plan.status === 'active')) {
     const [year, month] = next.split('-').map(Number);
     if (year && month) parts.push(`הבא: ${month}/${year}`);
   }

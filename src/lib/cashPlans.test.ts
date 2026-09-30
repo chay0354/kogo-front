@@ -115,5 +115,7 @@ describe('cashPlanMonthsLine', () => {
   it('counts the months begun and names the next', () => {
     expect(cashPlanMonthsLine(plan(), '2026-09-30')).toBe('1 מתוך 3 חודשים התחילו · הבא: 10/2026');
     expect(cashPlanMonthsLine(plan(), '2026-12-01')).toBe('3 מתוך 3 חודשים התחילו');
+    // A cancelled plan has no month ahead.
+    expect(cashPlanMonthsLine(plan({ status: 'cancelled' }), '2026-09-30')).toBe('1 מתוך 3 חודשים התחילו');
   });
 });
