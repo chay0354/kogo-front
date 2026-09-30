@@ -352,20 +352,20 @@ export class SignedFileMismatchError extends Error {
  * token as every other; a refusal's body is read back out of its blob before
  * it is thrown, so it reads like any other request's error.
  *
- * Since 25.9.2026 the server hands the office a copy ("העתק", drawn again) of
- * an original unless `original` asks for the stored signed bytes — which come
- * with their X-Content-SHA256, as the accountant's export hands them out. An
+ * The server hands out the stored signed bytes, with their X-Content-SHA256,
+ * as the accountant's export does; `copy` asks instead for a copy of an
+ * original ("העתק", drawn again now, with what was added after signing). An
  * archive copy is always its stored bytes.
  */
 export async function fetchSignedOriginalFile(
   id: string,
-  options: { original?: boolean } = {},
+  options: { copy?: boolean } = {},
 ): Promise<SignedOriginalFile> {
   try {
     const res = await api.get(`/documents/signing/originals/${encodeURIComponent(id)}/file/`, {
       responseType: 'blob',
       timeout: 60000,
-      ...(options.original ? { params: { original: '1' } } : {}),
+      ...(options.copy ? { params: { copy: '1' } } : {}),
     });
     const data = res.data;
     const pdf = typeof Blob !== 'undefined' && data instanceof Blob
@@ -389,8 +389,7 @@ export type SignedFileCheck = 'verified' | 'unchecked';
 export async function downloadSignedOriginal(
   row: Pick<SignedOriginalRow, 'id' | 'number' | 'sha256'> & Partial<Pick<SignedOriginalRow, 'purpose'>>,
 ): Promise<{ check: SignedFileCheck }> {
-  // An original's stored bytes only on request: the plain download of one is a copy.
-  const file = await fetchSignedOriginalFile(row.id, { original: row.purpose !== 'archive' });
+  const file = await fetchSignedOriginalFile(row.id);
   const expected = file.sha256 || normalizeSha256(row.sha256);
   let check: SignedFileCheck = 'unchecked';
   if (expected) {
@@ -416,7 +415,7 @@ export function signedCopyFilename(number: string | null | undefined): string {
  * once). There is nothing to check it against: it is not the stored file.
  */
 export async function downloadSignedCopy(row: Pick<SignedOriginalRow, 'id' | 'number'>): Promise<void> {
-  const file = await fetchSignedOriginalFile(row.id);
+  const file = await fetchSignedOriginalFile(row.id, { copy: true });
   saveBlob(file.pdf, 'application/pdf', signedCopyFilename(row.number));
 }
 

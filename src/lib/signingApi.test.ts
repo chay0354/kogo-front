@@ -559,23 +559,21 @@ describe('a row’s send and allocation fields (25.9.2026)', () => {
   });
 });
 
-describe('an original’s file: a copy unless the stored bytes are asked for', () => {
+describe('a signed file: the stored bytes, and a copy only when asked for', () => {
   const bytes = '%PDF-1.7 signed';
 
-  it('asks for the stored bytes only when told to', async () => {
+  it('asks for a copy only when told to', async () => {
     get.mockResolvedValue({ data: new Blob([bytes]), headers: {} } as never);
-    await fetchSignedOriginalFile('o-1', { original: true });
+    await fetchSignedOriginalFile('o-1', { copy: true });
     expect(get).toHaveBeenCalledWith('/documents/signing/originals/o-1/file/', {
-      responseType: 'blob', timeout: 60000, params: { original: '1' },
+      responseType: 'blob', timeout: 60000, params: { copy: '1' },
     });
   });
 
-  it('downloads an original’s stored bytes for the check, and an archive copy as it is', async () => {
+  it('downloads the stored bytes for the check, an original and an archive copy alike', async () => {
     get.mockResolvedValue({ data: new Blob([bytes]), headers: {} } as never);
     await downloadSignedOriginal({ id: 'o-1', number: 'IR-1', sha256: '', purpose: 'original' });
-    expect(get).toHaveBeenLastCalledWith('/documents/signing/originals/o-1/file/', {
-      responseType: 'blob', timeout: 60000, params: { original: '1' },
-    });
+    expect(get).toHaveBeenLastCalledWith('/documents/signing/originals/o-1/file/', { responseType: 'blob', timeout: 60000 });
     await downloadSignedOriginal({ id: 'a-1', number: 'IR-1', sha256: '', purpose: 'archive' });
     expect(get).toHaveBeenLastCalledWith('/documents/signing/originals/a-1/file/', { responseType: 'blob', timeout: 60000 });
   });
@@ -584,7 +582,9 @@ describe('an original’s file: a copy unless the stored bytes are asked for', (
     const pdf = new Blob(['%PDF-1.7 copy'], { type: 'application/pdf' });
     get.mockResolvedValue({ data: pdf, headers: {} } as never);
     await downloadSignedCopy({ id: 'o-1', number: 'IR-2026-000123' });
-    expect(get).toHaveBeenCalledWith('/documents/signing/originals/o-1/file/', { responseType: 'blob', timeout: 60000 });
+    expect(get).toHaveBeenCalledWith('/documents/signing/originals/o-1/file/', {
+      responseType: 'blob', timeout: 60000, params: { copy: '1' },
+    });
     expect(save).toHaveBeenCalledWith(pdf, 'application/pdf', 'IR-2026-000123 - העתק.pdf');
   });
 
