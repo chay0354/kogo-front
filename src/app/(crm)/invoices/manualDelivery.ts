@@ -167,19 +167,37 @@ export function heldReasonNote(
 export const NO_EMAIL_REASON = 'אין כתובת מייל — למסירה ידנית';
 /** The server's reason for a paper row whose mail failed every try (signing/service.py REASON_MAIL_FAILED). */
 export const MAIL_FAILED_REASON = 'המייל לא נשלח אחרי כמה ניסיונות — לבדוק את הכתובת ולשלוח שוב, או למסור על נייר';
+/**
+ * The server's reason for an original the signing cron found late — its
+ * document was issued days before the original was recorded — put here rather
+ * than mailed (signing/service.py REASON_FOUND_LATE, 30.9.2026).
+ */
+export const FOUND_LATE_REASON = 'המקור נוצר באיחור, יותר משלושה ימים אחרי שהמסמך הונפק — לא נשלח אוטומטית; לשלוח ("שלח") או למסור ידנית';
 
 /**
  * Whether a paper row may still go by mail: only when it is on paper for want
- * of an address, or because its mail kept failing, and its original was not
- * printed. Cash and an unmarked check stay on paper whatever address is typed
- * (18ב(ד)) — no button for those.
+ * of an address, because its mail kept failing, or because it was found late
+ * and waits for the office to decide — and its original was not printed. Cash
+ * and an unmarked check stay on paper whatever address is typed (18ב(ד)) — no
+ * button for those.
  */
 export function paperRowCanBeMailed(
   row: Pick<SignedOriginalRow, 'delivery' | 'delivery_reason' | 'paper_original_printed_at'>,
 ): boolean {
   const reason = row.delivery_reason.trim();
   return row.delivery === 'paper' && !row.paper_original_printed_at
-    && (reason === NO_EMAIL_REASON || reason === MAIL_FAILED_REASON);
+    && (reason === NO_EMAIL_REASON || reason === MAIL_FAILED_REASON || reason === FOUND_LATE_REASON);
+}
+
+/**
+ * Whether the office may mail a copy of the row now: it is signed, and its
+ * original already left — mailed, or printed for hand delivery — or it is an
+ * archive copy. What goes is "העתק", drawn again; the server decides and logs it.
+ */
+export function canSendCopy(
+  row: Pick<SignedOriginalRow, 'purpose' | 'signed_at' | 'sent_at' | 'paper_original_printed_at'>,
+): boolean {
+  return Boolean(row.signed_at) && nextSendEdition(row) === 'copy';
 }
 
 /** Whether the next send is the signed original (its first and only time) or a copy. */
@@ -229,6 +247,29 @@ export function sendFailureMessage(err: unknown): string {
   const response = (err as { response?: unknown } | null)?.response;
   if (!response) return 'לא התקבלה תשובה מהשרת — בדקו ברשימה אם המסמך נשלח לפני שתנסו שוב';
   return errorSentence(err) || SEND_FAILED_MESSAGE;
+}
+
+// ---------------------------------------------------------------- printed recently
+
+/** How many printed originals the "הודפסו לאחרונה" list pulls in at once. */
+export const PRINTED_RECENTLY_PAGE_SIZE = 20;
+
+/** "הודפס ב-30.09.2026 14:05" under a printed row, or '' when the server sent no time. */
+export function printedAtLine(row: Pick<SignedOriginalRow, 'paper_original_printed_at'>): string {
+  const when = formatSigningStamp(row.paper_original_printed_at);
+  return when ? `הודפס ב-${when}` : '';
+}
+
+/**
+ * The line that warns of documents issued with no signed original at all
+ * (30.9.2026, audit M1) — '' when there are none, or the server does not count them.
+ */
+export function missingOriginalNotice(status: Pick<SigningStatus, 'counts'> | null | undefined): string {
+  const missing = status?.counts.missing_original ?? 0;
+  if (missing <= 0) return '';
+  const what = missing === 1 ? 'מסמך אחד הונפק' : `${missing.toLocaleString('he-IL')} מסמכים הונפקו`;
+  return `${what} בלי מקור חתום. המערכת יוצרת את המקורות החסרים בהרצה הבאה, בתוך כמה דקות — `
+    + 'מסמך שנמצא יותר משלושה ימים אחרי שהונפק מגיע לרשימה כאן ולא נשלח ללקוח לבד. אם המספר לא יורד, יש לפנות לתמיכה.';
 }
 
 // ---------------------------------------------------------------- the allocation number

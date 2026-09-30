@@ -689,3 +689,11 @@ section.progressBox {
     animation: none;
   }
 }
+
+/* "העתק" and "שלח העתק" beside the download (30.9.2026). */
+.rowActions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+}

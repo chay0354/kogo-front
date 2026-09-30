@@ -320,3 +320,24 @@
     animation: none;
   }
 }
+
+/* ---- documents issued with no signed original (audit M1, 30.9.2026) ---- */
+.notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 0;
+  padding: 10px 14px;
+  border-radius: 12px;
+  border: 1px solid #fcd34d;
+  background: #fffbeb;
+  color: #92400e;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.5;
+}
+
+.notice svg {
+  flex: none;
+  margin-top: 2px;
+}

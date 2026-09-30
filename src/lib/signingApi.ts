@@ -27,6 +27,14 @@ export interface SigningCounts {
   signed_today: number;
   /** Part of `held`: tax invoices waiting, unsigned, for their allocation number. 0 from a server that does not count them. */
   awaiting_allocation: number;
+  /**
+   * 30.9.2026 (audit M1) — absent from an older server. Documents issued since
+   * signing went on that have no original at all; the signing cron gives each
+   * one its original, so this is normally 0.
+   */
+  missing_original?: number;
+  /** Part of `paper_pending`: originals the cron found late and put on the hand-delivery list instead of mailing. */
+  found_late?: number;
 }
 
 export interface SigningStatus {
@@ -70,6 +78,9 @@ export function readSigningStatus(data: unknown): SigningStatus | null {
       paper_pending: count(counts.paper_pending),
       signed_today: count(counts.signed_today),
       awaiting_allocation: count(counts.awaiting_allocation),
+      // Only what the server sends: an older one does not count these.
+      ...(counts.missing_original !== undefined ? { missing_original: count(counts.missing_original) } : {}),
+      ...(counts.found_late !== undefined ? { found_late: count(counts.found_late) } : {}),
     },
   };
 }
@@ -145,6 +156,11 @@ export interface SignedOriginalsQuery extends SignedOriginalsFilter {
   delivery?: SignedOriginalDelivery;
   /** false: only originals whose one paper print has not been made yet. */
   printed?: boolean;
+  /**
+   * 'printed': the last printed first (30.9.2026, "הודפסו לאחרונה"). An older
+   * server ignores it and answers newest issued first.
+   */
+  order?: 'printed';
   limit?: number;
   offset?: number;
 }
@@ -203,6 +219,7 @@ export async function fetchSignedOriginals(query: SignedOriginalsQuery = {}): Pr
   const params: Record<string, string | number> = {};
   if (query.delivery) params.delivery = query.delivery;
   if (query.printed !== undefined) params.printed = query.printed ? 'true' : 'false';
+  if (query.order === 'printed') params.order = 'printed';
   Object.assign(params, signedOriginalsFilterParams(query));
   if (query.limit !== undefined) params.limit = query.limit;
   if (query.offset !== undefined) params.offset = query.offset;
