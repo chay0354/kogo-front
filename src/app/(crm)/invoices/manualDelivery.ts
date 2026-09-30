@@ -251,6 +251,18 @@ export function allocationResultMessage(answer: AllocationNumberAnswer, number: 
   return `מספר ההקצאה נשמר — המקור של ${number} ייחתם וישלח בדקות הקרובות`;
 }
 
+/**
+ * The same, for the documents list, where most numbers are typed: '' when the
+ * number touched no signed original (none was drawn for the document, or the
+ * server predates 25.9.2026), so the row simply shows it as before.
+ */
+export function allocationOriginalMessage(answer: AllocationNumberAnswer, number: string): string {
+  if (!answer.allocation_number) return '';
+  if (answer.copy_only) return allocationResultMessage(answer, number);
+  if (answer.delivery === undefined || answer.delivery === null) return '';
+  return allocationResultMessage(answer, number);
+}
+
 export const ALLOCATION_FAILED_MESSAGE = 'שמירת מספר ההקצאה נכשלה';
 
 export function allocationFailureMessage(err: unknown): string {

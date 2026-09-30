@@ -2,6 +2,7 @@
 
 import { useMemo, useState, type ReactNode } from 'react';
 import { AlertCircle, Bell, Download, FileArchive, FileSearch, FileSpreadsheet, FileWarning, X } from 'lucide-react';
+import { toast } from 'sonner';
 import { Skeleton, TableSkeleton } from '@/components/ui/skeleton';
 import { useAuth } from '@/components/AuthProvider';
 import { downloadStoreInvoicePdf } from '@/lib/storeApi';
@@ -17,6 +18,7 @@ import {
 import { useScopedBranches } from '@/hooks/useScopedBranches';
 import theme from '@/components/dashboard/theme/dashboard.module.css';
 import LedgerFilterBar, { LedgerSelect } from './LedgerFilterBar';
+import { allocationOriginalMessage } from './manualDelivery';
 import MissingReceiptsPanel, { MISSING_RECEIPTS_PANEL_ID } from './MissingReceiptsPanel';
 import type { LedgerFiltersState } from './useLedgerFilters';
 import { useLedgerDocuments } from './useLedgerDocuments';
@@ -190,6 +192,9 @@ export default function DocumentsTab({ ledger, refreshKey = 0 }: DocumentsTabPro
     try {
       const saved = await setAllocationNumber(doc.id, next);
       setAllocations((prev) => ({ ...prev, [doc.id]: saved.allocation_number }));
+      // A held original is signed — and mailed — once its number is in (25.9.2026): say so.
+      const signedNow = allocationOriginalMessage(saved, doc.document_number);
+      if (signedNow) toast.success(signedNow);
     } catch (err) {
       const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
       setAllocationErrors((prev) => ({ ...prev, [doc.id]: msg || 'שמירת מספר ההקצאה נכשלה' }));

@@ -12,6 +12,7 @@ import {
   allocationDigits,
   allocationFailureMessage,
   allocationInputError,
+  allocationOriginalMessage,
   allocationResultMessage,
   heldReasonNote,
   heldStatusLabel,
@@ -299,5 +300,20 @@ describe('the allocation number', () => {
     expect(allocationFailureMessage(conflict)).toBe('המקור כבר נחתם עם מספר הקצאה 111111111');
     expect(allocationFailureMessage({ response: { status: 500, data: '<html>' } })).toBe(ALLOCATION_FAILED_MESSAGE);
     expect(allocationFailureMessage({ code: 'ECONNABORTED' })).toContain('בדקו ברשימה');
+  });
+});
+
+describe('allocationOriginalMessage — the documents list', () => {
+  const base = { allocation_number: '123456789', allocation_entered_at: '2026-09-30T09:00:00+03:00' };
+
+  it('says what became of the original when the number touched one', () => {
+    expect(allocationOriginalMessage({ ...base, signed: true, delivery: 'email' }, 'IR-7')).toContain('נחתם ונשלח ללקוח');
+    expect(allocationOriginalMessage({ ...base, copy_only: true, signed: true, delivery: 'email' }, 'IR-7')).toContain('העתקים');
+  });
+
+  it('says nothing when there is no original, the number was cleared, or the server is older', () => {
+    expect(allocationOriginalMessage({ ...base, signed: false, delivery: null }, 'IR-7')).toBe('');
+    expect(allocationOriginalMessage(base, 'IR-7')).toBe('');
+    expect(allocationOriginalMessage({ ...base, allocation_number: '', signed: true, delivery: 'email' }, 'IR-7')).toBe('');
   });
 });
