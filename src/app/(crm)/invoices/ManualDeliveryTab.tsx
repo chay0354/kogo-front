@@ -17,6 +17,7 @@ import { formatSigningStamp, localIsoStamp } from '@/lib/signingUtils';
 import AllocationEntry from './AllocationEntry';
 import SendOriginalDialog from './SendOriginalDialog';
 import {
+  heldReasonNote,
   heldStatusLabel,
   MANUAL_DELIVERY_PAGE_SIZE,
   paperRowCanBeMailed,
@@ -24,6 +25,8 @@ import {
   originalFilename,
   paperRowView,
   printFailureMessage,
+  rowWithMark,
+  sendActionLabel,
   waitingToPrint,
   type PrintMark,
 } from './manualDelivery';
@@ -231,35 +234,47 @@ export default function ManualDeliveryTab({ status }: ManualDeliveryTabProps) {
         </td>
         <td className={theme.n}>
           {view.state === 'printed' ? (
-            <span className={`${pageStyles.statusBadge} ${pageStyles.statusCompleted}`}>
-              <CheckCircle2 size={13} aria-hidden="true" style={{ marginInlineEnd: 4 }} />
-              הודפס
-            </span>
-          ) : (
             <span className={styles.actions}>
-            {paperRowCanBeMailed(row) && view.state === 'ready' && (
+              <span className={`${pageStyles.statusBadge} ${pageStyles.statusCompleted}`}>
+                <CheckCircle2 size={13} aria-hidden="true" style={{ marginInlineEnd: 4 }} />
+                הודפס
+              </span>
+              {/* The paper original was handed over: what goes by mail now is a copy. */}
               <button
                 type="button"
                 className={styles.actionBtn}
-                aria-label={`שליחת המקור של ${row.number} במייל`}
-                onClick={() => setSending(row)}
+                aria-label={`שליחת העתק של ${row.number} במייל`}
+                onClick={() => setSending(rowWithMark(row, marks[row.id]))}
               >
                 <Send size={14} aria-hidden="true" />
-                שלח במייל
+                {sendActionLabel(rowWithMark(row, marks[row.id]))}
               </button>
-            )}
-            <button
-              type="button"
-              className={styles.actionBtn}
-              disabled={view.state === 'printing'}
-              aria-label={`הדפסת המקור של ${row.number} למסירה ללקוח`}
-              onClick={() => void print(row)}
-            >
-              {view.state === 'printing'
-                ? <Loader2 size={14} className={styles.spin} aria-hidden="true" />
-                : <Printer size={14} aria-hidden="true" />}
-              {view.action}
-            </button>
+            </span>
+          ) : (
+            <span className={styles.actions}>
+              {paperRowCanBeMailed(row) && view.state === 'ready' && (
+                <button
+                  type="button"
+                  className={styles.actionBtn}
+                  aria-label={`שליחת המקור של ${row.number} במייל`}
+                  onClick={() => setSending(row)}
+                >
+                  <Send size={14} aria-hidden="true" />
+                  {sendActionLabel(row)}
+                </button>
+              )}
+              <button
+                type="button"
+                className={styles.actionBtn}
+                disabled={view.state === 'printing'}
+                aria-label={`הדפסת המקור של ${row.number} למסירה ללקוח`}
+                onClick={() => void print(row)}
+              >
+                {view.state === 'printing'
+                  ? <Loader2 size={14} className={styles.spin} aria-hidden="true" />
+                  : <Printer size={14} aria-hidden="true" />}
+                {view.action}
+              </button>
             </span>
           )}
         </td>
@@ -279,7 +294,7 @@ export default function ManualDeliveryTab({ status }: ManualDeliveryTabProps) {
         <td className={`${theme.n} ${styles.money}`}>{formatAmount(row.total)}</td>
         <td className={styles.wrapCell}>
           <span className={`${pageStyles.statusBadge} ${pageStyles.statusPending}`}>{heldStatusLabel(row)}</span>
-          {row.delivery_reason && <span className={styles.subLine}>{row.delivery_reason}</span>}
+          {heldReasonNote(row) && <span className={styles.subLine}>{heldReasonNote(row)}</span>}
         </td>
         <td className={theme.n}>
           {row.awaiting_allocation ? (

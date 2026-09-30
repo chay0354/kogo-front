@@ -125,6 +125,19 @@ export function originalFilename(row: Pick<SignedOriginalRow, 'number'>): string
   return `${name || 'מסמך'} - מקור.pdf`;
 }
 
+/** Stands in for the print time when the server said the original was printed and not when. */
+const PRINTED_AT_UNKNOWN = 'printed';
+
+/**
+ * The row as it stands after what was done on this screen: printed here, it
+ * reads as printed before the list is read again — so its next send is a copy.
+ * A 409 ("already printed") carries no time; the row still reads as printed.
+ */
+export function rowWithMark(row: SignedOriginalRow, mark?: PrintMark): SignedOriginalRow {
+  if (mark?.state !== 'printed' || row.paper_original_printed_at) return row;
+  return { ...row, paper_original_printed_at: mark.at ?? PRINTED_AT_UNKNOWN };
+}
+
 // ---------------------------------------------------------------- held rows
 
 /**
@@ -138,6 +151,14 @@ export function heldStatusLabel(
 ): string {
   if (row.awaiting_allocation) return 'ממתין למספר הקצאה';
   return row.signed_at ? 'ממתין להסכמה' : 'ממתין לחתימה';
+}
+
+/** The server's reason under the badge — '' when it only says what the badge already says. */
+export function heldReasonNote(
+  row: Pick<SignedOriginalRow, 'signed_at' | 'delivery_reason'> & Partial<Pick<SignedOriginalRow, 'awaiting_allocation'>>,
+): string {
+  const reason = (row.delivery_reason || '').trim();
+  return reason === heldStatusLabel(row) ? '' : reason;
 }
 
 // ---------------------------------------------------------------- "שלח / שלח שוב"
