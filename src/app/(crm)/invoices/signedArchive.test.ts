@@ -63,7 +63,7 @@ function signing(enabled: boolean, lastSignedAt: string | null = null): SigningS
     cert_fingerprint: null,
     cert_subject: null,
     last_signed_at: lastSignedAt,
-    counts: { held: 0, paper_pending: 0, signed_today: 0 },
+    counts: { held: 0, paper_pending: 0, signed_today: 0, awaiting_allocation: 0 },
   };
 }
 
@@ -84,6 +84,9 @@ function row(overrides: Partial<SignedOriginalRow> = {}): SignedOriginalRow {
     signed_at: '2026-09-20T10:00:00+03:00',
     sent_at: '2026-09-20T10:01:00+03:00',
     paper_original_printed_at: null,
+    source_id: '',
+    channel: '',
+    awaiting_allocation: false,
     ...overrides,
   };
 }
