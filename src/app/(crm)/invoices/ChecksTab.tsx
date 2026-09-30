@@ -284,7 +284,7 @@ export default function ChecksTab({ ledger: pageLedger, branchFilter }: ChecksTa
     }
     setActionId(plan.id);
     try {
-      const updated = await cancelCheckPlan(plan.id);
+      const { plan: updated } = await cancelCheckPlan(plan.id);
       setPlans((prev) => prev.map((row) => (row.id === plan.id ? updated : row)));
     } catch {
       window.alert('שגיאה בביטול תוכנית הצ׳קים');

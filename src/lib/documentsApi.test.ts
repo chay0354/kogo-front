@@ -13,6 +13,11 @@ const api = vi.hoisted(() => ({
 vi.mock('./api', () => ({ default: api }));
 
 import {
+  bounceCheck,
+  cancelCashPlan,
+  cancelCheckPlan,
+  fetchOpenInvoices,
+  voidSettlement,
   downloadMissingReceiptsCsv,
   fetchMissingReceipts,
   fetchMissingReceiptsNextNumber,
@@ -157,5 +162,124 @@ describe('setAllocationNumber', () => {
     const refusal = { response: { status: 409, data: { error: 'המקור כבר נחתם עם מספר הקצאה 111111111' } } };
     api.post.mockRejectedValue(refusal);
     await expect(setAllocationNumber('d-1', '')).rejects.toBe(refusal);
+  });
+});
+
+describe('fetchOpenInvoices', () => {
+  it("asks for a private customer's invoices a receipt closes", async () => {
+    api.get.mockResolvedValue({ data: { payer_type: 'receipt', open_total: '0.00', results: [] } });
+    await fetchOpenInvoices({ childId: 'c-1', businessCustomerId: 'b-1', payerType: 'receipt' });
+    expect(api.get).toHaveBeenCalledWith('/documents/documents/open-invoices/', {
+      params: { child_id: 'c-1', payer_type: 'receipt' },
+    });
+  });
+
+  it("asks for a business customer's invoices an invoice-receipt closes, and reads the answer", async () => {
+    api.get.mockResolvedValue({
+      data: {
+        payer_type: 'combined',
+        open_total: '590.00',
+        results: [{ id: 'tx-1', document_number: 'TX-2026-000002', total: '590.00', open: '590.00', status: 'open' }],
+      },
+    });
+    const answer = await fetchOpenInvoices({ businessCustomerId: 'b-1', payerType: 'combined' });
+    expect(api.get).toHaveBeenCalledWith('/documents/documents/open-invoices/', {
+      params: { business_customer_id: 'b-1', payer_type: 'combined' },
+    });
+    expect(answer.open_total).toBe(590);
+    expect(answer.results[0]).toMatchObject({ id: 'tx-1', open: 590, status_label: 'פתוחה' });
+  });
+
+  it('passes a 404 (a server before settlements) through for the form to fall back', async () => {
+    const missing = { response: { status: 404, data: {} } };
+    api.get.mockRejectedValue(missing);
+    await expect(fetchOpenInvoices({ childId: 'c-1', payerType: 'receipt' })).rejects.toBe(missing);
+  });
+});
+
+describe('voidSettlement', () => {
+  it('posts the reason and reads the balance the invoice has again', async () => {
+    api.post.mockResolvedValue({
+      data: {
+        id: 's-1', payer_number: 'RC-2026-000004', invoice_number: 'TI-2026-000012', amount: '500.00',
+        voided_at: '2026-09-30T10:00:00+03:00',
+        invoice_balance: { total: '1180.00', paid: '0.00', credited: '0.00', open: '1180.00', status: 'open', status_label: 'פתוחה' },
+      },
+    });
+    const answer = await voidSettlement('s-1', 'נרשמה בטעות');
+    expect(api.post).toHaveBeenCalledWith('/documents/settlements/s-1/void/', { reason: 'נרשמה בטעות' });
+    expect(answer.invoice_balance?.open).toBe(1180);
+    expect(answer.payer_number).toBe('RC-2026-000004');
+  });
+
+  it('throws the 409 of a settlement voided already, as it came', async () => {
+    const refusal = { response: { status: 409, data: { error: 'הסגירה כבר בוטלה (30/09/2026 10:00)' } } };
+    api.post.mockRejectedValue(refusal);
+    await expect(voidSettlement('s-1', 'שוב')).rejects.toBe(refusal);
+  });
+});
+
+describe('cancelCheckPlan', () => {
+  it('sends the reason and separates the credit notes from the plan', async () => {
+    api.post.mockResolvedValue({ data: { id: 'p-1', status: 'cancelled', items: [], credit_notes: ['CR-2026-000003'] } });
+    const answer = await cancelCheckPlan('p-1', ' עזב את החוג ');
+    expect(api.post).toHaveBeenCalledWith('/documents/check-plans/p-1/cancel/', { reason: 'עזב את החוג' });
+    expect(answer.credit_notes).toEqual(['CR-2026-000003']);
+    expect(answer.plan).toMatchObject({ id: 'p-1', status: 'cancelled' });
+  });
+
+  it('reads an older server, which sends the plan alone', async () => {
+    api.post.mockResolvedValue({ data: { id: 'p-1', status: 'cancelled', items: [] } });
+    const answer = await cancelCheckPlan('p-1');
+    expect(api.post).toHaveBeenCalledWith('/documents/check-plans/p-1/cancel/', {});
+    expect(answer.credit_notes).toEqual([]);
+  });
+});
+
+describe('bounceCheck', () => {
+  it('posts the check, the reason and the replacement', async () => {
+    api.post.mockResolvedValue({
+      data: { plan: { id: 'p-1' }, item_id: 'i-1', credit_note_number: 'CR-2026-000004', replacement_plan: { id: 'p-2' } },
+    });
+    const replacement = {
+      date: '2026-10-10', amount: 300, bank: '12', branch: '600', account_number: '1234',
+      check_number: '77', check_crossed: true,
+    };
+    const answer = await bounceCheck('p-1', { item_id: 'i-1', reason: 'אין כיסוי', replacement });
+    expect(api.post).toHaveBeenCalledWith('/documents/check-plans/p-1/bounce/', {
+      item_id: 'i-1', reason: 'אין כיסוי', replacement,
+    });
+    expect(answer.credit_note_number).toBe('CR-2026-000004');
+    expect(answer.replacement_plan).toEqual({ id: 'p-2' });
+  });
+
+  it('sends only the check when nothing else was given', async () => {
+    api.post.mockResolvedValue({ data: { plan: { id: 'p-1' }, item_id: 'i-1', credit_note_number: null, replacement_plan: null } });
+    const answer = await bounceCheck('p-1', { item_id: 'i-1', reason: '  ', replacement: null });
+    expect(api.post).toHaveBeenCalledWith('/documents/check-plans/p-1/bounce/', { item_id: 'i-1' });
+    expect(answer.credit_note_number).toBeNull();
+    expect(answer.replacement_plan).toBeNull();
+  });
+});
+
+describe('cancelCashPlan', () => {
+  it('sends the refund amount, 0 included, and reads the credit note', async () => {
+    api.post.mockResolvedValue({
+      data: { id: 'cp-1', status: 'cancelled', credit_note_number: 'CR-2026-000005', unused_amount: '720.00', message: '' },
+    });
+    const answer = await cancelCashPlan('cp-1', { reason: 'עזבו', refund_amount: '0' });
+    expect(api.post).toHaveBeenCalledWith('/documents/cash-plans/cp-1/cancel/', { reason: 'עזבו', refund_amount: '0' });
+    expect(answer).toMatchObject({ credit_note_number: 'CR-2026-000005', unused_amount: '720.00', message: '' });
+    expect(answer.plan).toMatchObject({ id: 'cp-1', status: 'cancelled' });
+  });
+
+  it("leaves the refund out for the server's default, and passes its message on", async () => {
+    api.post.mockResolvedValue({
+      data: { id: 'cp-1', status: 'cancelled', credit_note_number: null, unused_amount: '480.00', message: 'אין מה לזכות' },
+    });
+    const answer = await cancelCashPlan('cp-1', { refund_amount: '' });
+    expect(api.post).toHaveBeenCalledWith('/documents/cash-plans/cp-1/cancel/', {});
+    expect(answer.credit_note_number).toBeNull();
+    expect(answer.message).toBe('אין מה לזכות');
   });
 });

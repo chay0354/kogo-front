@@ -3,11 +3,14 @@
 /**
  * Registering a customer who paid in cash.
  *
- * The money arrives once and the income belongs to the months it covers, so the
- * two documents have different dates: a receipt for the whole sum now, and a
- * document for the regular monthly price on the 1st of each month it buys.
- * The schedule is shown before anything is issued, because these are real tax
- * documents and the first one cannot be taken back.
+ * Since 30.9.2026 (WS-3, D1) one חשבונית מס/קבלה is issued for the whole sum
+ * the moment the cash is taken; the months below are the lesson schedule the
+ * sum covers, not documents — no document is issued a month. The schedule is
+ * shown before anything is issued, because the document is a real tax
+ * document and cannot be taken back, only credited.
+ *
+ * An older server still issues a receipt now and a document each month; the
+ * answer says which (receipt_document_type), and the done screen follows it.
  */
 import { useCallback, useEffect, useState } from 'react';
 import { Banknote } from 'lucide-react';
@@ -15,6 +18,7 @@ import { toast } from 'sonner';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogCloseButton } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { previewCashPlan, registerCashPlan } from '@/lib/documentsApi';
+import { cashPlanDocumentLabel, isUpfrontCashPlan } from '@/lib/cashPlans';
 import type { ChildWithDetails } from '@/types/customer';
 
 interface Props {
@@ -49,11 +53,10 @@ export default function RegisterCashDialog({
   const [monthly, setMonthly] = useState('');
   const [startMonth, setStartMonth] = useState(thisMonthFirst());
   const [lessonId, setLessonId] = useState('');
-  const [docType, setDocType] = useState<'combined' | 'tax_invoice'>('combined');
   const [rows, setRows] = useState<Row[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
-  const [done, setDone] = useState<{ receipt: string; months: number } | null>(null);
+  const [done, setDone] = useState<{ number: string; label: string; upfront: boolean; months: number } | null>(null);
 
   const lessons = (child.enrollments ?? [])
     .map((e: { lesson_id?: string; course_name?: string; lesson?: string }) => ({
@@ -110,10 +113,10 @@ export default function RegisterCashDialog({
         total_amount: total,
         monthly_amount: monthly,
         start_month: startMonth,
-        monthly_document_type: docType,
       });
-      setDone({ receipt: plan.receipt_number, months: plan.months_total });
-      toast.success(`קבלה ${plan.receipt_number} הופקה על ${money(total)}`);
+      const label = cashPlanDocumentLabel(plan);
+      setDone({ number: plan.receipt_number, label, upfront: isUpfrontCashPlan(plan), months: plan.months_total });
+      toast.success(`${label} ${plan.receipt_number} הופקה על ${money(total)}`);
       onRegistered?.();
     } catch (err) {
       const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
@@ -138,11 +141,17 @@ export default function RegisterCashDialog({
           <div className="space-y-3 text-sm">
             <p className="font-medium">הרישום הושלם.</p>
             <p>
-              קבלה <strong>{done.receipt}</strong> הופקה על {money(total)}.
+              {done.label} <strong dir="ltr">{done.number}</strong> הופקה על {money(total)}.
             </p>
-            <p className="text-muted-foreground">
-              {done.months} מסמכים חודשיים על {money(monthly)} יופקו ב־1 בכל חודש. מה שכבר עבר — הופק עכשיו.
-            </p>
+            {done.upfront ? (
+              <p className="text-muted-foreground">
+                המסמך מכסה את כל {done.months} החודשים. לא יופק מסמך בכל חודש — החודשים הם לוח השיעורים.
+              </p>
+            ) : (
+              <p className="text-muted-foreground">
+                {done.months} מסמכים חודשיים על {money(monthly)} יופקו ב־1 בכל חודש. מה שכבר עבר — הופק עכשיו.
+              </p>
+            )}
             <div className="flex justify-end">
               <Button type="button" onClick={() => onOpenChange(false)}>סגור</Button>
             </div>
@@ -179,19 +188,13 @@ export default function RegisterCashDialog({
               )}
             </div>
 
-            <div>
-              <label className="block mb-1" htmlFor="cash-doctype">המסמך החודשי</label>
-              <select id="cash-doctype" className="input w-full" value={docType}
-                onChange={(e) => setDocType(e.target.value as 'combined' | 'tax_invoice')}>
-                <option value="combined">חשבונית מס/קבלה</option>
-                <option value="tax_invoice">חשבונית מס</option>
-              </select>
-            </div>
-
             {rows.length > 0 && (
               <div className="rounded-lg border p-3">
-                <p className="font-medium mb-2">
-                  קבלה על {money(total)} תופק עכשיו · {rows.length} מסמכים חודשיים
+                <p className="font-medium mb-1">
+                  חשבונית מס/קבלה אחת על {money(total)} תופק עכשיו
+                </p>
+                <p className="text-xs text-muted-foreground mb-2">
+                  החודשים הם לוח השיעורים שהסכום מכסה ({rows.length} חודשים) — לא יופק מסמך בכל חודש.
                 </p>
                 <div className="max-h-40 overflow-y-auto">
                   {rows.map((row) => (
@@ -211,13 +214,13 @@ export default function RegisterCashDialog({
             {error && <p className="text-red-600">{error}</p>}
 
             <p className="text-xs text-muted-foreground">
-              אלה מסמכי מס אמיתיים. הקבלה מופקת ברגע האישור ואי אפשר לבטל אותה — רק לזכות.
+              זה מסמך מס אמיתי. חשבונית המס/קבלה מופקת ברגע האישור ואי אפשר לבטל אותה — רק לזכות.
             </p>
 
             <div className="flex justify-end gap-2">
               <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>ביטול</Button>
               <Button type="button" disabled={busy || rows.length === 0} onClick={() => void submit()}>
-                {busy ? 'מפיק…' : `הפק קבלה על ${money(total || '0')}`}
+                {busy ? 'מפיק…' : `הפק חשבונית מס/קבלה על ${money(total || '0')}`}
               </Button>
             </div>
           </div>
