@@ -46,6 +46,17 @@ describe('sumDocuments', () => {
     expect(totals.paid).toBe(236);
     expect(totals.open).toBe(0);
   });
+
+  it('counts no draft: it has no number and nothing is owed or paid on it', () => {
+    const receipt = row({});
+    const draft = row({
+      id: 'draft', document_number: 'D-1A2B3C4D', document_type: 'טיוטה', document_type_code: 'draft',
+      origin: 'manual', is_draft: true, draft_target_type: 'receipt', total_amount: 500, amount_paid: 0,
+      open_balance: 0, status: 'draft',
+    });
+
+    expect(sumDocuments([receipt, draft])).toEqual({ total: 236, paid: 236, open: 0 });
+  });
 });
 
 /**

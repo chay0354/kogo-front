@@ -3,6 +3,7 @@
 import { useState, type ReactNode } from 'react';
 import BodyPortal from '@/app/(crm)/invoices/BodyPortal';
 import DocumentSettlementsDialog from '@/components/dialogs/DocumentSettlementsDialog';
+import type { CreditPrefill } from '@/lib/draftsAndCredits';
 
 /**
  * A document number that opens its detail — balance and settlements
@@ -15,6 +16,7 @@ export default function DocumentDetailButton({
   number,
   className,
   onChanged,
+  onCredit,
   children,
 }: {
   documentId: string | null | undefined;
@@ -22,6 +24,8 @@ export default function DocumentDetailButton({
   className?: string;
   /** After a settlement was voided — the list behind reloads its balances. */
   onChanged?: () => void;
+  /** "זיכוי" in the detail of a tax invoice or invoice-receipt (the page opens the credit note). */
+  onCredit?: (prefill: CreditPrefill) => void;
   children?: ReactNode;
 }) {
   const [open, setOpen] = useState(false);
@@ -56,6 +60,7 @@ export default function DocumentDetailButton({
             onClose={() => setOpen(false)}
             fallbackNumber={number}
             onChanged={onChanged}
+            onCredit={onCredit}
           />
         </BodyPortal>
       )}

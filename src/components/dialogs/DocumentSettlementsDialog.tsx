@@ -16,9 +16,14 @@
  *
  * On a server from before settlements the answer has none of these fields;
  * the dialog then shows the document alone and says so.
+ *
+ * A credit note shows what it credits and whether the customer confirmed it
+ * (הוראה 23א(3)), with the manager's "רישום אישור הלקוח" (CreditNoteAckSection).
+ * A tax invoice or an invoice-receipt offers "זיכוי" when the page can open a
+ * credit note for it (onCredit, audit #10).
  */
 import { useEffect, useRef, useState } from 'react';
-import { FileText, RefreshCw, Undo2 } from 'lucide-react';
+import { FileMinus, FileText, RefreshCw, Undo2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Dialog, DialogCloseButton, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
@@ -29,6 +34,8 @@ import { useAuth } from '@/components/AuthProvider';
 import { readableError } from '@/lib/apiError';
 import { formatCardDate } from '@/lib/businessCustomerApi';
 import { fetchDocument, voidSettlement } from '@/lib/documentsApi';
+import { creditPrefillFromDocument, type CreditPrefill } from '@/lib/draftsAndCredits';
+import CreditNoteAckSection from '@/components/dialogs/CreditNoteAckSection';
 import {
   canVoidSettlement,
   formatAgorotShekels,
@@ -54,6 +61,8 @@ interface DocumentSettlementsDialogProps {
    * the row this dialog opened from, and the dialog with it.
    */
   onChanged?: () => void;
+  /** Open a credit note for this document (a tax invoice or invoice-receipt); the dialog closes first. */
+  onCredit?: (prefill: CreditPrefill) => void;
 }
 
 type LoadStatus = 'loading' | 'ready' | 'error';
@@ -182,6 +191,7 @@ export default function DocumentSettlementsDialog({
   onClose,
   fallbackNumber = '',
   onChanged,
+  onCredit,
 }: DocumentSettlementsDialogProps) {
   const { user } = useAuth();
   // The server lets a manager alone void a settlement; the button follows it.
@@ -259,6 +269,8 @@ export default function DocumentSettlementsDialog({
   const type = doc?.document_type ?? '';
   const isInvoice = INVOICE_TYPES.has(type);
   const isPayer = PAYER_TYPES.has(type);
+  const isCredit = type === 'credit_invoice';
+  const creditPrefill = onCredit && doc ? creditPrefillFromDocument(doc) : null;
   const title = doc ? `${doc.document_type_display || 'מסמך'} ${doc.document_number}` : fallbackNumber || 'מסמך';
   const voidTarget = voiding
     ? isInvoice
@@ -312,6 +324,35 @@ export default function DocumentSettlementsDialog({
                   <p className="rounded-lg bg-muted/50 p-3 text-sm text-muted-foreground">
                     השרת עוד לא מחזיר יתרות וסגירות למסמכים. הפירוט יופיע כאן אחרי העדכון שלו.
                   </p>
+                )}
+
+                {creditPrefill && onCredit && (
+                  <div className="flex justify-end">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      title="חשבונית זיכוי למסמך הזה, מקושרת אליו וללקוח שלו"
+                      onClick={() => {
+                        close();
+                        onCredit(creditPrefill);
+                      }}
+                    >
+                      <FileMinus className="h-3 w-3 ml-1" aria-hidden="true" />
+                      זיכוי
+                    </Button>
+                  </div>
+                )}
+
+                {isCredit && (
+                  <CreditNoteAckSection
+                    doc={doc}
+                    isManager={isManager}
+                    onRecorded={() => {
+                      changed.current = true;
+                      if (documentId) void load(documentId);
+                    }}
+                  />
                 )}
 
                 {lines.balance && <BalanceBox balance={lines.balance} />}
@@ -374,7 +415,7 @@ export default function DocumentSettlementsDialog({
                     </div>
                   </div>
                 )}
-                {doc.document_type && !isInvoice && !isPayer && lines.supported && (
+                {doc.document_type && !isInvoice && !isPayer && !isCredit && lines.supported && (
                   <Badge variant="outline">למסמך הזה אין יתרה וסגירות</Badge>
                 )}
               </>

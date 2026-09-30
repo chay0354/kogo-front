@@ -775,6 +775,8 @@ export function sumDocuments(rows: readonly DocumentRow[]): { total: number; pai
   let paid = 0;
   let open = 0;
   for (const doc of rows) {
+    // A draft is not a document yet: no number, nothing owed, nothing paid.
+    if (doc.is_draft) continue;
     if (isCreditRow(doc)) {
       // A credit note is money going back: it comes off the total and is never
       // an open debt, whatever an older ledger row says about its balance.
