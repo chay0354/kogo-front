@@ -116,3 +116,53 @@ export function cancelSummary(creditNotes: readonly string[]): string {
   }
   return `התוכנית בוטלה. הופקו חשבוניות מס זיכוי ${creditNotes.join(', ')} — הן נחתמות ונשלחות במייל ללקוח.`;
 }
+
+// ---------------------------------------------------------------- registering the checks
+
+/** One check as the registration form holds it. */
+export interface CheckDraftRow {
+  date: string;
+  bank: string;
+  branch: string;
+  accountNumber: string;
+  checkNumber: string;
+  amount: string;
+  /** Crossed "לא סחיר" in the customer's name (הוראה 18ב(ד)(2)). */
+  crossed: boolean;
+}
+
+/**
+ * The checks the plan is registered with: every row with a date and an amount,
+ * each saying whether it is crossed (audit M3, 30.9.2026). The server reads a
+ * check it is not told about as not crossed, and a plan with such a check has
+ * its signed originals handed over on paper instead of mailed — so the flag is
+ * always sent, true or false.
+ */
+export function checkPlanChecks(rows: readonly CheckDraftRow[]): Array<{
+  date: string;
+  bank: string;
+  branch: string;
+  account_number: string;
+  check_number: string;
+  amount: number;
+  check_crossed: boolean;
+}> {
+  return rows
+    .filter((row) => row.date && Number(row.amount) > 0)
+    .map((row) => ({
+      date: row.date,
+      bank: row.bank,
+      branch: row.branch,
+      account_number: row.accountNumber,
+      check_number: row.checkNumber,
+      amount: Number(row.amount),
+      check_crossed: row.crossed === true,
+    }));
+}
+
+/** The line under the checks: where the plan's originals go, by what was ticked. */
+export function crossedChecksNote(rows: readonly Pick<CheckDraftRow, 'crossed'>[]): string {
+  if (rows.length === 0) return '';
+  if (rows.every((row) => row.crossed)) return 'כל הצ׳קים משורטטים — הקבלה והחשבוניות יישלחו ללקוח במייל, חתומות.';
+  return 'צ׳ק שאינו משורטט "לא סחיר" על שם הלקוח — לפי הוראה 18ב(ד) המקור נמסר ללקוח על נייר, מלשונית "למסירה ידנית".';
+}

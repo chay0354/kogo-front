@@ -5,16 +5,11 @@ import { Plus, Search, X } from 'lucide-react';
 import api from '@/lib/api';
 import { createCheckPlan } from '@/lib/documentsApi';
 import type { ChildWithDetails } from '@/types/customer';
+import { checkPlanChecks, crossedChecksNote, type CheckDraftRow } from './checkPlanRules';
 import styles from './checks.module.css';
 
-interface CheckDraft {
+interface CheckDraft extends CheckDraftRow {
   id: string;
-  date: string;
-  bank: string;
-  branch: string;
-  accountNumber: string;
-  checkNumber: string;
-  amount: string;
 }
 
 function todayISO() {
@@ -43,6 +38,7 @@ function emptyRow(overrides: Partial<CheckDraft> = {}): CheckDraft {
     accountNumber: '',
     checkNumber: '',
     amount: '',
+    crossed: false,
     ...overrides,
   };
 }
@@ -124,8 +120,12 @@ export default function RegisterChecksDialog({
   );
   const total = validRows.reduce((sum, row) => sum + Number(row.amount), 0);
 
-  function updateRow(id: string, field: keyof CheckDraft, value: string) {
+  function updateRow(id: string, field: Exclude<keyof CheckDraft, 'crossed' | 'id'>, value: string) {
     setRows((prev) => prev.map((row) => (row.id === id ? { ...row, [field]: value } : row)));
+  }
+
+  function setCrossed(id: string, crossed: boolean) {
+    setRows((prev) => prev.map((row) => (row.id === id ? { ...row, crossed } : row)));
   }
 
   function addRow() {
@@ -139,6 +139,8 @@ export default function RegisterChecksDialog({
         accountNumber: last?.accountNumber ?? '',
         checkNumber: last?.checkNumber ? String(Number(last.checkNumber) + 1 || '') : '',
         amount: last?.amount ?? '',
+        // The checks of one plan are usually written alike.
+        crossed: last?.crossed ?? false,
       }),
     ]);
   }
@@ -164,14 +166,7 @@ export default function RegisterChecksDialog({
         child_id: child.id,
         lesson_id: lessonId || null,
         description,
-        checks: validRows.map((row) => ({
-          date: row.date,
-          bank: row.bank,
-          branch: row.branch,
-          account_number: row.accountNumber,
-          check_number: row.checkNumber,
-          amount: Number(row.amount),
-        })),
+        checks: checkPlanChecks(validRows),
       });
       onCreated();
       onClose();
@@ -323,6 +318,7 @@ export default function RegisterChecksDialog({
                 <th>מס׳ חשבון</th>
                 <th>מס׳ צ׳ק</th>
                 <th>סכום (₪)</th>
+                <th title="משורטט, 'לא סחיר', על שם הלקוח">משורטט</th>
                 <th />
               </tr>
             </thead>
@@ -379,6 +375,14 @@ export default function RegisterChecksDialog({
                       onChange={(e) => updateRow(row.id, 'amount', e.target.value)}
                     />
                   </td>
+                  <td className={styles.crossedCell}>
+                    <input
+                      type="checkbox"
+                      checked={row.crossed}
+                      aria-label={row.checkNumber ? `צ׳ק ${row.checkNumber} משורטט, לא סחיר, על שם הלקוח` : 'צ׳ק משורטט, לא סחיר, על שם הלקוח'}
+                      onChange={(e) => setCrossed(row.id, e.target.checked)}
+                    />
+                  </td>
                   <td>
                     <button
                       type="button"
@@ -404,6 +408,7 @@ export default function RegisterChecksDialog({
           <span>סה״כ {validRows.length} צ׳קים</span>
           <strong>₪{total.toFixed(2)}</strong>
         </div>
+        {validRows.length > 0 ? <p className={styles.dialogHint}>{crossedChecksNote(validRows)}</p> : null}
 
         {error ? <p className={styles.error}>{error}</p> : null}
 

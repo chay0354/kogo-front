@@ -473,6 +473,12 @@ export async function createCheckPlan(payload: {
     account_number: string;
     check_number: string;
     amount: number;
+    /**
+     * Crossed "לא סחיר" in the customer's name (הוראה 18ב(ד)(2)). Without it the
+     * server reads the check as not crossed, and the plan's signed originals
+     * go on paper instead of by mail.
+     */
+    check_crossed: boolean;
   }>;
 }): Promise<CheckPlanRow> {
   const res = await api.post('/documents/check-plans/', payload);
@@ -546,6 +552,20 @@ export async function bounceCheck(
 /** Approve a draft: it becomes a real document and takes a fiscal number. */
 export async function finalizeDraft(id: string): Promise<void> {
   await api.post(`/documents/documents/${id}/finalize/`);
+}
+
+/**
+ * A lesson receipt (IR) from the invoices page: always a copy — "העתק" — never
+ * the original's one print (30.9.2026, audit M5). The child card's endpoint,
+ * with its partner branch rule; `?copy=1` is what makes it a copy.
+ */
+export async function downloadLessonReceiptCopy(invoiceId: string, documentNumber: string): Promise<void> {
+  const res = await api.get(`/customers/invoices/${encodeURIComponent(invoiceId)}/pdf/`, {
+    params: { copy: '1' },
+    responseType: 'blob',
+  });
+  const name = String(documentNumber || '').replace(/[\\/:*?"<>|]+/g, '-').trim() || 'קבלה';
+  saveBlob(res.data, 'application/pdf', `${name} - העתק.pdf`);
 }
 
 /**
