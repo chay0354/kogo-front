@@ -15,10 +15,18 @@ import {
   storeBranchSelectValue,
 } from '@/lib/storeBranch';
 import api from '@/lib/api';
-import type { StoreProduct, ProductSizeStock } from '@/types/store';
+import type { StoreProduct } from '@/types/store';
 import type { Branch } from '@/types/branch';
 import { DEFAULT_CATEGORY, describeApiError } from '@/lib/apiErrors';
 import dlg from './storeDialog.module.css';
+import {
+  cleanRows,
+  listedSizesWithoutRows,
+  loadRows,
+  newRowUid,
+  stockExpected,
+  type StockRowDraft,
+} from './productStockForm';
 
 interface EditProductDialogProps {
   isOpen: boolean;
@@ -27,49 +35,14 @@ interface EditProductDialogProps {
   onSuccess: () => void;
 }
 
-function deriveSizeRows(product: StoreProduct | null): ProductSizeStock[] {
-  if (!product) return [];
-
-  if (Array.isArray(product.size_stocks) && product.size_stocks.length > 0) {
-    return product.size_stocks
-      .map((row, index) => {
-        const rawSo = row.sort_order;
-        const sortOrder =
-          typeof rawSo === 'number' && !Number.isNaN(rawSo)
-            ? rawSo
-            : Number.isFinite(Number(rawSo))
-              ? Math.max(0, Math.floor(Number(rawSo)))
-              : index;
-        return {
-          size: row.size,
-          stock_quantity: Number(row.stock_quantity) || 0,
-          sort_order: sortOrder,
-          branch: coerceBranchFromApi(row.branch),
-        };
-      })
-      .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
-  }
-
-  // Legacy: only a CSV size string. Seed rows so the staff can start tracking
-  // per-size stock; first size keeps the current total to preserve inventory.
-  const csvSizes = (product.size || '')
-    .split(',')
-    .map((s) => s.trim())
-    .filter(Boolean);
-
-  if (csvSizes.length === 0) return [];
-
-  return csvSizes.map((size, index) => ({
-    size,
-    stock_quantity: index === 0 ? Number(product.stock_quantity) || 0 : 0,
-    sort_order: index,
-    branch: coerceBranchFromApi(product.branch),
-  }));
-}
-
 export default function EditProductDialog({ isOpen, onClose, product, onSuccess }: EditProductDialogProps) {
   const [formData, setFormData] = useState<any>({});
-  const [sizeRows, setSizeRows] = useState<ProductSizeStock[]>([]);
+  const [sizeRows, setSizeRows] = useState<StockRowDraft[]>([]);
+  // The rows as the form opened, sent with the save so the server changes
+  // only what the office changed (see productStockForm).
+  const [loadedRows, setLoadedRows] = useState<StockRowDraft[]>([]);
+  const linkedToWebsite = Boolean(product?.website_legacy_id);
+  const listedSizes = listedSizesWithoutRows(product);
   const [branches, setBranches] = useState<Branch[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [filterBranch, setFilterBranch] = useState<string>('all');
@@ -93,7 +66,9 @@ export default function EditProductDialog({ isOpen, onClose, product, onSuccess 
         notes: product.notes || '',
         branch_only: product.branch_only ?? false,
       });
-      setSizeRows(deriveSizeRows(product));
+      const loaded = loadRows(product);
+      setLoadedRows(loaded);
+      setSizeRows(loaded.map((row) => ({ ...row })));
       fetchBranches();
     }
   }, [product?.id, isOpen]);
@@ -129,6 +104,7 @@ export default function EditProductDialog({ isOpen, onClose, product, onSuccess 
     setSizeRows((rows) => [
       ...rows,
       {
+        uid: newRowUid(),
         size: '',
         stock_quantity: 0,
         sort_order: rows.length,
@@ -137,7 +113,7 @@ export default function EditProductDialog({ isOpen, onClose, product, onSuccess 
     ]);
   }
 
-  function updateSizeRow(index: number, patch: Partial<ProductSizeStock>) {
+  function updateSizeRow(index: number, patch: Partial<StockRowDraft>) {
     setSizeRows((rows) => rows.map((row, i) => (i === index ? { ...row, ...patch } : row)));
   }
 
@@ -176,39 +152,13 @@ export default function EditProductDialog({ isOpen, onClose, product, onSuccess 
       return;
     }
 
-    const cleanedSizeRows: Array<{
-      size: string;
-      stock_quantity: number;
-      sort_order: number;
-      branch: string | null;
-    }> = [];
-
-    for (const row of sizeRows) {
-      const size = row.size.trim();
-      if (!size.length) continue;
-      const rawBranch = coerceBranchFromApi(row.branch);
-      const branchId = resolveStoreBranchId(row.branch, branches);
-      if (rawBranch && branchId == null) {
-        toast.error(`מיקום לא תקף למידה "${size}". בחרו מיקום מהרשימה או משלוח.`);
-        return;
-      }
-      cleanedSizeRows.push({
-        size,
-        stock_quantity: Math.max(0, Math.floor(Number(row.stock_quantity) || 0)),
-        sort_order: cleanedSizeRows.length,
-        branch: branchId,
-      });
+    const cleaned = cleanRows(sizeRows, branches);
+    if (cleaned.error) {
+      toast.error(cleaned.error);
+      return;
     }
-
-    const seen = new Set<string>();
-    for (const row of cleanedSizeRows) {
-      const key = `${row.size}\u0000${row.branch ?? ''}`;
-      if (seen.has(key)) {
-        toast.error(`שילוב מידה "${row.size}" ומיקום מופיע פעמיים — שנה מיקום או מידה.`);
-        return;
-      }
-      seen.add(key);
-    }
+    const cleanedSizeRows = cleaned.rows;
+    const cleanedTotal = cleanedSizeRows.reduce((sum, row) => sum + row.stock_quantity, 0);
 
     const topRaw = coerceBranchFromApi(formData.branch);
     const topBranchId = resolveStoreBranchId(formData.branch, branches);
@@ -220,17 +170,20 @@ export default function EditProductDialog({ isOpen, onClose, product, onSuccess 
     const payload = {
       name: formData.name,
       category: (formData.category ?? '').trim() || DEFAULT_CATEGORY,
-      size: cleanedSizeRows.length ? [...new Set(cleanedSizeRows.map((r) => r.size))].join(',') : (formData.size ?? ''),
+      size: cleanedSizeRows.length
+        ? [...new Set(cleanedSizeRows.map((r) => r.size).filter(Boolean))].join(',')
+        : (formData.size ?? ''),
       cost_price: Number(formData.cost_price) || 0,
       sale_price: Number(formData.sale_price) || 0,
       delivery_price: Math.max(0, Number(formData.delivery_price) || 0),
       branch: topBranchId,
-      stock_quantity: cleanedSizeRows.length ? totalSizeStock : Math.max(0, Math.floor(Number(formData.stock_quantity) || 0)),
+      stock_quantity: cleanedSizeRows.length ? cleanedTotal : Math.max(0, Math.floor(Number(formData.stock_quantity) || 0)),
       min_stock_alert: Math.max(0, Math.floor(Number(formData.min_stock_alert) || 0)),
       image_url: formData.image_url ?? '',
       notes: formData.notes ?? '',
       branch_only: Boolean(formData.branch_only),
       size_stocks: cleanedSizeRows,
+      stock_expected: stockExpected(product, loadedRows, branches),
     };
 
     setIsLoading(true);
@@ -244,8 +197,19 @@ export default function EditProductDialog({ isOpen, onClose, product, onSuccess 
       // No answer at all: the save may well have been applied server-side,
       // so do not call it a failure. Reload the list and let them look.
       if (!error?.response) {
+        // Closed as well: reopened from the refreshed list the form shows what
+        // was really saved, where saving its old values again could undo it.
         onSuccess();
-        toast.error('השרת לא ענה בזמן. ייתכן שהעדכון בכל זאת נשמר — הרשימה רועננה, בדקו בה לפני שמירה חוזרת.');
+        onClose();
+        toast.error('השרת לא ענה בזמן. ייתכן שהעדכון בכל זאת נשמר — הרשימה רועננה, פתחו את המוצר ובדקו לפני שמירה חוזרת.');
+        return;
+      }
+      // The stock moved since the form opened (a sale, a stock update): its
+      // numbers are old. Close it; the refreshed list has the real ones.
+      if (error.response.status === 409) {
+        onSuccess();
+        onClose();
+        toast.error(describeApiError(error.response.data, error), { duration: 10000 });
         return;
       }
       toast.error(`שגיאה בעדכון המוצר:\n${describeApiError(error.response.data, error)}`);
@@ -264,10 +228,18 @@ export default function EditProductDialog({ isOpen, onClose, product, onSuccess 
         </DialogHeader>
 
         <div className="space-y-6 px-2 mt-6">
+          {linkedToWebsite && (
+            <p className="text-xs text-indigo-800 bg-indigo-50 border border-indigo-100 rounded-md px-3 py-2">
+              מוצר מהאתר (#{product.website_legacy_id}): השם והקטגוריה מגיעים מהאתר ומתעדכנים בכל סנכרון, ולכן
+              משנים אותם באתר. מחיר, מלאי ומיקומים — כאן.
+            </p>
+          )}
           <div>
             <label className="block text-sm font-medium mb-2">שם המוצר *</label>
             <Input
               value={formData.name || ''}
+              disabled={linkedToWebsite}
+              title={linkedToWebsite ? 'השם מגיע מהאתר' : undefined}
               onChange={(e) => setFormData({ ...formData, name: e.target.value })}
             />
           </div>
@@ -276,6 +248,8 @@ export default function EditProductDialog({ isOpen, onClose, product, onSuccess 
             <label className="block text-sm font-medium mb-2">קטגוריה</label>
             <Input
               value={formData.category || ''}
+              disabled={linkedToWebsite}
+              title={linkedToWebsite ? 'הקטגוריה מגיעה מהאתר' : undefined}
               onChange={(e) => setFormData({ ...formData, category: e.target.value })}
             />
           </div>
@@ -367,12 +341,21 @@ export default function EditProductDialog({ isOpen, onClose, product, onSuccess 
 
             {sizeRows.length === 0 ? (
               <div className="space-y-3">
+                {listedSizes.length > 0 && (
+                  <p className="text-xs text-amber-800 bg-amber-50 border border-amber-100 rounded-md px-3 py-2">
+                    למוצר רשומות מידות ({listedSizes.join(', ')}) בלי מלאי לפי מידה — המלאי הוא מספר אחד. כדי לנהל
+                    מלאי לכל מידה הוסיפו שורה לכל מידה.
+                  </p>
+                )}
                 <p className="text-xs text-gray-500">
-                  אם אין מידות, ניתן לדלג על שלב זה ולהשתמש בכמות במלאי הכללית למטה.
+                  אם אין מידות, ניתן לדלג על שלב זה ולהשתמש בכמות במלאי הכללית. כדי להחזיק מלאי בכמה מיקומים בלי
+                  מידות — הוסיפו שורה לכל מיקום והשאירו את המידה ריקה.
                 </p>
                 <div>
                   <label className="block text-sm font-medium mb-2">מיקום</label>
                   <Select
+                    disabled={linkedToWebsite}
+                    title={linkedToWebsite ? 'במוצר מהאתר המיקום נקבע בשורות המלאי — הוסיפו שורה' : undefined}
                     value={storeBranchSelectValue(formData.branch)}
                     onChange={(e: ChangeEvent<HTMLSelectElement>) => {
                       const v = e.target.value;
@@ -421,7 +404,7 @@ export default function EditProductDialog({ isOpen, onClose, product, onSuccess 
                   if (!visible) return null;
                   return (
                   <div
-                    key={`sr-${index}-${row.size}-${coerceBranchFromApi(row.branch) ?? 'd'}`}
+                    key={row.uid}
                     className="grid grid-cols-1 sm:grid-cols-12 gap-2 items-end sm:items-center border-b border-gray-200 pb-3 last:border-0 last:pb-0"
                   >
                     <div className="sm:col-span-3">
@@ -429,7 +412,9 @@ export default function EditProductDialog({ isOpen, onClose, product, onSuccess 
                       <Input
                         value={row.size}
                         onChange={(e) => updateSizeRow(index, { size: e.target.value })}
-                        placeholder="מידה (S, M, L, 42, ...)"
+                        placeholder="מידה (אפשר להשאיר ריק)"
+                        aria-label="מידה"
+                        maxLength={20}
                       />
                     </div>
                     <div className="sm:col-span-2">

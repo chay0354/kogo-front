@@ -50,3 +50,12 @@ describe('describeApiError', () => {
       .toContain('אי אפשר להשאיר ריק');
   });
 });
+
+describe('messages that used to reach the office in English', () => {
+  it('translates decimals, maximums, missing rows and permissions', () => {
+    expect(describeApiError({ sale_price: ['Ensure that there are no more than 2 decimal places.'] }))
+      .toBe('מחיר מכירה: עד 2 ספרות אחרי הנקודה');
+    expect(describeApiError({ detail: 'Not found.' })).toContain('לא נמצא');
+    expect(describeApiError({ detail: 'You do not have permission to perform this action.' })).toBe('אין הרשאה לפעולה הזו');
+  });
+});
