@@ -16,6 +16,7 @@ import {
   setAllocationNumber,
 } from '@/lib/documentsApi';
 import { useScopedBranches } from '@/hooks/useScopedBranches';
+import BusinessCustomerCardButton from '@/components/dialogs/BusinessCustomerCardButton';
 import theme from '@/components/dashboard/theme/dashboard.module.css';
 import LedgerFilterBar, { LedgerSelect } from './LedgerFilterBar';
 import { allocationOriginalMessage } from './manualDelivery';
@@ -443,7 +444,15 @@ export default function DocumentsTab({ ledger, refreshKey = 0 }: DocumentsTabPro
                     {originDetail && <span className={styles.subLine}>{originDetail}</span>}
                   </td>
                   <td className={styles.wrapCell}>
-                    <span className={styles.strong}>{doc.customer_name || '—'}</span>
+                    {doc.business_customer_id ? (
+                      <BusinessCustomerCardButton
+                        customerId={doc.business_customer_id}
+                        name={doc.customer_name || 'לקוח עסקי'}
+                        className={`${styles.strong} ${styles.customerLink}`}
+                      />
+                    ) : (
+                      <span className={styles.strong}>{doc.customer_name || '—'}</span>
+                    )}
                   </td>
                   <td className={styles.wrapCell}>
                     {course || courseMeta ? (
