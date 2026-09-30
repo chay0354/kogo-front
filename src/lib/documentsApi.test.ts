@@ -13,6 +13,10 @@ const api = vi.hoisted(() => ({
 vi.mock('./api', () => ({ default: api }));
 
 import {
+  discardDraft,
+  fetchCreditRoom,
+  finalizeDraft,
+  recordCustomerAck,
   bounceCheck,
   cancelCashPlan,
   cancelCheckPlan,
@@ -317,5 +321,37 @@ describe('downloadLessonReceiptCopy — an IR from the documents tab (audit M5)'
     });
     expect(link.download).toBe('IR-2026-000123 - העתק.pdf');
     expect(link.click).toHaveBeenCalledOnce();
+  });
+});
+
+describe('drafts and credit notes (audit 30.9.2026)', () => {
+  it('approves a draft and returns the issued document', async () => {
+    api.post.mockResolvedValue({ data: { id: 'd1', document_number: 'RC-2026-000004', document_type: 'receipt' } });
+    const doc = await finalizeDraft('d1');
+    expect(api.post).toHaveBeenCalledWith('/documents/documents/d1/finalize/');
+    expect(doc.document_number).toBe('RC-2026-000004');
+  });
+
+  it('discards a draft', async () => {
+    api.post.mockResolvedValue({ data: { id: 'd1', document_number: 'D-1A2B3C4D' } });
+    await expect(discardDraft('d1')).resolves.toEqual({ id: 'd1', document_number: 'D-1A2B3C4D' });
+    expect(api.post).toHaveBeenCalledWith('/documents/documents/d1/discard/');
+  });
+
+  it('records the customer\'s confirmation with its day, and without one', async () => {
+    api.post.mockResolvedValue({ data: { id: 'c1', customer_ack_at: 'x', customer_ack_note: 'n' } });
+    await recordCustomerAck('c1', { note: '  חתימה על העתק ', date: '2026-09-29' });
+    expect(api.post).toHaveBeenLastCalledWith('/documents/documents/c1/customer-ack/', {
+      note: 'חתימה על העתק', date: '2026-09-29',
+    });
+    await recordCustomerAck('c1', { note: 'דואר רשום' });
+    expect(api.post).toHaveBeenLastCalledWith('/documents/documents/c1/customer-ack/', { note: 'דואר רשום' });
+  });
+
+  it('asks what is left to credit by the document\'s number', async () => {
+    api.get.mockResolvedValue({ data: { number: 'TI-2026-000012', known: true, left: '150.00' } });
+    const room = await fetchCreditRoom('TI-2026-000012');
+    expect(api.get).toHaveBeenCalledWith('/documents/documents/credit-room/', { params: { number: 'TI-2026-000012' } });
+    expect(room.left).toBe('150.00');
   });
 });

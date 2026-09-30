@@ -192,6 +192,13 @@ export function useNewDocumentWizard(onClose: () => void) {
     [stepIds, close]
   );
 
+  // A dialog opened already filled in (a credit note from a document's row)
+  // starts at the step that still needs the office: no step checks what was
+  // prefilled, and every step before it can still be opened and changed.
+  const startAt = useCallback((step: WizardStepId) => {
+    setCurrentStep(step);
+  }, []);
+
   const goBack = useCallback(() => {
     setCurrentStep((current) => {
       const currentIndex = stepIds.indexOf(current);
@@ -223,6 +230,7 @@ export function useNewDocumentWizard(onClose: () => void) {
     goToStep,
     goNext,
     goBack,
+    startAt,
     close,
   };
 }

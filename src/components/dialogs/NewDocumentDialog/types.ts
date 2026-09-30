@@ -1,4 +1,5 @@
 import type { SettlementPicks } from '@/lib/settlements';
+import type { CreditPrefill } from '@/lib/draftsAndCredits';
 
 export type ClientType = 'business' | 'existing';
 
@@ -14,6 +15,11 @@ export type WizardStepId =
 export interface NewDocumentDialogProps {
   open: boolean;
   onClose: () => void;
+  /**
+   * Open as a credit note already linked to a document and its customer
+   * ("זיכוי" on a tax invoice's or an invoice-receipt's row, audit #10).
+   */
+  initialCredit?: CreditPrefill | null;
 }
 
 export interface StepDefinition {

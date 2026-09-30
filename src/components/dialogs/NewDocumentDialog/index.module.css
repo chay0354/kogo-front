@@ -1547,3 +1547,53 @@
   border-radius: calc(var(--radius) - 4px);
   background: hsl(var(--muted) / 0.5);
 }
+
+/* נותר לזכות — under the credit amount (audit M4). */
+.creditRoom {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 6px;
+  font-size: 13px;
+}
+
+.creditRoomMuted {
+  color: hsl(var(--muted-foreground));
+}
+
+.creditRoomSummary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.creditRoomFill {
+  border: 1px solid hsl(var(--border));
+  border-radius: 6px;
+  padding: 2px 8px;
+  font-size: 12px;
+  background: transparent;
+  cursor: pointer;
+}
+
+.creditRoomFill:hover {
+  background: hsl(var(--muted));
+}
+
+.creditRoomError {
+  color: #b91c1c;
+  font-weight: 500;
+}
+
+/* The draft toggle's note, on a line of its own under it. */
+.draftToggle:has(.draftToggleHint) {
+  flex-wrap: wrap;
+  max-width: 60%;
+}
+
+.draftToggleHint {
+  flex-basis: 100%;
+  font-size: 12px;
+  color: hsl(var(--muted-foreground));
+}

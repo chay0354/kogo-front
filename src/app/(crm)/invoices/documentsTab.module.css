@@ -439,3 +439,12 @@
   font-size: 0.6875rem;
   color: #b91c1c;
 }
+
+/* A credit note's customer confirmation (הוראה 23א(3)). */
+.ackPending {
+  color: #b45309;
+}
+
+.ackConfirmed {
+  color: #047857;
+}

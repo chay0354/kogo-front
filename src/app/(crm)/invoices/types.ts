@@ -124,6 +124,15 @@ export interface DocumentRow extends LedgerDimensions {
   source?: string;
   tranzila_issued?: boolean;
   is_draft?: boolean;
+  /** טיוטה: מה היא תהיה כשתאושר (חשבונית מס, קבלה…). חסר בשרת ישן. */
+  draft_target_type?: string;
+  /**
+   * זיכוי ידני: מתי הלקוח אישר את קבלתו (הוראה 23א(3)); null — טרם אושר.
+   * חסר (undefined) בשרת ישן ובכל שורה שאינה זיכוי ידני.
+   */
+  customer_ack_at?: string | null;
+  /** הלקוח הפרטי (ילד) של מסמך ידני — כדי לפתוח ממנו זיכוי. */
+  child_id?: string | null;
   /** מספר ההקצאה מרשות המסים, כפי שהוזן. ריק כשטרם הוזן. */
   allocation_number?: string;
   /** האם המסמך חוצה את הסף שמחייב מספר הקצאה. נקבע בשרת. */

@@ -12,6 +12,7 @@ import {
   type OpenInvoicesAnswer,
   type PayerType,
 } from './settlements';
+import type { CreditRoom } from './draftsAndCredits';
 
 export async function createDocument(payload: CreateDocumentPayload): Promise<FormalDocument> {
   const res = await api.post('/documents/documents/create-document/', payload);
@@ -549,9 +550,43 @@ export async function bounceCheck(
   };
 }
 
-/** Approve a draft: it becomes a real document and takes a fiscal number. */
-export async function finalizeDraft(id: string): Promise<void> {
-  await api.post(`/documents/documents/${id}/finalize/`);
+/**
+ * Approve a draft: it becomes a real document and takes a fiscal number,
+ * dated today. A receipt's or invoice-receipt's draft is checked again first
+ * (its payments, and the invoices it settles against today's balances); a
+ * refusal is 400 {error} and uses no number.
+ */
+export async function finalizeDraft(id: string): Promise<FormalDocument> {
+  const res = await api.post(`/documents/documents/${id}/finalize/`);
+  return res.data;
+}
+
+/** Delete a draft (manager). It has no number and settles nothing, so nothing is left behind. */
+export async function discardDraft(id: string): Promise<{ id: string; document_number: string }> {
+  const res = await api.post(`/documents/documents/${id}/discard/`);
+  return res.data;
+}
+
+/**
+ * Record the customer's confirmation of a credit note (הוראה 23א(3)) —
+ * manager only, once (409 after). `date` is the day it arrived (YYYY-MM-DD),
+ * when it is recorded later; without it the server stamps now.
+ */
+export async function recordCustomerAck(
+  id: string,
+  input: { note: string; date?: string },
+): Promise<{ id: string; customer_ack_at: string; customer_ack_note: string }> {
+  const res = await api.post(`/documents/documents/${id}/customer-ack/`, {
+    note: input.note.trim(),
+    ...(input.date ? { date: input.date } : {}),
+  });
+  return res.data;
+}
+
+/** "נותר לזכות" of a document, before VAT (GET documents/credit-room/). */
+export async function fetchCreditRoom(number: string): Promise<CreditRoom> {
+  const res = await api.get('/documents/documents/credit-room/', { params: { number } });
+  return res.data;
 }
 
 /**
