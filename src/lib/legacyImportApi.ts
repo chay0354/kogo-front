@@ -1,8 +1,14 @@
 import api from './api';
 
 /**
- * The import from the previous software (backend: apps/legacy_import), and the
- * history it leaves on each business customer.
+ * The import from the previous software — or from any other invoicing software —
+ * (backend: apps/legacy_import), and the history it leaves on each business customer.
+ *
+ * Three formats: the previous software's own .xls export ('tazman'), any
+ * software's table (CSV / XLSX / XLS) with a column mapping the office confirms
+ * ('table'), and any software's מבנה אחיד files ('uniform'). Every document is
+ * kept under the software it came from (`source_system`): two softwares'
+ * documents with the same type and number are two documents.
  *
  * Everything that is not a request is a pure function below, so what the
  * preview screen computes — the mapping it sends, which selects are open, what
@@ -16,6 +22,78 @@ export const LEGACY_IMPORT_MAX_BYTES = 4_300_000;
 export const BRANCHES_CATEGORY = 'סניפים';
 
 export type LegacyDocType = 'combined' | 'tax_invoice' | 'receipt' | 'transaction_invoice' | 'credit_invoice';
+
+export const LEGACY_DOC_TYPE_LABELS: Record<LegacyDocType, string> = {
+  combined: 'חשבונית מס/קבלה',
+  tax_invoice: 'חשבונית מס',
+  receipt: 'קבלה',
+  transaction_invoice: 'חשבונית עסקה',
+  credit_invoice: 'חשבונית מס זיכוי',
+};
+
+export type LegacySourceFormat = 'tazman' | 'table' | 'uniform';
+
+/** The previous software: its export is always imported under this source. */
+export const TAZMAN_SOURCE = 'tazman';
+
+export interface LegacyKnownSource {
+  id: string;
+  label: string;
+}
+
+export interface LegacyTableField {
+  key: string;
+  label: string;
+  required: boolean;
+  hint: string;
+}
+
+export interface LegacyColumn {
+  index: number;
+  header: string;
+  sensitive: boolean;
+  samples: string[];
+  distinct: { value: string; count: number }[];
+}
+
+/** field -> column index, or null for "not in the file". */
+export type LegacyColumnMapping = Record<string, number | null>;
+
+export interface LegacyColumnsInfo {
+  columns: LegacyColumn[];
+  rows: number;
+  suggested: LegacyColumnMapping;
+  suggested_types: Record<string, LegacyDocType | ''>;
+  fields: LegacyTableField[];
+  file_kind: 'csv' | 'xlsx' | 'xls';
+}
+
+export interface LegacyUniformInfo {
+  software: string;
+  software_version: string;
+  vendor_name: string;
+  business_name: string;
+  vat_number: string;
+  period_start: string | null;
+  period_end: string | null;
+  files: number;
+  records: { C100: number; D110: number; D120: number };
+  warnings: string[];
+}
+
+export interface LegacySourceInfo {
+  format: LegacySourceFormat;
+  system: string;
+  label: string;
+  file_kind: string;
+  columns: {
+    headers: string[];
+    mapping: LegacyColumnMapping;
+    type_values: Record<string, LegacyDocType>;
+    fixed_doc_type: string;
+  } | null;
+  uniform: LegacyUniformInfo | null;
+}
 
 export interface LegacyTypeRow {
   doc_type: LegacyDocType;
@@ -101,6 +179,9 @@ export interface LegacySummary {
   name_changes: LegacyNameChange[];
   locations: LegacyLocation[];
   options: LegacyOptions;
+  /** Missing on a preview made before any software but the previous one could be imported. */
+  source?: LegacySourceInfo;
+  unknown_types?: { label: string; count: number }[];
 }
 
 export interface LegacyCommitResult {
@@ -112,12 +193,16 @@ export interface LegacyCommitResult {
     deleted_linked_to_existing_cards: number;
     parents_included: boolean;
     parents_linked_to_existing_cards: number;
+    cards_opened_or_updated?: boolean;
+    linked_without_changing_cards?: number;
   };
   documents: { created: number; updated: number; unchanged: number; linked_to_customers: number; total: number };
 }
 
 export interface LegacyImport {
   id: string;
+  source_system?: string;
+  source_label?: string;
   file_name: string;
   row_count: number;
   status: 'preview' | 'committed';
@@ -156,6 +241,17 @@ export interface LegacyDocument {
   business_name: string;
   business_category_name: string;
   branch_name: string;
+  // Optional: a server from before any-software imports does not send them.
+  source_system?: string;
+  source_label?: string;
+  original_number?: string;
+  amount_before_vat?: string | null;
+  vat_amount?: string | null;
+  allocation_number?: string;
+  linked_document?: string;
+  has_pdf?: boolean;
+  pdf_stored?: boolean;
+  pdf_sha256?: string;
 }
 
 export interface LegacyTarget {
@@ -173,26 +269,124 @@ export type LegacyMapping = Record<string, LegacyTarget>;
 // Reading ~8,000 rows and writing them in bulk takes a few seconds; a slow line should not cut it at 30.
 const SLOW = { timeout: 120000 };
 
-export async function previewLegacyImport(file: File): Promise<LegacyImport> {
+const MULTIPART = { headers: { 'Content-Type': 'multipart/form-data' } };
+
+export interface LegacyPreviewOptions {
+  format?: LegacySourceFormat;
+  /** The software's slug or typed name; '' for a מבנה אחיד file lets its INI.TXT say. */
+  sourceSystem?: string;
+  columnMapping?: LegacyColumnMapping;
+  typeValues?: Record<string, LegacyDocType>;
+  fixedDocType?: LegacyDocType | '';
+}
+
+/** The multipart body of a preview. The previous software's export sends the file alone, as it always did. */
+export function previewFormData(file: File, options: LegacyPreviewOptions = {}): FormData {
   const body = new FormData();
   body.append('file', file);
-  const res = await api.post('/legacy-import/preview/', body, {
-    ...SLOW,
-    headers: { 'Content-Type': 'multipart/form-data' },
-  });
+  const format = options.format ?? 'tazman';
+  if (format === 'tazman') return body;
+  body.append('format', format);
+  body.append('source_system', options.sourceSystem ?? '');
+  if (format === 'table') {
+    if (options.columnMapping) body.append('column_mapping', JSON.stringify(options.columnMapping));
+    if (options.typeValues && Object.keys(options.typeValues).length) {
+      body.append('type_values', JSON.stringify(options.typeValues));
+    }
+    if (options.fixedDocType) body.append('fixed_doc_type', options.fixedDocType);
+  }
+  return body;
+}
+
+export async function previewLegacyImport(file: File, options: LegacyPreviewOptions = {}): Promise<LegacyImport> {
+  const res = await api.post('/legacy-import/preview/', previewFormData(file, options), { ...SLOW, ...MULTIPART });
   return res.data;
+}
+
+/** A table file's columns, a few values of each, and the suggested mapping. The server writes nothing. */
+export async function describeLegacyColumns(file: File): Promise<LegacyColumnsInfo> {
+  const body = new FormData();
+  body.append('file', file);
+  const res = await api.post('/legacy-import/columns/', body, { ...SLOW, ...MULTIPART });
+  return res.data;
+}
+
+export async function fetchLegacySources(): Promise<{ sources: LegacyKnownSource[]; fields: LegacyTableField[] }> {
+  const res = await api.get('/legacy-import/sources/');
+  return {
+    sources: Array.isArray(res.data?.sources) ? res.data.sources : [],
+    fields: Array.isArray(res.data?.fields) ? res.data.fields : [],
+  };
 }
 
 export async function commitLegacyImport(
   id: string,
   mapping: LegacyMapping,
   includeSubscriptionParents: boolean,
+  createCustomers = true,
 ): Promise<LegacyCommitResult> {
   const res = await api.post(
     `/legacy-import/${id}/commit/`,
-    { mapping: mappingPayload(mapping), include_subscription_parents: includeSubscriptionParents },
+    {
+      mapping: mappingPayload(mapping),
+      include_subscription_parents: includeSubscriptionParents,
+      // The server opens and updates cards unless told not to.
+      ...(createCustomers ? {} : { create_customers: false }),
+    },
     SLOW,
   );
+  return res.data;
+}
+
+export type LegacyPdfStatus =
+  | 'stored'
+  | 'fingerprinted'
+  | 'already'
+  | 'unmatched'
+  | 'ambiguous'
+  | 'duplicate'
+  | 'conflict'
+  | 'rejected'
+  | 'failed';
+
+export interface LegacyPdfDocumentRef {
+  id: string;
+  doc_type: LegacyDocType;
+  type_label: string;
+  number: number;
+  original_number: string;
+  date: string;
+}
+
+export interface LegacyPdfFileReport {
+  file: string;
+  status: LegacyPdfStatus;
+  reason?: string;
+  document?: LegacyPdfDocumentRef;
+  candidates?: LegacyPdfDocumentRef[];
+  sha256?: string;
+}
+
+export interface LegacyPdfReport {
+  bucket_configured: boolean;
+  source_system: string;
+  counts: Partial<Record<LegacyPdfStatus, number>>;
+  files: LegacyPdfFileReport[];
+  total: number;
+  remaining: number;
+  stopped: string;
+}
+
+/** One batch of PDFs (or one ZIP) for one software. */
+export async function uploadLegacyPdfs(
+  files: { pdfs?: File[]; zip?: File },
+  sourceSystem: string,
+): Promise<LegacyPdfReport> {
+  const body = new FormData();
+  body.append('source_system', sourceSystem);
+  if (files.zip) body.append('file', files.zip);
+  for (const pdf of files.pdfs ?? []) body.append('files', pdf, pdf.name);
+  const res = await api.post('/legacy-import/pdfs/', body, { ...SLOW, ...MULTIPART });
   return res.data;
 }
 
@@ -217,14 +411,173 @@ export async function fetchLegacyDocuments(params: {
 // What the screens compute
 // ---------------------------------------------------------------------------
 
+/** What each format's file picker accepts. */
+export const FORMAT_ACCEPT: Record<LegacySourceFormat, string> = {
+  tazman: '.xls,application/vnd.ms-excel',
+  table: '.csv,.xlsx,.xls,.txt,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel',
+  uniform: '.zip,.txt,application/zip,text/plain',
+};
+
+const FORMAT_EXTENSIONS: Record<LegacySourceFormat, RegExp> = {
+  tazman: /\.xls$/i,
+  table: /\.(csv|xlsx|xls|txt|tsv)$/i,
+  uniform: /\.(zip|txt)$/i,
+};
+
+const FORMAT_WRONG_FILE: Record<LegacySourceFormat, string> = {
+  tazman: 'יש לבחור את קובץ הייצוא ‎.xls מהתוכנה הקודמת',
+  table: 'יש לבחור קובץ ‎.csv, ‏‎.xlsx או ‎.xls',
+  uniform: 'יש לבחור את BKMVDATA.TXT או קובץ ZIP של המבנה האחיד',
+};
+
 /** Why a file cannot be sent, in Hebrew — or null. Checked before the upload, like the server does after. */
-export function importFileProblem(file: { name: string; size: number } | null): string | null {
+export function importFileProblem(
+  file: { name: string; size: number } | null,
+  format: LegacySourceFormat = 'tazman',
+): string | null {
   if (!file) return 'לא נבחר קובץ';
-  if (!/\.xls$/i.test(file.name.trim())) return 'יש לבחור את קובץ הייצוא ‎.xls מהתוכנה הקודמת';
+  if (!FORMAT_EXTENSIONS[format].test(file.name.trim())) return FORMAT_WRONG_FILE[format];
   if (file.size > LEGACY_IMPORT_MAX_BYTES) {
     return `הקובץ גדול מדי (${(file.size / 1_000_000).toFixed(1)}MB). הגבול הוא 4.3MB — ייצאו טווח תאריכים קצר יותר.`;
   }
   return null;
+}
+
+/** The source a preview is sent with: a known software's slug, or the name the office typed for another. */
+export function chosenSourceSystem(choice: string, otherName: string): string {
+  if (choice === 'other') return otherName.trim();
+  return choice;
+}
+
+// ---------------------------------------------------------------------------
+// The column mapping (a table from another software)
+// ---------------------------------------------------------------------------
+
+/** The mapping the step opens with: the server's suggestion, every field present. */
+export function initialColumnMapping(info: LegacyColumnsInfo): LegacyColumnMapping {
+  const mapping: LegacyColumnMapping = {};
+  for (const field of info.fields) mapping[field.key] = info.suggested[field.key] ?? null;
+  return mapping;
+}
+
+/** One field pointed at a column: a column holds one field, so it leaves any other field it was on. */
+export function setColumn(mapping: LegacyColumnMapping, field: string, index: number | null): LegacyColumnMapping {
+  const next: LegacyColumnMapping = { ...mapping };
+  if (index !== null) {
+    for (const [key, value] of Object.entries(next)) if (value === index) next[key] = null;
+  }
+  next[field] = index;
+  return next;
+}
+
+/** What the mapping still lacks for a document to be read — the server's own rule, in Hebrew. */
+export function columnMappingProblems(mapping: LegacyColumnMapping, fixedDocType: LegacyDocType | ''): string[] {
+  const missing: string[] = [];
+  if (mapping.number == null) missing.push('מספר מסמך');
+  if (mapping.date == null) missing.push('תאריך');
+  if (mapping.doc_type == null && !fixedDocType) missing.push('סוג מסמך (עמודה, או סוג אחד לכל הקובץ)');
+  if (mapping.total == null && mapping.amount_before_vat == null) missing.push('סכום (סה"כ, או סכום לפני מע"מ)');
+  return missing;
+}
+
+/**
+ * The values of the chosen type column, each with the type it will be read as:
+ * the office's own choice, else the server's suggestion ('' = not recognised, skipped).
+ */
+export function typeValueRows(
+  info: LegacyColumnsInfo,
+  mapping: LegacyColumnMapping,
+  chosen: Record<string, LegacyDocType>,
+): { value: string; count: number; docType: LegacyDocType | ''; recognised: boolean }[] {
+  const index = mapping.doc_type;
+  if (index == null) return [];
+  const column = info.columns.find((c) => c.index === index);
+  if (!column) return [];
+  const suggested = index === info.suggested.doc_type ? info.suggested_types : {};
+  return column.distinct.map((d) => ({
+    value: d.value,
+    count: d.count,
+    docType: chosen[d.value] ?? suggested[d.value] ?? '',
+    // Recognised by the server: it is read as that type unless the office picks another.
+    recognised: Boolean(suggested[d.value]),
+  }));
+}
+
+/** A column as the select shows it: its header and a value or two from the file. */
+export function columnOptionLabel(column: LegacyColumn): string {
+  const header = column.header || `עמודה ${column.index + 1}`;
+  const samples = column.samples.slice(0, 2).join(', ');
+  return samples ? `${header} — ${samples}` : header;
+}
+
+// ---------------------------------------------------------------------------
+// The old software's PDFs
+// ---------------------------------------------------------------------------
+
+/** Each request stays under Vercel's body limit, with room for the multipart envelope. */
+export const PDF_BATCH_BYTES = 4_000_000;
+
+/** PDFs grouped into requests of at most `limit` bytes; a file bigger than that on its own is left out. */
+export function pdfBatches<T extends { size: number }>(files: T[], limit = PDF_BATCH_BYTES): { batches: T[][]; tooBig: T[] } {
+  const batches: T[][] = [];
+  const tooBig: T[] = [];
+  let current: T[] = [];
+  let size = 0;
+  for (const file of files) {
+    if (file.size > limit) {
+      tooBig.push(file);
+      continue;
+    }
+    if (current.length && size + file.size > limit) {
+      batches.push(current);
+      current = [];
+      size = 0;
+    }
+    current.push(file);
+    size += file.size;
+  }
+  if (current.length) batches.push(current);
+  return { batches, tooBig };
+}
+
+/** Several batches' answers as one report. */
+export function mergePdfReports(reports: LegacyPdfReport[]): LegacyPdfReport {
+  const counts: Partial<Record<LegacyPdfStatus, number>> = {};
+  for (const report of reports) {
+    for (const [status, count] of Object.entries(report.counts)) {
+      counts[status as LegacyPdfStatus] = (counts[status as LegacyPdfStatus] ?? 0) + (count ?? 0);
+    }
+  }
+  const last = reports[reports.length - 1];
+  return {
+    bucket_configured: reports.every((r) => r.bucket_configured),
+    source_system: last?.source_system ?? '',
+    counts,
+    files: reports.flatMap((r) => r.files),
+    total: reports.reduce((sum, r) => sum + r.total, 0),
+    remaining: reports.reduce((sum, r) => sum + r.remaining, 0),
+    stopped: reports.map((r) => r.stopped).find(Boolean) ?? '',
+  };
+}
+
+export const PDF_STATUS_LABELS: Record<LegacyPdfStatus, string> = {
+  stored: 'נשמר באחסון הנעול',
+  fingerprinted: 'נשמרה טביעת אצבע בלבד',
+  already: 'כבר צורף קודם',
+  unmatched: 'לא נמצא מסמך',
+  ambiguous: 'כמה מסמכים מתאימים',
+  duplicate: 'כפול',
+  conflict: 'למסמך כבר יש PDF אחר',
+  rejected: 'לא קובץ PDF',
+  failed: 'השמירה נכשלה',
+};
+
+/** The statuses that need the office's eye, in the order the report lists them. */
+export const PDF_PROBLEM_STATUSES: LegacyPdfStatus[] = ['failed', 'conflict', 'ambiguous', 'unmatched', 'duplicate', 'rejected'];
+
+/** The number a document is known by: as the software printed it, when that is not just the number. */
+export function documentNumberLabel(doc: { number: number; original_number?: string }): string {
+  return doc.original_number || String(doc.number);
 }
 
 /** The mapping the preview opens with: the server's suggestion for every location. */
@@ -334,15 +687,43 @@ export function documentAmount(doc: Pick<LegacyDocument, 'doc_type' | 'invoice_t
   return Number(doc.invoice_total) || Number(doc.receipt_total) || 0;
 }
 
-/** Per type, the newest number a customer's history has — "what the last numbers were". */
-export function lastNumbersByType(
-  docs: Pick<LegacyDocument, 'doc_type' | 'doc_type_label' | 'number' | 'document_date'>[],
-): { doc_type: LegacyDocType; label: string; number: number; date: string; count: number }[] {
-  const byType = new Map<LegacyDocType, { doc_type: LegacyDocType; label: string; number: number; date: string; count: number }>();
+/** The softwares a list of documents came from, as their labels — one entry per software. */
+export function sourcesOf(docs: Pick<LegacyDocument, 'source_system' | 'source_label'>[]): string[] {
+  const labels = new Map<string, string>();
   for (const doc of docs) {
-    const seen = byType.get(doc.doc_type);
+    const key = doc.source_system || TAZMAN_SOURCE;
+    if (!labels.has(key)) labels.set(key, doc.source_label || key);
+  }
+  return Array.from(labels.values());
+}
+
+type LastNumber = { doc_type: LegacyDocType; label: string; number: number; date: string; count: number; source_label?: string };
+
+/**
+ * Per type, the newest number a customer's history has — "what the last numbers were".
+ * Each software numbers its own runs, so with more than one software each has
+ * its own line, named after it.
+ */
+export function lastNumbersByType(
+  docs: (Pick<LegacyDocument, 'doc_type' | 'doc_type_label' | 'number' | 'document_date'> &
+    Partial<Pick<LegacyDocument, 'source_system' | 'source_label'>>)[],
+): LastNumber[] {
+  const several = sourcesOf(docs).length > 1;
+  const byKey = new Map<string, LastNumber & { source: string }>();
+  for (const doc of docs) {
+    const source = doc.source_system || TAZMAN_SOURCE;
+    const key = `${source}:${doc.doc_type}`;
+    const seen = byKey.get(key);
     if (!seen) {
-      byType.set(doc.doc_type, { doc_type: doc.doc_type, label: doc.doc_type_label, number: doc.number, date: doc.document_date, count: 1 });
+      byKey.set(key, {
+        source,
+        doc_type: doc.doc_type,
+        label: several ? `${doc.doc_type_label} (${doc.source_label || source})` : doc.doc_type_label,
+        number: doc.number,
+        date: doc.document_date,
+        count: 1,
+        source_label: doc.source_label,
+      });
       continue;
     }
     seen.count += 1;
@@ -352,7 +733,15 @@ export function lastNumbersByType(
     }
   }
   const order: LegacyDocType[] = ['combined', 'tax_invoice', 'receipt', 'transaction_invoice', 'credit_invoice'];
-  return order.filter((t) => byType.has(t)).map((t) => byType.get(t)!);
+  const entries = Array.from(byKey.values()).sort(
+    (a, b) =>
+      Number(a.source !== TAZMAN_SOURCE) - Number(b.source !== TAZMAN_SOURCE) ||
+      a.source.localeCompare(b.source) ||
+      order.indexOf(a.doc_type) - order.indexOf(b.doc_type),
+  );
+  return entries.map(({ doc_type, label, number, date, count, source_label }) => ({
+    doc_type, label, number, date, count, source_label,
+  }));
 }
 
 /** '2025-03-01' -> '01/03/2025'. */
@@ -366,17 +755,35 @@ export function formatShekel(amount: number): string {
   return `₪${amount.toLocaleString('he-IL', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
 }
 
+/** Where the documents come from, in words: "מהתוכנה הקודמת" or "מ-iCount". */
+export function fromSourceText(summary: Pick<LegacySummary, 'source'>): string {
+  const source = summary.source;
+  if (!source || source.system === TAZMAN_SOURCE) return 'מהתוכנה הקודמת';
+  return `מ-${source.label}`;
+}
+
 /** What the confirm dialog says will happen — the same numbers the preview showed. */
-export function commitConfirmText(summary: LegacySummary, includeParents: boolean, mapping: LegacyMapping): string {
+export function commitConfirmText(
+  summary: LegacySummary,
+  includeParents: boolean,
+  mapping: LegacyMapping,
+  createCustomers = true,
+): string {
   const c = summary.customers;
   const progress = mappingProgress(summary.locations, mapping);
   const lines = [
-    `${summary.documents.total.toLocaleString('he-IL')} מסמכים יישמרו כהיסטוריה מהתוכנה הקודמת (לא יופקו מחדש ולא ייכנסו לדוחות של קוגו).`,
-    `לקוחות עסקיים: ${c.business_create} חדשים, ${c.business_update} קיימים יעודכנו.`,
-    includeParents
-      ? `הורים משלמי מנוי: ${c.parents.toLocaleString('he-IL')} ייפתחו או יעודכנו כלקוחות עסקיים.`
-      : 'הורים משלמי מנוי לא ייפתחו כלקוחות עסקיים.',
+    `${summary.documents.total.toLocaleString('he-IL')} מסמכים יישמרו כהיסטוריה ${fromSourceText(summary)} (לא יופקו מחדש ולא ייכנסו לדוחות של קוגו).`,
   ];
+  if (!createCustomers) {
+    lines.push('לא ייפתחו ולא יעודכנו כרטיסי לקוחות. מסמך יקושר לכרטיס קיים רק לפי ח"פ/ת"ז או קישור קודם.');
+  } else {
+    lines.push(
+      `לקוחות עסקיים: ${c.business_create} חדשים, ${c.business_update} קיימים יעודכנו.`,
+      includeParents
+        ? `הורים משלמי מנוי: ${c.parents.toLocaleString('he-IL')} ייפתחו או יעודכנו כלקוחות עסקיים.`
+        : 'הורים משלמי מנוי לא ייפתחו כלקוחות עסקיים.',
+    );
+  }
   if (progress.unmappedDocuments > 0) {
     lines.push(`${progress.unmappedDocuments.toLocaleString('he-IL')} מסמכים ממיקומים ללא שיוך יישמרו בלי עסק/סניף.`);
   }

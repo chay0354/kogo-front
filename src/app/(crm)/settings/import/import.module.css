@@ -88,3 +88,54 @@
 .flagged td:first-child {
   box-shadow: inset -3px 0 0 hsl(var(--warning));
 }
+
+/* The source: which software, in which format. */
+.formats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+  gap: 0.5rem;
+}
+
+.format {
+  display: flex;
+  gap: 0.5rem;
+  align-items: flex-start;
+  padding: 0.625rem 0.75rem;
+  border: 1px solid hsl(var(--border));
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+
+.format input {
+  margin-top: 0.25rem;
+}
+
+.formatActive {
+  border-color: hsl(var(--primary) / 0.6);
+  background: hsl(var(--primary) / 0.05);
+}
+
+.sourceSelect {
+  width: auto;
+  min-width: 12rem;
+  height: 2.25rem;
+}
+
+.sourceName {
+  max-width: 16rem;
+  height: 2.25rem;
+}
+
+.columnSelect {
+  min-width: 14rem;
+  max-width: 28rem;
+  height: 2.25rem;
+}
+
+.sourceFacts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 1rem;
+  font-size: 0.8125rem;
+  color: hsl(var(--muted-foreground));
+}

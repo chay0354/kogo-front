@@ -4,16 +4,19 @@ import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { ChevronDown, ChevronUp, History } from 'lucide-react';
 import {
+  TAZMAN_SOURCE,
   fetchLegacyDocuments,
   formatLegacyDate,
   lastNumbersByType,
+  sourcesOf,
 } from '@/lib/legacyImportApi';
 import LegacyDocumentsTable from './LegacyDocumentsTable';
 import styles from './LegacyHistory.module.css';
 
 /**
- * היסטוריה מהתוכנה הקודמת — what the old software issued to this business
- * customer, and the last number of each type. Shown only when there is any, and
+ * היסטוריה מהתוכנה הקודמת — what the old software (or any other imported
+ * software) issued to this business customer, and the last number of each
+ * type — per software, since each numbers its own runs. Shown only when there is any, and
  * folded until asked for: the step it sits in is about the document being made
  * now, and this is context, not a task.
  *
@@ -30,6 +33,7 @@ export default function LegacyHistoryPanel({ businessCustomerId }: { businessCus
 
   if (!data || data.count === 0) return null;
   const lastNumbers = lastNumbersByType(data.results);
+  const sources = sourcesOf(data.results);
 
   return (
     <section className={styles.panel} aria-label="היסטוריה מהתוכנה הקודמת">
@@ -38,6 +42,9 @@ export default function LegacyHistoryPanel({ businessCustomerId }: { businessCus
           <History size={14} aria-hidden="true" />
           היסטוריה מהתוכנה הקודמת · {data.count} מסמכים
           <span className={styles.origin}>לא הופק בקוגו</span>
+          {sources.length > 1 || (sources.length === 1 && data.results[0]?.source_system && data.results[0].source_system !== TAZMAN_SOURCE) ? (
+            <span className={styles.origin}>{sources.join(' · ')}</span>
+          ) : null}
         </span>
         {open ? <ChevronUp size={14} aria-hidden="true" /> : <ChevronDown size={14} aria-hidden="true" />}
       </button>
