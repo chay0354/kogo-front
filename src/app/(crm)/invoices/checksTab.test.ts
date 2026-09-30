@@ -19,6 +19,17 @@ import {
   summarizeCheckPlans,
   type CheckPlanLedgerRow,
 } from './ChecksTab';
+import {
+  bounceOutcome,
+  bounceSummary,
+  canBounceCheck,
+  cancelledLine,
+  cancelPlanPreview,
+  cancelSummary,
+  checkItemState,
+  checkLabel,
+  taxInvoiceLine,
+} from './checkPlanRules';
 
 const TODAY = '2026-09-11';
 const cities = new Map([['b-1', 'c-1']]);
@@ -270,5 +281,92 @@ describe('status labels', () => {
   it('names the plan and check statuses, and passes an unknown one through', () => {
     expect(['active', 'completed', 'cancelled', 'other'].map(planStatusLabel)).toEqual(['פעיל', 'הושלם', 'בוטל', 'other']);
     expect(['pending', 'invoiced', 'cancelled'].map(itemStatusLabel)).toEqual(['ממתין לחשבונית', 'הופקה חשבונית', 'בוטל']);
+  });
+});
+
+/**
+ * WS-3 (D2): each check's invoice is issued on (or after) its day, dated the
+ * day it was issued and paid by the check; a check can come back, and marking
+ * it so credits its invoice — a credit note emailed to the customer.
+ */
+describe('a check on screen (WS-3)', () => {
+  const invoiced = item({
+    status: 'invoiced', tax_invoice: 'ti-1', tax_invoice_number: 'TI-2026-000031',
+    tax_invoice_date: '2026-10-02', invoiced_at: '2026-10-02T07:00:00Z',
+  });
+
+  it('an issued invoice names its day and that the check paid it', () => {
+    expect(checkItemState(invoiced)).toEqual({ label: 'הופקה חשבונית', tone: 'invoiced', details: [] });
+    expect(taxInvoiceLine(invoiced)).toBe('הופקה 2.10.2026 · שולמה בצ׳ק');
+    // An older server: no tax_invoice_date, the moment it was invoiced.
+    expect(taxInvoiceLine({ tax_invoice_date: undefined, invoiced_at: '2026-10-02T07:00:00Z' })).toBe('הופקה 2.10.2026');
+  });
+
+  it('a bounced check says when, its credit note and its replacement', () => {
+    const bounced = {
+      ...invoiced, bounced_at: '2026-10-05T09:00:00Z', credit_note: 'cr-1', credit_note_number: 'CR-2026-000007',
+      replaced_by: 'item-9', replaced_by_plan: 'plan-9',
+    };
+    expect(checkItemState(bounced)).toEqual({
+      label: 'חזר',
+      tone: 'bounced',
+      details: ['חזר ב־5.10.2026', 'החשבונית זוכתה ב־CR-2026-000007', 'הוחלף בצ׳ק חלופי (תוכנית משלו)'],
+    });
+    const early = { ...item({ status: 'cancelled' }), bounced_at: '2026-09-20T09:00:00Z' };
+    expect(checkItemState(early).details).toEqual(['חזר ב־20.9.2026', 'לא הופקה לו חשבונית']);
+  });
+
+  it('reads an older server’s check as before', () => {
+    expect(checkItemState(item())).toEqual({ label: 'ממתין לחשבונית', tone: 'pending', details: [] });
+    expect(checkItemState(item({ status: 'cancelled' })).label).toBe('בוטל');
+  });
+
+  it('only a check not yet marked, and never a cancelled one, can come back', () => {
+    expect(canBounceCheck(item())).toBe(true);
+    expect(canBounceCheck(invoiced)).toBe(true);
+    expect(canBounceCheck(item({ status: 'cancelled' }))).toBe(false);
+    expect(canBounceCheck({ ...invoiced, bounced_at: '2026-10-05T09:00:00Z' })).toBe(false);
+  });
+
+  it('a check with an invoice is credited; one still waiting is cancelled, nothing issued', () => {
+    expect(bounceOutcome(invoiced)).toBe('credit');
+    expect(bounceOutcome(item())).toBe('cancel');
+  });
+
+  it('names the check the way the office reads it', () => {
+    expect(checkLabel(item())).toBe('צ׳ק 1001 · בנק לאומי · 1.10.2026 · ₪300');
+  });
+
+  it('a cancel touches the checks waiting and the invoices issued, not what bounced or was credited', () => {
+    const credited = { ...invoiced, id: 'i-3', credit_note: 'cr-1' };
+    const bounced = { ...invoiced, id: 'i-4', bounced_at: '2026-10-05T09:00:00Z' };
+    expect(cancelPlanPreview(plan({ items: [item(), item({ id: 'i-2' }), invoiced, credited, bounced] })))
+      .toEqual({ pending: 2, invoiced: 1 });
+  });
+
+  it('a cancelled plan says when and by whom', () => {
+    expect(cancelledLine({ cancelled_at: '2026-10-05T09:30:00Z', cancelled_by_name: 'דנה' })).toBe('בוטלה 5.10.2026 12:30 · דנה');
+    expect(cancelledLine({ cancelled_at: null })).toBe('');
+    expect(cancelledLine({})).toBe('');
+  });
+
+  it('after an action, says what was issued and that a credit note goes to the customer by email', () => {
+    expect(bounceSummary({ credit_note_number: 'CR-2026-000007', replacement_plan: null }))
+      .toBe('הצ׳ק סומן כחוזר. הופקה חשבונית מס זיכוי CR-2026-000007 — היא נחתמת ונשלחת במייל ללקוח.');
+    expect(bounceSummary({ credit_note_number: null, replacement_plan: plan({ id: 'p-9', receipt_number: 'RC-2026-0050' }) }))
+      .toBe('הצ׳ק סומן כחוזר. לא הופק זיכוי — לצ׳ק לא הופקה חשבונית, והוא בוטל. הצ׳ק החלופי נרשם עם קבלה RC-2026-0050; חשבונית המס שלו תופק ביום שלו.');
+    expect(cancelSummary([])).toBe('התוכנית בוטלה. לא הופק זיכוי.');
+    expect(cancelSummary(['CR-1'])).toContain('נשלחת במייל ללקוח');
+    expect(cancelSummary(['CR-1', 'CR-2'])).toBe('התוכנית בוטלה. הופקו חשבוניות מס זיכוי CR-1, CR-2 — הן נחתמות ונשלחות במייל ללקוח.');
+  });
+
+  it('a bounced check is never late', () => {
+    expect(isCheckItemLate(item({ due_date: '2026-09-01' }), 'active', TODAY)).toBe(true);
+    expect(isCheckItemLate({ ...item({ due_date: '2026-09-01' }), bounced_at: '2026-09-02T09:00:00Z' }, 'active', TODAY)).toBe(false);
+  });
+
+  it('finds a plan by the credit note of a check', () => {
+    const p = plan({ items: [{ ...invoiced, credit_note_number: 'CR-2026-000007' }] });
+    expect(matchesCheckPlanSearch(p, 'CR-2026-000007')).toBe(true);
   });
 });

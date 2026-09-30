@@ -4,9 +4,19 @@ import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type React
 import { AlertCircle, Banknote, FileSearch, Plus, X } from 'lucide-react';
 import { Skeleton, TableSkeleton } from '@/components/ui/skeleton';
 import theme from '@/components/dashboard/theme/dashboard.module.css';
-import { cancelCheckPlan, fetchCheckPlans, type CheckItemRow, type CheckPlanRow } from '@/lib/documentsApi';
+import { fetchCheckPlans, type BounceCheckAnswer, type CheckItemRow, type CheckPlanRow } from '@/lib/documentsApi';
 import { useScopedBranches } from '@/hooks/useScopedBranches';
 import BodyPortal from './BodyPortal';
+import { BounceCheckDialog, CancelCheckPlanDialog } from './CheckPlanDialogs';
+import {
+  bounceSummary,
+  canBounceCheck,
+  cancelledLine,
+  cancelSummary,
+  checkItemState,
+  taxInvoiceLine,
+  type CheckItemTone,
+} from './checkPlanRules';
 import LedgerFilterBar, { LedgerSelect } from './LedgerFilterBar';
 import RegisterChecksDialog from './RegisterChecksDialog';
 import type { LedgerDimensions, LedgerFilterKey, LedgerFilters } from './types';
@@ -78,10 +88,11 @@ export function itemStatusLabel(status: string): string {
   return status;
 }
 
-function itemStatusClass(status: string): string {
-  if (status === 'pending') return pageStyles.statusPending;
-  if (status === 'invoiced') return pageStyles.statusCompleted;
-  if (status === 'cancelled') return pageStyles.statusRefunded;
+function itemToneClass(tone: CheckItemTone): string {
+  if (tone === 'pending') return pageStyles.statusPending;
+  if (tone === 'invoiced') return pageStyles.statusCompleted;
+  if (tone === 'cancelled') return pageStyles.statusRefunded;
+  if (tone === 'bounced') return pageStyles.statusFailed;
   return '';
 }
 
@@ -102,7 +113,7 @@ export function matchesCheckPlanSearch(plan: CheckPlanRow, query: string): boole
   const has = (value: string | null | undefined) => String(value ?? '').toLowerCase().includes(q);
   return (
     [plan.child_name, plan.description, plan.lesson_name, plan.receipt_number, plan.branch_name].some(has)
-    || plan.items.some((item) => has(item.check_number) || has(item.tax_invoice_number))
+    || plan.items.some((item) => has(item.check_number) || has(item.tax_invoice_number) || has(item.credit_note_number))
   );
 }
 
@@ -145,7 +156,7 @@ export function compareCheckPlans(a: CheckPlanRow, b: CheckPlanRow): number {
  */
 export function isCheckItemLate(item: CheckItemRow, planStatus: string, today: string): boolean {
   const day = String(item.due_date ?? '').slice(0, 10);
-  return planStatus === 'active' && item.status === 'pending' && Boolean(day) && day < today;
+  return planStatus === 'active' && item.status === 'pending' && !item.bounced_at && Boolean(day) && day < today;
 }
 
 /** The KPI row's figures over the plans in scope. Money is added in agorot, so it does not drift. */
@@ -242,7 +253,11 @@ export default function ChecksTab({ ledger: pageLedger, branchFilter }: ChecksTa
   const [status, setStatus] = useState('');
   const [registerOpen, setRegisterOpen] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
-  const [actionId, setActionId] = useState<string | null>(null);
+  // The two actions that issue documents open a form that says what will be issued first.
+  const [cancelling, setCancelling] = useState<CheckPlanRow | null>(null);
+  const [bouncing, setBouncing] = useState<{ plan: CheckPlanRow; item: CheckItemRow } | null>(null);
+  // What the last action issued — a credit note number the office may need — until dismissed.
+  const [doneNotice, setDoneNotice] = useState('');
   const latestRequest = useRef(0);
   const loadedOnce = useRef(false);
 
@@ -278,19 +293,21 @@ export default function ChecksTab({ ledger: pageLedger, branchFilter }: ChecksTa
     void loadPlans();
   }
 
-  async function handleCancel(plan: CheckPlanRow) {
-    if (!window.confirm(`לבטל את תוכנית הצ׳קים של ${plan.child_name}? הקבלה שכבר הופקה לא תבוטל.`)) {
-      return;
-    }
-    setActionId(plan.id);
-    try {
-      const { plan: updated } = await cancelCheckPlan(plan.id);
-      setPlans((prev) => prev.map((row) => (row.id === plan.id ? updated : row)));
-    } catch {
-      window.alert('שגיאה בביטול תוכנית הצ׳קים');
-    } finally {
-      setActionId(null);
-    }
+  function handleCancelled(updated: CheckPlanRow, creditNotes: string[]) {
+    if (updated?.id) setPlans((prev) => prev.map((row) => (row.id === updated.id ? updated : row)));
+    else void loadPlans();
+    setDoneNotice(cancelSummary(creditNotes));
+  }
+
+  function handleBounced(answer: BounceCheckAnswer) {
+    setPlans((prev) => {
+      let next = answer.plan?.id ? prev.map((row) => (row.id === answer.plan.id ? answer.plan : row)) : prev;
+      const replacement = answer.replacement_plan;
+      if (replacement?.id && !next.some((row) => row.id === replacement.id)) next = [replacement, ...next];
+      return next;
+    });
+    if (!answer.plan?.id) void loadPlans();
+    setDoneNotice(bounceSummary(answer));
   }
 
   const { cityByBranch, cityNameByBranch } = useMemo(() => {
@@ -334,30 +351,53 @@ export default function ChecksTab({ ledger: pageLedger, branchFilter }: ChecksTa
             <th scope="col" className={theme.n}>סכום</th>
             <th scope="col">סטטוס</th>
             <th scope="col">חשבונית מס</th>
+            <th scope="col"><span className={styles.srOnly}>פעולות</span></th>
           </tr>
         </thead>
         <tbody>
-          {plan.items.map((item) => (
-            <tr key={item.id}>
-              <td>{item.due_date ? formatDate(item.due_date) : '—'}</td>
-              <td>{item.bank || '—'}</td>
-              <td>{item.bank_branch || '—'}</td>
-              <td>{item.account_number || '—'}</td>
-              <td className={styles.receiptNo}>{item.check_number || '—'}</td>
-              <td className={`${theme.n} ${styles.money}`}>{formatAmount(Number(item.amount))}</td>
-              <td>
-                <span className={`${pageStyles.statusBadge} ${itemStatusClass(item.status)}`}>
-                  {itemStatusLabel(item.status)}
-                </span>
-                {isCheckItemLate(item, plan.status, today) && (
-                  <span className={`${styles.subLine} ${styles.lateNote}`}>המועד עבר</span>
-                )}
-              </td>
-              <td className={item.tax_invoice_number ? styles.receiptNo : styles.dash}>
-                {item.tax_invoice_number || '—'}
-              </td>
-            </tr>
-          ))}
+          {plan.items.map((item) => {
+            const state = checkItemState(item);
+            const issued = taxInvoiceLine(item);
+            return (
+              <tr key={item.id}>
+                <td>{item.due_date ? formatDate(item.due_date) : '—'}</td>
+                <td>{item.bank || '—'}</td>
+                <td>{item.bank_branch || '—'}</td>
+                <td>{item.account_number || '—'}</td>
+                <td className={styles.receiptNo}>{item.check_number || '—'}</td>
+                <td className={`${theme.n} ${styles.money}`}>{formatAmount(Number(item.amount))}</td>
+                <td>
+                  <span className={`${pageStyles.statusBadge} ${itemToneClass(state.tone)}`}>{state.label}</span>
+                  {state.details.map((line) => (
+                    <span key={line} className={`${styles.subLine} ${state.tone === 'bounced' ? styles.bouncedNote : ''}`}>
+                      {line}
+                    </span>
+                  ))}
+                  {isCheckItemLate(item, plan.status, today) && (
+                    <span className={`${styles.subLine} ${styles.lateNote}`}>המועד עבר</span>
+                  )}
+                </td>
+                <td>
+                  {item.tax_invoice_number
+                    ? <span className={styles.receiptNo}>{item.tax_invoice_number}</span>
+                    : <span className={styles.dash}>—</span>}
+                  {item.tax_invoice_number && issued && <span className={styles.subLine}>{issued}</span>}
+                </td>
+                <td>
+                  {canBounceCheck(item) ? (
+                    <button
+                      type="button"
+                      className={`${styles.actionBtn} ${styles.actionDanger}`}
+                      aria-label={`צ׳ק חזר — ${item.check_number || formatDate(item.due_date)}`}
+                      onClick={() => setBouncing({ plan, item })}
+                    >
+                      צ׳ק חזר
+                    </button>
+                  ) : null}
+                </td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     );
@@ -370,7 +410,8 @@ export default function ChecksTab({ ledger: pageLedger, branchFilter }: ChecksTa
     const city = plan.branch ? cityNameByBranch.get(plan.branch) ?? plan.city_name ?? '' : '';
     const invoiced = plan.items.filter((item) => item.status === 'invoiced').length;
     const lateCount = plan.items.filter((item) => isCheckItemLate(item, plan.status, today)).length;
-    const busy = actionId === plan.id;
+    const bouncedCount = plan.items.filter((item) => item.bounced_at).length;
+    const cancelled = cancelledLine(plan);
 
     return (
       <Fragment key={plan.id}>
@@ -404,11 +445,17 @@ export default function ChecksTab({ ledger: pageLedger, branchFilter }: ChecksTa
                 {lateCount === 1 ? 'צ׳ק אחד' : `${count(lateCount)} צ׳קים`} בלי חשבונית אחרי המועד
               </span>
             )}
+            {bouncedCount > 0 && (
+              <span className={`${styles.subLine} ${styles.bouncedNote}`}>
+                {bouncedCount === 1 ? 'צ׳ק אחד חזר' : `${count(bouncedCount)} צ׳קים חזרו`}
+              </span>
+            )}
           </td>
           <td>
             <span className={`${pageStyles.statusBadge} ${planStatusClass(plan.status)}`}>
               {planStatusLabel(plan.status)}
             </span>
+            {cancelled && <span className={styles.subLine}>{cancelled}</span>}
           </td>
           <td>
             <div className={styles.actions}>
@@ -425,11 +472,10 @@ export default function ChecksTab({ ledger: pageLedger, branchFilter }: ChecksTa
                 <button
                   type="button"
                   className={`${styles.actionBtn} ${styles.actionDanger}`}
-                  disabled={busy}
-                  aria-label={`${busy ? 'מבטל' : 'ביטול'} — ${plan.child_name}`}
-                  onClick={() => void handleCancel(plan)}
+                  aria-label={`ביטול תוכנית — ${plan.child_name}`}
+                  onClick={() => setCancelling(plan)}
                 >
-                  {busy ? 'מבטל...' : 'ביטול'}
+                  ביטול תוכנית
                 </button>
               ) : null}
             </div>
@@ -518,7 +564,9 @@ export default function ChecksTab({ ledger: pageLedger, branchFilter }: ChecksTa
           </table>
         </div>
         <p className={styles.footnote}>
-          חשבונית מס לכל צ׳ק יוצאת אוטומטית ביום הצ׳ק, בהרצה של הוראות הקבע. ביטול תוכנית לא מבטל את הקבלה שכבר הופקה.
+          חשבונית מס לכל צ׳ק יוצאת אוטומטית ביום הצ׳ק, בהרצה של הוראות הקבע — מתוארכת ביום ההפקה ומסומנת כשולמה
+          בקבלת התוכנית. צ׳ק שחזר מזכה את החשבונית שלו (חשבונית מס זיכוי נשלחת במייל ללקוח). ביטול תוכנית לא מבטל
+          את הקבלה שכבר הופקה; חשבונית שהופקה ולא שולמה מזוכה.
         </p>
       </>
     );
@@ -603,6 +651,20 @@ export default function ChecksTab({ ledger: pageLedger, branchFilter }: ChecksTa
           </button>
         </div>
 
+        {doneNotice && (
+          <div className={styles.doneNotice} role="status">
+            <span>{doneNotice}</span>
+            <button
+              type="button"
+              className={styles.noticeClose}
+              onClick={() => setDoneNotice('')}
+              aria-label="סגירת ההודעה"
+            >
+              <X size={14} aria-hidden="true" />
+            </button>
+          </div>
+        )}
+
         {refreshFailed && (
           <div className={styles.notice} role="alert">
             <span>רענון הרשימה נכשל. מוצגות התוכניות שנטענו קודם.</span>
@@ -628,6 +690,13 @@ export default function ChecksTab({ ledger: pageLedger, branchFilter }: ChecksTa
           open={registerOpen}
           onClose={() => setRegisterOpen(false)}
           onCreated={() => { void loadPlans(); }}
+        />
+        <CancelCheckPlanDialog plan={cancelling} onClose={() => setCancelling(null)} onDone={handleCancelled} />
+        <BounceCheckDialog
+          plan={bouncing?.plan ?? null}
+          item={bouncing?.item ?? null}
+          onClose={() => setBouncing(null)}
+          onDone={handleBounced}
         />
       </BodyPortal>
     </div>
