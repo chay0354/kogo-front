@@ -1,3 +1,5 @@
+import type { SettlementPicks } from '@/lib/settlements';
+
 export type ClientType = 'business' | 'existing';
 
 export type WizardStepId =
@@ -110,6 +112,14 @@ export interface ReceiptDetailsData {
   bankReference: string;
   bankAmount: number;
   bankNotes: string;
+  /**
+   * "חשבונית מס לכל צ'ק" (a check receipt of a private customer): the checks
+   * become a check plan, and a tax invoice is issued on each check's day,
+   * marked paid by this receipt.
+   */
+  invoicePerCheck: boolean;
+  /** Which open tax invoices this receipt pays, and how much of each (lib/settlements.ts). */
+  settlementPicks: SettlementPicks;
 }
 
 export interface CreditInvoiceData {
@@ -157,4 +167,6 @@ export interface InvoiceDetailsData {
   allocationNumber: string;
   linkedInvoiceId: string;
   receiptNotes: string;
+  /** Which open transaction invoices an invoice-receipt closes, and how much of each. */
+  settlementPicks: SettlementPicks;
 }

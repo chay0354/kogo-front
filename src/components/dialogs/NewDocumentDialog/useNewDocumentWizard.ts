@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { AUTO_SETTLEMENT_PICKS } from '@/lib/settlements';
 import { BRANCHES_CATEGORY } from './constants';
 import { emptyCheckRow, generateDocumentNumber, getWizardSteps, israelToday } from './utils';
 import type {
@@ -59,6 +60,8 @@ function createInitialReceiptDetails(): ReceiptDetailsData {
     bankReference: '',
     bankAmount: 0,
     bankNotes: '',
+    invoicePerCheck: false,
+    settlementPicks: AUTO_SETTLEMENT_PICKS,
   };
 }
 
@@ -98,6 +101,7 @@ function createInitialInvoiceDetails(): InvoiceDetailsData {
     allocationNumber: '',
     linkedInvoiceId: '',
     receiptNotes: '',
+    settlementPicks: AUTO_SETTLEMENT_PICKS,
   };
 }
 
