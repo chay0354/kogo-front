@@ -27,8 +27,19 @@ export async function fetchProducts(params?: {
   sort_by?: string;
   sort_order?: 'asc' | 'desc';
 }): Promise<StoreProduct[]> {
-  const { data } = await api.get('/store/products/', { params });
-  return data;
+  // The list is paged (20 a page); the store screen filters and counts on the
+  // client, so it needs every product — past the first page too.
+  const items: StoreProduct[] = [];
+  let page = 1;
+  while (page <= 100) {
+    const { data } = await api.get('/store/products/', { params: { ...params, page, page_size: 200 } });
+    if (Array.isArray(data)) return data;
+    const batch: StoreProduct[] = data?.results ?? [];
+    items.push(...batch);
+    if (!data?.next || batch.length === 0) break;
+    page += 1;
+  }
+  return items;
 }
 
 export async function fetchProduct(id: string): Promise<StoreProduct> {

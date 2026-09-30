@@ -14,7 +14,8 @@ import {
   storeBranchSelectValue,
 } from '@/lib/storeBranch';
 import api from '@/lib/api';
-import type { ProductFormData, ProductSizeStock } from '@/types/store';
+import type { ProductFormData } from '@/types/store';
+import { newRowUid, type StockRowDraft } from './productStockForm';
 import type { Branch } from '@/types/branch';
 import { DEFAULT_CATEGORY, describeApiError } from '@/lib/apiErrors';
 import dlg from './storeDialog.module.css';
@@ -43,7 +44,7 @@ const EMPTY_FORM: ProductFormData = {
 
 export default function AddProductDialog({ isOpen, onClose, onSuccess }: AddProductDialogProps) {
   const [formData, setFormData] = useState<ProductFormData>({ ...EMPTY_FORM });
-  const [sizeRows, setSizeRows] = useState<ProductSizeStock[]>([]);
+  const [sizeRows, setSizeRows] = useState<StockRowDraft[]>([]);
   const [branches, setBranches] = useState<Branch[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -54,6 +55,7 @@ export default function AddProductDialog({ isOpen, onClose, onSuccess }: AddProd
     setSizeRows((rows) => [
       ...rows,
       {
+        uid: newRowUid(),
         size: '',
         stock_quantity: 0,
         sort_order: rows.length,
@@ -62,7 +64,7 @@ export default function AddProductDialog({ isOpen, onClose, onSuccess }: AddProd
     ]);
   }
 
-  function updateSizeRow(index: number, patch: Partial<ProductSizeStock>) {
+  function updateSizeRow(index: number, patch: Partial<StockRowDraft>) {
     setSizeRows((rows) => rows.map((row, i) => (i === index ? { ...row, ...patch } : row)));
   }
 
@@ -285,7 +287,7 @@ export default function AddProductDialog({ isOpen, onClose, onSuccess }: AddProd
               <div className="space-y-2">
                 {sizeRows.map((row, index) => (
                   <div
-                    key={`sr-${index}-${row.size}-${coerceBranchFromApi(row.branch) ?? 'd'}`}
+                    key={row.uid}
                     className="grid grid-cols-1 sm:grid-cols-12 gap-2 items-end sm:items-center border-b border-gray-200 pb-3 last:border-0 last:pb-0"
                   >
                     <div className="sm:col-span-3">

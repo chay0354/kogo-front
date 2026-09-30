@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import api from '@/lib/api';
+import { fetchProducts } from '@/lib/storeApi';
 import { initiatePayment } from '@/lib/storeApi';
 import type { ChildWithDetails } from '@/types/customer';
 import RealCardTestSection from './RealCardTestSection';
@@ -452,8 +453,8 @@ export default function SettingsBillingPage() {
   const [products, setProducts] = useState<{ id: string; name: string; sale_price: number }[]>([]);
 
   useEffect(() => {
-    api.get('/store/products/').then(r => {
-      setProducts(Array.isArray(r.data) ? r.data : r.data.results || []);
+    fetchProducts().then((all) => {
+      setProducts(all as unknown as { id: string; name: string; sale_price: number }[]);
     }).catch(() => {});
   }, []);
 
