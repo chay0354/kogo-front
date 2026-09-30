@@ -102,6 +102,13 @@ export interface DocumentRow extends LedgerDimensions {
   open_balance: number;
   /** A credit note: money going back. Never an open debt; subtracted from totals. */
   is_credit?: boolean;
+  /**
+   * WS-3 (30.9.2026), on kogo's own documents: what credit notes took off an
+   * invoice, and the part of a receipt that paid an invoice listed on its own
+   * row. An older server leaves both out (read as 0).
+   */
+  credited_amount?: number;
+  applied_amount?: number;
   /** מועד התשלום שסוכם (שוטף+30 וכו') — קיים רק במסמכים מקומיים. */
   due_date?: string;
   payment_terms?: string;

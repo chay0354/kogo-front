@@ -557,8 +557,13 @@ export default function DocumentsTab({ ledger, refreshKey = 0 }: DocumentsTabPro
           value={visible.length.toLocaleString('he-IL')}
           foot={narrowed ? `מתוך ${inRange.length.toLocaleString('he-IL')} · ${rangeLabel}` : rangeLabel}
         />
-        <Kpi label='סה"כ' loading={isLoading} value={formatAmount(totals.total)} foot='כולל מע"מ, בניכוי זיכויים' />
-        <Kpi label="שולם" loading={isLoading} value={formatAmount(totals.paid)} foot="נגבה בפועל" />
+        <Kpi
+          label='סה"כ'
+          loading={isLoading}
+          value={formatAmount(totals.total)}
+          foot='כולל מע"מ, בניכוי זיכויים · קבלה על חשבונית נספרת פעם אחת'
+        />
+        <Kpi label="שולם" loading={isLoading} value={formatAmount(totals.paid)} foot="נגבה בפועל, לפי הקבלות" />
         <Kpi
           label="יתרה פתוחה"
           loading={isLoading}
