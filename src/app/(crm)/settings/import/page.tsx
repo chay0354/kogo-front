@@ -11,26 +11,55 @@ import { Select } from '@/components/ui/select';
 import LegacyDocumentsTable from '@/components/LegacyHistory/LegacyDocumentsTable';
 import { readableError } from '@/lib/apiError';
 import {
+  FORMAT_ACCEPT,
+  LEGACY_DOC_TYPE_LABELS,
+  TAZMAN_SOURCE,
   applyMappingChange,
   branchAllowed,
   categoriesFor,
+  chosenSourceSystem,
   commitConfirmText,
   commitLegacyImport,
+  describeLegacyColumns,
   fetchLegacyDocuments,
   fetchLegacyImports,
+  fetchLegacySources,
   formatLegacyDate,
+  fromSourceText,
   importFileProblem,
+  initialColumnMapping,
   initialMapping,
   mappingProgress,
   numberingLine,
   previewLegacyImport,
+  type LegacyColumnMapping,
+  type LegacyColumnsInfo,
   type LegacyCommitResult,
+  type LegacyDocType,
   type LegacyDocument,
   type LegacyImport,
+  type LegacyKnownSource,
   type LegacyMapping,
+  type LegacySourceFormat,
+  type LegacySummary,
   type LegacyTarget,
 } from '@/lib/legacyImportApi';
+import ColumnMappingStep from './ColumnMappingStep';
+import PdfArchiveUpload from './PdfArchiveUpload';
+import SourcePicker, { FROM_FILE } from './SourcePicker';
 import styles from './import.module.css';
+
+const FORMAT_LABELS: Record<LegacySourceFormat, string> = {
+  tazman: 'קובץ הייצוא של התוכנה הקודמת',
+  table: 'טבלה (CSV / Excel)',
+  uniform: 'מבנה אחיד',
+};
+
+const FILE_BUTTON: Record<LegacySourceFormat, string> = {
+  tazman: 'בחירת קובץ ‎.xls',
+  table: 'בחירת קובץ CSV / Excel',
+  uniform: 'בחירת BKMVDATA.TXT או ZIP',
+};
 
 const KIND_LABELS: Record<string, string> = {
   branch: 'סניף',
@@ -40,17 +69,27 @@ const KIND_LABELS: Record<string, string> = {
 };
 
 /**
- * ייבוא מהתוכנה הקודמת. The owner's export from his previous invoicing
- * software becomes kogo's business customers and a read-only history of
- * every document it issued: upload → preview (what would happen, and where
- * each old location goes) → confirm → result. Nothing is written before the
- * confirm, and confirming the same file again changes nothing.
+ * ייבוא מתוכנה קודמת. An export from the previous invoicing software — or from
+ * any other one — becomes kogo's business customers and a read-only history of
+ * every document it issued: source → file → (a table: its column mapping) →
+ * preview (what would happen, and where each old location goes) → confirm →
+ * result; then the old PDFs, matched to the documents by number. Nothing is
+ * written before the confirm, and confirming the same file again changes nothing.
  */
 export default function SettingsImportPage() {
   const { user } = useAuth();
   const isManager = user?.role === 'manager';
   const queryClient = useQueryClient();
 
+  const [format, setFormat] = useState<LegacySourceFormat>('tazman');
+  const [choice, setChoice] = useState('');
+  const [otherName, setOtherName] = useState('');
+  const [sources, setSources] = useState<LegacyKnownSource[]>([]);
+  const [columnsInfo, setColumnsInfo] = useState<LegacyColumnsInfo | null>(null);
+  const [columnMapping, setColumnMapping] = useState<LegacyColumnMapping>({});
+  const [fixedDocType, setFixedDocType] = useState<LegacyDocType | ''>('');
+  const [typeValues, setTypeValues] = useState<Record<string, LegacyDocType>>({});
+  const [createCustomers, setCreateCustomers] = useState(true);
   const [file, setFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState('');
@@ -66,6 +105,13 @@ export default function SettingsImportPage() {
     fetchLegacyImports().then(setHistory).catch(() => setHistory([]));
   }, [isManager, result]);
 
+  useEffect(() => {
+    if (!isManager) return;
+    fetchLegacySources()
+      .then((data) => setSources(data.sources))
+      .catch(() => setSources([]));
+  }, [isManager]);
+
   const summary = preview?.summary;
   const options = summary?.options;
   const progress = useMemo(
@@ -73,20 +119,74 @@ export default function SettingsImportPage() {
     [summary, mapping],
   );
 
+  const sourceSystem = format === 'tazman' ? TAZMAN_SOURCE : chosenSourceSystem(choice, otherName);
+
+  /** Anything about the source or the file changed: what was read from the old one no longer applies. */
+  function resetFileState() {
+    setColumnsInfo(null);
+    setPreview(null);
+    setResult(null);
+    setError('');
+  }
+
+  function changeFormat(next: LegacySourceFormat) {
+    setFormat(next);
+    setChoice(next === 'uniform' ? FROM_FILE : '');
+    setFile(null);
+    resetFileState();
+  }
+
   async function upload() {
-    const problem = importFileProblem(file);
+    const problem = importFileProblem(file, format);
     if (problem) {
       setError(problem);
+      return;
+    }
+    if (format === 'table' && !sourceSystem) {
+      setError('יש לבחור את התוכנה שממנה הקובץ יוצא');
       return;
     }
     setUploading(true);
     setError('');
     setResult(null);
     try {
-      const next = await previewLegacyImport(file as File);
-      setPreview(next);
-      setMapping(initialMapping(next.summary.locations));
-      setIncludeParents(false);
+      if (format === 'table') {
+        // A table is described first: the office confirms which column is what before anything is read.
+        const info = await describeLegacyColumns(file as File);
+        setColumnsInfo(info);
+        setColumnMapping(initialColumnMapping(info));
+        setFixedDocType('');
+        setTypeValues({});
+        setPreview(null);
+      } else {
+        await runPreview();
+      }
+    } catch (e) {
+      setError(readableError(e, 'קריאת הקובץ נכשלה'));
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  async function runPreview() {
+    const next = await previewLegacyImport(file as File, {
+      format,
+      sourceSystem,
+      columnMapping,
+      typeValues,
+      fixedDocType,
+    });
+    setPreview(next);
+    setMapping(initialMapping(next.summary.locations));
+    setIncludeParents(false);
+    setCreateCustomers(true);
+  }
+
+  async function previewWithMapping() {
+    setUploading(true);
+    setError('');
+    try {
+      await runPreview();
     } catch (e) {
       setError(readableError(e, 'קריאת הקובץ נכשלה'));
     } finally {
@@ -97,7 +197,7 @@ export default function SettingsImportPage() {
   async function commit() {
     if (!preview) return;
     try {
-      const done = await commitLegacyImport(preview.id, mapping, includeParents);
+      const done = await commitLegacyImport(preview.id, mapping, includeParents, createCustomers);
       setResult(done);
       // Cards were created or changed: the wizard's search and history must not serve old copies.
       queryClient.invalidateQueries({ queryKey: ['legacy-documents'] });
@@ -126,39 +226,76 @@ export default function SettingsImportPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-xl font-semibold">ייבוא מהתוכנה הקודמת</h2>
+        <h2 className="text-xl font-semibold">ייבוא מתוכנה קודמת</h2>
         <p className="text-sm text-muted-foreground">
-          קובץ הייצוא של המסמכים (‎.xls) הופך ללקוחות העסקיים של קוגו ולהיסטוריה של כל מסמך שהופק. המסמכים לא מופקים
-          מחדש, לא נכנסים לרצף המספור של קוגו ולא לדוחות — הם נשמרים כדי לראות מה הופק לכל לקוח.
+          קובץ ייצוא של המסמכים — מהתוכנה הקודמת או מכל תוכנת חשבוניות אחרת — הופך ללקוחות העסקיים של קוגו ולהיסטוריה
+          של כל מסמך שהופק. המסמכים לא מופקים מחדש, לא נכנסים לרצף המספור של קוגו ולא לדוחות — הם נשמרים כדי לראות מה
+          הופק לכל לקוח.
         </p>
       </div>
 
-      {/* 1. Upload */}
-      <div className="card">
+      {/* 1. Source and file */}
+      <div className="card space-y-3">
+        <SourcePicker
+          format={format}
+          onFormat={changeFormat}
+          choice={choice}
+          onChoice={(next) => {
+            setChoice(next);
+            resetFileState();
+          }}
+          otherName={otherName}
+          onOtherName={(next) => {
+            setOtherName(next);
+            resetFileState();
+          }}
+          sources={sources}
+          disabled={uploading}
+        />
         <div className="flex flex-wrap items-center gap-3">
           <label className={styles.fileLabel}>
             <FileUp className="h-4 w-4" aria-hidden="true" />
-            <span>{file ? file.name : 'בחירת קובץ ‎.xls'}</span>
+            <span>{file ? file.name : FILE_BUTTON[format]}</span>
             <input
               type="file"
-              accept=".xls,application/vnd.ms-excel"
+              accept={FORMAT_ACCEPT[format]}
               className="sr-only"
               onChange={(e) => {
                 setFile(e.target.files?.[0] ?? null);
-                setError('');
+                resetFileState();
               }}
             />
           </label>
           <Button variant="gradient" onClick={upload} disabled={!file || uploading}>
             {uploading ? <Loader2 className="h-4 w-4 animate-spin ml-2" /> : null}
-            {uploading ? 'קורא את הקובץ…' : 'הצג תצוגה מקדימה'}
+            {uploading ? 'קורא את הקובץ…' : format === 'table' ? 'המשך למיפוי עמודות' : 'הצג תצוגה מקדימה'}
           </Button>
         </div>
-        <p className="text-xs text-muted-foreground mt-2">
-          עד 4.3MB. הסיסמה לאפליקציה, תאריך הלידה, הפקס והטלפון בבית שבקובץ אינם נקראים ואינם נשמרים.
+        <p className="text-xs text-muted-foreground">
+          עד 4.3MB לקובץ — קובץ גדול יותר: ייצאו טווח תאריכים קצר יותר, או שנה אחת בכל פעם.{' '}
+          {format === 'tazman'
+            ? 'הסיסמה לאפליקציה, תאריך הלידה, הפקס והטלפון בבית שבקובץ אינם נקראים ואינם נשמרים.'
+            : format === 'table'
+              ? 'רק העמודות שתבחרו במיפוי נקראות ונשמרות.'
+              : 'נקראים המסמכים (C100), השורות (D110) והתשלומים (D120). הזמנות, תעודות משלוח ורכש אינם מיובאים.'}
         </p>
-        {error ? <p className="text-sm text-red-600 mt-2">{error}</p> : null}
+        {error ? <p className="text-sm text-red-600">{error}</p> : null}
       </div>
+
+      {/* 1b. A table's column mapping */}
+      {format === 'table' && columnsInfo && !preview && !result ? (
+        <ColumnMappingStep
+          info={columnsInfo}
+          mapping={columnMapping}
+          onMapping={setColumnMapping}
+          fixedDocType={fixedDocType}
+          onFixedDocType={setFixedDocType}
+          typeValues={typeValues}
+          onTypeValues={setTypeValues}
+          busy={uploading}
+          onPreview={previewWithMapping}
+        />
+      ) : null}
 
       {result ? (
         <div className="card" role="status">
@@ -176,9 +313,13 @@ export default function SettingsImportPage() {
             {result.customers.skipped_deleted ? (
               <li>{result.customers.skipped_deleted} לקוחות שנמחקו בתוכנה הקודמת לא נפתחו</li>
             ) : null}
+            {result.customers.linked_without_changing_cards ? (
+              <li>{result.customers.linked_without_changing_cards} לקוחות קושרו לכרטיס קיים בלי לשנות אותו</li>
+            ) : null}
           </ul>
           <p className="text-sm text-muted-foreground mt-2">
-            ההיסטוריה של כל לקוח מופיעה באשף &quot;מסמך חדש&quot; כשבוחרים אותו, תחת &quot;היסטוריה מהתוכנה הקודמת&quot;.
+            ההיסטוריה של כל לקוח מופיעה בכרטיס הלקוח העסקי ובאשף &quot;מסמך חדש&quot; כשבוחרים אותו. עכשיו אפשר לצרף
+            את קובצי ה-PDF של המסמכים — בחלק שלמטה.
           </p>
         </div>
       ) : null}
@@ -188,6 +329,12 @@ export default function SettingsImportPage() {
           {/* 2. Summary */}
           <section className="card">
             <h3 className="text-lg font-semibold mb-3">סיכום</h3>
+            <SourceFacts summary={summary} />
+            {format === 'table' && columnsInfo ? (
+              <Button variant="outline" size="sm" className="mb-3" onClick={() => setPreview(null)}>
+                שינוי מיפוי העמודות
+              </Button>
+            ) : null}
             <div className={styles.stats}>
               <Stat label="מסמכים" value={summary.documents.total} hint={`${formatLegacyDate(summary.documents.first_date)} – ${formatLegacyDate(summary.documents.last_date)}`} />
               <Stat label="לקוחות עסקיים חדשים" value={summary.customers.business_create} />
@@ -209,9 +356,9 @@ export default function SettingsImportPage() {
             <div className={styles.warning} role="note">
               <AlertTriangle className="h-4 w-4 shrink-0" aria-hidden="true" />
               <p>
-                הקובץ מכיל רק חלק מכל רצף מספרים של התוכנה הקודמת — רק את המסמכים של הלקוחות שבייצוא — ולכן יש בו
+                ייתכן שהקובץ מכיל רק חלק מכל רצף מספרים של התוכנה — למשל רק את המסמכים של הלקוחות שבייצוא — ולכן יש בו
                 פערים. &quot;המספר האחרון&quot; כאן הוא האחרון שבקובץ, לא בהכרח האחרון שהופק. לפני שקוגו ממשיך רצף כלשהו,
-                יש לאשר בתוכנה הקודמת את המספר האחרון של כל סוג מסמך.
+                יש לאשר בתוכנה עצמה את המספר האחרון של כל סוג מסמך.
               </p>
             </div>
             <div className="table-scroll">
@@ -231,7 +378,7 @@ export default function SettingsImportPage() {
                       <td>
                         {row.label}
                         {row.original_labels.some((l) => l !== row.label) ? (
-                          <span className="block text-xs text-muted-foreground">בתוכנה הקודמת: {row.original_labels.join(', ')}</span>
+                          <span className="block text-xs text-muted-foreground">בקובץ: {row.original_labels.join(', ')}</span>
                         ) : null}
                       </td>
                       <td className="tabular-nums">{row.count.toLocaleString('he-IL')}</td>
@@ -290,7 +437,22 @@ export default function SettingsImportPage() {
               </table>
             </div>
             <label className={styles.parents}>
-              <input type="checkbox" checked={includeParents} onChange={(e) => setIncludeParents(e.target.checked)} />
+              <input type="checkbox" checked={createCustomers} onChange={(e) => setCreateCustomers(e.target.checked)} />
+              <span>
+                לפתוח ולעדכן כרטיסי לקוחות עסקיים
+                <span className="block text-xs text-muted-foreground">
+                  בלי הסימון המסמכים נשמרים כהיסטוריה בלבד: שום כרטיס לא נפתח ולא משתנה, ומסמך מקושר לכרטיס קיים רק לפי
+                  ח&quot;פ/ת&quot;ז או קישור מייבוא קודם.
+                </span>
+              </span>
+            </label>
+            <label className={styles.parents}>
+              <input
+                type="checkbox"
+                checked={includeParents && createCustomers}
+                disabled={!createCustomers}
+                onChange={(e) => setIncludeParents(e.target.checked)}
+              />
               <span>
                 לפתוח גם את {summary.customers.parents.toLocaleString('he-IL')} ההורים משלמי המנוי כלקוחות עסקיים
                 <span className="block text-xs text-muted-foreground">
@@ -428,13 +590,19 @@ export default function SettingsImportPage() {
             onConfirm={async (yes) => {
               if (yes) await commit();
             }}
-            title="לייבא מהתוכנה הקודמת?"
-            message={commitConfirmText(summary, includeParents, mapping)}
+            title={`לייבא ${fromSourceText(summary)}?`}
+            message={commitConfirmText(summary, includeParents && createCustomers, mapping, createCustomers)}
             confirmText="ייבוא"
             type="question"
           />
         </>
       ) : null}
+
+      <PdfArchiveUpload
+        key={preview?.source_system ?? 'none'}
+        sources={sources}
+        defaultSource={preview?.source_system ?? (format === 'tazman' ? TAZMAN_SOURCE : sourceSystem || TAZMAN_SOURCE)}
+      />
 
       <HistorySearch />
 
@@ -444,6 +612,7 @@ export default function SettingsImportPage() {
           <ul className={styles.facts}>
             {history.map((item) => (
               <li key={item.id}>
+                {item.source_label ? `${item.source_label} · ` : ''}
                 {item.file_name} · {item.row_count.toLocaleString('he-IL')} מסמכים ·{' '}
                 {item.status === 'committed'
                   ? `יובא ${new Date(item.committed_at ?? item.uploaded_at).toLocaleDateString('he-IL')}`
@@ -453,6 +622,62 @@ export default function SettingsImportPage() {
             ))}
           </ul>
         </div>
+      ) : null}
+    </div>
+  );
+}
+
+/** Where the preview's documents come from: the software, the format, and what a מבנה אחיד file says about itself. */
+function SourceFacts({ summary }: { summary: LegacySummary }) {
+  const source = summary.source;
+  if (!source) return null;
+  const uniform = source.uniform;
+  const unknown = summary.unknown_types ?? [];
+  return (
+    <div className="mb-3 space-y-2">
+      <div className={styles.sourceFacts}>
+        <span>
+          תוכנה: <strong className="text-foreground">{source.label}</strong>
+        </span>
+        <span>{FORMAT_LABELS[source.format] ?? source.format}</span>
+        {uniform ? (
+          <>
+            {uniform.business_name || uniform.vat_number ? (
+              <span>
+                העסק בקובץ: {uniform.business_name} {uniform.vat_number ? `(${uniform.vat_number})` : ''}
+              </span>
+            ) : null}
+            {uniform.software ? <span>נוצר ב: {uniform.software} {uniform.software_version}</span> : null}
+            {uniform.period_start ? (
+              <span>
+                תקופה: {formatLegacyDate(uniform.period_start)} – {formatLegacyDate(uniform.period_end)}
+              </span>
+            ) : null}
+            <span>
+              רשומות: {uniform.records.C100.toLocaleString('he-IL')} מסמכים, {uniform.records.D110.toLocaleString('he-IL')}{' '}
+              שורות, {uniform.records.D120.toLocaleString('he-IL')} תשלומים
+            </span>
+          </>
+        ) : null}
+      </div>
+      {uniform?.warnings.length ? (
+        <ul className="text-sm text-amber-700">
+          {uniform.warnings.map((warning) => (
+            <li key={warning}>{warning}</li>
+          ))}
+        </ul>
+      ) : null}
+      {unknown.length ? (
+        <p className="text-sm text-amber-700">
+          סוגי מסמכים לא מוכרים לא יובאו:{' '}
+          {unknown.map((u) => `${u.label} (${u.count.toLocaleString('he-IL')})`).join(' · ')}. אפשר לשייך אותם לסוג
+          ב&quot;שינוי מיפוי העמודות&quot;.
+        </p>
+      ) : null}
+      {source.columns?.fixed_doc_type ? (
+        <p className="text-xs text-muted-foreground">
+          כל המסמכים בקובץ נקראו כ{LEGACY_DOC_TYPE_LABELS[source.columns.fixed_doc_type as LegacyDocType] ?? ''}.
+        </p>
       ) : null}
     </div>
   );
@@ -489,7 +714,7 @@ function HistorySearch() {
 
   return (
     <div className="card">
-      <h3 className="text-lg font-semibold mb-2">חיפוש בהיסטוריה מהתוכנה הקודמת</h3>
+      <h3 className="text-lg font-semibold mb-2">חיפוש בהיסטוריה מתוכנות קודמות</h3>
       <form className="flex gap-2" onSubmit={search}>
         <input
           className="input"

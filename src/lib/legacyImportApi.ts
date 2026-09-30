@@ -488,7 +488,7 @@ export function typeValueRows(
   info: LegacyColumnsInfo,
   mapping: LegacyColumnMapping,
   chosen: Record<string, LegacyDocType>,
-): { value: string; count: number; docType: LegacyDocType | '' }[] {
+): { value: string; count: number; docType: LegacyDocType | ''; recognised: boolean }[] {
   const index = mapping.doc_type;
   if (index == null) return [];
   const column = info.columns.find((c) => c.index === index);
@@ -498,6 +498,8 @@ export function typeValueRows(
     value: d.value,
     count: d.count,
     docType: chosen[d.value] ?? suggested[d.value] ?? '',
+    // Recognised by the server: it is read as that type unless the office picks another.
+    recognised: Boolean(suggested[d.value]),
   }));
 }
 
