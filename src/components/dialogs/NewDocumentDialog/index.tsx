@@ -247,7 +247,8 @@ export default function NewDocumentDialog({ open, onClose }: NewDocumentDialogPr
 
   if (!open) return null;
 
-  const perCheck = docType === 'קבלה' && invoicePerCheckApplies(clientType, receiptDetails);
+  // A server without the picker has no check plan from a receipt either (it would drop the flag silently).
+  const perCheck = docType === 'קבלה' && !settlementsUnsupported && invoicePerCheckApplies(clientType, receiptDetails);
   const settlementPlan: SettlementPlan | null =
     payerType === null || settlementsUnsupported || openInvoicesStatus !== 'ready'
       ? null
@@ -2408,7 +2409,7 @@ function ReceiptDetailsStep({
     staleTime: 60_000,
     enabled: legacyLink,
   });
-  const perCheck = invoicePerCheckApplies(clientType, data);
+  const perCheck = !legacyLink && invoicePerCheckApplies(clientType, data);
 
   return (
     <div>
@@ -2465,7 +2466,7 @@ function ReceiptDetailsStep({
         <CashPanel data={data} onChange={onChange} />
       )}
       {data.paymentMethod === "צ'ק" && (
-        <CheckPanel data={data} onChange={onChange} perCheckAvailable={clientType === 'existing'} />
+        <CheckPanel data={data} onChange={onChange} perCheckAvailable={clientType === 'existing' && !legacyLink} />
       )}
       {data.paymentMethod === 'אשראי' && (
         <CreditPanel data={data} onChange={onChange} />
