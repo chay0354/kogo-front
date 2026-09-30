@@ -554,19 +554,6 @@ export default function BusinessCustomerProfileDialog({
                       </p>
                     </div>
 
-                    {balance && (
-                      <div>
-                        <SectionTitle icon={<FileText className="h-5 w-5 text-primary" />}>חשבוניות פתוחות</SectionTitle>
-                        <div className="mt-3">
-                          <OpenInvoicesTable
-                            balance={balance}
-                            onChanged={() => {
-                              if (customerId) void load(customerId);
-                            }}
-                          />
-                        </div>
-                      </div>
-                    )}
 
                     {summary.is_tenant && (
                       <div>
@@ -580,6 +567,20 @@ export default function BusinessCustomerProfileDialog({
                     )}
                   </div>
                 </div>
+                {/* Full width: the open invoices need their five columns. */}
+                {balance && (
+                  <div className="px-6 pb-6">
+                    <SectionTitle icon={<FileText className="h-5 w-5 text-primary" />}>חשבוניות פתוחות</SectionTitle>
+                    <div className="mt-3">
+                      <OpenInvoicesTable
+                        balance={balance}
+                        onChanged={() => {
+                          if (customerId) void load(customerId);
+                        }}
+                      />
+                    </div>
+                  </div>
+                )}
               </TabsContent>
 
               <TabsContent value="documents" className="pt-6 px-6 pb-6 space-y-6">

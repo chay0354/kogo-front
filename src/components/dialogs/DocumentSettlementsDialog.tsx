@@ -48,7 +48,11 @@ interface DocumentSettlementsDialogProps {
   onClose: () => void;
   /** Shown until the document loads — the number the opening row already knows. */
   fallbackNumber?: string;
-  /** Called after a settlement was voided, so the list behind can reload its balances. */
+  /**
+   * Called once the dialog closes after a settlement was voided, so the list
+   * behind reloads its balances — not at once: a list that reloads unmounts
+   * the row this dialog opened from, and the dialog with it.
+   */
   onChanged?: () => void;
 }
 
@@ -186,6 +190,15 @@ export default function DocumentSettlementsDialog({
   const [doc, setDoc] = useState<FormalDocument | null>(null);
   const [lines, setLines] = useState<DocumentSettlements | null>(null);
   const request = useRef(0);
+  const changed = useRef(false);
+
+  const close = () => {
+    onClose();
+    if (changed.current) {
+      changed.current = false;
+      onChanged?.();
+    }
+  };
 
   const [voiding, setVoiding] = useState<SettlementLine | null>(null);
   const [reason, setReason] = useState('');
@@ -236,7 +249,7 @@ export default function DocumentSettlementsDialog({
       toast.success(`הסגירה בוטלה${open}`);
       setVoiding(null);
       setReason('');
-      onChanged?.();
+      changed.current = true;
       await load(documentId);
     } catch (error) {
       setVoidError(readableError(error, 'ביטול הסגירה נכשל'));
@@ -255,7 +268,7 @@ export default function DocumentSettlementsDialog({
 
   return (
     <>
-      <Dialog open={isOpen} onOpenChange={(open) => (open ? undefined : onClose())}>
+      <Dialog open={isOpen} onOpenChange={(open) => (open ? undefined : close())}>
         <DialogContent className="max-w-2xl" dir="rtl">
           <div className="flex items-start justify-between px-6 pt-6 pb-4 border-b">
             <DialogHeader className="p-0">

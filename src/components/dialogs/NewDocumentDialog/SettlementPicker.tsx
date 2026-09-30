@@ -154,7 +154,13 @@ export default function SettlementPicker({
               נסגר {formatAgorotShekels(plan.total)} מתוך {formatAgorotShekels(capacity)} של {copy.amountWord}
             </span>
             <span className={styles.checkSummaryAmount}>
-              {plan.unapplied > 0 ? `לא משויך ${formatAgorotShekels(plan.unapplied)}` : 'הכול משויך ✓'}
+              {capacity <= 0
+                ? `הזינו את סכום ${copy.amountWord}`
+                : plan.total > capacity
+                  ? `חורג ב־${formatAgorotShekels(plan.total - capacity)}`
+                  : plan.unapplied > 0
+                    ? `לא משויך ${formatAgorotShekels(plan.unapplied)}`
+                    : 'הכול משויך ✓'}
             </span>
           </div>
           {plan.overCapacity && <p className={styles.fieldError} role="alert">{plan.overCapacity}</p>}
