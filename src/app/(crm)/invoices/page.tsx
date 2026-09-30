@@ -2,7 +2,8 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { Plus } from 'lucide-react';
+import dynamic from 'next/dynamic';
+import { CreditCard, Plus } from 'lucide-react';
 import NewDocumentDialog from '@/components/dialogs/NewDocumentDialog';
 import { useAuth } from '@/components/AuthProvider';
 import theme from '@/components/dashboard/theme/dashboard.module.css';
@@ -21,6 +22,8 @@ import type { ActiveTab } from './types';
 import type { CreditPrefill } from '@/lib/draftsAndCredits';
 import { useLedgerFilters } from './useLedgerFilters';
 import styles from './invoices.module.css';
+
+const BusinessChargeDialog = dynamic(() => import('@/components/dialogs/BusinessChargeDialog'), { ssr: false });
 
 /** The tabs in order, each with the line under the title that says what it is for. */
 const TABS: ReadonlyArray<{ key: ActiveTab; label: string; subtitle: string }> = [
@@ -71,6 +74,7 @@ export default function InvoicesPage() {
   const isManager = user?.role === 'manager';
   const [activeTab, setActiveTab] = useState<ActiveTab>('מסמכים');
   const [isNewDocOpen, setIsNewDocOpen] = useState(false);
+  const [isBusinessChargeOpen, setIsBusinessChargeOpen] = useState(false);
   // A credit note opened from a document's row or detail (audit #10), linked to it.
   const [creditPrefill, setCreditPrefill] = useState<CreditPrefill | null>(null);
   const openCredit = (prefill: CreditPrefill) => {
@@ -163,6 +167,16 @@ export default function InvoicesPage() {
               <Plus size={16} aria-hidden="true" />
               מסמך חדש
             </button>
+            {isManager && (
+              <button
+                type="button"
+                className={styles.primaryAction}
+                onClick={() => setIsBusinessChargeOpen(true)}
+              >
+                <CreditCard size={16} aria-hidden="true" />
+                גבייה עסקית
+              </button>
+            )}
           </div>
         </header>
 
@@ -197,6 +211,11 @@ export default function InvoicesPage() {
           setCreditPrefill(null);
           setDocumentsVersion((version) => version + 1);
         }}
+      />
+      <BusinessChargeDialog
+        open={isBusinessChargeOpen}
+        onClose={() => setIsBusinessChargeOpen(false)}
+        onCreated={() => setDocumentsVersion((version) => version + 1)}
       />
     </>
   );
