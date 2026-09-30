@@ -9,6 +9,7 @@ import { GroupIdBadge } from '@/components/GroupIdBadge/GroupIdBadge';
 import BranchSectionFilters from '@/components/branches/BranchSectionFilters';
 import { Skeleton, StatCardsSkeleton } from '@/components/ui/skeleton';
 import api from '@/lib/api';
+import { fetchProducts } from '@/lib/storeApi';
 import { BranchDetail, BranchStatistics } from '@/types/branch';
 import { formatCurrency, getBranchStatusBadge } from '@/lib/branchUtils';
 import {
@@ -73,7 +74,7 @@ export default function BranchDetailsPage() {
       {
         queryKey: ['branch-products', branchId],
         queryFn: () =>
-          api.get(`/store/products/?branch=${branchId}`).then(r => toArray(r.data)),
+          fetchProducts({ branch: branchId }),
         staleTime: STALE,
         enabled: !!branchId,
       },

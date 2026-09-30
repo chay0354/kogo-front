@@ -9,6 +9,7 @@ import { toast } from 'sonner';
 import { transferStock } from '@/lib/storeApi';
 import type { StoreProduct, ProductSizeStock } from '@/types/store';
 import dlg from './storeDialog.module.css';
+import { describeApiError } from '@/lib/apiErrors';
 
 interface TransferStockDialogProps {
   isOpen: boolean;
@@ -69,8 +70,15 @@ export default function TransferStockDialog({ isOpen, onClose, product, onSucces
       onSuccess();
       onClose();
     } catch (error: any) {
-      const msg = error?.response?.data?.error || error?.message || 'שגיאה לא ידועה';
-      toast.error(`שגיאה בהעברת המלאי:\n${msg}`);
+      if (!error?.response) {
+        // No answer: it may have gone through. Retrying blind would count it
+        // twice (a write-off recorded twice), so show the stock as it is now.
+        onSuccess();
+        onClose();
+        toast.error('השרת לא ענה בזמן. ייתכן שהעדכון בכל זאת נשמר — הרשימה רועננה, בדקו את המלאי לפני שתנסו שוב.');
+        return;
+      }
+      toast.error(`שגיאה בהעברת המלאי:\n${describeApiError(error.response.data, error)}`);
     } finally {
       setIsLoading(false);
     }

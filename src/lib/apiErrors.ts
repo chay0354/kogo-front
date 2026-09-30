@@ -41,6 +41,18 @@ const MESSAGE_TRANSLATIONS: Array<[RegExp, string | ((m: RegExpMatchArray) => st
     /^Ensure this value is greater than or equal to (\S+)\.?$/i,
     (m) => `הערך חייב להיות ${m[1]} ומעלה`,
   ],
+  [
+    /^Ensure this value is less than or equal to (\S+)\.?$/i,
+    (m) => `הערך חייב להיות ${m[1]} לכל היותר`,
+  ],
+  [
+    /^Ensure that there are no more than (\d+) decimal places\.?$/i,
+    (m) => `עד ${m[1]} ספרות אחרי הנקודה`,
+  ],
+  [/^Ensure that there are no more than (\d+) digits in total\.?$/i, 'המספר גדול מדי'],
+  [/^Invalid pk "[^"]*" - object does not exist\.?$/i, 'לא נמצא — רעננו את הדף ונסו שוב'],
+  [/^Not found\.?$/i, 'לא נמצא — ייתכן שנמחק. רעננו את הדף'],
+  [/^You do not have permission to perform this action\.?$/i, 'אין הרשאה לפעולה הזו'],
 ];
 
 function translate(message: string): string {
