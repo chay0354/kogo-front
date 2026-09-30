@@ -6,6 +6,9 @@ export type DocumentType =
   | 'credit_invoice'
   | 'draft';
 
+/** What a draft becomes when approved (a receipt and an invoice-receipt since 30.9.2026, audit M11). */
+export type DraftTargetType = 'tax_invoice' | 'transaction_invoice' | 'receipt' | 'combined';
+
 export type DocumentClientType = 'business' | 'existing';
 export type DocumentCurrency = 'ILS' | 'USD' | 'EUR';
 export type DocumentPaymentMethod = 'cash' | 'check' | 'credit_card' | 'bank_transfer';
@@ -57,7 +60,16 @@ export interface FormalDocument {
   internal_notes: string;
   linked_document: string | null;
   linked_document_number: string;
+  /** The credited original's date (סעיף 9(ה)(4)). */
+  linked_document_date?: string | null;
   credit_reason: string;
+  /** A credit note: when the customer confirmed receiving it (הוראה 23א(3)), and how. */
+  customer_ack_at?: string | null;
+  customer_ack_note?: string | null;
+  /** A draft: what it becomes when approved. */
+  draft_target_type?: DraftTargetType | '';
+  /** A draft receipt / invoice-receipt: the invoices it will settle when approved. */
+  draft_settlements?: Array<{ invoice_id: string; invoice_number: string; amount: string }> | null;
   tranzila_doc_id: string;
   pdf_url: string;
   tranzila_issued: boolean;
@@ -190,7 +202,7 @@ export interface CreditInvoiceInput {
 export interface CreateDocumentPayload {
   document_type: DocumentType;
   // Only for drafts: the type the document becomes when approved.
-  draft_target_type?: 'tax_invoice' | 'transaction_invoice';
+  draft_target_type?: DraftTargetType;
   client_type: DocumentClientType;
   child_id?: string | null;
   business_customer_id?: string | null;
