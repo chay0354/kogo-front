@@ -118,7 +118,7 @@ export default function CustomerDetailsEditor({ child, onCancel, onSaved, onDirt
     onDirtyChange?.(dirty);
   }, [dirty, onDirtyChange]);
   useEffect(() => () => onDirtyChange?.(false), [onDirtyChange]);
-  const otherErrors = Object.entries(errors).filter(([path]) => !FIELD_PATHS.has(path) && !/^extra_phones\.\d+\.phone$/.test(path));
+  const otherErrors = Object.entries(errors).filter(([path]) => !FIELD_PATHS.has(path) && !/^extra_phones\.\d+\.(phone|email)$/.test(path));
 
   const backToEditing = () => {
     setStage('editing');
@@ -137,7 +137,7 @@ export default function CustomerDetailsEditor({ child, onCancel, onSaved, onDirt
     backToEditing();
   };
 
-  const setExtra = (index: number, patch: Partial<{ name: string; phone: string }>) => {
+  const setExtra = (index: number, patch: Partial<{ name: string; phone: string; email: string }>) => {
     setForm((prev) => ({
       ...prev,
       extra_phones: prev.extra_phones.map((row, i) => (i === index ? { ...row, ...patch } : row)),
@@ -154,7 +154,7 @@ export default function CustomerDetailsEditor({ child, onCancel, onSaved, onDirt
     draftCounter += 1;
     setForm((prev) => ({
       ...prev,
-      extra_phones: [...prev.extra_phones, { key: `new-${draftCounter}`, name: '', phone: '' }],
+      extra_phones: [...prev.extra_phones, { key: `new-${draftCounter}`, name: '', phone: '', email: '' }],
     }));
     backToEditing();
   };
@@ -162,7 +162,12 @@ export default function CustomerDetailsEditor({ child, onCancel, onSaved, onDirt
   const promoteExtra = (index: number) => {
     setForm((prev) => makeExtraPrimary(prev, index));
     setErrors({});
-    setSwapNote('הטלפון הוחלף עם ההורה. האימייל נשאר של ההורה — עדכנו אותו אם צריך.');
+    const extra = form.extra_phones[index];
+    setSwapNote(
+      extra?.email.trim()
+        ? 'איש הקשר הוחלף עם ההורה — שם, טלפון ומייל.'
+        : 'איש הקשר הוחלף עם ההורה. לאיש הקשר לא היה מייל, ולכן המייל של ההורה נשאר — עדכנו אותו אם צריך.',
+    );
     backToEditing();
   };
 
@@ -374,12 +379,12 @@ export default function CustomerDetailsEditor({ child, onCancel, onSaved, onDirt
               })}
               {text('family', 'address', 'כתובת')}
 
-              {/* Extra phones */}
+              {/* Extra contacts: a phone for group messages, an email for the monthly receipt */}
               <div className="rounded-lg border border-teal-200 bg-white p-3 space-y-2">
                 <div className="flex items-center justify-between gap-2">
                   <span className="flex items-center gap-2 text-sm font-medium">
                     <MessageCircle className="h-4 w-4 text-teal-600" />
-                    טלפונים נוספים
+                    אנשי קשר נוספים
                     {changedPaths.has('extra_phones') && (
                       <span className="rounded-full bg-amber-100 px-1.5 text-[10px] font-semibold text-amber-800">שונה</span>
                     )}
@@ -393,62 +398,86 @@ export default function CustomerDetailsEditor({ child, onCancel, onSaved, onDirt
                     onClick={addExtra}
                   >
                     <Plus className="h-3 w-3 ml-1" />
-                    הוספת טלפון
+                    הוספת איש קשר
                   </Button>
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  מקבלים גם את הודעות הקבוצה ב־WhatsApp. קישורי תשלום נשלחים רק להורה.
+                  טלפון — מקבל גם את הודעות הקבוצה ב־WhatsApp. מייל — מקבל גם עותק של החשבונית בכל חודש.
+                  קישורי תשלום נשלחים רק להורה.
                 </p>
                 {form.extra_phones.length === 0 && (
-                  <p className="text-xs text-muted-foreground">אין טלפונים נוספים</p>
+                  <p className="text-xs text-muted-foreground">אין אנשי קשר נוספים</p>
                 )}
                 {swapNote && <p className="text-xs text-teal-700" role="status">{swapNote}</p>}
                 {form.extra_phones.map((row, index) => {
                   const phoneError = errors[`extra_phones.${index}.phone`];
+                  const emailError = errors[`extra_phones.${index}.email`];
                   const before = initial.extra_phones.find((item) => item.id && item.id === row.id);
-                  const rowChanged = !before || !samePhone(before.phone, row.phone) || before.name.trim() !== row.name.trim();
+                  const rowChanged = !before
+                    || !samePhone(before.phone, row.phone)
+                    || before.name.trim() !== row.name.trim()
+                    || before.email.trim() !== row.email.trim();
+                  const digits = normalisePhone(row.phone);
                   return (
-                    <div key={row.key} className="flex items-start gap-2">
-                      <input
-                        type="text"
-                        value={row.name}
-                        maxLength={200}
-                        placeholder="שם (אחרת — שם ההורה)"
-                        aria-label={`שם לטלפון נוסף ${index + 1}`}
-                        disabled={saving}
-                        onChange={(e) => setExtra(index, { name: e.target.value })}
-                        className={`${inputClass(undefined, rowChanged)} flex-1 min-w-0`}
-                      />
-                      <div className="flex-1 min-w-0 space-y-1">
+                    <div key={row.key} className="flex items-start gap-2 border-t pt-2">
+                      <div className="grid flex-1 min-w-0 grid-cols-2 gap-2">
                         <input
-                          type="tel"
-                          dir="ltr"
-                          inputMode="tel"
-                          value={row.phone}
-                          maxLength={20}
-                          placeholder="05X-XXXXXXX"
-                          aria-label={`טלפון נוסף ${index + 1}`}
-                          aria-invalid={Boolean(phoneError) || undefined}
+                          type="text"
+                          value={row.name}
+                          maxLength={200}
+                          placeholder="שם (אחרת — שם ההורה)"
+                          aria-label={`שם איש קשר נוסף ${index + 1}`}
                           disabled={saving}
-                          onChange={(e) => setExtra(index, { phone: e.target.value })}
-                          className={inputClass(phoneError, rowChanged)}
+                          onChange={(e) => setExtra(index, { name: e.target.value })}
+                          className={`${inputClass(undefined, rowChanged)} min-w-0`}
                         />
-                        {phoneError ? (
-                          <span className="block text-xs text-red-600" role="alert">{phoneError}</span>
-                        ) : normalisePhone(row.phone) && !isMobile(normalisePhone(row.phone)) ? (
-                          // An old record from the add-customer form; kept, but WhatsApp does not reach it.
-                          <span className="block text-xs text-amber-700">קווי — לא יקבל הודעות</span>
-                        ) : null}
+                        <div className="min-w-0 space-y-1">
+                          <input
+                            type="tel"
+                            dir="ltr"
+                            inputMode="tel"
+                            value={row.phone}
+                            maxLength={20}
+                            placeholder="נייד 05X-XXXXXXX"
+                            aria-label={`טלפון איש קשר נוסף ${index + 1}`}
+                            aria-invalid={Boolean(phoneError) || undefined}
+                            disabled={saving}
+                            onChange={(e) => setExtra(index, { phone: e.target.value })}
+                            className={inputClass(phoneError, rowChanged)}
+                          />
+                          {phoneError ? (
+                            <span className="block text-xs text-red-600" role="alert">{phoneError}</span>
+                          ) : digits && !isMobile(digits) ? (
+                            // An old record from the add-customer form; kept, but WhatsApp does not reach it.
+                            <span className="block text-xs text-amber-700">קווי — לא יקבל הודעות</span>
+                          ) : null}
+                        </div>
+                        <div className="col-span-2 space-y-1">
+                          <input
+                            type="email"
+                            dir="ltr"
+                            inputMode="email"
+                            value={row.email}
+                            maxLength={254}
+                            placeholder="מייל לעותק החשבונית (לא חובה)"
+                            aria-label={`מייל איש קשר נוסף ${index + 1}`}
+                            aria-invalid={Boolean(emailError) || undefined}
+                            disabled={saving}
+                            onChange={(e) => setExtra(index, { email: e.target.value })}
+                            className={inputClass(emailError, rowChanged)}
+                          />
+                          {emailError && <span className="block text-xs text-red-600" role="alert">{emailError}</span>}
+                        </div>
                       </div>
                       <Button
                         type="button"
                         size="sm"
                         variant="ghost"
                         className="h-10 px-2"
-                        disabled={saving || !normalisePhone(row.phone)}
+                        disabled={saving || !digits}
                         onClick={() => promoteExtra(index)}
                         title="הפוך להורה הראשי — קישורי תשלום והודעות יישלחו למספר הזה"
-                        aria-label={`הפיכת טלפון נוסף ${index + 1} להורה הראשי`}
+                        aria-label={`הפיכת איש קשר נוסף ${index + 1} להורה הראשי`}
                       >
                         <ArrowUp className="h-4 w-4" />
                       </Button>
@@ -459,8 +488,8 @@ export default function CustomerDetailsEditor({ child, onCancel, onSaved, onDirt
                         className="h-10 px-2 text-destructive hover:text-destructive"
                         disabled={saving}
                         onClick={() => removeExtra(index)}
-                        title="הסרת הטלפון"
-                        aria-label={`הסרת טלפון נוסף ${index + 1}`}
+                        title="הסרת איש הקשר"
+                        aria-label={`הסרת איש קשר נוסף ${index + 1}`}
                       >
                         <Trash2 className="h-4 w-4" />
                       </Button>
@@ -468,7 +497,6 @@ export default function CustomerDetailsEditor({ child, onCancel, onSaved, onDirt
                   );
                 })}
               </div>
-
               {notes('family', 'הערות על המשפחה')}
               <div className="flex justify-between gap-4 text-sm">
                 <span className="text-muted-foreground">סניף</span>

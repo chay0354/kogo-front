@@ -1196,17 +1196,17 @@ export default function ChildProfileDialog({
                           <div className="flex justify-between gap-4 items-start">
                             <span
                               className="text-muted-foreground text-sm shrink-0"
-                              title="מקבלים גם את הודעות הקבוצה ב־WhatsApp"
+                              title="טלפון — מקבל גם את הודעות הקבוצה. מייל — מקבל גם עותק של החשבונית בכל חודש."
                             >
-                              טלפונים נוספים
+                              אנשי קשר נוספים
                             </span>
                             <div className="flex flex-col items-end gap-1">
                               {(child.extra_phones ?? []).map((extra) => {
-                                const link = formatWhatsAppLink(extra.phone);
+                                const link = extra.phone ? formatWhatsAppLink(extra.phone) : null;
                                 return (
-                                  <span key={extra.id} className="text-sm">
+                                  <span key={extra.id} className="text-sm text-left">
                                     {extra.name && <span className="text-muted-foreground">{extra.name} · </span>}
-                                    {link ? (
+                                    {extra.phone && (link ? (
                                       <a
                                         href={link}
                                         target="_blank"
@@ -1216,10 +1216,16 @@ export default function ChildProfileDialog({
                                         {extra.phone}
                                       </a>
                                     ) : (
-                                      <span className="font-medium">{extra.phone || '-'}</span>
-                                    )}
-                                    {!/^05\d{8}$/.test(normalisePhone(extra.phone)) && (
+                                      <span className="font-medium">{extra.phone}</span>
+                                    ))}
+                                    {extra.phone && !/^05\d{8}$/.test(normalisePhone(extra.phone)) && (
                                       <span className="text-xs text-amber-700"> · קווי — לא יקבל הודעות</span>
+                                    )}
+                                    {extra.email && (
+                                      <span className="block text-xs text-muted-foreground" dir="ltr">
+                                        {extra.email}
+                                        <span dir="rtl"> · עותק חשבונית</span>
+                                      </span>
                                     )}
                                   </span>
                                 );

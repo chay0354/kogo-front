@@ -9,13 +9,15 @@
 import type { ChildWithDetails } from '@/types/customer';
 import { isValidIsraeliId } from '@/lib/israeliId';
 
+/** An extra contact: a phone gets the group messages, an email a copy of the receipt each month. */
 export interface ExtraPhoneDraft {
-  /** Stable React key; an existing phone's is its parent id. */
+  /** Stable React key; an existing contact's is its parent id. */
   key: string;
-  /** The parent row behind it; absent for a phone added in this edit. */
+  /** The parent row behind it; absent for a contact added in this edit. */
   id?: string;
   name: string;
   phone: string;
+  email: string;
 }
 
 export interface CustomerDetailsForm {
@@ -128,6 +130,7 @@ export function formFromChild(child: ChildWithDetails): CustomerDetailsForm {
       id: extra.id,
       name: extra.name || '',
       phone: extra.phone || '',
+      email: extra.email || '',
     })),
   };
 }
@@ -149,26 +152,33 @@ function extrasChanged(form: CustomerDetailsForm, initial: CustomerDetailsForm):
       row.id !== before.id
       || !samePhone(row.phone, before.phone)
       || row.name.trim() !== before.name.trim()
+      || row.email.trim() !== before.email.trim()
     );
   });
 }
 
 /**
- * Make an extra phone the parent: the two swap phones and names, so payment
- * and card links go to the new number and the old one stays as an extra.
- * The email stays with the parent, for the office to change if it should.
+ * Make an extra contact the parent: the two swap phones and names — and
+ * emails, when the contact has one — so payment and card links go to the new
+ * number and the old parent stays as an extra contact. A contact without an
+ * email leaves the parent's email where it is.
  */
 export function makeExtraPrimary(form: CustomerDetailsForm, index: number): CustomerDetailsForm {
   const extra = form.extra_phones[index];
   if (!extra) return form;
   const [first, ...rest] = extra.name.trim().split(/\s+/).filter(Boolean);
-  const parent = extra.name.trim()
-    ? { ...form.parent, first_name: first, last_name: rest.join(' '), phone: extra.phone }
-    : { ...form.parent, phone: extra.phone };
+  const swapEmail = Boolean(extra.email.trim());
+  const parent = {
+    ...form.parent,
+    ...(extra.name.trim() ? { first_name: first, last_name: rest.join(' ') } : {}),
+    phone: extra.phone,
+    ...(swapEmail ? { email: extra.email } : {}),
+  };
   const demoted = {
     ...extra,
     name: `${form.parent.first_name} ${form.parent.last_name}`.trim(),
     phone: form.parent.phone,
+    email: swapEmail ? form.parent.email : '',
   };
   return {
     ...form,
@@ -205,10 +215,12 @@ export function describeChanges(form: CustomerDetailsForm, initial: CustomerDeta
   if (extrasChanged(form, initial)) {
     // A phone saved without a name takes the parent's, as the server does.
     const list = (rows: ExtraPhoneDraft[]) =>
-      rows.map((row) => `${row.phone.trim()} · ${row.name.trim() || 'בשם ההורה'}`).join(', ');
+      rows
+        .map((row) => [row.phone.trim(), row.email.trim(), row.name.trim() || 'בשם ההורה'].filter(Boolean).join(' · '))
+        .join(', ');
     changes.push({
       path: 'extra_phones',
-      label: 'טלפונים נוספים (מקבלים הודעות קבוצה)',
+      label: 'אנשי קשר נוספים',
       old: list(initial.extra_phones),
       new: list(form.extra_phones),
     });
@@ -246,6 +258,7 @@ export function buildPayload(
       ...(row.id ? { id: row.id } : {}),
       name: row.name.trim(),
       phone: row.phone.trim(),
+      email: row.email.trim(),
     }));
     // The list replaces what is there; the server refuses it if someone else
     // changed the extra phones since this card was opened.
@@ -320,21 +333,33 @@ export function validateDetails(form: CustomerDetailsForm, initial: CustomerDeta
 
   if (extrasChanged(form, initial)) {
     if (form.extra_phones.length > MAX_EXTRA_PHONES) {
-      errors.extra_phones = `עד ${MAX_EXTRA_PHONES} טלפונים נוספים`;
+      errors.extra_phones = `עד ${MAX_EXTRA_PHONES} אנשי קשר נוספים`;
     }
     const seen = new Set<string>([normalisePhone(parent.phone)].filter(Boolean));
-    const before = new Map(initial.extra_phones.map((row) => [row.id, row.phone]));
+    const seenEmails = new Set<string>([parent.email.trim().toLowerCase()].filter(Boolean));
+    const before = new Map(initial.extra_phones.map((row) => [row.id, row]));
     form.extra_phones.forEach((row, index) => {
       const digits = normalisePhone(row.phone);
-      const path = `extra_phones.${index}.phone`;
-      // A phone the office did not touch stays, even if an old record would not pass today.
-      const unchanged = row.id !== undefined && samePhone(row.phone, before.get(row.id) ?? '');
-      if (!unchanged) {
-        if (!digits) errors[path] = 'חסר מספר';
-        else if (!isMobile(digits)) errors[path] = 'מספר נייד לא תקין (05X-XXXXXXX)';
-        else if (seen.has(digits)) errors[path] = 'המספר כבר מופיע בכרטיס';
+      const email = row.email.trim();
+      const path = `extra_phones.${index}`;
+      const was = row.id !== undefined ? before.get(row.id) : undefined;
+      // What the office did not touch stays, even if an old record would not pass today.
+      const unchangedPhone = was !== undefined && samePhone(row.phone, was.phone);
+      const unchangedEmail = was !== undefined && email === was.email.trim();
+      if (!digits && !email && !(unchangedPhone && unchangedEmail)) {
+        errors[`${path}.phone`] = 'צריך טלפון או מייל';
+        return;
+      }
+      if (digits && !unchangedPhone) {
+        if (!isMobile(digits)) errors[`${path}.phone`] = 'מספר נייד לא תקין (05X-XXXXXXX)';
+        else if (seen.has(digits)) errors[`${path}.phone`] = 'המספר כבר מופיע בכרטיס';
+      }
+      if (email && !unchangedEmail) {
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) errors[`${path}.email`] = 'כתובת אימייל לא תקינה';
+        else if (seenEmails.has(email.toLowerCase())) errors[`${path}.email`] = 'המייל כבר מופיע בכרטיס';
       }
       if (digits) seen.add(digits);
+      if (email) seenEmails.add(email.toLowerCase());
     });
   }
   return errors;

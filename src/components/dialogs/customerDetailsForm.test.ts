@@ -42,7 +42,7 @@ function card(overrides: Partial<ChildWithDetails> = {}): ChildWithDetails {
     parent_last_name: 'כהן',
     family_notes: '',
     notes: '',
-    extra_phones: [{ id: 'parent-2', name: 'סבתא רחל', phone: '0525556666' }],
+    extra_phones: [{ id: 'parent-2', name: 'סבתא רחל', phone: '0525556666', email: '' }],
     family_editable: true,
     status: 'active',
     paid_until_date: null,
@@ -70,7 +70,7 @@ describe('formFromChild', () => {
     expect(form.parent).toEqual({
       first_name: 'יעל', last_name: 'כהן', phone: '050-777-8899', email: 'yael@example.com', id_number: '000000018',
     });
-    expect(form.extra_phones).toEqual([{ key: 'parent-2', id: 'parent-2', name: 'סבתא רחל', phone: '0525556666' }]);
+    expect(form.extra_phones).toEqual([{ key: 'parent-2', id: 'parent-2', name: 'סבתא רחל', phone: '0525556666', email: '' }]);
   });
 
   it('falls back to the family phone and email the way the card does', () => {
@@ -112,12 +112,12 @@ describe('changes and payload', () => {
 
   it('sends the whole extra-phones list only when it changed', () => {
     const form = edit(initial, (d) => {
-      d.extra_phones.push({ key: 'new-1', name: '', phone: '0521112233' });
+      d.extra_phones.push({ key: 'new-1', name: '', phone: '0521112233', email: '' });
     });
     expect(buildPayload(form, initial)).toEqual({
       extra_phones: [
-        { id: 'parent-2', name: 'סבתא רחל', phone: '0525556666' },
-        { name: '', phone: '0521112233' },
+        { id: 'parent-2', name: 'סבתא רחל', phone: '0525556666', email: '' },
+        { name: '', phone: '0521112233', email: '' },
       ],
       extra_phone_ids_seen: ['parent-2'],
     });
@@ -162,14 +162,14 @@ describe('validateDetails', () => {
   it('accepts a landline for the parent but only a mobile as an extra phone', () => {
     const landline = edit(initial, (d) => { d.parent.phone = '03-5551234'; });
     expect(validateDetails(landline, initial)).toEqual({});
-    const extra = edit(initial, (d) => { d.extra_phones.push({ key: 'n', name: '', phone: '03-5551234' }); });
+    const extra = edit(initial, (d) => { d.extra_phones.push({ key: 'n', name: '', email: '', phone: '03-5551234' }); });
     expect(validateDetails(extra, initial)).toHaveProperty(['extra_phones.1.phone']);
   });
 
   it('refuses an extra phone that repeats the parent or another extra', () => {
-    const repeatParent = edit(initial, (d) => { d.extra_phones.push({ key: 'n', name: '', phone: '0507778899' }); });
+    const repeatParent = edit(initial, (d) => { d.extra_phones.push({ key: 'n', name: '', email: '', phone: '0507778899' }); });
     expect(validateDetails(repeatParent, initial)).toHaveProperty(['extra_phones.1.phone']);
-    const twice = edit(initial, (d) => { d.extra_phones.push({ key: 'n', name: '', phone: '052-555-6666' }); });
+    const twice = edit(initial, (d) => { d.extra_phones.push({ key: 'n', name: '', email: '', phone: '052-555-6666' }); });
     expect(validateDetails(twice, initial)).toHaveProperty(['extra_phones.1.phone']);
   });
 });
@@ -213,9 +213,9 @@ describe('review round', () => {
 
   it('lets an old extra that fails today stay while another is added', () => {
     const legacy = formFromChild(card({
-      extra_phones: [{ id: 'old', name: 'בית', phone: '03-5551234' }, { id: 'empty', name: 'ישן', phone: '' }],
+      extra_phones: [{ id: 'old', name: 'בית', phone: '03-5551234', email: '' }, { id: 'empty', name: 'ישן', phone: '', email: '' }],
     }));
-    const form = edit(legacy, (d) => { d.extra_phones.push({ key: 'n', name: '', phone: '0521112233' }); });
+    const form = edit(legacy, (d) => { d.extra_phones.push({ key: 'n', name: '', email: '', phone: '0521112233' }); });
     expect(validateDetails(form, legacy)).toEqual({});
   });
 });
@@ -230,7 +230,7 @@ describe('requirements check round', () => {
     expect(validateDetails(swapped, initial)).toEqual({});
     expect(buildPayload(swapped, initial)).toEqual({
       parent: { first_name: 'סבתא', last_name: 'רחל', phone: '0525556666' },
-      extra_phones: [{ id: 'parent-2', name: 'יעל כהן', phone: '050-777-8899' }],
+      extra_phones: [{ id: 'parent-2', name: 'יעל כהן', phone: '050-777-8899', email: '' }],
       extra_phone_ids_seen: ['parent-2'],
     });
   });
@@ -244,7 +244,46 @@ describe('requirements check round', () => {
   });
 
   it('says that a nameless extra phone takes the parent name', () => {
-    const form = edit(initial, (d) => { d.extra_phones.push({ key: 'n', name: '', phone: '0521112233' }); });
+    const form = edit(initial, (d) => { d.extra_phones.push({ key: 'n', name: '', email: '', phone: '0521112233' }); });
     expect(describeChanges(form, initial).at(-1)?.new).toContain('0521112233 · בשם ההורה');
+  });
+});
+
+describe('extra email for the monthly receipt', () => {
+  const initial = formFromChild(card());
+
+  it('a contact may have an email only, a phone only, or both', () => {
+    const form = edit(initial, (d) => {
+      d.extra_phones.push({ key: 'a', name: 'רואה חשבון', phone: '', email: 'cpa@example.com' });
+      d.extra_phones[0].email = 'grandma@example.com';
+    });
+    expect(validateDetails(form, initial)).toEqual({});
+    expect(buildPayload(form, initial).extra_phones).toEqual([
+      { id: 'parent-2', name: 'סבתא רחל', phone: '0525556666', email: 'grandma@example.com' },
+      { name: 'רואה חשבון', phone: '', email: 'cpa@example.com' },
+    ]);
+    expect(describeChanges(form, initial).at(-1)?.new).toContain('cpa@example.com');
+  });
+
+  it('needs a phone or an email, a valid email, and no repeats', () => {
+    const cases: Array<[string, string, string]> = [
+      ['', '', 'extra_phones.1.phone'],
+      ['', 'not-an-email', 'extra_phones.1.email'],
+      ['', 'YAEL@example.com', 'extra_phones.1.email'],
+    ];
+    for (const [phone, email, path] of cases) {
+      const form = edit(initial, (d) => { d.extra_phones.push({ key: 'x', name: '', phone, email }); });
+      expect(validateDetails(form, initial)).toHaveProperty([path]);
+    }
+  });
+
+  it('swaps emails too when the contact made primary has one', () => {
+    const withEmail = edit(initial, (d) => { d.extra_phones[0].email = 'grandma@example.com'; });
+    const swapped = makeExtraPrimary(withEmail, 0);
+    expect(swapped.parent.email).toBe('grandma@example.com');
+    expect(swapped.extra_phones[0].email).toBe('yael@example.com');
+    const noEmail = makeExtraPrimary(initial, 0);
+    expect(noEmail.parent.email).toBe('yael@example.com');
+    expect(noEmail.extra_phones[0].email).toBe('');
   });
 });

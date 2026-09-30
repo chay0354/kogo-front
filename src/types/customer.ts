@@ -127,11 +127,13 @@ export interface ChildWithDetails {
   }[];
 }
 
+/** An extra contact: its phone gets the group messages, its email a copy of the receipt each month. */
 export interface ExtraPhone {
-  /** The Parent row behind the phone. */
+  /** The Parent row behind the contact. */
   id: string;
   name: string;
   phone: string;
+  email?: string;
 }
 
 export interface Branch {
