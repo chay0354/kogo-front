@@ -24,6 +24,47 @@
  */
 import type { BroadcastRow } from './whatsappApi';
 
+/** Messages a previewed row will send: the parent's, and each extra phone's. */
+export function rowMessages(row: BroadcastRow): number {
+  const own = row.status === 'preview' ? 1 : 0;
+  return own + (row.extra_phones ?? []).filter((extra) => extra.status === 'preview').length;
+}
+
+/** Every phone a previewed row would use — the parent's and the extra phones'. */
+function previewPhones(row: BroadcastRow): string[] {
+  const phones = row.status === 'preview' && row.phone ? [row.phone] : [];
+  for (const extra of row.extra_phones ?? []) {
+    if (extra.status === 'preview' && extra.phone) phones.push(extra.phone);
+  }
+  return phones;
+}
+
+/**
+ * The real send's chunks. The dry run's chunks count children; a family with
+ * extra phones sends more than one message per child, and every message costs
+ * the server the same time. So the send packs children, in order, into chunks
+ * of at most `size` messages — the same budget one chunk always had — and a
+ * child whose messages alone exceed it goes in a chunk of its own.
+ */
+export function packSendChunks(ids: string[], rows: BroadcastRow[], size: number): string[][] {
+  const weight = new Map(rows.map((row) => [row.child_id, Math.max(1, rowMessages(row))]));
+  const chunks: string[][] = [];
+  let current: string[] = [];
+  let load = 0;
+  for (const id of ids) {
+    const w = weight.get(id) ?? 1;
+    if (current.length && load + w > size) {
+      chunks.push(current);
+      current = [];
+      load = 0;
+    }
+    current.push(id);
+    load += w;
+  }
+  if (current.length) chunks.push(current);
+  return chunks;
+}
+
 export type RunPhase = 'idle' | 'checking' | 'preview' | 'sending' | 'paused' | 'done' | 'failed';
 
 export interface ChunkRequest {
@@ -81,6 +122,9 @@ export class BroadcastRun {
   readonly names: Record<string, string>;
   readonly automation: RunAutomation;
   readonly chunks: string[][];
+  /** The real send's chunks, packed by messages once the preview is in. */
+  sendChunks: string[][];
+  private readonly chunkSize: number;
   private readonly sendChunk: BroadcastRunOptions['sendChunk'];
   private readonly holdMs: number;
   private readonly wait: (ms: number) => Promise<void>;
@@ -96,6 +140,8 @@ export class BroadcastRun {
     const size = Math.max(1, opts.chunkSize);
     this.chunks = [];
     for (let i = 0; i < this.ids.length; i += size) this.chunks.push(this.ids.slice(i, i + size));
+    this.chunkSize = size;
+    this.sendChunks = this.chunks;
     this.sendChunk = opts.sendChunk;
     this.holdMs = opts.holdMs ?? 450;
     this.wait = opts.wait ?? defaultWait;
@@ -149,6 +195,7 @@ export class BroadcastRun {
   /** The real send. Only from a finished preview, and only once. */
   start(): Promise<void> {
     if (this.current.phase !== 'preview') return Promise.resolve();
+    this.sendChunks = packSendChunks(this.ids, this.current.previewRows, this.chunkSize);
     this.skipPhones = [];
     this.update({ sentRows: [] });
     return this.sendFrom(0);
@@ -169,10 +216,10 @@ export class BroadcastRun {
 
   private async sendFrom(startIndex: number): Promise<void> {
     this.update({ phase: 'sending', pausedAt: null });
-    for (let i = startIndex; i < this.chunks.length; i += 1) {
+    for (let i = startIndex; i < this.sendChunks.length; i += 1) {
       try {
         const res = await this.sendChunk({
-          child_ids: this.chunks[i],
+          child_ids: this.sendChunks[i],
           dry_run: false,
           skip_phones: this.skipPhones,
         });
@@ -183,10 +230,10 @@ export class BroadcastRun {
         // timeout is longer than the function's). Never retry it by itself,
         // and treat its phones as used so a sibling in a later chunk does not
         // get a second message when the office continues.
-        const chunk = new Set(this.chunks[i]);
+        const chunk = new Set(this.sendChunks[i]);
         const usedPhones = this.current.previewRows
-          .filter((r) => chunk.has(r.child_id) && r.status === 'preview' && r.phone)
-          .map((r) => r.phone);
+          .filter((r) => chunk.has(r.child_id))
+          .flatMap(previewPhones);
         this.skipPhones = this.skipPhones.concat(usedPhones);
         this.update({ phase: 'paused', pausedAt: i });
         return;
@@ -208,14 +255,22 @@ export function runIsHeld(phase: RunPhase) {
 
 export function previewCounts(rows: BroadcastRow[]) {
   const willSend = rows.filter((r) => r.status === 'preview').length;
-  return { willSend, skipped: rows.length - willSend };
+  // Extra phones are counted apart: `willSend` and `skipped` stay per child.
+  const extraWillSend = rows.reduce(
+    (sum, r) => sum + (r.extra_phones ?? []).filter((extra) => extra.status === 'preview').length,
+    0,
+  );
+  return { willSend, skipped: rows.length - willSend, extraWillSend, messages: willSend + extraWillSend };
 }
 
 export function sentCounts(rows: BroadcastRow[]) {
+  const extras = rows.flatMap((r) => r.extra_phones ?? []);
   return {
     sent: rows.filter((r) => r.status === 'sent').length,
     failed: rows.filter((r) => r.status === 'failed').length,
     skipped: rows.filter((r) => r.status === 'skipped').length,
+    extraSent: extras.filter((extra) => extra.status === 'sent').length,
+    extraFailed: extras.filter((extra) => extra.status === 'failed').length,
   };
 }
 

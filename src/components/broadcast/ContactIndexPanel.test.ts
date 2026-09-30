@@ -35,4 +35,12 @@ describe('unfindablePhones', () => {
   it('lists siblings on one phone once', () => {
     expect(unfindablePhones([row({}), row({})])).toEqual(['972545757056']);
   });
+
+  it('leaves out extra phones: the import file cannot fix them', () => {
+    const sent = row({ status: 'sent', reason: null, extra_phones: [
+      { parent_name: 'סבתא', phone: '972521112233', status: 'failed', reason: 'contact_unfindable' },
+      { parent_name: 'דוד', phone: '972521112244', status: 'failed', reason: null },
+    ] });
+    expect(unfindablePhones([sent])).toEqual([]);
+  });
 });

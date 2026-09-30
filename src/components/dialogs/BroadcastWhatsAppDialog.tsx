@@ -56,9 +56,39 @@ const REASON_LABELS: Record<string, string> = {
   no_parent_phone: 'ללא טלפון',
   duplicate_phone: 'כפול (אותו טלפון)',
   no_active_lesson: 'ללא שיעור פעיל',
+  not_mobile: 'מספר קווי',
 };
 
-function rowStatusLabel(row: BroadcastRow) {
+/** The family's extra phones under a row, each with what happened to it. */
+function ExtraPhoneLines({ row }: { row: BroadcastRow }) {
+  const extras = row.extra_phones ?? [];
+  if (!extras.length) return null;
+  return (
+    <div className="mt-1 space-y-0.5 pr-4 text-xs">
+      {extras.map((extra) => (
+        <div key={extra.phone} className="flex items-center justify-between gap-3">
+          <span className="min-w-0 text-muted-foreground">
+            טלפון נוסף{extra.parent_name ? ` · ${extra.parent_name}` : ''}
+            <span className="tabular-nums" dir="ltr"> {extra.phone}</span>
+          </span>
+          <span
+            className={
+              extra.status === 'sent' || extra.status === 'preview'
+                ? 'text-emerald-700'
+                : extra.status === 'failed'
+                  ? 'text-red-700'
+                  : 'text-muted-foreground'
+            }
+          >
+            {rowStatusLabel(extra)}
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function rowStatusLabel(row: Pick<BroadcastRow, 'status' | 'method' | 'error'> & { reason?: string | null }) {
   if (row.status === 'sent') return row.method === 'flow' ? 'נשלח' : 'נשלח (טקסט חופשי)';
   if (row.status === 'failed') return `נכשל${row.error ? ` · ${row.error}` : ''}`;
   if (row.status === 'preview') return 'יישלח';
@@ -190,20 +220,23 @@ export default function BroadcastWhatsAppDialog({
   const sentRows = snapshot?.sentRows ?? [];
 
   const previewSummary = useMemo(() => {
-    const { willSend, skipped } = previewCounts(previewRows);
+    const { willSend, skipped, extraWillSend, messages } = previewCounts(previewRows);
     const reasons: Record<string, number> = {};
     for (const r of previewRows) {
       if (r.status === 'skipped') reasons[r.reason || 'other'] = (reasons[r.reason || 'other'] || 0) + 1;
     }
-    return { willSend, skipped, reasons };
+    return { willSend, skipped, extraWillSend, messages, reasons };
   }, [previewRows]);
 
   const sentSummary = useMemo(() => sentCounts(sentRows), [sentRows]);
 
   const copyFailures = async () => {
-    const lines = sentRows
-      .filter((r) => r.status === 'failed')
-      .map((r) => `${r.child_name} · ${r.parent_name} · ${r.phone} · ${r.error || ''}`);
+    const lines = sentRows.flatMap((r) => [
+      ...(r.status === 'failed' ? [`${r.child_name} · ${r.parent_name} · ${r.phone} · ${r.error || ''}`] : []),
+      ...(r.extra_phones ?? [])
+        .filter((extra) => extra.status === 'failed')
+        .map((extra) => `${r.child_name} · ${extra.parent_name} (טלפון נוסף) · ${extra.phone} · ${extra.error || ''}`),
+    ]);
     try {
       await navigator.clipboard.writeText(lines.join('\n'));
       toast.success('הרשימה הועתקה');
@@ -334,7 +367,7 @@ export default function BroadcastWhatsAppDialog({
               <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
               <span>
                 השלב הבא הוא תצוגה מקדימה בלבד — שום הודעה לא יוצאת עד שתאשרו במפורש. שני ילדים עם אותו טלפון
-                (אחים) מקבלים הודעה אחת.
+                (אחים) מקבלים הודעה אחת. טלפונים נוספים שהוגדרו בכרטיס הלקוח מקבלים גם הם את ההודעה.
               </span>
             </p>
             <div className="flex justify-start gap-2 pt-2">
@@ -353,8 +386,13 @@ export default function BroadcastWhatsAppDialog({
             <h3 className="font-semibold">2. תצוגה מקדימה — {run.automation.label}</h3>
             <div className="flex flex-wrap gap-2 text-sm" aria-live="polite">
               <span className="rounded-full bg-emerald-100 text-emerald-900 px-3 py-1 font-medium">
-                יישלחו {previewSummary.willSend}
+                יישלחו {previewSummary.messages}
               </span>
+              {previewSummary.extraWillSend > 0 && (
+                <span className="rounded-full border border-emerald-200 px-3 py-1 text-emerald-900">
+                  מתוכן {previewSummary.extraWillSend} לטלפונים נוספים
+                </span>
+              )}
               <span className="rounded-full bg-muted px-3 py-1">ידולגו {previewSummary.skipped}</span>
               {Object.entries(previewSummary.reasons).map(([reason, n]) => (
                 <span key={reason} className="rounded-full border px-3 py-1 text-muted-foreground">
@@ -364,15 +402,18 @@ export default function BroadcastWhatsAppDialog({
             </div>
             <div className="max-h-72 overflow-y-auto rounded-lg border divide-y text-sm">
               {previewRows.map((row) => (
-                <div key={row.child_id} className="flex items-center justify-between gap-3 px-3 py-2">
-                  <div className="min-w-0">
-                    <span className="font-medium">{nameFor(row)}</span>
-                    {row.parent_name && <span className="text-muted-foreground"> · {row.parent_name}</span>}
-                    {row.phone && <span className="text-muted-foreground tabular-nums" dir="ltr"> {row.phone}</span>}
+                <div key={row.child_id} className="px-3 py-2">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <span className="font-medium">{nameFor(row)}</span>
+                      {row.parent_name && <span className="text-muted-foreground"> · {row.parent_name}</span>}
+                      {row.phone && <span className="text-muted-foreground tabular-nums" dir="ltr"> {row.phone}</span>}
+                    </div>
+                    <span className={row.status === 'preview' ? 'text-emerald-700' : 'text-muted-foreground'}>
+                      {rowStatusLabel(row)}
+                    </span>
                   </div>
-                  <span className={row.status === 'preview' ? 'text-emerald-700' : 'text-muted-foreground'}>
-                    {rowStatusLabel(row)}
-                  </span>
+                  <ExtraPhoneLines row={row} />
                 </div>
               ))}
             </div>
@@ -382,17 +423,18 @@ export default function BroadcastWhatsAppDialog({
                 className="mt-1"
                 checked={confirmed}
                 onChange={(e) => setConfirmed(e.target.checked)}
-                disabled={previewSummary.willSend === 0}
+                disabled={previewSummary.messages === 0}
               />
               <span>
-                אני מאשר/ת שליחה אמיתית ל-<strong>{previewSummary.willSend}</strong> הורים ב-WhatsApp. לא ניתן לבטל
+                אני מאשר/ת שליחה אמיתית ל-<strong>{previewSummary.messages}</strong>{' '}
+                {previewSummary.extraWillSend > 0 ? 'מספרי טלפון' : 'הורים'} ב-WhatsApp. לא ניתן לבטל
                 אחרי השליחה.
               </span>
             </label>
             <div className="flex justify-start gap-2">
-              <Button type="button" onClick={onStart} disabled={!confirmed || previewSummary.willSend === 0}>
+              <Button type="button" onClick={onStart} disabled={!confirmed || previewSummary.messages === 0}>
                 <Send className="h-4 w-4 ml-1" />
-                שליחה ל-{previewSummary.willSend} הורים
+                שליחה ל-{previewSummary.messages} {previewSummary.extraWillSend > 0 ? 'מספרים' : 'הורים'}
               </Button>
               <Button type="button" variant="outline" onClick={() => { setConfirmed(false); onBack(); }}>
                 חזרה
@@ -410,9 +452,13 @@ export default function BroadcastWhatsAppDialog({
                 counts it carried are shown here instead. */}
             {paused !== null && (
               <div className="flex flex-wrap gap-2 text-sm" aria-live="polite">
-                <span className="rounded-full bg-emerald-100 text-emerald-900 px-3 py-1 font-medium">נשלחו {sentSummary.sent}</span>
-                <span className={`rounded-full px-3 py-1 ${sentSummary.failed ? 'bg-red-100 text-red-900' : 'bg-muted'}`}>
-                  נכשלו {sentSummary.failed}
+                <span className="rounded-full bg-emerald-100 text-emerald-900 px-3 py-1 font-medium">
+                  נשלחו {sentSummary.sent + sentSummary.extraSent}
+                </span>
+                <span
+                  className={`rounded-full px-3 py-1 ${sentSummary.failed + sentSummary.extraFailed ? 'bg-red-100 text-red-900' : 'bg-muted'}`}
+                >
+                  נכשלו {sentSummary.failed + sentSummary.extraFailed}
                 </span>
                 <span className="rounded-full bg-muted px-3 py-1">דולגו {sentSummary.skipped}</span>
                 <span className="rounded-full border px-3 py-1 text-muted-foreground">
@@ -427,8 +473,8 @@ export default function BroadcastWhatsAppDialog({
                 total={total}
                 finished={phase === 'done'}
                 counts={[
-                  { label: 'נשלחו', value: sentSummary.sent, tone: 'sent' },
-                  { label: 'נכשלו', value: sentSummary.failed, tone: 'fail' },
+                  { label: 'נשלחו', value: sentSummary.sent + sentSummary.extraSent, tone: 'sent' },
+                  { label: 'נכשלו', value: sentSummary.failed + sentSummary.extraFailed, tone: 'fail' },
                   { label: 'דולגו', value: sentSummary.skipped, tone: 'skip' },
                 ]}
               />
@@ -487,6 +533,17 @@ export default function BroadcastWhatsAppDialog({
                         onLinked={(displayName) => setLinked((prev) => ({ ...prev, [row.phone]: displayName }))}
                       />
                     )}
+                    <ExtraPhoneLines row={row} />
+                    {(row.extra_phones ?? [])
+                      .filter((extra) => extra.status === 'failed' && extra.reason === 'contact_unfindable' && extra.phone)
+                      .map((extra) => (
+                        <LinkContactPanel
+                          key={extra.phone}
+                          phone={extra.phone}
+                          linkedAs={linked[extra.phone]}
+                          onLinked={(displayName) => setLinked((prev) => ({ ...prev, [extra.phone]: displayName }))}
+                        />
+                      ))}
                   </div>
                 ))}
               </div>
@@ -494,7 +551,7 @@ export default function BroadcastWhatsAppDialog({
             {phase === 'sending' && minimizeHint}
             {phase === 'done' && (
               <div className="flex justify-start gap-2">
-                {sentSummary.failed > 0 && (
+                {sentSummary.failed + sentSummary.extraFailed > 0 && (
                   <Button type="button" variant="outline" onClick={copyFailures}>
                     <Copy className="h-4 w-4 ml-1" />
                     העתק את הכשלונות
