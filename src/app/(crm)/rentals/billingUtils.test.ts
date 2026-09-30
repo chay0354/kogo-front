@@ -40,6 +40,7 @@ import {
   lifecycleConfirmCopy,
   liveCardLink,
   markChargedCopy,
+  markChargedLateWarning,
   markChargedErrors,
   markChargedPayload,
   monthsNeverCharged,
@@ -666,6 +667,27 @@ describe('a month paid at the office', () => {
       'יש להזין את מספר החשבון',
       "יש להזין את תאריך הפירעון של הצ'ק",
     ]);
+    const fullCheck = {
+      ...cash,
+      method: 'check' as const,
+      checkNumber: '1'.repeat(51),
+      checkBank: 'ב'.repeat(101),
+      checkBranch: '600',
+      checkAccount: '456789',
+      checkDate: '2026-10-20',
+    };
+    expect(offlinePaymentErrors(fullCheck, TODAY)).toEqual(["מספר הצ'ק ארוך מדי", 'הבנק ארוך מדי']);
+    expect(offlinePaymentErrors({ ...fullCheck, checkNumber: '1'.repeat(50), checkBank: 'ב'.repeat(100) }, TODAY)).toEqual([]);
+  });
+
+  it('asks for Tranzila’s own id when a voided month Tranzila charged after all is marked charged', () => {
+    const late = charge({ status: 'voided', period: '2026-10-01', transaction_id: 'T100', late_card_charge: true });
+    const copy = markChargedCopy(late);
+    expect(copy.title).toBe('סימון אוקטובר 2026 כחויב');
+    expect(copy.warning).toBe(markChargedLateWarning('T100'));
+    expect(copy.warning).toContain('(T100)');
+    expect(copy.warning).toContain('בטרנזילה, לא מכאן');
+    expect(markChargedCopy(charge({ status: 'review', late_card_charge: false })).warning).toBe(MARK_CHARGED_WARNING);
   });
 
   it('sends the month’s own total, and only what the means needs', () => {
@@ -698,7 +720,7 @@ describe('a month paid at the office', () => {
 
   it('warns on a voided month that a receipt may exist already', () => {
     expect(offlinePaymentCopy(charge({ status: 'voided', period: '2026-10-01' }))).toMatchObject({
-      title: 'תשלום במשרד על אוקטובר 2026',
+      title: 'רישום תשלום במשרד על אוקטובר 2026',
       voidedWarning: OFFLINE_VOIDED_WARNING,
       amount: 'סכום: ₪566.40 — כל החודש, כולל מע״מ',
     });

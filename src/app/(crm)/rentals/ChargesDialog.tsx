@@ -504,7 +504,7 @@ export default function ChargesDialog({
           {isCheck ? (
             <>
               {textField('checkNumber', "מספר הצ'ק", true, true)}
-              {textField('checkBank', 'בנק', true, true)}
+              {textField('checkBank', 'בנק (שם או מספר)', true)}
               {textField('checkBranch', 'סניף', true, true)}
               {textField('checkAccount', 'מספר חשבון', true, true)}
               <div className={styles.field}>
@@ -658,10 +658,11 @@ export default function ChargesDialog({
                 className={styles.smallBtn}
                 onClick={() => startForm('offline', charge)}
                 disabled={busy !== null}
-                aria-label={`תשלום במזומן, בצ׳ק או בהעברה על ${monthOf(charge)}`}
+                title="השוכר שילם את החודש במשרד: במזומן, בצ׳ק או בהעברה בנקאית"
+                aria-label={`רישום תשלום במשרד על ${monthOf(charge)} — מזומן, צ׳ק או העברה`}
               >
                 <Banknote size={14} aria-hidden="true" />
-                תשלום במזומן / צ׳ק / העברה
+                רישום תשלום במשרד
               </button>
             )}
             {actions.void && !formKind && (

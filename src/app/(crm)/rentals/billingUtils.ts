@@ -787,14 +787,16 @@ export function offlinePaymentErrors(form: OfflinePaymentForm, today: string): s
   if (!form.paidOn) errors.push('יש לבחור את תאריך התשלום');
   else if (form.paidOn > today) errors.push('תאריך התשלום לא יכול להיות בעתיד');
   if (form.method === 'check') {
-    const fields: Array<[string, string]> = [
-      [form.checkNumber, "מספר הצ'ק"],
-      [form.checkBank, 'הבנק'],
-      [form.checkBranch, 'הסניף'],
-      [form.checkAccount, 'מספר החשבון'],
+    // The server's limits on each (apps/rental_billing/offline.py).
+    const fields: Array<[string, string, number]> = [
+      [form.checkNumber, "מספר הצ'ק", 50],
+      [form.checkBank, 'הבנק', 100],
+      [form.checkBranch, 'הסניף', 50],
+      [form.checkAccount, 'מספר החשבון', 50],
     ];
-    fields.forEach(([value, label]) => {
+    fields.forEach(([value, label, limit]) => {
       if (!value.trim()) errors.push(`יש להזין את ${label}`);
+      else if (value.trim().length > limit) errors.push(`${label} ארוך מדי`);
     });
     if (!form.checkDate) errors.push("יש להזין את תאריך הפירעון של הצ'ק");
   } else if (form.reference.trim().length > 200) {
@@ -841,7 +843,7 @@ export function offlinePaymentCopy(charge: Pick<TenantCharge, 'period' | 'status
   submit: string;
 } {
   return {
-    title: `תשלום במשרד על ${monthOf(charge)}`,
+    title: `רישום תשלום במשרד על ${monthOf(charge)}`,
     warning: OFFLINE_PAYMENT_WARNING,
     voidedWarning: charge.status === 'voided' ? OFFLINE_VOIDED_WARNING : '',
     amount: `סכום: ${billingMoney(charge.total)} — כל החודש, כולל מע״מ`,
@@ -912,9 +914,26 @@ function monthOf(charge: Pick<TenantCharge, 'period'>): string {
   return billingMonthLabel(charge.period) || 'החודש';
 }
 
+/**
+ * On a voided month Tranzila charged after all: the id typed must be the one
+ * Tranzila answered with (the server refuses any other), and a refund is done
+ * in Tranzila, never from here.
+ */
+export function markChargedLateWarning(transactionId: string): string {
+  const which = transactionId.trim() ? ` (${transactionId.trim()})` : '';
+  return `סמנו כחויב רק אם מצאתם בטרנזילה את החיוב על החודש הזה ומשאירים אותו. הזינו את מזהה העסקה כפי שטרנזילה החזירה${which} — השרת לא מקבל מזהה אחר. הסימון מפיק לשוכר קבלה על החודש. אם מחזירים לשוכר את הכסף — עושים זאת בטרנזילה, לא מכאן.`;
+}
+
 /** "סימון כחויב" asks for Tranzila's transaction id, and says plainly when it may be pressed. */
-export function markChargedCopy(charge: Pick<TenantCharge, 'period'>): { title: string; warning: string; submit: string } {
-  return { title: `סימון ${monthOf(charge)} כחויב`, warning: MARK_CHARGED_WARNING, submit: 'סימון כחויב' };
+export function markChargedCopy(
+  charge: Pick<TenantCharge, 'period'> & Partial<Pick<TenantCharge, 'status' | 'late_card_charge' | 'transaction_id'>>,
+): { title: string; warning: string; submit: string } {
+  const late = charge.late_card_charge === true && charge.status === 'voided';
+  return {
+    title: `סימון ${monthOf(charge)} כחויב`,
+    warning: late ? markChargedLateWarning(charge.transaction_id ?? '') : MARK_CHARGED_WARNING,
+    submit: 'סימון כחויב',
+  };
 }
 
 /** "ביטול" asks why, and says it is final — with the check a charge in review needs first. */
