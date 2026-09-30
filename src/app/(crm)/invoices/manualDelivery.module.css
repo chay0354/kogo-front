@@ -132,6 +132,70 @@
   animation: spin 0.9s linear infinite;
 }
 
+/* ---- "שלח" beside "הדפס", and the allocation number's entry ---- */
+.actions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: flex-end;
+}
+
+.allocation {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.allocationInput {
+  width: 120px;
+  height: 32px;
+  padding: 0 10px;
+  border-radius: 10px;
+  border: 1px solid var(--kg-line);
+  background: #fff;
+  color: var(--kg-ink);
+  font-family: inherit;
+  font-size: 13px;
+  letter-spacing: 0.04em;
+}
+
+.allocationInput:focus-visible {
+  outline: 2px solid var(--kg-bar-a);
+  outline-offset: 1px;
+}
+
+.allocationInput[aria-invalid='true'] {
+  border-color: #dc2626;
+}
+
+.fieldError {
+  display: block;
+  width: 100%;
+  margin-top: 2px;
+  color: #dc2626;
+  font-size: 12px;
+}
+
+.dialogField {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 12px;
+  text-align: start;
+}
+
+.dialogLabel {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--kg-ink2);
+}
+
+.dialogHint {
+  font-size: 12px;
+  color: var(--kg-ink3, #6b7280);
+}
+
 @keyframes spin {
   to {
     transform: rotate(360deg);

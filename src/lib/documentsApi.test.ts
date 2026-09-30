@@ -19,6 +19,7 @@ import {
   issueMissingReceipts,
   MISSING_RECEIPTS_CONFIRM_WORD,
   MISSING_RECEIPTS_MAX_BATCH,
+  setAllocationNumber,
 } from './documentsApi';
 
 beforeEach(() => {
@@ -138,5 +139,23 @@ describe('issueMissingReceipts', () => {
     const refusal = { response: { status: 400, data: { error: 'לא הופקו קבלות: כדי להפיק יש להקליד "הפק" לאישור.' } } };
     api.post.mockRejectedValue(refusal);
     await expect(issueMissingReceipts(['p-1'], 'כן')).rejects.toBe(refusal);
+  });
+});
+
+describe('setAllocationNumber', () => {
+  it('posts the number and returns what the server says became of the original', async () => {
+    const answer = {
+      id: 'd-1', allocation_number: '123456789', allocation_entered_at: '2026-09-30T09:00:00+03:00',
+      copy_only: false, signed: true, delivery: 'email', delivery_reason: 'המקור החתום נשלח במייל',
+    };
+    api.post.mockResolvedValue({ data: answer });
+    expect(await setAllocationNumber('d-1', '123456789')).toEqual(answer);
+    expect(api.post).toHaveBeenCalledWith('/documents/documents/d-1/allocation-number/', { allocation_number: '123456789' });
+  });
+
+  it('throws the 409 of a signed original as it came, for its sentence', async () => {
+    const refusal = { response: { status: 409, data: { error: 'המקור כבר נחתם עם מספר הקצאה 111111111' } } };
+    api.post.mockRejectedValue(refusal);
+    await expect(setAllocationNumber('d-1', '')).rejects.toBe(refusal);
   });
 });

@@ -24,7 +24,7 @@ function status(overrides: Partial<SigningStatus> = {}): SigningStatus {
     cert_fingerprint: null,
     cert_subject: null,
     last_signed_at: null,
-    counts: { held: 0, paper_pending: 0, signed_today: 0 },
+    counts: { held: 0, paper_pending: 0, signed_today: 0, awaiting_allocation: 0 },
     ...overrides,
   };
 }
