@@ -95,9 +95,9 @@ export function stockExpected(product: StoreProduct, loaded: StockRowDraft[], br
 }
 
 /**
- * The rows to send, or the reason the form cannot be saved as it is. An
- * entirely empty row — no size, no place, no quantity — is dropped; a row
- * with a place but no size is kept (stock per location without sizes).
+ * The rows to send, or the reason the form cannot be saved as it is. A new
+ * row with neither a size nor a quantity is dropped; a row with a quantity
+ * and no size is kept (stock per location without sizes).
  */
 export function cleanRows(
   rows: StockRowDraft[],
@@ -109,7 +109,9 @@ export function cleanRows(
     const size = (row.size || '').trim();
     const rawBranch = coerceBranchFromApi(row.branch);
     const quantity = Math.max(0, Math.floor(Number(row.stock_quantity) || 0));
-    if (!size && !rawBranch && quantity === 0) continue;
+    // A new row left without a size or a quantity is one nobody filled in. A
+    // row that came from the server stays even at 0: dropping it removes it.
+    if (!size && quantity === 0 && !row.id) continue;
     if (size.length > 20) {
       return { rows: [], error: `המידה "${size}" ארוכה מדי — עד 20 תווים.` };
     }

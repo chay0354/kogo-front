@@ -86,3 +86,13 @@ describe('stockExpected', () => {
     });
   });
 });
+
+describe('a new empty row', () => {
+  it('is dropped even with a place, while a loaded row at 0 is kept', () => {
+    const rows = [
+      { uid: 'n', size: '', branch: CENTER, stock_quantity: 0 },
+      { uid: 'l', id: 'l', size: '', branch: null, stock_quantity: 0 },
+    ];
+    expect(cleanRows(rows, branches).rows).toEqual([{ size: '', stock_quantity: 0, sort_order: 0, branch: null }]);
+  });
+});

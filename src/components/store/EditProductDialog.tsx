@@ -41,6 +41,8 @@ export default function EditProductDialog({ isOpen, onClose, product, onSuccess 
   // The rows as the form opened, sent with the save so the server changes
   // only what the office changed (see productStockForm).
   const [loadedRows, setLoadedRows] = useState<StockRowDraft[]>([]);
+  // The stock the product held as one number, carried into a row when the first size was added.
+  const [carriedOver, setCarriedOver] = useState<number | null>(null);
   const linkedToWebsite = Boolean(product?.website_legacy_id);
   const listedSizes = listedSizesWithoutRows(product);
   const [branches, setBranches] = useState<Branch[]>([]);
@@ -68,6 +70,7 @@ export default function EditProductDialog({ isOpen, onClose, product, onSuccess 
       });
       const loaded = loadRows(product);
       setLoadedRows(loaded);
+      setCarriedOver(null);
       setSizeRows(loaded.map((row) => ({ ...row })));
       fetchBranches();
     }
@@ -101,16 +104,28 @@ export default function EditProductDialog({ isOpen, onClose, product, onSuccess 
   }, [isOpen, product?.id, branches]);
 
   function addSizeRow() {
-    setSizeRows((rows) => [
-      ...rows,
-      {
+    // A product that kept one number: that stock stays, as a row of its own at
+    // the product's place, and the new size adds to it. Starting the rows at
+    // the new size alone replaced the whole stock with that one number.
+    const flat = Math.max(0, Math.floor(Number(formData.stock_quantity) || 0));
+    const carryOver = sizeRows.length === 0 && loadedRows.length === 0 && flat > 0;
+    setSizeRows((rows) => {
+      const next = [...rows];
+      if (carryOver && rows.length === 0) {
+        next.push({ uid: newRowUid(), size: '', stock_quantity: flat, sort_order: 0, branch: formData.branch ?? null });
+      }
+      next.push({
         uid: newRowUid(),
         size: '',
         stock_quantity: 0,
-        sort_order: rows.length,
-        branch: rows.length === 0 ? formData.branch : null,
-      },
-    ]);
+        sort_order: next.length,
+        branch: next.length === 0 || carryOver ? (formData.branch ?? null) : null,
+      });
+      return next;
+    });
+    if (carryOver) {
+      setCarriedOver(flat);
+    }
   }
 
   function updateSizeRow(index: number, patch: Partial<StockRowDraft>) {
@@ -463,6 +478,12 @@ export default function EditProductDialog({ isOpen, onClose, product, onSuccess 
                   </div>
                   );
                 })}
+                {carriedOver !== null && (
+                  <p className="text-xs text-teal-800 bg-teal-50 border border-teal-100 rounded-md px-3 py-2">
+                    המלאי הקיים ({carriedOver}) נשמר בשורה בלי מידה, והמידה החדשה מתווספת אליו. אם המלאי הקיים שייך
+                    למידות — חלקו אותו ביניהן ואפסו את השורה בלי המידה.
+                  </p>
+                )}
                 <div className="text-xs text-gray-600 pt-1">
                   סך הכל במלאי לפי מידות: <span className="font-semibold">{totalSizeStock}</span>
                   {filterBranch !== 'all' && (
