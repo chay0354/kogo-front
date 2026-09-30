@@ -23,6 +23,7 @@ import {
   NO_EMAIL_REASON,
   originalFilename,
   paperRowCanBeMailed,
+  MAIL_FAILED_REASON,
   paperRowView,
   PRINT_FAILED_MESSAGE,
   PRINT_ORIGINAL_LABEL,
@@ -210,6 +211,7 @@ describe('originalFilename', () => {
 describe('"שלח / שלח שוב" — the original once, then a copy', () => {
   it('offers the mail only to a paper row that is there for want of an address, before its print', () => {
     expect(paperRowCanBeMailed(row({ delivery_reason: NO_EMAIL_REASON }))).toBe(true);
+    expect(paperRowCanBeMailed(row({ delivery_reason: MAIL_FAILED_REASON }))).toBe(true);
     expect(paperRowCanBeMailed(row({ delivery_reason: 'שולם במזומן' }))).toBe(false);
     expect(paperRowCanBeMailed(row({ delivery_reason: NO_EMAIL_REASON, paper_original_printed_at: '2026-09-21' }))).toBe(false);
     expect(paperRowCanBeMailed(row({ delivery: 'held', delivery_reason: NO_EMAIL_REASON }))).toBe(false);

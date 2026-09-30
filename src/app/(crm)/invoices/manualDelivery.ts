@@ -165,16 +165,21 @@ export function heldReasonNote(
 
 /** The server's reason for a paper row whose only obstacle is the missing address (signing/service.py). */
 export const NO_EMAIL_REASON = 'אין כתובת מייל — למסירה ידנית';
+/** The server's reason for a paper row whose mail failed every try (signing/service.py REASON_MAIL_FAILED). */
+export const MAIL_FAILED_REASON = 'המייל לא נשלח אחרי כמה ניסיונות — לבדוק את הכתובת ולשלוח שוב, או למסור על נייר';
 
 /**
  * Whether a paper row may still go by mail: only when it is on paper for want
- * of an address and its original was not printed. Cash and an unmarked check
- * stay on paper whatever address is typed (18ב(ד)) — no button for those.
+ * of an address, or because its mail kept failing, and its original was not
+ * printed. Cash and an unmarked check stay on paper whatever address is typed
+ * (18ב(ד)) — no button for those.
  */
 export function paperRowCanBeMailed(
   row: Pick<SignedOriginalRow, 'delivery' | 'delivery_reason' | 'paper_original_printed_at'>,
 ): boolean {
-  return row.delivery === 'paper' && !row.paper_original_printed_at && row.delivery_reason.trim() === NO_EMAIL_REASON;
+  const reason = row.delivery_reason.trim();
+  return row.delivery === 'paper' && !row.paper_original_printed_at
+    && (reason === NO_EMAIL_REASON || reason === MAIL_FAILED_REASON);
 }
 
 /** Whether the next send is the signed original (its first and only time) or a copy. */
