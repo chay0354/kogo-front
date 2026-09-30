@@ -107,6 +107,23 @@ export interface StandingOrder {
   updated_at: string;
 }
 
+/**
+ * Where a receipt's signed original went, as the signing service decided it:
+ * 'email', 'paper' (הוראה 18ב(ד): cash or an unmarked check is handed over on
+ * paper), 'held' (waiting — for the signature, for consent) or 'none'. Null
+ * while signing is off.
+ */
+export interface ChargeReceiptDelivery {
+  delivery: 'email' | 'paper' | 'held' | 'none' | (string & {});
+  label: string;
+  /** Why, in Hebrew, as the server words it; '' when there is nothing to add. */
+  reason: string;
+  signed: boolean;
+  sent_at: string | null;
+  /** The paper original was printed and handed over. */
+  paper_printed_at: string | null;
+}
+
 /** A charge's receipt (חשבונית מס/קבלה), a document of the documents module. */
 export interface ChargeReceipt {
   id: string;
@@ -116,6 +133,29 @@ export interface ChargeReceipt {
   pdf_url: string;
   /** Issued after its month had passed — the office settled the charge later. */
   issued_late?: boolean;
+  /** Optional: only a server that sends it (read with readReceiptDelivery). */
+  delivery?: ChargeReceiptDelivery | null;
+}
+
+/** How the office may record a month the tenant paid it: never a card — a card goes through Tranzila. */
+export type OfflinePaymentMethod = 'cash' | 'check' | 'bank_transfer';
+
+/** How a month paid at the office was paid, as its receipt's payment line says. */
+export interface OfflinePaymentInfo {
+  method: OfflinePaymentMethod | (string & {});
+  method_label: string;
+  /** A shekel string. */
+  amount: string;
+  /** 'YYYY-MM-DD'; null when the server did not say. */
+  paid_on: string | null;
+  /** The receipt book's or the transfer's reference; '' for a check (its number is check_number). */
+  reference: string;
+  check_number: string;
+  check_bank: string;
+  check_branch: string;
+  check_account: string;
+  check_date: string | null;
+  check_crossed: boolean;
 }
 
 /** One month of a standing order. */
@@ -147,6 +187,8 @@ export interface TenantCharge {
   error: string;
   charged_at: string | null;
   receipt: ChargeReceipt | null;
+  /** When the receipt left by mail; null while it has not (paper, no e-mail, held). */
+  receipt_emailed_at?: string | null;
   /** Why the receipt was not issued, when it was not. */
   receipt_error: string;
   /** Charged, and no receipt: the office issues it from the charge. */
@@ -155,6 +197,18 @@ export interface TenantCharge {
   resolved_at: string | null;
   resolution_note: string;
   created_at?: string;
+  /**
+   * A month the tenant paid at the office — cash, a check, a transfer: its
+   * status is 'charged' (paid, never charged again) and this says how. Null
+   * for a card charge or an unpaid month. Optional: only a server that sends it.
+   */
+  offline_payment?: OfflinePaymentInfo | null;
+  /**
+   * Tranzila charged the card on this month after the office had voided it
+   * or taken the money another way: paid with no receipt, or paid twice. The
+   * office decides — nothing is refunded or charged by itself.
+   */
+  late_card_charge?: boolean;
 }
 
 /** What a retry came to: 'charged', 'failed', 'review' (unknown — never retried blind) or 'late'. */
@@ -202,6 +256,35 @@ export interface StandingOrderUpdatePayload {
   billing_day?: number;
   end_date?: string | null;
   notes?: string;
+}
+
+/** A check paid at the office: הוראה 5(ב) has its receipt name all of these. */
+export interface OfflineCheckPayload {
+  number: string;
+  bank: string;
+  branch: string;
+  account: string;
+  /** The due date, 'YYYY-MM-DD'. */
+  date: string;
+  /** Crossed "לא סחיר" in the tenant's name — only then may the signed receipt go by mail. */
+  crossed: boolean;
+}
+
+export interface OfflinePaymentPayload {
+  method: OfflinePaymentMethod;
+  /** The month's total, a shekel string — the server takes nothing else. */
+  amount: string;
+  /** 'YYYY-MM-DD'; the server takes today when it is left out. Never a day to come. */
+  paid_on?: string;
+  reference?: string;
+  note?: string;
+  check?: OfflineCheckPayload;
+}
+
+/** What recording a payment came to: `created` false when the month was already paid at the office. */
+export interface RecordOfflinePaymentResult {
+  created: boolean;
+  charge: TenantCharge;
 }
 
 export interface MarkChargedPayload {
@@ -413,6 +496,65 @@ export async function voidCharge(id: string, reason: string): Promise<TenantChar
 export async function issueChargeReceipt(id: string): Promise<TenantCharge> {
   const res = await api.post(`${chargeUrl(id)}issue-receipt/`, {}, { timeout: GATEWAY_TIMEOUT_MS });
   return res.data;
+}
+
+/**
+ * A failed or voided month the tenant paid at the office. The server marks it
+ * charged and issues its receipt in one go — nothing reaches Tranzila — so a
+ * second call returns it as it is ({created: false}). 409 for a month whose
+ * card outcome is unknown or that a card paid; 400 for a form that does not add
+ * up (the amount must be the month's). The receipt is issued and signed on the
+ * spot, hence the longer wait.
+ */
+export async function recordOfflinePayment(id: string, payload: OfflinePaymentPayload): Promise<RecordOfflinePaymentResult> {
+  const res = await api.post(`${chargeUrl(id)}record-offline-payment/`, payload, { timeout: GATEWAY_TIMEOUT_MS });
+  return readRecordOfflinePaymentResult(res.data);
+}
+
+/**
+ * The answer as the dialog uses it. `created` is true only when the server said
+ * so; the charge is passed as it came — its fields are read where they are shown.
+ */
+export function readRecordOfflinePaymentResult(raw: unknown): RecordOfflinePaymentResult {
+  const row = record(raw);
+  return { created: row.created === true, charge: row.charge as TenantCharge };
+}
+
+/** A receipt's delivery as the screen reads it: every text a string, every date a string or null. Null without one. */
+export function readReceiptDelivery(raw: unknown): ChargeReceiptDelivery | null {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+  const row = record(raw);
+  const delivery = text(row.delivery);
+  if (!delivery) return null;
+  return {
+    delivery,
+    label: text(row.label),
+    reason: text(row.reason),
+    signed: row.signed === true,
+    sent_at: textOrNull(row.sent_at),
+    paper_printed_at: textOrNull(row.paper_printed_at),
+  };
+}
+
+/** A month's offline payment as the screen reads it; null for a card charge, or a server that does not send one. */
+export function readOfflinePayment(raw: unknown): OfflinePaymentInfo | null {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+  const row = record(raw);
+  const method = text(row.method);
+  if (!method) return null;
+  return {
+    method,
+    method_label: text(row.method_label),
+    amount: text(row.amount),
+    paid_on: textOrNull(row.paid_on),
+    reference: text(row.reference),
+    check_number: text(row.check_number),
+    check_bank: text(row.check_bank),
+    check_branch: text(row.check_branch),
+    check_account: text(row.check_account),
+    check_date: textOrNull(row.check_date),
+    check_crossed: row.check_crossed === true,
+  };
 }
 
 /** What no file name may hold, and the direction marks that could make one read as something it is not (contractUtils' rule). */

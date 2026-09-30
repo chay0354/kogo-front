@@ -102,22 +102,45 @@ export interface DocumentRow extends LedgerDimensions {
   open_balance: number;
   /** A credit note: money going back. Never an open debt; subtracted from totals. */
   is_credit?: boolean;
+  /**
+   * WS-3 (30.9.2026), on kogo's own documents: what credit notes took off an
+   * invoice, and the part of a receipt that paid an invoice listed on its own
+   * row. An older server leaves both out (read as 0).
+   */
+  credited_amount?: number;
+  applied_amount?: number;
   /** מועד התשלום שסוכם (שוטף+30 וכו') — קיים רק במסמכים מקומיים. */
   due_date?: string;
   payment_terms?: string;
   status: string;
   pdf_url?: string;
   store_invoice_id?: string;
+  /**
+   * A lesson receipt's (IR) own id (30.9.2026): the tab downloads a copy of it
+   * through /customers/invoices/<id>/pdf/?copy=1. An older server leaves it out.
+   */
+  lesson_invoice_id?: string;
   tranzila_doc_id?: string;
   source?: string;
   tranzila_issued?: boolean;
   is_draft?: boolean;
+  /** טיוטה: מה היא תהיה כשתאושר (חשבונית מס, קבלה…). חסר בשרת ישן. */
+  draft_target_type?: string;
+  /**
+   * זיכוי ידני: מתי הלקוח אישר את קבלתו (הוראה 23א(3)); null — טרם אושר.
+   * חסר (undefined) בשרת ישן ובכל שורה שאינה זיכוי ידני.
+   */
+  customer_ack_at?: string | null;
+  /** הלקוח הפרטי (ילד) של מסמך ידני — כדי לפתוח ממנו זיכוי. */
+  child_id?: string | null;
   /** מספר ההקצאה מרשות המסים, כפי שהוזן. ריק כשטרם הוזן. */
   allocation_number?: string;
   /** האם המסמך חוצה את הסף שמחייב מספר הקצאה. נקבע בשרת. */
   allocation_required?: boolean;
   branch?: string;
   branch_id?: string | null;
+  /** מסמך ללקוח עסקי (כולל שוכר) — השם פותח את כרטיס הלקוח. */
+  business_customer_id?: string | null;
   /** מאיזו מערכת הגיע המסמך — חנות/אתר, חנות/סניף, מנוי, מסמך ידני. */
   origin?: DocOrigin;
   origin_label?: string;

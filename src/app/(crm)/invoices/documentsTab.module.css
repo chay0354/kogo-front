@@ -161,6 +161,25 @@
   line-height: 1.35;
 }
 
+/* A business customer's name opens their card. */
+.customerLink {
+  padding: 0;
+  border: none;
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-weight: 800;
+  text-align: right;
+  cursor: pointer;
+  text-decoration: underline dotted;
+  text-underline-offset: 3px;
+}
+
+.customerLink:hover,
+.customerLink:focus-visible {
+  text-decoration-style: solid;
+}
+
 .subLine {
   display: block;
   margin-top: 3px;
@@ -419,4 +438,13 @@
 .allocationError {
   font-size: 0.6875rem;
   color: #b91c1c;
+}
+
+/* A credit note's customer confirmation (הוראה 23א(3)). */
+.ackPending {
+  color: #b45309;
+}
+
+.ackConfirmed {
+  color: #047857;
 }

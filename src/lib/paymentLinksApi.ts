@@ -11,6 +11,7 @@ export type PublicPaymentLink = {
   title: string;
   description: string;
   options: PublicPaymentOption[];
+  payer_details_locked: boolean;
 };
 
 export type PublicPaymentStatus = 'pending' | 'completed' | 'failed' | 'review';
@@ -22,8 +23,8 @@ export async function fetchPublicPaymentLink(slug: string) {
 
 export async function startPublicPayment(slug: string, payload: {
   option_id: string;
-  payer_name: string;
-  payer_phone: string;
+  payer_name?: string;
+  payer_phone?: string;
   payer_email?: string;
 }) {
   const res = await api.post(`/payment-links/public/${encodeURIComponent(slug)}/start/`, payload, { timeout: 60_000 });
@@ -32,7 +33,16 @@ export async function startPublicPayment(slug: string, payload: {
 
 export async function fetchPublicPaymentStatus(paymentId: string) {
   const res = await api.get(`/payment-links/public/payments/${encodeURIComponent(paymentId)}/status/`);
-  return res.data as { payment_id: string; status: PublicPaymentStatus; amount: string; link_title: string; failure_reason: string };
+  return res.data as {
+    payment_id: string;
+    status: PublicPaymentStatus;
+    amount: string;
+    link_title: string;
+    failure_reason: string;
+    document_ready?: boolean;
+    document_number?: string;
+    document_pending?: boolean;
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -52,6 +62,11 @@ export type PaymentLink = {
   slug: string;
   title: string;
   description: string;
+  kind?: 'general' | 'business_charge';
+  business_customer?: string | null;
+  business_customer_name?: string;
+  target_invoice?: string | null;
+  target_invoice_number?: string;
   business: string | null;
   business_name: string;
   business_category: string | null;
@@ -102,8 +117,25 @@ export type PaymentLinkPayment = {
   review_reason: string;
   paid_at: string | null;
   formal_document: string | null;
+  document_error?: string;
   created_at: string;
 };
+
+export type BusinessChargeInput = {
+  business_customer_id: string;
+  business_id: string;
+  business_category_id: string;
+  branch_id?: string | null;
+  target_invoice_id?: string | null;
+  amount: string;
+  description: string;
+  expires_at?: string | null;
+};
+
+export async function createBusinessCharge(data: BusinessChargeInput) {
+  const res = await api.post('/payment-links/links/business-charge/', data);
+  return res.data as PaymentLink;
+}
 
 export async function fetchPaymentLinks() {
   const res = await api.get('/payment-links/links/');

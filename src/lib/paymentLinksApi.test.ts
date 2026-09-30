@@ -14,7 +14,7 @@ const api = vi.hoisted(() => ({
 
 vi.mock('./api', () => ({ default: api }));
 
-import { fetchCardLinks, fetchLinkOverview, type LinkOverviewPage } from './paymentLinksApi';
+import { createBusinessCharge, fetchCardLinks, fetchLinkOverview, type LinkOverviewPage } from './paymentLinksApi';
 
 const page: LinkOverviewPage = {
   results: [
@@ -89,5 +89,26 @@ describe('fetchCardLinks', () => {
 
     expect(rows).toEqual([{ id: 'l-9' }]);
     expect(api.get).toHaveBeenCalledWith('/customers/card-links/', { params: { child_id: 'c-1' } });
+  });
+});
+
+describe('createBusinessCharge', () => {
+  it('uses the dedicated single-use business charge endpoint', async () => {
+    api.post.mockResolvedValue({ data: { id: 'pay-1', public_url: 'https://example.test/pay/abc' } });
+    const payload = {
+      business_customer_id: 'customer-1',
+      business_id: 'business-1',
+      business_category_id: 'category-1',
+      branch_id: 'branch-1',
+      target_invoice_id: 'invoice-1',
+      amount: '118.00',
+      description: 'תשלום חשבונית',
+      expires_at: null,
+    };
+
+    const answer = await createBusinessCharge(payload);
+
+    expect(answer.public_url).toBe('https://example.test/pay/abc');
+    expect(api.post).toHaveBeenCalledWith('/payment-links/links/business-charge/', payload);
   });
 });

@@ -43,3 +43,10 @@ export const BUSINESS_TYPE_OPTIONS = [
 export const BUSINESS_CATEGORY_OPTIONS = [...BUSINESS_TYPE_OPTIONS] as const;
 
 export const BRANCHES_CATEGORY = 'סניפים';
+
+/**
+ * Above this, before VAT, a tax invoice to a business customer needs a מספר
+ * הקצאה (סעיף 38(א1) לחוק מע"מ, "עולה על"). The server's setting
+ * ALLOCATION_THRESHOLD_ILS decides; this only drives the dialog's warning.
+ */
+export const ALLOCATION_THRESHOLD_ILS = 5000;

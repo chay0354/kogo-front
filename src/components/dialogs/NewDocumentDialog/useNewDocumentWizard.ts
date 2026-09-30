@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { AUTO_SETTLEMENT_PICKS } from '@/lib/settlements';
 import { BRANCHES_CATEGORY } from './constants';
-import { emptyCheckRow, generateDocumentNumber, getWizardSteps } from './utils';
+import { emptyCheckRow, generateDocumentNumber, getWizardSteps, israelToday } from './utils';
 import type {
   BusinessCustomerFormData,
   CheckRow,
@@ -39,7 +40,7 @@ const INITIAL_LINE_ITEM: LineItem = {
 };
 
 function createInitialReceiptDetails(): ReceiptDetailsData {
-  const today = new Date().toISOString().split('T')[0];
+  const today = israelToday();
   const initialCheck: CheckRow = emptyCheckRow('1', today);
   return {
     paymentMethod: 'מזומן',
@@ -50,6 +51,7 @@ function createInitialReceiptDetails(): ReceiptDetailsData {
     withholding: 0,
     checkNotes: '',
     cardLastFour: '',
+    cardBrand: '',
     cardExpiry: '',
     cardAmount: 0,
     cardInstallments: 1,
@@ -58,14 +60,17 @@ function createInitialReceiptDetails(): ReceiptDetailsData {
     bankReference: '',
     bankAmount: 0,
     bankNotes: '',
+    invoicePerCheck: false,
+    settlementPicks: AUTO_SETTLEMENT_PICKS,
   };
 }
 
 function createInitialCreditInvoiceDetails(): CreditInvoiceData {
   return {
     documentNumber: generateDocumentNumber(),
-    documentDate: new Date().toISOString().split('T')[0],
+    documentDate: israelToday(),
     linkedInvoiceId: '',
+    linkedDocumentDate: '',
     creditReason: '',
     creditAmountBeforeVat: 0,
     vatExempt: false,
@@ -77,7 +82,7 @@ function createInitialCreditInvoiceDetails(): CreditInvoiceData {
 function createInitialInvoiceDetails(): InvoiceDetailsData {
   return {
     documentNumber: generateDocumentNumber(),
-    documentDate: new Date().toISOString().split('T')[0],
+    documentDate: israelToday(),
     description: '',
     currency: 'ILS',
     pricesIncludeVat: false,
@@ -85,16 +90,18 @@ function createInitialInvoiceDetails(): InvoiceDetailsData {
     discountAmount: 0,
     discountPercent: 0,
     vatExempt: false,
-    roundTotal: false,
     closeInvoice: false,
     customerNotes: '',
     internalNotes: '',
     paymentTerms: 'שוטף + 30',
     dueDate: '',
     paymentMethods: [],
-    checkCrossed: false,
+    payments: createInitialReceiptDetails(),
+    withholdingAmount: 0,
+    allocationNumber: '',
     linkedInvoiceId: '',
     receiptNotes: '',
+    settlementPicks: AUTO_SETTLEMENT_PICKS,
   };
 }
 
@@ -185,6 +192,13 @@ export function useNewDocumentWizard(onClose: () => void) {
     [stepIds, close]
   );
 
+  // A dialog opened already filled in (a credit note from a document's row)
+  // starts at the step that still needs the office: no step checks what was
+  // prefilled, and every step before it can still be opened and changed.
+  const startAt = useCallback((step: WizardStepId) => {
+    setCurrentStep(step);
+  }, []);
+
   const goBack = useCallback(() => {
     setCurrentStep((current) => {
       const currentIndex = stepIds.indexOf(current);
@@ -216,6 +230,7 @@ export function useNewDocumentWizard(onClose: () => void) {
     goToStep,
     goNext,
     goBack,
+    startAt,
     close,
   };
 }

@@ -25,6 +25,16 @@ export interface SigningCounts {
   /** Paid in cash or by an uncrossed check, and the original not printed yet. */
   paper_pending: number;
   signed_today: number;
+  /** Part of `held`: tax invoices waiting, unsigned, for their allocation number. 0 from a server that does not count them. */
+  awaiting_allocation: number;
+  /**
+   * 30.9.2026 (audit M1) — absent from an older server. Documents issued since
+   * signing went on that have no original at all; the signing cron gives each
+   * one its original, so this is normally 0.
+   */
+  missing_original?: number;
+  /** Part of `paper_pending`: originals the cron found late and put on the hand-delivery list instead of mailing. */
+  found_late?: number;
 }
 
 export interface SigningStatus {
@@ -67,6 +77,10 @@ export function readSigningStatus(data: unknown): SigningStatus | null {
       held: count(counts.held),
       paper_pending: count(counts.paper_pending),
       signed_today: count(counts.signed_today),
+      awaiting_allocation: count(counts.awaiting_allocation),
+      // Only what the server sends: an older one does not count these.
+      ...(counts.missing_original !== undefined ? { missing_original: count(counts.missing_original) } : {}),
+      ...(counts.found_late !== undefined ? { found_late: count(counts.found_late) } : {}),
     },
   };
 }
@@ -110,6 +124,16 @@ export interface SignedOriginalRow {
   signed_at: string | null;
   sent_at: string | null;
   paper_original_printed_at: string | null;
+  /**
+   * The issuing row's id — for a hand-issued document (kind 'formal') the
+   * FormalDocument's, which the allocation number is entered on. '' from a
+   * server that does not list it.
+   */
+  source_id: string;
+  /** The mail channel ('formal', 'ir', 'store', 'credit_note', 'rental'); '' for an archive copy. */
+  channel: string;
+  /** Held, unsigned, until its allocation number is entered. False from a server that does not say. */
+  awaiting_allocation: boolean;
 }
 
 export interface SignedOriginalsPage {
@@ -132,6 +156,11 @@ export interface SignedOriginalsQuery extends SignedOriginalsFilter {
   delivery?: SignedOriginalDelivery;
   /** false: only originals whose one paper print has not been made yet. */
   printed?: boolean;
+  /**
+   * 'printed': the last printed first (30.9.2026, "הודפסו לאחרונה"). An older
+   * server ignores it and answers newest issued first.
+   */
+  order?: 'printed';
   limit?: number;
   offset?: number;
 }
@@ -180,6 +209,9 @@ export function readSignedOriginal(data: unknown): SignedOriginalRow | null {
     signed_at: text(row.signed_at),
     sent_at: text(row.sent_at),
     paper_original_printed_at: text(row.paper_original_printed_at),
+    source_id: row.source_id === undefined || row.source_id === null ? '' : String(row.source_id),
+    channel: typeof row.channel === 'string' ? row.channel : '',
+    awaiting_allocation: row.awaiting_allocation === true,
   };
 }
 
@@ -187,6 +219,7 @@ export async function fetchSignedOriginals(query: SignedOriginalsQuery = {}): Pr
   const params: Record<string, string | number> = {};
   if (query.delivery) params.delivery = query.delivery;
   if (query.printed !== undefined) params.printed = query.printed ? 'true' : 'false';
+  if (query.order === 'printed') params.order = 'printed';
   Object.assign(params, signedOriginalsFilterParams(query));
   if (query.limit !== undefined) params.limit = query.limit;
   if (query.offset !== undefined) params.offset = query.offset;
@@ -332,15 +365,24 @@ export class SignedFileMismatchError extends Error {
 }
 
 /**
- * The stored signed PDF, byte for byte. Asked for as a blob so the request
- * carries the same token as every other; a refusal's body is read back out of
- * its blob before it is thrown, so it reads like any other request's error.
+ * A signed row's file. Asked for as a blob so the request carries the same
+ * token as every other; a refusal's body is read back out of its blob before
+ * it is thrown, so it reads like any other request's error.
+ *
+ * The server hands out the stored signed bytes, with their X-Content-SHA256,
+ * as the accountant's export does; `copy` asks instead for a copy of an
+ * original ("העתק", drawn again now, with what was added after signing). An
+ * archive copy is always its stored bytes.
  */
-export async function fetchSignedOriginalFile(id: string): Promise<SignedOriginalFile> {
+export async function fetchSignedOriginalFile(
+  id: string,
+  options: { copy?: boolean } = {},
+): Promise<SignedOriginalFile> {
   try {
     const res = await api.get(`/documents/signing/originals/${encodeURIComponent(id)}/file/`, {
       responseType: 'blob',
       timeout: 60000,
+      ...(options.copy ? { params: { copy: '1' } } : {}),
     });
     const data = res.data;
     const pdf = typeof Blob !== 'undefined' && data instanceof Blob
@@ -362,7 +404,7 @@ export type SignedFileCheck = 'verified' | 'unchecked';
  * `unchecked` when there was nothing to check against, or no digest to check with.
  */
 export async function downloadSignedOriginal(
-  row: Pick<SignedOriginalRow, 'id' | 'number' | 'sha256'>,
+  row: Pick<SignedOriginalRow, 'id' | 'number' | 'sha256'> & Partial<Pick<SignedOriginalRow, 'purpose'>>,
 ): Promise<{ check: SignedFileCheck }> {
   const file = await fetchSignedOriginalFile(row.id);
   const expected = file.sha256 || normalizeSha256(row.sha256);
@@ -376,6 +418,92 @@ export async function downloadSignedOriginal(
   }
   saveBlob(file.pdf, 'application/pdf', signedOriginalFilename(row.number));
   return { check };
+}
+
+/** `<number> - העתק.pdf`: a copy is never saved under the name the signed file has. */
+export function signedCopyFilename(number: string | null | undefined): string {
+  const name = String(number ?? '').replace(/[\\/:*?"<>|]+/g, '-').trim();
+  return `${name || 'מסמך'} - העתק.pdf`;
+}
+
+/**
+ * Save a copy of an original — "העתק", drawn again by the server now, unsigned
+ * (the owner's decision D5: what the office downloads is a copy; "מקור" left
+ * once). There is nothing to check it against: it is not the stored file.
+ */
+export async function downloadSignedCopy(row: Pick<SignedOriginalRow, 'id' | 'number'>): Promise<void> {
+  const file = await fetchSignedOriginalFile(row.id, { copy: true });
+  saveBlob(file.pdf, 'application/pdf', signedCopyFilename(row.number));
+}
+
+// ── "שלח / שלח שוב" (managers) ───────────────────────────────────────────────
+
+/** What went: the signed original (the first time only), or a copy of it. */
+export type SentEdition = 'original' | 'copy';
+
+export type SendOriginalResult =
+  | {
+    outcome: 'sent';
+    sent: SentEdition;
+    email: string;
+    number: string;
+    delivery: SignedOriginalDelivery;
+    delivery_reason: string;
+  }
+  /** The server said no, and why: no address (400), may not go by mail (409), no mail provider (503). */
+  | { outcome: 'refused'; status: number; message: string };
+
+/** A server that has no send endpoint yet answers 404 for the route itself. */
+export const SEND_NOT_AVAILABLE_MESSAGE = 'השליחה מהמסך עוד לא זמינה בשרת';
+export const SEND_REFUSED_MESSAGE = 'המסמך לא נשלח';
+
+/** The answer off the wire, or null when it is not one. */
+export function readSendResult(data: unknown): Extract<SendOriginalResult, { outcome: 'sent' }> | null {
+  if (!data || typeof data !== 'object') return null;
+  const row = data as Record<string, unknown>;
+  if (row.sent !== 'original' && row.sent !== 'copy') return null;
+  const delivery = row.delivery === 'email' || row.delivery === 'paper' || row.delivery === 'held'
+    ? row.delivery
+    : 'none';
+  return {
+    outcome: 'sent',
+    sent: row.sent,
+    email: String(row.email ?? ''),
+    number: String(row.number ?? ''),
+    delivery,
+    delivery_reason: String(row.delivery_reason ?? ''),
+  };
+}
+
+/**
+ * Mail the customer their document. The server decides what goes: the signed
+ * original, once, when it has not left yet; a copy once it was mailed or
+ * printed (or for an archive copy). `email` is an address for this send — when
+ * the card has none, or the customer asked for another; empty uses the card's.
+ * A refusal the office can act on comes back as `refused` with the server's
+ * sentence; anything else (no answer, a provider failure) is thrown.
+ */
+export async function sendSignedOriginal(id: string, email = ''): Promise<SendOriginalResult> {
+  const address = email.trim();
+  try {
+    const res = await api.post(
+      `/documents/signing/originals/${encodeURIComponent(id)}/send/`,
+      address ? { email: address } : {},
+      { timeout: 60000 },
+    );
+    const result = readSendResult(res.data);
+    if (!result) throw new Error('Unexpected answer from the send endpoint');
+    return result;
+  } catch (err) {
+    const status = (err as { response?: { status?: number } } | null)?.response?.status;
+    if (status === 400 || status === 409 || status === 503) {
+      return { outcome: 'refused', status, message: errorSentence(err) || SEND_REFUSED_MESSAGE };
+    }
+    if (status === 404) {
+      return { outcome: 'refused', status, message: errorSentence(err) || SEND_NOT_AVAILABLE_MESSAGE };
+    }
+    throw err;
+  }
 }
 
 // ── The accountant's export: the signed files as ZIP parts (managers) ────────

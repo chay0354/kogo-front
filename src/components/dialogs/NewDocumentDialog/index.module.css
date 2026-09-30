@@ -1454,3 +1454,146 @@
   color: var(--text-secondary, #4a4e6a);
   cursor: pointer;
 }
+
+/* ─── Open invoices a receipt / invoice-receipt closes (SettlementPicker) ── */
+.settleTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8125rem;
+}
+
+.settleTable th {
+  text-align: start;
+  font-weight: 500;
+  color: hsl(var(--muted-foreground));
+  padding: 0.375rem 0.5rem;
+  border-bottom: 1px solid hsl(var(--border));
+  white-space: nowrap;
+}
+
+.settleTable td {
+  padding: 0.375rem 0.5rem;
+  border-bottom: 1px solid hsl(var(--border));
+  vertical-align: top;
+  white-space: nowrap;
+}
+
+.settleTable td:nth-child(2) {
+  white-space: normal;
+  min-width: 9rem;
+}
+
+.settleTable td:last-child {
+  min-width: 7.5rem;
+}
+
+.settleRowOn {
+  background: hsl(var(--primary) / 0.06);
+}
+
+.settleNumber {
+  font-family: ui-monospace, 'SF Mono', monospace;
+  font-weight: 700;
+}
+
+.settleSub {
+  display: block;
+  font-size: 0.75rem;
+  color: hsl(var(--muted-foreground));
+}
+
+.settleInputError {
+  border-color: #ef4444;
+}
+
+.settleActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.settleLinkBtn {
+  padding: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  font-size: 0.8125rem;
+  color: hsl(var(--primary));
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.srOnlyCaption {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* "חשבונית מס לכל צ'ק" on a check receipt */
+.perCheckBox {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 0.625rem 0.75rem;
+  margin-bottom: 0.75rem;
+  border: 1px solid hsl(var(--border));
+  border-radius: calc(var(--radius) - 4px);
+  background: hsl(var(--muted) / 0.5);
+}
+
+/* נותר לזכות — under the credit amount (audit M4). */
+.creditRoom {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 6px;
+  font-size: 13px;
+}
+
+.creditRoomMuted {
+  color: hsl(var(--muted-foreground));
+}
+
+.creditRoomSummary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.creditRoomFill {
+  border: 1px solid hsl(var(--border));
+  border-radius: 6px;
+  padding: 2px 8px;
+  font-size: 12px;
+  background: transparent;
+  cursor: pointer;
+}
+
+.creditRoomFill:hover {
+  background: hsl(var(--muted));
+}
+
+.creditRoomError {
+  color: #b91c1c;
+  font-weight: 500;
+}
+
+/* The draft toggle's note, on a line of its own under it. */
+.draftToggle:has(.draftToggleHint) {
+  flex-wrap: wrap;
+  max-width: 60%;
+}
+
+.draftToggleHint {
+  flex-basis: 100%;
+  font-size: 12px;
+  color: hsl(var(--muted-foreground));
+}

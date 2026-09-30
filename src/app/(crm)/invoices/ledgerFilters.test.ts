@@ -7,6 +7,7 @@ import { describe, expect, it } from 'vitest';
 import type { DocumentRow, LedgerFilters } from './types';
 import {
   applyLedgerFilterChange,
+  canOpenDocumentDetail,
   canSendDocumentReminder,
   compareDocumentsNewestFirst,
   countActiveLedgerFilters,
@@ -349,6 +350,19 @@ describe('canSendDocumentReminder', () => {
     expect(canSendDocumentReminder({ ...open, is_draft: true })).toBe(false);
     expect(canSendDocumentReminder({ ...open, document_type_code: 'credit_invoice' })).toBe(false);
     expect(canSendDocumentReminder({ ...open, open_balance: 0 })).toBe(false);
+  });
+});
+
+describe('canOpenDocumentDetail', () => {
+  it('a document issued in kogo opens its balance and settlements', () => {
+    expect(canOpenDocumentDetail(row({ origin: 'manual', id: 'uuid-1' }))).toBe(true);
+  });
+
+  it("not a subscription receipt or a store sale (another model's id), nor a draft", () => {
+    expect(canOpenDocumentDetail(row({ origin: 'subscription', id: 'crm-inv-1' }))).toBe(false);
+    expect(canOpenDocumentDetail(row({ origin: 'store_website' }))).toBe(false);
+    expect(canOpenDocumentDetail(row({ origin: 'manual', is_draft: true }))).toBe(false);
+    expect(canOpenDocumentDetail(row({ origin: undefined }))).toBe(false);
   });
 });
 
