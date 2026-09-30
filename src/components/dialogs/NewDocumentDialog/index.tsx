@@ -28,7 +28,14 @@ import api, {
   searchBusinessCustomers,
   updateBusinessCustomer,
 } from '@/lib/api';
-import { createDocument, fetchDocuments, fetchOpenInvoices } from '@/lib/documentsApi';
+import { createDocument, fetchCreditRoom, fetchDocuments, fetchOpenInvoices } from '@/lib/documentsApi';
+import {
+  canSaveAsDraft,
+  creditRoomProblem,
+  creditRoomSummary,
+  isPayingDraftTarget,
+  type CreditRoom,
+} from '@/lib/draftsAndCredits';
 import {
   AUTO_SETTLEMENT_PICKS,
   formatAgorotShekels,
@@ -41,7 +48,7 @@ import {
   type SettlementPlan,
 } from '@/lib/settlements';
 import SettlementPicker, { type OpenInvoicesStatus } from './SettlementPicker';
-import type { CreateDocumentPayload } from '@/types/document';
+import type { CreateDocumentPayload, DraftTargetType } from '@/types/document';
 import { Select } from '@/components/ui/select';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import type { ChildWithDetails } from '@/types/customer';
@@ -133,7 +140,10 @@ const PAYMENT_METHODS = [
   { id: 'העברה בנקאית', label: 'העברה בנקאית', icon: ArrowLeftRight },
 ] as const;
 
-export default function NewDocumentDialog({ open, onClose }: NewDocumentDialogProps) {
+/** Where the credit note form's "נותר לזכות" stands. */
+type CreditRoomStatus = 'idle' | 'loading' | 'ready' | 'forbidden' | 'error';
+
+export default function NewDocumentDialog({ open, onClose, initialCredit = null }: NewDocumentDialogProps) {
   const wizard = useNewDocumentWizard(onClose);
   const {
     currentStep,
@@ -159,6 +169,7 @@ export default function NewDocumentDialog({ open, onClose }: NewDocumentDialogPr
     goToStep,
     goNext,
     goBack,
+    startAt,
     close,
   } = wizard;
 
@@ -245,7 +256,81 @@ export default function NewDocumentDialog({ open, onClose }: NewDocumentDialogPr
     setInvoiceDetails((prev) => ({ ...prev, settlementPicks: AUTO_SETTLEMENT_PICKS }));
   }, [clientType, selectedCustomerId, businessCustomerId, docType, setReceiptDetails, setInvoiceDetails]);
 
+  // "זיכוי" on a document's row (audit #10): the dialog opens as a credit
+  // note already linked to that document and its customer, at the details
+  // step. Applied once per opening; closing resets the wizard as always.
+  const appliedPrefill = useRef<string | null>(null);
+  useEffect(() => {
+    if (!open) {
+      appliedPrefill.current = null;
+      return;
+    }
+    if (!initialCredit) return;
+    const key = [initialCredit.documentNumber, initialCredit.childId, initialCredit.businessCustomerId].join('|');
+    if (appliedPrefill.current === key) return;
+    appliedPrefill.current = key;
+    setClientType(initialCredit.clientType);
+    if (initialCredit.clientType === 'existing') {
+      setSelectedCustomerId(initialCredit.childId);
+    } else if (initialCredit.businessCustomerId) {
+      const customerId = initialCredit.businessCustomerId;
+      setBusinessCustomerId(customerId);
+      // The summary and the business step show the customer's details.
+      api.get(`/customers/business-customers/${encodeURIComponent(customerId)}/`)
+        .then((res) => {
+          if (appliedPrefill.current === key && res.data) setBusinessFormData(businessFormFromCustomer(res.data));
+        })
+        .catch(() => undefined);
+    }
+    setDocType('חשבונית מס זיכוי');
+    setCreditInvoiceDetails((prev) => ({
+      ...prev,
+      linkedInvoiceId: initialCredit.documentNumber,
+      linkedDocumentDate: initialCredit.documentDate,
+    }));
+    startAt('documentDetails');
+  }, [
+    open, initialCredit, setClientType, setSelectedCustomerId, setBusinessCustomerId, setBusinessFormData,
+    setDocType, setCreditInvoiceDetails, startAt,
+  ]);
+
+  // "נותר לזכות" (audit M4): what is left of the original to credit, before
+  // VAT, by the rule the server checks the credit note by. Asked once typing
+  // pauses; a number kogo never issued answers known=false.
+  const creditNumber = docType === 'חשבונית מס זיכוי' ? creditInvoiceDetails.linkedInvoiceId.trim() : '';
+  const [roomNumber, setRoomNumber] = useState('');
+  useEffect(() => {
+    const timer = window.setTimeout(() => setRoomNumber(creditNumber), 350);
+    return () => window.clearTimeout(timer);
+  }, [creditNumber]);
+  const creditRoomQuery = useQuery({
+    queryKey: ['credit-room', roomNumber],
+    queryFn: () => fetchCreditRoom(roomNumber),
+    enabled: open && roomNumber !== '' && roomNumber === creditNumber,
+    staleTime: 15_000,
+    // 403 (another branch's) and 404 (a server without it) are answers, not failures.
+    retry: (count, error) => ![400, 403, 404].includes(httpStatus(error) ?? 0) && count < 1,
+  });
+
   if (!open) return null;
+
+  const creditRoom: CreditRoom | null =
+    creditNumber !== '' && roomNumber === creditNumber ? creditRoomQuery.data ?? null : null;
+  const creditRoomStatus: CreditRoomStatus = creditNumber === ''
+    ? 'idle'
+    : creditRoom
+      ? 'ready'
+      : creditRoomQuery.isError
+        ? httpStatus(creditRoomQuery.error) === 403
+          ? 'forbidden'
+          : httpStatus(creditRoomQuery.error) === 404 ? 'idle' : 'error'
+        : 'loading';
+  const creditProblem = creditRoomStatus === 'forbidden'
+    ? 'המסמך המקורי שייך לסניף אחר'
+    : creditRoomProblem(creditRoom, creditInvoiceDetails.creditAmountBeforeVat, {
+        childId: clientType === 'existing' ? selectedCustomerId : null,
+        businessCustomerId: clientType === 'business' ? businessCustomerId : null,
+      });
 
   // A server without the picker has no check plan from a receipt either (it would drop the flag silently).
   const perCheck = docType === 'קבלה' && !settlementsUnsupported && invoicePerCheckApplies(clientType, receiptDetails);
@@ -281,7 +366,10 @@ export default function NewDocumentDialog({ open, onClose }: NewDocumentDialogPr
     onRetry: () => void openInvoicesQuery.refetch(),
   };
 
-  const canAdvance = canAdvanceFromStep(
+  const canAdvance = !(
+    // The credit note's server rule, known before issuing: what is left to credit.
+    currentStep === 'documentDetails' && docType === 'חשבונית מס זיכוי' && creditProblem !== null
+  ) && canAdvanceFromStep(
     currentStep,
     clientType,
     selectedCustomerId,
@@ -296,7 +384,9 @@ export default function NewDocumentDialog({ open, onClose }: NewDocumentDialogPr
   );
   const isFirstStep = steps[0]?.id === currentStep;
   const isLastStep = steps[steps.length - 1]?.id === currentStep;
-  const canDraft = docType === 'חשבונית מס' || docType === 'חשבונית עסקה';
+  // Drafts of a receipt and an invoice-receipt too (owner, 25.9; audit M11) —
+  // not of a receipt that opens a check plan.
+  const canDraft = canSaveAsDraft(docType, { perCheck });
 
   async function handleNext() {
     setSubmitError(null);
@@ -347,6 +437,14 @@ export default function NewDocumentDialog({ open, onClose }: NewDocumentDialogPr
         const created = await createDocument(payload);
         queryClient.invalidateQueries({ queryKey: ['formal-documents'] });
         queryClient.invalidateQueries({ queryKey: ['open-invoices'] });
+        queryClient.invalidateQueries({ queryKey: ['credit-room'] });
+        if (payload.document_type === 'draft') {
+          toast.success(
+            isPayingDraftTarget(payload.draft_target_type)
+              ? 'הטיוטה נשמרה בלי מספר. היא לא סוגרת חשבוניות ולא נחתמת עד שתאושר — ואז הכול ייבדק שוב.'
+              : 'הטיוטה נשמרה בלי מספר. היא תקבל מספר ותאריך כשתאושר.',
+          );
+        }
         if (created?.check_plan_id) {
           toast.success("נפתחה תוכנית צ'קים: חשבונית מס תופק ביום כל צ'ק ותסומן כשולמה בקבלה הזו");
         }
@@ -384,7 +482,7 @@ export default function NewDocumentDialog({ open, onClose }: NewDocumentDialogPr
     const asDraft = saveAsDraft && canDraft;
     const base: CreateDocumentPayload = {
       document_type: asDraft ? 'draft' : mappedType,
-      ...(asDraft ? { draft_target_type: mappedType as 'tax_invoice' | 'transaction_invoice' } : {}),
+      ...(asDraft ? { draft_target_type: mappedType as DraftTargetType } : {}),
       client_type: clientType ?? 'existing',
       child_id: clientType === 'existing' ? selectedCustomerId : null,
       business_customer_id: clientType === 'business' ? businessCustomerId : null,
@@ -445,7 +543,8 @@ export default function NewDocumentDialog({ open, onClose }: NewDocumentDialogPr
         customer_notes: invoiceDetails.customerNotes,
         internal_notes: invoiceDetails.internalNotes,
         // מספר הקצאה given at issue (B): on the original from its first print.
-        ...(allocationApplies(docType, clientType) && invoiceDetails.allocationNumber.trim()
+        // Not on a draft — it is asked for an issued invoice, with its number.
+        ...(!asDraft && allocationApplies(docType, clientType) && invoiceDetails.allocationNumber.trim()
           ? { allocation_number: invoiceDetails.allocationNumber.replace(/\D/g, '') }
           : {}),
         // An invoice-receipt says how much was paid each way (G): its rows and
@@ -457,7 +556,8 @@ export default function NewDocumentDialog({ open, onClose }: NewDocumentDialogPr
             }
           : {}),
       },
-      ...(mappedType === 'combined' && !asDraft ? withSettlements : {}),
+      // A draft carries them too: written when it is approved, checked then.
+      ...(mappedType === 'combined' ? withSettlements : {}),
     };
   }
 
@@ -645,6 +745,9 @@ export default function NewDocumentDialog({ open, onClose }: NewDocumentDialogPr
               onChange={setCreditInvoiceDetails}
               childId={clientType === 'existing' ? selectedCustomerId : null}
               businessCustomerId={clientType === 'business' ? businessCustomerId : null}
+              room={creditRoom}
+              roomStatus={creditRoomStatus}
+              roomProblem={creditProblem}
             />
           )}
 
@@ -687,7 +790,15 @@ export default function NewDocumentDialog({ open, onClose }: NewDocumentDialogPr
                 onChange={(e) => setSaveAsDraft(e.target.checked)}
                 disabled={isSubmitting}
               />
-              שמור כטיוטה (ללא מספר חשבונית)
+              שמור כטיוטה (ללא מספר)
+              {saveAsDraft && (docType === 'קבלה' || docType === 'חשבונית מס/קבלה') && (
+                <span className={styles.draftToggleHint}>
+                  בלי מספר ובלי חתימה. החשבוניות שנבחרו ייסגרו רק באישור, לפי היתרות של אותו יום.
+                </span>
+              )}
+              {saveAsDraft && allocationApplies(docType, clientType) && invoiceDetails.allocationNumber.trim() !== '' && (
+                <span className={styles.draftToggleHint}>מספר ההקצאה לא נשמר בטיוטה — מזינים אותו אחרי האישור.</span>
+              )}
             </label>
           )}
           <button
@@ -1731,9 +1842,22 @@ interface CreditInvoiceStepProps {
   onChange: (data: CreditInvoiceData) => void;
   childId?: string | null;
   businessCustomerId?: string | null;
+  /** "נותר לזכות" of the original (GET documents/credit-room/); null until known. */
+  room?: CreditRoom | null;
+  roomStatus?: CreditRoomStatus;
+  /** Why the server would refuse this credit note, known before issuing; null when it would not. */
+  roomProblem?: string | null;
 }
 
-function CreditInvoiceStep({ data, onChange, childId, businessCustomerId }: CreditInvoiceStepProps) {
+function CreditInvoiceStep({
+  data,
+  onChange,
+  childId,
+  businessCustomerId,
+  room = null,
+  roomStatus = 'idle',
+  roomProblem = null,
+}: CreditInvoiceStepProps) {
   const vatAmount = data.vatExempt ? 0 : data.creditAmountBeforeVat * 0.18;
   const totalCredit = data.creditAmountBeforeVat + vatAmount;
 
@@ -1867,7 +1991,36 @@ function CreditInvoiceStep({ data, onChange, childId, businessCustomerId }: Cred
           value={data.creditAmountBeforeVat}
           onChange={(e) => onChange({ ...data, creditAmountBeforeVat: Number(e.target.value) })}
           aria-label="סכום זיכוי לפני מע״מ"
+          aria-describedby="credit-room-status"
+          aria-invalid={roomProblem !== null}
         />
+        {/* נותר לזכות — the original's amount before VAT, less the credit notes already issued on it. */}
+        <div id="credit-room-status" className={styles.creditRoom} aria-live="polite">
+          {roomStatus === 'loading' && <span className={styles.creditRoomMuted}>בודק כמה נותר לזכות…</span>}
+          {roomStatus === 'error' && (
+            <span className={styles.creditRoomMuted}>לא ניתן היה לבדוק כמה נותר לזכות — השרת יבדוק בהפקה.</span>
+          )}
+          {roomStatus === 'ready' && room && !room.known && (
+            <span className={styles.creditRoomMuted}>
+              המסמך לא הונפק בקוגו, ולכן היתרה לזיכוי אינה ידועה כאן — בדקו מול המסמך המקורי.
+            </span>
+          )}
+          {roomStatus === 'ready' && room && creditRoomSummary(room) && (
+            <span className={styles.creditRoomSummary}>
+              {creditRoomSummary(room)}
+              {Number(room.left) > 0 && Number(room.left) !== data.creditAmountBeforeVat && (
+                <button
+                  type="button"
+                  className={styles.creditRoomFill}
+                  onClick={() => onChange({ ...data, creditAmountBeforeVat: Number(room.left) })}
+                >
+                  זיכוי מלא של היתרה
+                </button>
+              )}
+            </span>
+          )}
+          {roomProblem && <span className={styles.creditRoomError} role="alert">{roomProblem}</span>}
+        </div>
       </div>
 
       {/* Totals */}
