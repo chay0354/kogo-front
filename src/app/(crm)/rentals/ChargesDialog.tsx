@@ -536,7 +536,7 @@ export default function ChargesDialog({
                   הצ׳ק משורטט, &quot;לא סחיר&quot;, על שם השוכר
                 </label>
                 <p id={`${idPrefix}-crossed-help`} className={styles.help}>
-                  רק צ׳ק כזה מאפשר לשלוח לשוכר את הקבלה במייל. בלי הסימון — הקבלה נמסרת לו על נייר.
+                  כשחתימת המסמכים פעילה, רק על צ׳ק כזה הקבלה נשלחת לשוכר במייל; בלי הסימון היא נמסרת לו על נייר.
                 </p>
               </div>
             </>
@@ -558,7 +558,9 @@ export default function ChargesDialog({
           </div>
         </div>
         {offlineForm.method === 'cash' && (
-          <p className={styles.help}>על תשלום במזומן הקבלה נמסרת לשוכר על נייר, ולא נשלחת במייל.</p>
+          <p className={styles.help}>
+            כשחתימת המסמכים פעילה, קבלה על מזומן נמסרת לשוכר על נייר ולא במייל. לאן הלכה בפועל — בשורת החודש, אחרי הרישום.
+          </p>
         )}
         <div className={styles.voidActions}>
           <button type="button" className={styles.secondaryBtn} onClick={stopForm} disabled={locked}>
