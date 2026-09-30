@@ -344,8 +344,8 @@ export default function SettingsImportPage() {
             </div>
             {summary.documents.skipped ? (
               <p className="text-sm text-amber-700 mt-3">
-                {summary.documents.skipped} שורות לא נקראו (שורות:{' '}
-                {summary.documents.skipped_rows.map((s) => `${s.row} — ${s.reason}`).join(' · ')})
+                {summary.documents.skipped} שורות לא נקראו (
+                {summary.documents.skipped_rows.map((s) => (s.row ? `שורה ${s.row} — ${s.reason}` : s.reason)).join(' · ')})
               </p>
             ) : null}
           </section>

@@ -56,7 +56,8 @@ export default function ColumnMappingStep({
       <p className="text-sm text-muted-foreground mb-3">
         {info.rows.toLocaleString('he-IL')} שורות בקובץ. ההצעה נקבעה לפי שמות העמודות — בדקו כל שורה ושנו לפי הצורך.
         עמודה שלא נבחרה לא נקראת ולא נשמרת.
-        {hidden ? ` ${hidden} עמודות עם מידע רגיש (סיסמה, תאריך לידה) אינן מוצגות ואינן נקראות.` : ''}
+        {hidden === 1 ? ' עמודה אחת עם מידע רגיש (סיסמה, תאריך לידה) אינה מוצגת ואינה נקראת.' : null}
+        {hidden > 1 ? ` ${hidden} עמודות עם מידע רגיש (סיסמה, תאריך לידה) אינן מוצגות ואינן נקראות.` : null}
       </p>
       <div className="table-scroll">
         <table className="table table-compact">
