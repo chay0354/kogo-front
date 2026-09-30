@@ -15,7 +15,8 @@ import styles from './TerminalMap.module.css';
  * 3. Charge 1 ₪ from one of them on a terminal of the pair — once; the server
  *    refuses a second try on the same check and terminal.
  * 4. Refund that 1 ₪ — once.
- * The manager presses every money button; each asks first. Nothing here shows
+ * The manager presses every money button; each asks first, on the page itself
+ * (a browser dialog does not open inside the desktop app's pane). Nothing here shows
  * the card, the token or its expiry.
  */
 
@@ -51,6 +52,7 @@ export default function TokenProbeSection() {
   const [rows, setRows] = useState<CheckRow[] | null>(null);
   const [terminal, setTerminal] = useState(TERMINALS[0]);
   const [outcomes, setOutcomes] = useState<Record<string, Outcome>>({});
+  const [asking, setAsking] = useState<{ step: 'charge' | 'refund'; index: string } | null>(null);
 
   async function openPage() {
     setBusy('page');
@@ -87,7 +89,7 @@ export default function TokenProbeSection() {
   }
 
   async function charge(index: string) {
-    if (!window.confirm(`לחייב 1 ₪ מהכרטיס של בדיקה ${index}, במסוף ${terminal}?\nזה חיוב אמיתי.`)) return;
+    setAsking(null);
     const key = `charge-${index}-${terminal}`;
     setBusy(key);
     try {
@@ -109,7 +111,7 @@ export default function TokenProbeSection() {
   }
 
   async function refund(index: string) {
-    if (!window.confirm(`לזכות את ה־1 ₪ של בדיקה ${index}, במסוף ${terminal}?`)) return;
+    setAsking(null);
     const key = `refund-${index}-${terminal}`;
     setBusy(key);
     try {
@@ -219,7 +221,7 @@ export default function TokenProbeSection() {
                           <button
                             type="button"
                             className={styles.verifyBtn}
-                            onClick={() => charge(row.index)}
+                            onClick={() => setAsking({ step: 'charge', index: row.index })}
                             disabled={Boolean(busy) || chargeDone}
                           >
                             {busy === `charge-${row.index}-${terminal}` ? (
@@ -230,7 +232,7 @@ export default function TokenProbeSection() {
                           <button
                             type="button"
                             className={styles.verifyBtn}
-                            onClick={() => refund(row.index)}
+                            onClick={() => setAsking({ step: 'refund', index: row.index })}
                             disabled={Boolean(busy) || refundDone}
                           >
                             {busy === `refund-${row.index}-${terminal}` ? (
@@ -238,6 +240,35 @@ export default function TokenProbeSection() {
                             ) : null}
                             4. זכה 1 ₪
                           </button>
+                        </div>
+                      )}
+                      {asking?.index === row.index && (
+                        <div
+                          role="alertdialog"
+                          aria-label="אישור"
+                          style={{ marginTop: 8, padding: 10, border: '1px solid #f0c36d', borderRadius: 10, background: '#fff8e6' }}
+                        >
+                          <p style={{ margin: 0, fontWeight: 700 }}>
+                            {asking.step === 'charge'
+                              ? `לחייב 1 ₪ מהכרטיס של בדיקה ${row.index}, במסוף ${terminal}? זה חיוב אמיתי.`
+                              : `לזכות את ה־1 ₪ של בדיקה ${row.index}, במסוף ${terminal}?`}
+                          </p>
+                          <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+                            <button
+                              type="button"
+                              className={styles.verifyBtn}
+                              onClick={() => (asking.step === 'charge' ? charge(row.index) : refund(row.index))}
+                            >
+                              {asking.step === 'charge' ? 'כן, לחייב 1 ₪' : 'כן, לזכות'}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setAsking(null)}
+                              style={{ border: '1px solid #ccc', borderRadius: 8, padding: '6px 14px', background: '#fff' }}
+                            >
+                              ביטול
+                            </button>
+                          </div>
                         </div>
                       )}
                       {outcome && (
