@@ -81,6 +81,21 @@ export interface StoreInvoice {
   notes: string;
   line_items: StoreSale[];
   created_at: string;
+  /**
+   * A website/till payment in review (CRM apps/store/payment_followup.py): a
+   * transaction number Tranzila reported, or a charge found in the terminal's
+   * report, that the report neither confirmed nor ruled out. A manager
+   * settles it with POST /store/invoices/{id}/payment-review/.
+   */
+  payment_in_review?: boolean;
+  payment_review_numbers?: StorePaymentReviewNumber[];
+}
+
+export interface StorePaymentReviewNumber {
+  index: string;
+  /** Found in the report by sum and time; no notify ever named this order. */
+  suspected: boolean;
+  reported_at: string;
 }
 
 export interface CartItem {

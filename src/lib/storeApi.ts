@@ -134,6 +134,21 @@ export async function fetchInvoice(id: string): Promise<StoreInvoice> {
   return data;
 }
 
+/**
+ * A manager settles a store payment in review (CRM payment_followup):
+ * 'complete' only goes through when Tranzila's report confirms it;
+ * 'release' says no payment came (checked in Tranzila) and fails the order.
+ * The reason is kept on the invoice with who and when.
+ */
+export async function reviewStorePayment(
+  id: string,
+  action: 'complete' | 'release',
+  reason: string,
+): Promise<StoreInvoice> {
+  const { data } = await api.post(`/store/invoices/${id}/payment-review/`, { action, reason });
+  return data.invoice as StoreInvoice;
+}
+
 export async function downloadStoreInvoicePdf(id: string, invoiceNumber: string): Promise<void> {
   const response = await api.get(`/store/invoices/${id}/download/`, {
     responseType: 'blob',

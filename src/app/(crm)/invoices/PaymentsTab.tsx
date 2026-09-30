@@ -9,7 +9,7 @@ import { Skeleton, TableSkeleton } from '@/components/ui/skeleton';
 import theme from '@/components/dashboard/theme/dashboard.module.css';
 import api, { fetchCourseTypesList, fetchInstructorsDropdown } from '@/lib/api';
 import { fetchPaymentLedger, PAYMENTS_PAGE_SIZE } from '@/lib/documentsApi';
-import { downloadStoreInvoicePdf, fetchAllInvoices } from '@/lib/storeApi';
+import { downloadStoreInvoicePdf, fetchAllInvoices, reviewStorePayment } from '@/lib/storeApi';
 import { unwrapApiList } from '@/lib/scopedFilters';
 import { useScopedBranches } from '@/hooks/useScopedBranches';
 import type { StoreInvoice } from '@/types/store';
@@ -587,6 +587,7 @@ export default function PaymentsTab({ ledger }: PaymentsTabProps) {
   const [refundTarget, setRefundTarget] = useState<ChargeRow | null>(null);
   const [refundLoading, setRefundLoading] = useState(false);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
+  const [reviewingId, setReviewingId] = useState<string | null>(null);
   const [actionError, setActionError] = useState('');
   // Refunds made while this query is shown: its figures are asked again after each.
   const [refunds, setRefunds] = useState({ queryKey: '', n: 0 });
@@ -744,6 +745,32 @@ export default function PaymentsTab({ ledger }: PaymentsTabProps) {
     }
   }
 
+  /**
+   * A store payment in review: "השלם אחרי אימות" completes it only if
+   * Tranzila's report confirms; "אין תשלום — שחרר" after checking Tranzila
+   * fails the order so the customer can pay again. A reason is required and
+   * kept on the invoice with who and when.
+   */
+  async function handleReview(row: ChargeRow, action: 'complete' | 'release') {
+    if (!row.store_invoice_id) return;
+    const question = action === 'complete'
+      ? 'השלמה אחרי אימות: ההזמנה תושלם רק אם הדוח של טרנזילה מאשר את התשלום. מה בדקתם? (חובה)'
+      : 'שחרור: בדקתם בטרנזילה ואין תשלום? ההזמנה תסומן כנכשלה והלקוח יוכל לשלם שוב. למה? (חובה)';
+    const reason = window.prompt(question)?.trim() || '';
+    if (reason.length < 3) return;
+    setReviewingId(row.id);
+    setActionError('');
+    try {
+      const updated = await reviewStorePayment(row.store_invoice_id, action, reason);
+      store.setInvoices((prev) => prev.map((inv) => (inv.id === updated.id ? updated : inv)));
+    } catch (error: unknown) {
+      const data = (error as { response?: { data?: { error?: string } } })?.response?.data;
+      window.alert(data?.error || 'הפעולה לא בוצעה');
+    } finally {
+      setReviewingId(null);
+    }
+  }
+
   function renderRow(row: ChargeRow): ReactNode {
     const statusLabel = getPaymentStatusLabel(row.status);
     const course = row.source === 'payment' ? courseLine(row) : '';
@@ -770,6 +797,11 @@ export default function PaymentsTab({ ledger }: PaymentsTabProps) {
           <span className={`${pageStyles.statusBadge} ${getPaymentStatusClass(row.status)}`} aria-label={statusLabel}>
             {statusLabel}
           </span>
+          {row.payment_in_review && (
+            <span className={styles.subLine} title={`מספרי עסקה: ${(row.review_numbers || []).join(', ')}`}>
+              תשלום בבדיקה
+            </span>
+          )}
         </td>
         <td>
           <div className={styles.actions}>
@@ -785,12 +817,32 @@ export default function PaymentsTab({ ledger }: PaymentsTabProps) {
                 <Download size={16} aria-hidden="true" />
               </button>
             )}
+            {row.payment_in_review && (
+              <>
+                <button
+                  type="button"
+                  className={styles.refundBtn}
+                  disabled={reviewingId === row.id}
+                  onClick={() => void handleReview(row, 'complete')}
+                >
+                  השלם אחרי אימות
+                </button>
+                <button
+                  type="button"
+                  className={styles.refundBtn}
+                  disabled={reviewingId === row.id}
+                  onClick={() => void handleReview(row, 'release')}
+                >
+                  אין תשלום — שחרר
+                </button>
+              </>
+            )}
             {row.canRefund ? (
               <button type="button" className={styles.refundBtn} onClick={() => setRefundTarget(row)}>
                 זיכוי
               </button>
             ) : (
-              !hasPdf && <span className={styles.dash}>—</span>
+              !hasPdf && !row.payment_in_review && <span className={styles.dash}>—</span>
             )}
           </div>
         </td>

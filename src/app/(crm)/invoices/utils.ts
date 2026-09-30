@@ -444,6 +444,8 @@ export function storeInvoiceToLedgerRow(invoice: StoreInvoice): PaymentRecord {
     customer_notes: invoice.customer_notes || undefined,
     website_order_number: invoice.website_order_number || undefined,
     store_invoice_id: invoice.id,
+    payment_in_review: Boolean(invoice.payment_in_review),
+    review_numbers: (invoice.payment_review_numbers || []).map((n) => n.index),
   };
 }
 

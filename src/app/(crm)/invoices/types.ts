@@ -183,4 +183,7 @@ export interface PaymentRecord {
   customer_notes?: string;
   website_order_number?: string;
   store_invoice_id?: string;
+  // A store payment in review: the numbers a manager decides about.
+  payment_in_review?: boolean;
+  review_numbers?: string[];
 }

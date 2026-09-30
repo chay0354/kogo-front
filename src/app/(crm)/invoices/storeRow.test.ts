@@ -61,3 +61,22 @@ describe('a store order on the payments tab', () => {
     expect(matchesPaymentSearch(row, '   ')).toBe(true);
   });
 });
+
+describe('a store payment in review', () => {
+  it('carries the flag and the numbers a manager decides about', () => {
+    const row = storeInvoiceToLedgerRow({
+      ...invoice,
+      payment_status: 'pending',
+      payment_in_review: true,
+      payment_review_numbers: [{ index: '999999', suspected: false, reported_at: '2026-09-30T10:00:00Z' }],
+    });
+    expect(row.payment_in_review).toBe(true);
+    expect(row.review_numbers).toEqual(['999999']);
+  });
+
+  it('is not in review when the CRM says nothing', () => {
+    const row = storeInvoiceToLedgerRow(invoice);
+    expect(row.payment_in_review).toBe(false);
+    expect(row.review_numbers).toEqual([]);
+  });
+});
