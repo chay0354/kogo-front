@@ -9,6 +9,7 @@ import {
   AUTO_SETTLEMENT_PICKS,
   allocateOldestFirst,
   canVoidSettlement,
+  formatIsraelMoment,
   manualPicksFrom,
   parseTypedAmount,
   readDocumentSettlements,
@@ -227,5 +228,17 @@ describe('the picker', () => {
   it('typing an amount ticks the invoice', () => {
     const picks = setPickAmount(INVOICES, AUTO_SETTLEMENT_PICKS, 60000, '3', '120');
     expect(picks).toEqual({ mode: 'manual', amounts: { 1: '500.00', 2: '100.00', 3: '120' } });
+  });
+});
+
+describe('formatIsraelMoment', () => {
+  it("reads a moment on Israel's clock, whatever the zone it was written in", () => {
+    expect(formatIsraelMoment('2026-09-30T11:05:00Z')).toBe('30.9.2026 14:05');
+    expect(formatIsraelMoment('2026-01-15T22:30:00Z')).toBe('16.1.2026 00:30');
+  });
+
+  it('is empty for nothing or nonsense', () => {
+    expect(formatIsraelMoment(null)).toBe('');
+    expect(formatIsraelMoment('not a date')).toBe('');
   });
 });

@@ -6,6 +6,7 @@ import { Skeleton, TableSkeleton } from '@/components/ui/skeleton';
 import { fetchAllInvoices } from '@/lib/storeApi';
 import { sendDocumentReminder } from '@/lib/documentsApi';
 import { useScopedBranches } from '@/hooks/useScopedBranches';
+import DocumentDetailButton from '@/components/dialogs/DocumentDetailButton';
 import theme from '@/components/dashboard/theme/dashboard.module.css';
 import type { StoreInvoice } from '@/types/store';
 import LedgerFilterBar, { LedgerSelect } from './LedgerFilterBar';
@@ -15,6 +16,7 @@ import type { AgingBucket, CollectionRow, DocumentRow, LedgerDimensions, LedgerF
 import { ORIGIN_OPTIONS } from './constants';
 import {
   buildCollectionRows,
+  canOpenDocumentDetail,
   canSendDocumentReminder,
   collectionDueDate,
   daysAgoLocalISO,
@@ -513,7 +515,16 @@ export default function CollectionTab({ ledger, refreshKey = 0 }: CollectionTabP
                     <span className={styles.strong}>{row.customer === NO_CUSTOMER ? 'ללא שם לקוח' : row.customer}</span>
                   </td>
                   <td>
-                    <span className={styles.docNumber}>{row.number || '—'}</span>
+                    {row.doc && canOpenDocumentDetail(row.doc) ? (
+                      <DocumentDetailButton
+                        documentId={row.doc.id}
+                        number={row.number || '—'}
+                        className={`${styles.docNumber} ${styles.docLink}`}
+                        onChanged={() => void reloadDocuments()}
+                      />
+                    ) : (
+                      <span className={styles.docNumber}>{row.number || '—'}</span>
+                    )}
                     {row.docType && <span className={styles.subLine}>{row.docType}</span>}
                   </td>
                   <td>
@@ -542,7 +553,12 @@ export default function CollectionTab({ ledger, refreshKey = 0 }: CollectionTabP
                     </span>
                   </td>
                   <td className={`${theme.n} ${styles.money}`}>{formatAmount(row.total)}</td>
-                  <td className={`${theme.n} ${styles.money}`}>{formatAmount(row.paid)}</td>
+                  <td className={`${theme.n} ${styles.money}`}>
+                    {formatAmount(row.paid)}
+                    {(row.doc?.credited_amount ?? 0) > 0 && (
+                      <span className={styles.subLine}>זוכה {formatAmount(row.doc?.credited_amount)}</span>
+                    )}
+                  </td>
                   <td className={`${theme.n} ${styles.money} ${styles.open}`}>{formatAmount(row.open)}</td>
                   <td>
                     <span className={`${pageStyles.statusBadge} ${getStatusClass(row.status)}`}>

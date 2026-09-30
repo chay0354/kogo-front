@@ -393,3 +393,23 @@ export function setPickAmount(
   const current = picks.mode === 'manual' ? picks : manualPicksFrom(resolveSettlements(invoices, picks, capacity));
   return { mode: 'manual', amounts: { ...current.amounts, [invoiceId]: typed } };
 }
+
+const ISRAEL_MOMENT = new Intl.DateTimeFormat('en-GB', {
+  timeZone: 'Asia/Jerusalem',
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+  hour: '2-digit',
+  minute: '2-digit',
+  hourCycle: 'h23',
+});
+
+/** An ISO moment as the office reads it, on Israel's clock: 30.9.2026 14:05. '' when there is none. */
+export function formatIsraelMoment(iso: string | null | undefined): string {
+  if (!iso) return '';
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return '';
+  const parts: Record<string, string> = {};
+  for (const part of ISRAEL_MOMENT.formatToParts(date)) parts[part.type] = part.value;
+  return `${Number(parts.day)}.${Number(parts.month)}.${parts.year} ${parts.hour}:${parts.minute}`;
+}

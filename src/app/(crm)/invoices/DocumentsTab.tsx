@@ -17,6 +17,7 @@ import {
 } from '@/lib/documentsApi';
 import { useScopedBranches } from '@/hooks/useScopedBranches';
 import BusinessCustomerCardButton from '@/components/dialogs/BusinessCustomerCardButton';
+import DocumentDetailButton from '@/components/dialogs/DocumentDetailButton';
 import theme from '@/components/dashboard/theme/dashboard.module.css';
 import LedgerFilterBar, { LedgerSelect } from './LedgerFilterBar';
 import { allocationOriginalMessage } from './manualDelivery';
@@ -26,6 +27,7 @@ import { useLedgerDocuments } from './useLedgerDocuments';
 import type { DocumentRow } from './types';
 import { DOCUMENT_STATUS_OPTIONS, DOCUMENT_TYPE_OPTIONS } from './constants';
 import {
+  canOpenDocumentDetail,
   canSendDocumentReminder,
   compareDocumentsNewestFirst,
   formatAmount,
@@ -437,7 +439,18 @@ export default function DocumentsTab({ ledger, refreshKey = 0 }: DocumentsTabPro
 
               return (
                 <tr key={doc.id}>
-                  <td className={styles.docNumber}>{doc.document_number || '—'}</td>
+                  <td className={styles.docNumber}>
+                    {canOpenDocumentDetail(doc) ? (
+                      <DocumentDetailButton
+                        documentId={doc.id}
+                        number={doc.document_number || '—'}
+                        className={`${styles.docNumber} ${styles.customerLink}`}
+                        onChanged={() => void reload()}
+                      />
+                    ) : (
+                      doc.document_number || '—'
+                    )}
+                  </td>
                   <td>{doc.issue_date ? formatDate(doc.issue_date) : '—'}</td>
                   <td>
                     <span className={`${pageStyles.originChip} ${getOriginClass(doc)}`}>{getOriginLabel(doc)}</span>

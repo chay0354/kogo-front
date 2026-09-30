@@ -794,6 +794,16 @@ function toAgorot(value: unknown): number {
 }
 
 /**
+ * Whether a row opens the document's detail (balance and settlements). Only
+ * a document issued in kogo (origin manual) has one: its id is the document's.
+ * A subscription receipt or a store sale carries another model's id; a draft
+ * has no number and nothing closed it.
+ */
+export function canOpenDocumentDetail(doc: Pick<DocumentRow, 'id' | 'origin' | 'is_draft'>): boolean {
+  return doc.origin === 'manual' && Boolean(doc.id) && !doc.is_draft;
+}
+
+/**
  * Whether a payment reminder can go out for a document from the list. The
  * reminder endpoint knows only documents issued in the CRM (origin manual) — a
  * subscription invoice or a store sale carries another model's id — and a
