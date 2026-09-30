@@ -39,6 +39,12 @@ function errorText(e: unknown, fallback: string): string {
   return (e as { response?: { data?: { error?: string } } })?.response?.data?.error || fallback;
 }
 
+// Tranzila's message often names its code already ("… (קוד 006)").
+function withCode(message: string | undefined, code: string | undefined): string {
+  const text = message || '';
+  return code && !text.includes(code) ? `${text} (קוד ${code})` : text;
+}
+
 function timeOf(iso: string | null): string {
   if (!iso) return '—';
   const d = new Date(iso);
@@ -100,7 +106,7 @@ export default function TokenProbeSection() {
           ? { step: 'charge', tone: 'ok', text: `החיוב עבר במסוף ${d.terminal}. מספר עסקה ${d.transaction_id || '—'}.` }
           : d.outcome === 'uncertain'
             ? { step: 'charge', tone: 'warn', text: 'לא התקבלה תשובה מטרנזילה. לא לנסות שוב — לבדוק בדוח של המסוף.' }
-            : { step: 'charge', tone: 'bad', text: `החיוב נדחה, לא ירד כסף. ${d.message || ''}${d.response_code ? ` (קוד ${d.response_code})` : ''}` };
+            : { step: 'charge', tone: 'bad', text: `החיוב נדחה, לא ירד כסף. ${withCode(d.message, d.response_code)}` };
       setOutcomes((o) => ({ ...o, [`${index}-${terminal}`]: outcome }));
     } catch (e) {
       // e.g. "already tried": the server keeps the first result and charges nothing.
@@ -121,7 +127,7 @@ export default function TokenProbeSection() {
         ? { step: 'refund', tone: 'ok', text: `הזיכוי עבר. מספר עסקה ${d.transaction_id || '—'}.` }
         : d.uncertain
           ? { step: 'refund', tone: 'warn', text: 'לא התקבלה תשובה על הזיכוי. לא לנסות שוב — לבדוק בדוח של המסוף.' }
-          : { step: 'refund', tone: 'bad', text: `הזיכוי נדחה. ${d.message || ''}${d.response_code ? ` (קוד ${d.response_code})` : ''}` };
+          : { step: 'refund', tone: 'bad', text: `הזיכוי נדחה. ${withCode(d.message, d.response_code)}` };
       setOutcomes((o) => ({ ...o, [`${index}-${terminal}`]: outcome }));
     } catch (e) {
       setOutcomes((o) => ({ ...o, [`${index}-${terminal}`]: { step: 'refund', tone: 'warn', text: errorText(e, 'הבקשה נכשלה') } }));
