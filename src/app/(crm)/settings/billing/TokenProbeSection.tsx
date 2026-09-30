@@ -30,7 +30,7 @@ type CheckRow = {
   has_expiry: boolean;
 };
 
-type Outcome = { tone: 'ok' | 'bad' | 'warn'; text: string };
+type Outcome = { step: 'charge' | 'refund'; tone: 'ok' | 'bad' | 'warn'; text: string };
 
 const TERMINALS = ['cogolivetok', 'cogolive'];
 
@@ -47,6 +47,7 @@ function timeOf(iso: string | null): string {
 export default function TokenProbeSection() {
   const [busy, setBusy] = useState('');
   const [note, setNote] = useState('');
+  const [pageUrl, setPageUrl] = useState('');
   const [rows, setRows] = useState<CheckRow[] | null>(null);
   const [terminal, setTerminal] = useState(TERMINALS[0]);
   const [outcomes, setOutcomes] = useState<Record<string, Outcome>>({});
@@ -54,15 +55,13 @@ export default function TokenProbeSection() {
   async function openPage() {
     setBusy('page');
     setNote('');
-    // Opened before the request so the browser does not block it as a pop-up.
-    const tab = window.open('', '_blank');
+    setPageUrl('');
     try {
       const res = await api.post('/core/tranzila/token-probe/', { step: 'page', tranmode: 'NK' });
-      if (tab) tab.location.href = res.data.url;
-      else window.location.href = res.data.url;
-      setNote(`עמוד טרנזילה נפתח בלשונית חדשה (מסוף ${res.data.terminal}). הקלידו שם את הכרטיס — לא יורד כסף. אחר כך חזרו לכאן ולחצו "הצג בדיקות מהיום".`);
+      // A link the manager presses: a tab opened after the request is blocked as a pop-up.
+      setPageUrl(res.data.url);
+      setNote(`העמוד מוכן (מסוף ${res.data.terminal}). פתחו אותו, הקלידו את הכרטיס — לא יורד כסף — ואחר כך חזרו לכאן ולחצו "הצג בדיקות מהיום".`);
     } catch (e) {
-      tab?.close();
       setNote(errorText(e, 'העמוד לא נפתח'));
     } finally {
       setBusy('');
@@ -96,13 +95,14 @@ export default function TokenProbeSection() {
       const d = res.data;
       const outcome: Outcome =
         d.outcome === 'charged'
-          ? { tone: 'ok', text: `החיוב עבר במסוף ${d.terminal}. מספר עסקה ${d.transaction_id || '—'}.` }
+          ? { step: 'charge', tone: 'ok', text: `החיוב עבר במסוף ${d.terminal}. מספר עסקה ${d.transaction_id || '—'}.` }
           : d.outcome === 'uncertain'
-            ? { tone: 'warn', text: 'לא התקבלה תשובה מטרנזילה. לא לנסות שוב — לבדוק בדוח של המסוף.' }
-            : { tone: 'bad', text: `החיוב נדחה, לא ירד כסף. ${d.message || ''}${d.response_code ? ` (קוד ${d.response_code})` : ''}` };
+            ? { step: 'charge', tone: 'warn', text: 'לא התקבלה תשובה מטרנזילה. לא לנסות שוב — לבדוק בדוח של המסוף.' }
+            : { step: 'charge', tone: 'bad', text: `החיוב נדחה, לא ירד כסף. ${d.message || ''}${d.response_code ? ` (קוד ${d.response_code})` : ''}` };
       setOutcomes((o) => ({ ...o, [`${index}-${terminal}`]: outcome }));
     } catch (e) {
-      setOutcomes((o) => ({ ...o, [`${index}-${terminal}`]: { tone: 'warn', text: errorText(e, 'הבקשה נכשלה') } }));
+      // e.g. "already tried": the server keeps the first result and charges nothing.
+      setOutcomes((o) => ({ ...o, [`${index}-${terminal}`]: { step: 'charge', tone: 'warn', text: errorText(e, 'הבקשה נכשלה') } }));
     } finally {
       setBusy('');
     }
@@ -116,13 +116,13 @@ export default function TokenProbeSection() {
       const res = await api.post('/core/tranzila/token-probe/', { step: 'refund', index, terminal });
       const d = res.data;
       const outcome: Outcome = d.refunded
-        ? { tone: 'ok', text: `הזיכוי עבר. מספר עסקה ${d.transaction_id || '—'}.` }
+        ? { step: 'refund', tone: 'ok', text: `הזיכוי עבר. מספר עסקה ${d.transaction_id || '—'}.` }
         : d.uncertain
-          ? { tone: 'warn', text: 'לא התקבלה תשובה על הזיכוי. לא לנסות שוב — לבדוק בדוח של המסוף.' }
-          : { tone: 'bad', text: `הזיכוי נדחה. ${d.message || ''}${d.response_code ? ` (קוד ${d.response_code})` : ''}` };
+          ? { step: 'refund', tone: 'warn', text: 'לא התקבלה תשובה על הזיכוי. לא לנסות שוב — לבדוק בדוח של המסוף.' }
+          : { step: 'refund', tone: 'bad', text: `הזיכוי נדחה. ${d.message || ''}${d.response_code ? ` (קוד ${d.response_code})` : ''}` };
       setOutcomes((o) => ({ ...o, [`${index}-${terminal}`]: outcome }));
     } catch (e) {
-      setOutcomes((o) => ({ ...o, [`${index}-${terminal}`]: { tone: 'warn', text: errorText(e, 'הבקשה נכשלה') } }));
+      setOutcomes((o) => ({ ...o, [`${index}-${terminal}`]: { step: 'refund', tone: 'warn', text: errorText(e, 'הבקשה נכשלה') } }));
     } finally {
       setBusy('');
     }
@@ -170,6 +170,18 @@ export default function TokenProbeSection() {
             {note}
           </p>
         )}
+        {pageUrl && (
+          <a
+            href={pageUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className={styles.verifyBtn}
+            style={{ display: 'inline-flex', marginTop: 8, textDecoration: 'none' }}
+            onClick={() => setPageUrl('')}
+          >
+            פתחו את עמוד טרנזילה בלשונית חדשה
+          </a>
+        )}
 
         {rows && rows.length === 0 && (
           <p className={theme.note} style={{ marginTop: 12 }}>
@@ -191,6 +203,9 @@ export default function TokenProbeSection() {
               {rows.map((row) => {
                 const usable = row.approved && row.has_token && row.has_expiry;
                 const outcome = outcomes[`${row.index}-${terminal}`];
+                // One charge per check: once answered here, the button rests (the server refuses a second anyway).
+                const chargeDone = Boolean(outcome && (outcome.step === 'refund' || outcome.tone !== 'warn'));
+                const refundDone = Boolean(outcome && outcome.step === 'refund' && outcome.tone !== 'bad');
                 return (
                   <tr key={row.index} style={{ borderTop: '1px solid #eee', verticalAlign: 'top' }}>
                     <td style={{ padding: '8px 4px' }} dir="ltr">{row.index}</td>
@@ -205,7 +220,7 @@ export default function TokenProbeSection() {
                             type="button"
                             className={styles.verifyBtn}
                             onClick={() => charge(row.index)}
-                            disabled={Boolean(busy)}
+                            disabled={Boolean(busy) || chargeDone}
                           >
                             {busy === `charge-${row.index}-${terminal}` ? (
                               <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
@@ -216,7 +231,7 @@ export default function TokenProbeSection() {
                             type="button"
                             className={styles.verifyBtn}
                             onClick={() => refund(row.index)}
-                            disabled={Boolean(busy)}
+                            disabled={Boolean(busy) || refundDone}
                           >
                             {busy === `refund-${row.index}-${terminal}` ? (
                               <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
