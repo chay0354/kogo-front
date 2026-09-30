@@ -44,6 +44,7 @@ import {
 import EditMonthAmountDialog from '@/components/dialogs/EditMonthAmountDialog';
 import SendCardLinkDialog from '@/components/dialogs/SendCardLinkDialog';
 import RegisterCashDialog from '@/components/dialogs/RegisterCashDialog';
+import CashPlansSection from '@/components/dialogs/CashPlansSection';
 import ReplaceCardDialog from '@/components/dialogs/ReplaceCardDialog';
 import FamilySignaturesTable, { type FamilySignaturesStatus } from '@/components/signatures/FamilySignaturesTable';
 import SignatureViewDialog from '@/components/signatures/SignatureViewDialog';
@@ -531,6 +532,8 @@ export default function ChildProfileDialog({
 }: ChildProfileDialogProps) {
   const [cardLinkOpen, setCardLinkOpen] = useState(false);
   const [cashOpen, setCashOpen] = useState(false);
+  // Bumped when a cash payment is registered, so the cash plans list shows it.
+  const [cashPlansKey, setCashPlansKey] = useState(0);
   const [replaceCardOpen, setReplaceCardOpen] = useState(false);
   const { user: authUser } = useAuth();
   const canSendCardLink = authUser?.role === 'manager';
@@ -1589,6 +1592,8 @@ export default function ChildProfileDialog({
                         )}
                       </div>
 
+                      {canSendCardLink && <CashPlansSection childId={child.id} reloadKey={cashPlansKey} />}
+
                       {standingOrders.some((order: any) => (order.past_overrides || []).length > 0) && (
                         <div>
                           <h3 className="font-semibold text-lg mb-1">חודשים ששונו וכבר חויבו</h3>
@@ -1705,7 +1710,12 @@ export default function ChildProfileDialog({
     {canSendCardLink && <SendCardLinkDialog open={cardLinkOpen} onOpenChange={setCardLinkOpen} child={child} />}
     {canSendCardLink && (
       <>
-        <RegisterCashDialog open={cashOpen} onOpenChange={setCashOpen} child={child} />
+        <RegisterCashDialog
+          open={cashOpen}
+          onOpenChange={setCashOpen}
+          child={child}
+          onRegistered={() => setCashPlansKey((key) => key + 1)}
+        />
         <ReplaceCardDialog open={replaceCardOpen} onOpenChange={setReplaceCardOpen} child={child} />
       </>
     )}
