@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState, useEffect, useRef } from 'react';
+import { useCallback, useMemo, useState, useEffect, useRef } from 'react';
 import {
   ArrowLeftRight,
   Calendar,
@@ -42,6 +42,9 @@ import {
   type ComputerizedDocsConsent,
 } from '@/components/dialogs/computerizedDocsConsent';
 import EditMonthAmountDialog from '@/components/dialogs/EditMonthAmountDialog';
+import CustomerDetailsEditor from '@/components/dialogs/CustomerDetailsEditor';
+import ChildStatusHistory from '@/components/dialogs/ChildStatusHistory';
+import { normalisePhone } from '@/components/dialogs/customerDetailsForm';
 import SendCardLinkDialog from '@/components/dialogs/SendCardLinkDialog';
 import RegisterCashDialog from '@/components/dialogs/RegisterCashDialog';
 import ReplaceCardDialog from '@/components/dialogs/ReplaceCardDialog';
@@ -66,6 +69,13 @@ interface ChildProfileDialogProps {
   }) => void;
   /** Open a brother or sister of this child. Without it the names show but do not link. */
   onOpenSibling?: (childId: string) => void;
+  /** Open straight into editing the details (the list's "עריכת פרופיל"). */
+  startInEditMode?: boolean;
+  /**
+   * The details were saved: the card's fresh row, or null when the save folded
+   * this record into another card of the same child.
+   */
+  onChildUpdated?: (child: ChildWithDetails | null) => void;
 }
 
 function daysUntil(dateString: string | null): number | null {
@@ -528,7 +538,19 @@ export default function ChildProfileDialog({
   onEditEnrollment,
   onRemovedFromCourse,
   onOpenSibling,
+  startInEditMode = false,
+  onChildUpdated,
 }: ChildProfileDialogProps) {
+  const [tab, setTab] = useState('details');
+  // The details tab as fields. Opened by the tab's own button or by the list's
+  // "עריכת פרופיל"; while it is open the other tabs wait, so an edit is never
+  // lost to a tab switch.
+  const [editing, setEditing] = useState(false);
+  const [savedNote, setSavedNote] = useState('');
+  const editorDirty = useRef(false);
+  const handleEditorDirty = useCallback((dirty: boolean) => {
+    editorDirty.current = dirty;
+  }, []);
   const [cardLinkOpen, setCardLinkOpen] = useState(false);
   const [cashOpen, setCashOpen] = useState(false);
   const [replaceCardOpen, setReplaceCardOpen] = useState(false);
@@ -599,6 +621,33 @@ export default function ChildProfileDialog({
   // child with no paid-until date used to read as פעיל whatever they were.
   const subscription = subscriptionBadge(child);
   
+  // A move to a sibling shows the sibling's card as it is, not an edit…
+  useEffect(() => {
+    setEditing(false);
+    setSavedNote('');
+  }, [child.id]);
+  // …and each open starts where the list asked: reading, or editing. Declared
+  // second so that an open for a new child ends in the mode it asked for.
+  useEffect(() => {
+    if (!isOpen) return;
+    setEditing(startInEditMode);
+    setSavedNote('');
+    // Every open starts on the details, as it did when the tabs lived inside the dialog.
+    setTab('details');
+  }, [isOpen, startInEditMode]);
+
+  const handleDetailsSaved = (fresh: ChildWithDetails | null, changes: { label: string }[]) => {
+    setEditing(false);
+    setSavedNote(
+      changes.length
+        ? `נשמר: ${changes.map((change) => change.label).join(', ')}`
+        : 'לא היו שינויים לשמור',
+    );
+    onChildUpdated?.(fresh);
+    // The consent line is read from the family record; the email may have moved.
+    if (fresh) fetchDocsConsent();
+  };
+
   // Fetch absence history when dialog opens
   useEffect(() => {
     if (isOpen && child.id) {
@@ -931,9 +980,16 @@ export default function ChildProfileDialog({
 
   return (
     <>
-    <Dialog open={isOpen} onOpenChange={(open) => (open ? undefined : onClose())}>
+    <Dialog
+      open={isOpen}
+      onOpenChange={(open) => {
+        if (open) return;
+        if (editing && editorDirty.current && !window.confirm('יש שינויים שלא נשמרו. לסגור בלי לשמור?')) return;
+        onClose();
+      }}
+    >
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto" dir="rtl">
-        <Tabs defaultValue="details">
+        <Tabs defaultValue="details" value={tab} onValueChange={(next) => { if (!editing) setTab(next); }}>
           <div className="sticky top-0 bg-white z-10 border-b">
             <div className="flex items-start justify-between px-6 pt-6 pb-4">
               <DialogHeader>
@@ -957,11 +1013,11 @@ export default function ChildProfileDialog({
                   <User className="h-4 w-4" />
                   פרטים
                 </TabsTrigger>
-                <TabsTrigger value="courses">
+                <TabsTrigger value="courses" className={editing ? 'opacity-50 cursor-not-allowed' : ''}>
                   <GraduationCap className="h-4 w-4" />
                   קבוצות
                 </TabsTrigger>
-                <TabsTrigger value="payments">
+                <TabsTrigger value="payments" className={editing ? 'opacity-50 cursor-not-allowed' : ''}>
                   <CreditCard className="h-4 w-4" />
                   תשלומים
                 </TabsTrigger>
@@ -971,6 +1027,32 @@ export default function ChildProfileDialog({
 
               {/* Tab 1: Details */}
               <TabsContent value="details" className="pt-6 px-0">
+                {editing && child.extra_phones !== undefined ? (
+                  <CustomerDetailsEditor
+                    key={child.id}
+                    child={child}
+                    onCancel={() => setEditing(false)}
+                    onSaved={handleDetailsSaved}
+                    onDirtyChange={handleEditorDirty}
+                  />
+                ) : (
+                <>
+                <div className="flex items-center justify-between gap-3 px-6 pb-4">
+                  <span className="text-sm text-emerald-700" role="status">{savedNote}</span>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="gap-2 shrink-0"
+                    // Only the list's full row carries the parent and the phones
+                    // the form starts from; a slim record would start it empty.
+                    disabled={child.extra_phones === undefined}
+                    title={child.extra_phones === undefined ? 'הכרטיס נטען חלקית — סגרו ופתחו אותו מהרשימה' : undefined}
+                    onClick={() => { setSavedNote(''); setEditing(true); }}
+                  >
+                    <Pencil className="h-4 w-4" />
+                    עריכת פרטים
+                  </Button>
+                </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6 px-6 pb-6">
                   {/* Left column */}
                   <div className="space-y-6">
@@ -1008,6 +1090,12 @@ export default function ChildProfileDialog({
                           <span className="text-muted-foreground text-sm">תאריך רישום</span>
                           <span className="font-medium">{formatHebrewDate(child.created_at)}</span>
                         </div>
+                        {child.notes?.trim() && (
+                          <div className="flex justify-between gap-4 items-start">
+                            <span className="text-muted-foreground text-sm shrink-0">הערות</span>
+                            <span className="font-medium whitespace-pre-line">{child.notes}</span>
+                          </div>
+                        )}
                         {(child.siblings ?? []).length > 0 && (
                           <div className="flex justify-between gap-4 items-start">
                             <span className="text-muted-foreground text-sm shrink-0">אחים ואחיות</span>
@@ -1118,6 +1206,47 @@ export default function ChildProfileDialog({
                             <span className="font-medium">{child.parent_phone || '-'}</span>
                           )}
                         </div>
+                        {(child.extra_phones ?? []).length > 0 && (
+                          <div className="flex justify-between gap-4 items-start">
+                            <span
+                              className="text-muted-foreground text-sm shrink-0"
+                              title="טלפון — מקבל גם את הודעות הקבוצה. מייל — מקבל גם עותק של החשבונית בכל חודש."
+                            >
+                              אנשי קשר נוספים
+                            </span>
+                            <div className="flex flex-col items-end gap-1">
+                              {(child.extra_phones ?? []).map((extra) => {
+                                const link = extra.phone ? formatWhatsAppLink(extra.phone) : null;
+                                return (
+                                  <span key={extra.id} className="text-sm text-left">
+                                    {extra.name && <span className="text-muted-foreground">{extra.name} · </span>}
+                                    {extra.phone && (link ? (
+                                      <a
+                                        href={link}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="font-medium text-primary hover:underline"
+                                      >
+                                        {extra.phone}
+                                      </a>
+                                    ) : (
+                                      <span className="font-medium">{extra.phone}</span>
+                                    ))}
+                                    {extra.phone && !/^05\d{8}$/.test(normalisePhone(extra.phone)) && (
+                                      <span className="text-xs text-amber-700"> · קווי — לא יקבל הודעות</span>
+                                    )}
+                                    {extra.email && (
+                                      <span className="block text-xs text-muted-foreground" dir="ltr">
+                                        {extra.email}
+                                        <span dir="rtl"> · עותק חשבונית</span>
+                                      </span>
+                                    )}
+                                  </span>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
                         <div className="flex justify-between gap-4 items-center">
                           <span className="text-muted-foreground text-sm flex items-center gap-2">
                             <Mail className="h-4 w-4" />
@@ -1158,10 +1287,21 @@ export default function ChildProfileDialog({
                           <span className="text-muted-foreground text-sm">סניף</span>
                           <span className="font-medium">{child.branch_name || '-'}</span>
                         </div>
+                        {child.family_notes?.trim() && (
+                          <div className="flex justify-between gap-4 items-start">
+                            <span className="text-muted-foreground text-sm shrink-0">הערות</span>
+                            <span className="font-medium whitespace-pre-line">{child.family_notes}</span>
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>
                 </div>
+                <div className="px-6 pb-6">
+                  <ChildStatusHistory childId={child.id} isOpen={isOpen} status={child.status} />
+                </div>
+                </>
+                )}
               </TabsContent>
 
               {/* Tab 2: Courses */}

@@ -85,7 +85,9 @@ export function BroadcastRunProvider({ children }: { children: React.ReactNode }
       else if (s.phase === 'paused') toast.warning('שליחת התפוצה נעצרה — פתחו אותה כדי להחליט איך להמשיך');
       else if (s.phase === 'failed') toast.error('בדיקת התפוצה נכשלה');
       else if (s.phase === 'done') {
-        const { sent, failed } = sentCounts(s.sentRows);
+        const counts = sentCounts(s.sentRows);
+        const sent = counts.sent + counts.extraSent;
+        const failed = counts.failed + counts.extraFailed;
         if (failed) toast.warning(`התפוצה הסתיימה · נשלחו ${sent} · נכשלו ${failed}`);
         else toast.success(`התפוצה הסתיימה · נשלחו ${sent}`);
       }

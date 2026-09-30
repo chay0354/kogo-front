@@ -8,6 +8,8 @@ import type { BroadcastRow } from './whatsappApi';
 import {
   BroadcastRun,
   dockSummary,
+  packSendChunks,
+  previewCounts,
   runIsBusy,
   runIsHeld,
   type ChunkReply,
@@ -248,5 +250,72 @@ describe('dock summary', () => {
     expect(runIsHeld('paused')).toBe(true);
     expect(runIsHeld('preview')).toBe(false);
     expect(runIsHeld('done')).toBe(false);
+  });
+});
+
+describe('BroadcastRun — extra phones', () => {
+  // Child 1's family has two extra phones; the rest have none.
+  const extrasOf = (id: string) =>
+    id === '1'
+      ? [
+          { parent_name: 'סבתא', phone: '+972520000001', status: 'preview' as const },
+          { parent_name: 'דוד', phone: '+972520000002', status: 'preview' as const },
+        ]
+      : [];
+
+  function serverWithExtras(opts: { failOn?: (req: ChunkRequest, call: number) => boolean } = {}) {
+    const calls: ChunkRequest[] = [];
+    const sendChunk = async (req: ChunkRequest): Promise<ChunkReply> => {
+      calls.push({ ...req, child_ids: req.child_ids.slice(), skip_phones: req.skip_phones.slice() });
+      if (opts.failOn?.(req, calls.length)) throw new Error('timeout');
+      const status = req.dry_run ? 'preview' : 'sent';
+      return {
+        results: req.child_ids.map((id) => ({
+          ...row(id, status),
+          extra_phones: extrasOf(id).map((extra) => ({ ...extra, status })),
+        })),
+        phones: req.child_ids.flatMap((id) => [phoneOf(id), ...extrasOf(id).map((extra) => extra.phone)]),
+      };
+    };
+    return { calls, sendChunk };
+  }
+
+  it('counts the extra phones apart from the children', async () => {
+    const run = makeRun(serverWithExtras());
+    await run.check();
+    expect(previewCounts(run.snapshot.previewRows)).toEqual({ willSend: 10, skipped: 0, extraWillSend: 2, messages: 12 });
+  });
+
+  it('packs the real send by messages, so a chunk never carries more than it used to', async () => {
+    const server = serverWithExtras();
+    const run = makeRun(server);
+    await run.check();
+    await run.start();
+    const sends = server.calls.filter((c) => !c.dry_run).map((c) => c.child_ids);
+    // Child 1 is three messages: it shares its chunk with one more child only.
+    expect(sends).toEqual([['1', '2'], ['3', '4', '5', '6'], ['7', '8', '9', '10']]);
+    expect(run.snapshot.phase).toBe('done');
+  });
+
+  it('a silent chunk counts its extra phones as used too', async () => {
+    const server = serverWithExtras({ failOn: (req) => !req.dry_run && req.child_ids.includes('1') });
+    const run = makeRun(server);
+    await run.check();
+    await run.start();
+    expect(run.snapshot.phase).toBe('paused');
+    await run.resume();
+    const next = server.calls.filter((c) => !c.dry_run)[1];
+    expect(next.skip_phones).toEqual(expect.arrayContaining(['+972520000001', '+972520000002', phoneOf('1')]));
+  });
+
+  it('packs a child heavier than a chunk into a chunk of its own', () => {
+    const rows = ['a', 'b'].map((id) => ({
+      ...row(id, 'preview'),
+      extra_phones: id === 'a'
+        ? Array.from({ length: 5 }, (_, i) => ({ parent_name: '', phone: `p${i}`, status: 'preview' as const }))
+        : [],
+    }));
+    expect(packSendChunks(['a', 'b'], rows, 4)).toEqual([['a'], ['b']]);
+    expect(packSendChunks(['x', 'y'], [], 1)).toEqual([['x'], ['y']]);
   });
 });
