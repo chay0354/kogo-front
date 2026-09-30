@@ -358,6 +358,9 @@ export default function NewDocumentDialog({ open, onClose }: NewDocumentDialogPr
         // The server's reason (a credit note with no original, say), not axios's
         // "Request failed with status code 400".
         setSubmitError(serverErrorMessage(err, 'שגיאה ביצירת המסמך'));
+        // A refused settlement usually means a balance changed meanwhile: the
+        // picker reads the invoices again, so going back shows what is open now.
+        if (payerType !== null) queryClient.invalidateQueries({ queryKey: ['open-invoices'] });
       } finally {
         setIsSubmitting(false);
       }
