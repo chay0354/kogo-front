@@ -1,13 +1,18 @@
 import { billingMonthLabel } from '@/app/rc/cardFlow';
 import { moneyText } from '@/app/s/signingFlow';
-import type {
-  BillingStatus,
-  CardLinkInfo,
-  MarkChargedPayload,
-  StandingOrder,
-  StandingOrderCreatePayload,
-  StandingOrderUpdatePayload,
-  TenantCharge,
+import {
+  readOfflinePayment,
+  readReceiptDelivery,
+  type BillingStatus,
+  type CardLinkInfo,
+  type MarkChargedPayload,
+  type OfflinePaymentMethod,
+  type OfflinePaymentPayload,
+  type RecordOfflinePaymentResult,
+  type StandingOrder,
+  type StandingOrderCreatePayload,
+  type StandingOrderUpdatePayload,
+  type TenantCharge,
 } from '@/lib/rentalBillingApi';
 import type { Tenancy, TenancyTenant } from '@/lib/rentalsApi';
 import { formatDateTime } from './contractUtils';
@@ -15,6 +20,7 @@ import { isSigningLinkExpired } from './signingUtils';
 import {
   amountFieldValue,
   formatDay,
+  isoDateOf,
   isValidBillingDay,
   parseAmountInput,
   tenancyApiError,
@@ -518,12 +524,14 @@ export interface ChargeActionState {
 export interface ChargeActions {
   /** A failed month, charged again now. */
   retry: ChargeActionState;
-  /** A month in review, or a reservation that never heard back. */
+  /** A month in review, or a reservation that never heard back — or a voided month Tranzila charged after all. */
   markCharged: boolean;
   /** Those, or a failed month. Final. */
   void: boolean;
   issueReceipt: boolean;
   downloadReceipt: boolean;
+  /** A failed or voided month the tenant paid at the office: cash, a check, a transfer. */
+  recordOffline: boolean;
 }
 
 /**
@@ -532,7 +540,8 @@ export interface ChargeActions {
  * partner (403), so a partner sees where each month stands and nothing to press.
  */
 export function chargeActions(
-  charge: Pick<TenantCharge, 'status' | 'undecided' | 'needs_receipt' | 'receipt'>,
+  charge: Pick<TenantCharge, 'status' | 'undecided' | 'needs_receipt' | 'receipt'> &
+    Partial<Pick<TenantCharge, 'late_card_charge' | 'transaction_id'>>,
   {
     billingEnabled,
     canDecide,
@@ -541,7 +550,14 @@ export function chargeActions(
 ): ChargeActions {
   const downloadReceipt = Boolean(charge.receipt?.id);
   if (!canDecide) {
-    return { retry: { offered: false, blockedReason: '' }, markCharged: false, void: false, issueReceipt: false, downloadReceipt };
+    return {
+      retry: { offered: false, blockedReason: '' },
+      markCharged: false,
+      void: false,
+      issueReceipt: false,
+      downloadReceipt,
+      recordOffline: false,
+    };
   }
   const undecided = charge.undecided === true || charge.status === 'review';
   let retry: ChargeActionState = { offered: false, blockedReason: '' };
@@ -555,12 +571,18 @@ export function chargeActions(
           : '';
     retry = { offered: true, blockedReason };
   }
+  const late = charge.late_card_charge === true;
+  // Nothing Tranzila charged, and no receipt yet: the months the server takes a payment at the office for.
+  const cardCharged = late || Boolean((charge.transaction_id ?? '').trim());
+  const recordOffline =
+    !charge.receipt?.id && !cardCharged && (charge.status === 'failed' || charge.status === 'voided');
   return {
     retry,
-    markCharged: undecided,
+    markCharged: undecided || (late && charge.status === 'voided'),
     void: undecided || charge.status === 'failed',
     issueReceipt: charge.needs_receipt === true,
     downloadReceipt,
+    recordOffline,
   };
 }
 
@@ -583,27 +605,29 @@ export function chargeMetaLines(
     | 'resolved_by_name'
     | 'resolved_at'
     | 'resolution_note'
-  >,
+  > &
+    Partial<Pick<TenantCharge, 'offline_payment'>>,
 ): string[] {
   const attempts = Number(charge.attempts) || 0;
   const how = [(charge.trigger_label ?? '').trim(), attempts > 1 ? `${attempts} ניסיונות` : ''].filter(Boolean).join(' · ');
+  const offline = charge.status === 'charged' ? readOfflinePayment(charge.offline_payment) : null;
   const chargedAt = formatDateTime(charge.charged_at);
   const last4 = (charge.card_last4 ?? '').trim();
-  const when =
-    charge.status === 'charged' && chargedAt ? [`חויב ב־${chargedAt}`, last4 ? `כרטיס ${last4}` : ''].filter(Boolean).join(' · ') : '';
+  // A month paid at the office says how it was paid; the card it failed on is not what paid it.
+  const when = offline
+    ? offlinePaymentLine(offline)
+    : charge.status === 'charged' && chargedAt
+      ? [`חויב ב־${chargedAt}`, last4 ? `כרטיס ${last4}` : ''].filter(Boolean).join(' · ')
+      : '';
   const transaction = (charge.transaction_id ?? '').trim();
   const confirmation = (charge.confirmation_code ?? '').trim();
   const gateway = transaction ? [`עסקה ${transaction}`, confirmation ? `אישור ${confirmation}` : ''].filter(Boolean).join(' · ') : '';
   const resolvedAt = formatDateTime(charge.resolved_at);
   const by = (charge.resolved_by_name ?? '').trim();
   const note = (charge.resolution_note ?? '').trim();
+  const verb = offline ? 'התשלום נרשם' : charge.status === 'voided' ? 'בוטל' : 'סומן כחויב';
   const decided = resolvedAt
-    ? [
-        `${charge.status === 'voided' ? 'בוטל' : 'סומן כחויב'}${by ? ` על ידי ${by}` : ''} ב־${resolvedAt}`,
-        note,
-      ]
-        .filter(Boolean)
-        .join(' · ')
+    ? [`${verb}${by ? ` על ידי ${by}` : ''} ב־${resolvedAt}`, note].filter(Boolean).join(' · ')
     : '';
   return [how, when, gateway, decided].filter(Boolean);
 }
@@ -629,6 +653,238 @@ export function receiptLine(receipt: TenantCharge['receipt']): string {
   ]
     .filter(Boolean)
     .join(' · ');
+}
+
+export type ReceiptDeliveryTone = 'sent' | 'hand' | 'waiting' | 'none';
+
+export interface ReceiptDeliveryText {
+  /** 'נשלח במייל 1.10.2026, 09:12', 'למסירה ידנית', … */
+  text: string;
+  tone: ReceiptDeliveryTone;
+  /** The server's reason, for the title and a screen reader; '' when there is none. */
+  detail: string;
+}
+
+/**
+ * Where a month's receipt went: by mail and when, to be handed over on paper
+ * (cash, an unmarked check — הוראה 18ב(ד)), handed over already, or waiting
+ * and why. Read from receipt_emailed_at and the signed original's delivery;
+ * null without a receipt.
+ */
+export function receiptDeliveryText(
+  charge: Pick<TenantCharge, 'receipt'> & Partial<Pick<TenantCharge, 'receipt_emailed_at'>>,
+): ReceiptDeliveryText | null {
+  const receipt = charge.receipt;
+  if (!receipt?.id) return null;
+  const delivery = readReceiptDelivery(receipt.delivery);
+  const detail = delivery?.reason ?? '';
+  const mailedAt = formatDateTime(charge.receipt_emailed_at) || formatDateTime(delivery?.delivery === 'email' ? delivery.sent_at : null);
+  if (mailedAt) return { text: `נשלח במייל ${mailedAt}`, tone: 'sent', detail };
+  if (delivery?.delivery === 'paper') {
+    const printed = formatDateTime(delivery.paper_printed_at);
+    return printed
+      ? { text: `המקור נמסר על נייר ${printed}`, tone: 'sent', detail }
+      : { text: 'למסירה ידנית', tone: 'hand', detail };
+  }
+  if (delivery?.delivery === 'held' || delivery?.delivery === 'email') {
+    return { text: detail ? `ממתין לשליחה — ${detail}` : 'ממתין לשליחה', tone: 'waiting', detail };
+  }
+  if (delivery?.delivery === 'none') return { text: detail || 'לא נשלח במייל', tone: 'none', detail };
+  return { text: 'לא נשלח במייל', tone: 'none', detail };
+}
+
+// ---- a month paid at the office ----
+
+export const OFFLINE_METHOD_OPTIONS: ReadonlyArray<{ value: OfflinePaymentMethod; label: string }> = [
+  { value: 'cash', label: 'מזומן' },
+  { value: 'check', label: "צ'ק" },
+  { value: 'bank_transfer', label: 'העברה בנקאית' },
+];
+
+function offlineMethodLabel(method: string, serverLabel?: string | null): string {
+  const label = (serverLabel ?? '').trim();
+  if (label) return label;
+  return OFFLINE_METHOD_OPTIONS.find((option) => option.value === method)?.label ?? method;
+}
+
+/**
+ * 'שולם במזומן ב־1.10.2026 · פנקס 17'; a check with everything its receipt
+ * names — its number, bank, branch, account, due date — and whether it is crossed.
+ */
+export function offlinePaymentLine(payment: ReturnType<typeof readOfflinePayment>): string {
+  if (!payment) return '';
+  const paidOn = formatDay(payment.paid_on);
+  const head = `שולם ב${offlineMethodLabel(payment.method, payment.method_label)}${paidOn ? ` ב־${paidOn}` : ''}`;
+  if (payment.method === 'check') {
+    return [
+      head,
+      payment.check_number ? `צ'ק ${payment.check_number}` : '',
+      payment.check_bank ? `בנק ${payment.check_bank}` : '',
+      payment.check_branch ? `סניף ${payment.check_branch}` : '',
+      payment.check_account ? `חשבון ${payment.check_account}` : '',
+      payment.check_date ? `לפירעון ${formatDay(payment.check_date)}` : '',
+      payment.check_crossed ? 'משורטט' : 'לא משורטט',
+    ]
+      .filter(Boolean)
+      .join(' · ');
+  }
+  return [head, payment.reference ? `אסמכתא ${payment.reference}` : ''].filter(Boolean).join(' · ');
+}
+
+/** Today on Israel's clock, 'YYYY-MM-DD' — the day the server checks a payment date against. */
+export function israelToday(now: Date = new Date()): string {
+  try {
+    const parts = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Jerusalem',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).formatToParts(now);
+    const part = (type: string) => parts.find((item) => item.type === type)?.value ?? '';
+    const day = `${part('year')}-${part('month')}-${part('day')}`;
+    return /^\d{4}-\d{2}-\d{2}$/.test(day) ? day : isoDateOf(now);
+  } catch {
+    return isoDateOf(now);
+  }
+}
+
+export interface OfflinePaymentForm {
+  method: OfflinePaymentMethod;
+  /** 'YYYY-MM-DD'. */
+  paidOn: string;
+  reference: string;
+  note: string;
+  checkNumber: string;
+  checkBank: string;
+  checkBranch: string;
+  checkAccount: string;
+  /** The check's due date, 'YYYY-MM-DD'. */
+  checkDate: string;
+  checkCrossed: boolean;
+}
+
+export function emptyOfflinePaymentForm(today: string): OfflinePaymentForm {
+  return {
+    method: 'cash',
+    paidOn: today,
+    reference: '',
+    note: '',
+    checkNumber: '',
+    checkBank: '',
+    checkBranch: '',
+    checkAccount: '',
+    checkDate: '',
+    checkCrossed: false,
+  };
+}
+
+/** The server's rules, so a mistake is caught before the round trip. */
+export function offlinePaymentErrors(form: OfflinePaymentForm, today: string): string[] {
+  const errors: string[] = [];
+  if (!OFFLINE_METHOD_OPTIONS.some((option) => option.value === form.method)) {
+    errors.push("יש לבחור אמצעי תשלום: מזומן, צ'ק או העברה בנקאית");
+  }
+  if (!form.paidOn) errors.push('יש לבחור את תאריך התשלום');
+  else if (form.paidOn > today) errors.push('תאריך התשלום לא יכול להיות בעתיד');
+  if (form.method === 'check') {
+    // The server's limits on each (apps/rental_billing/offline.py).
+    const fields: Array<[string, string, number]> = [
+      [form.checkNumber, "מספר הצ'ק", 50],
+      [form.checkBank, 'הבנק', 100],
+      [form.checkBranch, 'הסניף', 50],
+      [form.checkAccount, 'מספר החשבון', 50],
+    ];
+    fields.forEach(([value, label, limit]) => {
+      if (!value.trim()) errors.push(`יש להזין את ${label}`);
+      else if (value.trim().length > limit) errors.push(`${label} ארוך מדי`);
+    });
+    if (!form.checkDate) errors.push("יש להזין את תאריך הפירעון של הצ'ק");
+  } else if (form.reference.trim().length > 200) {
+    errors.push('האסמכתא ארוכה מדי');
+  }
+  if (form.note.trim().length > 1000) errors.push('ההערה ארוכה מדי');
+  return errors;
+}
+
+/** What is sent: the month's own total (the server takes nothing else), and only what applies to the means. */
+export function offlinePaymentPayload(form: OfflinePaymentForm, charge: Pick<TenantCharge, 'total'>): OfflinePaymentPayload {
+  const payload: OfflinePaymentPayload = { method: form.method, amount: String(charge.total ?? '').trim() };
+  if (form.paidOn) payload.paid_on = form.paidOn;
+  const note = form.note.trim();
+  if (note) payload.note = note;
+  if (form.method === 'check') {
+    payload.check = {
+      number: form.checkNumber.trim(),
+      bank: form.checkBank.trim(),
+      branch: form.checkBranch.trim(),
+      account: form.checkAccount.trim(),
+      date: form.checkDate,
+      crossed: form.checkCrossed === true,
+    };
+  } else {
+    const reference = form.reference.trim();
+    if (reference) payload.reference = reference;
+  }
+  return payload;
+}
+
+export const OFFLINE_PAYMENT_WARNING =
+  'רשמו רק כסף שהתקבל בפועל. הרישום מסמן את החודש כשולם — הוראת הקבע לא תחייב אותו בכרטיס — ומפיק לשוכר חשבונית מס/קבלה על כל סכום החודש.';
+
+export const OFFLINE_VOIDED_WARNING =
+  'החודש הזה בוטל. אם כבר הופקה עליו קבלה ממסך המסמכים, אל תרשמו אותו כאן — תופק קבלה שנייה על אותו כסף.';
+
+/** "תשלום במשרד" says what it does, and — on a month voided before — what not to do twice. */
+export function offlinePaymentCopy(charge: Pick<TenantCharge, 'period' | 'status' | 'total'>): {
+  title: string;
+  warning: string;
+  voidedWarning: string;
+  amount: string;
+  submit: string;
+} {
+  return {
+    title: `רישום תשלום במשרד על ${monthOf(charge)}`,
+    warning: OFFLINE_PAYMENT_WARNING,
+    voidedWarning: charge.status === 'voided' ? OFFLINE_VOIDED_WARNING : '',
+    amount: `סכום: ${billingMoney(charge.total)} — כל החודש, כולל מע״מ`,
+    submit: 'רישום התשלום והפקת קבלה',
+  };
+}
+
+/** The office is told the receipt number the payment came to — or that it was recorded already. */
+export function offlinePaymentDoneText(result: RecordOfflinePaymentResult, fallbackMonth = 'החודש'): string {
+  const charge = result.charge;
+  const month = (charge?.period && billingMonthLabel(charge.period)) || fallbackMonth;
+  const number = (charge?.receipt?.document_number ?? '').trim();
+  const receipt = number ? ` — קבלה ${number}` : '';
+  if (!result.created) return `${month} כבר נרשם כשולם במשרד${receipt}`;
+  const payment = readOfflinePayment(charge?.offline_payment);
+  const how = payment ? ` ב${offlineMethodLabel(payment.method, payment.method_label)}` : '';
+  return `${month}: נרשם תשלום${how}${receipt}`;
+}
+
+/**
+ * Said on a month Tranzila charged after the office had voided it or taken
+ * its money another way — plainly, because the tenant has paid with no receipt,
+ * or paid twice. '' for any other month.
+ */
+export function lateCardChargeText(
+  charge: Pick<TenantCharge, 'status' | 'transaction_id'> & Partial<Pick<TenantCharge, 'late_card_charge'>>,
+  canDecide: boolean,
+): string {
+  if (charge.late_card_charge !== true) return '';
+  const transaction = (charge.transaction_id ?? '').trim();
+  const which = transaction ? ` (עסקה ${transaction})` : '';
+  const what =
+    charge.status === 'voided'
+      ? `טרנזילה אישרה חיוב בכרטיס על החודש הזה אחרי שבוטל${which} — השוכר שילם ואין לו קבלה.`
+      : `טרנזילה אישרה חיוב בכרטיס על החודש הזה אחרי שהתשלום נרשם במשרד${which} — ייתכן שהשוכר שילם פעמיים.`;
+  const next = !canDecide
+    ? 'ממתין להחלטה של מנהל.'
+    : charge.status === 'voided'
+      ? 'בדקו בטרנזילה: אם החיוב עבר ומשאירים אותו — סמנו כחויב עם מזהה העסקה (תופק קבלה); אחרת זכו את השוכר בטרנזילה.'
+      : 'בדקו בטרנזילה וזכו את השוכר על החיוב הכפול. שום דבר לא מזוכה אוטומטית.';
+  return `${what} ${next}`;
 }
 
 // ---- the office's decisions on a charge ----
@@ -658,9 +914,26 @@ function monthOf(charge: Pick<TenantCharge, 'period'>): string {
   return billingMonthLabel(charge.period) || 'החודש';
 }
 
+/**
+ * On a voided month Tranzila charged after all: the id typed must be the one
+ * Tranzila answered with (the server refuses any other), and a refund is done
+ * in Tranzila, never from here.
+ */
+export function markChargedLateWarning(transactionId: string): string {
+  const which = transactionId.trim() ? ` (${transactionId.trim()})` : '';
+  return `סמנו כחויב רק אם מצאתם בטרנזילה את החיוב על החודש הזה ומשאירים אותו. הזינו את מזהה העסקה כפי שטרנזילה החזירה${which} — השרת לא מקבל מזהה אחר. הסימון מפיק לשוכר קבלה על החודש. אם מחזירים לשוכר את הכסף — עושים זאת בטרנזילה, לא מכאן.`;
+}
+
 /** "סימון כחויב" asks for Tranzila's transaction id, and says plainly when it may be pressed. */
-export function markChargedCopy(charge: Pick<TenantCharge, 'period'>): { title: string; warning: string; submit: string } {
-  return { title: `סימון ${monthOf(charge)} כחויב`, warning: MARK_CHARGED_WARNING, submit: 'סימון כחויב' };
+export function markChargedCopy(
+  charge: Pick<TenantCharge, 'period'> & Partial<Pick<TenantCharge, 'status' | 'late_card_charge' | 'transaction_id'>>,
+): { title: string; warning: string; submit: string } {
+  const late = charge.late_card_charge === true && charge.status === 'voided';
+  return {
+    title: `סימון ${monthOf(charge)} כחויב`,
+    warning: late ? markChargedLateWarning(charge.transaction_id ?? '') : MARK_CHARGED_WARNING,
+    submit: 'סימון כחויב',
+  };
 }
 
 /** "ביטול" asks why, and says it is final — with the check a charge in review needs first. */

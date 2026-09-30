@@ -844,6 +844,58 @@
   white-space: pre-line;
 }
 
+/* Where a month's receipt went: by mail, to hand over on paper, or waiting. */
+.deliveryLine {
+  margin: 4px 0 0;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.5;
+}
+
+.deliverySent {
+  color: #1f7a4d;
+}
+
+.deliveryHand {
+  color: #8a5a00;
+}
+
+.deliveryWaiting,
+.deliveryNone {
+  color: var(--kg-muted);
+}
+
+/* A payment the office just recorded, and the receipt it came to. */
+.doneNote {
+  margin: 8px 0 0;
+  padding: 9px 12px;
+  border-radius: 11px;
+  background: #eefaf3;
+  border: 1px solid #bfe6cf;
+  color: #1f5f3d;
+  font-size: 12.5px;
+  font-weight: 800;
+}
+
+.checkToggle {
+  display: inline-flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 12.5px;
+  font-weight: 700;
+  line-height: 1.45;
+  color: var(--kg-ink2);
+  cursor: pointer;
+}
+
+.checkToggle input {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  margin-top: 1px;
+  accent-color: var(--kg-bar-a);
+}
+
 .historyItem .error {
   margin-top: 8px;
 }

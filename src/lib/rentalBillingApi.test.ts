@@ -31,7 +31,11 @@ import {
   pauseStandingOrder,
   readCardPreview,
   readCardSubmitResult,
+  readOfflinePayment,
+  readReceiptDelivery,
+  readRecordOfflinePaymentResult,
   receiptFileName,
+  recordOfflinePayment,
   resumeStandingOrder,
   retryCharge,
   sendCardLinkWhatsApp,
@@ -222,6 +226,79 @@ describe('charges', () => {
     expect(api.post).toHaveBeenLastCalledWith('/rental-billing/charges/c-1/void/', { reason: 'לא עבר בטרנזילה' });
     await issueChargeReceipt('c-1');
     expect(api.post).toHaveBeenLastCalledWith('/rental-billing/charges/c-1/issue-receipt/', {}, { timeout: 60000 });
+  });
+});
+
+describe('a month paid at the office', () => {
+  it('records it at the charge’s own path with a longer wait, and reads whether it was new', async () => {
+    api.post.mockResolvedValue({ data: { created: true, charge: { id: 'c-1', status: 'charged' } } });
+    const payload = {
+      method: 'check' as const,
+      amount: '566.40',
+      paid_on: '2026-10-12',
+      check: { number: '000123', bank: '12', branch: '600', account: '456789', date: '2026-10-20', crossed: true },
+    };
+    expect(await recordOfflinePayment('c/1', payload)).toEqual({ created: true, charge: { id: 'c-1', status: 'charged' } });
+    expect(api.post).toHaveBeenCalledWith('/rental-billing/charges/c%2F1/record-offline-payment/', payload, {
+      timeout: 60000,
+    });
+  });
+
+  it('reads an answer that does not say it was new as recorded before', () => {
+    expect(readRecordOfflinePaymentResult({ charge: { id: 'c-1' } })).toEqual({ created: false, charge: { id: 'c-1' } });
+    expect(readRecordOfflinePaymentResult({ created: 'yes', charge: { id: 'c-1' } }).created).toBe(false);
+  });
+
+  it('passes a refusal through in the server’s words', async () => {
+    const refusal = { response: { status: 409, data: { error: 'החודש הזה כבר חויב בכרטיס.' } } };
+    api.post.mockRejectedValue(refusal);
+    await expect(recordOfflinePayment('c-1', { method: 'cash', amount: '566.40' })).rejects.toBe(refusal);
+  });
+
+  it('reads how a month was paid, every text a string, and a check crossed only when it says so', () => {
+    expect(
+      readOfflinePayment({
+        method: 'check',
+        method_label: "צ'ק",
+        amount: 566.4,
+        paid_on: '2026-10-12',
+        check_number: 123,
+        check_bank: '12',
+        check_date: '',
+        check_crossed: 'true',
+      }),
+    ).toEqual({
+      method: 'check',
+      method_label: "צ'ק",
+      amount: '566.4',
+      paid_on: '2026-10-12',
+      reference: '',
+      check_number: '123',
+      check_bank: '12',
+      check_branch: '',
+      check_account: '',
+      check_date: null,
+      check_crossed: false,
+    });
+    for (const nothing of [null, undefined, [], 'cash', {}, { method: '' }]) {
+      expect(readOfflinePayment(nothing)).toBeNull();
+    }
+  });
+
+  it('reads where a receipt’s original went, and nothing when there is no original', () => {
+    expect(
+      readReceiptDelivery({ delivery: 'paper', label: 'למסירה על נייר', reason: ' שולם במזומן ', signed: true, sent_at: '' }),
+    ).toEqual({
+      delivery: 'paper',
+      label: 'למסירה על נייר',
+      reason: 'שולם במזומן',
+      signed: true,
+      sent_at: null,
+      paper_printed_at: null,
+    });
+    for (const nothing of [null, undefined, [], 'email', {}, { delivery: ' ' }]) {
+      expect(readReceiptDelivery(nothing)).toBeNull();
+    }
   });
 });
 
