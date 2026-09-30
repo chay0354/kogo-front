@@ -43,6 +43,7 @@ import {
 } from '@/components/dialogs/computerizedDocsConsent';
 import EditMonthAmountDialog from '@/components/dialogs/EditMonthAmountDialog';
 import CustomerDetailsEditor from '@/components/dialogs/CustomerDetailsEditor';
+import ChildStatusHistory from '@/components/dialogs/ChildStatusHistory';
 import { normalisePhone } from '@/components/dialogs/customerDetailsForm';
 import SendCardLinkDialog from '@/components/dialogs/SendCardLinkDialog';
 import RegisterCashDialog from '@/components/dialogs/RegisterCashDialog';
@@ -1282,6 +1283,9 @@ export default function ChildProfileDialog({
                       </div>
                     </div>
                   </div>
+                </div>
+                <div className="px-6 pb-6">
+                  <ChildStatusHistory childId={child.id} isOpen={isOpen} status={child.status} />
                 </div>
                 </>
                 )}

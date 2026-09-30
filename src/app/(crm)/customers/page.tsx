@@ -30,6 +30,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogCloseButton } f
 import ChildProfileDialog from '@/components/dialogs/ChildProfileDialog';
 import DeleteChildDialog from '@/components/dialogs/DeleteChildDialog';
 import { serverErrorMessage } from '@/components/dialogs/NewDocumentDialog/utils';
+import { canSaveStatusChange, updateChildStatus } from '@/lib/childStatusApi';
 import EnrollToLessonDialog from '@/components/dialogs/EnrollToLessonDialog';
 import ChangeChildLessonDialog from '@/components/dialogs/ChangeChildLessonDialog';
 import CrossFade from '@/components/ui/CrossFade';
@@ -212,6 +213,9 @@ export default function CustomersPage() {
   const [newFamilySeed, setNewFamilySeed] = useState('');
   const [statusDialogOpen, setStatusDialogOpen] = useState(false);
   const [statusDialogValue, setStatusDialogValue] = useState('');
+  // A change by hand says why (owner, 30.9); the server keeps it in the history.
+  const [statusDialogReason, setStatusDialogReason] = useState('');
+  const [statusDialogError, setStatusDialogError] = useState('');
   const [statusSaving, setStatusSaving] = useState(false);
   const [changeLessonDialogOpen, setChangeLessonDialogOpen] = useState(false);
   const [changingEnrollment, setChangingEnrollment] = useState<EnrollmentDetail | null>(null);
@@ -477,6 +481,8 @@ export default function CustomersPage() {
   const handleStatusClick = (child: ChildWithDetails) => {
     setSelectedChild(child);
     setStatusDialogValue(child.status || '');
+    setStatusDialogReason('');
+    setStatusDialogError('');
     setStatusDialogOpen(true);
   };
 
@@ -502,14 +508,17 @@ export default function CustomersPage() {
 
   const handleStatusSave = async () => {
     if (!selectedChild) return;
+    if (!canSaveStatusChange(selectedChild.status, statusDialogValue, statusDialogReason)) return;
     setStatusSaving(true);
+    setStatusDialogError('');
     try {
-      await api.patch(`/customers/children/${selectedChild.id}/`, { status: statusDialogValue });
+      await updateChildStatus(selectedChild.id, statusDialogValue, statusDialogReason);
       setChildren(prev => prev.map(c => c.id === selectedChild.id ? { ...c, status: statusDialogValue as any } : c));
       setStatusDialogOpen(false);
     } catch (error) {
       console.error('Error updating status:', error);
-      alert('שגיאה בעדכון הסטטוס');
+      // The server's own words: a missing reason comes back under status_reason.
+      setStatusDialogError(serverErrorMessage(error, 'שגיאה בעדכון הסטטוס'));
     } finally {
       setStatusSaving(false);
     }
@@ -1069,25 +1078,56 @@ export default function CustomersPage() {
           <DialogHeader>
             <DialogTitle>שינוי סטטוס — {selectedChild?.full_name}</DialogTitle>
           </DialogHeader>
-          <div className="py-4">
-            <label className="block text-sm font-medium mb-2">סטטוס</label>
-            <select
-              className="input w-full"
-              value={statusDialogValue}
-              onChange={(e) => setStatusDialogValue(e.target.value)}
-            >
-              <option value="active">פעיל</option>
-              <option value="trial_signed">נרשם לניסיון</option>
-              <option value="trial_completed">ביצע ניסיון</option>
-              <option value="payment_problem">בעיה באשראי</option>
-              <option value="pending">בתהליך רישום</option>
-              <option value="inactive">לא פעיל</option>
-              <option value="ghost">רפאים</option>
-            </select>
+          <div className="py-4 space-y-4">
+            <div>
+              <label htmlFor="status-dialog-value" className="block text-sm font-medium mb-2">סטטוס</label>
+              <select
+                id="status-dialog-value"
+                className="input w-full"
+                value={statusDialogValue}
+                onChange={(e) => {
+                  setStatusDialogValue(e.target.value);
+                  setStatusDialogError('');
+                }}
+              >
+                <option value="active">פעיל</option>
+                <option value="trial_signed">נרשם לניסיון</option>
+                <option value="trial_completed">ביצע ניסיון</option>
+                <option value="payment_problem">בעיה באשראי</option>
+                <option value="pending">בתהליך רישום</option>
+                <option value="inactive">לא פעיל</option>
+                <option value="ghost">רפאים</option>
+              </select>
+            </div>
+            <div>
+              <label htmlFor="status-dialog-reason" className="block text-sm font-medium mb-2">
+                למה משנים את הסטטוס? <span className="text-destructive">*</span>
+              </label>
+              <textarea
+                id="status-dialog-reason"
+                className="input w-full"
+                rows={3}
+                required
+                aria-required="true"
+                placeholder="הסיבה נשמרת בהיסטוריית הסטטוס של הילד"
+                value={statusDialogReason}
+                onChange={(e) => {
+                  setStatusDialogReason(e.target.value);
+                  setStatusDialogError('');
+                }}
+              />
+            </div>
+            {statusDialogError && (
+              <p className="text-sm text-destructive" role="alert">{statusDialogError}</p>
+            )}
           </div>
           <div className="flex gap-2 justify-end">
             <button className="btn-secondary" onClick={() => setStatusDialogOpen(false)}>ביטול</button>
-            <button className="btn-primary" disabled={statusSaving} onClick={handleStatusSave}>
+            <button
+              className="btn-primary"
+              disabled={statusSaving || !canSaveStatusChange(selectedChild?.status, statusDialogValue, statusDialogReason)}
+              onClick={handleStatusSave}
+            >
               {statusSaving ? 'שומר...' : 'שמור'}
             </button>
           </div>
