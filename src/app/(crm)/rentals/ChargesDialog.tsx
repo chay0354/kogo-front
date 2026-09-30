@@ -3,13 +3,14 @@
 import { useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { Download, FileText, Loader2, RotateCcw } from 'lucide-react';
+import { Banknote, Download, FileText, Loader2, RotateCcw } from 'lucide-react';
 import { useDialogExit } from '@/components/ui/motion';
 import {
   downloadChargeReceipt,
   fetchOrderCharges,
   issueChargeReceipt,
   markChargeCharged,
+  recordOfflinePayment,
   retryCharge,
   voidCharge,
   type StandingOrder,
@@ -21,6 +22,7 @@ import { ToneChip } from './StatusChips';
 import {
   BLOCKED_ROW_TEXT,
   EMPTY_MARK_CHARGED_FORM,
+  OFFLINE_METHOD_OPTIONS,
   RETRY_OFF_TEXT,
   billingApiError,
   billingMoney,
@@ -30,12 +32,20 @@ import {
   chargeAmountsLine,
   chargeChip,
   chargeMetaLines,
+  emptyOfflinePaymentForm,
+  israelToday,
+  lateCardChargeText,
   markChargedCopy,
   markChargedErrors,
   markChargedPayload,
   monthsNeverCharged,
+  offlinePaymentCopy,
+  offlinePaymentDoneText,
+  offlinePaymentErrors,
+  offlinePaymentPayload,
   orderStatusLabel,
   orderStatusTone,
+  receiptDeliveryText,
   receiptLine,
   retryConfirmText,
   retryOutcomeText,
@@ -43,11 +53,13 @@ import {
   voidCopy,
   voidErrors,
   type MarkChargedForm,
+  type OfflinePaymentForm,
+  type ReceiptDeliveryTone,
 } from './billingUtils';
 import { isUnknownOutcome, tenantName } from './tenancyUtils';
 import styles from './rentalsDialog.module.css';
 
-type FormKind = 'retry' | 'mark' | 'void';
+type FormKind = 'retry' | 'mark' | 'void' | 'offline';
 type BusyAction = FormKind | 'receipt' | 'download';
 
 interface Problem {
@@ -55,12 +67,19 @@ interface Problem {
   text: string;
 }
 
+const DELIVERY_CLASS: Record<ReceiptDeliveryTone, string> = {
+  sent: styles.deliverySent,
+  hand: styles.deliveryHand,
+  waiting: styles.deliveryWaiting,
+  none: styles.deliveryNone,
+};
+
 interface ChargesDialogProps {
   tenancy: Tenancy;
   /** The order, as the list reads it now. */
   order: StandingOrder;
   billingEnabled: boolean;
-  /** A manager: the only one the server lets retry, mark charged, void or issue a receipt. */
+  /** A manager: the only one the server lets retry, mark charged, void, issue a receipt or record a payment. */
   canDecide: boolean;
   onClose: () => void;
   /** A charge changed, or may have — the order's row (its status, its next charge) should be read again. */
@@ -72,7 +91,9 @@ interface ChargesDialogProps {
  * to, its receipt — and the office's decisions on them. A failed month can be
  * charged again now (not while charging is off). A month whose outcome is
  * unknown is the office's to settle from Tranzila: marked charged with the
- * transaction id found there, or voided with a reason, for good. Each decision
+ * transaction id found there, or voided with a reason, for good. A failed or
+ * voided month the tenant paid at the office — cash, a check, a transfer — is
+ * recorded here and gets its receipt, whose number the office is shown. Each decision
  * is asked for under its month rather than in a confirmation box — the shared
  * ConfirmDialog opens beneath this dialog's overlay — and every refusal shows
  * in the server's words.
@@ -96,6 +117,9 @@ export default function ChargesDialog({
   const [openForm, setOpenForm] = useState<{ kind: FormKind; chargeId: string } | null>(null);
   const [markForm, setMarkForm] = useState<MarkChargedForm>(EMPTY_MARK_CHARGED_FORM);
   const [reason, setReason] = useState('');
+  const [offlineForm, setOfflineForm] = useState<OfflinePaymentForm>(() => emptyOfflinePaymentForm(israelToday()));
+  // The receipt a payment recorded here came to, said under its month until the dialog closes.
+  const [done, setDone] = useState<Problem | null>(null);
   const [busy, setBusy] = useState<{ chargeId: string; action: BusyAction } | null>(null);
   // One request at a time across the dialog; the ref is what a second click reads, before the state re-renders.
   const busyRef = useRef(false);
@@ -121,6 +145,8 @@ export default function ChargesDialog({
     setProblem(null);
     setMarkForm(EMPTY_MARK_CHARGED_FORM);
     setReason('');
+    setOfflineForm(emptyOfflinePaymentForm(israelToday()));
+    setDone(null);
     setOpenForm({ kind, chargeId: charge.id });
   }
 
@@ -232,6 +258,32 @@ export default function ChargesDialog({
       {
         unknownText: 'לא התקבלה תשובה מהשרת, ולכן לא ברור אם הקבלה הופקה. הרשימה מתרעננת — בדקו בה לפני שמנסים שוב.',
         fallback: 'הפקת הקבלה נכשלה',
+      },
+    );
+  }
+
+  function submitOffline(event: FormEvent<HTMLFormElement>, charge: TenantCharge) {
+    event.preventDefault();
+    const today = israelToday();
+    const errors = offlinePaymentErrors(offlineForm, today);
+    if (errors.length) {
+      setProblem({ chargeId: charge.id, text: errors.join('\n') });
+      return;
+    }
+    void act(
+      charge,
+      'offline',
+      async () => {
+        const result = await recordOfflinePayment(charge.id, offlinePaymentPayload(offlineForm, charge));
+        const text = offlinePaymentDoneText(result, monthOf(charge));
+        setOpenForm(null);
+        setDone({ chargeId: charge.id, text });
+        toast.success(text);
+      },
+      {
+        unknownText:
+          'לא התקבלה תשובה מהשרת, ולכן לא ברור אם התשלום נרשם. הרשימה מתרעננת — בדקו בה לפני שמנסים שוב (רישום שני לא מפיק קבלה נוספת).',
+        fallback: 'רישום התשלום נכשל',
       },
     );
   }
@@ -376,14 +428,163 @@ export default function ChargesDialog({
     );
   }
 
+  function patchOffline(patch: Partial<OfflinePaymentForm>) {
+    setOfflineForm((prev) => ({ ...prev, ...patch }));
+  }
+
+  function renderOffline(charge: TenantCharge): ReactNode {
+    const copy = offlinePaymentCopy(charge);
+    const out = busy?.chargeId === charge.id && busy.action === 'offline';
+    const idPrefix = `offline-${charge.id}`;
+    const today = israelToday();
+    const isCheck = offlineForm.method === 'check';
+    const locked = busy !== null;
+    const textField = (key: keyof OfflinePaymentForm, label: string, required = false, ltr = false) => (
+      <div className={styles.field}>
+        <label htmlFor={`${idPrefix}-${key}`} className={styles.label}>
+          {label}
+          {required && (
+            <span className={styles.req} aria-hidden="true">
+              *
+            </span>
+          )}
+        </label>
+        <input
+          id={`${idPrefix}-${key}`}
+          className={`${styles.input}${ltr ? ` ${styles.ltr}` : ''}`}
+          value={String(offlineForm[key] ?? '')}
+          onChange={(event) => patchOffline({ [key]: event.target.value } as Partial<OfflinePaymentForm>)}
+          autoComplete="off"
+          aria-required={required || undefined}
+          disabled={locked}
+        />
+      </div>
+    );
+    return (
+      <form className={styles.voidForm} onSubmit={(event) => submitOffline(event, charge)} noValidate>
+        <p className={styles.savedTitle}>{copy.title}</p>
+        <p className={styles.help}>{copy.amount}</p>
+        <p className={styles.reviewBox} role="note">
+          {[copy.warning, copy.voidedWarning].filter(Boolean).join(' ')}
+        </p>
+        <div role="radiogroup" aria-label="אמצעי התשלום" className={styles.segment}>
+          {OFFLINE_METHOD_OPTIONS.map((option) => (
+            <button
+              key={option.value}
+              type="button"
+              role="radio"
+              aria-checked={offlineForm.method === option.value}
+              className={styles.segmentBtn}
+              onClick={() => patchOffline({ method: option.value })}
+              disabled={locked}
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
+        <div className={styles.grid}>
+          <div className={styles.field}>
+            <label htmlFor={`${idPrefix}-paid`} className={styles.label}>
+              {isCheck ? "תאריך קבלת הצ'ק" : offlineForm.method === 'bank_transfer' ? 'תאריך ההעברה' : 'תאריך התשלום'}
+              <span className={styles.req} aria-hidden="true">
+                *
+              </span>
+            </label>
+            <input
+              id={`${idPrefix}-paid`}
+              type="date"
+              className={styles.input}
+              value={offlineForm.paidOn}
+              max={today}
+              onChange={(event) => patchOffline({ paidOn: event.target.value })}
+              aria-required
+              disabled={locked}
+            />
+          </div>
+          {isCheck ? (
+            <>
+              {textField('checkNumber', "מספר הצ'ק", true, true)}
+              {textField('checkBank', 'בנק', true, true)}
+              {textField('checkBranch', 'סניף', true, true)}
+              {textField('checkAccount', 'מספר חשבון', true, true)}
+              <div className={styles.field}>
+                <label htmlFor={`${idPrefix}-check-date`} className={styles.label}>
+                  תאריך פירעון
+                  <span className={styles.req} aria-hidden="true">
+                    *
+                  </span>
+                </label>
+                <input
+                  id={`${idPrefix}-check-date`}
+                  type="date"
+                  className={styles.input}
+                  value={offlineForm.checkDate}
+                  onChange={(event) => patchOffline({ checkDate: event.target.value })}
+                  aria-required
+                  disabled={locked}
+                />
+              </div>
+              <div className={`${styles.field} ${styles.full}`}>
+                <label className={styles.checkToggle}>
+                  <input
+                    type="checkbox"
+                    checked={offlineForm.checkCrossed}
+                    onChange={(event) => patchOffline({ checkCrossed: event.target.checked })}
+                    aria-describedby={`${idPrefix}-crossed-help`}
+                    disabled={locked}
+                  />
+                  הצ׳ק משורטט, &quot;לא סחיר&quot;, על שם השוכר
+                </label>
+                <p id={`${idPrefix}-crossed-help`} className={styles.help}>
+                  רק צ׳ק כזה מאפשר לשלוח לשוכר את הקבלה במייל. בלי הסימון — הקבלה נמסרת לו על נייר.
+                </p>
+              </div>
+            </>
+          ) : (
+            textField('reference', offlineForm.method === 'bank_transfer' ? 'אסמכתה (לא חובה)' : 'מספר בפנקס / אסמכתה (לא חובה)')
+          )}
+          <div className={`${styles.field} ${styles.full}`}>
+            <label htmlFor={`${idPrefix}-note`} className={styles.label}>
+              הערה (לא חובה)
+            </label>
+            <textarea
+              id={`${idPrefix}-note`}
+              className={`${styles.input} ${styles.textarea}`}
+              value={offlineForm.note}
+              onChange={(event) => patchOffline({ note: event.target.value })}
+              rows={2}
+              disabled={locked}
+            />
+          </div>
+        </div>
+        {offlineForm.method === 'cash' && (
+          <p className={styles.help}>על תשלום במזומן הקבלה נמסרת לשוכר על נייר, ולא נשלחת במייל.</p>
+        )}
+        <div className={styles.voidActions}>
+          <button type="button" className={styles.secondaryBtn} onClick={stopForm} disabled={locked}>
+            חזרה
+          </button>
+          <button type="submit" className={styles.primaryBtn} disabled={locked}>
+            {out && <Loader2 size={15} className={styles.spin} aria-hidden="true" />}
+            {out ? 'רושם ומפיק קבלה…' : copy.submit}
+          </button>
+        </div>
+      </form>
+    );
+  }
+
   function renderItem(charge: TenantCharge): ReactNode {
     const chip = chargeChip(charge);
     const actions = chargeActions(charge, { billingEnabled, canDecide, order });
     const reviewText = reviewRowText(charge, canDecide);
+    const lateText = lateCardChargeText(charge, canDecide);
+    const delivery = receiptDeliveryText(charge);
     const formKind = openForm?.chargeId === charge.id ? openForm.kind : null;
     const out = (action: BusyAction) => busy?.chargeId === charge.id && busy.action === action;
     const blockedId = `retry-blocked-${charge.id}`;
-    const showError = (charge.status === 'failed' || charge.status === 'review' || charge.undecided) && charge.error;
+    const showError =
+      (charge.status === 'failed' || charge.status === 'review' || charge.undecided || charge.late_card_charge === true) &&
+      charge.error;
 
     return (
       <li
@@ -451,6 +652,18 @@ export default function ChargesDialog({
                 סימון כחויב
               </button>
             )}
+            {actions.recordOffline && !formKind && (
+              <button
+                type="button"
+                className={styles.smallBtn}
+                onClick={() => startForm('offline', charge)}
+                disabled={busy !== null}
+                aria-label={`תשלום במזומן, בצ׳ק או בהעברה על ${monthOf(charge)}`}
+              >
+                <Banknote size={14} aria-hidden="true" />
+                תשלום במזומן / צ׳ק / העברה
+              </button>
+            )}
             {actions.void && !formKind && (
               <button type="button" className={styles.voidBtn} onClick={() => startForm('void', charge)} disabled={busy !== null}>
                 ביטול
@@ -465,12 +678,22 @@ export default function ChargesDialog({
             {[charge.id === blockedId ? BLOCKED_ROW_TEXT : '', reviewText].filter(Boolean).join(' ')}
           </p>
         )}
+        {lateText && (
+          <p className={styles.error} role="alert">
+            {lateText}
+          </p>
+        )}
         {chargeMetaLines(charge).map((line) => (
           <p key={line} className={styles.historyMeta}>
             {line}
           </p>
         ))}
         {charge.receipt && <p className={styles.historyMeta}>{receiptLine(charge.receipt)}</p>}
+        {delivery && (
+          <p className={`${styles.deliveryLine} ${DELIVERY_CLASS[delivery.tone]}`} title={delivery.detail || undefined}>
+            {delivery.text}
+          </p>
+        )}
         {showError && <p className={styles.historyVoid}>{charge.error}</p>}
         {charge.needs_receipt && (
           <p className={styles.historyVoid}>
@@ -486,6 +709,13 @@ export default function ChargesDialog({
         {formKind === 'retry' && renderRetry(charge)}
         {formKind === 'mark' && renderMark(charge)}
         {formKind === 'void' && renderVoid(charge)}
+        {formKind === 'offline' && renderOffline(charge)}
+
+        {done?.chargeId === charge.id && !formKind && (
+          <p className={styles.doneNote} role="status">
+            {done.text}
+          </p>
+        )}
 
         {problem?.chargeId === charge.id && (
           <p className={styles.error} role="alert">
@@ -600,7 +830,9 @@ export default function ChargesDialog({
         </div>
       )}
       {!canDecide && (
-        <p className={styles.help}>ניסיון חוזר, סימון כחויב, ביטול והפקת קבלה — למנהלים בלבד. כאן רואים איפה עומד כל חודש.</p>
+        <p className={styles.help}>
+          ניסיון חוזר, סימון כחויב, ביטול, הפקת קבלה ורישום תשלום במשרד — למנהלים בלבד. כאן רואים איפה עומד כל חודש.
+        </p>
       )}
 
       {renderBody()}

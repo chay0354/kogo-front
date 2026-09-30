@@ -11,6 +11,7 @@ import {
   BLOCKED_TITLE_TEXT,
   EMPTY_MARK_CHARGED_FORM,
   MARK_CHARGED_WARNING,
+  OFFLINE_VOIDED_WARNING,
   RETRY_OFF_TEXT,
   VOID_FAILED_WARNING,
   VOID_UNDECIDED_WARNING,
@@ -33,12 +34,20 @@ import {
   chargeStatusLabel,
   chargeStatusTone,
   editableOrderFields,
+  emptyOfflinePaymentForm,
+  israelToday,
+  lateCardChargeText,
   lifecycleConfirmCopy,
   liveCardLink,
   markChargedCopy,
   markChargedErrors,
   markChargedPayload,
   monthsNeverCharged,
+  offlinePaymentCopy,
+  offlinePaymentDoneText,
+  offlinePaymentErrors,
+  offlinePaymentLine,
+  offlinePaymentPayload,
   orderActions,
   orderCell,
   orderFormErrors,
@@ -47,6 +56,7 @@ import {
   orderStatusLabel,
   orderStatusTone,
   ordersByTenancy,
+  receiptDeliveryText,
   receiptLine,
   retryConfirmText,
   retryOutcomeText,
@@ -469,7 +479,7 @@ describe('what each charge status allows', () => {
     });
   });
 
-  it('offers a partner none of the four money decisions — only the statuses, and a receipt that exists', () => {
+  it('offers a partner none of the money decisions — only the statuses, and a receipt that exists', () => {
     const partner = { ...manager, canDecide: false };
     const receipt = { id: 'd-1', document_number: '20012', document_date: '2026-09-11', pdf_url: '' };
     for (const any of [
@@ -483,6 +493,7 @@ describe('what each charge status allows', () => {
         void: false,
         issueReceipt: false,
         downloadReceipt: false,
+        recordOffline: false,
       });
     }
     expect(chargeActions(charge({ receipt }), partner).downloadReceipt).toBe(true);
@@ -613,6 +624,157 @@ describe('the office’s decisions on a charge', () => {
     expect(retryOutcomeText('review', charge()).ok).toBe(false);
     expect(retryOutcomeText('review', charge()).text).toContain('בדקו בטרנזילה');
     expect(retryOutcomeText('late', null).ok).toBe(false);
+  });
+});
+
+describe('a month paid at the office', () => {
+  const manager = { billingEnabled: false, canDecide: true, order: order({ status: 'failed', has_card: true }) };
+  const receipt = { id: 'd-1', document_number: 'RT-2026-000007', document_date: '2026-10-12', pdf_url: '' };
+  const TODAY = '2026-10-12';
+
+  it('is offered on a failed or voided month with nothing charged and no receipt — whatever the switch says', () => {
+    expect(chargeActions(charge({ status: 'failed' }), manager).recordOffline).toBe(true);
+    expect(chargeActions(charge({ status: 'voided' }), manager).recordOffline).toBe(true);
+    for (const closed of [
+      charge({ status: 'charged', receipt }),
+      charge({ status: 'review', undecided: true }),
+      charge({ status: 'reserved', undecided: true }),
+      charge({ status: 'voided', transaction_id: 'T100', late_card_charge: true }),
+      charge({ status: 'failed', receipt }),
+    ]) {
+      expect(chargeActions(closed, manager).recordOffline).toBe(false);
+    }
+  });
+
+  it('lets a voided month Tranzila charged after all be marked charged — and nothing else', () => {
+    expect(chargeActions(charge({ status: 'voided', transaction_id: 'T100', late_card_charge: true }), manager)).toMatchObject({
+      markCharged: true,
+      void: false,
+      recordOffline: false,
+    });
+  });
+
+  it('checks the form as the server does — a check needs everything its receipt names', () => {
+    const cash = emptyOfflinePaymentForm(TODAY);
+    expect(cash).toMatchObject({ method: 'cash', paidOn: TODAY, checkCrossed: false });
+    expect(offlinePaymentErrors(cash, TODAY)).toEqual([]);
+    expect(offlinePaymentErrors({ ...cash, paidOn: '2026-10-13' }, TODAY)).toEqual(['תאריך התשלום לא יכול להיות בעתיד']);
+    expect(offlinePaymentErrors({ ...cash, paidOn: '' }, TODAY)).toEqual(['יש לבחור את תאריך התשלום']);
+    expect(offlinePaymentErrors({ ...cash, method: 'check', checkBank: '12' }, TODAY)).toEqual([
+      "יש להזין את מספר הצ'ק",
+      'יש להזין את הסניף',
+      'יש להזין את מספר החשבון',
+      "יש להזין את תאריך הפירעון של הצ'ק",
+    ]);
+  });
+
+  it('sends the month’s own total, and only what the means needs', () => {
+    const form = { ...emptyOfflinePaymentForm(TODAY), reference: ' פנקס 17 ', note: '  ' };
+    expect(offlinePaymentPayload(form, charge())).toEqual({
+      method: 'cash',
+      amount: '566.40',
+      paid_on: TODAY,
+      reference: 'פנקס 17',
+    });
+    const check = {
+      ...form,
+      method: 'check' as const,
+      checkNumber: ' 000123 ',
+      checkBank: '12',
+      checkBranch: '600',
+      checkAccount: '456789',
+      checkDate: '2026-10-20',
+      checkCrossed: true,
+      note: 'הביא לסניף',
+    };
+    expect(offlinePaymentPayload(check, charge())).toEqual({
+      method: 'check',
+      amount: '566.40',
+      paid_on: TODAY,
+      note: 'הביא לסניף',
+      check: { number: '000123', bank: '12', branch: '600', account: '456789', date: '2026-10-20', crossed: true },
+    });
+  });
+
+  it('warns on a voided month that a receipt may exist already', () => {
+    expect(offlinePaymentCopy(charge({ status: 'voided', period: '2026-10-01' }))).toMatchObject({
+      title: 'תשלום במשרד על אוקטובר 2026',
+      voidedWarning: OFFLINE_VOIDED_WARNING,
+      amount: 'סכום: ₪566.40 — כל החודש, כולל מע״מ',
+    });
+    expect(offlinePaymentCopy(charge({ status: 'failed' })).voidedWarning).toBe('');
+  });
+
+  it('tells the office the receipt number it came to, or that it was recorded already', () => {
+    const paid = charge({
+      period: '2026-10-01',
+      receipt,
+      offline_payment: {
+        method: 'check', method_label: "צ'ק", amount: '566.40', paid_on: TODAY, reference: '', check_number: '000123',
+        check_bank: '12', check_branch: '600', check_account: '456789', check_date: '2026-10-20', check_crossed: false,
+      },
+    });
+    expect(offlinePaymentDoneText({ created: true, charge: paid })).toBe("אוקטובר 2026: נרשם תשלום בצ'ק — קבלה RT-2026-000007");
+    expect(offlinePaymentDoneText({ created: false, charge: paid })).toBe('אוקטובר 2026 כבר נרשם כשולם במשרד — קבלה RT-2026-000007');
+    expect(offlinePaymentLine(paid.offline_payment ?? null)).toBe(
+      "שולם בצ'ק ב־12.10.2026 · צ'ק 000123 · בנק 12 · סניף 600 · חשבון 456789 · לפירעון 20.10.2026 · לא משורטט",
+    );
+    expect(chargeMetaLines(paid)[1]).toContain("שולם בצ'ק");
+    expect(chargeMetaLines(paid).join(' ')).not.toContain('כרטיס 4242');
+  });
+
+  it('names a card Tranzila charged after the month was voided or paid at the office', () => {
+    expect(lateCardChargeText(charge({ status: 'voided', transaction_id: 'T100', late_card_charge: true }), true)).toContain(
+      'אחרי שבוטל (עסקה T100)',
+    );
+    expect(lateCardChargeText(charge({ status: 'charged', transaction_id: 'T100', late_card_charge: true }), true)).toContain(
+      'ייתכן שהשוכר שילם פעמיים',
+    );
+    expect(lateCardChargeText(charge({ status: 'voided', transaction_id: 'T100', late_card_charge: true }), false)).toContain(
+      'ממתין להחלטה של מנהל',
+    );
+    expect(lateCardChargeText(charge({ status: 'charged', transaction_id: 'T100' }), true)).toBe('');
+  });
+
+  it('reads today on Israel’s clock', () => {
+    expect(israelToday(new Date('2026-10-11T22:30:00Z'))).toBe('2026-10-12');
+  });
+});
+
+describe('where a receipt went', () => {
+  const receipt = { id: 'd-1', document_number: 'RT-2026-000007', document_date: '2026-10-12', pdf_url: '' };
+  const original = (delivery: string, extra = {}) => ({
+    ...receipt,
+    delivery: { delivery, label: '', reason: '', signed: true, sent_at: null, paper_printed_at: null, ...extra },
+  });
+
+  it('says when it was mailed', () => {
+    expect(receiptDeliveryText(charge({ receipt, receipt_emailed_at: '2026-10-12T06:12:00Z' }))).toMatchObject({
+      text: 'נשלח במייל 12.10.2026, 09:12',
+      tone: 'sent',
+    });
+  });
+
+  it('says a paper original is waiting to be handed over, or when it was', () => {
+    expect(receiptDeliveryText(charge({ receipt: original('paper', { reason: 'שולם במזומן' }) }))).toEqual({
+      text: 'למסירה ידנית',
+      tone: 'hand',
+      detail: 'שולם במזומן',
+    });
+    expect(
+      receiptDeliveryText(charge({ receipt: original('paper', { paper_printed_at: '2026-10-13T07:00:00Z' }) }))?.text,
+    ).toBe('המקור נמסר על נייר 13.10.2026, 10:00');
+  });
+
+  it('says why one waits, or was not mailed at all', () => {
+    expect(receiptDeliveryText(charge({ receipt: original('held', { reason: 'ממתין לחתימה' }) }))?.text).toBe(
+      'ממתין לשליחה — ממתין לחתימה',
+    );
+    expect(receiptDeliveryText(charge({ receipt: original('none', { reason: 'אין כתובת מייל ללקוח' }) }))?.text).toBe(
+      'אין כתובת מייל ללקוח',
+    );
+    expect(receiptDeliveryText(charge({ receipt }))?.text).toBe('לא נשלח במייל');
+    expect(receiptDeliveryText(charge())).toBeNull();
   });
 });
 
