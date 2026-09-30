@@ -9,6 +9,7 @@ import { downloadStoreInvoicePdf } from '@/lib/storeApi';
 import {
   downloadDocumentPdf,
   downloadDocumentsRegister,
+  downloadLessonReceiptCopy,
   downloadPeriodReport,
   downloadUniformExport,
   finalizeDraft,
@@ -21,6 +22,7 @@ import DocumentDetailButton from '@/components/dialogs/DocumentDetailButton';
 import theme from '@/components/dashboard/theme/dashboard.module.css';
 import LedgerFilterBar, { LedgerSelect } from './LedgerFilterBar';
 import { allocationOriginalMessage } from './manualDelivery';
+import { documentDownloadRoute } from './documentDownload';
 import MissingReceiptsPanel, { MISSING_RECEIPTS_PANEL_ID } from './MissingReceiptsPanel';
 import type { LedgerFiltersState } from './useLedgerFilters';
 import { useLedgerDocuments } from './useLedgerDocuments';
@@ -311,14 +313,18 @@ export default function DocumentsTab({ ledger, refreshKey = 0 }: DocumentsTabPro
   }
 
   async function handleDownload(doc: DocumentRow) {
+    const route = documentDownloadRoute(doc);
+    if (!route) return;
     setDownloadingId(doc.id);
     try {
-      if (doc.store_invoice_id) {
-        await downloadStoreInvoicePdf(doc.store_invoice_id, doc.document_number);
-      } else if (doc.pdf_url) {
-        window.open(doc.pdf_url, '_blank', 'noopener,noreferrer');
+      if (route.kind === 'store') {
+        await downloadStoreInvoicePdf(route.id, doc.document_number);
+      } else if (route.kind === 'url') {
+        window.open(route.url, '_blank', 'noopener,noreferrer');
+      } else if (route.kind === 'lesson_receipt') {
+        await downloadLessonReceiptCopy(route.id, doc.document_number);
       } else {
-        await downloadDocumentPdf(doc.id, doc.document_number);
+        await downloadDocumentPdf(route.id, doc.document_number);
       }
     } catch {
       alert('שגיאה בהורדת החשבונית');
@@ -427,7 +433,7 @@ export default function DocumentsTab({ ledger, refreshKey = 0 }: DocumentsTabPro
           </thead>
           <tbody>
             {visible.map((doc) => {
-              const canDownload = Boolean(doc.pdf_url || doc.store_invoice_id || doc.source === 'local');
+              const canDownload = documentDownloadRoute(doc) !== null;
               const notIssued = doc.source === 'local' && doc.tranzila_issued === false && !doc.is_draft;
               // Which business the income is tagged to, then the website order,
               // the branch or the payment method — whichever says where exactly.

@@ -115,6 +115,11 @@ export interface DocumentRow extends LedgerDimensions {
   status: string;
   pdf_url?: string;
   store_invoice_id?: string;
+  /**
+   * A lesson receipt's (IR) own id (30.9.2026): the tab downloads a copy of it
+   * through /customers/invoices/<id>/pdf/?copy=1. An older server leaves it out.
+   */
+  lesson_invoice_id?: string;
   tranzila_doc_id?: string;
   source?: string;
   tranzila_issued?: boolean;
