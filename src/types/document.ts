@@ -78,6 +78,8 @@ export interface FormalDocumentSummary {
   currency: DocumentCurrency;
   tranzila_issued: boolean;
   pdf_url: string;
+  allocation_number?: string;
+  allocation_required?: boolean;
 }
 
 // ── Create payload types ─────────────────────────────────────────────────────
@@ -87,6 +89,25 @@ export interface LineItemInput {
   description?: string;
   quantity: number;
   price: number;
+}
+
+/** One way an invoice-receipt was paid, for the amount paid that way. The rows add up to its total. */
+export interface InvoicePaymentInput {
+  method: 'cash' | 'check' | 'credit_card' | 'bank_transfer';
+  amount: number;
+  check_number?: string;
+  check_bank?: string;
+  check_branch?: string;
+  check_account?: string;
+  check_date?: string | null;
+  /** Crossed "לא סחיר" in the customer's name — only then may the signed original go by email. */
+  check_crossed?: boolean;
+  card_last_four?: string;
+  card_brand?: string;
+  installments?: number;
+  reference?: string;
+  paid_on?: string | null;
+  notes?: string;
 }
 
 export interface InvoiceDetailsInput {
@@ -103,6 +124,10 @@ export interface InvoiceDetailsInput {
   payment_terms?: string;
   customer_notes?: string;
   internal_notes?: string;
+  /** An invoice-receipt's payments (they and withholding_amount equal the total). */
+  payments?: InvoicePaymentInput[];
+  withholding_amount?: number;
+  /** Older payload: accepted by the server only when it names a single method. */
   payment_methods?: string[];
 }
 
@@ -125,6 +150,7 @@ export interface ReceiptDetailsInput {
   withholding?: number;
   check_notes?: string;
   card_last_four?: string;
+  card_brand?: string;
   card_expiry?: string;
   card_amount?: number;
   card_installments?: number;
@@ -138,6 +164,8 @@ export interface ReceiptDetailsInput {
 export interface CreditInvoiceInput {
   document_date: string;
   linked_invoice_id?: string;
+  /** The original's date — required by the server for a number kogo never issued. */
+  linked_document_date?: string | null;
   credit_reason: string;
   credit_amount_before_vat: number;
   vat_exempt?: boolean;

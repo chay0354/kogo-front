@@ -100,6 +100,8 @@ export interface ReceiptDetailsData {
   withholding: number;
   checkNotes: string;
   cardLastFour: string;
+  /** The card's brand (ויזה, מאסטרקארד…), as the office reads it off the slip. Optional. */
+  cardBrand: string;
   cardExpiry: string;
   cardAmount: number;
   cardInstallments: number;
@@ -114,6 +116,11 @@ export interface CreditInvoiceData {
   documentNumber: string;
   documentDate: string;
   linkedInvoiceId: string;
+  /**
+   * The original's date (סעיף 9(ה)(4)): filled in from the document when kogo
+   * issued it, typed for a number from the previous software.
+   */
+  linkedDocumentDate: string;
   creditReason: string;
   creditAmountBeforeVat: number;
   vatExempt: boolean;
@@ -131,15 +138,23 @@ export interface InvoiceDetailsData {
   discountAmount: number;
   discountPercent: number;
   vatExempt: boolean;
-  roundTotal: boolean;
   closeInvoice: boolean;
   customerNotes: string;
   internalNotes: string;
   paymentTerms: string;
   dueDate: string;
+  /** The methods an invoice-receipt was paid with — each opens its panel in `payments`. */
   paymentMethods: string[];
-  /** הוראה 18ב(ד): a check paid against an invoice-receipt is crossed, 'לא סחיר', in the customer's name. */
-  checkCrossed: boolean;
+  /**
+   * How an invoice-receipt was paid, in the receipt's own panels (cash, checks,
+   * card, transfer): each method chosen above becomes payment rows of its own
+   * amount, and the rows plus any withholding come to the total exactly (G).
+   */
+  payments: ReceiptDetailsData;
+  /** ניכוי במקור the customer withheld from an invoice-receipt. */
+  withholdingAmount: number;
+  /** מספר הקצאה from the Tax Authority's portal, when the office already has it (9 digits). */
+  allocationNumber: string;
   linkedInvoiceId: string;
   receiptNotes: string;
 }

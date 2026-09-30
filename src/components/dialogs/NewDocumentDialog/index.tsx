@@ -38,16 +38,31 @@ import LegacyHistoryPanel from '@/components/LegacyHistory/LegacyHistoryPanel';
 import BusinessDocsConsentField from '@/components/dialogs/BusinessDocsConsentField';
 import { setBusinessCustomerConsent } from '@/lib/signingApi';
 import styles from './index.module.css';
-import { BRANCHES_CATEGORY, CLIENT_TYPE_OPTIONS, DOCUMENT_TYPE_OPTIONS } from './constants';
 import {
+  ALLOCATION_THRESHOLD_ILS,
+  BRANCHES_CATEGORY,
+  CLIENT_TYPE_OPTIONS,
+  DOCUMENT_TYPE_OPTIONS,
+} from './constants';
+import {
+  allocationApplies,
+  allocationNumberError,
+  allocationRequired,
   branchFieldApplies,
   businessCustomerErrorMessage,
   serverErrorMessage,
   businessFormFromCustomer,
   canAdvanceFromStep,
+  computeInvoiceTotals,
+  creditableMatch,
+  documentDateBounds,
   emptyCheckRow,
   getNextButtonLabel,
+  formatAgorot,
   getStepStatus,
+  invoicePaymentBalance,
+  invoicePaymentRows,
+  israelToday,
   receiptDetailsPayload,
 } from './utils';
 import { useNewDocumentWizard } from './useNewDocumentWizard';
@@ -276,7 +291,8 @@ export default function NewDocumentDialog({ open, onClose }: NewDocumentDialogPr
         ...base,
         credit_invoice_details: {
           document_date: creditInvoiceDetails.documentDate,
-          linked_invoice_id: creditInvoiceDetails.linkedInvoiceId,
+          linked_invoice_id: creditInvoiceDetails.linkedInvoiceId.trim(),
+          linked_document_date: creditInvoiceDetails.linkedDocumentDate || null,
           credit_reason: creditInvoiceDetails.creditReason,
           credit_amount_before_vat: creditInvoiceDetails.creditAmountBeforeVat,
           vat_exempt: creditInvoiceDetails.vatExempt,
@@ -291,7 +307,8 @@ export default function NewDocumentDialog({ open, onClose }: NewDocumentDialogPr
         document_date: invoiceDetails.documentDate,
         due_date: invoiceDetails.dueDate || null,
         description: invoiceDetails.description,
-        currency: invoiceDetails.currency as 'ILS' | 'USD' | 'EUR',
+        // Shekels only (D6): the server refuses any other currency.
+        currency: 'ILS',
         prices_include_vat: invoiceDetails.pricesIncludeVat,
         line_items: invoiceDetails.lineItems.map((i) => ({
           sku: i.sku,
@@ -301,15 +318,24 @@ export default function NewDocumentDialog({ open, onClose }: NewDocumentDialogPr
         })),
         discount_amount: invoiceDetails.discountAmount,
         discount_percent: invoiceDetails.discountPercent,
-        // transaction_invoice has no VAT by Israeli accounting law
-        vat_exempt: mappedType === 'transaction_invoice' ? true : invoiceDetails.vatExempt,
-        round_total: invoiceDetails.roundTotal,
+        // A transaction invoice shows the VAT its tax invoice will charge; it is
+        // VAT-free only when the sale is (Eilat, abroad) — as chosen, not forced.
+        vat_exempt: invoiceDetails.vatExempt,
         payment_terms: invoiceDetails.paymentTerms,
         customer_notes: invoiceDetails.customerNotes,
         internal_notes: invoiceDetails.internalNotes,
-        payment_methods: invoiceDetails.paymentMethods,
-        // An invoice-receipt has no check lines, so one flag covers every check it records.
-        ...(invoiceDetails.paymentMethods.includes("צ'ק") ? { check_crossed: invoiceDetails.checkCrossed } : {}),
+        // מספר הקצאה given at issue (B): on the original from its first print.
+        ...(allocationApplies(docType, clientType) && invoiceDetails.allocationNumber.trim()
+          ? { allocation_number: invoiceDetails.allocationNumber.replace(/\D/g, '') }
+          : {}),
+        // An invoice-receipt says how much was paid each way (G): its rows and
+        // the withholding come to its total exactly.
+        ...(mappedType === 'combined'
+          ? {
+              payments: invoicePaymentRows(invoiceDetails.paymentMethods, invoiceDetails.payments),
+              withholding_amount: invoiceDetails.withholdingAmount,
+            }
+          : {}),
       },
     };
   }
@@ -475,6 +501,7 @@ export default function NewDocumentDialog({ open, onClose }: NewDocumentDialogPr
                 data={invoiceDetails}
                 onChange={setInvoiceDetails}
                 docType={docType}
+                clientType={clientType}
               />
             )}
           {currentStep === 'documentDetails' && docType === 'קבלה' && (
@@ -1283,10 +1310,11 @@ function TransactionInvoiceStep({ data, onChange }: TransactionInvoiceStepProps)
     onChange({ ...data, lineItems: updated });
   }
 
-  const subtotal = data.lineItems.reduce((sum, item) => sum + item.quantity * item.price, 0);
-  // חשבונית עסקה is a non-VAT document by Israeli accounting law
-  const totalBeforeRounding = subtotal - data.discountAmount;
-  const finalTotal = data.roundTotal ? Math.round(totalBeforeRounding) : totalBeforeRounding;
+  // Worked out as the server stores it — to the agora, VAT as it will be charged.
+  const totals = computeInvoiceTotals(data);
+  const subtotal = totals.subtotal / 100;
+  const vatAmount = totals.vat / 100;
+  const finalTotal = totals.total / 100;
 
   return (
     <div>
@@ -1312,6 +1340,8 @@ function TransactionInvoiceStep({ data, onChange }: TransactionInvoiceStepProps)
             type="date"
             className={styles.formInput}
             value={data.documentDate}
+            min={documentDateBounds().min}
+            max={documentDateBounds().max}
             onChange={(e) => onChange({ ...data, documentDate: e.target.value })}
           />
         </div>
@@ -1336,15 +1366,8 @@ function TransactionInvoiceStep({ data, onChange }: TransactionInvoiceStepProps)
       <div className={styles.detailsSection}>
         <span className={styles.sectionHeading}>מטבע</span>
         <div className={styles.currencyRow}>
-          <Select
-            value={data.currency}
-            onChange={(e) => onChange({ ...data, currency: e.target.value })}
-            className={styles.currencySelect}
-          >
-            <option value="ILS">שקל ₪</option>
-            <option value="USD">דולר $</option>
-            <option value="EUR">אירו €</option>
-          </Select>
+          {/* Shekels only (D6): no rate is kept for another currency. */}
+          <span className={styles.currencySelect}>שקל ₪</span>
           <label className={styles.checkboxLabel}>
             <input
               type="checkbox"
@@ -1472,26 +1495,34 @@ function TransactionInvoiceStep({ data, onChange }: TransactionInvoiceStepProps)
           </div>
         </div>
 
+        {/* The VAT the tax invoice will charge on payment — a demand asks for the whole sum. */}
+        <div className={styles.vatRow}>
+          <span className={styles.totalsLabel}>מע&quot;מ 18%</span>
+          <div className={styles.vatRowContent}>
+            <label className={styles.vatRadioLabel}>
+              <input
+                type="checkbox"
+                checked={data.vatExempt}
+                onChange={(e) => onChange({ ...data, vatExempt: e.target.checked })}
+              />
+              ללא מע&quot;מ (אילת / חו&quot;ל)
+            </label>
+            <span className={styles.vatAmount}>₪{vatAmount.toFixed(2)}</span>
+          </div>
+        </div>
+
         <div className={`${styles.totalsRow} ${styles.totalsRowBold}`}>
           <span className={styles.totalsLabel}>סה&quot;כ בח&quot;ן</span>
           <span className={styles.totalsValue}>₪{finalTotal.toFixed(2)}</span>
         </div>
 
-        <label className={styles.totalsCheckboxRow}>
-          <input
-            type="checkbox"
-            checked={data.roundTotal}
-            onChange={(e) => onChange({ ...data, roundTotal: e.target.checked })}
-          />
-          <span className={styles.totalsCheckboxLabel}>עגל סכום - ללא אגורות</span>
-        </label>
       </div>
 
       {/* Info banner */}
       <div className={styles.infoBanner}>
         <FileText size={16} className={styles.infoBannerIcon} />
         <span className={styles.infoBannerText}>
-          חשבונית עסקה – דרישת תשלום. אינה כוללת תשלום בפועל. אינה כוללת מע&quot;מ.
+          חשבונית עסקה – דרישת תשלום, לא מסמך מס. המע&quot;מ שבה יחויב בחשבונית המס שתופק עם התשלום.
         </span>
       </div>
 
@@ -1589,6 +1620,17 @@ function CreditInvoiceStep({ data, onChange, childId, businessCustomerId }: Cred
     }),
     staleTime: 60_000,
   });
+  const { options, match } = creditableMatch(openInvoices, data.linkedInvoiceId);
+
+  function pickOriginal(number: string) {
+    // A document kogo issued brings its own date; a typed number keeps what was typed.
+    const found = creditableMatch(openInvoices, number).match;
+    onChange({
+      ...data,
+      linkedInvoiceId: number,
+      linkedDocumentDate: found ? found.document_date : match ? '' : data.linkedDocumentDate,
+    });
+  }
 
   return (
     <div>
@@ -1614,6 +1656,8 @@ function CreditInvoiceStep({ data, onChange, childId, businessCustomerId }: Cred
             type="date"
             className={styles.formInput}
             value={data.documentDate}
+            min={documentDateBounds().min}
+            max={documentDateBounds().max}
             onChange={(e) => onChange({ ...data, documentDate: e.target.value })}
           />
         </div>
@@ -1624,31 +1668,47 @@ function CreditInvoiceStep({ data, onChange, childId, businessCustomerId }: Cred
         <label htmlFor="credit-linked-invoice" className={styles.sectionHeading}>
           מספר חשבונית לזיכוי <span className={styles.requiredMark}>*</span>
         </label>
-        {openInvoices.length > 0 ? (
-          <Select
-            id="credit-linked-invoice"
-            className={styles.formSelect}
-            value={data.linkedInvoiceId}
-            onChange={(e) => onChange({ ...data, linkedInvoiceId: e.target.value })}
-            aria-required="true"
-          >
-            <option value="">בחר חשבונית לזיכוי</option>
-            {openInvoices.map((inv) => (
-              <option key={inv.id} value={inv.document_number}>
-                {inv.document_number} — ₪{inv.total_amount} ({inv.document_date})
-              </option>
-            ))}
-          </Select>
-        ) : (
-          <input
-            id="credit-linked-invoice"
-            type="text"
-            className={styles.formInput}
-            placeholder="הזן מספר חשבונית (לדוגמה: INV-2025-1234)"
-            value={data.linkedInvoiceId}
-            onChange={(e) => onChange({ ...data, linkedInvoiceId: e.target.value })}
-            aria-required="true"
-          />
+        {/* Searchable: the customer's tax invoices and invoice-receipts, or any number typed —
+            a lesson receipt (IR), a store sale (ST), the previous software's. */}
+        <input
+          id="credit-linked-invoice"
+          type="text"
+          list="credit-linked-options"
+          className={styles.formInput}
+          placeholder="חפשו או הקלידו מספר מסמך (TI / IRM / IR / ST / מספר מהתוכנה הקודמת)"
+          value={data.linkedInvoiceId}
+          onChange={(e) => pickOriginal(e.target.value)}
+          aria-required="true"
+          autoComplete="off"
+        />
+        <datalist id="credit-linked-options">
+          {options.map((inv) => (
+            <option key={inv.id} value={inv.document_number}>
+              {`${inv.document_type_display} — ₪${inv.total_amount} (${inv.document_date})`}
+            </option>
+          ))}
+        </datalist>
+      </div>
+
+      {/* תאריך המסמך המקורי — סעיף 9(ה)(4) */}
+      <div className={styles.detailsSection}>
+        <label htmlFor="credit-linked-date" className={styles.sectionHeading}>
+          תאריך המסמך המקורי <span className={styles.requiredMark}>*</span>
+        </label>
+        <input
+          id="credit-linked-date"
+          type="date"
+          className={match ? styles.readOnlyInput : styles.formInput}
+          value={data.linkedDocumentDate}
+          readOnly={match !== null}
+          max={documentDateBounds().max}
+          onChange={(e) => onChange({ ...data, linkedDocumentDate: e.target.value })}
+          aria-required="true"
+        />
+        {match === null && data.linkedInvoiceId.trim() !== '' && (
+          <p className={styles.checkCrossedHint}>
+            מסמך שלא נמצא ברשימה (קבלת חוג, מכירה בחנות, מסמך מהתוכנה הקודמת) — הזינו את התאריך המודפס עליו.
+          </p>
         )}
       </div>
 
@@ -1744,10 +1804,13 @@ interface InvoiceDetailsStepProps {
   data: InvoiceDetailsData;
   onChange: (data: InvoiceDetailsData) => void;
   docType: string;
+  clientType?: ClientType | null;
 }
 
-function InvoiceDetailsStep({ data, onChange, docType }: InvoiceDetailsStepProps) {
+function InvoiceDetailsStep({ data, onChange, docType, clientType = null }: InvoiceDetailsStepProps) {
   const isReceipt = docType === 'חשבונית מס/קבלה';
+  const balance = invoicePaymentBalance(data);
+  const setPayments = (payments: ReceiptDetailsData) => onChange({ ...data, payments });
 
   function togglePaymentMethod(method: string) {
     const methods = data.paymentMethods.includes(method)
@@ -1762,10 +1825,11 @@ function InvoiceDetailsStep({ data, onChange, docType }: InvoiceDetailsStepProps
     onChange({ ...data, lineItems: updated });
   }
 
-  const subtotal = data.lineItems.reduce((sum, item) => sum + item.quantity * item.price, 0);
-  const vatAmount = data.vatExempt ? 0 : (subtotal - data.discountAmount) * 0.18;
-  const totalBeforeRounding = subtotal - data.discountAmount + vatAmount;
-  const finalTotal = data.roundTotal ? Math.round(totalBeforeRounding) : totalBeforeRounding;
+  // Worked out as the server stores it (utils.computeInvoiceTotals) — no rounding to the shekel.
+  const totals = computeInvoiceTotals(data);
+  const subtotal = totals.subtotal / 100;
+  const vatAmount = totals.vat / 100;
+  const finalTotal = totals.total / 100;
 
   return (
     <div>
@@ -1791,6 +1855,8 @@ function InvoiceDetailsStep({ data, onChange, docType }: InvoiceDetailsStepProps
             type="date"
             className={styles.formInput}
             value={data.documentDate}
+            min={documentDateBounds().min}
+            max={documentDateBounds().max}
             onChange={(e) => onChange({ ...data, documentDate: e.target.value })}
           />
         </div>
@@ -1815,15 +1881,8 @@ function InvoiceDetailsStep({ data, onChange, docType }: InvoiceDetailsStepProps
       <div className={styles.detailsSection}>
         <span className={styles.sectionHeading}>מטבע</span>
         <div className={styles.currencyRow}>
-          <Select
-            value={data.currency}
-            onChange={(e) => onChange({ ...data, currency: e.target.value })}
-            className={styles.currencySelect}
-          >
-            <option value="ILS">שקל ₪</option>
-            <option value="USD">דולר $</option>
-            <option value="EUR">אירו €</option>
-          </Select>
+          {/* Shekels only (D6): no rate is kept for another currency. */}
+          <span className={styles.currencySelect}>שקל ₪</span>
           <label className={styles.checkboxLabel}>
             <input
               type="checkbox"
@@ -1984,14 +2043,6 @@ function InvoiceDetailsStep({ data, onChange, docType }: InvoiceDetailsStepProps
           <span className={styles.totalsValue}>₪{finalTotal.toFixed(2)}</span>
         </div>
 
-        <label className={styles.totalsCheckboxRow}>
-          <input
-            type="checkbox"
-            checked={data.roundTotal}
-            onChange={(e) => onChange({ ...data, roundTotal: e.target.checked })}
-          />
-          <span className={styles.totalsCheckboxLabel}>עגל סכום - ללא אגורות</span>
-        </label>
 
         <label className={styles.totalsCheckboxRow}>
           <input
@@ -2002,6 +2053,34 @@ function InvoiceDetailsStep({ data, onChange, docType }: InvoiceDetailsStepProps
           <span className={styles.totalsCheckboxLabel}>לסגור חשבונית</span>
         </label>
       </div>
+
+      {/* מספר הקצאה — a tax invoice to a business customer (B) */}
+      {allocationApplies(docType, clientType) && (
+        <div className={styles.detailsSection}>
+          <label htmlFor="inv-allocation" className={styles.sectionHeading}>
+            מספר הקצאה <span className={styles.optionalLabel}>(9 ספרות, מאתר רשות המסים)</span>
+          </label>
+          <input
+            id="inv-allocation"
+            type="text"
+            inputMode="numeric"
+            maxLength={11}
+            className={styles.formInput}
+            placeholder="123456789"
+            value={data.allocationNumber}
+            onChange={(e) => onChange({ ...data, allocationNumber: e.target.value })}
+          />
+          {allocationNumberError(data.allocationNumber) && (
+            <p className={styles.fieldError}>{allocationNumberError(data.allocationNumber)}</p>
+          )}
+          {allocationRequired(data) && !data.allocationNumber.trim() && (
+            <p className={styles.checkCrossedHint}>
+              סכום החשבונית לפני מע&quot;מ עולה על ₪{ALLOCATION_THRESHOLD_ILS.toLocaleString('he-IL')}: לקוח עסקי
+              צריך מספר הקצאה כדי לקזז את המע&quot;מ. בלעדיו המסמך יוחזק ולא יישלח עד שיוזן.
+            </p>
+          )}
+        </div>
+      )}
 
       {/* Notes — two columns */}
       <div className={styles.notesGrid}>
@@ -2085,21 +2164,54 @@ function InvoiceDetailsStep({ data, onChange, docType }: InvoiceDetailsStepProps
               );
             })}
           </div>
-          {/* הוראה 18ב(ד): only a crossed check in the customer's name lets the signed original go by email. */}
+          {/* Each method chosen opens the receipt's own panel: an amount per method, a line per check (G). */}
+          {data.paymentMethods.includes('מזומן') && (
+            <CashPanel data={data.payments} onChange={setPayments} />
+          )}
           {data.paymentMethods.includes("צ'ק") && (
-            <div className={styles.checkCrossedCell}>
-              <label className={styles.checkboxLabel}>
-                <input
-                  type="checkbox"
-                  checked={data.checkCrossed}
-                  onChange={(e) => onChange({ ...data, checkCrossed: e.target.checked })}
-                />
-                צ&apos;ק משורטט, &apos;לא סחיר&apos;, על שם הלקוח
-              </label>
-              {!data.checkCrossed && (
-                <p className={styles.checkCrossedHint}>בלי סימון — המקור יימסר על נייר ולא יישלח במייל</p>
-              )}
+            <CheckPanel data={data.payments} onChange={setPayments} forInvoice />
+          )}
+          {data.paymentMethods.includes('אשראי') && (
+            <CreditPanel data={data.payments} onChange={setPayments} />
+          )}
+          {data.paymentMethods.includes('העברה בנקאית') && (
+            <BankPanel data={data.payments} onChange={setPayments} />
+          )}
+
+          {/* ניכוי במקור */}
+          <div className={styles.witholdingRow}>
+            <span className={styles.witholdingLabel}>ניכוי במקור</span>
+            <div className={styles.witholdingInputWrap}>
+              <input
+                type="number"
+                min={0}
+                step={0.01}
+                className={styles.formInput}
+                value={data.withholdingAmount}
+                aria-label="ניכוי במקור בשקלים"
+                onChange={(e) => onChange({ ...data, withholdingAmount: Math.max(0, Number(e.target.value)) })}
+              />
+              <span className={styles.witholdingSymbol} aria-hidden="true">₪</span>
             </div>
+          </div>
+
+          {/* Paid against the total — issued only when they meet exactly. */}
+          <div className={styles.checkSummaryBar}>
+            <span className={styles.checkSummaryLabel}>
+              שולם ₪{formatAgorot(balance.paid + balance.withholding)} מתוך ₪{formatAgorot(balance.total)}
+            </span>
+            <span className={styles.checkSummaryAmount}>
+              {balance.remaining === 0
+                ? 'התשלומים שווים לסכום ✓'
+                : balance.remaining > 0
+                ? `חסר ₪${formatAgorot(balance.remaining)}`
+                : `עודף ₪${formatAgorot(-balance.remaining)}`}
+            </span>
+          </div>
+          {balance.remaining !== 0 && (
+            <p className={styles.fieldError}>
+              סכומי אמצעי התשלום (וניכוי במקור) צריכים להיות שווים בדיוק לסכום החשבונית. צ&apos;ק נספר רק אחרי אישורו (✓).
+            </p>
           )}
         </div>
       )}
@@ -2260,7 +2372,12 @@ function CashPanel({ data, onChange }: ReceiptDetailsStepProps) {
   );
 }
 
-function CheckPanel({ data, onChange }: ReceiptDetailsStepProps) {
+interface CheckPanelProps extends ReceiptDetailsStepProps {
+  /** Inside an invoice-receipt: its withholding is asked once for the document, and no invoice follows a check. */
+  forInvoice?: boolean;
+}
+
+function CheckPanel({ data, onChange, forInvoice = false }: CheckPanelProps) {
   const confirmedChecks = data.checks.filter((c) => c.confirmed);
   const confirmedTotal = confirmedChecks.reduce((sum, c) => sum + c.amount, 0);
 
@@ -2277,7 +2394,7 @@ function CheckPanel({ data, onChange }: ReceiptDetailsStepProps) {
 
   function deleteCheck(id: string) {
     const remaining = data.checks.filter((c) => c.id !== id);
-    const today = new Date().toISOString().split('T')[0];
+    const today = israelToday();
     const next = remaining.length > 0 ? remaining : [emptyCheckRow(String(Date.now()), today)];
     onChange({ ...data, checks: next });
   }
@@ -2404,7 +2521,7 @@ function CheckPanel({ data, onChange }: ReceiptDetailsStepProps) {
         type="button"
         className={styles.addCheckBtn}
         onClick={() => {
-          const today = new Date().toISOString().split('T')[0];
+          const today = israelToday();
           onChange({
             ...data,
             checks: [...data.checks, emptyCheckRow(String(Date.now()), today)],
@@ -2415,20 +2532,22 @@ function CheckPanel({ data, onChange }: ReceiptDetailsStepProps) {
       </button>
 
       {/* ניכוי במקור */}
-      <div className={styles.witholdingRow}>
-        <span className={styles.witholdingLabel}>ניכוי במקור</span>
-        <div className={styles.witholdingInputWrap}>
-          <input
-            type="number"
-            min={0}
-            className={styles.formInput}
-            value={data.withholding}
-            aria-label="ניכוי במקור בשקלים"
-            onChange={(e) => onChange({ ...data, withholding: Number(e.target.value) })}
-          />
-          <span className={styles.witholdingSymbol} aria-hidden="true">₪</span>
+      {!forInvoice && (
+        <div className={styles.witholdingRow}>
+          <span className={styles.witholdingLabel}>ניכוי במקור</span>
+          <div className={styles.witholdingInputWrap}>
+            <input
+              type="number"
+              min={0}
+              className={styles.formInput}
+              value={data.withholding}
+              aria-label="ניכוי במקור בשקלים"
+              onChange={(e) => onChange({ ...data, withholding: Number(e.target.value) })}
+            />
+            <span className={styles.witholdingSymbol} aria-hidden="true">₪</span>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Summary bar */}
       <div className={styles.checkSummaryBar}>
@@ -2439,9 +2558,11 @@ function CheckPanel({ data, onChange }: ReceiptDetailsStepProps) {
       </div>
 
       {/* Info note */}
-      <p className={styles.checkInfoNote}>
-        כל צ&apos;ק ייצור טיוט חשבונית מס — הטיוטה תהפוך אוטומטית לחשבונית מס בתאריך הפירעון
-      </p>
+      {!forInvoice && (
+        <p className={styles.checkInfoNote}>
+          כל צ&apos;ק ייצור טיוט חשבונית מס — הטיוטה תהפוך אוטומטית לחשבונית מס בתאריך הפירעון
+        </p>
+      )}
 
       <div className={styles.formRow}>
         <label htmlFor="check-notes" className={styles.sectionHeading}>
@@ -2476,6 +2597,20 @@ function CreditPanel({ data, onChange }: ReceiptDetailsStepProps) {
             className={styles.formInput}
             value={data.cardLastFour}
             onChange={(e) => onChange({ ...data, cardLastFour: e.target.value })}
+          />
+        </div>
+        <div className={styles.formRow}>
+          <label htmlFor="card-brand" className={styles.sectionHeading}>
+            סוג כרטיס <span className={styles.optionalLabel}>(אופציונלי)</span>
+          </label>
+          <input
+            id="card-brand"
+            type="text"
+            placeholder="ויזה / מאסטרקארד / אמריקן אקספרס"
+            maxLength={30}
+            className={styles.formInput}
+            value={data.cardBrand}
+            onChange={(e) => onChange({ ...data, cardBrand: e.target.value })}
           />
         </div>
         <div className={styles.formRow}>
@@ -2634,17 +2769,10 @@ function SummaryStep({
 
   const isInvoice = docType === 'חשבונית מס';
 
-  const subtotal = invoiceDetails.lineItems.reduce(
-    (s, i) => s + i.quantity * i.price,
-    0
-  );
-  const vatAmount = invoiceDetails.vatExempt
-    ? 0
-    : (subtotal - invoiceDetails.discountAmount) * 0.18;
-  const totalBeforeRounding = subtotal - invoiceDetails.discountAmount + vatAmount;
-  const finalTotal = invoiceDetails.roundTotal
-    ? Math.round(totalBeforeRounding)
-    : totalBeforeRounding;
+  const totals = computeInvoiceTotals(invoiceDetails);
+  const subtotal = (totals.subtotal - totals.discount) / 100;
+  const vatAmount = totals.vat / 100;
+  const finalTotal = totals.total / 100;
 
   return (
     <div className={styles.summaryCards}>

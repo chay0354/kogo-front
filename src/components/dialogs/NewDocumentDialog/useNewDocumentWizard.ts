@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { BRANCHES_CATEGORY } from './constants';
-import { emptyCheckRow, generateDocumentNumber, getWizardSteps } from './utils';
+import { emptyCheckRow, generateDocumentNumber, getWizardSteps, israelToday } from './utils';
 import type {
   BusinessCustomerFormData,
   CheckRow,
@@ -39,7 +39,7 @@ const INITIAL_LINE_ITEM: LineItem = {
 };
 
 function createInitialReceiptDetails(): ReceiptDetailsData {
-  const today = new Date().toISOString().split('T')[0];
+  const today = israelToday();
   const initialCheck: CheckRow = emptyCheckRow('1', today);
   return {
     paymentMethod: 'מזומן',
@@ -50,6 +50,7 @@ function createInitialReceiptDetails(): ReceiptDetailsData {
     withholding: 0,
     checkNotes: '',
     cardLastFour: '',
+    cardBrand: '',
     cardExpiry: '',
     cardAmount: 0,
     cardInstallments: 1,
@@ -64,8 +65,9 @@ function createInitialReceiptDetails(): ReceiptDetailsData {
 function createInitialCreditInvoiceDetails(): CreditInvoiceData {
   return {
     documentNumber: generateDocumentNumber(),
-    documentDate: new Date().toISOString().split('T')[0],
+    documentDate: israelToday(),
     linkedInvoiceId: '',
+    linkedDocumentDate: '',
     creditReason: '',
     creditAmountBeforeVat: 0,
     vatExempt: false,
@@ -77,7 +79,7 @@ function createInitialCreditInvoiceDetails(): CreditInvoiceData {
 function createInitialInvoiceDetails(): InvoiceDetailsData {
   return {
     documentNumber: generateDocumentNumber(),
-    documentDate: new Date().toISOString().split('T')[0],
+    documentDate: israelToday(),
     description: '',
     currency: 'ILS',
     pricesIncludeVat: false,
@@ -85,14 +87,15 @@ function createInitialInvoiceDetails(): InvoiceDetailsData {
     discountAmount: 0,
     discountPercent: 0,
     vatExempt: false,
-    roundTotal: false,
     closeInvoice: false,
     customerNotes: '',
     internalNotes: '',
     paymentTerms: 'שוטף + 30',
     dueDate: '',
     paymentMethods: [],
-    checkCrossed: false,
+    payments: createInitialReceiptDetails(),
+    withholdingAmount: 0,
+    allocationNumber: '',
     linkedInvoiceId: '',
     receiptNotes: '',
   };
