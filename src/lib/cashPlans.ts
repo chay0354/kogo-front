@@ -20,6 +20,14 @@ export function cashPlanDocumentLabel(plan: Pick<CashPlan, 'mode' | 'receipt_doc
   return isUpfrontCashPlan(plan) ? 'חשבונית מס/קבלה' : 'קבלה';
 }
 
+/**
+ * Whether the plan can be cancelled from the screen: an active plan, on a
+ * server that has the action (WS-3 — it sends unused_amount with every plan).
+ */
+export function canCancelCashPlan(plan: Pick<CashPlan, 'status' | 'unused_amount'>): boolean {
+  return plan.status === 'active' && plan.unused_amount !== undefined;
+}
+
 export function cashPlanStatusLabel(status: string): string {
   if (status === 'active') return 'פעילה';
   if (status === 'completed') return 'הושלמה';

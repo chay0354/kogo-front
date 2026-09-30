@@ -6,6 +6,7 @@
 import { describe, expect, it } from 'vitest';
 import type { CashPlan } from './documentsApi';
 import {
+  canCancelCashPlan,
   cashPlanCancelSummary,
   cashPlanDocumentLabel,
   cashPlanMonthsLine,
@@ -52,6 +53,18 @@ describe('which document a plan has', () => {
   it('an older plan, or a server that says nothing, has a receipt', () => {
     expect(cashPlanDocumentLabel(plan({ mode: null, receipt_document_type: 'receipt' }))).toBe('קבלה');
     expect(cashPlanDocumentLabel(plan({ mode: undefined, receipt_document_type: undefined }))).toBe('קבלה');
+  });
+});
+
+describe('canCancelCashPlan', () => {
+  it('an active plan on a server that has the action', () => {
+    expect(canCancelCashPlan(plan())).toBe(true);
+    expect(canCancelCashPlan(plan({ status: 'cancelled' }))).toBe(false);
+    expect(canCancelCashPlan(plan({ status: 'completed' }))).toBe(false);
+  });
+
+  it('not on a server from before WS-3 (no unused_amount): it has no cancel', () => {
+    expect(canCancelCashPlan(plan({ unused_amount: undefined }))).toBe(false);
   });
 });
 

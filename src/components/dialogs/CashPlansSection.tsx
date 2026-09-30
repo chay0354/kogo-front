@@ -23,6 +23,7 @@ import { Button } from '@/components/ui/button';
 import { readableError } from '@/lib/apiError';
 import { cancelCashPlan, fetchCashPlans, type CashPlan } from '@/lib/documentsApi';
 import {
+  canCancelCashPlan,
   cashPlanCancelSummary,
   cashPlanDocumentLabel,
   cashPlanMonthsLine,
@@ -271,7 +272,7 @@ export default function CashPlansSection({
                       </div>
                     )}
                   </div>
-                  {plan.status === 'active' && (
+                  {canCancelCashPlan(plan) && (
                     <Button
                       type="button"
                       size="sm"

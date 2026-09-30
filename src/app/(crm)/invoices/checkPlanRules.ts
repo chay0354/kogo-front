@@ -53,9 +53,13 @@ export function taxInvoiceLine(item: Pick<CheckItemRow, 'tax_invoice_date' | 'in
   return '';
 }
 
-/** A check that can come back: not marked already, and not cancelled (a cancelled check was never deposited). */
+/**
+ * A check that can come back: not marked already, and not cancelled (a
+ * cancelled check was never deposited). A server from before WS-3 sends no
+ * bounced_at at all (it has no such action) — the button is not offered.
+ */
 export function canBounceCheck(item: Pick<CheckItemRow, 'bounced_at' | 'status'>): boolean {
-  return !item.bounced_at && (item.status === 'pending' || item.status === 'invoiced');
+  return item.bounced_at === null && (item.status === 'pending' || item.status === 'invoiced');
 }
 
 /**

@@ -322,10 +322,14 @@ describe('a check on screen (WS-3)', () => {
   });
 
   it('only a check not yet marked, and never a cancelled one, can come back', () => {
-    expect(canBounceCheck(item())).toBe(true);
-    expect(canBounceCheck(invoiced)).toBe(true);
-    expect(canBounceCheck(item({ status: 'cancelled' }))).toBe(false);
+    expect(canBounceCheck(item({ bounced_at: null }))).toBe(true);
+    expect(canBounceCheck({ ...invoiced, bounced_at: null })).toBe(true);
+    expect(canBounceCheck(item({ status: 'cancelled', bounced_at: null }))).toBe(false);
     expect(canBounceCheck({ ...invoiced, bounced_at: '2026-10-05T09:00:00Z' })).toBe(false);
+  });
+
+  it('an older server (no bounced_at at all) has no such action: not offered', () => {
+    expect(canBounceCheck(item())).toBe(false);
   });
 
   it('a check with an invoice is credited; one still waiting is cancelled, nothing issued', () => {
