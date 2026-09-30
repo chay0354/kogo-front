@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import {
   AlertTriangle,
   ArrowLeft,
+  ArrowUp,
   Loader2,
   MessageCircle,
   Plus,
@@ -19,6 +20,7 @@ import type { ChildWithDetails } from '@/types/customer';
 import {
   MAX_EXTRA_PHONES,
   buildPayload,
+  makeExtraPrimary,
   describeChanges,
   formFromChild,
   isMobile,
@@ -106,6 +108,7 @@ export default function CustomerDetailsEditor({ child, onCancel, onSaved, onDirt
   const [duplicates, setDuplicates] = useState<DuplicateWarning[]>([]);
   const [saving, setSaving] = useState(false);
   const [failure, setFailure] = useState('');
+  const [swapNote, setSwapNote] = useState('');
   const familyEditable = child.family_editable !== false;
 
   const changes = useMemo(() => describeChanges(form, initial), [form, initial]);
@@ -154,6 +157,19 @@ export default function CustomerDetailsEditor({ child, onCancel, onSaved, onDirt
       extra_phones: [...prev.extra_phones, { key: `new-${draftCounter}`, name: '', phone: '' }],
     }));
     backToEditing();
+  };
+
+  const promoteExtra = (index: number) => {
+    setForm((prev) => makeExtraPrimary(prev, index));
+    setErrors({});
+    setSwapNote('הטלפון הוחלף עם ההורה. האימייל נשאר של ההורה — עדכנו אותו אם צריך.');
+    backToEditing();
+  };
+
+  // Leaving the edit with changes asks first, as closing the card does.
+  const cancel = () => {
+    if (dirty && !window.confirm('לבטל את השינויים שלא נשמרו?')) return;
+    onCancel();
   };
 
   const removeExtra = (index: number) => {
@@ -386,6 +402,7 @@ export default function CustomerDetailsEditor({ child, onCancel, onSaved, onDirt
                 {form.extra_phones.length === 0 && (
                   <p className="text-xs text-muted-foreground">אין טלפונים נוספים</p>
                 )}
+                {swapNote && <p className="text-xs text-teal-700" role="status">{swapNote}</p>}
                 {form.extra_phones.map((row, index) => {
                   const phoneError = errors[`extra_phones.${index}.phone`];
                   const before = initial.extra_phones.find((item) => item.id && item.id === row.id);
@@ -396,7 +413,7 @@ export default function CustomerDetailsEditor({ child, onCancel, onSaved, onDirt
                         type="text"
                         value={row.name}
                         maxLength={200}
-                        placeholder="שם (לא חובה)"
+                        placeholder="שם (אחרת — שם ההורה)"
                         aria-label={`שם לטלפון נוסף ${index + 1}`}
                         disabled={saving}
                         onChange={(e) => setExtra(index, { name: e.target.value })}
@@ -416,8 +433,25 @@ export default function CustomerDetailsEditor({ child, onCancel, onSaved, onDirt
                           onChange={(e) => setExtra(index, { phone: e.target.value })}
                           className={inputClass(phoneError, rowChanged)}
                         />
-                        {phoneError && <span className="block text-xs text-red-600" role="alert">{phoneError}</span>}
+                        {phoneError ? (
+                          <span className="block text-xs text-red-600" role="alert">{phoneError}</span>
+                        ) : normalisePhone(row.phone) && !isMobile(normalisePhone(row.phone)) ? (
+                          // An old record from the add-customer form; kept, but WhatsApp does not reach it.
+                          <span className="block text-xs text-amber-700">קווי — לא יקבל הודעות</span>
+                        ) : null}
                       </div>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        className="h-10 px-2"
+                        disabled={saving || !normalisePhone(row.phone)}
+                        onClick={() => promoteExtra(index)}
+                        title="הפוך להורה הראשי — קישורי תשלום והודעות יישלחו למספר הזה"
+                        aria-label={`הפיכת טלפון נוסף ${index + 1} להורה הראשי`}
+                      >
+                        <ArrowUp className="h-4 w-4" />
+                      </Button>
                       <Button
                         type="button"
                         size="sm"
@@ -485,7 +519,7 @@ export default function CustomerDetailsEditor({ child, onCancel, onSaved, onDirt
         <div className="flex flex-wrap items-center justify-end gap-2">
           {stage === 'editing' ? (
             <>
-              <Button type="button" variant="outline" onClick={onCancel} disabled={saving}>
+              <Button type="button" variant="outline" onClick={cancel} disabled={saving}>
                 ביטול
               </Button>
               <Button type="button" onClick={review} disabled={saving}>

@@ -43,6 +43,7 @@ import {
 } from '@/components/dialogs/computerizedDocsConsent';
 import EditMonthAmountDialog from '@/components/dialogs/EditMonthAmountDialog';
 import CustomerDetailsEditor from '@/components/dialogs/CustomerDetailsEditor';
+import { normalisePhone } from '@/components/dialogs/customerDetailsForm';
 import SendCardLinkDialog from '@/components/dialogs/SendCardLinkDialog';
 import RegisterCashDialog from '@/components/dialogs/RegisterCashDialog';
 import ReplaceCardDialog from '@/components/dialogs/ReplaceCardDialog';
@@ -1031,6 +1032,7 @@ export default function ChildProfileDialog({
                     // Only the list's full row carries the parent and the phones
                     // the form starts from; a slim record would start it empty.
                     disabled={child.extra_phones === undefined}
+                    title={child.extra_phones === undefined ? 'הכרטיס נטען חלקית — סגרו ופתחו אותו מהרשימה' : undefined}
                     onClick={() => { setSavedNote(''); setEditing(true); }}
                   >
                     <Pencil className="h-4 w-4" />
@@ -1215,6 +1217,9 @@ export default function ChildProfileDialog({
                                       </a>
                                     ) : (
                                       <span className="font-medium">{extra.phone || '-'}</span>
+                                    )}
+                                    {!/^05\d{8}$/.test(normalisePhone(extra.phone)) && (
+                                      <span className="text-xs text-amber-700"> · קווי — לא יקבל הודעות</span>
                                     )}
                                   </span>
                                 );

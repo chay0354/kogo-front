@@ -57,7 +57,6 @@ const REASON_LABELS: Record<string, string> = {
   duplicate_phone: 'כפול (אותו טלפון)',
   no_active_lesson: 'ללא שיעור פעיל',
   not_mobile: 'מספר קווי',
-  other_family_phone: 'הטלפון של משפחה אחרת',
 };
 
 /** The family's extra phones under a row, each with what happened to it. */

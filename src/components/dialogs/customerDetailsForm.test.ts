@@ -8,6 +8,7 @@ import {
   buildPayload,
   describeChanges,
   formFromChild,
+  makeExtraPrimary,
   normalisePhone,
   readSaveResponse,
   validateDetails,
@@ -216,5 +217,34 @@ describe('review round', () => {
     }));
     const form = edit(legacy, (d) => { d.extra_phones.push({ key: 'n', name: '', phone: '0521112233' }); });
     expect(validateDetails(form, legacy)).toEqual({});
+  });
+});
+
+describe('requirements check round', () => {
+  const initial = formFromChild(card());
+
+  it('makes an extra phone the parent, and the parent an extra', () => {
+    const swapped = makeExtraPrimary(initial, 0);
+    expect(swapped.parent).toMatchObject({ first_name: 'סבתא', last_name: 'רחל', phone: '0525556666', email: 'yael@example.com' });
+    expect(swapped.extra_phones[0]).toMatchObject({ id: 'parent-2', name: 'יעל כהן', phone: '050-777-8899' });
+    expect(validateDetails(swapped, initial)).toEqual({});
+    expect(buildPayload(swapped, initial)).toEqual({
+      parent: { first_name: 'סבתא', last_name: 'רחל', phone: '0525556666' },
+      extra_phones: [{ id: 'parent-2', name: 'יעל כהן', phone: '050-777-8899' }],
+      extra_phone_ids_seen: ['parent-2'],
+    });
+  });
+
+  it('an old record with a blank surname does not block another edit', () => {
+    const legacy = formFromChild(card({ last_name: '', parent_last_name: '', family_name: '' }));
+    const form = edit(legacy, (d) => { d.child.notes = 'הערה'; });
+    expect(validateDetails(form, legacy)).toEqual({});
+    const blanked = edit(initial, (d) => { d.child.last_name = ''; });
+    expect(validateDetails(blanked, initial)).toHaveProperty(['child.last_name']);
+  });
+
+  it('says that a nameless extra phone takes the parent name', () => {
+    const form = edit(initial, (d) => { d.extra_phones.push({ key: 'n', name: '', phone: '0521112233' }); });
+    expect(describeChanges(form, initial).at(-1)?.new).toContain('0521112233 · בשם ההורה');
   });
 });

@@ -153,6 +153,30 @@ function extrasChanged(form: CustomerDetailsForm, initial: CustomerDetailsForm):
   });
 }
 
+/**
+ * Make an extra phone the parent: the two swap phones and names, so payment
+ * and card links go to the new number and the old one stays as an extra.
+ * The email stays with the parent, for the office to change if it should.
+ */
+export function makeExtraPrimary(form: CustomerDetailsForm, index: number): CustomerDetailsForm {
+  const extra = form.extra_phones[index];
+  if (!extra) return form;
+  const [first, ...rest] = extra.name.trim().split(/\s+/).filter(Boolean);
+  const parent = extra.name.trim()
+    ? { ...form.parent, first_name: first, last_name: rest.join(' '), phone: extra.phone }
+    : { ...form.parent, phone: extra.phone };
+  const demoted = {
+    ...extra,
+    name: `${form.parent.first_name} ${form.parent.last_name}`.trim(),
+    phone: form.parent.phone,
+  };
+  return {
+    ...form,
+    parent,
+    extra_phones: form.extra_phones.map((row, i) => (i === index ? demoted : row)),
+  };
+}
+
 export interface DetailChange {
   path: string;
   label: string;
@@ -179,8 +203,9 @@ export function describeChanges(form: CustomerDetailsForm, initial: CustomerDeta
     });
   });
   if (extrasChanged(form, initial)) {
+    // A phone saved without a name takes the parent's, as the server does.
     const list = (rows: ExtraPhoneDraft[]) =>
-      rows.map((row) => [row.phone.trim(), row.name.trim()].filter(Boolean).join(' · ')).join(', ');
+      rows.map((row) => `${row.phone.trim()} · ${row.name.trim() || 'בשם ההורה'}`).join(', ');
     changes.push({
       path: 'extra_phones',
       label: 'טלפונים נוספים (מקבלים הודעות קבוצה)',
@@ -239,8 +264,12 @@ export function validateDetails(form: CustomerDetailsForm, initial: CustomerDeta
   const changed = (path: string, now: string, was: string) => !sameValue(path, now, was);
   const { child, parent, family } = form;
 
+  // Required fields are checked when they change, as the server does, so an
+  // old record with a blank surname does not block an unrelated edit.
   (['first_name', 'last_name'] as const).forEach((key) => {
-    if (!child[key].trim()) errors[`child.${key}`] = 'שדה חובה';
+    if (changed(`child.${key}`, child[key], initial.child[key]) && !child[key].trim()) {
+      errors[`child.${key}`] = 'שדה חובה';
+    }
   });
   if (changed('child.birth_date', child.birth_date, initial.child.birth_date)) {
     const today = new Date().toISOString().slice(0, 10);
@@ -260,11 +289,10 @@ export function validateDetails(form: CustomerDetailsForm, initial: CustomerDeta
     if (digits && !isPhone(digits)) errors['child.phone_number'] = 'מספר טלפון לא תקין';
   }
 
-  const parentTouched = (['first_name', 'last_name'] as const).some((key) =>
-    changed(`parent.${key}`, parent[key], initial.parent[key]),
-  );
   (['first_name', 'last_name'] as const).forEach((key) => {
-    if (parentTouched && !parent[key].trim()) errors[`parent.${key}`] = 'שדה חובה';
+    if (changed(`parent.${key}`, parent[key], initial.parent[key]) && !parent[key].trim()) {
+      errors[`parent.${key}`] = 'שדה חובה';
+    }
   });
   if (changed('parent.phone', parent.phone, initial.parent.phone)) {
     const digits = normalisePhone(parent.phone);
@@ -286,7 +314,9 @@ export function validateDetails(form: CustomerDetailsForm, initial: CustomerDeta
     }
   }
 
-  if (!family.name.trim()) errors['family.name'] = 'שדה חובה';
+  if (changed('family.name', family.name, initial.family.name) && !family.name.trim()) {
+    errors['family.name'] = 'שדה חובה';
+  }
 
   if (extrasChanged(form, initial)) {
     if (form.extra_phones.length > MAX_EXTRA_PHONES) {

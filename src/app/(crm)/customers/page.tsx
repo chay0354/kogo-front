@@ -1567,8 +1567,9 @@ function AddNewFamilyForm({
 
     const secondary = formData.parent_phone_secondary.replace(/\s/g, '');
     if (secondary) {
-      if (!/^0\d{1,2}-?\d{7}$|^05\d{8}$/.test(secondary)) {
-        newErrors.parent_phone_secondary = 'מספר טלפון לא תקין';
+      // The extra phone gets the group WhatsApp messages, which a landline cannot.
+      if (!/^05\d{8}$/.test(secondary.replace(/-/g, ''))) {
+        newErrors.parent_phone_secondary = 'טלפון נוסף חייב להיות נייד (05X-XXXXXXX)';
       } else if (secondary === formData.parent_phone.replace(/\s/g, '')) {
         newErrors.parent_phone_secondary = 'הטלפון הנוסף חייב להיות שונה מהטלפון הראשי';
       }
@@ -1711,7 +1712,7 @@ function AddNewFamilyForm({
             />
             {errors.parent_phone && <p className="text-red-500 text-xs mt-1">{errors.parent_phone}</p>}
             <div className="mt-3 space-y-1">
-              <label className="block text-sm font-medium mb-1">טלפון נוסף</label>
+              <label className="block text-sm font-medium mb-1">טלפון נוסף (מקבל גם הודעות קבוצה)</label>
               <input
                 type="tel"
                 value={formData.parent_phone_secondary}
@@ -1719,7 +1720,7 @@ function AddNewFamilyForm({
                   setFormData({ ...formData, parent_phone_secondary: e.target.value })
                 }
                 className={`input w-full ${errors.parent_phone_secondary ? 'border-red-500' : ''}`}
-                placeholder="05X-XXXXXXX (אופציונלי)"
+                placeholder="05X-XXXXXXX (נייד, אופציונלי)"
               />
               {errors.parent_phone_secondary && (
                 <p className="text-red-500 text-xs">{errors.parent_phone_secondary}</p>
