@@ -319,9 +319,11 @@ export function CancelCheckPlanDialog({
 
         <div className={styles.warnBox} role="note">
           <span>
-            {preview.pending > 0
-              ? `${preview.pending === 1 ? 'צ׳ק אחד' : `${preview.pending} צ׳קים`} שעוד לא הופקה להם חשבונית יבוטלו — לא תופק להם חשבונית.`
-              : 'אין צ׳קים שממתינים לחשבונית.'}
+            {preview.pending === 0
+              ? 'אין צ׳קים שממתינים לחשבונית.'
+              : preview.pending === 1
+                ? 'הצ׳ק שעוד לא הופקה לו חשבונית יבוטל — לא תופק לו חשבונית.'
+                : `${preview.pending} הצ׳קים שעוד לא הופקה להם חשבונית יבוטלו — לא תופק להם חשבונית.`}
           </span>
           <strong>
             חשבונית מס שכבר הופקה ולא שולמה תזוכה: תופק חשבונית מס זיכוי, והיא תיחתם ותישלח במייל ללקוח.

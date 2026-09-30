@@ -47,8 +47,12 @@ export function checkItemState(item: CheckItemRow): CheckItemState {
 }
 
 /** The line under a check's invoice number: the day it was issued (on or after the check's). */
-export function taxInvoiceLine(item: Pick<CheckItemRow, 'tax_invoice_date' | 'invoiced_at'>): string {
-  if (item.tax_invoice_date) return `הופקה ${formatDate(item.tax_invoice_date)} · שולמה בצ׳ק`;
+export function taxInvoiceLine(
+  item: Pick<CheckItemRow, 'tax_invoice_date' | 'invoiced_at' | 'bounced_at' | 'credit_note'>,
+): string {
+  // A check that came back paid nothing; its invoice was credited (the status says so).
+  const paidByCheck = !item.bounced_at && !item.credit_note;
+  if (item.tax_invoice_date) return `הופקה ${formatDate(item.tax_invoice_date)}${paidByCheck ? ' · שולמה בצ׳ק' : ''}`;
   if (item.invoiced_at) return `הופקה ${formatDate(item.invoiced_at)}`;
   return '';
 }

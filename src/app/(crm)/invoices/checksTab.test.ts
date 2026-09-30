@@ -300,6 +300,8 @@ describe('a check on screen (WS-3)', () => {
     expect(taxInvoiceLine(invoiced)).toBe('הופקה 2.10.2026 · שולמה בצ׳ק');
     // An older server: no tax_invoice_date, the moment it was invoiced.
     expect(taxInvoiceLine({ tax_invoice_date: undefined, invoiced_at: '2026-10-02T07:00:00Z' })).toBe('הופקה 2.10.2026');
+    // A check that came back paid nothing: its invoice was credited, not paid.
+    expect(taxInvoiceLine({ ...invoiced, bounced_at: '2026-10-05T09:00:00Z', credit_note: 'cr-1' })).toBe('הופקה 2.10.2026');
   });
 
   it('a bounced check says when, its credit note and its replacement', () => {
