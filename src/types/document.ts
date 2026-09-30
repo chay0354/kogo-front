@@ -66,6 +66,15 @@ export interface FormalDocument {
   updated_at: string;
   line_items: DocumentLineItemOut[];
   payments: DocumentPaymentOut[];
+  /**
+   * Receipts against invoices (WS-3, 30.9.2026) — absent on an older server.
+   * Read them through readDocumentSettlements (lib/settlements.ts).
+   */
+  balance?: unknown;
+  settled_by?: unknown;
+  settles?: unknown;
+  /** Set when a receipt's checks became a check plan (receipt_details.invoice_per_check). */
+  check_plan_id?: string;
 }
 
 export interface FormalDocumentSummary {
@@ -159,6 +168,11 @@ export interface ReceiptDetailsInput {
   bank_reference?: string;
   bank_amount?: number;
   bank_notes?: string;
+  /**
+   * "חשבונית מס לכל צ'ק": a check receipt of a private customer becomes a check
+   * plan — a tax invoice on (or after) each check's date, paid by this receipt.
+   */
+  invoice_per_check?: boolean;
 }
 
 export interface CreditInvoiceInput {
@@ -185,4 +199,10 @@ export interface CreateDocumentPayload {
   invoice_details?: InvoiceDetailsInput;
   receipt_details?: ReceiptDetailsInput;
   credit_invoice_details?: CreditInvoiceInput;
+  /**
+   * The open invoices this document pays, and how much of each: tax invoices
+   * for a receipt, transaction invoices for an invoice-receipt (settlement.py).
+   * An older server ignores it.
+   */
+  settlements?: Array<{ invoice_id: string; amount: string }>;
 }

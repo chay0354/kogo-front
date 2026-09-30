@@ -248,6 +248,23 @@
   font-weight: 800;
 }
 
+/* A kogo document's number opens its detail: balance and what closed it. */
+.docLink {
+  padding: 0;
+  border: none;
+  background: none;
+  color: inherit;
+  text-align: right;
+  cursor: pointer;
+  text-decoration: underline dotted;
+  text-underline-offset: 3px;
+}
+
+.docLink:hover,
+.docLink:focus-visible {
+  text-decoration-style: solid;
+}
+
 .strong {
   display: block;
   font-weight: 800;

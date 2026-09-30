@@ -21,13 +21,26 @@ import {
   X,
 } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
 import api, {
   createBusinessCustomer,
   fetchBusinesses,
   searchBusinessCustomers,
   updateBusinessCustomer,
 } from '@/lib/api';
-import { createDocument, fetchDocuments } from '@/lib/documentsApi';
+import { createDocument, fetchDocuments, fetchOpenInvoices } from '@/lib/documentsApi';
+import {
+  AUTO_SETTLEMENT_PICKS,
+  formatAgorotShekels,
+  resolveSettlements,
+  settlementsPayload,
+  type OpenInvoice,
+  type PayerType,
+  type ResolvedSettlement,
+  type SettlementPicks,
+  type SettlementPlan,
+} from '@/lib/settlements';
+import SettlementPicker, { type OpenInvoicesStatus } from './SettlementPicker';
 import type { CreateDocumentPayload } from '@/types/document';
 import { Select } from '@/components/ui/select';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
@@ -62,8 +75,11 @@ import {
   getStepStatus,
   invoicePaymentBalance,
   invoicePaymentRows,
+  invoicePerCheckApplies,
   israelToday,
+  receiptCapacityAgorot,
   receiptDetailsPayload,
+  undatedConfirmedChecks,
 } from './utils';
 import { useNewDocumentWizard } from './useNewDocumentWizard';
 import type {
@@ -77,6 +93,17 @@ import type {
   NewDocumentDialogProps,
   ReceiptDetailsData,
 } from './types';
+
+function httpStatus(error: unknown): number | undefined {
+  return (error as { response?: { status?: number } } | null)?.response?.status;
+}
+
+/** What the steps need to show the open-invoices picker; null where it does not apply. */
+interface SettlementPickerData {
+  status: OpenInvoicesStatus;
+  invoices: readonly OpenInvoice[];
+  onRetry: () => void;
+}
 
 function getCustomerLabel(customer: ChildWithDetails): string {
   return customer.branch_name ? `${customer.full_name} — ${customer.branch_name}` : customer.full_name;
@@ -179,7 +206,80 @@ export default function NewDocumentDialog({ open, onClose }: NewDocumentDialogPr
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [open]);
 
+  // ── Receipts against invoices (WS-3): the open invoices this payment closes.
+  // A receipt closes tax invoices, an invoice-receipt transaction invoices.
+  const payerType: PayerType | null =
+    docType === 'קבלה' ? 'receipt' : docType === 'חשבונית מס/קבלה' ? 'combined' : null;
+  const payerChildId = clientType === 'existing' ? selectedCustomerId : null;
+  const payerBusinessId = clientType === 'business' ? businessCustomerId : null;
+  const openInvoicesQuery = useQuery({
+    queryKey: ['open-invoices', payerType, payerChildId, payerBusinessId],
+    queryFn: () => fetchOpenInvoices({
+      childId: payerChildId,
+      businessCustomerId: payerBusinessId,
+      payerType: payerType ?? 'receipt',
+    }),
+    enabled: open && payerType !== null && Boolean(payerChildId || payerBusinessId),
+    staleTime: 30_000,
+    // A server from before settlements answers 404: nothing to retry, the form falls back.
+    retry: (count, error) => httpStatus(error) !== 404 && count < 1,
+  });
+  // The older form (a free-text link to one invoice) on a server without the picker.
+  const settlementsUnsupported = httpStatus(openInvoicesQuery.error) === 404;
+  const openInvoices: OpenInvoice[] = openInvoicesQuery.data?.results ?? [];
+  const openInvoicesStatus: OpenInvoicesStatus = openInvoicesQuery.data
+    ? 'ready'
+    : openInvoicesQuery.isError
+      ? 'error'
+      : openInvoicesQuery.isFetching
+        ? 'loading'
+        : 'idle';
+
+  // A new customer or document type starts from the default again: oldest first.
+  useEffect(() => {
+    setReceiptDetails((prev) => ({
+      ...prev,
+      settlementPicks: AUTO_SETTLEMENT_PICKS,
+      invoicePerCheck: clientType === 'existing' ? prev.invoicePerCheck : false,
+    }));
+    setInvoiceDetails((prev) => ({ ...prev, settlementPicks: AUTO_SETTLEMENT_PICKS }));
+  }, [clientType, selectedCustomerId, businessCustomerId, docType, setReceiptDetails, setInvoiceDetails]);
+
   if (!open) return null;
+
+  // A server without the picker has no check plan from a receipt either (it would drop the flag silently).
+  const perCheck = docType === 'קבלה' && !settlementsUnsupported && invoicePerCheckApplies(clientType, receiptDetails);
+  const settlementPlan: SettlementPlan | null =
+    payerType === null || settlementsUnsupported || openInvoicesStatus !== 'ready'
+      ? null
+      : payerType === 'receipt'
+        ? resolveSettlements(
+            openInvoices,
+            // A receipt that opens a check plan closes no invoice (the server refuses it).
+            perCheck ? { mode: 'manual', amounts: {} } : receiptDetails.settlementPicks,
+            receiptCapacityAgorot(receiptDetails),
+            'receipt',
+          )
+        : resolveSettlements(
+            openInvoices,
+            invoiceDetails.settlementPicks,
+            computeInvoiceTotals(invoiceDetails).total,
+            'combined',
+          );
+  // Issuing waits for the list (the default closes invoices from it) unless it
+  // failed to load or the server has none; then the document closes nothing.
+  const settlementsValid =
+    payerType === null
+    || settlementsUnsupported
+    || openInvoicesStatus === 'error'
+    || openInvoicesStatus === 'idle'
+    || (settlementPlan !== null && settlementPlan.valid);
+  const settlementRows: ResolvedSettlement[] = settlementPlan?.valid ? settlementPlan.rows.filter((row) => row.amount > 0) : [];
+  const settlementPickerProps = {
+    status: openInvoicesStatus,
+    invoices: openInvoices,
+    onRetry: () => void openInvoicesQuery.refetch(),
+  };
 
   const canAdvance = canAdvanceFromStep(
     currentStep,
@@ -191,7 +291,8 @@ export default function NewDocumentDialog({ open, onClose }: NewDocumentDialogPr
     invoiceDetails,
     creditInvoiceDetails,
     receiptDetails,
-    selectedBranchId
+    selectedBranchId,
+    settlementsValid,
   );
   const isFirstStep = steps[0]?.id === currentStep;
   const isLastStep = steps[steps.length - 1]?.id === currentStep;
@@ -243,8 +344,12 @@ export default function NewDocumentDialog({ open, onClose }: NewDocumentDialogPr
       setIsSubmitting(true);
       try {
         const payload = buildDocumentPayload();
-        await createDocument(payload);
+        const created = await createDocument(payload);
         queryClient.invalidateQueries({ queryKey: ['formal-documents'] });
+        queryClient.invalidateQueries({ queryKey: ['open-invoices'] });
+        if (created?.check_plan_id) {
+          toast.success("נפתחה תוכנית צ'קים: חשבונית מס תופק ביום כל צ'ק ותסומן כשולמה בקבלה הזו");
+        }
         setShowSuccess(true);
         setTimeout(() => {
           setShowSuccess(false);
@@ -254,6 +359,9 @@ export default function NewDocumentDialog({ open, onClose }: NewDocumentDialogPr
         // The server's reason (a credit note with no original, say), not axios's
         // "Request failed with status code 400".
         setSubmitError(serverErrorMessage(err, 'שגיאה ביצירת המסמך'));
+        // A refused settlement usually means a balance changed meanwhile: the
+        // picker reads the invoices again, so going back shows what is open now.
+        if (payerType !== null) queryClient.invalidateQueries({ queryKey: ['open-invoices'] });
       } finally {
         setIsSubmitting(false);
       }
@@ -283,8 +391,20 @@ export default function NewDocumentDialog({ open, onClose }: NewDocumentDialogPr
       branch_id: selectedBranchId,
     };
 
+    // The open invoices the document pays (WS-3). An older server ignores the key.
+    const settlements = settlementsPayload({ rows: settlementRows } as SettlementPlan);
+    const withSettlements = settlements.length > 0 ? { settlements } : {};
+
     if (mappedType === 'receipt') {
-      return { ...base, receipt_details: receiptDetailsPayload(receiptDetails) };
+      return {
+        ...base,
+        receipt_details: receiptDetailsPayload(receiptDetails, {
+          invoicePerCheck: perCheck,
+          // The free-text link is the older form's, on a server without the picker.
+          linkedInvoiceId: settlementsUnsupported ? receiptDetails.linkedInvoiceId : '',
+        }),
+        ...(perCheck ? {} : withSettlements),
+      };
     }
     if (mappedType === 'credit_invoice') {
       return {
@@ -337,6 +457,7 @@ export default function NewDocumentDialog({ open, onClose }: NewDocumentDialogPr
             }
           : {}),
       },
+      ...(mappedType === 'combined' && !asDraft ? withSettlements : {}),
     };
   }
 
@@ -502,6 +623,7 @@ export default function NewDocumentDialog({ open, onClose }: NewDocumentDialogPr
                 onChange={setInvoiceDetails}
                 docType={docType}
                 clientType={clientType}
+                settlement={docType === 'חשבונית מס/קבלה' && !settlementsUnsupported ? settlementPickerProps : null}
               />
             )}
           {currentStep === 'documentDetails' && docType === 'קבלה' && (
@@ -510,6 +632,8 @@ export default function NewDocumentDialog({ open, onClose }: NewDocumentDialogPr
               onChange={setReceiptDetails}
               childId={clientType === 'existing' ? selectedCustomerId : null}
               businessCustomerId={clientType === 'business' ? businessCustomerId : null}
+              clientType={clientType}
+              settlement={settlementsUnsupported ? null : settlementPickerProps}
             />
           )}
           {currentStep === 'documentDetails' && docType === 'חשבונית עסקה' && (
@@ -532,6 +656,8 @@ export default function NewDocumentDialog({ open, onClose }: NewDocumentDialogPr
               businessFormData={businessFormData}
               businessCustomerId={businessCustomerId}
               invoiceDetails={invoiceDetails}
+              settlementRows={settlementsUnsupported ? null : settlementRows}
+              perCheck={perCheck}
             />
           )}
         </div>
@@ -1805,9 +1931,11 @@ interface InvoiceDetailsStepProps {
   onChange: (data: InvoiceDetailsData) => void;
   docType: string;
   clientType?: ClientType | null;
+  /** An invoice-receipt's picker of open transaction invoices (WS-3); null on an older server. */
+  settlement?: SettlementPickerData | null;
 }
 
-function InvoiceDetailsStep({ data, onChange, docType, clientType = null }: InvoiceDetailsStepProps) {
+function InvoiceDetailsStep({ data, onChange, docType, clientType = null, settlement = null }: InvoiceDetailsStepProps) {
   const isReceipt = docType === 'חשבונית מס/קבלה';
   const balance = invoicePaymentBalance(data);
   const setPayments = (payments: ReceiptDetailsData) => onChange({ ...data, payments });
@@ -1830,6 +1958,7 @@ function InvoiceDetailsStep({ data, onChange, docType, clientType = null }: Invo
   const subtotal = totals.subtotal / 100;
   const vatAmount = totals.vat / 100;
   const finalTotal = totals.total / 100;
+  const finalTotalAgorot = totals.total;
 
   return (
     <div>
@@ -2216,21 +2345,17 @@ function InvoiceDetailsStep({ data, onChange, docType, clientType = null }: Invo
         </div>
       )}
 
-      {/* Link to existing invoice */}
-      {isReceipt && (
-        <div className={styles.detailsSection}>
-          <label htmlFor="inv-linked" className={styles.sectionHeading}>
-            שיוך לחשבונית קיימת <span className={styles.optionalLabel}>(אופציונלי)</span>
-          </label>
-          <Select
-            id="inv-linked"
-            className={styles.formSelect}
-            value={data.linkedInvoiceId}
-            onChange={(e) => onChange({ ...data, linkedInvoiceId: e.target.value })}
-          >
-            <option value="">ללא שיוך</option>
-          </Select>
-        </div>
+      {/* The open transaction invoices this invoice-receipt closes (WS-3). */}
+      {isReceipt && settlement && (
+        <SettlementPicker
+          payerType="combined"
+          status={settlement.status}
+          invoices={settlement.invoices}
+          picks={data.settlementPicks}
+          capacity={finalTotalAgorot}
+          onChange={(settlementPicks: SettlementPicks) => onChange({ ...data, settlementPicks })}
+          onRetry={settlement.onRetry}
+        />
       )}
 
       {/* Receipt notes */}
@@ -2257,9 +2382,23 @@ interface ReceiptDetailsStepProps {
   onChange: (data: ReceiptDetailsData) => void;
   childId?: string | null;
   businessCustomerId?: string | null;
+  clientType?: ClientType | null;
+  /**
+   * The picker of open tax invoices (WS-3). Null on a server from before
+   * settlements: the older free-text link to one invoice is shown instead.
+   */
+  settlement?: SettlementPickerData | null;
 }
 
-function ReceiptDetailsStep({ data, onChange, childId, businessCustomerId }: ReceiptDetailsStepProps) {
+function ReceiptDetailsStep({
+  data,
+  onChange,
+  childId,
+  businessCustomerId,
+  clientType = null,
+  settlement = null,
+}: ReceiptDetailsStepProps) {
+  const legacyLink = settlement === null;
   const { data: openInvoices = [] } = useQuery({
     queryKey: ['formal-documents', 'open', childId, businessCustomerId],
     queryFn: () => fetchDocuments({
@@ -2268,7 +2407,9 @@ function ReceiptDetailsStep({ data, onChange, childId, businessCustomerId }: Rec
       ...(businessCustomerId ? { business_customer_id: businessCustomerId } : {}),
     }),
     staleTime: 60_000,
+    enabled: legacyLink,
   });
+  const perCheck = !legacyLink && invoicePerCheckApplies(clientType, data);
 
   return (
     <div>
@@ -2297,39 +2438,57 @@ function ReceiptDetailsStep({ data, onChange, childId, businessCustomerId }: Rec
         </div>
       </div>
 
-      {/* Shared: שיוך לחשבונית קיימת */}
-      <div className={styles.detailsSection}>
-        <label htmlFor="receipt-linked" className={styles.sectionHeading}>
-          שיוך לחשבונית קיימת{' '}
-          <span className={styles.optionalLabel}>(אופציונלי)</span>
-        </label>
-        <Select
-          id="receipt-linked"
-          className={styles.formSelect}
-          value={data.linkedInvoiceId}
-          onChange={(e) => onChange({ ...data, linkedInvoiceId: e.target.value })}
-        >
-          <option value="">ללא שיוך</option>
-          {openInvoices.map((inv) => (
-            <option key={inv.id} value={inv.document_number}>
-              {inv.document_number} — ₪{inv.total_amount} ({inv.document_date})
-            </option>
-          ))}
-        </Select>
-      </div>
+      {/* The older form's link to one invoice — on a server without the picker. */}
+      {legacyLink && (
+        <div className={styles.detailsSection}>
+          <label htmlFor="receipt-linked" className={styles.sectionHeading}>
+            שיוך לחשבונית קיימת{' '}
+            <span className={styles.optionalLabel}>(אופציונלי)</span>
+          </label>
+          <Select
+            id="receipt-linked"
+            className={styles.formSelect}
+            value={data.linkedInvoiceId}
+            onChange={(e) => onChange({ ...data, linkedInvoiceId: e.target.value })}
+          >
+            <option value="">ללא שיוך</option>
+            {openInvoices.map((inv) => (
+              <option key={inv.id} value={inv.document_number}>
+                {inv.document_number} — ₪{inv.total_amount} ({inv.document_date})
+              </option>
+            ))}
+          </Select>
+        </div>
+      )}
 
       {/* Tab body */}
       {data.paymentMethod === 'מזומן' && (
         <CashPanel data={data} onChange={onChange} />
       )}
       {data.paymentMethod === "צ'ק" && (
-        <CheckPanel data={data} onChange={onChange} />
+        <CheckPanel data={data} onChange={onChange} perCheckAvailable={clientType === 'existing' && !legacyLink} />
       )}
       {data.paymentMethod === 'אשראי' && (
         <CreditPanel data={data} onChange={onChange} />
       )}
       {data.paymentMethod === 'העברה בנקאית' && (
         <BankPanel data={data} onChange={onChange} />
+      )}
+
+      {/* The open tax invoices this receipt pays (WS-3). */}
+      {settlement && (
+        <SettlementPicker
+          payerType="receipt"
+          status={settlement.status}
+          invoices={settlement.invoices}
+          picks={data.settlementPicks}
+          capacity={receiptCapacityAgorot(data)}
+          onChange={(settlementPicks: SettlementPicks) => onChange({ ...data, settlementPicks })}
+          onRetry={settlement.onRetry}
+          disabledReason={perCheck
+            ? "קבלה שמפיקה חשבונית מס לכל צ'ק לא סוגרת חשבוניות קיימות — החשבוניות שלה יופקו ביום כל צ'ק."
+            : ''}
+        />
       )}
     </div>
   );
@@ -2375,9 +2534,12 @@ function CashPanel({ data, onChange }: ReceiptDetailsStepProps) {
 interface CheckPanelProps extends ReceiptDetailsStepProps {
   /** Inside an invoice-receipt: its withholding is asked once for the document, and no invoice follows a check. */
   forInvoice?: boolean;
+  /** "חשבונית מס לכל צ'ק" is offered — a receipt of a private customer (the server refuses it for a business). */
+  perCheckAvailable?: boolean;
 }
 
-function CheckPanel({ data, onChange, forInvoice = false }: CheckPanelProps) {
+function CheckPanel({ data, onChange, forInvoice = false, perCheckAvailable = false }: CheckPanelProps) {
+  const undated = perCheckAvailable && data.invoicePerCheck ? undatedConfirmedChecks(data) : [];
   const confirmedChecks = data.checks.filter((c) => c.confirmed);
   const confirmedTotal = confirmedChecks.reduce((sum, c) => sum + c.amount, 0);
 
@@ -2557,11 +2719,26 @@ function CheckPanel({ data, onChange, forInvoice = false }: CheckPanelProps) {
         <span className={styles.checkSummaryAmount}>₪{confirmedTotal.toFixed(2)}</span>
       </div>
 
-      {/* Info note */}
-      {!forInvoice && (
-        <p className={styles.checkInfoNote}>
-          כל צ&apos;ק ייצור טיוט חשבונית מס — הטיוטה תהפוך אוטומטית לחשבונית מס בתאריך הפירעון
-        </p>
+      {/* חשבונית מס לכל צ'ק (D2): the checks become a check plan; no draft is made. */}
+      {!forInvoice && perCheckAvailable && (
+        <div className={styles.perCheckBox}>
+          <label className={styles.checkboxLabel}>
+            <input
+              type="checkbox"
+              checked={data.invoicePerCheck}
+              onChange={(e) => onChange({ ...data, invoicePerCheck: e.target.checked })}
+            />
+            חשבונית מס לכל צ&apos;ק
+          </label>
+          <p className={styles.checkCrossedHint}>
+            {data.invoicePerCheck
+              ? "חשבונית מס תופק אוטומטית ביום כל צ'ק (או בהרצה הראשונה אחריו), מתוארכת ביום ההפקה ומסומנת כשולמה בקבלה הזו. הצ'קים יופיעו בלשונית צ'קים."
+              : "סמנו 'חשבונית מס לכל צ'ק' — חשבונית מס תופק אוטומטית ביום כל צ'ק, מסומנת כשולמה בקבלה הזו. בלי הסימון מופקת קבלה בלבד."}
+          </p>
+          {undated.length > 0 && (
+            <p className={styles.fieldError} role="alert">לכל צ&apos;ק צריך תאריך פירעון — חסר ב־{undated.length} צ&apos;קים</p>
+          )}
+        </div>
       )}
 
       <div className={styles.formRow}>
@@ -2750,6 +2927,10 @@ interface SummaryStepProps {
   businessFormData: BusinessCustomerFormData;
   businessCustomerId: string | null;
   invoiceDetails: InvoiceDetailsData;
+  /** The open invoices the document will close (WS-3); null on a server without settlements. */
+  settlementRows?: readonly ResolvedSettlement[] | null;
+  /** A check receipt that opens a check plan: a tax invoice on each check's day. */
+  perCheck?: boolean;
 }
 
 function SummaryStep({
@@ -2759,6 +2940,8 @@ function SummaryStep({
   businessFormData,
   businessCustomerId: _businessCustomerId,
   invoiceDetails,
+  settlementRows = null,
+  perCheck = false,
 }: SummaryStepProps) {
   const customerName =
     clientType === 'business'
@@ -2818,6 +3001,26 @@ function SummaryStep({
                 </dd>
               </div>
             </>
+          )}
+          {(docType === 'קבלה' || docType === 'חשבונית מס/קבלה') && !perCheck && settlementRows !== null && (
+            <div className={styles.summaryDetailRow}>
+              <dt className={styles.summaryRowLabel}>סוגר חשבוניות:</dt>
+              <dd className={styles.summaryRowValue}>
+                {settlementRows.length === 0
+                  ? 'לא סוגר חשבונית'
+                  : settlementRows.map((row) => (
+                      <span key={row.invoiceId} className={styles.settleSub}>
+                        <span dir="ltr">{row.documentNumber}</span> · <span dir="ltr">{formatAgorotShekels(row.amount)}</span>
+                      </span>
+                    ))}
+              </dd>
+            </div>
+          )}
+          {perCheck && (
+            <div className={styles.summaryDetailRow}>
+              <dt className={styles.summaryRowLabel}>חשבונית מס לכל צ&apos;ק:</dt>
+              <dd className={styles.summaryRowValue}>כן — ביום כל צ&apos;ק, מסומנת כשולמה בקבלה</dd>
+            </div>
           )}
         </dl>
       </div>

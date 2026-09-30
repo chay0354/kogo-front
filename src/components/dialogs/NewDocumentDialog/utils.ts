@@ -64,10 +64,15 @@ export function emptyCheckRow(id: string, date: string): CheckRow {
  * check crossed "לא סחיר" in the customer's name lets the signed original go
  * by email (הוראה 18ב(ד)); any other is handed over on paper.
  */
-export function receiptDetailsPayload(data: ReceiptDetailsData): ReceiptDetailsInput {
+export function receiptDetailsPayload(
+  data: ReceiptDetailsData,
+  options: { invoicePerCheck?: boolean; linkedInvoiceId?: string } = {},
+): ReceiptDetailsInput {
   return {
     payment_method: data.paymentMethod,
-    linked_invoice_id: data.linkedInvoiceId,
+    linked_invoice_id: options.linkedInvoiceId ?? data.linkedInvoiceId,
+    // Sent only when it applies: an older server would refuse no unknown key, but says nothing either.
+    ...(options.invoicePerCheck ? { invoice_per_check: true } : {}),
     cash_amount: data.cashAmount,
     cash_notes: data.cashNotes,
     checks: data.checks.map((check) => ({
@@ -94,6 +99,43 @@ export function receiptDetailsPayload(data: ReceiptDetailsData): ReceiptDetailsI
     bank_amount: data.bankAmount,
     bank_notes: data.bankNotes,
   };
+}
+
+/**
+ * What a receipt received, in agorot — the server's own reading
+ * (service._receipt_amount): the chosen method's amount, or the confirmed
+ * checks with an amount.
+ */
+export function receiptAmountAgorot(data: ReceiptDetailsData): number {
+  const agorot = (value: number) => Math.round((Number(value) || 0) * 100);
+  if (data.paymentMethod === 'מזומן') return agorot(data.cashAmount);
+  if (data.paymentMethod === "צ'ק") {
+    return data.checks.filter((c) => c.confirmed && c.amount > 0).reduce((sum, c) => sum + agorot(c.amount), 0);
+  }
+  if (data.paymentMethod === 'אשראי') return agorot(data.cardAmount);
+  if (data.paymentMethod === 'העברה בנקאית') return agorot(data.bankAmount);
+  return 0;
+}
+
+/**
+ * How much a receipt can close (settlement.payer_capacity): what it received
+ * and the ניכוי במקור the customer withheld — the certificate pays that part.
+ */
+export function receiptCapacityAgorot(data: ReceiptDetailsData): number {
+  return receiptAmountAgorot(data) + Math.max(0, Math.round((Number(data.withholding) || 0) * 100));
+}
+
+/**
+ * Whether "חשבונית מס לכל צ'ק" is on and may be sent: a check receipt of a
+ * private customer (a child) — the server refuses it for anyone else.
+ */
+export function invoicePerCheckApplies(clientType: ClientType | null, data: ReceiptDetailsData): boolean {
+  return clientType === 'existing' && data.paymentMethod === "צ'ק" && data.invoicePerCheck === true;
+}
+
+/** The confirmed checks that have no date — a check plan needs each one's day. */
+export function undatedConfirmedChecks(data: ReceiptDetailsData): CheckRow[] {
+  return data.checks.filter((check) => check.confirmed && check.amount > 0 && !check.date);
 }
 
 const ISRAEL_DAY = new Intl.DateTimeFormat('en-GB', {
@@ -376,7 +418,9 @@ export function canAdvanceFromStep(
     creditAmountBeforeVat: number;
   } | null,
   receiptDetails?: ReceiptDetailsData | null,
-  selectedBranchId?: string | null
+  selectedBranchId?: string | null,
+  /** Whether the invoices chosen for a receipt / invoice-receipt to close pass the server's rules. */
+  settlementsValid = true,
 ): boolean {
   if (stepId === 'clientType') return clientType !== null;
   // The branch is optional on the server (null=True on FormalDocument, and no
@@ -398,10 +442,16 @@ export function canAdvanceFromStep(
   if (stepId === 'docType') return docType !== null;
   if (stepId === 'documentDetails') {
     if (docType === 'קבלה') {
-      if (!receiptDetails) return false;
+      if (!receiptDetails || !settlementsValid) return false;
       const { paymentMethod } = receiptDetails;
       if (paymentMethod === 'מזומן') return receiptDetails.cashAmount > 0;
-      if (paymentMethod === "צ'ק") return receiptDetails.checks.some((c) => c.confirmed && c.amount > 0);
+      if (paymentMethod === "צ'ק") {
+        // A check plan needs every check's date (the server refuses the receipt otherwise).
+        if (invoicePerCheckApplies(clientType, receiptDetails) && undatedConfirmedChecks(receiptDetails).length > 0) {
+          return false;
+        }
+        return receiptDetails.checks.some((c) => c.confirmed && c.amount > 0);
+      }
       if (paymentMethod === 'אשראי') return receiptDetails.cardAmount > 0;
       if (paymentMethod === 'העברה בנקאית') return receiptDetails.bankAmount > 0;
       return false;
@@ -423,7 +473,7 @@ export function canAdvanceFromStep(
       if (docType === 'חשבונית מס/קבלה') {
         // Paid, and every shekel of it once: the rows and the withholding come to the total.
         const balance = invoicePaymentBalance(invoiceDetails);
-        return balance.rows.length > 0 && balance.remaining === 0;
+        return balance.rows.length > 0 && balance.remaining === 0 && settlementsValid;
       }
       return true;
     }

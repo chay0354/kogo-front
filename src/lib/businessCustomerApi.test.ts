@@ -193,6 +193,31 @@ describe('readBusinessCustomerSummary', () => {
     expect(summary.balance).toBeNull();
   });
 
+  it('reads what the customer still owes (WS-3), and null from an older server', () => {
+    const balance = readBusinessCustomerSummary({
+      ...answer,
+      balance: {
+        open_total: '490.00',
+        open_count: 1,
+        paid_total: '0.00',
+        credited_total: '100.00',
+        open_invoices: [
+          {
+            id: 'ti-1', document_number: 'TI-2026-000001', document_type: 'tax_invoice',
+            document_type_label: 'חשבונית מס', document_date: '2026-09-01', due_date: '2026-10-31',
+            description: 'שכירות', total: '590.00', paid: '0.00', credited: '100.00', open: '490.00',
+            status: 'partial', status_label: 'שולמה חלקית',
+          },
+        ],
+      },
+    }).balance;
+    expect(balance).toMatchObject({ open_total: 490, open_count: 1, paid_total: 0, credited_total: 100 });
+    expect(balance?.open_invoices[0]).toMatchObject({ id: 'ti-1', open: 490, credited: 100, status_label: 'שולמה חלקית' });
+    expect(readBusinessCustomerSummary({ ...answer, balance: undefined }).balance).toBeNull();
+    expect(readBusinessCustomerSummary({ ...answer, balance: { open_total: '0.00' } }).balance)
+      .toEqual({ open_total: 0, open_count: 0, paid_total: 0, credited_total: 0, open_invoices: [] });
+  });
+
   it('reads the legacy history for a manager, and null for a partner', () => {
     expect(summary.legacy).toEqual({ count: 1, truncated: false, results: answer.legacy.results });
     expect(readBusinessCustomerSummary({ ...answer, legacy: null }).legacy).toBeNull();

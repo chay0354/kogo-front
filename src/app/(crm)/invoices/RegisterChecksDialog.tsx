@@ -197,7 +197,7 @@ export default function RegisterChecksDialog({
           <div>
             <h3 className={styles.dialogTitle}>רישום צ׳קים</h3>
             <p className={styles.dialogHint}>
-              יוצאת קבלה עם פירוט כל הצ׳קים. בכל חודש, בתאריך הצ׳ק, תונפק חשבונית מס אוטומטית.
+              יוצאת קבלה עם פירוט כל הצ׳קים. ביום כל צ׳ק תונפק אוטומטית חשבונית מס, מסומנת כשולמה בקבלה.
             </p>
           </div>
           <button type="button" className={styles.closeBtn} onClick={onClose} aria-label="סגור">

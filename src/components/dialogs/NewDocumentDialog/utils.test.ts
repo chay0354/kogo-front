@@ -17,11 +17,16 @@ import {
   getWizardSteps,
   invoicePaymentBalance,
   invoicePaymentRows,
+  invoicePerCheckApplies,
   israelToday,
+  receiptAmountAgorot,
+  receiptCapacityAgorot,
   receiptDetailsPayload,
   serverErrorMessage,
+  undatedConfirmedChecks,
 } from './utils';
 import type { InvoiceDetailsData, ReceiptDetailsData } from './types';
+import { AUTO_SETTLEMENT_PICKS } from '@/lib/settlements';
 
 describe('businessCustomerErrorMessage', () => {
   it("reads the server's field error — the branch a partner has to choose", () => {
@@ -163,6 +168,8 @@ describe('receiptDetailsPayload — a receipt as the server reads it', () => {
       bankReference: '',
       bankAmount: 0,
       bankNotes: '',
+      invoicePerCheck: false,
+      settlementPicks: AUTO_SETTLEMENT_PICKS,
       ...overrides,
     };
   }
@@ -213,6 +220,46 @@ describe('receiptDetailsPayload — a receipt as the server reads it', () => {
       card_installments: 3,
     });
   });
+
+  it('sends invoice_per_check only when asked, and the link the caller chose', () => {
+    expect(receiptDetailsPayload(receipt())).not.toHaveProperty('invoice_per_check');
+    const perCheck = receiptDetailsPayload(receipt({ invoicePerCheck: true }), { invoicePerCheck: true, linkedInvoiceId: '' });
+    expect(perCheck.invoice_per_check).toBe(true);
+    expect(perCheck.linked_invoice_id).toBe('');
+  });
+
+  it("reads what the receipt received the way the server does, and adds the withholding to what it can close", () => {
+    const confirmed = { ...emptyCheckRow('1', '2026-10-01'), amount: 300, confirmed: true };
+    const unconfirmed = { ...emptyCheckRow('2', '2026-11-01'), amount: 300 };
+    const checks = receipt({ checks: [confirmed, unconfirmed], withholding: 20 });
+    expect(receiptAmountAgorot(checks)).toBe(30000);
+    expect(receiptCapacityAgorot(checks)).toBe(32000);
+    expect(receiptAmountAgorot(receipt({ paymentMethod: 'מזומן', cashAmount: 99.9 }))).toBe(9990);
+    expect(receiptAmountAgorot(receipt({ paymentMethod: 'אשראי', cardAmount: 50 }))).toBe(5000);
+    expect(receiptAmountAgorot(receipt({ paymentMethod: 'העברה בנקאית', bankAmount: 10 }))).toBe(1000);
+  });
+
+  it('an invoice per check is for a check receipt of a private customer only', () => {
+    const on = receipt({ invoicePerCheck: true });
+    expect(invoicePerCheckApplies('existing', on)).toBe(true);
+    expect(invoicePerCheckApplies('business', on)).toBe(false);
+    expect(invoicePerCheckApplies('existing', { ...on, paymentMethod: 'מזומן' })).toBe(false);
+    expect(invoicePerCheckApplies('existing', receipt())).toBe(false);
+  });
+
+  it('a check plan needs every check dated: the receipt waits until it is', () => {
+    const undated = { ...emptyCheckRow('1', ''), amount: 300, confirmed: true };
+    const on = receipt({ invoicePerCheck: true, checks: [undated] });
+    expect(undatedConfirmedChecks(on)).toHaveLength(1);
+    expect(canAdvanceFromStep('documentDetails', 'existing', 'c-1', null, null, 'קבלה', null, null, on)).toBe(false);
+    expect(canAdvanceFromStep('documentDetails', 'existing', 'c-1', null, null, 'קבלה', null, null, { ...on, invoicePerCheck: false })).toBe(true);
+  });
+
+  it('waits while the invoices chosen to close break a rule', () => {
+    const cash = receipt({ paymentMethod: 'מזומן', cashAmount: 100 });
+    expect(canAdvanceFromStep('documentDetails', 'existing', 'c-1', null, null, 'קבלה', null, null, cash, null, true)).toBe(true);
+    expect(canAdvanceFromStep('documentDetails', 'existing', 'c-1', null, null, 'קבלה', null, null, cash, null, false)).toBe(false);
+  });
 });
 
 /**
@@ -252,6 +299,7 @@ describe('invoice-receipt payments (G)', () => {
       paymentMethod: 'מזומן', linkedInvoiceId: '', cashAmount: 0, cashNotes: '', checks: [], withholding: 0,
       checkNotes: '', cardLastFour: '', cardBrand: '', cardExpiry: '', cardAmount: 0, cardInstallments: 1,
       cardNotes: '', bankDate: '', bankReference: '', bankAmount: 0, bankNotes: '',
+      invoicePerCheck: false, settlementPicks: AUTO_SETTLEMENT_PICKS,
       ...overrides,
     };
   }
@@ -264,7 +312,7 @@ describe('invoice-receipt payments (G)', () => {
       discountAmount: 0, discountPercent: 0, vatExempt: false, closeInvoice: false,
       customerNotes: '', internalNotes: '', paymentTerms: '', dueDate: '',
       paymentMethods: [], payments: payments(), withholdingAmount: 0, allocationNumber: '',
-      linkedInvoiceId: '', receiptNotes: '',
+      linkedInvoiceId: '', receiptNotes: '', settlementPicks: AUTO_SETTLEMENT_PICKS,
       ...overrides,
     };
   }
