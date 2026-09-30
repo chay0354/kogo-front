@@ -96,6 +96,14 @@ describe('fetchSigningStatus', () => {
     });
   });
 
+  it('reads the documents without an original, and the ones found late, only when the server counts them', () => {
+    const newer = { ...status, counts: { ...status.counts, missing_original: 2, found_late: '1' } };
+    expect(readSigningStatus(newer)?.counts).toEqual({
+      held: 2, paper_pending: 3, signed_today: 40, awaiting_allocation: 1, missing_original: 2, found_late: 1,
+    });
+    expect(readSigningStatus(status)?.counts).not.toHaveProperty('missing_original');
+  });
+
   it('reads no allocation-number count from a server that does not send one as 0', () => {
     const older = { ...status, counts: { held: 2, paper_pending: 3, signed_today: 40 } };
     expect(readSigningStatus(older)?.counts).toEqual({ held: 2, paper_pending: 3, signed_today: 40, awaiting_allocation: 0 });
@@ -108,6 +116,14 @@ describe('fetchSignedOriginals', () => {
     await fetchSignedOriginals({ delivery: 'paper', printed: false, limit: 100, offset: 200 });
     expect(get).toHaveBeenCalledWith('/documents/signing/originals/', {
       params: { delivery: 'paper', printed: 'false', limit: 100, offset: 200 },
+    });
+  });
+
+  it('asks for the printed originals, the last printed first', async () => {
+    get.mockResolvedValue({ data: { count: 0, results: [] } } as never);
+    await fetchSignedOriginals({ delivery: 'paper', printed: true, order: 'printed', limit: 20, offset: 0 });
+    expect(get).toHaveBeenCalledWith('/documents/signing/originals/', {
+      params: { delivery: 'paper', printed: 'true', order: 'printed', limit: 20, offset: 0 },
     });
   });
 

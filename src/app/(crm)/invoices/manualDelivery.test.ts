@@ -9,6 +9,10 @@ import { describe, expect, it } from 'vitest';
 import type { SignedOriginalRow, SigningStatus } from '@/lib/signingApi';
 import {
   ALLOCATION_FAILED_MESSAGE,
+  canSendCopy,
+  FOUND_LATE_REASON,
+  missingOriginalNotice,
+  printedAtLine,
   allocationDigits,
   allocationFailureMessage,
   allocationInputError,
@@ -317,5 +321,57 @@ describe('allocationOriginalMessage — the documents list', () => {
     expect(allocationOriginalMessage({ ...base, signed: false, delivery: null }, 'IR-7')).toBe('');
     expect(allocationOriginalMessage(base, 'IR-7')).toBe('');
     expect(allocationOriginalMessage({ ...base, allocation_number: '', signed: true, delivery: 'email' }, 'IR-7')).toBe('');
+  });
+});
+
+describe('an original the signing cron found late (audit M1, 30.9.2026)', () => {
+  const late = { delivery: 'paper' as const, delivery_reason: FOUND_LATE_REASON, paper_original_printed_at: null };
+
+  it('may be sent from the paper list — the office decides, the cron never mails it', () => {
+    expect(paperRowCanBeMailed(late)).toBe(true);
+    expect(paperRowCanBeMailed({ ...late, paper_original_printed_at: '2026-09-30T10:00:00+03:00' })).toBe(false);
+  });
+
+  it('matches the server’s own words', () => {
+    expect(FOUND_LATE_REASON).toContain('המקור נוצר באיחור');
+  });
+});
+
+describe('canSendCopy — "שלח העתק" once the original left (audit M12)', () => {
+  const base = { purpose: 'original' as const, signed_at: '2026-09-30T09:00:00+03:00', sent_at: null, paper_original_printed_at: null };
+
+  it('offers a copy of an original that was mailed or printed', () => {
+    expect(canSendCopy({ ...base, sent_at: '2026-09-30T09:01:00+03:00' })).toBe(true);
+    expect(canSendCopy({ ...base, paper_original_printed_at: '2026-09-30T09:05:00+03:00' })).toBe(true);
+  });
+
+  it('offers a copy of a signed archive copy', () => {
+    expect(canSendCopy({ ...base, purpose: 'archive' })).toBe(true);
+  });
+
+  it('offers nothing while the original has not left, or nothing is signed yet', () => {
+    expect(canSendCopy(base)).toBe(false);
+    expect(canSendCopy({ ...base, signed_at: null, sent_at: '2026-09-30T09:01:00+03:00' })).toBe(false);
+  });
+});
+
+describe('printed recently', () => {
+  it('says when the original was printed', () => {
+    expect(printedAtLine({ paper_original_printed_at: '2026-09-30T14:05:00+03:00' })).toMatch(/^הודפס ב-/);
+    expect(printedAtLine({ paper_original_printed_at: null })).toBe('');
+  });
+});
+
+describe('missingOriginalNotice', () => {
+  const withCounts = (counts: Partial<SigningStatus['counts']>) => ({
+    counts: { held: 0, paper_pending: 0, signed_today: 0, awaiting_allocation: 0, ...counts },
+  });
+
+  it('warns only when documents were issued with no original', () => {
+    expect(missingOriginalNotice(withCounts({ missing_original: 0 }))).toBe('');
+    expect(missingOriginalNotice(withCounts({}))).toBe('');
+    expect(missingOriginalNotice(null)).toBe('');
+    expect(missingOriginalNotice(withCounts({ missing_original: 1 }))).toContain('מסמך אחד הונפק בלי מקור חתום');
+    expect(missingOriginalNotice(withCounts({ missing_original: 3 }))).toContain('3 מסמכים הונפקו');
   });
 });

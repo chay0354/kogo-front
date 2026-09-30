@@ -16,6 +16,8 @@ import {
   bounceCheck,
   cancelCashPlan,
   cancelCheckPlan,
+  createCheckPlan,
+  downloadLessonReceiptCopy,
   fetchOpenInvoices,
   voidSettlement,
   downloadMissingReceiptsCsv,
@@ -281,5 +283,39 @@ describe('cancelCashPlan', () => {
     expect(api.post).toHaveBeenCalledWith('/documents/cash-plans/cp-1/cancel/', {});
     expect(answer.credit_note_number).toBeNull();
     expect(answer.message).toBe('אין מה לזכות');
+  });
+});
+
+describe('createCheckPlan — every check says whether it is crossed (audit M3)', () => {
+  it('posts check_crossed with each check, true and false alike', async () => {
+    api.post.mockResolvedValue({ data: { id: 'plan-1' } });
+    const checks = [
+      { date: '2026-10-01', bank: '12', branch: '600', account_number: '1', check_number: '7001', amount: 350, check_crossed: true },
+      { date: '2026-11-01', bank: '12', branch: '600', account_number: '1', check_number: '7002', amount: 350, check_crossed: false },
+    ];
+    await createCheckPlan({ child_id: 'kid-1', lesson_id: null, description: 'מנוי צ׳קים', checks });
+    expect(api.post).toHaveBeenCalledWith('/documents/check-plans/', {
+      child_id: 'kid-1', lesson_id: null, description: 'מנוי צ׳קים', checks,
+    });
+    const sent = api.post.mock.calls[0][1] as { checks: Array<{ check_crossed: boolean }> };
+    expect(sent.checks.map((check) => check.check_crossed)).toEqual([true, false]);
+  });
+});
+
+describe('downloadLessonReceiptCopy — an IR from the documents tab (audit M5)', () => {
+  it('asks the child card’s endpoint for a copy and saves it as one', async () => {
+    const link = { href: '', download: '', click: vi.fn(), remove: vi.fn() };
+    vi.stubGlobal('window', { URL: { createObjectURL: vi.fn(() => 'blob:pdf'), revokeObjectURL: vi.fn() } });
+    vi.stubGlobal('document', { createElement: vi.fn(() => link), body: { appendChild: vi.fn() } });
+    api.get.mockResolvedValue({ data: 'pdf-bytes' });
+
+    await downloadLessonReceiptCopy('inv/1', 'IR-2026-000123');
+
+    expect(api.get).toHaveBeenCalledWith('/customers/invoices/inv%2F1/pdf/', {
+      params: { copy: '1' },
+      responseType: 'blob',
+    });
+    expect(link.download).toBe('IR-2026-000123 - העתק.pdf');
+    expect(link.click).toHaveBeenCalledOnce();
   });
 });
