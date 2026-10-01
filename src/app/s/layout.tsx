@@ -1,11 +1,12 @@
-import type { Metadata } from 'next';
 import '../widget/widget-shell.css';
+import { linkPreview } from '@/lib/linkPreview';
 
-export const metadata: Metadata = {
-  title: 'חוזה שכירות — קוגומלו',
-  // Reached only by its token; no search engine should list one.
-  robots: { index: false, follow: false },
-};
+// Reached only by its token; linkPreview keeps it out of search engines.
+export const metadata = linkPreview({
+  kind: 'sign',
+  title: 'חוזה שכירות לחתימה — קוגומלו',
+  description: 'לחצו כדי לקרוא את החוזה ולחתום עליו.',
+});
 
 /**
  * The tenant's contract page sits outside the office shell, as /c/ does: no
