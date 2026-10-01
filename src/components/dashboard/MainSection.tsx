@@ -11,12 +11,15 @@ import {
   fetchBranchesData,
   fetchActivityData,
   fetchInvoicingData,
+  fetchIncomingMoney,
 } from '@/lib/api';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useAuth } from '@/components/AuthProvider';
 import type { DateRange } from './GlobalDateFilter';
 import { formatCurrency, formatPercent, SOURCE_LABELS } from './format';
 import EmptyState from './EmptyState';
 import KpiCard from './KpiCard';
+import IncomingMoneyCard from './IncomingMoneyCard';
 import { deriveTrends } from './trends';
 import { activeStudentsFoot } from './studentCounts';
 import CssBars from './charts/CssBars';
@@ -39,6 +42,7 @@ interface Props {
  * does not provide renders an EmptyState rather than a fabricated number.
  */
 export default function MainSection({ globalDateRange }: Props) {
+  const { user } = useAuth();
   const apiFilters = useMemo(
     () => ({
       branch_id: 'all',
@@ -77,6 +81,17 @@ export default function MainSection({ globalDateRange }: Props) {
   const activity = useQuery({
     queryKey: ['dashboard-activity', apiFilters.branch_id],
     queryFn: () => fetchActivityData({ branch_id: 'all' }),
+  });
+
+  // What the card company transfers on the 6th. Not tied to the date filter:
+  // the server names the upcoming transfer. No branch is sent — a manager gets
+  // the whole company, a partner their own branches. The answer depends on who
+  // asks, so the signed-in user is part of the key: a figure cached for one
+  // user is never shown to the next one who signs in on the same screen.
+  const incoming = useQuery({
+    queryKey: ['dashboard-incoming', user?.id, { branch_id: 'all' }],
+    queryFn: () => fetchIncomingMoney(),
+    enabled: !!user,
   });
 
   const fin = financial.data?.kpis ?? {};
@@ -182,6 +197,7 @@ export default function MainSection({ globalDateRange }: Props) {
             value={String(Number(ins.active_instructors ?? 0))}
             foot={`שכר ${formatCurrency(ins.total_salary)}`}
           />
+          <IncomingMoneyCard data={incoming.data} loading={incoming.isLoading} />
         </div>
       </div>
 

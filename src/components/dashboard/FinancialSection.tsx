@@ -22,6 +22,7 @@ import type { DateRange } from './GlobalDateFilter';
 import { MONTHS } from './monthYearUtils';
 import { formatCurrency, formatPercent, SOURCE_LABELS } from './format';
 import KpiCard from './KpiCard';
+import IncomingMoneyPanel from './IncomingMoneyPanel';
 import { deriveTrends } from './trends';
 import theme from './theme/dashboard.module.css';
 import { SectionSkeleton } from './SectionSkeleton';
@@ -250,6 +251,9 @@ export default function FinancialSection({ globalDateRange }: Props) {
           />
         </div>
       </div>
+
+      {/* what the card company transfers on the 6th — follows the branch select above */}
+      <IncomingMoneyPanel branchId={branchId} scopeLabel={scopeLabel} />
 
       {/* trend — a line needs at least two months; one month is shown as
           figures rather than two lonely dots on an empty axis */}

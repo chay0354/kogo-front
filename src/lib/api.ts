@@ -355,6 +355,117 @@ export const fetchInvoicingData = async (filters: { date_from?: string; date_to?
   return response.data;
 };
 
+/** Charges, refunds and what is left of them — one line of the incoming-money answer. */
+export interface IncomingMoneyLine {
+  charges: number;
+  refunds: number;
+  net: number;
+}
+
+export interface IncomingMoneySource extends IncomingMoneyLine {
+  key: string;
+  label: string;
+  count: number;
+  /** What the system cannot tell about this source's figure; empty when nothing. */
+  note: string;
+}
+
+export interface IncomingMoneyBranch extends IncomingMoneyLine {
+  branch_id: string;
+  branch_name: string;
+}
+
+export interface IncomingMoneyPeriod {
+  start: string;
+  end: string;
+  label: string;
+}
+
+/** One terminal's month as Tranzila's report has it. Figures are null until it was read. */
+export interface IncomingTerminal {
+  terminal: string;
+  label: string;
+  charges: number | null;
+  refunds: number | null;
+  net: number | null;
+  count: number | null;
+  refunds_count: number | null;
+  installments_total: number | null;
+  installments_count: number | null;
+  installments_first_total: number | null;
+  complete: boolean;
+  error: string;
+  fetched_at: string | null;
+}
+
+export interface IncomingMoneyNext {
+  month: string;
+  payout_date: string;
+  period: IncomingMoneyPeriod;
+  total: number;
+  is_closed: boolean;
+}
+
+export interface IncomingMoney {
+  /** The month that was charged, YYYY-MM. */
+  month: string;
+  /** The day its money reaches the bank, YYYY-MM-DD. */
+  payout_date: string;
+  period: IncomingMoneyPeriod;
+  /** The month is over: the figure is final. Otherwise it is "so far". */
+  is_closed: boolean;
+  is_upcoming: boolean;
+  ours: {
+    total: number;
+    charges: number;
+    refunds: number;
+    by_source: IncomingMoneySource[];
+    by_branch: IncomingMoneyBranch[];
+    /** Money that belongs to no branch; null when a branch limit is in force. */
+    no_branch: IncomingMoneyLine | null;
+  };
+  note: string;
+  /** The transfer after this one; null until its month has begun. */
+  next: IncomingMoneyNext | null;
+  /** Managers only, and only with no branch filter. */
+  tranzila?: {
+    terminals: IncomingTerminal[];
+    total: number;
+    installments_total: number;
+    complete: boolean;
+    /** Tranzila less ours; null until every terminal was read to its end. */
+    gap: number | null;
+  };
+}
+
+/**
+ * Money about to come in: what the card company transfers on the 6th, for the
+ * month before it. With no month it is the upcoming transfer. Reads the
+ * system's own records and the stored Tranzila snapshots — never Tranzila.
+ */
+export const fetchIncomingMoney = async (
+  filters: { month?: string; branch_id?: string } = {},
+): Promise<IncomingMoney> => {
+  const params: Record<string, string> = {};
+  if (filters.month) params.month = filters.month;
+  if (filters.branch_id && filters.branch_id !== 'all') params.branch_id = filters.branch_id;
+  const response = await api.get('/core/dashboard/incoming/', { params });
+  return response.data;
+};
+
+/**
+ * Read one terminal's month from Tranzila's report (managers only) and get its
+ * row back. A month is several report pages, so this waits longer than the
+ * default request.
+ */
+export const refreshIncomingTerminal = async (body: {
+  month: string;
+  terminal: string;
+}): Promise<IncomingTerminal> => {
+  const response = await api.post('/core/dashboard/incoming/refresh/', body, { timeout: 150_000 });
+  return response.data;
+};
+
 /**
  * Mark the guided tour as finished for the signed-in user, so it stops opening
  * automatically. Stored on the account, not in the browser.
