@@ -11,12 +11,14 @@ import {
   fetchBranchesData,
   fetchActivityData,
   fetchInvoicingData,
+  fetchIncomingMoney,
 } from '@/lib/api';
 import { Skeleton } from '@/components/ui/skeleton';
 import type { DateRange } from './GlobalDateFilter';
 import { formatCurrency, formatPercent, SOURCE_LABELS } from './format';
 import EmptyState from './EmptyState';
 import KpiCard from './KpiCard';
+import IncomingMoneyCard from './IncomingMoneyCard';
 import { deriveTrends } from './trends';
 import { activeStudentsFoot } from './studentCounts';
 import CssBars from './charts/CssBars';
@@ -77,6 +79,14 @@ export default function MainSection({ globalDateRange }: Props) {
   const activity = useQuery({
     queryKey: ['dashboard-activity', apiFilters.branch_id],
     queryFn: () => fetchActivityData({ branch_id: 'all' }),
+  });
+
+  // What the card company transfers on the 6th. Not tied to the date filter:
+  // the server names the upcoming transfer. No branch is sent — a manager gets
+  // the whole company, a partner their own branches.
+  const incoming = useQuery({
+    queryKey: ['dashboard-incoming', { branch_id: 'all' }],
+    queryFn: () => fetchIncomingMoney(),
   });
 
   const fin = financial.data?.kpis ?? {};
@@ -182,6 +192,7 @@ export default function MainSection({ globalDateRange }: Props) {
             value={String(Number(ins.active_instructors ?? 0))}
             foot={`שכר ${formatCurrency(ins.total_salary)}`}
           />
+          <IncomingMoneyCard data={incoming.data} loading={incoming.isLoading} />
         </div>
       </div>
 
