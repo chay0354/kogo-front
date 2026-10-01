@@ -4,12 +4,16 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import { useQuery } from '@tanstack/react-query';
 import { AlertCircle, ChevronLeft, ChevronRight, Download, FileSearch, ShoppingBag, X } from 'lucide-react';
 import RefundDialog from '@/components/dialogs/RefundDialog';
+import StorePaymentReviewDialog, {
+  type StorePaymentReviewAction,
+  type StorePaymentReviewEvidence,
+} from '@/components/dialogs/StorePaymentReviewDialog';
 import { useAuth } from '@/components/AuthProvider';
 import { Skeleton, TableSkeleton } from '@/components/ui/skeleton';
 import theme from '@/components/dashboard/theme/dashboard.module.css';
 import api, { fetchCourseTypesList, fetchInstructorsDropdown } from '@/lib/api';
 import { fetchPaymentLedger, PAYMENTS_PAGE_SIZE } from '@/lib/documentsApi';
-import { downloadStoreInvoicePdf, fetchAllInvoices } from '@/lib/storeApi';
+import { downloadStoreInvoicePdf, fetchAllInvoices, reviewStorePayment } from '@/lib/storeApi';
 import { unwrapApiList } from '@/lib/scopedFilters';
 import { useScopedBranches } from '@/hooks/useScopedBranches';
 import type { StoreInvoice } from '@/types/store';
@@ -31,6 +35,8 @@ import {
   getCurrentMonthTotal,
   getPaymentStatusClass,
   getPaymentStatusLabel,
+  RETRY_WAITING_LABEL,
+  isStoreRowPaid,
   isWithinRange,
   ledgerRangeParams,
   localISODate,
@@ -40,6 +46,7 @@ import {
   paymentToLedgerRow,
   storeContactLine,
   storeInvoiceToLedgerRow,
+  storeReviewChoices,
   widerRange,
   withBranchCity,
   type LedgerOption,
@@ -581,12 +588,24 @@ export default function PaymentsTab({ ledger }: PaymentsTabProps) {
   const { filters } = ledger;
   const { branches } = useScopedBranches();
   const { optionRows, loading: optionsLoading } = useListOptionRows();
+  // Settling a payment in review is a manager's action (the CRM refuses a
+  // partner, who also sees this tab): the buttons are theirs alone.
+  const { user } = useAuth();
+  const isManager = user?.role === 'manager';
 
   const [kind, setKind] = useState('');
   const [status, setStatus] = useState('');
   const [refundTarget, setRefundTarget] = useState<ChargeRow | null>(null);
   const [refundLoading, setRefundLoading] = useState(false);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
+  const [reviewingId, setReviewingId] = useState<string | null>(null);
+  const [reviewTarget, setReviewTarget] = useState<{
+    row: ChargeRow;
+    action: StorePaymentReviewAction;
+    // The numbers the CRM answered "the report shows a charge of this sum
+    // under it" about: only then is "I saw the charge" offered.
+    chargeShown?: string[];
+  } | null>(null);
   const [actionError, setActionError] = useState('');
   // Refunds made while this query is shown: its figures are asked again after each.
   const [refunds, setRefunds] = useState({ queryKey: '', n: 0 });
@@ -744,12 +763,53 @@ export default function PaymentsTab({ ledger }: PaymentsTabProps) {
     }
   }
 
+  /**
+   * A store payment in review, settled by a manager in the dialog: "השלם אחרי
+   * אימות" completes it only if Tranzila's report confirms the charge with
+   * the customer's own evidence (on a paid order: records a second charge);
+   * "אין תשלום — שחרר", only after checking in Tranzila, fails the order so
+   * the customer can pay again; "סגור — לא שלנו" takes a paid order's
+   * further number out of the follow-up. A reason is required and kept on
+   * the invoice with who and when.
+   */
+  async function handleReviewConfirm(reason: string, evidence: StorePaymentReviewEvidence) {
+    if (!reviewTarget?.row.store_invoice_id) return;
+    const { row, action } = reviewTarget;
+    setReviewingId(row.id);
+    setActionError('');
+    try {
+      const result = await reviewStorePayment(row.store_invoice_id as string, action, reason, evidence);
+      const updated = result.invoice;
+      store.setInvoices((prev) => prev.map((inv) => (inv.id === updated.id ? updated : inv)));
+      if (result.chargeShown.length > 0) {
+        // Some numbers were settled, and another shows a charge in the
+        // report: the manager is told, and the dialog stays for that one.
+        window.alert(result.warning);
+        setReviewTarget({ row: { ...row, ...storeInvoiceToLedgerRow(updated) }, action, chargeShown: result.chargeShown });
+      } else {
+        setReviewTarget(null);
+      }
+    } catch (error: unknown) {
+      const data = (error as { response?: { data?: { error?: string; charge_shown?: string[] } } })?.response?.data;
+      window.alert(data?.error || 'הפעולה לא בוצעה');
+      if (data?.charge_shown?.length) {
+        // The CRM showed a charge under these numbers: now, and only now,
+        // the dialog offers "I saw the charge" for them.
+        setReviewTarget((prev) => (prev ? { ...prev, chargeShown: data.charge_shown } : prev));
+      }
+    } finally {
+      setReviewingId(null);
+    }
+  }
+
   function renderRow(row: ChargeRow): ReactNode {
     const statusLabel = getPaymentStatusLabel(row.status);
     const course = row.source === 'payment' ? courseLine(row) : '';
     const contact = row.source === 'store' ? storeContactLine(row) : '';
     const description = chargeDescription(row);
     const hasPdf = row.source === 'store' && Boolean(row.store_invoice_id);
+    // The undecided transaction numbers of a store row, and what a manager may decide.
+    const review = storeReviewChoices(row);
 
     return (
       <tr key={`${row.source}-${row.id}`}>
@@ -770,6 +830,19 @@ export default function PaymentsTab({ ledger }: PaymentsTabProps) {
           <span className={`${pageStyles.statusBadge} ${getPaymentStatusClass(row.status)}`} aria-label={statusLabel}>
             {statusLabel}
           </span>
+          {review.note && (
+            <span className={styles.subLine} title={`מספרי עסקה: ${(row.review_numbers || []).join(', ')}`}>
+              {review.note}
+            </span>
+          )}
+          {row.retry_waiting && (
+            <span
+              className={styles.subLine}
+              title="הלקוח ביקש לשלם שוב, והדוח של טרנזילה עוד לא שולל שהעמוד הקודם נגבה. באתר ההזמנה מוצגת כממתינה."
+            >
+              {RETRY_WAITING_LABEL}
+            </span>
+          )}
         </td>
         <td>
           <div className={styles.actions}>
@@ -785,12 +858,23 @@ export default function PaymentsTab({ ledger }: PaymentsTabProps) {
                 <Download size={16} aria-hidden="true" />
               </button>
             )}
+            {isManager && review.actions.map(({ action, label }) => (
+              <button
+                key={action}
+                type="button"
+                className={styles.refundBtn}
+                disabled={reviewingId === row.id}
+                onClick={() => setReviewTarget({ row, action })}
+              >
+                {label}
+              </button>
+            ))}
             {row.canRefund ? (
               <button type="button" className={styles.refundBtn} onClick={() => setRefundTarget(row)}>
                 זיכוי
               </button>
             ) : (
-              !hasPdf && <span className={styles.dash}>—</span>
+              !hasPdf && review.actions.length === 0 && <span className={styles.dash}>—</span>
             )}
           </div>
         </td>
@@ -1043,6 +1127,21 @@ export default function PaymentsTab({ ledger }: PaymentsTabProps) {
           maxAmount={refundTarget?.amount ?? 0}
           itemDescription={refundTarget?.description}
           loading={refundLoading}
+        />
+        <StorePaymentReviewDialog
+          key={reviewTarget ? `${reviewTarget.row.id}-${reviewTarget.action}` : 'closed'}
+          isOpen={Boolean(reviewTarget)}
+          action={reviewTarget?.action ?? 'complete'}
+          paid={reviewTarget ? isStoreRowPaid(reviewTarget.row) : false}
+          itemDescription={reviewTarget?.row.description}
+          chargeShown={reviewTarget?.chargeShown || []}
+          numbers={(reviewTarget?.row.review_numbers || []).map((index) => ({
+            index,
+            suspected: (reviewTarget?.row.review_suspected || []).includes(index),
+          }))}
+          loading={Boolean(reviewTarget) && reviewingId === reviewTarget?.row.id}
+          onClose={() => setReviewTarget(null)}
+          onConfirm={(reason, evidence) => void handleReviewConfirm(reason, evidence)}
         />
       </BodyPortal>
     </div>

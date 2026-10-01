@@ -134,6 +134,41 @@ export async function fetchInvoice(id: string): Promise<StoreInvoice> {
   return data;
 }
 
+/**
+ * A manager settles a store payment in review (CRM payment_followup):
+ * 'complete' only goes through when Tranzila's report confirms it (on a paid
+ * order it records a second charge, for a refund); 'release' says no charge
+ * was found in Tranzila and lets the customer pay again (the numbers stay
+ * followed up); 'close' says the further numbers of a paid order are not
+ * this order's. The reason is kept on the invoice with who and when.
+ */
+export async function reviewStorePayment(
+  id: string,
+  action: 'complete' | 'release' | 'close',
+  reason: string,
+  // For 'complete': what the customer gave — the approval number, or the
+  // card's last four digits. The CRM compares it with Tranzila's report; a
+  // suspected charge is completed only with it.
+  // For 'close': acknowledge_charge — the numbers the CRM showed a charge
+  // under (its "charge_shown"), once the manager says they are not ours.
+  evidence: { confirmation_code?: string; card_last4?: string; acknowledge_charge?: string[] } = {},
+): Promise<StorePaymentReviewResult> {
+  const { data } = await api.post(`/store/invoices/${id}/payment-review/`, { action, reason, ...evidence });
+  return {
+    invoice: data.invoice as StoreInvoice,
+    chargeShown: (data.charge_shown as string[] | undefined) || [],
+    warning: (data.warning as string | undefined) || '',
+  };
+}
+
+export interface StorePaymentReviewResult {
+  invoice: StoreInvoice;
+  /** Numbers left open because the report shows an approved charge of this sum under them. */
+  chargeShown: string[];
+  /** What to tell the manager about them, when some other numbers were settled. */
+  warning: string;
+}
+
 export async function downloadStoreInvoicePdf(id: string, invoiceNumber: string): Promise<void> {
   const response = await api.get(`/store/invoices/${id}/download/`, {
     responseType: 'blob',

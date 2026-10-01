@@ -206,4 +206,16 @@ export interface PaymentRecord {
   customer_notes?: string;
   website_order_number?: string;
   store_invoice_id?: string;
+  // A store payment in review, and the numbers a manager decides about —
+  // also on a row that is not in review: a released number on a failed
+  // order, a further number on a paid one.
+  payment_in_review?: boolean;
+  review_numbers?: string[];
+  // The ones found in Tranzila's report by sum and time only ("suspected").
+  review_suspected?: string[];
+  // A store order whose customer asked to pay again and was told to wait.
+  retry_waiting?: boolean;
 }
+
+/** What a manager may do about a store row's undecided numbers. */
+export type StoreReviewAction = 'complete' | 'release' | 'close';

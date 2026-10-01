@@ -9,6 +9,7 @@ import type {
   LedgerFilters,
   PaymentLedgerItem,
   PaymentRecord,
+  StoreReviewAction,
 } from './types';
 import {
   DEFAULT_RANGE_DAYS,
@@ -444,6 +445,58 @@ export function storeInvoiceToLedgerRow(invoice: StoreInvoice): PaymentRecord {
     customer_notes: invoice.customer_notes || undefined,
     website_order_number: invoice.website_order_number || undefined,
     store_invoice_id: invoice.id,
+    payment_in_review: Boolean(invoice.payment_in_review),
+    review_numbers: (invoice.payment_review_numbers || []).map((n) => n.index),
+    review_suspected: (invoice.payment_review_numbers || []).filter((n) => n.suspected).map((n) => n.index),
+    retry_waiting: Boolean(invoice.payment_retry_waiting),
+  };
+}
+
+/** The tag on a store row whose customer was told to wait before paying again. */
+export const RETRY_WAITING_LABEL = 'הלקוח ממתין — אי אפשר לשלול תשלום';
+
+const STORE_PAID_STATUSES = ['completed', 'refunded', 'refund_failed'];
+
+/** A store row whose payment is settled: a further number on it is a possible second charge. */
+export function isStoreRowPaid(row: Pick<PaymentRecord, 'status'>): boolean {
+  return STORE_PAID_STATUSES.includes(row.status);
+}
+
+/**
+ * What a manager may decide about a store row's undecided numbers (the CRM's
+ * payment-review action), and what the row says about them:
+ *   in review          — complete after verification, or release;
+ *   paid, a further    — record a second charge (with the customer's
+ *   number undecided     evidence), or close it as not ours;
+ *   failed, a released — complete after verification (the report may confirm
+ *   number               it yet).
+ */
+export function storeReviewChoices(
+  row: Pick<PaymentRecord, 'status' | 'payment_in_review' | 'review_numbers' | 'review_suspected'>,
+): { note: string; actions: { action: StoreReviewAction; label: string }[] } {
+  const numbers = row.review_numbers || [];
+  if (row.payment_in_review) {
+    return {
+      note: `תשלום בבדיקה${(row.review_suspected || []).length > 0 ? ' · חשוד — הדוח לא קושר אותו להזמנה' : ''}`,
+      actions: [
+        { action: 'complete', label: 'השלם אחרי אימות' },
+        { action: 'release', label: 'אין תשלום — שחרר' },
+      ],
+    };
+  }
+  if (numbers.length === 0) return { note: '', actions: [] };
+  if (isStoreRowPaid(row)) {
+    return {
+      note: 'עסקה נוספת מחכה להחלטה — ייתכן חיוב שני',
+      actions: [
+        { action: 'complete', label: 'חיוב שני — אימות' },
+        { action: 'close', label: 'סגור — לא שלנו' },
+      ],
+    };
+  }
+  return {
+    note: 'מספר ששוחרר — עדיין נבדק מול טרנזילה',
+    actions: [{ action: 'complete', label: 'השלם אחרי אימות' }],
   };
 }
 
