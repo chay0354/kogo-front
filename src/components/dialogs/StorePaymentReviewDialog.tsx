@@ -94,8 +94,10 @@ export default function StorePaymentReviewDialog({
       setProblem(found);
       return;
     }
+    // Not cleared here: a refusal (the report does not confirm) leaves the
+    // dialog open with what was typed. The parent remounts it per order.
+    setProblem('');
     onConfirm(reason.trim(), complete ? reviewEvidence(evidenceKind, evidence) : {});
-    reset();
   };
 
   return (

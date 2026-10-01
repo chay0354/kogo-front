@@ -1105,6 +1105,7 @@ export default function PaymentsTab({ ledger }: PaymentsTabProps) {
           loading={refundLoading}
         />
         <StorePaymentReviewDialog
+          key={reviewTarget ? `${reviewTarget.row.id}-${reviewTarget.action}` : 'closed'}
           isOpen={Boolean(reviewTarget)}
           action={reviewTarget?.action ?? 'complete'}
           itemDescription={reviewTarget?.row.description}
