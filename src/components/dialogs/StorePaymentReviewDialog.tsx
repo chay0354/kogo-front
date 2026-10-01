@@ -10,8 +10,12 @@ export type StorePaymentReviewAction = 'complete' | 'release' | 'close';
 export interface StorePaymentReviewEvidence {
   confirmation_code?: string;
   card_last4?: string;
-  /** "close" only: the manager saw that the report lists a charge of this sum under the number. */
-  acknowledge_charge?: boolean;
+  /**
+   * "close" only: the numbers the CRM showed a charge under (its 409
+   * "charge_shown"), which the manager says are another customer's. A
+   * general flag acknowledges nothing: the CRM takes the numbers it showed.
+   */
+  acknowledge_charge?: string[];
 }
 
 export interface StorePaymentReviewNumberView {
@@ -27,6 +31,12 @@ interface StorePaymentReviewDialogProps {
   paid?: boolean;
   itemDescription?: string;
   numbers: StorePaymentReviewNumberView[];
+  /**
+   * The numbers the CRM just answered "the report shows a charge of this sum
+   * under it" about. Only then is the manager offered "I saw the charge" —
+   * never before the CRM showed it.
+   */
+  chargeShown?: string[];
   loading?: boolean;
   onClose: () => void;
   onConfirm: (reason: string, evidence: StorePaymentReviewEvidence) => void;
@@ -54,6 +64,19 @@ export function reviewEvidence(evidenceKind: EvidenceKind, evidence: string): St
   const digits = evidence.replace(/\D/g, '');
   if (!digits) return {};
   return evidenceKind === 'card' ? { card_last4: digits } : { confirmation_code: digits };
+}
+
+/**
+ * What "close" sends about a charge the report shows: the numbers the CRM
+ * showed, and only once the manager ticked "I saw the charge" — which is
+ * offered only after the CRM showed them.
+ */
+export function closeAcknowledgement(
+  action: StorePaymentReviewAction,
+  chargeShown: string[],
+  sawCharge: boolean,
+): StorePaymentReviewEvidence {
+  return action === 'close' && sawCharge && chargeShown.length > 0 ? { acknowledge_charge: chargeShown } : {};
 }
 
 /** The dialog's words for each decision; on a paid order "complete" is "a second charge". */
@@ -89,6 +112,7 @@ export default function StorePaymentReviewDialog({
   paid = false,
   itemDescription,
   numbers,
+  chargeShown = [],
   loading = false,
   onClose,
   onConfirm,
@@ -128,7 +152,7 @@ export default function StorePaymentReviewDialog({
     setProblem('');
     onConfirm(
       reason.trim(),
-      complete ? reviewEvidence(evidenceKind, evidence) : action === 'close' && sawCharge ? { acknowledge_charge: true } : {},
+      complete ? reviewEvidence(evidenceKind, evidence) : closeAcknowledgement(action, chargeShown, sawCharge),
     );
   };
 
@@ -219,20 +243,22 @@ export default function StorePaymentReviewDialog({
                 המספר יפסיק להיבדק ולהופיע בתדריך. אם הדוח של טרנזילה מאשר אותו עכשיו, הוא יירשם כחיוב שני ולא ייסגר.
                 מספר שדווח לפני פחות מ-10 דקות, או שהדוח עוד לא ענה עליו, לא ייסגר.
               </p>
-              <label className="mt-3 flex items-start gap-2 text-sm text-yellow-900">
-                <input
-                  id="review-saw-charge"
-                  type="checkbox"
-                  className="mt-1"
-                  checked={sawCharge}
-                  onChange={(e) => setSawCharge(e.target.checked)}
-                  disabled={loading}
-                />
-                <span>
-                  ראיתי את החיוב בדוח: תחת המספר מופיע בטרנזילה חיוב מאושר באותו סכום, ובדקתי שהוא של לקוח אחר.
-                  (בלי הסימון, מספר כזה לא ייסגר.)
-                </span>
-              </label>
+              {chargeShown.length > 0 && (
+                <label className="mt-3 flex items-start gap-2 text-sm text-yellow-900">
+                  <input
+                    id="review-saw-charge"
+                    type="checkbox"
+                    className="mt-1"
+                    checked={sawCharge}
+                    onChange={(e) => setSawCharge(e.target.checked)}
+                    disabled={loading}
+                  />
+                  <span>
+                    <strong>בדוח של טרנזילה מופיע תחת עסקה {chargeShown.join(', ')} חיוב מאושר באותו סכום.</strong>{' '}
+                    ראיתי את החיוב בדוח, ובדקתי שהוא של לקוח אחר. (בלי הסימון, המספר לא ייסגר.)
+                  </span>
+                </label>
+              )}
             </div>
           ) : (
             <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">

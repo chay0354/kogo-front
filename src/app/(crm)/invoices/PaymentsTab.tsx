@@ -35,6 +35,7 @@ import {
   getCurrentMonthTotal,
   getPaymentStatusClass,
   getPaymentStatusLabel,
+  RETRY_WAITING_LABEL,
   isStoreRowPaid,
   isWithinRange,
   ledgerRangeParams,
@@ -598,7 +599,13 @@ export default function PaymentsTab({ ledger }: PaymentsTabProps) {
   const [refundLoading, setRefundLoading] = useState(false);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
   const [reviewingId, setReviewingId] = useState<string | null>(null);
-  const [reviewTarget, setReviewTarget] = useState<{ row: ChargeRow; action: StorePaymentReviewAction } | null>(null);
+  const [reviewTarget, setReviewTarget] = useState<{
+    row: ChargeRow;
+    action: StorePaymentReviewAction;
+    // The numbers the CRM answered "the report shows a charge of this sum
+    // under it" about: only then is "I saw the charge" offered.
+    chargeShown?: string[];
+  } | null>(null);
   const [actionError, setActionError] = useState('');
   // Refunds made while this query is shown: its figures are asked again after each.
   const [refunds, setRefunds] = useState({ queryKey: '', n: 0 });
@@ -771,12 +778,25 @@ export default function PaymentsTab({ ledger }: PaymentsTabProps) {
     setReviewingId(row.id);
     setActionError('');
     try {
-      const updated = await reviewStorePayment(row.store_invoice_id as string, action, reason, evidence);
+      const result = await reviewStorePayment(row.store_invoice_id as string, action, reason, evidence);
+      const updated = result.invoice;
       store.setInvoices((prev) => prev.map((inv) => (inv.id === updated.id ? updated : inv)));
-      setReviewTarget(null);
+      if (result.chargeShown.length > 0) {
+        // Some numbers were settled, and another shows a charge in the
+        // report: the manager is told, and the dialog stays for that one.
+        window.alert(result.warning);
+        setReviewTarget({ row: { ...row, ...storeInvoiceToLedgerRow(updated) }, action, chargeShown: result.chargeShown });
+      } else {
+        setReviewTarget(null);
+      }
     } catch (error: unknown) {
-      const data = (error as { response?: { data?: { error?: string } } })?.response?.data;
+      const data = (error as { response?: { data?: { error?: string; charge_shown?: string[] } } })?.response?.data;
       window.alert(data?.error || 'הפעולה לא בוצעה');
+      if (data?.charge_shown?.length) {
+        // The CRM showed a charge under these numbers: now, and only now,
+        // the dialog offers "I saw the charge" for them.
+        setReviewTarget((prev) => (prev ? { ...prev, chargeShown: data.charge_shown } : prev));
+      }
     } finally {
       setReviewingId(null);
     }
@@ -813,6 +833,14 @@ export default function PaymentsTab({ ledger }: PaymentsTabProps) {
           {review.note && (
             <span className={styles.subLine} title={`מספרי עסקה: ${(row.review_numbers || []).join(', ')}`}>
               {review.note}
+            </span>
+          )}
+          {row.retry_waiting && (
+            <span
+              className={styles.subLine}
+              title="הלקוח ביקש לשלם שוב, והדוח של טרנזילה עוד לא שולל שהעמוד הקודם נגבה. באתר ההזמנה מוצגת כממתינה."
+            >
+              {RETRY_WAITING_LABEL}
             </span>
           )}
         </td>
@@ -1106,6 +1134,7 @@ export default function PaymentsTab({ ledger }: PaymentsTabProps) {
           action={reviewTarget?.action ?? 'complete'}
           paid={reviewTarget ? isStoreRowPaid(reviewTarget.row) : false}
           itemDescription={reviewTarget?.row.description}
+          chargeShown={reviewTarget?.chargeShown || []}
           numbers={(reviewTarget?.row.review_numbers || []).map((index) => ({
             index,
             suspected: (reviewTarget?.row.review_suspected || []).includes(index),

@@ -213,6 +213,8 @@ export interface PaymentRecord {
   review_numbers?: string[];
   // The ones found in Tranzila's report by sum and time only ("suspected").
   review_suspected?: string[];
+  // A store order whose customer asked to pay again and was told to wait.
+  retry_waiting?: boolean;
 }
 
 /** What a manager may do about a store row's undecided numbers. */

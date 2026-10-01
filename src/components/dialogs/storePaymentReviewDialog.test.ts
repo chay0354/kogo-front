@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   EVIDENCE_FROM_CUSTOMER_WARNING,
+  closeAcknowledgement,
   reviewDialogCopy,
   reviewEvidence,
   reviewFormProblem,
@@ -38,6 +39,13 @@ describe('settling a store payment in review', () => {
   it('warns that the evidence comes from the customer, not from the transaction-check screen', () => {
     expect(EVIDENCE_FROM_CUSTOMER_WARNING).toContain('מהלקוח');
     expect(EVIDENCE_FROM_CUSTOMER_WARNING).toContain('בדיקת עסקה');
+  });
+
+  it('acknowledges a charge only for the numbers the CRM showed, and only when ticked', () => {
+    expect(closeAcknowledgement('close', [], true)).toEqual({});
+    expect(closeAcknowledgement('close', ['888'], false)).toEqual({});
+    expect(closeAcknowledgement('close', ['888'], true)).toEqual({ acknowledge_charge: ['888'] });
+    expect(closeAcknowledgement('release', ['888'], true)).toEqual({});
   });
 
   it('sends what was typed as the right kind of evidence, digits only', () => {

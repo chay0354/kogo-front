@@ -94,6 +94,12 @@ export interface StoreInvoice {
    */
   payment_in_review?: boolean;
   payment_review_numbers?: StorePaymentReviewNumber[];
+  /**
+   * The customer asked to pay this order again and was told to wait: the
+   * report could not rule out that an earlier page was paid. The site reads
+   * the order as pending meanwhile.
+   */
+  payment_retry_waiting?: boolean;
 }
 
 export interface StorePaymentReviewNumber {

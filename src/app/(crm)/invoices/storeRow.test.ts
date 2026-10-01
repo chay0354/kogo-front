@@ -129,6 +129,11 @@ describe('a store payment in review', () => {
     expect(storeReviewChoices(storeInvoiceToLedgerRow(invoice))).toEqual({ note: '', actions: [] });
   });
 
+  it('carries "the customer is waiting" from the CRM', () => {
+    expect(storeInvoiceToLedgerRow({ ...invoice, payment_status: 'failed', payment_retry_waiting: true }).retry_waiting).toBe(true);
+    expect(storeInvoiceToLedgerRow(invoice).retry_waiting).toBe(false);
+  });
+
   it('is not in review when the CRM says nothing', () => {
     const row = storeInvoiceToLedgerRow(invoice);
     expect(row.payment_in_review).toBe(false);

@@ -448,8 +448,12 @@ export function storeInvoiceToLedgerRow(invoice: StoreInvoice): PaymentRecord {
     payment_in_review: Boolean(invoice.payment_in_review),
     review_numbers: (invoice.payment_review_numbers || []).map((n) => n.index),
     review_suspected: (invoice.payment_review_numbers || []).filter((n) => n.suspected).map((n) => n.index),
+    retry_waiting: Boolean(invoice.payment_retry_waiting),
   };
 }
+
+/** The tag on a store row whose customer was told to wait before paying again. */
+export const RETRY_WAITING_LABEL = 'הלקוח ממתין — אי אפשר לשלול תשלום';
 
 const STORE_PAID_STATUSES = ['completed', 'refunded', 'refund_failed'];
 

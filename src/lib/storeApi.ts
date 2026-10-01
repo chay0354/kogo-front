@@ -149,12 +149,24 @@ export async function reviewStorePayment(
   // For 'complete': what the customer gave — the approval number, or the
   // card's last four digits. The CRM compares it with Tranzila's report; a
   // suspected charge is completed only with it.
-  // For 'close': acknowledge_charge, once the manager saw that the report
-  // lists an approved charge of this sum under the number.
-  evidence: { confirmation_code?: string; card_last4?: string; acknowledge_charge?: boolean } = {},
-): Promise<StoreInvoice> {
+  // For 'close': acknowledge_charge — the numbers the CRM showed a charge
+  // under (its "charge_shown"), once the manager says they are not ours.
+  evidence: { confirmation_code?: string; card_last4?: string; acknowledge_charge?: string[] } = {},
+): Promise<StorePaymentReviewResult> {
   const { data } = await api.post(`/store/invoices/${id}/payment-review/`, { action, reason, ...evidence });
-  return data.invoice as StoreInvoice;
+  return {
+    invoice: data.invoice as StoreInvoice,
+    chargeShown: (data.charge_shown as string[] | undefined) || [],
+    warning: (data.warning as string | undefined) || '',
+  };
+}
+
+export interface StorePaymentReviewResult {
+  invoice: StoreInvoice;
+  /** Numbers left open because the report shows an approved charge of this sum under them. */
+  chargeShown: string[];
+  /** What to tell the manager about them, when some other numbers were settled. */
+  warning: string;
 }
 
 export async function downloadStoreInvoicePdf(id: string, invoiceNumber: string): Promise<void> {
