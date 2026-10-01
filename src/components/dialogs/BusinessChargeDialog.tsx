@@ -1,7 +1,7 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
-import { ExternalLink, X } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Check, Copy, ExternalLink, MessageCircle, X } from 'lucide-react';
 import { createBusinessCustomer, fetchBusinesses, searchBusinessCustomers, type Business } from '@/lib/api';
 import { createBusinessCharge } from '@/lib/paymentLinksApi';
 import { fetchOpenInvoices } from '@/lib/documentsApi';
@@ -10,9 +10,24 @@ import { setBusinessCustomerConsent } from '@/lib/signingApi';
 import { useScopedBranches } from '@/hooks/useScopedBranches';
 import type { BusinessCustomer } from '@/components/dialogs/NewDocumentDialog/types';
 import type { OpenInvoice } from '@/lib/settlements';
+import {
+  VAT_PERCENT,
+  agorotAmount,
+  agorotShekels,
+  chargeBreakdown,
+  chargeWhatsAppMessage,
+  chargeWhatsAppUrl,
+  copyText,
+  type VatMode,
+} from './businessCharge';
 import styles from './BusinessChargeDialog.module.css';
 
 type Mode = 'new' | 'invoice';
+
+/** The link that was just made, and what the buttons under it need. */
+type CreatedCharge = { url: string; customerName: string; phone: string; total: string };
+
+const COPIED_FOR_MS = 2000;
 
 const EMPTY = {
   first_name: '', last_name: '', email: '', phone: '', id_number: '', company_number: '', address: '',
@@ -36,15 +51,20 @@ export default function BusinessChargeDialog({ open, onClose, onCreated }: {
   const [invoices, setInvoices] = useState<OpenInvoice[]>([]);
   const [invoiceId, setInvoiceId] = useState('');
   const [amount, setAmount] = useState('');
+  const [vatMode, setVatMode] = useState<VatMode>('gross');
   const [description, setDescription] = useState('');
   const [consent, setConsent] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
-  const [createdUrl, setCreatedUrl] = useState('');
+  const [created, setCreated] = useState<CreatedCharge | null>(null);
+  const [copyState, setCopyState] = useState<'idle' | 'copied' | 'failed'>('idle');
+  const linkInputRef = useRef<HTMLInputElement>(null);
+  const copyTimer = useRef<number | undefined>(undefined);
 
   useEffect(() => {
     if (!open) return;
-    setCreatedUrl('');
+    setCreated(null);
+    setCopyState('idle');
     setError('');
     void fetchBusinesses().then((rows) => setBusinesses(rows.filter((row) => row.is_active))).catch(() => setError('טעינת העסקים נכשלה'));
   }, [open]);
@@ -87,6 +107,14 @@ export default function BusinessChargeDialog({ open, onClose, onCreated }: {
     return () => { live = false; };
   }, [customer, mode]);
 
+  useEffect(() => () => window.clearTimeout(copyTimer.current), []);
+
+  // An open invoice is collected by its balance, which already includes VAT.
+  const breakdown = useMemo(
+    () => chargeBreakdown(amount, mode === 'invoice' ? 'gross' : vatMode),
+    [amount, mode, vatMode],
+  );
+
   const categories = useMemo(
     () => businesses.find((business) => business.id === businessId)?.categories.filter((row) => row.is_active) ?? [],
     [businesses, businessId],
@@ -113,7 +141,7 @@ export default function BusinessChargeDialog({ open, onClose, onCreated }: {
   async function submit() {
     setError('');
     if (!businessId || !categoryId) return setError('יש לבחור עסק וקטגוריה');
-    if (!amount || Number(amount) < 1) return setError('יש להזין סכום תקין');
+    if (!breakdown || breakdown.gross < 100) return setError('יש להזין סכום תקין');
     if (!description.trim()) return setError('יש להזין תיאור לחיוב');
     if (mode === 'invoice' && !invoiceId) return setError('יש לבחור חשבונית פתוחה');
     if (!customer && !form.first_name.trim()) return setError('יש לבחור לקוח קיים או להזין לקוח חדש');
@@ -137,17 +165,45 @@ export default function BusinessChargeDialog({ open, onClose, onCreated }: {
         business_category_id: categoryId,
         branch_id: branchId || null,
         target_invoice_id: mode === 'invoice' ? invoiceId : null,
-        amount: Number(amount).toFixed(2),
+        // Always the total the customer pays, VAT included, to the agora.
+        amount: agorotAmount(breakdown.gross),
         description: description.trim(),
         expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
       });
-      setCreatedUrl(link.public_url);
+      setCopyState('idle');
+      setCreated({
+        url: link.public_url,
+        customerName: customer?.full_name ?? `${form.first_name} ${form.last_name}`.trim(),
+        phone: customer?.phone ?? form.phone,
+        total: agorotShekels(breakdown.gross),
+      });
       onCreated?.();
     } catch (err: unknown) {
       setError(readableError(err, 'יצירת הגבייה נכשלה. בדקו את הפרטים ונסו שוב.'));
     } finally {
       setBusy(false);
     }
+  }
+
+  async function copyLink() {
+    if (!created) return;
+    const input = linkInputRef.current;
+    const copied = await copyText(created.url, () => {
+      if (!input) return false;
+      input.focus();
+      input.select();
+      return document.execCommand('copy');
+    });
+    window.clearTimeout(copyTimer.current);
+    if (copied) {
+      setCopyState('copied');
+      copyTimer.current = window.setTimeout(() => setCopyState('idle'), COPIED_FOR_MS);
+      return;
+    }
+    // No clipboard at all: leave the link selected for a manual copy.
+    input?.focus();
+    input?.select();
+    setCopyState('failed');
   }
 
   if (!open) return null;
@@ -159,18 +215,55 @@ export default function BusinessChargeDialog({ open, onClose, onCreated }: {
           <button className={styles.close} type="button" onClick={onClose} aria-label="סגירה"><X size={18} /></button>
         </header>
 
-        {createdUrl ? (
-          <div className={styles.body}>
-            <div className={styles.success}>
-              <h3>הגבייה מוכנה</h3>
-              <p className={styles.hint}>זה קישור חד־פעמי. אחרי תשלום מאומת הוא נסגר ומופק המסמך המתאים.</p>
-              <div className={styles.url}>{createdUrl}</div>
-              <div className={styles.footer}>
-                <button className={styles.primary} type="button" onClick={() => void navigator.clipboard.writeText(createdUrl)}>העתקת קישור</button>
-                <a className={styles.secondary} href={createdUrl} target="_blank" rel="noreferrer"><ExternalLink size={14} /> פתיחה</a>
+        {created ? (
+          <>
+            <div className={styles.body}>
+              <div className={styles.success}>
+                <span className={styles.successMark} aria-hidden="true"><Check size={22} /></span>
+                <h3>הגבייה מוכנה</h3>
+                <p className={styles.successSum}>{created.customerName ? `${created.customerName} · ` : ''}{created.total} כולל מע״מ</p>
+                <p className={styles.hint}>זה קישור חד־פעמי. אחרי תשלום מאומת הוא נסגר ומופק המסמך המתאים.</p>
+                <input
+                  ref={linkInputRef}
+                  className={styles.linkInput}
+                  readOnly
+                  dir="ltr"
+                  value={created.url}
+                  aria-label="קישור התשלום"
+                  onFocus={(event) => event.currentTarget.select()}
+                  onClick={(event) => event.currentTarget.select()}
+                />
+                <div className={styles.linkActions}>
+                  <button
+                    type="button"
+                    className={`${styles.action} ${styles.actionPrimary}${copyState === 'copied' ? ` ${styles.actionDone}` : ''}`}
+                    onClick={() => void copyLink()}
+                  >
+                    {copyState === 'copied' ? <Check size={16} aria-hidden="true" /> : <Copy size={16} aria-hidden="true" />}
+                    {copyState === 'copied' ? 'הועתק' : 'העתקת קישור'}
+                  </button>
+                  <a
+                    className={`${styles.action} ${styles.actionWhatsApp}`}
+                    href={chargeWhatsAppUrl(created.phone, chargeWhatsAppMessage({ customerName: created.customerName, amount: created.total, url: created.url }))}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    <MessageCircle size={16} aria-hidden="true" />
+                    שליחה בוואטסאפ
+                  </a>
+                  <a className={styles.action} href={created.url} target="_blank" rel="noopener noreferrer">
+                    <ExternalLink size={16} aria-hidden="true" />
+                    פתיחה
+                  </a>
+                </div>
+                <p className={`${styles.copyNote}${copyState === 'failed' ? ` ${styles.copyNoteFailed}` : ''}`} role="status" aria-live="polite">
+                  {copyState === 'copied' && 'הקישור הועתק ✓'}
+                  {copyState === 'failed' && 'לא הצלחנו להעתיק — הקישור מסומן, העתיקו אותו ידנית.'}
+                </p>
               </div>
             </div>
-          </div>
+            <footer className={styles.footer}><button className={styles.secondary} type="button" onClick={onClose}>סגירה</button></footer>
+          </>
         ) : (
           <>
             <div className={styles.body}>
@@ -204,10 +297,28 @@ export default function BusinessChargeDialog({ open, onClose, onCreated }: {
 
               <div className={styles.section}>
                 <h3>3. מה גובים</h3>
-                <div className={styles.mode}><button type="button" aria-pressed={mode === 'new'} className={mode === 'new' ? styles.active : ''} onClick={() => setMode('new')}>עסקה חדשה</button><button type="button" aria-pressed={mode === 'invoice'} className={mode === 'invoice' ? styles.active : ''} onClick={() => setMode('invoice')} disabled={!customer}>חשבונית פתוחה</button></div>
+                <div className={styles.mode}><button type="button" aria-pressed={mode === 'new'} className={mode === 'new' ? styles.active : ''} onClick={() => setMode('new')}>עסקה חדשה</button><button type="button" aria-pressed={mode === 'invoice'} className={mode === 'invoice' ? styles.active : ''} onClick={() => { setMode('invoice'); setVatMode('gross'); }} disabled={!customer}>חשבונית פתוחה</button></div>
                 {mode === 'invoice' && <div className={styles.field}><label>חשבונית</label><select value={invoiceId} onChange={(e) => chooseInvoice(e.target.value)}><option value="">בחירה</option>{invoices.map((row) => <option key={row.id} value={row.id}>{row.document_type_label} {row.document_number} · נותר ₪{row.open.toLocaleString('he-IL', { minimumFractionDigits: 2 })}</option>)}</select>{invoices.length === 0 && <p className={styles.hint}>אין ללקוח חשבוניות פתוחות מהסוגים שניתנים לגבייה.</p>}</div>}
                 <div className={styles.grid}>
-                  <div className={styles.field}><label>סכום כולל מע״מ</label><input inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} disabled={mode === 'invoice' && Boolean(invoiceId)} /></div>
+                  {mode === 'invoice' ? (
+                    <div className={styles.field}><label htmlFor="charge-amount">סכום כולל מע״מ</label><input id="charge-amount" inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} disabled={Boolean(invoiceId)} /></div>
+                  ) : (
+                    <div className={`${styles.field} ${styles.fieldFull}`}>
+                      <label htmlFor="charge-amount">סכום</label>
+                      <div className={styles.amountRow}>
+                        <input id="charge-amount" inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} aria-describedby="charge-breakdown" />
+                        <div className={styles.vatToggle} role="group" aria-label="הסכום שהוזן">
+                          <button type="button" aria-pressed={vatMode === 'gross'} className={vatMode === 'gross' ? styles.active : ''} onClick={() => setVatMode('gross')}>כולל מע״מ</button>
+                          <button type="button" aria-pressed={vatMode === 'net'} className={vatMode === 'net' ? styles.active : ''} onClick={() => setVatMode('net')}>לפני מע״מ</button>
+                        </div>
+                      </div>
+                      <dl id="charge-breakdown" className={styles.breakdown}>
+                        <div><dt>לפני מע״מ</dt><dd>{breakdown ? agorotShekels(breakdown.net) : '—'}</dd></div>
+                        <div><dt>מע״מ ({VAT_PERCENT}%)</dt><dd>{breakdown ? agorotShekels(breakdown.vat) : '—'}</dd></div>
+                        <div className={styles.breakdownTotal}><dt>סה״כ לתשלום</dt><dd>{breakdown ? agorotShekels(breakdown.gross) : '—'}</dd></div>
+                      </dl>
+                    </div>
+                  )}
                   <div className={`${styles.field} ${styles.fieldFull}`}><label>תיאור שיופיע במסמך</label><textarea value={description} onChange={(e) => setDescription(e.target.value)} /></div>
                 </div>
                 <p className={styles.warning}>התשלום יתבצע רק בעמוד Cogolive. בחיוב מעל סף מספר ההקצאה, המסמך יירשם אך המקור יוחזק עד הזנת המספר.</p>
