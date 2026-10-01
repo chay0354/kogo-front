@@ -104,15 +104,14 @@ function IncomingBody({ data, onRefreshed }: { data: IncomingMoney; onRefreshed:
 
   return (
     <>
-      <div className={theme.counts} style={{ marginTop: 0, boxShadow: 'none', padding: 0 }}>
+      <div className={`${theme.counts} ${styles.totals}`}>
         <div>
           <b>
             {formatCurrency(data.ours.total)}
             {data.is_closed ? null : <span className={styles.soFar}>עד עכשיו</span>}
           </b>
           <span>
-            {arrivalVerb(data.payout_date, today)} ב־{formatPayoutDay(data.payout_date)} · גבייה באשראי של{' '}
-            {data.period.label} · לפני עמלות
+            {arrivalVerb(data.payout_date, today)} ב־{formatPayoutDay(data.payout_date)}
           </span>
         </div>
         <div>
@@ -124,6 +123,7 @@ function IncomingBody({ data, onRefreshed }: { data: IncomingMoney; onRefreshed:
           <span>זיכויים</span>
         </div>
       </div>
+      <div className={theme.note}>גבייה באשראי של {data.period.label} · לפני עמלות סליקה</div>
 
       {notStarted ? (
         <div className={theme.note}>החודש הזה עוד לא התחיל — אין עדיין מה להציג.</div>
@@ -147,7 +147,7 @@ function IncomingBody({ data, onRefreshed }: { data: IncomingMoney; onRefreshed:
                 <tbody>
                   {sources.map((row) => (
                     <tr key={row.key}>
-                      <td className={theme.name}>
+                      <td className={`${theme.name} ${styles.wideName}`}>
                         {row.label}
                         {row.note ? <span className={styles.rowNote}>{row.note}</span> : null}
                       </td>
@@ -194,7 +194,7 @@ function IncomingBody({ data, onRefreshed }: { data: IncomingMoney; onRefreshed:
                   ))}
                   {showNoBranch && noBranch ? (
                     <tr>
-                      <td className={theme.name}>
+                      <td className={`${theme.name} ${styles.wideName}`}>
                         ללא סניף
                         <span className={styles.rowNote}>
                           כסף שאינו שייך לסניף: משלוחי האתר, האתר של מיכל קגן, תשלום בלי שיוך
@@ -283,7 +283,7 @@ function TranzilaCheck({ data, onRefreshed }: { data: IncomingMoney; onRefreshed
                 const money = (value: number | null) => (read && value != null ? formatCurrency(value) : '—');
                 return (
                   <tr key={stored.terminal}>
-                    <td className={theme.name}>
+                    <td className={`${theme.name} ${styles.wideName}`}>
                       <span dir="ltr">{row.terminal}</span>
                       <span className={styles.rowNote}>{row.label}</span>
                       {row.error ? <span className={`${styles.rowNote} ${styles.rowError}`}>{row.error}</span> : null}
