@@ -28,7 +28,14 @@ import api, {
   searchBusinessCustomers,
   updateBusinessCustomer,
 } from '@/lib/api';
-import { createDocument, fetchCreditRoom, fetchDocuments, fetchOpenInvoices } from '@/lib/documentsApi';
+import {
+  createDocument,
+  fetchCreditRoom,
+  fetchDocuments,
+  fetchExpectedDocumentNumber,
+  fetchOpenInvoices,
+  type ExpectedDocumentNumber,
+} from '@/lib/documentsApi';
 import {
   canSaveAsDraft,
   creditRoomProblem,
@@ -71,8 +78,12 @@ import {
   branchFieldApplies,
   businessCustomerErrorMessage,
   serverErrorMessage,
+  DOCUMENT_TYPE_OF,
+  EXISTING_CUSTOMER_FOUND,
   businessCustomerPayload,
   businessFormFromCustomer,
+  existingCustomerMatches,
+  existingCustomerSearch,
   canAdvanceFromStep,
   computeInvoiceTotals,
   creditableMatch,
@@ -224,6 +235,21 @@ export default function NewDocumentDialog({ open, onClose, initialCredit = null 
     docType === 'קבלה' ? 'receipt' : docType === 'חשבונית מס/קבלה' ? 'combined' : null;
   const payerChildId = clientType === 'existing' ? selectedCustomerId : null;
   const payerBusinessId = clientType === 'business' ? businessCustomerId : null;
+
+  // The number the document would take if it were issued now — the next in its
+  // type's run, which may continue the previous software's. Read when the type
+  // is chosen and again on each step after it, so the summary shows the
+  // number of that moment; the server hands the real one out at issue.
+  const expectedType = docType ? DOCUMENT_TYPE_OF[docType] : undefined;
+  const expectedNumberQuery = useQuery({
+    queryKey: ['expected-document-number', expectedType, currentStep],
+    queryFn: () => fetchExpectedDocumentNumber(expectedType as string),
+    enabled: open && Boolean(expectedType) && (currentStep === 'documentDetails' || currentStep === 'summary'),
+    staleTime: 0,
+    placeholderData: (previous) => previous,
+  });
+  const expectedNumber = expectedNumberQuery.data ?? null;
+
   const openInvoicesQuery = useQuery({
     queryKey: ['open-invoices', payerType, payerChildId, payerBusinessId],
     queryFn: () => fetchOpenInvoices({
@@ -471,14 +497,7 @@ export default function NewDocumentDialog({ open, onClose, initialCredit = null 
   }
 
   function buildDocumentPayload(): CreateDocumentPayload {
-    const docTypeMap: Record<string, CreateDocumentPayload['document_type']> = {
-      'חשבונית מס': 'tax_invoice',
-      'חשבונית מס/קבלה': 'combined',
-      'קבלה': 'receipt',
-      'חשבונית עסקה': 'transaction_invoice',
-      'חשבונית מס זיכוי': 'credit_invoice',
-    };
-    const mappedType = docTypeMap[docType ?? ''] ?? 'tax_invoice';
+    const mappedType: CreateDocumentPayload['document_type'] = DOCUMENT_TYPE_OF[docType ?? ''] ?? 'tax_invoice';
 
     const asDraft = saveAsDraft && canDraft;
     const base: CreateDocumentPayload = {
@@ -725,6 +744,7 @@ export default function NewDocumentDialog({ open, onClose, initialCredit = null 
                 docType={docType}
                 clientType={clientType}
                 settlement={docType === 'חשבונית מס/קבלה' && !settlementsUnsupported ? settlementPickerProps : null}
+                expectedNumber={expectedNumber}
               />
             )}
           {currentStep === 'documentDetails' && docType === 'קבלה' && (
@@ -738,7 +758,7 @@ export default function NewDocumentDialog({ open, onClose, initialCredit = null 
             />
           )}
           {currentStep === 'documentDetails' && docType === 'חשבונית עסקה' && (
-            <TransactionInvoiceStep data={invoiceDetails} onChange={setInvoiceDetails} />
+            <TransactionInvoiceStep data={invoiceDetails} onChange={setInvoiceDetails} expectedNumber={expectedNumber} />
           )}
           {currentStep === 'documentDetails' && docType === 'חשבונית מס זיכוי' && (
             <CreditInvoiceStep
@@ -749,6 +769,7 @@ export default function NewDocumentDialog({ open, onClose, initialCredit = null 
               room={creditRoom}
               roomStatus={creditRoomStatus}
               roomProblem={creditProblem}
+              expectedNumber={expectedNumber}
             />
           )}
 
@@ -762,6 +783,8 @@ export default function NewDocumentDialog({ open, onClose, initialCredit = null 
               invoiceDetails={invoiceDetails}
               settlementRows={settlementsUnsupported ? null : settlementRows}
               perCheck={perCheck}
+              expectedNumber={expectedNumber}
+              asDraft={saveAsDraft && canDraft}
             />
           )}
         </div>
@@ -1000,6 +1023,36 @@ function BusinessClientStep({
     onFormChange({ ...formData, [field]: value });
   }
 
+  // A new customer typed straight into the fields, past the search box: the
+  // ת"ז/ח"פ, email or phone may be a card kogo already has — from the import of
+  // the previous software, most often. It is offered, never forced: a second
+  // centre of one network has the same ח"פ and is a customer of its own.
+  const lookup = selectedBusinessCustomerId === null ? existingCustomerSearch(formData) : null;
+  const lookupBy = lookup?.by ?? null;
+  const lookupTerm = lookup?.term ?? '';
+  const [existing, setExisting] = useState<{ by: typeof lookupBy; term: string; cards: BusinessCustomer[] } | null>(null);
+  useEffect(() => {
+    if (!lookupBy || !lookupTerm) {
+      setExisting(null);
+      return;
+    }
+    let cancelled = false;
+    const timer = setTimeout(async () => {
+      try {
+        const found = await searchBusinessCustomers(lookupTerm);
+        const cards = existingCustomerMatches({ by: lookupBy, term: lookupTerm }, found);
+        if (!cancelled) setExisting(cards.length ? { by: lookupBy, term: lookupTerm, cards } : null);
+      } catch {
+        if (!cancelled) setExisting(null);
+      }
+    }, 400);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [lookupBy, lookupTerm]);
+  const existingShown = existing && existing.term === lookupTerm && existing.by === lookupBy ? existing : null;
+
   const sortedBranches = useMemo(
     () => [...branches].sort((a, b) => a.name.localeCompare(b.name, 'he')),
     [branches],
@@ -1133,6 +1186,28 @@ function BusinessClientStep({
       */}
       {selectedBusinessCustomerId !== null && user?.role === 'manager' ? (
         <LegacyHistoryPanel businessCustomerId={selectedBusinessCustomerId} />
+      ) : null}
+
+      {existingShown && existingShown.by ? (
+        <div className={styles.existingCustomer} role="status">
+          <p className={styles.existingCustomerTitle}>
+            {EXISTING_CUSTOMER_FOUND[existingShown.by]}. אם זה אותו לקוח — בחרו בו, והפרטים וההיסטוריה שלו ייטענו.
+          </p>
+          <ul className={styles.existingCustomerList}>
+            {existingShown.cards.slice(0, 4).map((card) => (
+              <li key={card.id}>
+                <button type="button" className={styles.existingCustomerPick} onClick={() => handleSelectResult(card)}>
+                  <strong>{card.full_name}</strong>
+                  {card.company_number || card.id_number ? (
+                    <span dir="ltr">{card.company_number || card.id_number}</span>
+                  ) : null}
+                  <span>בחירה</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+          <p className={styles.fieldHint}>זה לקוח אחר עם אותם פרטים (למשל סניף אחר של אותה חברה)? המשיכו למלא, וייפתח לו כרטיס משלו.</p>
+        </div>
       ) : null}
 
       {/* Form grid */}
@@ -1538,9 +1613,11 @@ function SelectBranchStep({ branches, selectedBranchId, onSelect }: SelectBranch
 interface TransactionInvoiceStepProps {
   data: InvoiceDetailsData;
   onChange: (data: InvoiceDetailsData) => void;
+  /** The number the document would take if issued now; null when the server cannot say. */
+  expectedNumber?: ExpectedDocumentNumber | null;
 }
 
-function TransactionInvoiceStep({ data, onChange }: TransactionInvoiceStepProps) {
+function TransactionInvoiceStep({ data, onChange, expectedNumber = null }: TransactionInvoiceStepProps) {
   function updateLineItem(idx: number, field: keyof LineItem, value: string | number) {
     const updated = data.lineItems.map((item, i) =>
       i === idx ? { ...item, [field]: value } : item
@@ -1563,11 +1640,13 @@ function TransactionInvoiceStep({ data, onChange }: TransactionInvoiceStepProps)
           <input
             type="text"
             className={styles.readOnlyInput}
-            value={data.documentNumber}
+            value={expectedNumber?.next_number ?? data.documentNumber}
             readOnly
             aria-readonly="true"
             aria-label="מספר מסמך"
+            dir={expectedNumber ? 'ltr' : undefined}
           />
+          <ExpectedNumberNote expected={expectedNumber} />
         </div>
         <div className={styles.detailsCol}>
           <label htmlFor="txn-date" className={styles.fieldLabel}>
@@ -1848,6 +1927,8 @@ interface CreditInvoiceStepProps {
   roomStatus?: CreditRoomStatus;
   /** Why the server would refuse this credit note, known before issuing; null when it would not. */
   roomProblem?: string | null;
+  /** The number the document would take if issued now; null when the server cannot say. */
+  expectedNumber?: ExpectedDocumentNumber | null;
 }
 
 function CreditInvoiceStep({
@@ -1858,6 +1939,7 @@ function CreditInvoiceStep({
   room = null,
   roomStatus = 'idle',
   roomProblem = null,
+  expectedNumber = null,
 }: CreditInvoiceStepProps) {
   const vatAmount = data.vatExempt ? 0 : data.creditAmountBeforeVat * 0.18;
   const totalCredit = data.creditAmountBeforeVat + vatAmount;
@@ -1892,11 +1974,13 @@ function CreditInvoiceStep({
           <input
             type="text"
             className={styles.readOnlyInput}
-            value={data.documentNumber}
+            value={expectedNumber?.next_number ?? data.documentNumber}
             readOnly
             aria-readonly="true"
             aria-label="מספר מסמך"
+            dir={expectedNumber ? 'ltr' : undefined}
           />
+          <ExpectedNumberNote expected={expectedNumber} />
         </div>
         <div className={styles.detailsCol}>
           <label htmlFor="credit-date" className={styles.fieldLabel}>
@@ -2087,9 +2171,18 @@ interface InvoiceDetailsStepProps {
   clientType?: ClientType | null;
   /** An invoice-receipt's picker of open transaction invoices (WS-3); null on an older server. */
   settlement?: SettlementPickerData | null;
+  /** The number the document would take if issued now; null when the server cannot say. */
+  expectedNumber?: ExpectedDocumentNumber | null;
 }
 
-function InvoiceDetailsStep({ data, onChange, docType, clientType = null, settlement = null }: InvoiceDetailsStepProps) {
+function InvoiceDetailsStep({
+  data,
+  onChange,
+  docType,
+  clientType = null,
+  settlement = null,
+  expectedNumber = null,
+}: InvoiceDetailsStepProps) {
   const isReceipt = docType === 'חשבונית מס/קבלה';
   const balance = invoicePaymentBalance(data);
   const setPayments = (payments: ReceiptDetailsData) => onChange({ ...data, payments });
@@ -2123,11 +2216,13 @@ function InvoiceDetailsStep({ data, onChange, docType, clientType = null, settle
           <input
             type="text"
             className={styles.readOnlyInput}
-            value={data.documentNumber}
+            value={expectedNumber?.next_number ?? data.documentNumber}
             readOnly
             aria-readonly="true"
             aria-label="מספר מסמך"
+            dir={expectedNumber ? 'ltr' : undefined}
           />
+          <ExpectedNumberNote expected={expectedNumber} />
         </div>
         <div className={styles.detailsCol}>
           <label htmlFor="inv-date" className={styles.fieldLabel}>
@@ -3085,6 +3180,21 @@ interface SummaryStepProps {
   settlementRows?: readonly ResolvedSettlement[] | null;
   /** A check receipt that opens a check plan: a tax invoice on each check's day. */
   perCheck?: boolean;
+  /** The number the document would take if issued now; null when the server cannot say. */
+  expectedNumber?: ExpectedDocumentNumber | null;
+  /** Saved as a draft: it takes no number until it is approved. */
+  asDraft?: boolean;
+}
+
+/** Under the wizard's number: that it is the next in its run, fixed only at issue, and what the run continues. */
+function ExpectedNumberNote({ expected }: { expected: ExpectedDocumentNumber | null | undefined }) {
+  if (!expected) return null;
+  return (
+    <p className={styles.fieldHint}>
+      המספר הבא בסדרה. הוא נקבע סופית ברגע ההפקה.
+      {expected.continues ? ` ${expected.continues}.` : ''}
+    </p>
+  );
 }
 
 function SummaryStep({
@@ -3096,6 +3206,8 @@ function SummaryStep({
   invoiceDetails,
   settlementRows = null,
   perCheck = false,
+  expectedNumber = null,
+  asDraft = false,
 }: SummaryStepProps) {
   const customerName =
     clientType === 'business'
@@ -3132,10 +3244,23 @@ function SummaryStep({
             <dt className={styles.summaryRowLabel}>לקוח:</dt>
             <dd className={styles.summaryRowValue}>{customerName}</dd>
           </div>
-          {isInvoice && (
+          {(isInvoice || expectedNumber || asDraft) && (
             <div className={styles.summaryDetailRow}>
               <dt className={styles.summaryRowLabel}>מספר מסמך:</dt>
-              <dd className={styles.summaryRowValue}>{invoiceDetails.documentNumber}</dd>
+              <dd className={styles.summaryRowValue}>
+                {asDraft ? (
+                  'טיוטה — בלי מספר עד האישור'
+                ) : expectedNumber ? (
+                  <>
+                    <span dir="ltr">{expectedNumber.next_number}</span>
+                    {expectedNumber.continues ? (
+                      <span className={styles.settleSub}>{expectedNumber.continues}</span>
+                    ) : null}
+                  </>
+                ) : (
+                  invoiceDetails.documentNumber
+                )}
+              </dd>
             </div>
           )}
           {isInvoice && (

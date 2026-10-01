@@ -45,6 +45,70 @@ export function businessFormFromCustomer(customer: {
   };
 }
 
+/** The wizard's document types, as the server names them. */
+export const DOCUMENT_TYPE_OF: Record<string, 'tax_invoice' | 'combined' | 'receipt' | 'transaction_invoice' | 'credit_invoice'> = {
+  'חשבונית מס': 'tax_invoice',
+  'חשבונית מס/קבלה': 'combined',
+  'קבלה': 'receipt',
+  'חשבונית עסקה': 'transaction_invoice',
+  'חשבונית מס זיכוי': 'credit_invoice',
+};
+
+function digitsOf(value: string | null | undefined): string {
+  return String(value ?? '').replace(/\D/g, '');
+}
+
+/** A phone as it is compared: digits, with +972 read as the leading 0. */
+function comparablePhone(value: string | null | undefined): string {
+  const digits = digitsOf(value);
+  return digits.startsWith('972') && digits.length >= 11 ? `0${digits.slice(3)}` : digits;
+}
+
+export type ExistingCustomerClue = 'number' | 'email' | 'phone';
+
+/**
+ * What a new customer's details are searched by, to find a card that already
+ * exists: the ת"ז/ח"פ once it is long enough to be one, else the email, else
+ * the phone. null while nothing typed can identify anybody.
+ */
+export function existingCustomerSearch(
+  form: Pick<BusinessCustomerFormData, 'id_number' | 'email' | 'phone'>,
+): { by: ExistingCustomerClue; term: string } | null {
+  const number = digitsOf(form.id_number);
+  if (number.length >= 8) return { by: 'number', term: number };
+  const email = form.email.trim().toLowerCase();
+  if (/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return { by: 'email', term: email };
+  const phone = comparablePhone(form.phone);
+  if (phone.length >= 9) return { by: 'phone', term: phone };
+  return null;
+}
+
+/**
+ * The cards among `candidates` that really carry what was typed — the search
+ * is a "contains", so 51234567 also finds 512345678. A number is compared
+ * without dashes and without the zeros an ID loses in front.
+ */
+export function existingCustomerMatches<
+  T extends { id_number: string; company_number: string; email: string; phone: string },
+>(search: { by: ExistingCustomerClue; term: string }, candidates: readonly T[]): T[] {
+  const plainNumber = (value: string) => digitsOf(value).replace(/^0+/, '');
+  return candidates.filter((card) => {
+    if (search.by === 'number') {
+      const typed = plainNumber(search.term);
+      return typed !== '' && [card.id_number, card.company_number].some((n) => plainNumber(n) === typed);
+    }
+    if (search.by === 'email') return card.email.trim().toLowerCase() === search.term;
+    return comparablePhone(card.phone) === search.term;
+  });
+}
+
+/** The sentence over the cards found, by what found them. */
+export const EXISTING_CUSTOMER_FOUND: Record<ExistingCustomerClue, string> = {
+  number: 'כבר קיים לקוח עם המספר הזה',
+  email: 'כבר קיים לקוח עם האימייל הזה',
+  phone: 'כבר קיים לקוח עם הטלפון הזה',
+};
+
 /** A ח"פ or an amuta's number: nine digits that start with 5 (the server's is_company_number). */
 export function isCompanyNumber(value: string): boolean {
   return /^5\d{8}$/.test(value.replace(/[\s-]/g, ''));

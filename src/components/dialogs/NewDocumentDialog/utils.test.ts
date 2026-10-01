@@ -27,6 +27,9 @@ import {
   businessCustomerPayload,
   businessFormFromCustomer,
   isCompanyNumber,
+  DOCUMENT_TYPE_OF,
+  existingCustomerMatches,
+  existingCustomerSearch,
 } from './utils';
 import type { InvoiceDetailsData, ReceiptDetailsData } from './types';
 import { AUTO_SETTLEMENT_PICKS } from '@/lib/settlements';
@@ -74,6 +77,47 @@ describe('the one \"ת.ז/ח.פ\" input and the card\'s two numbers', () => {
     expect(isCompanyNumber('301234567')).toBe(false);
     expect(isCompanyNumber('51234567')).toBe(false);
     expect(isCompanyNumber('')).toBe(false);
+  });
+});
+
+describe('recognising a customer kogo already has, from details typed past the search box', () => {
+  const typed = { id_number: '', email: '', phone: '' };
+  const north = { id: 'n', id_number: '', company_number: '580000001', email: 'office@network.example.test', phone: '' };
+  const south = { id: 's', id_number: '', company_number: '58-000000-1', email: 'south@network.example.test', phone: '050-000-0002' };
+  const person = { id: 'p', id_number: '012345678', company_number: '', email: 'Person@Example.test', phone: '+972 50-000-0003' };
+  const near = { id: 'x', id_number: '', company_number: '5800000019', email: '', phone: '' };
+
+  it('searches by the number once it can be one, else the email, else the phone', () => {
+    expect(existingCustomerSearch(typed)).toBeNull();
+    expect(existingCustomerSearch({ ...typed, id_number: '5800' })).toBeNull();
+    expect(existingCustomerSearch({ ...typed, id_number: '58-000000-1', email: 'a@b.co' })).toEqual({ by: 'number', term: '580000001' });
+    expect(existingCustomerSearch({ ...typed, email: ' Office@Network.example.test ', phone: '0500000002' })).toEqual({
+      by: 'email', term: 'office@network.example.test',
+    });
+    expect(existingCustomerSearch({ ...typed, email: 'not-an-email', phone: '+972 50-000-0003' })).toEqual({
+      by: 'phone', term: '0500000003',
+    });
+    expect(existingCustomerSearch({ ...typed, phone: '0500' })).toBeNull();
+  });
+
+  it('keeps only the cards that really carry it — the search itself is a "contains"', () => {
+    const cards = [north, south, person, near];
+    // Every centre of a network shares the company number: all of them are offered.
+    expect(existingCustomerMatches({ by: 'number', term: '580000001' }, cards).map((c) => c.id)).toEqual(['n', 's']);
+    // An ID that lost its leading zero is the same ID.
+    expect(existingCustomerMatches({ by: 'number', term: '12345678' }, cards).map((c) => c.id)).toEqual(['p']);
+    expect(existingCustomerMatches({ by: 'email', term: 'person@example.test' }, cards).map((c) => c.id)).toEqual(['p']);
+    expect(existingCustomerMatches({ by: 'phone', term: '0500000003' }, cards).map((c) => c.id)).toEqual(['p']);
+    expect(existingCustomerMatches({ by: 'phone', term: '0500000002' }, cards).map((c) => c.id)).toEqual(['s']);
+    expect(existingCustomerMatches({ by: 'number', term: '999999999' }, cards)).toEqual([]);
+  });
+
+  it('names every document type the way the server does', () => {
+    expect(DOCUMENT_TYPE_OF['חשבונית מס']).toBe('tax_invoice');
+    expect(DOCUMENT_TYPE_OF['חשבונית מס/קבלה']).toBe('combined');
+    expect(DOCUMENT_TYPE_OF['קבלה']).toBe('receipt');
+    expect(DOCUMENT_TYPE_OF['חשבונית עסקה']).toBe('transaction_invoice');
+    expect(DOCUMENT_TYPE_OF['חשבונית מס זיכוי']).toBe('credit_invoice');
   });
 });
 
