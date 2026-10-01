@@ -4,6 +4,8 @@ import { useEffect, useRef, useState } from 'react';
 import { useParams } from 'next/navigation';
 import formStyles from '@/app/widget/CourseRegistrationForm/index.module.css';
 import pageStyles from '../pay.module.css';
+import BusinessPayView from './BusinessPayView';
+import { isBusinessChargeLink, type PayStep } from '../businessPay';
 import {
   fetchPublicPaymentLink,
   fetchPublicPaymentStatus,
@@ -13,7 +15,7 @@ import {
   type PublicPaymentStatus,
 } from '@/lib/paymentLinksApi';
 
-type Step = 'loading' | 'closed' | 'error' | 'form' | 'paying' | 'verifying' | 'success' | 'failed' | 'review';
+type Step = PayStep;
 
 const storageKey = (slug: string) => `kogo_pay_${slug}`;
 
@@ -211,6 +213,35 @@ export default function PayPage() {
     }
   };
 
+  // A business customer's charge gets its own page; the steps and handlers are the same ones.
+  if (link && isBusinessChargeLink(link) && step !== 'loading' && step !== 'closed' && step !== 'error') {
+    return (
+      <BusinessPayView
+        step={step}
+        link={link}
+        optionId={optionId}
+        chosen={chosen}
+        amount={amount}
+        iframeUrl={iframeUrl}
+        starting={starting}
+        formError={formError}
+        failureReason={failureReason}
+        documentNumber={documentNumber}
+        onChooseOption={(id) => {
+          setOptionId(id);
+          setFormError('');
+        }}
+        onStart={() => void handleStart()}
+        onBackToForm={() => {
+          writePending(slug, null);
+          setIframeUrl('');
+          setPaymentId('');
+          setStep('form');
+        }}
+      />
+    );
+  }
+
   return (
     <div className={pageStyles.shell} dir="rtl">
       <div className={pageStyles.brand}>קוגומלו</div>
@@ -309,9 +340,7 @@ export default function PayPage() {
                 onChange={(e) => setEmail(e.target.value)}
               />
             </div>
-          </div> : (
-            <p className={pageStyles.waitNote}>החיוב משויך מראש ללקוח ולמסמך שנבחרו במערכת.</p>
-          )}
+          </div> : null}
 
           {formError ? <p className={formStyles.errorText}>{formError}</p> : null}
 

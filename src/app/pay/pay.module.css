@@ -78,3 +78,370 @@
   font-size: 13px;
   margin-top: 10px;
 }
+
+/*
+ * The page a business customer gets (a one-time business charge): one white
+ * card on a soft ground, the logo on top, in the palette of the other pages a
+ * customer is sent (card-link.module.css) — indigo, gold, Heebo. Mobile first.
+ * Every class is prefixed biz, so a general payment link looks exactly as before.
+ */
+.page:has(.bizShell) {
+  background: linear-gradient(180deg, #e9ecf7 0%, #f3f4fa 45%, #f6f7fb 100%);
+}
+
+.bizShell {
+  --biz-pad: 20px;
+  width: 100%;
+  max-width: 440px;
+  font-family: Heebo, system-ui, sans-serif;
+  color: #1e2a6e;
+}
+
+.bizShell * {
+  box-sizing: border-box;
+}
+
+.bizCard {
+  display: block;
+  overflow: hidden;
+  border: 1px solid #eceef5;
+  border-radius: 22px;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(30, 42, 110, 0.04), 0 22px 48px -22px rgba(30, 42, 110, 0.4);
+  text-align: center;
+  animation: bizCardEnter 380ms 60ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* The logo, on a band of its own with the brand's gold line under it. */
+.bizBrand {
+  display: flex;
+  justify-content: center;
+  padding: 18px var(--biz-pad) 16px;
+  border-bottom: 3px solid #f5c518;
+  background: linear-gradient(180deg, #fbfbfe, #fff);
+}
+
+.bizLogo {
+  display: block;
+  width: auto;
+  height: 44px;
+  max-width: 70%;
+  object-fit: contain;
+}
+
+.bizBody {
+  padding: 22px var(--biz-pad) var(--biz-pad);
+}
+
+.bizTitle {
+  margin: 0;
+  color: #1e2a6e;
+  font-size: 24px;
+  font-weight: 800;
+  line-height: 1.25;
+}
+
+.bizDescription {
+  margin: 8px 0 0;
+  color: #1e2a6e;
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.5;
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+
+.bizMeta {
+  margin-top: 6px;
+  color: #6b7280;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+
+.bizMeta p {
+  margin: 0;
+}
+
+.bizShell .optionList {
+  margin-top: 18px;
+  text-align: right;
+}
+
+.bizOptionLabel {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.bizAmountBox {
+  display: grid;
+  gap: 2px;
+  margin: 20px 0;
+  padding: 18px 16px;
+  border: 1px solid #e6e9f5;
+  border-radius: 16px;
+  background: #f6f7fb;
+}
+
+.bizAmountLabel {
+  color: #6b7280;
+  font-size: 13.5px;
+  font-weight: 700;
+}
+
+.bizAmount {
+  color: #1e2a6e;
+  font-size: 42px;
+  font-weight: 800;
+  line-height: 1.15;
+  letter-spacing: -0.5px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* The one action on the screen. */
+.bizPayButton {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  width: 100%;
+  min-height: 56px;
+  padding: 12px 16px;
+  border: 0;
+  border-radius: 999px;
+  background: #2b3090;
+  color: #fff;
+  font-family: inherit;
+  font-size: 17.5px;
+  font-weight: 800;
+  line-height: 1.3;
+  cursor: pointer;
+  box-shadow: 0 8px 20px -6px rgba(43, 48, 144, 0.55);
+  transition: background-color 140ms ease, box-shadow 140ms ease, transform 140ms ease;
+}
+
+.bizPayButton:hover:not(:disabled) {
+  background: #1e2570;
+  box-shadow: 0 10px 24px -6px rgba(43, 48, 144, 0.65);
+}
+
+.bizPayButton:active:not(:disabled) {
+  transform: scale(0.985);
+}
+
+.bizPayButton:disabled {
+  background: #9a9dcb;
+  box-shadow: none;
+  cursor: default;
+}
+
+.bizTrust {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin: 14px 0 0;
+  color: #8a90a8;
+  font-size: 12.5px;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.bizError {
+  margin: 0 0 14px;
+  padding: 11px 13px;
+  border: 1px solid #fecaca;
+  border-radius: 13px;
+  background: #fef2f2;
+  color: #b91c1c;
+  font-size: 13.5px;
+  font-weight: 700;
+  line-height: 1.55;
+}
+
+/* While paying: the same card, "תשלום מאובטח" and the sum, then the secure frame edge to edge. */
+.bizPayingHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  text-align: right;
+}
+
+.bizPayingTitle {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin: 0;
+  color: #1e2a6e;
+  font-size: 18px;
+  font-weight: 800;
+  line-height: 1.3;
+}
+
+.bizPayingAmount {
+  flex: 0 0 auto;
+  color: #1e2a6e;
+  font-size: 22px;
+  font-weight: 800;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.bizPayingFor {
+  margin: 4px 0 0;
+  color: #6b7280;
+  font-size: 13.5px;
+  font-weight: 600;
+  line-height: 1.5;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
+.bizFrameWrap {
+  width: auto;
+  margin: 16px calc(var(--biz-pad) * -1) 0;
+  border-inline: 0;
+  border-color: #eceef5;
+  border-radius: 0;
+}
+
+.bizTextButton {
+  margin-top: 6px;
+  min-height: 40px;
+  padding: 8px 14px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: #2b3090;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+  transition: background-color 140ms ease;
+}
+
+.bizTextButton:hover {
+  background: #f0f1fa;
+}
+
+/* Result screens — in the same card. */
+.bizResult {
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  padding: 30px var(--biz-pad) 28px;
+}
+
+.bizResult .bizPayButton {
+  margin-top: 10px;
+}
+
+.bizResultIcon {
+  display: grid;
+  place-items: center;
+  width: 66px;
+  height: 66px;
+  margin-bottom: 4px;
+  border-radius: 50%;
+}
+
+.bizResult_ok {
+  background: #e7f8ef;
+  color: #0fa45c;
+}
+
+.bizResult_wait {
+  background: #eef0fa;
+  color: #2b3090;
+}
+
+.bizResult_bad {
+  background: #fef2f2;
+  color: #ef4444;
+}
+
+.bizResultTitle {
+  margin: 0;
+  color: #1e2a6e;
+  font-size: 21px;
+  font-weight: 800;
+  line-height: 1.3;
+}
+
+.bizResultText {
+  margin: 0;
+  color: #6b7280;
+  font-size: 14.5px;
+  font-weight: 600;
+  line-height: 1.65;
+  overflow-wrap: anywhere;
+}
+
+.bizResultNote {
+  margin: 0;
+  color: #8a90a8;
+  font-size: 12.5px;
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+/* Who is asking — the registered name, small, under the card. */
+.bizFooter {
+  margin-top: 16px;
+  color: #8a90a8;
+  font-size: 12.5px;
+  font-weight: 600;
+  text-align: center;
+}
+
+@keyframes bizCardEnter {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: none; }
+}
+
+@media (min-width: 481px) {
+  .bizShell {
+    --biz-pad: 28px;
+  }
+
+  .bizLogo {
+    height: 52px;
+  }
+
+  .bizBrand {
+    padding-top: 22px;
+    padding-bottom: 20px;
+  }
+
+  .bizBody {
+    padding-top: 26px;
+  }
+
+  .bizTitle {
+    font-size: 26px;
+  }
+
+  .bizDescription {
+    font-size: 17px;
+  }
+
+  .bizAmount {
+    font-size: 48px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bizCard {
+    animation: none;
+  }
+
+  .bizPayButton,
+  .bizTextButton {
+    transition: none;
+  }
+}
