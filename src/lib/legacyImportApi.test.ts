@@ -8,7 +8,9 @@ const api = vi.hoisted(() => ({ get: vi.fn(), post: vi.fn() }));
 vi.mock('./api', () => ({ default: api }));
 
 import {
+  ImportFileTooBigError,
   LEGACY_IMPORT_MAX_BYTES,
+  LEGACY_IMPORT_MAX_UNPACKED_BYTES,
   applyMappingChange,
   branchAllowed,
   categoriesFor,
@@ -19,6 +21,10 @@ import {
   formatLegacyDate,
   importFileProblem,
   initialMapping,
+  openCountNote,
+  openInvoicesCsv,
+  packForUpload,
+  previewLegacyImport,
   lastNumbersByType,
   mappingPayload,
   mappingProgress,
@@ -73,7 +79,92 @@ describe('importFileProblem', () => {
   it('refuses no file, another format, and a file over the limit', () => {
     expect(importFileProblem(null)).toBe('לא נבחר קובץ');
     expect(importFileProblem({ name: 'export.xlsx', size: 10 })).toContain('.xls');
-    expect(importFileProblem({ name: 'export.xls', size: LEGACY_IMPORT_MAX_BYTES + 1 })).toContain('גדול מדי');
+    // A browser that cannot pack a file sends it whole, so one request's limit is the limit.
+    expect(importFileProblem({ name: 'export.xls', size: LEGACY_IMPORT_MAX_BYTES + 1 }, 'tazman', false)).toContain('4.3MB');
+  });
+
+  it('lets a file over one request through where the browser packs it, up to what the server unpacks', () => {
+    expect(importFileProblem({ name: 'export.xls', size: 11_174_400 }, 'tazman', true)).toBeNull();
+    expect(
+      importFileProblem({ name: 'export.xls', size: LEGACY_IMPORT_MAX_UNPACKED_BYTES + 1 }, 'tazman', true),
+    ).toContain('40MB');
+  });
+});
+
+describe('packing a file too big for one request', () => {
+  const big = (bytes: Uint8Array<ArrayBuffer>, name = 'export_invoices.xls') => new File([bytes], name);
+
+  async function unpacked(file: File): Promise<Uint8Array> {
+    const stream = file.stream().pipeThrough(new DecompressionStream('gzip'));
+    return new Uint8Array(await new Response(stream).arrayBuffer());
+  }
+
+  it('sends a file that fits as it is', async () => {
+    const file = big(new Uint8Array(1000));
+    expect(await packForUpload(file)).toBe(file);
+  });
+
+  it('gzips a bigger one, and what the server unpacks is the file itself', async () => {
+    // Repetitive, like an .xls of the same names over and over.
+    const bytes = new Uint8Array(LEGACY_IMPORT_MAX_BYTES + 5000).map((_, i) => i % 7);
+    const packed = await packForUpload(big(bytes));
+    expect(packed.name).toBe('export_invoices.xls.gz');
+    expect(packed.size).toBeLessThan(LEGACY_IMPORT_MAX_BYTES);
+    const back = await unpacked(packed);
+    expect(back.length).toBe(bytes.length);
+    expect(back[12345]).toBe(bytes[12345]);
+  });
+
+  it('says so when even the packed file is too big', async () => {
+    // Noise does not shrink.
+    const noise = new Uint8Array(LEGACY_IMPORT_MAX_BYTES + 200_000);
+    for (let i = 0; i < noise.length; i += 65536) crypto.getRandomValues(noise.subarray(i, i + 65536));
+    await expect(packForUpload(big(noise))).rejects.toBeInstanceOf(ImportFileTooBigError);
+    await expect(packForUpload(big(noise))).rejects.toThrow('גם אחרי דחיסה');
+  });
+
+  it('the preview sends the packed file', async () => {
+    api.post.mockResolvedValue({ data: { id: 'x' } });
+    const bytes = new Uint8Array(LEGACY_IMPORT_MAX_BYTES + 5000);
+    await previewLegacyImport(big(bytes));
+    const [url, body, config] = api.post.mock.calls[0];
+    expect(url).toBe('/legacy-import/preview/');
+    expect((body as FormData).get('file')).toMatchObject({ name: 'export_invoices.xls.gz' });
+    expect(config.timeout).toBe(280000);
+  });
+});
+
+describe('open invoices', () => {
+  const invoice = {
+    doc_type: 'tax_invoice' as const,
+    type_label: 'חשבונית מס',
+    number: 40002,
+    original_number: '',
+    date: '2026-06-28',
+    customer_name: 'להקת "הדגמה", בע"מ',
+    id_number: '512345678',
+    invoice_total: '1180.00',
+    details: 'הדרכות יוני',
+    location: 'כפר סבא',
+  };
+
+  it('are a CSV Excel reads as Hebrew, with commas and quotes kept inside their cell', () => {
+    const csv = openInvoicesCsv([invoice]);
+    expect(csv.charCodeAt(0)).toBe(0xfeff);
+    const [header, line] = csv.slice(1).trim().split('\r\n');
+    expect(header).toBe('סוג מסמך,מספר,תאריך,לקוח,ת"ז / ח"פ,סכום,פרטים,מיקום'.replace('ת"ז / ח"פ', '"ת""ז / ח""פ"'));
+    expect(line).toBe('חשבונית מס,40002,28/06/2026,"להקת ""הדגמה"", בע""מ",512345678,1180.00,הדרכות יוני,כפר סבא');
+  });
+
+  it('show the number as the software printed it, when it printed another', () => {
+    expect(openInvoicesCsv([{ ...invoice, original_number: 'INV-0015' }])).toContain(',INV-0015,');
+  });
+
+  it('are named in the numbering table of their type', () => {
+    expect(openCountNote({ open: 5 })).toBe('5 מהן פתוחות ולא ייובאו');
+    expect(openCountNote({ open: 1 })).toBe('אחת מהן פתוחה ולא תיובא');
+    expect(openCountNote({ open: 0 })).toBe('');
+    expect(openCountNote({})).toBe('');
   });
 });
 
@@ -233,7 +324,7 @@ describe('requests', () => {
     expect(api.post).toHaveBeenCalledWith(
       '/legacy-import/imp-1/commit/',
       { mapping: {}, include_subscription_parents: true },
-      expect.objectContaining({ timeout: 120000 }),
+      expect.objectContaining({ timeout: 280000 }),
     );
   });
 

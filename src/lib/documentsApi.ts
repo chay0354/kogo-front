@@ -14,6 +14,30 @@ import {
 } from './settlements';
 import type { CreditRoom } from './draftsAndCredits';
 
+/** The number the next document of a type would take, and what its run continues. */
+export interface ExpectedDocumentNumber {
+  /** 'TI-2026-040600' */
+  next_number: string;
+  /** 'ממשיך את הסדרה של התוכנה הקודמת (אחרון 40413)…', or '' for a run that starts at 1. */
+  continues: string;
+}
+
+/**
+ * The number the document would take if it were issued now — a look, not a
+ * promise: the server hands the number out at issue. null when the server
+ * cannot say (an older server, a type without a run), and the wizard then
+ * shows what it always did.
+ */
+export async function fetchExpectedDocumentNumber(documentType: string): Promise<ExpectedDocumentNumber | null> {
+  try {
+    const res = await api.get('/documents/documents/next-number/', { params: { document_type: documentType } });
+    const number = String(res.data?.next_number ?? '');
+    return number ? { next_number: number, continues: String(res.data?.continues ?? '') } : null;
+  } catch {
+    return null;
+  }
+}
+
 export async function createDocument(payload: CreateDocumentPayload): Promise<FormalDocument> {
   const res = await api.post('/documents/documents/create-document/', payload);
   return res.data;

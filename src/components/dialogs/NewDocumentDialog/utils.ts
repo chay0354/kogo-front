@@ -31,8 +31,10 @@ export function businessFormFromCustomer(customer: {
     last_name: customer.last_name,
     email: customer.email,
     phone: customer.phone,
+    // One input for both numbers: the ת"ז when the card has one, else its ח"פ.
     id_number: customer.id_number || customer.company_number,
     company_number: customer.company_number,
+    number_field: customer.id_number ? 'id_number' : customer.company_number ? 'company_number' : undefined,
     address: customer.address ?? '',
     business_type: customer.business_type,
     business_id: customer.business_id ?? null,
@@ -41,6 +43,92 @@ export function businessFormFromCustomer(customer: {
     branch_id: customer.branch_id ?? null,
     notes: customer.notes,
   };
+}
+
+/** The wizard's document types, as the server names them. */
+export const DOCUMENT_TYPE_OF: Record<string, 'tax_invoice' | 'combined' | 'receipt' | 'transaction_invoice' | 'credit_invoice'> = {
+  'חשבונית מס': 'tax_invoice',
+  'חשבונית מס/קבלה': 'combined',
+  'קבלה': 'receipt',
+  'חשבונית עסקה': 'transaction_invoice',
+  'חשבונית מס זיכוי': 'credit_invoice',
+};
+
+function digitsOf(value: string | null | undefined): string {
+  return String(value ?? '').replace(/\D/g, '');
+}
+
+/** A phone as it is compared: digits, with +972 read as the leading 0. */
+function comparablePhone(value: string | null | undefined): string {
+  const digits = digitsOf(value);
+  return digits.startsWith('972') && digits.length >= 11 ? `0${digits.slice(3)}` : digits;
+}
+
+export type ExistingCustomerClue = 'number' | 'email' | 'phone';
+
+/**
+ * What a new customer's details are searched by, to find a card that already
+ * exists: the ת"ז/ח"פ once it is long enough to be one, else the email, else
+ * the phone. null while nothing typed can identify anybody.
+ */
+export function existingCustomerSearch(
+  form: Pick<BusinessCustomerFormData, 'id_number' | 'email' | 'phone'>,
+): { by: ExistingCustomerClue; term: string } | null {
+  const number = digitsOf(form.id_number);
+  if (number.length >= 8) return { by: 'number', term: number };
+  const email = form.email.trim().toLowerCase();
+  if (/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return { by: 'email', term: email };
+  const phone = comparablePhone(form.phone);
+  if (phone.length >= 9) return { by: 'phone', term: phone };
+  return null;
+}
+
+/**
+ * The cards among `candidates` that really carry what was typed — the search
+ * is a "contains", so 51234567 also finds 512345678. A number is compared
+ * without dashes and without the zeros an ID loses in front.
+ */
+export function existingCustomerMatches<
+  T extends { id_number: string; company_number: string; email: string; phone: string },
+>(search: { by: ExistingCustomerClue; term: string }, candidates: readonly T[]): T[] {
+  const plainNumber = (value: string) => digitsOf(value).replace(/^0+/, '');
+  return candidates.filter((card) => {
+    if (search.by === 'number') {
+      const typed = plainNumber(search.term);
+      return typed !== '' && [card.id_number, card.company_number].some((n) => plainNumber(n) === typed);
+    }
+    if (search.by === 'email') return card.email.trim().toLowerCase() === search.term;
+    return comparablePhone(card.phone) === search.term;
+  });
+}
+
+/** The sentence over the cards found, by what found them. */
+export const EXISTING_CUSTOMER_FOUND: Record<ExistingCustomerClue, string> = {
+  number: 'כבר קיים לקוח עם המספר הזה',
+  email: 'כבר קיים לקוח עם האימייל הזה',
+  phone: 'כבר קיים לקוח עם הטלפון הזה',
+};
+
+/** A ח"פ or an amuta's number: nine digits that start with 5 (the server's is_company_number). */
+export function isCompanyNumber(value: string): boolean {
+  return /^5\d{8}$/.test(value.replace(/[\s-]/g, ''));
+}
+
+/**
+ * The customer as it is saved. The form has one "ת.ז/ח.פ" input and the card
+ * has two numbers, so the typed number goes back to the one it was read from:
+ * a card that had only a ח"פ keeps it as its ח"פ (it used to be copied into
+ * the ת"ז as well, and the document printed the same number twice). For a new
+ * customer, a company number is saved as the ח"פ and anything else as the ת"ז.
+ */
+export function businessCustomerPayload(
+  form: BusinessCustomerFormData,
+): Omit<BusinessCustomerFormData, 'number_field'> {
+  const { number_field: field, ...rest } = form;
+  const typed = form.id_number.trim();
+  const asCompany = field === 'company_number' || (field === undefined && isCompanyNumber(typed));
+  if (asCompany) return { ...rest, id_number: '', company_number: typed };
+  return { ...rest, id_number: typed };
 }
 
 /** A blank check line, dated today. Not crossed until the office says so. */

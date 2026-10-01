@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, FileUp, Loader2, Search } from 'lucide-react';
+import { AlertTriangle, Download, FileUp, Loader2, Search } from 'lucide-react';
 import { toast } from 'sonner';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/components/AuthProvider';
@@ -12,6 +12,7 @@ import LegacyDocumentsTable from '@/components/LegacyHistory/LegacyDocumentsTabl
 import { readableError } from '@/lib/apiError';
 import {
   FORMAT_ACCEPT,
+  ImportFileTooBigError,
   LEGACY_DOC_TYPE_LABELS,
   TAZMAN_SOURCE,
   applyMappingChange,
@@ -31,6 +32,8 @@ import {
   initialMapping,
   mappingProgress,
   numberingLine,
+  openCountNote,
+  openInvoicesCsv,
   previewLegacyImport,
   type LegacyColumnMapping,
   type LegacyColumnsInfo,
@@ -40,6 +43,7 @@ import {
   type LegacyImport,
   type LegacyKnownSource,
   type LegacyMapping,
+  type LegacyOpenInvoice,
   type LegacySourceFormat,
   type LegacySummary,
   type LegacyTarget,
@@ -162,7 +166,7 @@ export default function SettingsImportPage() {
         await runPreview();
       }
     } catch (e) {
-      setError(readableError(e, 'קריאת הקובץ נכשלה'));
+      setError(uploadError(e));
     } finally {
       setUploading(false);
     }
@@ -188,7 +192,7 @@ export default function SettingsImportPage() {
     try {
       await runPreview();
     } catch (e) {
-      setError(readableError(e, 'קריאת הקובץ נכשלה'));
+      setError(uploadError(e));
     } finally {
       setUploading(false);
     }
@@ -272,7 +276,7 @@ export default function SettingsImportPage() {
           </Button>
         </div>
         <p className="text-xs text-muted-foreground">
-          עד 4.3MB לקובץ — קובץ גדול יותר: ייצאו טווח תאריכים קצר יותר, או שנה אחת בכל פעם.{' '}
+          קובץ גדול (עד 40MB) נדחס אוטומטית לפני השליחה — אפשר להעלות את כל ההיסטוריה בקובץ אחד.{' '}
           {format === 'tazman'
             ? 'הסיסמה לאפליקציה, תאריך הלידה, הפקס והטלפון בבית שבקובץ אינם נקראים ואינם נשמרים.'
             : format === 'table'
@@ -316,6 +320,14 @@ export default function SettingsImportPage() {
             {result.customers.linked_without_changing_cards ? (
               <li>{result.customers.linked_without_changing_cards} לקוחות קושרו לכרטיס קיים בלי לשנות אותו</li>
             ) : null}
+            {result.documents.open_skipped ? (
+              <li>
+                {result.documents.open_skipped === 1
+                  ? 'חשבונית פתוחה אחת לא יובאה'
+                  : `${result.documents.open_skipped} חשבוניות פתוחות לא יובאו`}{' '}
+                — הן נשארות בתוכנה שהפיקה אותן
+              </li>
+            ) : null}
           </ul>
           <p className="text-sm text-muted-foreground mt-2">
             ההיסטוריה של כל לקוח מופיעה בכרטיס הלקוח העסקי ובאשף &quot;מסמך חדש&quot; כשבוחרים אותו. עכשיו אפשר לצרף
@@ -341,6 +353,9 @@ export default function SettingsImportPage() {
               <Stat label="לקוחות עסקיים קיימים שיעודכנו" value={summary.customers.business_update} />
               <Stat label="הורים משלמי מנוי" value={summary.customers.parents} />
               <Stat label="כבר יובאו בעבר" value={summary.documents.already_imported} hint="יעודכנו, לא ישוכפלו" />
+              {summary.open_invoices?.count ? (
+                <Stat label="חשבוניות פתוחות" value={summary.open_invoices.count} hint="לא נכנסות — רשימה למטה" />
+              ) : null}
             </div>
             {summary.documents.skipped ? (
               <p className="text-sm text-amber-700 mt-3">
@@ -381,7 +396,12 @@ export default function SettingsImportPage() {
                           <span className="block text-xs text-muted-foreground">בקובץ: {row.original_labels.join(', ')}</span>
                         ) : null}
                       </td>
-                      <td className="tabular-nums">{row.count.toLocaleString('he-IL')}</td>
+                      <td className="tabular-nums">
+                        {row.count.toLocaleString('he-IL')}
+                        {openCountNote(row) ? (
+                          <span className="block text-xs text-muted-foreground">{openCountNote(row)}</span>
+                        ) : null}
+                      </td>
                       <td className="tabular-nums">
                         {row.first_number} <span className="text-xs text-muted-foreground">({formatLegacyDate(row.first_date)})</span>
                       </td>
@@ -396,12 +416,16 @@ export default function SettingsImportPage() {
             </div>
           </section>
 
+          {/* 3b. Open invoices: listed, never imported */}
+          {summary.open_invoices?.count ? <OpenInvoices open={summary.open_invoices} /> : null}
+
           {/* 4. Customers */}
           <section className="card">
             <h3 className="text-lg font-semibold mb-2">לקוחות</h3>
             <p className="text-sm text-muted-foreground mb-3">
-              לקוח עסקי הוא מי שהופק לו מסמך ידני, ששילם שלא בכרטיס אשראי, שיש לו מספר חברה או ששמו של ארגון. לקוח שכבר
-              קיים בקוגו (לפי ח&quot;פ/ת&quot;ז, אימייל, או טלפון ושם) מתעדכן: שדות ריקים מתמלאים והשם האחרון גובר.
+              לקוח עסקי הוא מי שהופקו לו חשבונית מס, חשבונית עסקה או קבלה ידניות, ששילם שלא בכרטיס אשראי, שמשלם שכירות,
+              שיש לו מספר חברה או ששמו של ארגון. זיכוי לבדו אינו הופך הורה ללקוח עסקי. לקוח שכבר קיים בקוגו (לפי
+              ח&quot;פ/ת&quot;ז, אימייל, או טלפון ושם) מתעדכן: שדות ריקים מתמלאים והשם האחרון גובר.
             </p>
             <div className="table-scroll">
               <table className="table table-compact">
@@ -428,7 +452,10 @@ export default function SettingsImportPage() {
                       </td>
                       <td className="tabular-nums">{c.documents}</td>
                       <td className="col-hide-mobile text-xs">
-                        {c.latest.type_label} {c.latest.number} · {formatLegacyDate(c.latest.date)}
+                        {/* No document of theirs is imported: all the file has is an invoice still open. */}
+                        {c.documents === 0 && summary.open_invoices?.count
+                          ? 'חשבונית פתוחה בלבד — לא מיובאת'
+                          : `${c.latest.type_label} ${c.latest.number} · ${formatLegacyDate(c.latest.date)}`}
                       </td>
                       <td className="col-hide-mobile text-xs text-muted-foreground">{c.reasons.join(' · ')}</td>
                     </tr>
@@ -473,6 +500,31 @@ export default function SettingsImportPage() {
                   <li key={change.key}>
                     {change.old_names.join(', ')} ← <strong>{change.new_name}</strong>{' '}
                     <span className="text-xs text-muted-foreground">({change.documents} מסמכים)</span>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ) : null}
+
+          {/* 5b. One company number, several customers */}
+          {summary.shared_ids?.length ? (
+            <section className="card">
+              <h3 className="text-lg font-semibold mb-2">אותו ח&quot;פ, לקוחות נפרדים</h3>
+              <p className="text-sm text-muted-foreground mb-2">
+                מספר חברה שמופיע בקובץ תחת כמה לקוחות בשמות שונים — למשל מתנ&quot;סים של אותה רשת, או סניפים. כל אחד
+                מקבל כרטיס משלו, עם ההיסטוריה שלו, ומותאם לכרטיס קיים רק לפי הח&quot;פ יחד עם השם.
+              </p>
+              <ul className={styles.facts}>
+                {summary.shared_ids.map((group) => (
+                  <li key={group.id_number}>
+                    <span className="tabular-nums">ח&quot;פ {group.id_number}</span>:{' '}
+                    {group.customers.map((customer, index) => (
+                      <span key={customer.key}>
+                        {index ? ' · ' : ''}
+                        <strong>{customer.name}</strong>{' '}
+                        <span className="text-xs text-muted-foreground">({customer.documents} מסמכים)</span>
+                      </span>
+                    ))}
                   </li>
                 ))}
               </ul>
@@ -680,6 +732,83 @@ function SourceFacts({ summary }: { summary: LegacySummary }) {
         </p>
       ) : null}
     </div>
+  );
+}
+
+/** A failed upload in words: the reason a file could not be packed, or what the server said. */
+function uploadError(e: unknown): string {
+  return e instanceof ImportFileTooBigError ? e.message : readableError(e, 'קריאת הקובץ נכשלה');
+}
+
+/**
+ * The invoices the software still shows as unpaid. They are not imported —
+ * they are collected and closed where they were issued — so the office takes
+ * the list with it as a file.
+ */
+function OpenInvoices({ open }: { open: { count: number; total: string; rows: LegacyOpenInvoice[] } }) {
+  function download() {
+    const blob = new Blob([openInvoicesCsv(open.rows)], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'חשבוניות-פתוחות.csv';
+    link.click();
+    URL.revokeObjectURL(url);
+  }
+
+  return (
+    <section className="card">
+      <div className="flex flex-wrap items-start justify-between gap-3 mb-2">
+        <div>
+          <h3 className="text-lg font-semibold">חשבוניות פתוחות — לא נכנסות</h3>
+          <p className="text-sm text-muted-foreground">
+            {open.count.toLocaleString('he-IL')} חשבוניות שעדיין פתוחות בתוכנה, בסך{' '}
+            <span className="tabular-nums">₪{Number(open.total).toLocaleString('he-IL', { minimumFractionDigits: 2 })}</span>.
+            הן לא מיובאות: גובים וסוגרים אותן בתוכנה שהפיקה אותן. חשבונית שתיסגר תיכנס בייבוא הבא. הלקוחות שלהן
+            נפתחים כרגיל.
+          </p>
+        </div>
+        <Button variant="outline" size="sm" onClick={download}>
+          <Download className="h-4 w-4 ml-2" aria-hidden="true" />
+          הורדה כקובץ
+        </Button>
+      </div>
+      <div className="table-scroll">
+        <table className="table table-compact">
+          <thead>
+            <tr className="bg-muted/50">
+              <th>מספר</th>
+              <th>תאריך</th>
+              <th>לקוח</th>
+              <th>סכום</th>
+              <th className="col-hide-mobile">פרטים</th>
+            </tr>
+          </thead>
+          <tbody>
+            {open.rows.map((row) => (
+              <tr key={`${row.doc_type}-${row.number}`}>
+                <td className="tabular-nums">
+                  {row.original_number || row.number}
+                  <span className="block text-xs text-muted-foreground">{row.type_label}</span>
+                </td>
+                <td className="tabular-nums">{formatLegacyDate(row.date)}</td>
+                <td>
+                  {row.customer_name}
+                  {row.id_number ? <span className="block text-xs text-muted-foreground tabular-nums">{row.id_number}</span> : null}
+                </td>
+                <td className="tabular-nums">₪{Number(row.invoice_total).toLocaleString('he-IL', { minimumFractionDigits: 2 })}</td>
+                <td className="col-hide-mobile text-xs">{row.details}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {open.count > open.rows.length ? (
+        <p className="text-xs text-muted-foreground mt-2">
+          מוצגות {open.rows.length.toLocaleString('he-IL')} הראשונות; הסכום והספירה כוללים את כולן.
+        </p>
+      ) : null}
+    </section>
   );
 }
 

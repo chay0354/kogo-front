@@ -19,6 +19,13 @@ export interface SeriesOpening {
   created_at: string | null;
   /** 'ממשיך את הסדרה של התוכנה הקודמת (אחרון 40413)' */
   continues: string;
+  /**
+   * The numbers left to the previous software while it still issues: the run
+   * started above its last number plus one. null — or missing, on a server
+   * from before that could be done — when the run starts right after it.
+   */
+  reserved_from?: number | null;
+  reserved_to?: number | null;
 }
 
 /** One kogo run in one tax year. */
@@ -69,6 +76,8 @@ export interface OpenSeriesPayload {
   previous_last_number: number;
   previous_type_label: string;
   note: string;
+  /** Sent only when `start` is above last + 1: the numbers between are left to the previous software. */
+  reserve?: boolean;
 }
 
 function asRecord(value: unknown): Record<string, string> {
@@ -109,7 +118,10 @@ export async function fetchSeriesOverview(): Promise<SeriesOverview> {
   return normalizeOverview(res.data);
 }
 
-/** Opens a run at the previous software's last number plus one. The answer carries the whole table again. */
+/**
+ * Opens a run at the previous software's last number plus one — or further up,
+ * with `reserve`, while that software still issues. The answer carries the whole table again.
+ */
 export async function openSeries(payload: OpenSeriesPayload): Promise<{ run: NumberRun; overview: SeriesOverview }> {
   const res = await api.post('/documents/series/open/', payload);
   const overview = normalizeOverview(res.data?.overview);

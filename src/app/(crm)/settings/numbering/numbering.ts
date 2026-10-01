@@ -39,6 +39,97 @@ export function firstNumberPreview(series: string, year: number, lastText: strin
   return last === null ? '' : formatRunNumber(series, year, last + 1);
 }
 
+// ---------------------------------------------------------------- while the previous software still issues
+
+/**
+ * The first number of the kogo run as the office typed it, when the run is to
+ * start above "last + 1". null for anything that is not a number in range.
+ */
+export function parseStartNumber(text: string): number | null {
+  const compact = String(text ?? '').replace(/[\s,]/g, '');
+  if (!/^\d+$/.test(compact)) return null;
+  const number = Number(compact);
+  if (!Number.isSafeInteger(number) || number < 1 || number > MAX_START) return null;
+  return number;
+}
+
+/**
+ * A round first number to offer: the next hundred that leaves the previous
+ * software at least a hundred numbers of its own. 40413 → 40600.
+ */
+export function suggestedStart(last: number): number {
+  return Math.min(MAX_START, Math.ceil((last + 101) / 100) * 100);
+}
+
+/**
+ * The first number the run will take: last + 1, or — while the previous
+ * software still issues — the number the office chose above it. null while
+ * either is missing, or the chosen number is not above the last one.
+ */
+export function openingStart(draft: Pick<OpeningDraft, 'lastText' | 'stillIssuing' | 'startText'>): number | null {
+  const last = parseLastNumber(draft.lastText);
+  if (last === null) return null;
+  if (!draft.stillIssuing) return last + 1;
+  const start = parseStartNumber(draft.startText);
+  return start !== null && start > last ? start : null;
+}
+
+/** The numbers left to the previous software by this opening, or null when the run starts right after it. */
+export function reservedRange(
+  draft: Pick<OpeningDraft, 'lastText' | 'stillIssuing' | 'startText'>,
+): { from: number; to: number } | null {
+  const last = parseLastNumber(draft.lastText);
+  const start = openingStart(draft);
+  if (last === null || start === null || start <= last + 1) return null;
+  return { from: last + 1, to: start - 1 };
+}
+
+/** The first number as it will be printed, or '' while the form does not give one. */
+export function openingFirstNumber(
+  series: string,
+  year: number,
+  draft: Pick<OpeningDraft, 'lastText' | 'stillIssuing' | 'startText'>,
+): string {
+  const start = openingStart(draft);
+  return start === null ? '' : formatRunNumber(series, year, start);
+}
+
+export interface OverrunWarning {
+  run: string;
+  text: string;
+}
+
+/**
+ * A run that continues the previous software, whose import now shows that
+ * software past the run's first number: the same number was given by both.
+ * `legacy` is the previous software's last number per type (legacyLastNumbers).
+ */
+export function overrunWarnings(overview: SeriesOverview, legacy: Record<string, number>): OverrunWarning[] {
+  const warnings: OverrunWarning[] = [];
+  for (const run of overview.runs) {
+    const opening = run.opening;
+    if (!opening) continue;
+    const last = legacy[opening.previous_type_label];
+    if (last === undefined || last < opening.start) continue;
+    warnings.push({
+      run: run.name,
+      text:
+        `התוכנה הקודמת הנפיקה ${opening.previous_type_label} עד מספר ${last}, והסדרה ${run.name} מתחילה ב-${opening.start}. `
+        + 'מספרים מהטווח הזה יצאו בשתי התוכנות — יש לעצור את ההפקה מהסוג הזה בתוכנה הקודמת ולדווח לרואה החשבון.',
+    });
+  }
+  return warnings;
+}
+
+/** How many of the numbers left to the previous software it has not used yet, or null when that is not known. */
+export function reservedLeft(run: NumberRun, legacy: Record<string, number>): number | null {
+  const opening = run.opening;
+  if (!opening || opening.reserved_to === undefined || opening.reserved_to === null) return null;
+  const last = legacy[opening.previous_type_label];
+  if (last === undefined) return null;
+  return Math.max(0, opening.reserved_to - Math.max(last, opening.previous_last_number));
+}
+
 // ---------------------------------------------------------------- status
 
 export type RunTone = 'continued' | 'open' | 'issued' | 'closed';
@@ -210,17 +301,26 @@ export interface OpeningDraft {
   /** The office confirmed the last number was checked in the previous software itself. */
   checked: boolean;
   submitting: boolean;
+  /** The previous software still issues this type: the kogo run starts above last + 1. */
+  stillIssuing: boolean;
+  /** The first number of the kogo run, as typed; read only while `stillIssuing`. */
+  startText: string;
 }
 
 /**
  * The draft after the office changes a field. The confirmation was given for
- * one number of one type, so changing either takes it back.
+ * one number of one type and one first number, so changing any takes it back.
  */
-export function editDraft(draft: OpeningDraft, change: Partial<Pick<OpeningDraft, 'typeLabel' | 'lastText' | 'checked'>>): OpeningDraft {
+export function editDraft(
+  draft: OpeningDraft,
+  change: Partial<Pick<OpeningDraft, 'typeLabel' | 'lastText' | 'checked' | 'stillIssuing' | 'startText'>>,
+): OpeningDraft {
   const next = { ...draft, ...change };
   const moved =
     (change.typeLabel !== undefined && change.typeLabel !== draft.typeLabel)
-    || (change.lastText !== undefined && change.lastText !== draft.lastText);
+    || (change.lastText !== undefined && change.lastText !== draft.lastText)
+    || (change.stillIssuing !== undefined && change.stillIssuing !== draft.stillIssuing)
+    || (change.startText !== undefined && change.startText !== draft.startText);
   return moved && change.checked === undefined ? { ...next, checked: false } : next;
 }
 
@@ -231,7 +331,11 @@ export function openingProblems(overview: SeriesOverview, run: NumberRun, draft:
   const choice = typeChoices(overview, run).find((item) => item.label === draft.typeLabel);
   if (!choice) problems.push('יש לבחור את סוג המסמך בתוכנה הקודמת');
   else if (choice.takenBy) problems.push(`${choice.label} של התוכנה הקודמת כבר ממשיכה ב-${choice.takenBy}`);
-  if (parseLastNumber(draft.lastText) === null) problems.push('יש להקליד את המספר האחרון שהונפק בתוכנה הקודמת');
+  const last = parseLastNumber(draft.lastText);
+  if (last === null) problems.push('יש להקליד את המספר האחרון שהונפק בתוכנה הקודמת');
+  else if (draft.stillIssuing && openingStart(draft) === null) {
+    problems.push(`יש להקליד את המספר הראשון של הסדרה ב-kogo — גבוה מ-${last}`);
+  }
   if (!draft.checked) problems.push('יש לאשר שהמספר נבדק בתוכנה הקודמת עצמה');
   return problems;
 }
@@ -249,21 +353,39 @@ export function openingPayload(
 ): OpenSeriesPayload | null {
   if (openingProblems(overview, run, draft).length > 0) return null;
   const last = parseLastNumber(draft.lastText) as number;
+  const start = openingStart(draft) as number;
   return {
     series: run.series,
     year: run.year,
-    start: last + 1,
+    start,
     previous_last_number: last,
     previous_type_label: draft.typeLabel,
     note: note.trim(),
+    // Only a start above last + 1 is a reservation; the server refuses one it was not told about.
+    ...(start > last + 1 ? { reserve: true } : {}),
   };
 }
 
-/** The sentence the office confirms, naming the number and the type. */
-export function confirmationText(typeLabel: string, lastText: string): string {
+/**
+ * The sentence the office confirms, naming the number and the type — and,
+ * when numbers are left to the previous software, which ones and what that
+ * software must never reach.
+ */
+export function confirmationText(
+  typeLabel: string,
+  lastText: string,
+  reserved: { from: number; to: number } | null = null,
+): string {
   const last = parseLastNumber(lastText);
   const number = last === null ? 'שהמספר שהוקלד' : `ש-${last}`;
   const type = typeLabel || 'הסוג שנבחר';
+  if (reserved) {
+    return (
+      `בדקתי בתוכנה הקודמת עצמה (לא רק בקובץ הייצוא) ${number} הוא המספר האחרון שהונפק ב${type} עד היום. `
+      + `התוכנה הקודמת ממשיכה להפיק את הסוג הזה רק במספרים ${reserved.from}–${reserved.to}, `
+      + `ולא תגיע למספר ${reserved.to + 1}, שממנו kogo מתחילה.`
+    );
+  }
   return `בדקתי בתוכנה הקודמת עצמה (לא רק בקובץ הייצוא) ${number} הוא המספר האחרון שהונפק ב${type}, ושלא יונפקו שם עוד מסמכים מהסוג הזה.`;
 }
 
