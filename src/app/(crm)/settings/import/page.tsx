@@ -452,7 +452,10 @@ export default function SettingsImportPage() {
                       </td>
                       <td className="tabular-nums">{c.documents}</td>
                       <td className="col-hide-mobile text-xs">
-                        {c.latest.type_label} {c.latest.number} · {formatLegacyDate(c.latest.date)}
+                        {/* No document of theirs is imported: all the file has is an invoice still open. */}
+                        {c.documents === 0 && summary.open_invoices?.count
+                          ? 'חשבונית פתוחה בלבד — לא מיובאת'
+                          : `${c.latest.type_label} ${c.latest.number} · ${formatLegacyDate(c.latest.date)}`}
                       </td>
                       <td className="col-hide-mobile text-xs text-muted-foreground">{c.reasons.join(' · ')}</td>
                     </tr>
