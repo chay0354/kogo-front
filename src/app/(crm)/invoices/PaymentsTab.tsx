@@ -4,6 +4,10 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import { useQuery } from '@tanstack/react-query';
 import { AlertCircle, ChevronLeft, ChevronRight, Download, FileSearch, ShoppingBag, X } from 'lucide-react';
 import RefundDialog from '@/components/dialogs/RefundDialog';
+import StorePaymentReviewDialog, {
+  type StorePaymentReviewAction,
+  type StorePaymentReviewEvidence,
+} from '@/components/dialogs/StorePaymentReviewDialog';
 import { useAuth } from '@/components/AuthProvider';
 import { Skeleton, TableSkeleton } from '@/components/ui/skeleton';
 import theme from '@/components/dashboard/theme/dashboard.module.css';
@@ -581,6 +585,10 @@ export default function PaymentsTab({ ledger }: PaymentsTabProps) {
   const { filters } = ledger;
   const { branches } = useScopedBranches();
   const { optionRows, loading: optionsLoading } = useListOptionRows();
+  // Settling a payment in review is a manager's action (the CRM refuses a
+  // partner, who also sees this tab): the buttons are theirs alone.
+  const { user } = useAuth();
+  const isManager = user?.role === 'manager';
 
   const [kind, setKind] = useState('');
   const [status, setStatus] = useState('');
@@ -588,6 +596,7 @@ export default function PaymentsTab({ ledger }: PaymentsTabProps) {
   const [refundLoading, setRefundLoading] = useState(false);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
   const [reviewingId, setReviewingId] = useState<string | null>(null);
+  const [reviewTarget, setReviewTarget] = useState<{ row: ChargeRow; action: StorePaymentReviewAction } | null>(null);
   const [actionError, setActionError] = useState('');
   // Refunds made while this query is shown: its figures are asked again after each.
   const [refunds, setRefunds] = useState({ queryKey: '', n: 0 });
@@ -746,23 +755,21 @@ export default function PaymentsTab({ ledger }: PaymentsTabProps) {
   }
 
   /**
-   * A store payment in review: "השלם אחרי אימות" completes it only if
-   * Tranzila's report confirms; "אין תשלום — שחרר" after checking Tranzila
-   * fails the order so the customer can pay again. A reason is required and
-   * kept on the invoice with who and when.
+   * A store payment in review, settled by a manager in the dialog: "השלם אחרי
+   * אימות" completes it only if Tranzila's report confirms the charge with
+   * the customer's own evidence; "אין תשלום — שחרר", only after checking in
+   * Tranzila, fails the order so the customer can pay again. A reason is
+   * required and kept on the invoice with who and when.
    */
-  async function handleReview(row: ChargeRow, action: 'complete' | 'release') {
-    if (!row.store_invoice_id) return;
-    const question = action === 'complete'
-      ? 'השלמה אחרי אימות: ההזמנה תושלם רק אם הדוח של טרנזילה מאשר את התשלום. מה בדקתם? (חובה)'
-      : 'שחרור: בדקתם בטרנזילה ואין תשלום? ההזמנה תסומן כנכשלה והלקוח יוכל לשלם שוב. למה? (חובה)';
-    const reason = window.prompt(question)?.trim() || '';
-    if (reason.length < 3) return;
+  async function handleReviewConfirm(reason: string, evidence: StorePaymentReviewEvidence) {
+    if (!reviewTarget?.row.store_invoice_id) return;
+    const { row, action } = reviewTarget;
     setReviewingId(row.id);
     setActionError('');
     try {
-      const updated = await reviewStorePayment(row.store_invoice_id, action, reason);
+      const updated = await reviewStorePayment(row.store_invoice_id as string, action, reason, evidence);
       store.setInvoices((prev) => prev.map((inv) => (inv.id === updated.id ? updated : inv)));
+      setReviewTarget(null);
     } catch (error: unknown) {
       const data = (error as { response?: { data?: { error?: string } } })?.response?.data;
       window.alert(data?.error || 'הפעולה לא בוצעה');
@@ -800,6 +807,7 @@ export default function PaymentsTab({ ledger }: PaymentsTabProps) {
           {row.payment_in_review && (
             <span className={styles.subLine} title={`מספרי עסקה: ${(row.review_numbers || []).join(', ')}`}>
               תשלום בבדיקה
+              {(row.review_suspected || []).length > 0 && ' · חשוד — הדוח לא קושר אותו להזמנה'}
             </span>
           )}
         </td>
@@ -817,13 +825,13 @@ export default function PaymentsTab({ ledger }: PaymentsTabProps) {
                 <Download size={16} aria-hidden="true" />
               </button>
             )}
-            {row.payment_in_review && (
+            {row.payment_in_review && isManager && (
               <>
                 <button
                   type="button"
                   className={styles.refundBtn}
                   disabled={reviewingId === row.id}
-                  onClick={() => void handleReview(row, 'complete')}
+                  onClick={() => setReviewTarget({ row, action: 'complete' })}
                 >
                   השלם אחרי אימות
                 </button>
@@ -831,7 +839,7 @@ export default function PaymentsTab({ ledger }: PaymentsTabProps) {
                   type="button"
                   className={styles.refundBtn}
                   disabled={reviewingId === row.id}
-                  onClick={() => void handleReview(row, 'release')}
+                  onClick={() => setReviewTarget({ row, action: 'release' })}
                 >
                   אין תשלום — שחרר
                 </button>
@@ -1095,6 +1103,18 @@ export default function PaymentsTab({ ledger }: PaymentsTabProps) {
           maxAmount={refundTarget?.amount ?? 0}
           itemDescription={refundTarget?.description}
           loading={refundLoading}
+        />
+        <StorePaymentReviewDialog
+          isOpen={Boolean(reviewTarget)}
+          action={reviewTarget?.action ?? 'complete'}
+          itemDescription={reviewTarget?.row.description}
+          numbers={(reviewTarget?.row.review_numbers || []).map((index) => ({
+            index,
+            suspected: (reviewTarget?.row.review_suspected || []).includes(index),
+          }))}
+          loading={Boolean(reviewTarget) && reviewingId === reviewTarget?.row.id}
+          onClose={() => setReviewTarget(null)}
+          onConfirm={(reason, evidence) => void handleReviewConfirm(reason, evidence)}
         />
       </BodyPortal>
     </div>

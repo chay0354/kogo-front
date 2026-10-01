@@ -209,4 +209,6 @@ export interface PaymentRecord {
   // A store payment in review: the numbers a manager decides about.
   payment_in_review?: boolean;
   review_numbers?: string[];
+  // The ones found in Tranzila's report by sum and time only ("suspected").
+  review_suspected?: string[];
 }

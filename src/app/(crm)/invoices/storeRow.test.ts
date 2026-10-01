@@ -72,6 +72,20 @@ describe('a store payment in review', () => {
     });
     expect(row.payment_in_review).toBe(true);
     expect(row.review_numbers).toEqual(['999999']);
+    expect(row.review_suspected).toEqual([]);
+  });
+
+  it('marks the numbers the report does not tie to the order', () => {
+    const row = storeInvoiceToLedgerRow({
+      ...invoice,
+      payment_status: 'pending',
+      payment_in_review: true,
+      payment_review_numbers: [
+        { index: '999999', suspected: false, reported_at: '2026-09-30T10:00:00Z' },
+        { index: '555555', suspected: true, reported_at: '2026-09-30T10:05:00Z' },
+      ],
+    });
+    expect(row.review_suspected).toEqual(['555555']);
   });
 
   it('is not in review when the CRM says nothing', () => {
