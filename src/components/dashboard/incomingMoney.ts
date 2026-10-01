@@ -52,6 +52,23 @@ export function israelToday(now: Date = new Date()): string {
   return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jerusalem' }).format(now);
 }
 
+/**
+ * The gap between Tranzila's figure and ours, in words: which side has more,
+ * rather than a minus sign that is easy to misread.
+ */
+export function describeGap(gap: number, format: (value: number) => string): string {
+  const rounded = Math.round(gap * 100) / 100;
+  if (rounded === 0) return 'אין פער';
+  return rounded > 0
+    ? `פער ${format(rounded)} — בטרנזילה יותר`
+    : `פער ${format(-rounded)} — אצלנו יותר`;
+}
+
+/** 'נכנס' for a transfer whose day has passed, 'ייכנס' for one still ahead (or today). */
+export function arrivalVerb(payoutDate: string, today: string): string {
+  return payoutDate < today ? 'נכנס' : 'ייכנס';
+}
+
 export type PayoutChoice = -1 | 0 | 1;
 
 export const PAYOUT_CHOICES: { value: PayoutChoice; label: string }[] = [

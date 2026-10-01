@@ -9,9 +9,12 @@ import {
   type IncomingTerminal,
 } from '@/lib/api';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useAuth } from '@/components/AuthProvider';
 import { formatCurrency } from './format';
 import {
   PAYOUT_CHOICES,
+  arrivalVerb,
+  describeGap,
   formatFetchedAt,
   formatPayoutDay,
   israelToday,
@@ -37,20 +40,23 @@ interface Props {
  * between them is shown, not hidden.
  */
 export default function IncomingMoneyPanel({ branchId, scopeLabel }: Props) {
+  const { user } = useAuth();
   const [choice, setChoice] = useState<PayoutChoice>(0);
 
   // The upcoming transfer is the server's to name; the other two are the
-  // months on either side of it.
+  // months on either side of it. The answer depends on who asks (a partner
+  // gets their branches only), so the signed-in user is part of every key.
   const upcoming = useQuery({
-    queryKey: ['dashboard-incoming', { branch_id: branchId }],
+    queryKey: ['dashboard-incoming', user?.id, { branch_id: branchId }],
     queryFn: () => fetchIncomingMoney({ branch_id: branchId }),
+    enabled: !!user,
   });
   const upcomingMonth = upcoming.data?.month ?? '';
   const otherMonth = choice !== 0 && upcomingMonth ? shiftMonth(upcomingMonth, choice) : '';
   const other = useQuery({
-    queryKey: ['dashboard-incoming', { branch_id: branchId, month: otherMonth }],
+    queryKey: ['dashboard-incoming', user?.id, { branch_id: branchId, month: otherMonth }],
     queryFn: () => fetchIncomingMoney({ branch_id: branchId, month: otherMonth }),
-    enabled: Boolean(otherMonth),
+    enabled: !!user && Boolean(otherMonth),
   });
 
   const current = choice === 0 ? upcoming : other;
@@ -89,7 +95,8 @@ export default function IncomingMoneyPanel({ branchId, scopeLabel }: Props) {
 }
 
 function IncomingBody({ data, onRefreshed }: { data: IncomingMoney; onRefreshed: () => Promise<unknown> }) {
-  const notStarted = data.period.start > israelToday();
+  const today = israelToday();
+  const notStarted = data.period.start > today;
   const sources = data.ours.by_source.filter((row) => row.charges !== 0 || row.refunds !== 0);
   const branches = data.ours.by_branch;
   const noBranch = data.ours.no_branch;
@@ -104,7 +111,8 @@ function IncomingBody({ data, onRefreshed }: { data: IncomingMoney; onRefreshed:
             {data.is_closed ? null : <span className={styles.soFar}>עד עכשיו</span>}
           </b>
           <span>
-            ייכנס ב־{formatPayoutDay(data.payout_date)} · גבייה באשראי של {data.period.label} · לפני עמלות
+            {arrivalVerb(data.payout_date, today)} ב־{formatPayoutDay(data.payout_date)} · גבייה באשראי של{' '}
+            {data.period.label} · לפני עמלות
           </span>
         </div>
         <div>
@@ -315,8 +323,8 @@ function TranzilaCheck({ data, onRefreshed }: { data: IncomingMoney; onRefreshed
       <div className={styles.summary}>
         {tranzila.complete && tranzila.gap != null ? (
           <>
-            בטרנזילה {formatCurrency(tranzila.total)} · אצלנו {formatCurrency(data.ours.total)} · פער{' '}
-            {formatCurrency(tranzila.gap)}
+            בטרנזילה {formatCurrency(tranzila.total)} · אצלנו {formatCurrency(data.ours.total)} ·{' '}
+            {describeGap(tranzila.gap, formatCurrency)}
           </>
         ) : anyRead ? (
           <>

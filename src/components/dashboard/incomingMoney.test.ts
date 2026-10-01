@@ -1,6 +1,14 @@
 import { describe, expect, it } from 'vitest';
 
-import { formatFetchedAt, formatPayoutDay, israelToday, monthLabel, shiftMonth } from './incomingMoney';
+import {
+  arrivalVerb,
+  describeGap,
+  formatFetchedAt,
+  formatPayoutDay,
+  israelToday,
+  monthLabel,
+  shiftMonth,
+} from './incomingMoney';
 
 describe('formatPayoutDay', () => {
   it('shows the day and the month without leading zeros', () => {
@@ -67,5 +75,27 @@ describe('israelToday', () => {
   it('is the Israeli calendar day, not the UTC one', () => {
     expect(israelToday(new Date('2026-09-30T22:30:00Z'))).toBe('2026-10-01');
     expect(israelToday(new Date('2026-10-01T10:00:00Z'))).toBe('2026-10-01');
+  });
+});
+
+describe('describeGap', () => {
+  const shekels = (value: number) => `₪${value}`;
+
+  it('says which side has more', () => {
+    expect(describeGap(99, shekels)).toBe('פער ₪99 — בטרנזילה יותר');
+    expect(describeGap(-151, shekels)).toBe('פער ₪151 — אצלנו יותר');
+  });
+
+  it('says so when the two agree', () => {
+    expect(describeGap(0, shekels)).toBe('אין פער');
+    expect(describeGap(0.001, shekels)).toBe('אין פער');
+  });
+});
+
+describe('arrivalVerb', () => {
+  it('is past for a transfer already made, future otherwise', () => {
+    expect(arrivalVerb('2026-09-06', '2026-10-01')).toBe('נכנס');
+    expect(arrivalVerb('2026-10-06', '2026-10-01')).toBe('ייכנס');
+    expect(arrivalVerb('2026-10-06', '2026-10-06')).toBe('ייכנס');
   });
 });
