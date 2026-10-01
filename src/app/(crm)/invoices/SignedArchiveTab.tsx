@@ -13,6 +13,7 @@ import {
   FileSignature,
   Info,
   Loader2,
+  Send,
   ShieldCheck,
   X,
 } from 'lucide-react';
@@ -21,7 +22,9 @@ import { Skeleton, TableSkeleton } from '@/components/ui/skeleton';
 import theme from '@/components/dashboard/theme/dashboard.module.css';
 import { saveBlob } from '@/lib/documentsApi';
 import {
+  downloadSignedCopy,
   downloadSignedOriginal,
+  errorSentence,
   fetchArchiveStatus,
   fetchSignedExportPart,
   fetchSignedOriginals,
@@ -35,6 +38,8 @@ import {
 } from '@/lib/signingApi';
 import { formatSigningStamp } from '@/lib/signingUtils';
 import LedgerFilterBar, { LedgerSelect } from './LedgerFilterBar';
+import { canSendCopy } from './manualDelivery';
+import SendOriginalDialog from './SendOriginalDialog';
 import {
   ARCHIVE_RUN_BATCH_SIZE,
   archiveExtraActiveCount,
@@ -259,6 +264,9 @@ export default function SignedArchiveTab() {
   const [exporting, setExporting] = useState<ExportState>({ phase: 'idle' });
   const [downloading, setDownloading] = useState<ReadonlySet<string>>(() => new Set());
   const downloadsInFlight = useRef(new Set<string>());
+  // "שלח העתק" (30.9.2026, audit M12): the row whose send dialog is open, and the copies being saved.
+  const [sending, setSending] = useState<SignedOriginalRow | null>(null);
+  const [copying, setCopying] = useState<ReadonlySet<string>>(() => new Set());
 
   const status = archive.status;
   const totals = archiveTotals(status);
@@ -360,6 +368,24 @@ export default function SignedArchiveTab() {
     } finally {
       downloadsInFlight.current.delete(row.id);
       setDownloading((prev) => {
+        const next = new Set(prev);
+        next.delete(row.id);
+        return next;
+      });
+    }
+  }
+
+  /** A copy of an original — "העתק", drawn again now — for printing or forwarding; never the stored bytes. */
+  async function saveCopy(row: SignedOriginalRow) {
+    if (copying.has(row.id)) return;
+    setCopying((prev) => new Set(prev).add(row.id));
+    try {
+      await downloadSignedCopy(row);
+      toast.success(`העתק של ${row.number} נשמר`);
+    } catch (error) {
+      toast.error(errorSentence(error) || 'הורדת ההעתק נכשלה — נסו שוב');
+    } finally {
+      setCopying((prev) => {
         const next = new Set(prev);
         next.delete(row.id);
         return next;
@@ -688,6 +714,7 @@ export default function SignedArchiveTab() {
     const delivery = deliveryView(row);
     const size = formatFileSize(row.size);
     const busy = downloading.has(row.id);
+    const copyBusy = copying.has(row.id);
     return (
       <tr key={row.id}>
         <td><span className={styles.number}>{row.number || '—'}</span></td>
@@ -719,23 +746,51 @@ export default function SignedArchiveTab() {
           )}
         </td>
         <td className={theme.n}>
-          {row.signed_at ? (
-            <button
-              type="button"
-              className={styles.actionBtn}
-              disabled={busy}
-              aria-label={`הורדת הקובץ החתום של ${row.number}`}
-              title={row.sha256 ? `SHA-256: ${row.sha256}` : undefined}
-              onClick={() => void download(row)}
-            >
-              {busy
-                ? <Loader2 size={14} className={styles.spin} aria-hidden="true" />
-                : <Download size={14} aria-hidden="true" />}
-              הורדה
-            </button>
-          ) : (
-            <span className={styles.dash}>אין קובץ עדיין</span>
-          )}
+          <span className={styles.rowActions}>
+            {row.signed_at ? (
+              <button
+                type="button"
+                className={styles.actionBtn}
+                disabled={busy}
+                aria-label={`הורדת הקובץ החתום של ${row.number}`}
+                title={row.sha256 ? `SHA-256: ${row.sha256}` : undefined}
+                onClick={() => void download(row)}
+              >
+                {busy
+                  ? <Loader2 size={14} className={styles.spin} aria-hidden="true" />
+                  : <Download size={14} aria-hidden="true" />}
+                הורדה
+              </button>
+            ) : (
+              <span className={styles.dash}>אין קובץ עדיין</span>
+            )}
+            {row.signed_at && row.purpose === 'original' && (
+              <button
+                type="button"
+                className={styles.actionBtn}
+                disabled={copyBusy}
+                aria-label={`הורדת העתק של ${row.number} להדפסה`}
+                title="העתק מסומן, להדפסה או להעברה — לא הקובץ החתום"
+                onClick={() => void saveCopy(row)}
+              >
+                {copyBusy
+                  ? <Loader2 size={14} className={styles.spin} aria-hidden="true" />
+                  : <Download size={14} aria-hidden="true" />}
+                העתק
+              </button>
+            )}
+            {canSendCopy(row) && (
+              <button
+                type="button"
+                className={styles.actionBtn}
+                aria-label={`שליחת העתק של ${row.number} במייל`}
+                onClick={() => setSending(row)}
+              >
+                <Send size={14} aria-hidden="true" />
+                שלח העתק
+              </button>
+            )}
+          </span>
         </td>
       </tr>
     );
@@ -788,7 +843,7 @@ export default function SignedArchiveTab() {
               <th scope="col">קובץ</th>
               <th scope="col">נחתם</th>
               <th scope="col">מסירה</th>
-              <th scope="col" className={theme.n}>הורדה</th>
+              <th scope="col" className={theme.n}>קובץ והעתק</th>
             </tr>
           </thead>
           <tbody>{list.rows.map(renderRow)}</tbody>
@@ -917,6 +972,9 @@ export default function SignedArchiveTab() {
           </nav>
         )}
       </section>
+
+      {/* A copy only (canSendCopy): the row does not change, so the list is not read again. */}
+      <SendOriginalDialog row={sending} onClose={() => setSending(null)} />
     </div>
   );
 }

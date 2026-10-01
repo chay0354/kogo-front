@@ -25,6 +25,7 @@ import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { Skeleton, TableSkeleton } from '@/components/ui/skeleton';
 import theme from '@/components/dashboard/theme/dashboard.module.css';
 import BodyPortal from '@/app/(crm)/invoices/BodyPortal';
+import BusinessCustomerCardButton from '@/components/dialogs/BusinessCustomerCardButton';
 import { useScopedBranches } from '@/hooks/useScopedBranches';
 import {
   deleteTenancy,
@@ -365,7 +366,11 @@ export default function TenanciesView() {
     return (
       <tr key={tenancy.id}>
         <td className={styles.wrapCell}>
-          <span className={styles.strong}>{name}</span>
+          <BusinessCustomerCardButton
+            customerId={tenancy.tenant.id}
+            name={name}
+            className={`${styles.strong} text-right underline decoration-dotted underline-offset-4 hover:decoration-solid`}
+          />
           {identifier && <span className={styles.subLine}>{identifier}</span>}
         </td>
         <td>{tenancy.branch_name || '—'}</td>

@@ -743,18 +743,68 @@ export function compareDocumentsNewestFirst(a: DocumentRow, b: DocumentRow): num
   });
 }
 
-/** The totals of the documents shown — what the KPI row reports. */
+/**
+ * A kogo tax or transaction invoice whose balance the server works out from
+ * the receipts that paid it (WS-3). Its amount_paid is money that arrived on
+ * a receipt — counted on the receipt's own row. One issued in Tranzila keeps
+ * the older rule (paid in full) and counts as before.
+ */
+export function isSettledInvoiceRow(
+  doc: Pick<DocumentRow, 'origin' | 'document_type_code' | 'tranzila_issued'>,
+): boolean {
+  return doc.origin === 'manual'
+    && (doc.document_type_code === 'tax_invoice' || doc.document_type_code === 'transaction_invoice')
+    && !doc.tranzila_issued;
+}
+
+/**
+ * The documents tab's KPI row — the totals of the documents shown, each
+ * shekel counted once. The rule of docs/CHANGE-IMPACT-2026-09-30-WS3 §4א.6,
+ * the same as the server's own dashboard (apps/core/dashboard_views.py):
+ *
+ *   סה"כ  = Σ (total − applied_amount), a credit note subtracted. The part of a
+ *           receipt that paid an invoice is counted on the invoice — the
+ *           revenue is the invoice's, in whichever period it was issued.
+ *   שולם  = Σ amount_paid of every row but a kogo tax/transaction invoice —
+ *           that money is the receipt's, on the receipt's own row.
+ *   פתוח  = Σ open_balance, a credit note never owed.
+ *
+ * An older server sends no applied_amount and a tax invoice's amount_paid is
+ * 0 there, so the figures are what they always were.
+ */
 export function sumDocuments(rows: readonly DocumentRow[]): { total: number; paid: number; open: number } {
-  return rows.reduce(
-    (acc, doc) => ({
+  let total = 0;
+  let paid = 0;
+  let open = 0;
+  for (const doc of rows) {
+    // A draft is not a document yet: no number, nothing owed, nothing paid.
+    if (doc.is_draft) continue;
+    if (isCreditRow(doc)) {
       // A credit note is money going back: it comes off the total and is never
       // an open debt, whatever an older ledger row says about its balance.
-      total: acc.total + (isCreditRow(doc) ? -1 : 1) * (Number(doc.total_amount) || 0),
-      paid: acc.paid + (isCreditRow(doc) ? 0 : Number(doc.amount_paid) || 0),
-      open: acc.open + (isCreditRow(doc) ? 0 : Number(doc.open_balance) || 0),
-    }),
-    { total: 0, paid: 0, open: 0 },
-  );
+      total -= toAgorot(doc.total_amount);
+      continue;
+    }
+    total += toAgorot(doc.total_amount) - Math.max(0, toAgorot(doc.applied_amount));
+    open += toAgorot(doc.open_balance);
+    if (!isSettledInvoiceRow(doc)) paid += toAgorot(doc.amount_paid);
+  }
+  return { total: total / 100, paid: paid / 100, open: open / 100 };
+}
+
+function toAgorot(value: unknown): number {
+  const n = Number(value);
+  return Number.isFinite(n) ? Math.round(n * 100) : 0;
+}
+
+/**
+ * Whether a row opens the document's detail (balance and settlements). Only
+ * a document issued in kogo (origin manual) has one: its id is the document's.
+ * A subscription receipt or a store sale carries another model's id; a draft
+ * has no number and nothing closed it.
+ */
+export function canOpenDocumentDetail(doc: Pick<DocumentRow, 'id' | 'origin' | 'is_draft'>): boolean {
+  return doc.origin === 'manual' && Boolean(doc.id) && !doc.is_draft;
 }
 
 /**

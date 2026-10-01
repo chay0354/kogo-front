@@ -16,6 +16,7 @@ import { saveBlob } from './documentsApi';
 import {
   ARCHIVE_RUN_MAX_LIMIT,
   downloadCertificatePem,
+  downloadSignedCopy,
   downloadSignedOriginal,
   fetchArchiveStatus,
   fetchBusinessCustomerConsent,
@@ -29,13 +30,18 @@ import {
   printOriginal,
   readArchiveStatus,
   readExportPartHeaders,
+  readSendResult,
   readSignedOriginal,
   readSigningStatus,
   responseHeader,
   runArchiveBatch,
+  SEND_NOT_AVAILABLE_MESSAGE,
+  SEND_REFUSED_MESSAGE,
+  sendSignedOriginal,
   setBusinessCustomerConsent,
   SIGNED_EXPORT_PART_SIZE,
   SignedFileMismatchError,
+  signedCopyFilename,
   signedOriginalFilename,
   signedOriginalsFilterParams,
   SIGNING_CERTIFICATE_FILENAME,
@@ -59,7 +65,7 @@ const status = {
   cert_fingerprint: 'ab'.repeat(32),
   cert_subject: 'O=קוגומלו גרופ בע"מ, serialNumber=516504412',
   last_signed_at: '2026-09-23T14:05:00+03:00',
-  counts: { held: 2, paper_pending: 3, signed_today: 40 },
+  counts: { held: 2, paper_pending: 3, signed_today: 40, awaiting_allocation: 1 },
 };
 
 describe('fetchSigningStatus', () => {
@@ -86,8 +92,21 @@ describe('fetchSigningStatus', () => {
       cert_fingerprint: null,
       cert_subject: null,
       last_signed_at: null,
-      counts: { held: 0, paper_pending: 0, signed_today: 0 },
+      counts: { held: 0, paper_pending: 0, signed_today: 0, awaiting_allocation: 0 },
     });
+  });
+
+  it('reads the documents without an original, and the ones found late, only when the server counts them', () => {
+    const newer = { ...status, counts: { ...status.counts, missing_original: 2, found_late: '1' } };
+    expect(readSigningStatus(newer)?.counts).toEqual({
+      held: 2, paper_pending: 3, signed_today: 40, awaiting_allocation: 1, missing_original: 2, found_late: 1,
+    });
+    expect(readSigningStatus(status)?.counts).not.toHaveProperty('missing_original');
+  });
+
+  it('reads no allocation-number count from a server that does not send one as 0', () => {
+    const older = { ...status, counts: { held: 2, paper_pending: 3, signed_today: 40 } };
+    expect(readSigningStatus(older)?.counts).toEqual({ held: 2, paper_pending: 3, signed_today: 40, awaiting_allocation: 0 });
   });
 });
 
@@ -97,6 +116,14 @@ describe('fetchSignedOriginals', () => {
     await fetchSignedOriginals({ delivery: 'paper', printed: false, limit: 100, offset: 200 });
     expect(get).toHaveBeenCalledWith('/documents/signing/originals/', {
       params: { delivery: 'paper', printed: 'false', limit: 100, offset: 200 },
+    });
+  });
+
+  it('asks for the printed originals, the last printed first', async () => {
+    get.mockResolvedValue({ data: { count: 0, results: [] } } as never);
+    await fetchSignedOriginals({ delivery: 'paper', printed: true, order: 'printed', limit: 20, offset: 0 });
+    expect(get).toHaveBeenCalledWith('/documents/signing/originals/', {
+      params: { delivery: 'paper', printed: 'true', order: 'printed', limit: 20, offset: 0 },
     });
   });
 
@@ -521,5 +548,114 @@ describe('runArchiveBatch', () => {
     const timeout = { code: 'ECONNABORTED' };
     post.mockRejectedValue(timeout);
     await expect(runArchiveBatch({ limit: 25 })).rejects.toBe(timeout);
+  });
+});
+
+describe('a row’s send and allocation fields (25.9.2026)', () => {
+  const wire = {
+    id: 'o-9',
+    number: 'IR-2026-000200',
+    kind: 'formal',
+    delivery: 'held',
+    delivery_reason: 'ממתין למספר הקצאה',
+    signed_at: null,
+    sent_at: null,
+    paper_original_printed_at: null,
+  };
+
+  it('reads the issuing row, the channel and the allocation hold', () => {
+    const row = readSignedOriginal({ ...wire, source_id: 42, channel: 'formal', awaiting_allocation: true });
+    expect(row).toMatchObject({ source_id: '42', channel: 'formal', awaiting_allocation: true });
+  });
+
+  it('reads a server that does not send them as no source, no channel, not held for a number', () => {
+    expect(readSignedOriginal(wire)).toMatchObject({ source_id: '', channel: '', awaiting_allocation: false });
+    expect(readSignedOriginal({ ...wire, source_id: null, channel: 7, awaiting_allocation: 'yes' }))
+      .toMatchObject({ source_id: '', channel: '', awaiting_allocation: false });
+  });
+});
+
+describe('a signed file: the stored bytes, and a copy only when asked for', () => {
+  const bytes = '%PDF-1.7 signed';
+
+  it('asks for a copy only when told to', async () => {
+    get.mockResolvedValue({ data: new Blob([bytes]), headers: {} } as never);
+    await fetchSignedOriginalFile('o-1', { copy: true });
+    expect(get).toHaveBeenCalledWith('/documents/signing/originals/o-1/file/', {
+      responseType: 'blob', timeout: 60000, params: { copy: '1' },
+    });
+  });
+
+  it('downloads the stored bytes for the check, an original and an archive copy alike', async () => {
+    get.mockResolvedValue({ data: new Blob([bytes]), headers: {} } as never);
+    await downloadSignedOriginal({ id: 'o-1', number: 'IR-1', sha256: '', purpose: 'original' });
+    expect(get).toHaveBeenLastCalledWith('/documents/signing/originals/o-1/file/', { responseType: 'blob', timeout: 60000 });
+    await downloadSignedOriginal({ id: 'a-1', number: 'IR-1', sha256: '', purpose: 'archive' });
+    expect(get).toHaveBeenLastCalledWith('/documents/signing/originals/a-1/file/', { responseType: 'blob', timeout: 60000 });
+  });
+
+  it('saves a copy under a name that says so', async () => {
+    const pdf = new Blob(['%PDF-1.7 copy'], { type: 'application/pdf' });
+    get.mockResolvedValue({ data: pdf, headers: {} } as never);
+    await downloadSignedCopy({ id: 'o-1', number: 'IR-2026-000123' });
+    expect(get).toHaveBeenCalledWith('/documents/signing/originals/o-1/file/', {
+      responseType: 'blob', timeout: 60000, params: { copy: '1' },
+    });
+    expect(save).toHaveBeenCalledWith(pdf, 'application/pdf', 'IR-2026-000123 - העתק.pdf');
+  });
+
+  it('names a copy safely', () => {
+    expect(signedCopyFilename('A/B:C')).toBe('A-B-C - העתק.pdf');
+    expect(signedCopyFilename('')).toBe('מסמך - העתק.pdf');
+    expect(signedCopyFilename(null)).toBe('מסמך - העתק.pdf');
+  });
+});
+
+describe('sendSignedOriginal — "שלח / שלח שוב"', () => {
+  const answer = {
+    sent: 'original', email: 'dana@example.com', number: 'IR-1', delivery: 'email', delivery_reason: 'המקור החתום נשלח במייל',
+  };
+
+  it('posts to the send route, with an address only when one was typed', async () => {
+    post.mockResolvedValue({ data: answer } as never);
+    expect(await sendSignedOriginal('o 1', '  dana@example.com ')).toEqual({ outcome: 'sent', ...answer });
+    expect(post).toHaveBeenCalledWith('/documents/signing/originals/o%201/send/', { email: 'dana@example.com' }, { timeout: 60000 });
+    await sendSignedOriginal('o-2');
+    expect(post).toHaveBeenLastCalledWith('/documents/signing/originals/o-2/send/', {}, { timeout: 60000 });
+  });
+
+  it('reads a copy as a copy', async () => {
+    post.mockResolvedValue({ data: { ...answer, sent: 'copy', delivery: 'paper' } } as never);
+    expect(await sendSignedOriginal('o-1')).toMatchObject({ outcome: 'sent', sent: 'copy', delivery: 'paper' });
+  });
+
+  it('returns a refusal the office can act on in the server’s words: no address, not by mail, no provider', async () => {
+    for (const status of [400, 409, 503]) {
+      post.mockRejectedValueOnce({ response: { status, data: { error: `סירוב ${status}` } } });
+      expect(await sendSignedOriginal('o-1')).toEqual({ outcome: 'refused', status, message: `סירוב ${status}` });
+    }
+    post.mockRejectedValueOnce({ response: { status: 409, data: {} } });
+    expect(await sendSignedOriginal('o-1')).toEqual({ outcome: 'refused', status: 409, message: SEND_REFUSED_MESSAGE });
+  });
+
+  it('says so when the server has no send route yet', async () => {
+    post.mockRejectedValueOnce({ response: { status: 404, data: '<html>' } });
+    expect(await sendSignedOriginal('o-1')).toEqual({ outcome: 'refused', status: 404, message: SEND_NOT_AVAILABLE_MESSAGE });
+  });
+
+  it('throws a provider failure and a lost answer as they came', async () => {
+    const refused = { response: { status: 502, data: { error: 'השליחה נכשלה' } } };
+    post.mockRejectedValueOnce(refused);
+    await expect(sendSignedOriginal('o-1')).rejects.toBe(refused);
+    const timeout = { code: 'ECONNABORTED' };
+    post.mockRejectedValueOnce(timeout);
+    await expect(sendSignedOriginal('o-1')).rejects.toBe(timeout);
+  });
+
+  it('does not take an answer it cannot read for a send', async () => {
+    post.mockResolvedValue({ data: '<html>' } as never);
+    await expect(sendSignedOriginal('o-1')).rejects.toThrow();
+    expect(readSendResult({ ...answer, sent: 'maybe' })).toBeNull();
+    expect(readSendResult({ ...answer, delivery: 'fax' })).toMatchObject({ delivery: 'none' });
   });
 });

@@ -5,6 +5,14 @@ import type {
   CreateDocumentPayload,
 } from '@/types/document';
 import type { LedgerDimensions, PaymentLedgerItem } from '@/app/(crm)/invoices/types';
+import {
+  readInvoiceBalance,
+  readOpenInvoices,
+  type InvoiceBalance,
+  type OpenInvoicesAnswer,
+  type PayerType,
+} from './settlements';
+import type { CreditRoom } from './draftsAndCredits';
 
 export async function createDocument(payload: CreateDocumentPayload): Promise<FormalDocument> {
   const res = await api.post('/documents/documents/create-document/', payload);
@@ -48,6 +56,10 @@ export async function fetchTranzilaDocuments(params?: {
     source?: string;
     branch?: string;
     branch_id?: string | null;
+    /** WS-3: what credit notes took off an invoice; 0 elsewhere. Absent on an older server. */
+    credited_amount?: number;
+    /** WS-3: the part of a receipt that paid an invoice listed on its own row. */
+    applied_amount?: number;
   }>;
   source: string;
   error?: string | null;
@@ -153,6 +165,55 @@ export async function fetchPaymentLedger(params?: {
 export async function fetchDocument(id: string): Promise<FormalDocument> {
   const res = await api.get(`/documents/documents/${id}/`);
   return res.data;
+}
+
+/**
+ * The customer's invoices a `payerType` document can close that still owe
+ * something, oldest first: tax invoices for a receipt, transaction invoices
+ * for an invoice-receipt. A server from before settlements answers 404 — the
+ * caller falls back to the older form.
+ */
+export async function fetchOpenInvoices(params: {
+  childId?: string | null;
+  businessCustomerId?: string | null;
+  payerType: PayerType;
+}): Promise<OpenInvoicesAnswer> {
+  const res = await api.get('/documents/documents/open-invoices/', {
+    params: {
+      ...(params.childId ? { child_id: params.childId } : {}),
+      ...(!params.childId && params.businessCustomerId ? { business_customer_id: params.businessCustomerId } : {}),
+      payer_type: params.payerType,
+    },
+  });
+  return readOpenInvoices(res.data, params.payerType);
+}
+
+export interface VoidSettlementAnswer {
+  id: string;
+  payer_number: string;
+  invoice_number: string;
+  amount: string;
+  voided_at: string | null;
+  /** The invoice's balance after the void — it opens again by the amount. */
+  invoice_balance: InvoiceBalance | null;
+}
+
+/**
+ * Void a settlement recorded by mistake (managers only). The row is kept with
+ * who voided it and when; the invoice opens again. The reason is required —
+ * the server refuses without one (400) and refuses a second void (409).
+ */
+export async function voidSettlement(id: string, reason: string): Promise<VoidSettlementAnswer> {
+  const res = await api.post(`/documents/settlements/${encodeURIComponent(id)}/void/`, { reason });
+  const data = (res.data ?? {}) as Record<string, unknown>;
+  return {
+    id: String(data.id ?? id),
+    payer_number: String(data.payer_number ?? ''),
+    invoice_number: String(data.invoice_number ?? ''),
+    amount: String(data.amount ?? '0.00'),
+    voided_at: data.voided_at ? String(data.voided_at) : null,
+    invoice_balance: readInvoiceBalance(data.invoice_balance),
+  };
 }
 
 export async function sendDocumentReminder(id: string): Promise<{ sent: boolean }> {
@@ -353,6 +414,17 @@ export interface CheckItemRow {
   tax_invoice: string | null;
   tax_invoice_number: string | null;
   invoiced_at: string | null;
+  // WS-3 (30.9.2026) — absent on an older server.
+  /** The tax invoice's own date: the day it was issued, on or after the check's. */
+  tax_invoice_date?: string | null;
+  /** When the check came back unpaid. */
+  bounced_at?: string | null;
+  /** The credit note that took back a bounced check's invoice. */
+  credit_note?: string | null;
+  credit_note_number?: string | null;
+  /** The replacement check (an item of its own plan) and that plan. */
+  replaced_by?: string | null;
+  replaced_by_plan?: string | null;
 }
 
 /**
@@ -377,6 +449,9 @@ export interface CheckPlanRow extends LedgerDimensions {
   total_amount: number | string;
   next_due_date: string | null;
   created_at: string;
+  // WS-3 (30.9.2026) — absent on an older server.
+  cancelled_at?: string | null;
+  cancelled_by_name?: string;
 }
 
 export async function fetchCheckPlans(params?: {
@@ -399,20 +474,133 @@ export async function createCheckPlan(payload: {
     account_number: string;
     check_number: string;
     amount: number;
+    /**
+     * Crossed "לא סחיר" in the customer's name (הוראה 18ב(ד)(2)). Without it the
+     * server reads the check as not crossed, and the plan's signed originals
+     * go on paper instead of by mail.
+     */
+    check_crossed: boolean;
   }>;
 }): Promise<CheckPlanRow> {
   const res = await api.post('/documents/check-plans/', payload);
   return res.data;
 }
 
-export async function cancelCheckPlan(id: string): Promise<CheckPlanRow> {
-  const res = await api.post(`/documents/check-plans/${id}/cancel/`);
+/**
+ * Stop a plan: its checks still ahead are cancelled (no invoice for them),
+ * and an invoice already issued that nothing paid is credited — a credit note
+ * that is signed and emailed to the customer. Normally there is none: each
+ * invoice is paid by its check. `credit_notes` lists what was issued (an
+ * older server sends the plan alone).
+ */
+export async function cancelCheckPlan(
+  id: string,
+  reason = '',
+): Promise<{ plan: CheckPlanRow; credit_notes: string[] }> {
+  const res = await api.post(`/documents/check-plans/${id}/cancel/`, reason.trim() ? { reason: reason.trim() } : {});
+  const data = (res.data ?? {}) as CheckPlanRow & { credit_notes?: unknown };
+  const { credit_notes: notes, ...plan } = data;
+  return {
+    plan: plan as CheckPlanRow,
+    credit_notes: Array.isArray(notes) ? notes.map(String).filter(Boolean) : [],
+  };
+}
+
+/** A check that replaces one that came back: registered as a plan of its own. */
+export interface ReplacementCheckInput {
+  date: string;
+  amount: number;
+  bank: string;
+  branch: string;
+  account_number: string;
+  check_number: string;
+  check_crossed: boolean;
+}
+
+export interface BounceCheckAnswer {
+  plan: CheckPlanRow;
+  item_id: string;
+  /** The credit note of the check's invoice, when one was issued; it is signed and emailed to the customer. */
+  credit_note_number: string | null;
+  /** The replacement check's own plan (its own receipt now, its own invoice on its day). */
+  replacement_plan: CheckPlanRow | null;
+}
+
+/**
+ * A check came back unpaid. If its tax invoice was issued, the invoice is
+ * credited (a credit note, emailed to the customer); if not, the check is
+ * cancelled and no invoice will follow. 404 for another plan's check, 409 when
+ * it was marked already.
+ */
+export async function bounceCheck(
+  planId: string,
+  input: { item_id: string; reason?: string; replacement?: ReplacementCheckInput | null },
+): Promise<BounceCheckAnswer> {
+  const res = await api.post(`/documents/check-plans/${planId}/bounce/`, {
+    item_id: input.item_id,
+    ...(input.reason?.trim() ? { reason: input.reason.trim() } : {}),
+    ...(input.replacement ? { replacement: input.replacement } : {}),
+  });
+  const data = (res.data ?? {}) as Record<string, unknown>;
+  return {
+    plan: data.plan as CheckPlanRow,
+    item_id: String(data.item_id ?? input.item_id),
+    credit_note_number: data.credit_note_number ? String(data.credit_note_number) : null,
+    replacement_plan: (data.replacement_plan as CheckPlanRow | null) ?? null,
+  };
+}
+
+/**
+ * Approve a draft: it becomes a real document and takes a fiscal number,
+ * dated today. A receipt's or invoice-receipt's draft is checked again first
+ * (its payments, and the invoices it settles against today's balances); a
+ * refusal is 400 {error} and uses no number.
+ */
+export async function finalizeDraft(id: string): Promise<FormalDocument> {
+  const res = await api.post(`/documents/documents/${id}/finalize/`);
   return res.data;
 }
 
-/** Approve a draft: it becomes a real document and takes a fiscal number. */
-export async function finalizeDraft(id: string): Promise<void> {
-  await api.post(`/documents/documents/${id}/finalize/`);
+/** Delete a draft (manager). It has no number and settles nothing, so nothing is left behind. */
+export async function discardDraft(id: string): Promise<{ id: string; document_number: string }> {
+  const res = await api.post(`/documents/documents/${id}/discard/`);
+  return res.data;
+}
+
+/**
+ * Record the customer's confirmation of a credit note (הוראה 23א(3)) —
+ * manager only, once (409 after). `date` is the day it arrived (YYYY-MM-DD),
+ * when it is recorded later; without it the server stamps now.
+ */
+export async function recordCustomerAck(
+  id: string,
+  input: { note: string; date?: string },
+): Promise<{ id: string; customer_ack_at: string; customer_ack_note: string }> {
+  const res = await api.post(`/documents/documents/${id}/customer-ack/`, {
+    note: input.note.trim(),
+    ...(input.date ? { date: input.date } : {}),
+  });
+  return res.data;
+}
+
+/** "נותר לזכות" of a document, before VAT (GET documents/credit-room/). */
+export async function fetchCreditRoom(number: string): Promise<CreditRoom> {
+  const res = await api.get('/documents/documents/credit-room/', { params: { number } });
+  return res.data;
+}
+
+/**
+ * A lesson receipt (IR) from the invoices page: always a copy — "העתק" — never
+ * the original's one print (30.9.2026, audit M5). The child card's endpoint,
+ * with its partner branch rule; `?copy=1` is what makes it a copy.
+ */
+export async function downloadLessonReceiptCopy(invoiceId: string, documentNumber: string): Promise<void> {
+  const res = await api.get(`/customers/invoices/${encodeURIComponent(invoiceId)}/pdf/`, {
+    params: { copy: '1' },
+    responseType: 'blob',
+  });
+  const name = String(documentNumber || '').replace(/[\\/:*?"<>|]+/g, '-').trim() || 'קבלה';
+  saveBlob(res.data, 'application/pdf', `${name} - העתק.pdf`);
 }
 
 /**
@@ -455,12 +643,24 @@ export interface CashPlan {
   status: 'active' | 'completed' | 'cancelled';
   total_amount: string;
   monthly_amount: string;
+  /** Ignored since 30.9.2026: no document is issued a month. */
   monthly_document_type: 'combined' | 'tax_invoice';
+  /** The document issued when the cash was taken — an invoice-receipt since 30.9.2026, a receipt before. */
+  receipt?: string | null;
   receipt_number: string;
   months: CashPlanMonth[];
   months_paid: number;
   months_total: number;
   created_at: string;
+  // WS-3 (30.9.2026) — absent on an older server.
+  /** 'upfront': one invoice-receipt for the whole sum; null: the older design (a receipt and a document a month). */
+  mode?: 'upfront' | null;
+  /** 'combined' for an upfront plan, 'receipt' for an older one. */
+  receipt_document_type?: string;
+  /** What the months not yet begun come to, as '1234.00'. */
+  unused_amount?: string;
+  cancelled_at?: string | null;
+  cancelled_by_name?: string;
 }
 
 export async function fetchCashPlans(childId: string): Promise<CashPlan[]> {
@@ -490,16 +690,70 @@ export async function registerCashPlan(input: {
   monthly_amount: string;
   start_month?: string;
   description?: string;
-  monthly_document_type?: 'combined' | 'tax_invoice';
 }): Promise<CashPlan> {
   const res = await api.post('/documents/cash-plans/', input);
   return res.data;
 }
 
-/** מספר הקצאה שנלקח ידנית מרשות המסים. מחרוזת ריקה מנקה אותו. */
-export async function setAllocationNumber(documentId: string, allocationNumber: string) {
+export interface CancelCashPlanAnswer {
+  plan: CashPlan;
+  /** The credit note of the invoice-receipt, when one was issued (signed and emailed to the customer). */
+  credit_note_number: string | null;
+  /** What the months not yet begun came to, '1234.00'. */
+  unused_amount: string;
+  /** The server's explanation — an older plan has nothing to credit, and says what to tell the accountant. */
+  message: string;
+}
+
+/**
+ * Stop a cash plan: the months not yet begun get nothing more. An upfront
+ * plan's invoice-receipt is credited for `refund_amount` (left out: the months
+ * not begun; 0: nothing). An older plan has nothing to credit and `message`
+ * says so; the server refuses a refund amount for it.
+ */
+export async function cancelCashPlan(
+  id: string,
+  input: { reason?: string; refund_amount?: string | null } = {},
+): Promise<CancelCashPlanAnswer> {
+  const res = await api.post(`/documents/cash-plans/${id}/cancel/`, {
+    ...(input.reason?.trim() ? { reason: input.reason.trim() } : {}),
+    ...(input.refund_amount != null && input.refund_amount !== '' ? { refund_amount: input.refund_amount } : {}),
+  });
+  const data = (res.data ?? {}) as CashPlan & { credit_note_number?: unknown; message?: unknown };
+  const { credit_note_number: credit, message, ...plan } = data;
+  return {
+    plan: plan as CashPlan,
+    credit_note_number: credit ? String(credit) : null,
+    unused_amount: String(data.unused_amount ?? '0.00'),
+    message: typeof message === 'string' ? message : '',
+  };
+}
+
+/**
+ * What the server answers to an allocation number. The fields after the first
+ * two came on 25.9.2026 (a server before that sends only the first two):
+ * whether the document's original is signed now and where it went, and
+ * `copy_only` when the original was signed before the number and it will be
+ * printed on copies only (`message` says so).
+ */
+export interface AllocationNumberAnswer {
+  allocation_number: string;
+  allocation_entered_at: string | null;
+  copy_only?: boolean;
+  signed?: boolean;
+  delivery?: 'email' | 'paper' | 'held' | 'none' | null;
+  delivery_reason?: string;
+  message?: string;
+}
+
+/**
+ * מספר הקצאה שנלקח ידנית מרשות המסים. מחרוזת ריקה מנקה אותו.
+ * A document held for its number is signed and mailed once it is entered; once
+ * the original is signed the server refuses a change (409, with its reason).
+ */
+export async function setAllocationNumber(documentId: string, allocationNumber: string): Promise<AllocationNumberAnswer> {
   const res = await api.post(`/documents/documents/${documentId}/allocation-number/`, {
     allocation_number: allocationNumber,
   });
-  return res.data as { allocation_number: string; allocation_entered_at: string | null };
+  return res.data as AllocationNumberAnswer;
 }

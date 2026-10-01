@@ -21,14 +21,34 @@ import {
   X,
 } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
 import api, {
   createBusinessCustomer,
   fetchBusinesses,
   searchBusinessCustomers,
   updateBusinessCustomer,
 } from '@/lib/api';
-import { createDocument, fetchDocuments } from '@/lib/documentsApi';
-import type { CreateDocumentPayload } from '@/types/document';
+import { createDocument, fetchCreditRoom, fetchDocuments, fetchOpenInvoices } from '@/lib/documentsApi';
+import {
+  canSaveAsDraft,
+  creditRoomProblem,
+  creditRoomSummary,
+  isPayingDraftTarget,
+  type CreditRoom,
+} from '@/lib/draftsAndCredits';
+import {
+  AUTO_SETTLEMENT_PICKS,
+  formatAgorotShekels,
+  resolveSettlements,
+  settlementsPayload,
+  type OpenInvoice,
+  type PayerType,
+  type ResolvedSettlement,
+  type SettlementPicks,
+  type SettlementPlan,
+} from '@/lib/settlements';
+import SettlementPicker, { type OpenInvoicesStatus } from './SettlementPicker';
+import type { CreateDocumentPayload, DraftTargetType } from '@/types/document';
 import { Select } from '@/components/ui/select';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import type { ChildWithDetails } from '@/types/customer';
@@ -38,17 +58,35 @@ import LegacyHistoryPanel from '@/components/LegacyHistory/LegacyHistoryPanel';
 import BusinessDocsConsentField from '@/components/dialogs/BusinessDocsConsentField';
 import { setBusinessCustomerConsent } from '@/lib/signingApi';
 import styles from './index.module.css';
-import { BRANCHES_CATEGORY, CLIENT_TYPE_OPTIONS, DOCUMENT_TYPE_OPTIONS } from './constants';
 import {
+  ALLOCATION_THRESHOLD_ILS,
+  BRANCHES_CATEGORY,
+  CLIENT_TYPE_OPTIONS,
+  DOCUMENT_TYPE_OPTIONS,
+} from './constants';
+import {
+  allocationApplies,
+  allocationNumberError,
+  allocationRequired,
   branchFieldApplies,
   businessCustomerErrorMessage,
   serverErrorMessage,
   businessFormFromCustomer,
   canAdvanceFromStep,
+  computeInvoiceTotals,
+  creditableMatch,
+  documentDateBounds,
   emptyCheckRow,
   getNextButtonLabel,
+  formatAgorot,
   getStepStatus,
+  invoicePaymentBalance,
+  invoicePaymentRows,
+  invoicePerCheckApplies,
+  israelToday,
+  receiptCapacityAgorot,
   receiptDetailsPayload,
+  undatedConfirmedChecks,
 } from './utils';
 import { useNewDocumentWizard } from './useNewDocumentWizard';
 import type {
@@ -62,6 +100,17 @@ import type {
   NewDocumentDialogProps,
   ReceiptDetailsData,
 } from './types';
+
+function httpStatus(error: unknown): number | undefined {
+  return (error as { response?: { status?: number } } | null)?.response?.status;
+}
+
+/** What the steps need to show the open-invoices picker; null where it does not apply. */
+interface SettlementPickerData {
+  status: OpenInvoicesStatus;
+  invoices: readonly OpenInvoice[];
+  onRetry: () => void;
+}
 
 function getCustomerLabel(customer: ChildWithDetails): string {
   return customer.branch_name ? `${customer.full_name} — ${customer.branch_name}` : customer.full_name;
@@ -91,7 +140,10 @@ const PAYMENT_METHODS = [
   { id: 'העברה בנקאית', label: 'העברה בנקאית', icon: ArrowLeftRight },
 ] as const;
 
-export default function NewDocumentDialog({ open, onClose }: NewDocumentDialogProps) {
+/** Where the credit note form's "נותר לזכות" stands. */
+type CreditRoomStatus = 'idle' | 'loading' | 'ready' | 'forbidden' | 'error';
+
+export default function NewDocumentDialog({ open, onClose, initialCredit = null }: NewDocumentDialogProps) {
   const wizard = useNewDocumentWizard(onClose);
   const {
     currentStep,
@@ -117,6 +169,7 @@ export default function NewDocumentDialog({ open, onClose }: NewDocumentDialogPr
     goToStep,
     goNext,
     goBack,
+    startAt,
     close,
   } = wizard;
 
@@ -164,9 +217,159 @@ export default function NewDocumentDialog({ open, onClose }: NewDocumentDialogPr
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [open]);
 
+  // ── Receipts against invoices (WS-3): the open invoices this payment closes.
+  // A receipt closes tax invoices, an invoice-receipt transaction invoices.
+  const payerType: PayerType | null =
+    docType === 'קבלה' ? 'receipt' : docType === 'חשבונית מס/קבלה' ? 'combined' : null;
+  const payerChildId = clientType === 'existing' ? selectedCustomerId : null;
+  const payerBusinessId = clientType === 'business' ? businessCustomerId : null;
+  const openInvoicesQuery = useQuery({
+    queryKey: ['open-invoices', payerType, payerChildId, payerBusinessId],
+    queryFn: () => fetchOpenInvoices({
+      childId: payerChildId,
+      businessCustomerId: payerBusinessId,
+      payerType: payerType ?? 'receipt',
+    }),
+    enabled: open && payerType !== null && Boolean(payerChildId || payerBusinessId),
+    staleTime: 30_000,
+    // A server from before settlements answers 404: nothing to retry, the form falls back.
+    retry: (count, error) => httpStatus(error) !== 404 && count < 1,
+  });
+  // The older form (a free-text link to one invoice) on a server without the picker.
+  const settlementsUnsupported = httpStatus(openInvoicesQuery.error) === 404;
+  const openInvoices: OpenInvoice[] = openInvoicesQuery.data?.results ?? [];
+  const openInvoicesStatus: OpenInvoicesStatus = openInvoicesQuery.data
+    ? 'ready'
+    : openInvoicesQuery.isError
+      ? 'error'
+      : openInvoicesQuery.isFetching
+        ? 'loading'
+        : 'idle';
+
+  // A new customer or document type starts from the default again: oldest first.
+  useEffect(() => {
+    setReceiptDetails((prev) => ({
+      ...prev,
+      settlementPicks: AUTO_SETTLEMENT_PICKS,
+      invoicePerCheck: clientType === 'existing' ? prev.invoicePerCheck : false,
+    }));
+    setInvoiceDetails((prev) => ({ ...prev, settlementPicks: AUTO_SETTLEMENT_PICKS }));
+  }, [clientType, selectedCustomerId, businessCustomerId, docType, setReceiptDetails, setInvoiceDetails]);
+
+  // "זיכוי" on a document's row (audit #10): the dialog opens as a credit
+  // note already linked to that document and its customer, at the details
+  // step. Applied once per opening; closing resets the wizard as always.
+  const appliedPrefill = useRef<string | null>(null);
+  useEffect(() => {
+    if (!open) {
+      appliedPrefill.current = null;
+      return;
+    }
+    if (!initialCredit) return;
+    const key = [initialCredit.documentNumber, initialCredit.childId, initialCredit.businessCustomerId].join('|');
+    if (appliedPrefill.current === key) return;
+    appliedPrefill.current = key;
+    setClientType(initialCredit.clientType);
+    if (initialCredit.clientType === 'existing') {
+      setSelectedCustomerId(initialCredit.childId);
+    } else if (initialCredit.businessCustomerId) {
+      const customerId = initialCredit.businessCustomerId;
+      setBusinessCustomerId(customerId);
+      // The summary and the business step show the customer's details.
+      api.get(`/customers/business-customers/${encodeURIComponent(customerId)}/`)
+        .then((res) => {
+          if (appliedPrefill.current === key && res.data) setBusinessFormData(businessFormFromCustomer(res.data));
+        })
+        .catch(() => undefined);
+    }
+    setDocType('חשבונית מס זיכוי');
+    setCreditInvoiceDetails((prev) => ({
+      ...prev,
+      linkedInvoiceId: initialCredit.documentNumber,
+      linkedDocumentDate: initialCredit.documentDate,
+    }));
+    startAt('documentDetails');
+  }, [
+    open, initialCredit, setClientType, setSelectedCustomerId, setBusinessCustomerId, setBusinessFormData,
+    setDocType, setCreditInvoiceDetails, startAt,
+  ]);
+
+  // "נותר לזכות" (audit M4): what is left of the original to credit, before
+  // VAT, by the rule the server checks the credit note by. Asked once typing
+  // pauses; a number kogo never issued answers known=false.
+  const creditNumber = docType === 'חשבונית מס זיכוי' ? creditInvoiceDetails.linkedInvoiceId.trim() : '';
+  const [roomNumber, setRoomNumber] = useState('');
+  useEffect(() => {
+    const timer = window.setTimeout(() => setRoomNumber(creditNumber), 350);
+    return () => window.clearTimeout(timer);
+  }, [creditNumber]);
+  const creditRoomQuery = useQuery({
+    queryKey: ['credit-room', roomNumber],
+    queryFn: () => fetchCreditRoom(roomNumber),
+    enabled: open && roomNumber !== '' && roomNumber === creditNumber,
+    staleTime: 15_000,
+    // 403 (another branch's) and 404 (a server without it) are answers, not failures.
+    retry: (count, error) => ![400, 403, 404].includes(httpStatus(error) ?? 0) && count < 1,
+  });
+
   if (!open) return null;
 
-  const canAdvance = canAdvanceFromStep(
+  const creditRoom: CreditRoom | null =
+    creditNumber !== '' && roomNumber === creditNumber ? creditRoomQuery.data ?? null : null;
+  const creditRoomStatus: CreditRoomStatus = creditNumber === ''
+    ? 'idle'
+    : creditRoom
+      ? 'ready'
+      : creditRoomQuery.isError
+        ? httpStatus(creditRoomQuery.error) === 403
+          ? 'forbidden'
+          : httpStatus(creditRoomQuery.error) === 404 ? 'idle' : 'error'
+        : 'loading';
+  const creditProblem = creditRoomStatus === 'forbidden'
+    ? 'המסמך המקורי שייך לסניף אחר'
+    : creditRoomProblem(creditRoom, creditInvoiceDetails.creditAmountBeforeVat, {
+        childId: clientType === 'existing' ? selectedCustomerId : null,
+        businessCustomerId: clientType === 'business' ? businessCustomerId : null,
+      });
+
+  // A server without the picker has no check plan from a receipt either (it would drop the flag silently).
+  const perCheck = docType === 'קבלה' && !settlementsUnsupported && invoicePerCheckApplies(clientType, receiptDetails);
+  const settlementPlan: SettlementPlan | null =
+    payerType === null || settlementsUnsupported || openInvoicesStatus !== 'ready'
+      ? null
+      : payerType === 'receipt'
+        ? resolveSettlements(
+            openInvoices,
+            // A receipt that opens a check plan closes no invoice (the server refuses it).
+            perCheck ? { mode: 'manual', amounts: {} } : receiptDetails.settlementPicks,
+            receiptCapacityAgorot(receiptDetails),
+            'receipt',
+          )
+        : resolveSettlements(
+            openInvoices,
+            invoiceDetails.settlementPicks,
+            computeInvoiceTotals(invoiceDetails).total,
+            'combined',
+          );
+  // Issuing waits for the list (the default closes invoices from it) unless it
+  // failed to load or the server has none; then the document closes nothing.
+  const settlementsValid =
+    payerType === null
+    || settlementsUnsupported
+    || openInvoicesStatus === 'error'
+    || openInvoicesStatus === 'idle'
+    || (settlementPlan !== null && settlementPlan.valid);
+  const settlementRows: ResolvedSettlement[] = settlementPlan?.valid ? settlementPlan.rows.filter((row) => row.amount > 0) : [];
+  const settlementPickerProps = {
+    status: openInvoicesStatus,
+    invoices: openInvoices,
+    onRetry: () => void openInvoicesQuery.refetch(),
+  };
+
+  const canAdvance = !(
+    // The credit note's server rule, known before issuing: what is left to credit.
+    currentStep === 'documentDetails' && docType === 'חשבונית מס זיכוי' && creditProblem !== null
+  ) && canAdvanceFromStep(
     currentStep,
     clientType,
     selectedCustomerId,
@@ -176,11 +379,14 @@ export default function NewDocumentDialog({ open, onClose }: NewDocumentDialogPr
     invoiceDetails,
     creditInvoiceDetails,
     receiptDetails,
-    selectedBranchId
+    selectedBranchId,
+    settlementsValid,
   );
   const isFirstStep = steps[0]?.id === currentStep;
   const isLastStep = steps[steps.length - 1]?.id === currentStep;
-  const canDraft = docType === 'חשבונית מס' || docType === 'חשבונית עסקה';
+  // Drafts of a receipt and an invoice-receipt too (owner, 25.9; audit M11) —
+  // not of a receipt that opens a check plan.
+  const canDraft = canSaveAsDraft(docType, { perCheck });
 
   async function handleNext() {
     setSubmitError(null);
@@ -228,8 +434,20 @@ export default function NewDocumentDialog({ open, onClose }: NewDocumentDialogPr
       setIsSubmitting(true);
       try {
         const payload = buildDocumentPayload();
-        await createDocument(payload);
+        const created = await createDocument(payload);
         queryClient.invalidateQueries({ queryKey: ['formal-documents'] });
+        queryClient.invalidateQueries({ queryKey: ['open-invoices'] });
+        queryClient.invalidateQueries({ queryKey: ['credit-room'] });
+        if (payload.document_type === 'draft') {
+          toast.success(
+            isPayingDraftTarget(payload.draft_target_type)
+              ? 'הטיוטה נשמרה בלי מספר. היא לא סוגרת חשבוניות ולא נחתמת עד שתאושר — ואז הכול ייבדק שוב.'
+              : 'הטיוטה נשמרה בלי מספר. היא תקבל מספר ותאריך כשתאושר.',
+          );
+        }
+        if (created?.check_plan_id) {
+          toast.success("נפתחה תוכנית צ'קים: חשבונית מס תופק ביום כל צ'ק ותסומן כשולמה בקבלה הזו");
+        }
         setShowSuccess(true);
         setTimeout(() => {
           setShowSuccess(false);
@@ -239,6 +457,9 @@ export default function NewDocumentDialog({ open, onClose }: NewDocumentDialogPr
         // The server's reason (a credit note with no original, say), not axios's
         // "Request failed with status code 400".
         setSubmitError(serverErrorMessage(err, 'שגיאה ביצירת המסמך'));
+        // A refused settlement usually means a balance changed meanwhile: the
+        // picker reads the invoices again, so going back shows what is open now.
+        if (payerType !== null) queryClient.invalidateQueries({ queryKey: ['open-invoices'] });
       } finally {
         setIsSubmitting(false);
       }
@@ -261,22 +482,35 @@ export default function NewDocumentDialog({ open, onClose }: NewDocumentDialogPr
     const asDraft = saveAsDraft && canDraft;
     const base: CreateDocumentPayload = {
       document_type: asDraft ? 'draft' : mappedType,
-      ...(asDraft ? { draft_target_type: mappedType as 'tax_invoice' | 'transaction_invoice' } : {}),
+      ...(asDraft ? { draft_target_type: mappedType as DraftTargetType } : {}),
       client_type: clientType ?? 'existing',
       child_id: clientType === 'existing' ? selectedCustomerId : null,
       business_customer_id: clientType === 'business' ? businessCustomerId : null,
       branch_id: selectedBranchId,
     };
 
+    // The open invoices the document pays (WS-3). An older server ignores the key.
+    const settlements = settlementsPayload({ rows: settlementRows } as SettlementPlan);
+    const withSettlements = settlements.length > 0 ? { settlements } : {};
+
     if (mappedType === 'receipt') {
-      return { ...base, receipt_details: receiptDetailsPayload(receiptDetails) };
+      return {
+        ...base,
+        receipt_details: receiptDetailsPayload(receiptDetails, {
+          invoicePerCheck: perCheck,
+          // The free-text link is the older form's, on a server without the picker.
+          linkedInvoiceId: settlementsUnsupported ? receiptDetails.linkedInvoiceId : '',
+        }),
+        ...(perCheck ? {} : withSettlements),
+      };
     }
     if (mappedType === 'credit_invoice') {
       return {
         ...base,
         credit_invoice_details: {
           document_date: creditInvoiceDetails.documentDate,
-          linked_invoice_id: creditInvoiceDetails.linkedInvoiceId,
+          linked_invoice_id: creditInvoiceDetails.linkedInvoiceId.trim(),
+          linked_document_date: creditInvoiceDetails.linkedDocumentDate || null,
           credit_reason: creditInvoiceDetails.creditReason,
           credit_amount_before_vat: creditInvoiceDetails.creditAmountBeforeVat,
           vat_exempt: creditInvoiceDetails.vatExempt,
@@ -291,7 +525,8 @@ export default function NewDocumentDialog({ open, onClose }: NewDocumentDialogPr
         document_date: invoiceDetails.documentDate,
         due_date: invoiceDetails.dueDate || null,
         description: invoiceDetails.description,
-        currency: invoiceDetails.currency as 'ILS' | 'USD' | 'EUR',
+        // Shekels only (D6): the server refuses any other currency.
+        currency: 'ILS',
         prices_include_vat: invoiceDetails.pricesIncludeVat,
         line_items: invoiceDetails.lineItems.map((i) => ({
           sku: i.sku,
@@ -301,16 +536,28 @@ export default function NewDocumentDialog({ open, onClose }: NewDocumentDialogPr
         })),
         discount_amount: invoiceDetails.discountAmount,
         discount_percent: invoiceDetails.discountPercent,
-        // transaction_invoice has no VAT by Israeli accounting law
-        vat_exempt: mappedType === 'transaction_invoice' ? true : invoiceDetails.vatExempt,
-        round_total: invoiceDetails.roundTotal,
+        // A transaction invoice shows the VAT its tax invoice will charge; it is
+        // VAT-free only when the sale is (Eilat, abroad) — as chosen, not forced.
+        vat_exempt: invoiceDetails.vatExempt,
         payment_terms: invoiceDetails.paymentTerms,
         customer_notes: invoiceDetails.customerNotes,
         internal_notes: invoiceDetails.internalNotes,
-        payment_methods: invoiceDetails.paymentMethods,
-        // An invoice-receipt has no check lines, so one flag covers every check it records.
-        ...(invoiceDetails.paymentMethods.includes("צ'ק") ? { check_crossed: invoiceDetails.checkCrossed } : {}),
+        // מספר הקצאה given at issue (B): on the original from its first print.
+        // Not on a draft — it is asked for an issued invoice, with its number.
+        ...(!asDraft && allocationApplies(docType, clientType) && invoiceDetails.allocationNumber.trim()
+          ? { allocation_number: invoiceDetails.allocationNumber.replace(/\D/g, '') }
+          : {}),
+        // An invoice-receipt says how much was paid each way (G): its rows and
+        // the withholding come to its total exactly.
+        ...(mappedType === 'combined'
+          ? {
+              payments: invoicePaymentRows(invoiceDetails.paymentMethods, invoiceDetails.payments),
+              withholding_amount: invoiceDetails.withholdingAmount,
+            }
+          : {}),
       },
+      // A draft carries them too: written when it is approved, checked then.
+      ...(mappedType === 'combined' ? withSettlements : {}),
     };
   }
 
@@ -475,6 +722,8 @@ export default function NewDocumentDialog({ open, onClose }: NewDocumentDialogPr
                 data={invoiceDetails}
                 onChange={setInvoiceDetails}
                 docType={docType}
+                clientType={clientType}
+                settlement={docType === 'חשבונית מס/קבלה' && !settlementsUnsupported ? settlementPickerProps : null}
               />
             )}
           {currentStep === 'documentDetails' && docType === 'קבלה' && (
@@ -483,6 +732,8 @@ export default function NewDocumentDialog({ open, onClose }: NewDocumentDialogPr
               onChange={setReceiptDetails}
               childId={clientType === 'existing' ? selectedCustomerId : null}
               businessCustomerId={clientType === 'business' ? businessCustomerId : null}
+              clientType={clientType}
+              settlement={settlementsUnsupported ? null : settlementPickerProps}
             />
           )}
           {currentStep === 'documentDetails' && docType === 'חשבונית עסקה' && (
@@ -494,6 +745,9 @@ export default function NewDocumentDialog({ open, onClose }: NewDocumentDialogPr
               onChange={setCreditInvoiceDetails}
               childId={clientType === 'existing' ? selectedCustomerId : null}
               businessCustomerId={clientType === 'business' ? businessCustomerId : null}
+              room={creditRoom}
+              roomStatus={creditRoomStatus}
+              roomProblem={creditProblem}
             />
           )}
 
@@ -505,6 +759,8 @@ export default function NewDocumentDialog({ open, onClose }: NewDocumentDialogPr
               businessFormData={businessFormData}
               businessCustomerId={businessCustomerId}
               invoiceDetails={invoiceDetails}
+              settlementRows={settlementsUnsupported ? null : settlementRows}
+              perCheck={perCheck}
             />
           )}
         </div>
@@ -534,7 +790,15 @@ export default function NewDocumentDialog({ open, onClose }: NewDocumentDialogPr
                 onChange={(e) => setSaveAsDraft(e.target.checked)}
                 disabled={isSubmitting}
               />
-              שמור כטיוטה (ללא מספר חשבונית)
+              שמור כטיוטה (ללא מספר)
+              {saveAsDraft && (docType === 'קבלה' || docType === 'חשבונית מס/קבלה') && (
+                <span className={styles.draftToggleHint}>
+                  בלי מספר ובלי חתימה. החשבוניות שנבחרו ייסגרו רק באישור, לפי היתרות של אותו יום.
+                </span>
+              )}
+              {saveAsDraft && allocationApplies(docType, clientType) && invoiceDetails.allocationNumber.trim() !== '' && (
+                <span className={styles.draftToggleHint}>מספר ההקצאה לא נשמר בטיוטה — מזינים אותו אחרי האישור.</span>
+              )}
             </label>
           )}
           <button
@@ -1283,10 +1547,11 @@ function TransactionInvoiceStep({ data, onChange }: TransactionInvoiceStepProps)
     onChange({ ...data, lineItems: updated });
   }
 
-  const subtotal = data.lineItems.reduce((sum, item) => sum + item.quantity * item.price, 0);
-  // חשבונית עסקה is a non-VAT document by Israeli accounting law
-  const totalBeforeRounding = subtotal - data.discountAmount;
-  const finalTotal = data.roundTotal ? Math.round(totalBeforeRounding) : totalBeforeRounding;
+  // Worked out as the server stores it — to the agora, VAT as it will be charged.
+  const totals = computeInvoiceTotals(data);
+  const subtotal = totals.subtotal / 100;
+  const vatAmount = totals.vat / 100;
+  const finalTotal = totals.total / 100;
 
   return (
     <div>
@@ -1312,6 +1577,8 @@ function TransactionInvoiceStep({ data, onChange }: TransactionInvoiceStepProps)
             type="date"
             className={styles.formInput}
             value={data.documentDate}
+            min={documentDateBounds().min}
+            max={documentDateBounds().max}
             onChange={(e) => onChange({ ...data, documentDate: e.target.value })}
           />
         </div>
@@ -1336,15 +1603,8 @@ function TransactionInvoiceStep({ data, onChange }: TransactionInvoiceStepProps)
       <div className={styles.detailsSection}>
         <span className={styles.sectionHeading}>מטבע</span>
         <div className={styles.currencyRow}>
-          <Select
-            value={data.currency}
-            onChange={(e) => onChange({ ...data, currency: e.target.value })}
-            className={styles.currencySelect}
-          >
-            <option value="ILS">שקל ₪</option>
-            <option value="USD">דולר $</option>
-            <option value="EUR">אירו €</option>
-          </Select>
+          {/* Shekels only (D6): no rate is kept for another currency. */}
+          <span className={styles.currencySelect}>שקל ₪</span>
           <label className={styles.checkboxLabel}>
             <input
               type="checkbox"
@@ -1472,26 +1732,34 @@ function TransactionInvoiceStep({ data, onChange }: TransactionInvoiceStepProps)
           </div>
         </div>
 
+        {/* The VAT the tax invoice will charge on payment — a demand asks for the whole sum. */}
+        <div className={styles.vatRow}>
+          <span className={styles.totalsLabel}>מע&quot;מ 18%</span>
+          <div className={styles.vatRowContent}>
+            <label className={styles.vatRadioLabel}>
+              <input
+                type="checkbox"
+                checked={data.vatExempt}
+                onChange={(e) => onChange({ ...data, vatExempt: e.target.checked })}
+              />
+              ללא מע&quot;מ (אילת / חו&quot;ל)
+            </label>
+            <span className={styles.vatAmount}>₪{vatAmount.toFixed(2)}</span>
+          </div>
+        </div>
+
         <div className={`${styles.totalsRow} ${styles.totalsRowBold}`}>
           <span className={styles.totalsLabel}>סה&quot;כ בח&quot;ן</span>
           <span className={styles.totalsValue}>₪{finalTotal.toFixed(2)}</span>
         </div>
 
-        <label className={styles.totalsCheckboxRow}>
-          <input
-            type="checkbox"
-            checked={data.roundTotal}
-            onChange={(e) => onChange({ ...data, roundTotal: e.target.checked })}
-          />
-          <span className={styles.totalsCheckboxLabel}>עגל סכום - ללא אגורות</span>
-        </label>
       </div>
 
       {/* Info banner */}
       <div className={styles.infoBanner}>
         <FileText size={16} className={styles.infoBannerIcon} />
         <span className={styles.infoBannerText}>
-          חשבונית עסקה – דרישת תשלום. אינה כוללת תשלום בפועל. אינה כוללת מע&quot;מ.
+          חשבונית עסקה – דרישת תשלום, לא מסמך מס. המע&quot;מ שבה יחויב בחשבונית המס שתופק עם התשלום.
         </span>
       </div>
 
@@ -1574,9 +1842,22 @@ interface CreditInvoiceStepProps {
   onChange: (data: CreditInvoiceData) => void;
   childId?: string | null;
   businessCustomerId?: string | null;
+  /** "נותר לזכות" of the original (GET documents/credit-room/); null until known. */
+  room?: CreditRoom | null;
+  roomStatus?: CreditRoomStatus;
+  /** Why the server would refuse this credit note, known before issuing; null when it would not. */
+  roomProblem?: string | null;
 }
 
-function CreditInvoiceStep({ data, onChange, childId, businessCustomerId }: CreditInvoiceStepProps) {
+function CreditInvoiceStep({
+  data,
+  onChange,
+  childId,
+  businessCustomerId,
+  room = null,
+  roomStatus = 'idle',
+  roomProblem = null,
+}: CreditInvoiceStepProps) {
   const vatAmount = data.vatExempt ? 0 : data.creditAmountBeforeVat * 0.18;
   const totalCredit = data.creditAmountBeforeVat + vatAmount;
 
@@ -1589,6 +1870,17 @@ function CreditInvoiceStep({ data, onChange, childId, businessCustomerId }: Cred
     }),
     staleTime: 60_000,
   });
+  const { options, match } = creditableMatch(openInvoices, data.linkedInvoiceId);
+
+  function pickOriginal(number: string) {
+    // A document kogo issued brings its own date; a typed number keeps what was typed.
+    const found = creditableMatch(openInvoices, number).match;
+    onChange({
+      ...data,
+      linkedInvoiceId: number,
+      linkedDocumentDate: found ? found.document_date : match ? '' : data.linkedDocumentDate,
+    });
+  }
 
   return (
     <div>
@@ -1614,6 +1906,8 @@ function CreditInvoiceStep({ data, onChange, childId, businessCustomerId }: Cred
             type="date"
             className={styles.formInput}
             value={data.documentDate}
+            min={documentDateBounds().min}
+            max={documentDateBounds().max}
             onChange={(e) => onChange({ ...data, documentDate: e.target.value })}
           />
         </div>
@@ -1624,31 +1918,47 @@ function CreditInvoiceStep({ data, onChange, childId, businessCustomerId }: Cred
         <label htmlFor="credit-linked-invoice" className={styles.sectionHeading}>
           מספר חשבונית לזיכוי <span className={styles.requiredMark}>*</span>
         </label>
-        {openInvoices.length > 0 ? (
-          <Select
-            id="credit-linked-invoice"
-            className={styles.formSelect}
-            value={data.linkedInvoiceId}
-            onChange={(e) => onChange({ ...data, linkedInvoiceId: e.target.value })}
-            aria-required="true"
-          >
-            <option value="">בחר חשבונית לזיכוי</option>
-            {openInvoices.map((inv) => (
-              <option key={inv.id} value={inv.document_number}>
-                {inv.document_number} — ₪{inv.total_amount} ({inv.document_date})
-              </option>
-            ))}
-          </Select>
-        ) : (
-          <input
-            id="credit-linked-invoice"
-            type="text"
-            className={styles.formInput}
-            placeholder="הזן מספר חשבונית (לדוגמה: INV-2025-1234)"
-            value={data.linkedInvoiceId}
-            onChange={(e) => onChange({ ...data, linkedInvoiceId: e.target.value })}
-            aria-required="true"
-          />
+        {/* Searchable: the customer's tax invoices and invoice-receipts, or any number typed —
+            a lesson receipt (IR), a store sale (ST), the previous software's. */}
+        <input
+          id="credit-linked-invoice"
+          type="text"
+          list="credit-linked-options"
+          className={styles.formInput}
+          placeholder="חפשו או הקלידו מספר מסמך (TI / IRM / IR / ST / מספר מהתוכנה הקודמת)"
+          value={data.linkedInvoiceId}
+          onChange={(e) => pickOriginal(e.target.value)}
+          aria-required="true"
+          autoComplete="off"
+        />
+        <datalist id="credit-linked-options">
+          {options.map((inv) => (
+            <option key={inv.id} value={inv.document_number}>
+              {`${inv.document_type_display} — ₪${inv.total_amount} (${inv.document_date})`}
+            </option>
+          ))}
+        </datalist>
+      </div>
+
+      {/* תאריך המסמך המקורי — סעיף 9(ה)(4) */}
+      <div className={styles.detailsSection}>
+        <label htmlFor="credit-linked-date" className={styles.sectionHeading}>
+          תאריך המסמך המקורי <span className={styles.requiredMark}>*</span>
+        </label>
+        <input
+          id="credit-linked-date"
+          type="date"
+          className={match ? styles.readOnlyInput : styles.formInput}
+          value={data.linkedDocumentDate}
+          readOnly={match !== null}
+          max={documentDateBounds().max}
+          onChange={(e) => onChange({ ...data, linkedDocumentDate: e.target.value })}
+          aria-required="true"
+        />
+        {match === null && data.linkedInvoiceId.trim() !== '' && (
+          <p className={styles.checkCrossedHint}>
+            מסמך שלא נמצא ברשימה (קבלת חוג, מכירה בחנות, מסמך מהתוכנה הקודמת) — הזינו את התאריך המודפס עליו.
+          </p>
         )}
       </div>
 
@@ -1681,7 +1991,36 @@ function CreditInvoiceStep({ data, onChange, childId, businessCustomerId }: Cred
           value={data.creditAmountBeforeVat}
           onChange={(e) => onChange({ ...data, creditAmountBeforeVat: Number(e.target.value) })}
           aria-label="סכום זיכוי לפני מע״מ"
+          aria-describedby="credit-room-status"
+          aria-invalid={roomProblem !== null}
         />
+        {/* נותר לזכות — the original's amount before VAT, less the credit notes already issued on it. */}
+        <div id="credit-room-status" className={styles.creditRoom} aria-live="polite">
+          {roomStatus === 'loading' && <span className={styles.creditRoomMuted}>בודק כמה נותר לזכות…</span>}
+          {roomStatus === 'error' && (
+            <span className={styles.creditRoomMuted}>לא ניתן היה לבדוק כמה נותר לזכות — השרת יבדוק בהפקה.</span>
+          )}
+          {roomStatus === 'ready' && room && !room.known && (
+            <span className={styles.creditRoomMuted}>
+              המסמך לא הונפק בקוגו, ולכן היתרה לזיכוי אינה ידועה כאן — בדקו מול המסמך המקורי.
+            </span>
+          )}
+          {roomStatus === 'ready' && room && creditRoomSummary(room) && (
+            <span className={styles.creditRoomSummary}>
+              {creditRoomSummary(room)}
+              {Number(room.left) > 0 && Number(room.left) !== data.creditAmountBeforeVat && (
+                <button
+                  type="button"
+                  className={styles.creditRoomFill}
+                  onClick={() => onChange({ ...data, creditAmountBeforeVat: Number(room.left) })}
+                >
+                  זיכוי מלא של היתרה
+                </button>
+              )}
+            </span>
+          )}
+          {roomProblem && <span className={styles.creditRoomError} role="alert">{roomProblem}</span>}
+        </div>
       </div>
 
       {/* Totals */}
@@ -1744,10 +2083,15 @@ interface InvoiceDetailsStepProps {
   data: InvoiceDetailsData;
   onChange: (data: InvoiceDetailsData) => void;
   docType: string;
+  clientType?: ClientType | null;
+  /** An invoice-receipt's picker of open transaction invoices (WS-3); null on an older server. */
+  settlement?: SettlementPickerData | null;
 }
 
-function InvoiceDetailsStep({ data, onChange, docType }: InvoiceDetailsStepProps) {
+function InvoiceDetailsStep({ data, onChange, docType, clientType = null, settlement = null }: InvoiceDetailsStepProps) {
   const isReceipt = docType === 'חשבונית מס/קבלה';
+  const balance = invoicePaymentBalance(data);
+  const setPayments = (payments: ReceiptDetailsData) => onChange({ ...data, payments });
 
   function togglePaymentMethod(method: string) {
     const methods = data.paymentMethods.includes(method)
@@ -1762,10 +2106,12 @@ function InvoiceDetailsStep({ data, onChange, docType }: InvoiceDetailsStepProps
     onChange({ ...data, lineItems: updated });
   }
 
-  const subtotal = data.lineItems.reduce((sum, item) => sum + item.quantity * item.price, 0);
-  const vatAmount = data.vatExempt ? 0 : (subtotal - data.discountAmount) * 0.18;
-  const totalBeforeRounding = subtotal - data.discountAmount + vatAmount;
-  const finalTotal = data.roundTotal ? Math.round(totalBeforeRounding) : totalBeforeRounding;
+  // Worked out as the server stores it (utils.computeInvoiceTotals) — no rounding to the shekel.
+  const totals = computeInvoiceTotals(data);
+  const subtotal = totals.subtotal / 100;
+  const vatAmount = totals.vat / 100;
+  const finalTotal = totals.total / 100;
+  const finalTotalAgorot = totals.total;
 
   return (
     <div>
@@ -1791,6 +2137,8 @@ function InvoiceDetailsStep({ data, onChange, docType }: InvoiceDetailsStepProps
             type="date"
             className={styles.formInput}
             value={data.documentDate}
+            min={documentDateBounds().min}
+            max={documentDateBounds().max}
             onChange={(e) => onChange({ ...data, documentDate: e.target.value })}
           />
         </div>
@@ -1815,15 +2163,8 @@ function InvoiceDetailsStep({ data, onChange, docType }: InvoiceDetailsStepProps
       <div className={styles.detailsSection}>
         <span className={styles.sectionHeading}>מטבע</span>
         <div className={styles.currencyRow}>
-          <Select
-            value={data.currency}
-            onChange={(e) => onChange({ ...data, currency: e.target.value })}
-            className={styles.currencySelect}
-          >
-            <option value="ILS">שקל ₪</option>
-            <option value="USD">דולר $</option>
-            <option value="EUR">אירו €</option>
-          </Select>
+          {/* Shekels only (D6): no rate is kept for another currency. */}
+          <span className={styles.currencySelect}>שקל ₪</span>
           <label className={styles.checkboxLabel}>
             <input
               type="checkbox"
@@ -1984,14 +2325,6 @@ function InvoiceDetailsStep({ data, onChange, docType }: InvoiceDetailsStepProps
           <span className={styles.totalsValue}>₪{finalTotal.toFixed(2)}</span>
         </div>
 
-        <label className={styles.totalsCheckboxRow}>
-          <input
-            type="checkbox"
-            checked={data.roundTotal}
-            onChange={(e) => onChange({ ...data, roundTotal: e.target.checked })}
-          />
-          <span className={styles.totalsCheckboxLabel}>עגל סכום - ללא אגורות</span>
-        </label>
 
         <label className={styles.totalsCheckboxRow}>
           <input
@@ -2002,6 +2335,34 @@ function InvoiceDetailsStep({ data, onChange, docType }: InvoiceDetailsStepProps
           <span className={styles.totalsCheckboxLabel}>לסגור חשבונית</span>
         </label>
       </div>
+
+      {/* מספר הקצאה — a tax invoice to a business customer (B) */}
+      {allocationApplies(docType, clientType) && (
+        <div className={styles.detailsSection}>
+          <label htmlFor="inv-allocation" className={styles.sectionHeading}>
+            מספר הקצאה <span className={styles.optionalLabel}>(9 ספרות, מאתר רשות המסים)</span>
+          </label>
+          <input
+            id="inv-allocation"
+            type="text"
+            inputMode="numeric"
+            maxLength={11}
+            className={styles.formInput}
+            placeholder="123456789"
+            value={data.allocationNumber}
+            onChange={(e) => onChange({ ...data, allocationNumber: e.target.value })}
+          />
+          {allocationNumberError(data.allocationNumber) && (
+            <p className={styles.fieldError}>{allocationNumberError(data.allocationNumber)}</p>
+          )}
+          {allocationRequired(data) && !data.allocationNumber.trim() && (
+            <p className={styles.checkCrossedHint}>
+              סכום החשבונית לפני מע&quot;מ עולה על ₪{ALLOCATION_THRESHOLD_ILS.toLocaleString('he-IL')}: לקוח עסקי
+              צריך מספר הקצאה כדי לקזז את המע&quot;מ. בלעדיו המסמך יוחזק ולא יישלח עד שיוזן.
+            </p>
+          )}
+        </div>
+      )}
 
       {/* Notes — two columns */}
       <div className={styles.notesGrid}>
@@ -2085,40 +2446,69 @@ function InvoiceDetailsStep({ data, onChange, docType }: InvoiceDetailsStepProps
               );
             })}
           </div>
-          {/* הוראה 18ב(ד): only a crossed check in the customer's name lets the signed original go by email. */}
+          {/* Each method chosen opens the receipt's own panel: an amount per method, a line per check (G). */}
+          {data.paymentMethods.includes('מזומן') && (
+            <CashPanel data={data.payments} onChange={setPayments} />
+          )}
           {data.paymentMethods.includes("צ'ק") && (
-            <div className={styles.checkCrossedCell}>
-              <label className={styles.checkboxLabel}>
-                <input
-                  type="checkbox"
-                  checked={data.checkCrossed}
-                  onChange={(e) => onChange({ ...data, checkCrossed: e.target.checked })}
-                />
-                צ&apos;ק משורטט, &apos;לא סחיר&apos;, על שם הלקוח
-              </label>
-              {!data.checkCrossed && (
-                <p className={styles.checkCrossedHint}>בלי סימון — המקור יימסר על נייר ולא יישלח במייל</p>
-              )}
+            <CheckPanel data={data.payments} onChange={setPayments} forInvoice />
+          )}
+          {data.paymentMethods.includes('אשראי') && (
+            <CreditPanel data={data.payments} onChange={setPayments} />
+          )}
+          {data.paymentMethods.includes('העברה בנקאית') && (
+            <BankPanel data={data.payments} onChange={setPayments} />
+          )}
+
+          {/* ניכוי במקור */}
+          <div className={styles.witholdingRow}>
+            <span className={styles.witholdingLabel}>ניכוי במקור</span>
+            <div className={styles.witholdingInputWrap}>
+              <input
+                type="number"
+                min={0}
+                step={0.01}
+                className={styles.formInput}
+                value={data.withholdingAmount}
+                aria-label="ניכוי במקור בשקלים"
+                onChange={(e) => onChange({ ...data, withholdingAmount: Math.max(0, Number(e.target.value)) })}
+              />
+              <span className={styles.witholdingSymbol} aria-hidden="true">₪</span>
             </div>
+          </div>
+
+          {/* Paid against the total — issued only when they meet exactly. */}
+          <div className={styles.checkSummaryBar}>
+            <span className={styles.checkSummaryLabel}>
+              שולם ₪{formatAgorot(balance.paid + balance.withholding)} מתוך ₪{formatAgorot(balance.total)}
+            </span>
+            <span className={styles.checkSummaryAmount}>
+              {balance.remaining === 0
+                ? 'התשלומים שווים לסכום ✓'
+                : balance.remaining > 0
+                ? `חסר ₪${formatAgorot(balance.remaining)}`
+                : `עודף ₪${formatAgorot(-balance.remaining)}`}
+            </span>
+          </div>
+          {balance.remaining !== 0 && (
+            <p className={styles.fieldError}>
+              סכומי אמצעי התשלום (וניכוי במקור) צריכים להיות שווים בדיוק לסכום החשבונית. צ&apos;ק נספר רק אחרי אישורו (✓).
+            </p>
           )}
         </div>
       )}
 
-      {/* Link to existing invoice */}
-      {isReceipt && (
-        <div className={styles.detailsSection}>
-          <label htmlFor="inv-linked" className={styles.sectionHeading}>
-            שיוך לחשבונית קיימת <span className={styles.optionalLabel}>(אופציונלי)</span>
-          </label>
-          <Select
-            id="inv-linked"
-            className={styles.formSelect}
-            value={data.linkedInvoiceId}
-            onChange={(e) => onChange({ ...data, linkedInvoiceId: e.target.value })}
-          >
-            <option value="">ללא שיוך</option>
-          </Select>
-        </div>
+      {/* The open transaction invoices this invoice-receipt closes (WS-3). */}
+      {isReceipt && settlement && (
+        <SettlementPicker
+          payerType="combined"
+          status={settlement.status}
+          invoices={settlement.invoices}
+          picks={data.settlementPicks}
+          capacity={finalTotalAgorot}
+          onChange={(settlementPicks: SettlementPicks) => onChange({ ...data, settlementPicks })}
+          onRetry={settlement.onRetry}
+        />
       )}
 
       {/* Receipt notes */}
@@ -2145,9 +2535,23 @@ interface ReceiptDetailsStepProps {
   onChange: (data: ReceiptDetailsData) => void;
   childId?: string | null;
   businessCustomerId?: string | null;
+  clientType?: ClientType | null;
+  /**
+   * The picker of open tax invoices (WS-3). Null on a server from before
+   * settlements: the older free-text link to one invoice is shown instead.
+   */
+  settlement?: SettlementPickerData | null;
 }
 
-function ReceiptDetailsStep({ data, onChange, childId, businessCustomerId }: ReceiptDetailsStepProps) {
+function ReceiptDetailsStep({
+  data,
+  onChange,
+  childId,
+  businessCustomerId,
+  clientType = null,
+  settlement = null,
+}: ReceiptDetailsStepProps) {
+  const legacyLink = settlement === null;
   const { data: openInvoices = [] } = useQuery({
     queryKey: ['formal-documents', 'open', childId, businessCustomerId],
     queryFn: () => fetchDocuments({
@@ -2156,7 +2560,9 @@ function ReceiptDetailsStep({ data, onChange, childId, businessCustomerId }: Rec
       ...(businessCustomerId ? { business_customer_id: businessCustomerId } : {}),
     }),
     staleTime: 60_000,
+    enabled: legacyLink,
   });
+  const perCheck = !legacyLink && invoicePerCheckApplies(clientType, data);
 
   return (
     <div>
@@ -2185,39 +2591,57 @@ function ReceiptDetailsStep({ data, onChange, childId, businessCustomerId }: Rec
         </div>
       </div>
 
-      {/* Shared: שיוך לחשבונית קיימת */}
-      <div className={styles.detailsSection}>
-        <label htmlFor="receipt-linked" className={styles.sectionHeading}>
-          שיוך לחשבונית קיימת{' '}
-          <span className={styles.optionalLabel}>(אופציונלי)</span>
-        </label>
-        <Select
-          id="receipt-linked"
-          className={styles.formSelect}
-          value={data.linkedInvoiceId}
-          onChange={(e) => onChange({ ...data, linkedInvoiceId: e.target.value })}
-        >
-          <option value="">ללא שיוך</option>
-          {openInvoices.map((inv) => (
-            <option key={inv.id} value={inv.document_number}>
-              {inv.document_number} — ₪{inv.total_amount} ({inv.document_date})
-            </option>
-          ))}
-        </Select>
-      </div>
+      {/* The older form's link to one invoice — on a server without the picker. */}
+      {legacyLink && (
+        <div className={styles.detailsSection}>
+          <label htmlFor="receipt-linked" className={styles.sectionHeading}>
+            שיוך לחשבונית קיימת{' '}
+            <span className={styles.optionalLabel}>(אופציונלי)</span>
+          </label>
+          <Select
+            id="receipt-linked"
+            className={styles.formSelect}
+            value={data.linkedInvoiceId}
+            onChange={(e) => onChange({ ...data, linkedInvoiceId: e.target.value })}
+          >
+            <option value="">ללא שיוך</option>
+            {openInvoices.map((inv) => (
+              <option key={inv.id} value={inv.document_number}>
+                {inv.document_number} — ₪{inv.total_amount} ({inv.document_date})
+              </option>
+            ))}
+          </Select>
+        </div>
+      )}
 
       {/* Tab body */}
       {data.paymentMethod === 'מזומן' && (
         <CashPanel data={data} onChange={onChange} />
       )}
       {data.paymentMethod === "צ'ק" && (
-        <CheckPanel data={data} onChange={onChange} />
+        <CheckPanel data={data} onChange={onChange} perCheckAvailable={clientType === 'existing' && !legacyLink} />
       )}
       {data.paymentMethod === 'אשראי' && (
         <CreditPanel data={data} onChange={onChange} />
       )}
       {data.paymentMethod === 'העברה בנקאית' && (
         <BankPanel data={data} onChange={onChange} />
+      )}
+
+      {/* The open tax invoices this receipt pays (WS-3). */}
+      {settlement && (
+        <SettlementPicker
+          payerType="receipt"
+          status={settlement.status}
+          invoices={settlement.invoices}
+          picks={data.settlementPicks}
+          capacity={receiptCapacityAgorot(data)}
+          onChange={(settlementPicks: SettlementPicks) => onChange({ ...data, settlementPicks })}
+          onRetry={settlement.onRetry}
+          disabledReason={perCheck
+            ? "קבלה שמפיקה חשבונית מס לכל צ'ק לא סוגרת חשבוניות קיימות — החשבוניות שלה יופקו ביום כל צ'ק."
+            : ''}
+        />
       )}
     </div>
   );
@@ -2260,7 +2684,15 @@ function CashPanel({ data, onChange }: ReceiptDetailsStepProps) {
   );
 }
 
-function CheckPanel({ data, onChange }: ReceiptDetailsStepProps) {
+interface CheckPanelProps extends ReceiptDetailsStepProps {
+  /** Inside an invoice-receipt: its withholding is asked once for the document, and no invoice follows a check. */
+  forInvoice?: boolean;
+  /** "חשבונית מס לכל צ'ק" is offered — a receipt of a private customer (the server refuses it for a business). */
+  perCheckAvailable?: boolean;
+}
+
+function CheckPanel({ data, onChange, forInvoice = false, perCheckAvailable = false }: CheckPanelProps) {
+  const undated = perCheckAvailable && data.invoicePerCheck ? undatedConfirmedChecks(data) : [];
   const confirmedChecks = data.checks.filter((c) => c.confirmed);
   const confirmedTotal = confirmedChecks.reduce((sum, c) => sum + c.amount, 0);
 
@@ -2277,7 +2709,7 @@ function CheckPanel({ data, onChange }: ReceiptDetailsStepProps) {
 
   function deleteCheck(id: string) {
     const remaining = data.checks.filter((c) => c.id !== id);
-    const today = new Date().toISOString().split('T')[0];
+    const today = israelToday();
     const next = remaining.length > 0 ? remaining : [emptyCheckRow(String(Date.now()), today)];
     onChange({ ...data, checks: next });
   }
@@ -2404,7 +2836,7 @@ function CheckPanel({ data, onChange }: ReceiptDetailsStepProps) {
         type="button"
         className={styles.addCheckBtn}
         onClick={() => {
-          const today = new Date().toISOString().split('T')[0];
+          const today = israelToday();
           onChange({
             ...data,
             checks: [...data.checks, emptyCheckRow(String(Date.now()), today)],
@@ -2415,20 +2847,22 @@ function CheckPanel({ data, onChange }: ReceiptDetailsStepProps) {
       </button>
 
       {/* ניכוי במקור */}
-      <div className={styles.witholdingRow}>
-        <span className={styles.witholdingLabel}>ניכוי במקור</span>
-        <div className={styles.witholdingInputWrap}>
-          <input
-            type="number"
-            min={0}
-            className={styles.formInput}
-            value={data.withholding}
-            aria-label="ניכוי במקור בשקלים"
-            onChange={(e) => onChange({ ...data, withholding: Number(e.target.value) })}
-          />
-          <span className={styles.witholdingSymbol} aria-hidden="true">₪</span>
+      {!forInvoice && (
+        <div className={styles.witholdingRow}>
+          <span className={styles.witholdingLabel}>ניכוי במקור</span>
+          <div className={styles.witholdingInputWrap}>
+            <input
+              type="number"
+              min={0}
+              className={styles.formInput}
+              value={data.withholding}
+              aria-label="ניכוי במקור בשקלים"
+              onChange={(e) => onChange({ ...data, withholding: Number(e.target.value) })}
+            />
+            <span className={styles.witholdingSymbol} aria-hidden="true">₪</span>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Summary bar */}
       <div className={styles.checkSummaryBar}>
@@ -2438,10 +2872,27 @@ function CheckPanel({ data, onChange }: ReceiptDetailsStepProps) {
         <span className={styles.checkSummaryAmount}>₪{confirmedTotal.toFixed(2)}</span>
       </div>
 
-      {/* Info note */}
-      <p className={styles.checkInfoNote}>
-        כל צ&apos;ק ייצור טיוט חשבונית מס — הטיוטה תהפוך אוטומטית לחשבונית מס בתאריך הפירעון
-      </p>
+      {/* חשבונית מס לכל צ'ק (D2): the checks become a check plan; no draft is made. */}
+      {!forInvoice && perCheckAvailable && (
+        <div className={styles.perCheckBox}>
+          <label className={styles.checkboxLabel}>
+            <input
+              type="checkbox"
+              checked={data.invoicePerCheck}
+              onChange={(e) => onChange({ ...data, invoicePerCheck: e.target.checked })}
+            />
+            חשבונית מס לכל צ&apos;ק
+          </label>
+          <p className={styles.checkCrossedHint}>
+            {data.invoicePerCheck
+              ? "חשבונית מס תופק אוטומטית ביום כל צ'ק (או בהרצה הראשונה אחריו), מתוארכת ביום ההפקה ומסומנת כשולמה בקבלה הזו. הצ'קים יופיעו בלשונית צ'קים."
+              : "סמנו 'חשבונית מס לכל צ'ק' — חשבונית מס תופק אוטומטית ביום כל צ'ק, מסומנת כשולמה בקבלה הזו. בלי הסימון מופקת קבלה בלבד."}
+          </p>
+          {undated.length > 0 && (
+            <p className={styles.fieldError} role="alert">לכל צ&apos;ק צריך תאריך פירעון — חסר ב־{undated.length} צ&apos;קים</p>
+          )}
+        </div>
+      )}
 
       <div className={styles.formRow}>
         <label htmlFor="check-notes" className={styles.sectionHeading}>
@@ -2476,6 +2927,20 @@ function CreditPanel({ data, onChange }: ReceiptDetailsStepProps) {
             className={styles.formInput}
             value={data.cardLastFour}
             onChange={(e) => onChange({ ...data, cardLastFour: e.target.value })}
+          />
+        </div>
+        <div className={styles.formRow}>
+          <label htmlFor="card-brand" className={styles.sectionHeading}>
+            סוג כרטיס <span className={styles.optionalLabel}>(אופציונלי)</span>
+          </label>
+          <input
+            id="card-brand"
+            type="text"
+            placeholder="ויזה / מאסטרקארד / אמריקן אקספרס"
+            maxLength={30}
+            className={styles.formInput}
+            value={data.cardBrand}
+            onChange={(e) => onChange({ ...data, cardBrand: e.target.value })}
           />
         </div>
         <div className={styles.formRow}>
@@ -2615,6 +3080,10 @@ interface SummaryStepProps {
   businessFormData: BusinessCustomerFormData;
   businessCustomerId: string | null;
   invoiceDetails: InvoiceDetailsData;
+  /** The open invoices the document will close (WS-3); null on a server without settlements. */
+  settlementRows?: readonly ResolvedSettlement[] | null;
+  /** A check receipt that opens a check plan: a tax invoice on each check's day. */
+  perCheck?: boolean;
 }
 
 function SummaryStep({
@@ -2624,6 +3093,8 @@ function SummaryStep({
   businessFormData,
   businessCustomerId: _businessCustomerId,
   invoiceDetails,
+  settlementRows = null,
+  perCheck = false,
 }: SummaryStepProps) {
   const customerName =
     clientType === 'business'
@@ -2634,17 +3105,10 @@ function SummaryStep({
 
   const isInvoice = docType === 'חשבונית מס';
 
-  const subtotal = invoiceDetails.lineItems.reduce(
-    (s, i) => s + i.quantity * i.price,
-    0
-  );
-  const vatAmount = invoiceDetails.vatExempt
-    ? 0
-    : (subtotal - invoiceDetails.discountAmount) * 0.18;
-  const totalBeforeRounding = subtotal - invoiceDetails.discountAmount + vatAmount;
-  const finalTotal = invoiceDetails.roundTotal
-    ? Math.round(totalBeforeRounding)
-    : totalBeforeRounding;
+  const totals = computeInvoiceTotals(invoiceDetails);
+  const subtotal = (totals.subtotal - totals.discount) / 100;
+  const vatAmount = totals.vat / 100;
+  const finalTotal = totals.total / 100;
 
   return (
     <div className={styles.summaryCards}>
@@ -2690,6 +3154,26 @@ function SummaryStep({
                 </dd>
               </div>
             </>
+          )}
+          {(docType === 'קבלה' || docType === 'חשבונית מס/קבלה') && !perCheck && settlementRows !== null && (
+            <div className={styles.summaryDetailRow}>
+              <dt className={styles.summaryRowLabel}>סוגר חשבוניות:</dt>
+              <dd className={styles.summaryRowValue}>
+                {settlementRows.length === 0
+                  ? 'לא סוגר חשבונית'
+                  : settlementRows.map((row) => (
+                      <span key={row.invoiceId} className={styles.settleSub}>
+                        <span dir="ltr">{row.documentNumber}</span> · <span dir="ltr">{formatAgorotShekels(row.amount)}</span>
+                      </span>
+                    ))}
+              </dd>
+            </div>
+          )}
+          {perCheck && (
+            <div className={styles.summaryDetailRow}>
+              <dt className={styles.summaryRowLabel}>חשבונית מס לכל צ&apos;ק:</dt>
+              <dd className={styles.summaryRowValue}>כן — ביום כל צ&apos;ק, מסומנת כשולמה בקבלה</dd>
+            </div>
           )}
         </dl>
       </div>

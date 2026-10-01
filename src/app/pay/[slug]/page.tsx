@@ -61,6 +61,8 @@ export default function PayPage() {
   const [paymentId, setPaymentId] = useState('');
   const [amount, setAmount] = useState('');
   const [failureReason, setFailureReason] = useState('');
+  const [documentNumber, setDocumentNumber] = useState('');
+  const [documentPending, setDocumentPending] = useState(false);
   const pollStart = useRef(0);
 
   useEffect(() => {
@@ -141,6 +143,10 @@ export default function PayPage() {
         setStep('failed');
         return;
       }
+      if (data.status === 'completed') {
+        setDocumentNumber(data.document_number ?? '');
+        setDocumentPending(Boolean(data.document_pending));
+      }
       applyStatus(data.status, data.failure_reason);
     } catch {
       /* keep polling */
@@ -171,11 +177,11 @@ export default function PayPage() {
       setFormError('יש לבחור אפשרות תשלום');
       return;
     }
-    if (name.trim().length < 2) {
+    if (!link.payer_details_locked && name.trim().length < 2) {
       setFormError('יש להזין שם');
       return;
     }
-    if (phone.replace(/\D/g, '').length < 9) {
+    if (!link.payer_details_locked && phone.replace(/\D/g, '').length < 9) {
       setFormError('יש להזין טלפון תקין');
       return;
     }
@@ -184,9 +190,9 @@ export default function PayPage() {
     try {
       const res = await startPublicPayment(link.slug, {
         option_id: chosen.id,
-        payer_name: name.trim(),
-        payer_phone: phone.replace(/\D/g, ''),
-        payer_email: email.trim() || undefined,
+        payer_name: link.payer_details_locked ? undefined : name.trim(),
+        payer_phone: link.payer_details_locked ? undefined : phone.replace(/\D/g, ''),
+        payer_email: link.payer_details_locked ? undefined : email.trim() || undefined,
       });
       setPaymentId(res.payment_id);
       setAmount(res.amount);
@@ -268,7 +274,7 @@ export default function PayPage() {
             </div>
           </div>
 
-          <div className={formStyles.cardFields}>
+          {!link.payer_details_locked ? <div className={formStyles.cardFields}>
             <p className={formStyles.cardSectionTitle}>פרטי המשלם/ת</p>
             <div>
               <label className={formStyles.label} htmlFor="payer-name">שם מלא</label>
@@ -303,19 +309,21 @@ export default function PayPage() {
                 onChange={(e) => setEmail(e.target.value)}
               />
             </div>
-          </div>
+          </div> : (
+            <p className={pageStyles.waitNote}>החיוב משויך מראש ללקוח ולמסמך שנבחרו במערכת.</p>
+          )}
 
           {formError ? <p className={formStyles.errorText}>{formError}</p> : null}
 
           <button
             type="button"
             className={formStyles.submitButton}
-            disabled={starting || !chosen || !name || !phone}
+            disabled={starting || !chosen || (!link.payer_details_locked && (!name || !phone))}
             onClick={() => void handleStart()}
           >
             {starting ? 'מעבד...' : chosen ? `לתשלום ${formatShekels(chosen.amount)}` : 'לתשלום'}
           </button>
-          <p className={pageStyles.waitNote}>פרטי הכרטיס מוזנים בעמוד מאובטח של חברת הסליקה.</p>
+          <p className={pageStyles.waitNote}>פרטי הכרטיס מוזנים בעמוד המאובטח של Cogolive.</p>
         </div>
       )}
 
@@ -361,9 +369,13 @@ export default function PayPage() {
       {step === 'success' && (
         <div className={formStyles.resultContainer}>
           <div className={formStyles.successIcon}>✓</div>
-          <p className={formStyles.resultTitle}>התשלום התקבל</p>
+          <p className={formStyles.resultTitle}>התשלום הושלם בהצלחה</p>
           <p className={formStyles.resultSubtext}>
-            {link?.title} · {formatShekels(amount)}. תודה! קבלה תישלח על ידי המשרד.
+            {documentNumber
+              ? `מסמך ${documentNumber} הופק ונרשם במערכת.`
+              : documentPending
+                ? 'התשלום נקלט. המסמך בהפקה, ואין לשלם שוב.'
+                : 'התשלום נקלט ונרשם במערכת.'}
           </p>
         </div>
       )}

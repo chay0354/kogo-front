@@ -1,28 +1,45 @@
 'use client';
 
 import { useMemo, useState, type ReactNode } from 'react';
-import { AlertCircle, Bell, Download, FileArchive, FileSearch, FileSpreadsheet, FileWarning, X } from 'lucide-react';
+import { AlertCircle, Bell, Download, FileArchive, FileMinus, FileSearch, FileSpreadsheet, FileWarning, Trash2, X } from 'lucide-react';
+import { toast } from 'sonner';
 import { Skeleton, TableSkeleton } from '@/components/ui/skeleton';
 import { useAuth } from '@/components/AuthProvider';
 import { downloadStoreInvoicePdf } from '@/lib/storeApi';
 import {
+  discardDraft,
   downloadDocumentPdf,
   downloadDocumentsRegister,
+  downloadLessonReceiptCopy,
   downloadPeriodReport,
   downloadUniformExport,
   finalizeDraft,
   sendDocumentReminder,
   setAllocationNumber,
 } from '@/lib/documentsApi';
+import { readableError } from '@/lib/apiError';
+import {
+  creditAckState,
+  creditPrefillFromRow,
+  draftApprovalMessage,
+  draftDiscardMessage,
+  draftTargetLabel,
+  type CreditPrefill,
+} from '@/lib/draftsAndCredits';
 import { useScopedBranches } from '@/hooks/useScopedBranches';
+import BusinessCustomerCardButton from '@/components/dialogs/BusinessCustomerCardButton';
+import DocumentDetailButton from '@/components/dialogs/DocumentDetailButton';
 import theme from '@/components/dashboard/theme/dashboard.module.css';
 import LedgerFilterBar, { LedgerSelect } from './LedgerFilterBar';
+import { allocationOriginalMessage } from './manualDelivery';
+import { documentDownloadRoute } from './documentDownload';
 import MissingReceiptsPanel, { MISSING_RECEIPTS_PANEL_ID } from './MissingReceiptsPanel';
 import type { LedgerFiltersState } from './useLedgerFilters';
 import { useLedgerDocuments } from './useLedgerDocuments';
 import type { DocumentRow } from './types';
 import { DOCUMENT_STATUS_OPTIONS, DOCUMENT_TYPE_OPTIONS } from './constants';
 import {
+  canOpenDocumentDetail,
   canSendDocumentReminder,
   compareDocumentsNewestFirst,
   formatAmount,
@@ -71,6 +88,11 @@ interface DocumentsTabProps {
   ledger: LedgerFiltersState;
   /** Bumped by the page when a document was issued outside this tab — from מסמך חדש. */
   refreshKey?: number;
+  /**
+   * "זיכוי" on a tax invoice's or an invoice-receipt's row (audit #10): the
+   * page opens its new-document dialog as a credit note linked to it.
+   */
+  onCredit?: (prefill: CreditPrefill) => void;
 }
 
 /**
@@ -157,7 +179,7 @@ function AllocationCell({
   );
 }
 
-export default function DocumentsTab({ ledger, refreshKey = 0 }: DocumentsTabProps) {
+export default function DocumentsTab({ ledger, refreshKey = 0, onCredit }: DocumentsTabProps) {
   const { filters } = ledger;
   const { dateFrom, dateTo } = filters;
   const { documents, isLoading, error: loadError, reload } = useLedgerDocuments(dateFrom, dateTo, refreshKey);
@@ -176,6 +198,7 @@ export default function DocumentsTab({ ledger, refreshKey = 0 }: DocumentsTabPro
   const [reportBusy, setReportBusy] = useState(false);
   const [exportBusy, setExportBusy] = useState<'' | 'register' | 'uniform'>('');
   const [approvingId, setApprovingId] = useState<string | null>(null);
+  const [discardingId, setDiscardingId] = useState<string | null>(null);
   // מספר הקצאה is fetched by hand from the Tax Authority portal and typed in
   // here, so the row keeps what was typed until the server confirms it.
   const [allocations, setAllocations] = useState<Record<string, string>>({});
@@ -190,6 +213,9 @@ export default function DocumentsTab({ ledger, refreshKey = 0 }: DocumentsTabPro
     try {
       const saved = await setAllocationNumber(doc.id, next);
       setAllocations((prev) => ({ ...prev, [doc.id]: saved.allocation_number }));
+      // A held original is signed — and mailed — once its number is in (25.9.2026): say so.
+      const signedNow = allocationOriginalMessage(saved, doc.document_number);
+      if (signedNow) toast.success(signedNow);
     } catch (err) {
       const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
       setAllocationErrors((prev) => ({ ...prev, [doc.id]: msg || 'שמירת מספר ההקצאה נכשלה' }));
@@ -289,28 +315,53 @@ export default function DocumentsTab({ ledger, refreshKey = 0 }: DocumentsTabPro
   }
 
   async function handleApprove(doc: DocumentRow) {
-    if (!window.confirm(`לאשר את הטיוטה ${doc.document_number}? המסמך יקבל מספר חשבונית.`)) return;
+    if (!window.confirm(draftApprovalMessage(doc))) return;
     setApprovingId(doc.id);
     setActionError('');
     try {
-      await finalizeDraft(doc.id);
+      const issued = await finalizeDraft(doc.id);
+      toast.success(
+        issued?.document_number
+          ? `הטיוטה אושרה: ${draftTargetLabel(doc.draft_target_type)} ${issued.document_number}`
+          : 'הטיוטה אושרה',
+      );
       await reload();
-    } catch {
-      setActionError('אישור הטיוטה נכשל');
+    } catch (err) {
+      // The server's reason — an invoice paid meanwhile, payments that no longer add up. No number was used.
+      setActionError(`הטיוטה ${doc.document_number} לא אושרה: ${readableError(err, 'האישור נכשל')}`);
     } finally {
       setApprovingId(null);
     }
   }
 
+  async function handleDiscard(doc: DocumentRow) {
+    if (!window.confirm(draftDiscardMessage(doc))) return;
+    setDiscardingId(doc.id);
+    setActionError('');
+    try {
+      await discardDraft(doc.id);
+      toast.success(`הטיוטה ${doc.document_number} נמחקה`);
+      await reload();
+    } catch (err) {
+      setActionError(`מחיקת הטיוטה נכשלה: ${readableError(err, 'שגיאה')}`);
+    } finally {
+      setDiscardingId(null);
+    }
+  }
+
   async function handleDownload(doc: DocumentRow) {
+    const route = documentDownloadRoute(doc);
+    if (!route) return;
     setDownloadingId(doc.id);
     try {
-      if (doc.store_invoice_id) {
-        await downloadStoreInvoicePdf(doc.store_invoice_id, doc.document_number);
-      } else if (doc.pdf_url) {
-        window.open(doc.pdf_url, '_blank', 'noopener,noreferrer');
+      if (route.kind === 'store') {
+        await downloadStoreInvoicePdf(route.id, doc.document_number);
+      } else if (route.kind === 'url') {
+        window.open(route.url, '_blank', 'noopener,noreferrer');
+      } else if (route.kind === 'lesson_receipt') {
+        await downloadLessonReceiptCopy(route.id, doc.document_number);
       } else {
-        await downloadDocumentPdf(doc.id, doc.document_number);
+        await downloadDocumentPdf(route.id, doc.document_number);
       }
     } catch {
       alert('שגיאה בהורדת החשבונית');
@@ -419,7 +470,7 @@ export default function DocumentsTab({ ledger, refreshKey = 0 }: DocumentsTabPro
           </thead>
           <tbody>
             {visible.map((doc) => {
-              const canDownload = Boolean(doc.pdf_url || doc.store_invoice_id || doc.source === 'local');
+              const canDownload = documentDownloadRoute(doc) !== null;
               const notIssued = doc.source === 'local' && doc.tranzila_issued === false && !doc.is_draft;
               // Which business the income is tagged to, then the website order,
               // the branch or the payment method — whichever says where exactly.
@@ -428,17 +479,39 @@ export default function DocumentsTab({ ledger, refreshKey = 0 }: DocumentsTabPro
               const courseMeta = [doc.instructor_name, doc.age_label].filter(Boolean).join(' · ');
               const openBalance = Number(doc.open_balance) || 0;
               const reminder = reminders[doc.id];
+              const ack = creditAckState(doc);
+              const creditPrefill = onCredit ? creditPrefillFromRow(doc) : null;
 
               return (
                 <tr key={doc.id}>
-                  <td className={styles.docNumber}>{doc.document_number || '—'}</td>
+                  <td className={styles.docNumber}>
+                    {canOpenDocumentDetail(doc) ? (
+                      <DocumentDetailButton
+                        documentId={doc.id}
+                        number={doc.document_number || '—'}
+                        className={`${styles.docNumber} ${styles.customerLink}`}
+                        onChanged={() => void reload()}
+                        onCredit={onCredit}
+                      />
+                    ) : (
+                      doc.document_number || '—'
+                    )}
+                  </td>
                   <td>{doc.issue_date ? formatDate(doc.issue_date) : '—'}</td>
                   <td>
                     <span className={`${pageStyles.originChip} ${getOriginClass(doc)}`}>{getOriginLabel(doc)}</span>
                     {originDetail && <span className={styles.subLine}>{originDetail}</span>}
                   </td>
                   <td className={styles.wrapCell}>
-                    <span className={styles.strong}>{doc.customer_name || '—'}</span>
+                    {doc.business_customer_id ? (
+                      <BusinessCustomerCardButton
+                        customerId={doc.business_customer_id}
+                        name={doc.customer_name || 'לקוח עסקי'}
+                        className={`${styles.strong} ${styles.customerLink}`}
+                      />
+                    ) : (
+                      <span className={styles.strong}>{doc.customer_name || '—'}</span>
+                    )}
                   </td>
                   <td className={styles.wrapCell}>
                     {course || courseMeta ? (
@@ -452,6 +525,9 @@ export default function DocumentsTab({ ledger, refreshKey = 0 }: DocumentsTabPro
                   </td>
                   <td>
                     <span className={`${theme.tag} ${theme.tagType}`}>{getLedgerDocType(doc)}</span>
+                    {doc.is_draft && (
+                      <span className={styles.subLine}>תהפוך ל{draftTargetLabel(doc.draft_target_type)} באישור</span>
+                    )}
                   </td>
                   <td className={`${theme.n} ${styles.money}`}>{formatAmount(doc.total_amount)}</td>
                   <td className={`${theme.n} ${styles.money}`}>{formatAmount(doc.amount_paid)}</td>
@@ -467,6 +543,17 @@ export default function DocumentsTab({ ledger, refreshKey = 0 }: DocumentsTabPro
                         לא הונפק בטרנזילה
                       </span>
                     )}
+                    {ack === 'pending' && (
+                      <span
+                        className={`${styles.note} ${styles.ackPending}`}
+                        title="הוראה 23א(3): הזיכוי מקטין את המע״מ רק אחרי שהלקוח אישר שקיבל אותו. הרישום — בפירוט המסמך."
+                      >
+                        ממתין לאישור הלקוח
+                      </span>
+                    )}
+                    {ack === 'confirmed' && (
+                      <span className={`${styles.note} ${styles.ackConfirmed}`}>הלקוח אישר את הזיכוי</span>
+                    )}
                   </td>
                   <td>
                     <AllocationCell
@@ -479,14 +566,38 @@ export default function DocumentsTab({ ledger, refreshKey = 0 }: DocumentsTabPro
                   </td>
                   <td>
                     <div className={styles.actions}>
-                      {doc.is_draft && (
+                      {/* Approving and discarding a draft are a manager's (the server refuses anyone else). */}
+                      {doc.is_draft && isManager && (
+                        <>
+                          <button
+                            type="button"
+                            className={styles.approveBtn}
+                            disabled={approvingId === doc.id || discardingId === doc.id}
+                            onClick={() => void handleApprove(doc)}
+                          >
+                            {approvingId === doc.id ? 'מאשר…' : 'אשר טיוטה'}
+                          </button>
+                          <button
+                            type="button"
+                            className={styles.iconBtn}
+                            title="מחיקת הטיוטה"
+                            aria-label={`מחיקת הטיוטה ${doc.document_number}`}
+                            disabled={approvingId === doc.id || discardingId === doc.id}
+                            onClick={() => void handleDiscard(doc)}
+                          >
+                            <Trash2 size={16} aria-hidden="true" />
+                          </button>
+                        </>
+                      )}
+                      {creditPrefill && onCredit && (
                         <button
                           type="button"
-                          className={styles.approveBtn}
-                          disabled={approvingId === doc.id}
-                          onClick={() => void handleApprove(doc)}
+                          className={styles.iconBtn}
+                          title="חשבונית זיכוי למסמך הזה"
+                          aria-label={`זיכוי ${doc.document_number}`}
+                          onClick={() => onCredit(creditPrefill)}
                         >
-                          {approvingId === doc.id ? 'מאשר…' : 'אשר טיוטה'}
+                          <FileMinus size={16} aria-hidden="true" />
                         </button>
                       )}
                       {canSendDocumentReminder(doc) && (
@@ -543,8 +654,13 @@ export default function DocumentsTab({ ledger, refreshKey = 0 }: DocumentsTabPro
           value={visible.length.toLocaleString('he-IL')}
           foot={narrowed ? `מתוך ${inRange.length.toLocaleString('he-IL')} · ${rangeLabel}` : rangeLabel}
         />
-        <Kpi label='סה"כ' loading={isLoading} value={formatAmount(totals.total)} foot='כולל מע"מ, בניכוי זיכויים' />
-        <Kpi label="שולם" loading={isLoading} value={formatAmount(totals.paid)} foot="נגבה בפועל" />
+        <Kpi
+          label='סה"כ'
+          loading={isLoading}
+          value={formatAmount(totals.total)}
+          foot='כולל מע"מ, בניכוי זיכויים · קבלה על חשבונית נספרת פעם אחת'
+        />
+        <Kpi label="שולם" loading={isLoading} value={formatAmount(totals.paid)} foot="נגבה בפועל, לפי הקבלות" />
         <Kpi
           label="יתרה פתוחה"
           loading={isLoading}
