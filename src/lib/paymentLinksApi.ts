@@ -12,6 +12,12 @@ export type PublicPaymentLink = {
   description: string;
   options: PublicPaymentOption[];
   payer_details_locked: boolean;
+  /** 'business_charge' for a business customer's one-time charge. Missing on an older server. */
+  kind?: string;
+  /** Whom a business charge is for. Missing on an older server. */
+  customer_name?: string;
+  /** The open invoice a business charge closes, when there is one. Missing on an older server. */
+  invoice_number?: string;
 };
 
 export type PublicPaymentStatus = 'pending' | 'completed' | 'failed' | 'review';
