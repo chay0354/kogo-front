@@ -10,6 +10,8 @@ export type StorePaymentReviewAction = 'complete' | 'release' | 'close';
 export interface StorePaymentReviewEvidence {
   confirmation_code?: string;
   card_last4?: string;
+  /** "close" only: the manager saw that the report lists a charge of this sum under the number. */
+  acknowledge_charge?: boolean;
 }
 
 export interface StorePaymentReviewNumberView {
@@ -95,6 +97,7 @@ export default function StorePaymentReviewDialog({
   const [evidenceKind, setEvidenceKind] = useState<EvidenceKind>('approval');
   const [evidence, setEvidence] = useState('');
   const [problem, setProblem] = useState('');
+  const [sawCharge, setSawCharge] = useState(false);
   const hasSuspected = numbers.some((n) => n.suspected);
   const complete = action === 'complete';
   const copy = reviewDialogCopy(action, paid);
@@ -104,6 +107,7 @@ export default function StorePaymentReviewDialog({
     setEvidence('');
     setEvidenceKind('approval');
     setProblem('');
+    setSawCharge(false);
   };
 
   const handleClose = () => {
@@ -122,7 +126,10 @@ export default function StorePaymentReviewDialog({
     // Not cleared here: a refusal (the report does not confirm) leaves the
     // dialog open with what was typed. The parent remounts it per order.
     setProblem('');
-    onConfirm(reason.trim(), complete ? reviewEvidence(evidenceKind, evidence) : {});
+    onConfirm(
+      reason.trim(),
+      complete ? reviewEvidence(evidenceKind, evidence) : action === 'close' && sawCharge ? { acknowledge_charge: true } : {},
+    );
   };
 
   return (
@@ -210,7 +217,22 @@ export default function StorePaymentReviewDialog({
               <p className="text-sm text-yellow-800">
                 <strong>סגרו רק אחרי שבדקתם בטרנזילה שהעסקה אינה של הלקוח הזה, או שאין עסקה כזאת.</strong>{' '}
                 המספר יפסיק להיבדק ולהופיע בתדריך. אם הדוח של טרנזילה מאשר אותו עכשיו, הוא יירשם כחיוב שני ולא ייסגר.
+                מספר שדווח לפני פחות מ-10 דקות, או שהדוח עוד לא ענה עליו, לא ייסגר.
               </p>
+              <label className="mt-3 flex items-start gap-2 text-sm text-yellow-900">
+                <input
+                  id="review-saw-charge"
+                  type="checkbox"
+                  className="mt-1"
+                  checked={sawCharge}
+                  onChange={(e) => setSawCharge(e.target.checked)}
+                  disabled={loading}
+                />
+                <span>
+                  ראיתי את החיוב בדוח: תחת המספר מופיע בטרנזילה חיוב מאושר באותו סכום, ובדקתי שהוא של לקוח אחר.
+                  (בלי הסימון, מספר כזה לא ייסגר.)
+                </span>
+              </label>
             </div>
           ) : (
             <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">

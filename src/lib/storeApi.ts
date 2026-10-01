@@ -149,7 +149,9 @@ export async function reviewStorePayment(
   // For 'complete': what the customer gave — the approval number, or the
   // card's last four digits. The CRM compares it with Tranzila's report; a
   // suspected charge is completed only with it.
-  evidence: { confirmation_code?: string; card_last4?: string } = {},
+  // For 'close': acknowledge_charge, once the manager saw that the report
+  // lists an approved charge of this sum under the number.
+  evidence: { confirmation_code?: string; card_last4?: string; acknowledge_charge?: boolean } = {},
 ): Promise<StoreInvoice> {
   const { data } = await api.post(`/store/invoices/${id}/payment-review/`, { action, reason, ...evidence });
   return data.invoice as StoreInvoice;
