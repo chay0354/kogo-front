@@ -222,7 +222,10 @@ export default function BusinessChargeDialog({ open, onClose, onCreated }: {
                 <span className={styles.successMark} aria-hidden="true"><Check size={22} /></span>
                 <h3>הגבייה מוכנה</h3>
                 <p className={styles.successSum}>{created.customerName ? `${created.customerName} · ` : ''}{created.total} כולל מע״מ</p>
-                <p className={styles.hint}>זה קישור חד־פעמי. אחרי תשלום מאומת הוא נסגר ומופק המסמך המתאים.</p>
+                <p className={styles.hint}>
+                  זה קישור חד־פעמי. שולם בתוך יממה — תופק חשבונית מס/קבלה. לא שולם בתוך יממה — תישלח ללקוח
+                  חשבונית מס פתוחה, והתשלום יסגור אותה בקבלה.
+                </p>
                 <input
                   ref={linkInputRef}
                   className={styles.linkInput}
