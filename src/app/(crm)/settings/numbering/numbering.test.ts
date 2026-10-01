@@ -9,11 +9,18 @@ import {
   formatRunNumber,
   legacyLastNumbers,
   mappingRows,
+  openingFirstNumber,
   openingPayload,
   openingProblems,
+  openingStart,
+  overrunWarnings,
   parseLastNumber,
+  parseStartNumber,
+  reservedLeft,
+  reservedRange,
   runStatus,
   runsOf,
+  suggestedStart,
   typeChoices,
   type OpeningDraft,
 } from './numbering';
@@ -57,7 +64,11 @@ function overview(over: Partial<SeriesOverview> = {}, continued: Record<string, 
   };
 }
 
-const ready: OpeningDraft = { typeLabel: 'חשבונית מס', lastText: '40413', checked: true, submitting: false };
+const ready: OpeningDraft = {
+  typeLabel: 'חשבונית מס', lastText: '40413', checked: true, submitting: false, stillIssuing: false, startText: '',
+};
+/** The previous software still issues tax invoices: kogo starts at 40600 and leaves 40414–40599 to it. */
+const reserving: OpeningDraft = { ...ready, stillIssuing: true, startText: '40600' };
 
 describe('numbers', () => {
   it('pads to six digits and keeps every digit past them', () => {
@@ -180,7 +191,7 @@ describe('the confirmation', () => {
   });
 
   it('names what is missing', () => {
-    const problems = openingProblems(overview(), run({}), { typeLabel: '', lastText: 'x', checked: false, submitting: false });
+    const problems = openingProblems(overview(), run({}), { ...ready, typeLabel: '', lastText: 'x', checked: false });
     expect(problems).toEqual([
       'יש לבחור את סוג המסמך בתוכנה הקודמת',
       'יש להקליד את המספר האחרון שהונפק בתוכנה הקודמת',
@@ -218,6 +229,98 @@ describe('the confirmation', () => {
   it('confirms the number and the type by name', () => {
     expect(confirmationText('חשבונית מס', '40413')).toContain('40413 הוא המספר האחרון שהונפק בחשבונית מס');
     expect(confirmationText('', '')).toContain('(לא רק בקובץ הייצוא) שהמספר שהוקלד הוא');
+  });
+});
+
+describe('while the previous software still issues', () => {
+  it('starts the run at the number the office chose, above the last one', () => {
+    expect(openingStart(ready)).toBe(40414);
+    expect(openingStart(reserving)).toBe(40600);
+    expect(openingFirstNumber('TI', 2026, reserving)).toBe('TI-2026-040600');
+    expect(reservedRange(reserving)).toEqual({ from: 40414, to: 40599 });
+    expect(reservedRange(ready)).toBeNull();
+    // Last + 1 with the box ticked is the plain opening: nothing is left to anyone.
+    expect(reservedRange({ ...reserving, startText: '40414' })).toBeNull();
+  });
+
+  it('refuses a first number that is missing, not a number, or not above the last one', () => {
+    for (const startText of ['', 'abc', '40413', '40000', '0']) {
+      const draft = { ...reserving, startText };
+      expect(openingStart(draft)).toBeNull();
+      expect(openingFirstNumber('TI', 2026, draft)).toBe('');
+      expect(canConfirmOpening(overview(), run({}), draft)).toBe(false);
+      expect(openingProblems(overview(), run({}), draft)).toContain(
+        'יש להקליד את המספר הראשון של הסדרה ב-kogo — גבוה מ-40413',
+      );
+    }
+    expect(parseStartNumber('40,600')).toBe(40600);
+    expect(parseStartNumber('1000000000')).toBeNull();
+  });
+
+  it('offers a round number that leaves the previous software room', () => {
+    expect(suggestedStart(40413)).toBe(40600);
+    expect(suggestedStart(33403)).toBe(33600);
+    expect(suggestedStart(99)).toBe(200);
+    expect(suggestedStart(40413)).toBeGreaterThan(40413 + 100);
+  });
+
+  it('says so to the server only when numbers are really left', () => {
+    expect(openingPayload(overview(), run({}), reserving, '')).toEqual({
+      series: 'TI',
+      year: 2026,
+      start: 40600,
+      previous_last_number: 40413,
+      previous_type_label: 'חשבונית מס',
+      note: '',
+      reserve: true,
+    });
+    expect(openingPayload(overview(), run({}), { ...reserving, startText: '40414' }, '')).not.toHaveProperty('reserve');
+    expect(openingPayload(overview(), run({}), { ...reserving, startText: '' }, '')).toBeNull();
+  });
+
+  it('takes the confirmation back when the first number or the choice changes', () => {
+    expect(editDraft(reserving, { startText: '40700' }).checked).toBe(false);
+    expect(editDraft(reserving, { stillIssuing: false }).checked).toBe(false);
+    expect(editDraft(reserving, { startText: '40600' }).checked).toBe(true);
+  });
+
+  it('confirms which numbers stay with the previous software', () => {
+    const text = confirmationText('חשבונית מס', '40413', { from: 40414, to: 40599 });
+    expect(text).toContain('40413 הוא המספר האחרון שהונפק בחשבונית מס עד היום');
+    expect(text).toContain('רק במספרים 40414–40599');
+    expect(text).toContain('לא תגיע למספר 40600');
+  });
+
+  const continued = (start: number, last = 40413) =>
+    run({
+      can_open: false,
+      opening: {
+        series: 'TI', year: 2026, start, previous_last_number: last, previous_type_label: 'חשבונית מס', note: '',
+        created_by: '', created_at: null, continues: '',
+        reserved_from: start > last + 1 ? last + 1 : null,
+        reserved_to: start > last + 1 ? start - 1 : null,
+      },
+    });
+
+  it('warns when the import shows the previous software past the run\'s first number', () => {
+    const data = overview({ runs: [continued(40600)] });
+    expect(overrunWarnings(data, { 'חשבונית מס': 40599 })).toEqual([]);
+    expect(overrunWarnings(data, {})).toEqual([]);
+    const [warning] = overrunWarnings(data, { 'חשבונית מס': 40600 });
+    expect(warning.run).toBe('TI-2026');
+    expect(warning.text).toContain('עד מספר 40600');
+    expect(warning.text).toContain('מתחילה ב-40600');
+    // A plain continuation is overrun the moment the previous software issues one more.
+    expect(overrunWarnings(overview({ runs: [continued(40414)] }), { 'חשבונית מס': 40414 })).toHaveLength(1);
+  });
+
+  it('counts the numbers the previous software still has', () => {
+    expect(reservedLeft(continued(40600), { 'חשבונית מס': 40413 })).toBe(186);
+    expect(reservedLeft(continued(40600), { 'חשבונית מס': 40450 })).toBe(149);
+    expect(reservedLeft(continued(40600), { 'חשבונית מס': 40700 })).toBe(0);
+    expect(reservedLeft(continued(40600), {})).toBeNull();
+    expect(reservedLeft(continued(40414), { 'חשבונית מס': 40413 })).toBeNull();
+    expect(reservedLeft(run({}), { 'חשבונית מס': 40413 })).toBeNull();
   });
 });
 

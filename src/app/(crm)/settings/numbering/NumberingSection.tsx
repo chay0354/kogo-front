@@ -16,13 +16,18 @@ import {
   confirmationText,
   defaultTypeFor,
   editDraft,
-  firstNumberPreview,
   legacyLastNumbers,
   mappingRows,
+  openingFirstNumber,
   openingPayload,
   openingProblems,
+  overrunWarnings,
+  parseLastNumber,
+  reservedLeft,
+  reservedRange,
   runStatus,
   runsOf,
+  suggestedStart,
   typeChoices,
   type OpeningDraft,
   type RunTone,
@@ -105,6 +110,11 @@ export default function NumberingSection() {
             לכן ממשיכים סדרה רק לפני שהונפק בה המסמך הראשון של השנה — לשנה הנוכחית או לשנה הבאה.
           </li>
           <li>
+            <strong>כשהתוכנה הקודמת עדיין מפיקה</strong> — ללקוחות שעוד לא עברו ל-kogo — הסדרה ב-kogo מתחילה ממספר
+            גבוה יותר, והמספרים שבאמצע נשארים של התוכנה הקודמת. כך אף מספר לא יוצא בשתי התוכנות. כשהיא מפסיקה,
+            מייבאים ממנה ייצוא אחרון, והמספר האחרון שלה נרשם.
+          </li>
+          <li>
             <strong>מספר שהונפק לא משתנה לעולם</strong>, והמשך נקבע פעם אחת. לפני שממשיכים, בודקים בתוכנה הקודמת
             עצמה מה המספר האחרון — קובץ הייצוא לא כולל את כל המסמכים, ולכן המספרים שבו הם רק רצפה.
           </li>
@@ -124,6 +134,11 @@ export default function NumberingSection() {
         </div>
       ) : overview ? (
         <>
+          {overrunWarnings(overview, legacy).map((warning) => (
+            <p key={warning.run} className={`${styles.error} ${theme.mt}`} role="alert">
+              {warning.text}
+            </p>
+          ))}
           <MappingCard overview={overview} year={overview.current_year} legacy={legacy} />
           {overview.years.map((year) => (
             <div key={year} className={`${theme.card} ${theme.mt}`}>
@@ -149,7 +164,11 @@ export default function NumberingSection() {
                   setOpenFor('');
                   setNotice({
                     year: run.year,
-                    text: `${run.name} ממשיכה את הסדרה של התוכנה הקודמת. המסמך הבא בה יקבל את המספר ${run.next_number}.`,
+                    text:
+                      `${run.name} ממשיכה את הסדרה של התוכנה הקודמת. המסמך הבא בה יקבל את המספר ${run.next_number}.`
+                      + (run.opening?.reserved_from
+                        ? ` המספרים ${run.opening.reserved_from}–${run.opening.reserved_to} נשארים של התוכנה הקודמת.`
+                        : ''),
                     failed: false,
                   });
                 }}
@@ -249,6 +268,7 @@ function RunsTable({ overview, runs, legacy, openFor, notice, onOpenForm, onCanc
             {runs.map((run) => {
               const status = runStatus(run);
               const formOpen = openFor === run.name;
+              const left = reservedLeft(run, legacy);
               return (
                 <tr key={run.name}>
                   <td>
@@ -265,6 +285,7 @@ function RunsTable({ overview, runs, legacy, openFor, notice, onOpenForm, onCanc
                     {status.detail && (
                       <div className={`${styles.statusDetail} ${status.tone === 'continued' ? styles.continued : ''}`}>
                         {status.detail}
+                        {left !== null ? ` — נותרו לה ${left.toLocaleString('he-IL')}, לפי הייבוא האחרון` : ''}
                       </div>
                     )}
                   </td>
@@ -328,7 +349,14 @@ function OpenRunForm({ overview, run, legacy, onCancel, onOpened, onStale }: Ope
   const [draft, setDraft] = useState<OpeningDraft>(() => {
     const typeLabel = defaultTypeFor(overview, run);
     const known = legacy[typeLabel];
-    return { typeLabel, lastText: known !== undefined ? String(known) : '', checked: false, submitting: false };
+    return {
+      typeLabel,
+      lastText: known !== undefined ? String(known) : '',
+      checked: false,
+      submitting: false,
+      stillIssuing: false,
+      startText: '',
+    };
   });
   // The number shown came from the legacy import and has not been typed over.
   const [prefilled, setPrefilled] = useState(() => legacy[defaultTypeFor(overview, run)] !== undefined);
@@ -354,7 +382,9 @@ function OpenRunForm({ overview, run, legacy, onCancel, onOpened, onStale }: Ope
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [legacy]);
 
-  const preview = firstNumberPreview(run.series, run.year, draft.lastText);
+  const preview = openingFirstNumber(run.series, run.year, draft);
+  const lastNumber = parseLastNumber(draft.lastText);
+  const reserved = reservedRange(draft);
   const problems = openingProblems(overview, run, draft);
   const ready = canConfirmOpening(overview, run, draft);
   const ids = {
@@ -362,6 +392,8 @@ function OpenRunForm({ overview, run, legacy, onCancel, onOpened, onStale }: Ope
     last: `open-last-${run.name}`,
     note: `open-note-${run.name}`,
     lastHint: `open-last-hint-${run.name}`,
+    start: `open-start-${run.name}`,
+    startHint: `open-start-hint-${run.name}`,
     problems: `open-problems-${run.name}`,
   };
 
@@ -446,7 +478,7 @@ function OpenRunForm({ overview, run, legacy, onCancel, onOpened, onStale }: Ope
             value={draft.lastText}
             disabled={draft.submitting}
             aria-describedby={ids.lastHint}
-            aria-invalid={draft.lastText !== '' && !preview}
+            aria-invalid={draft.lastText !== '' && lastNumber === null}
             onChange={(e) => {
               setPrefilled(false);
               setDraft((current) => editDraft(current, { lastText: e.target.value }));
@@ -460,6 +492,57 @@ function OpenRunForm({ overview, run, legacy, onCancel, onOpened, onStale }: Ope
         </div>
       </div>
 
+      <label className={styles.confirm}>
+        <input
+          type="checkbox"
+          className={styles.check}
+          checked={draft.stillIssuing}
+          disabled={draft.submitting}
+          onChange={(e) =>
+            setDraft((current) =>
+              editDraft(current, {
+                stillIssuing: e.target.checked,
+                // Offer a round number that leaves the previous software room; the office may type another.
+                startText:
+                  e.target.checked && current.startText === '' && parseLastNumber(current.lastText) !== null
+                    ? String(suggestedStart(parseLastNumber(current.lastText) as number))
+                    : current.startText,
+              }),
+            )
+          }
+        />
+        <span>
+          התוכנה הקודמת עדיין מפיקה מסמכים מהסוג הזה — ללקוחות שעוד לא עברו ל-kogo. הסדרה ב-kogo תתחיל ממספר גבוה
+          יותר, והמספרים שבאמצע יישארו שלה.
+        </span>
+      </label>
+
+      {draft.stillIssuing && (
+        <div className={styles.field}>
+          <label htmlFor={ids.start} className={styles.label}>
+            המספר הראשון של הסדרה ב-kogo
+          </label>
+          <input
+            id={ids.start}
+            className={`${styles.control} ${styles.numberInput}`}
+            inputMode="numeric"
+            autoComplete="off"
+            value={draft.startText}
+            disabled={draft.submitting}
+            aria-describedby={ids.startHint}
+            aria-invalid={draft.startText !== '' && !preview}
+            onChange={(e) => setDraft((current) => editDraft(current, { startText: e.target.value }))}
+          />
+          <span id={ids.startHint} className={styles.hint}>
+            {reserved
+              ? `${(reserved.to - reserved.from + 1).toLocaleString('he-IL')} מספרים (${reserved.from}–${reserved.to}) נשארים של התוכנה הקודמת. היא לא יכולה לעבור אותם.`
+              : lastNumber !== null
+                ? `מספר גבוה מ-${lastNumber}. השאירו לתוכנה הקודמת מספיק מספרים עד שכל הלקוחות יעברו.`
+                : 'קודם הקלידו את המספר האחרון שהונפק בתוכנה הקודמת.'}
+          </span>
+        </div>
+      )}
+
       <div className={styles.preview} aria-live="polite">
         {preview ? (
           <>
@@ -467,6 +550,8 @@ function OpenRunForm({ overview, run, legacy, onCancel, onOpened, onStale }: Ope
             <span className={`${styles.number} ${styles.previewNumber}`}>{preview}</span>
             {run.year > overview.current_year ? ` — מ-1 בינואר ${run.year}` : ''}.
           </>
+        ) : draft.stillIssuing && lastNumber !== null ? (
+          <>הקלידו את המספר הראשון של הסדרה ב-kogo כדי לראות מאיזה מספר היא תתחיל.</>
         ) : (
           <>הקלידו את המספר האחרון כדי לראות מאיזה מספר הסדרה תמשיך.</>
         )}
@@ -495,7 +580,7 @@ function OpenRunForm({ overview, run, legacy, onCancel, onOpened, onStale }: Ope
           disabled={draft.submitting}
           onChange={(e) => setDraft((current) => editDraft(current, { checked: e.target.checked }))}
         />
-        <span>{confirmationText(draft.typeLabel, draft.lastText)}</span>
+        <span>{confirmationText(draft.typeLabel, draft.lastText, reserved)}</span>
       </label>
 
       {error && (

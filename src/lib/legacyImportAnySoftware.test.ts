@@ -65,7 +65,9 @@ describe('the file each format takes', () => {
     expect(importFileProblem({ name: 'OPENFRMT.zip', size: 10 }, 'uniform')).toBeNull();
     expect(importFileProblem({ name: 'BKMVDATA.TXT', size: 10 }, 'uniform')).toBeNull();
     expect(importFileProblem({ name: 'docs.pdf', size: 10 }, 'uniform')).toContain('BKMVDATA');
-    expect(importFileProblem({ name: 'docs.csv', size: 5_000_000 }, 'table')).toContain('גדול מדי');
+    expect(importFileProblem({ name: 'docs.csv', size: 5_000_000 }, 'table', false)).toContain('גדול מדי');
+    // Where the browser packs the file, a table over one request's limit goes through.
+    expect(importFileProblem({ name: 'docs.csv', size: 5_000_000 }, 'table', true)).toBeNull();
   });
 
   it('names the software: a known slug, or the name typed for another', () => {

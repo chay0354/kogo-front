@@ -64,8 +64,15 @@ export interface BusinessCustomerFormData {
   last_name: string;
   email: string;
   phone: string;
+  /** What the single "ת.ז/ח.פ" input shows and edits. Which of the card's two numbers it is: `number_field`. */
   id_number: string;
   company_number: string;
+  /**
+   * The card's number the "ת.ז/ח.פ" input is showing, for a customer picked
+   * from the search. Missing for a new customer, or a card with no number yet.
+   * Never sent: businessCustomerPayload reads it and leaves it out.
+   */
+  number_field?: 'id_number' | 'company_number';
   address: string;
   business_type: string;
   category: string;

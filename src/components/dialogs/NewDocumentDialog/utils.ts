@@ -31,8 +31,10 @@ export function businessFormFromCustomer(customer: {
     last_name: customer.last_name,
     email: customer.email,
     phone: customer.phone,
+    // One input for both numbers: the ת"ז when the card has one, else its ח"פ.
     id_number: customer.id_number || customer.company_number,
     company_number: customer.company_number,
+    number_field: customer.id_number ? 'id_number' : customer.company_number ? 'company_number' : undefined,
     address: customer.address ?? '',
     business_type: customer.business_type,
     business_id: customer.business_id ?? null,
@@ -41,6 +43,28 @@ export function businessFormFromCustomer(customer: {
     branch_id: customer.branch_id ?? null,
     notes: customer.notes,
   };
+}
+
+/** A ח"פ or an amuta's number: nine digits that start with 5 (the server's is_company_number). */
+export function isCompanyNumber(value: string): boolean {
+  return /^5\d{8}$/.test(value.replace(/[\s-]/g, ''));
+}
+
+/**
+ * The customer as it is saved. The form has one "ת.ז/ח.פ" input and the card
+ * has two numbers, so the typed number goes back to the one it was read from:
+ * a card that had only a ח"פ keeps it as its ח"פ (it used to be copied into
+ * the ת"ז as well, and the document printed the same number twice). For a new
+ * customer, a company number is saved as the ח"פ and anything else as the ת"ז.
+ */
+export function businessCustomerPayload(
+  form: BusinessCustomerFormData,
+): Omit<BusinessCustomerFormData, 'number_field'> {
+  const { number_field: field, ...rest } = form;
+  const typed = form.id_number.trim();
+  const asCompany = field === 'company_number' || (field === undefined && isCompanyNumber(typed));
+  if (asCompany) return { ...rest, id_number: '', company_number: typed };
+  return { ...rest, id_number: typed };
 }
 
 /** A blank check line, dated today. Not crossed until the office says so. */

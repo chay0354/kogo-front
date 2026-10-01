@@ -71,6 +71,7 @@ import {
   branchFieldApplies,
   businessCustomerErrorMessage,
   serverErrorMessage,
+  businessCustomerPayload,
   businessFormFromCustomer,
   canAdvanceFromStep,
   computeInvoiceTotals,
@@ -402,7 +403,7 @@ export default function NewDocumentDialog({ open, onClose, initialCredit = null 
         setIsSubmitting(true);
         try {
           if (businessCustomerId === null) {
-            const created = await createBusinessCustomer(businessFormData);
+            const created = await createBusinessCustomer(businessCustomerPayload(businessFormData));
             setBusinessCustomerId(created.id);
             // Only a server that keeps consent for business customers is asked to record it.
             if (pendingDocsConsent && typeof created.accepts_computerized_documents === 'boolean') {
@@ -416,7 +417,7 @@ export default function NewDocumentDialog({ open, onClose, initialCredit = null 
               }
             }
           } else {
-            await updateBusinessCustomer(businessCustomerId, businessFormData);
+            await updateBusinessCustomer(businessCustomerId, businessCustomerPayload(businessFormData));
           }
           goNext(true);
         } catch (err: unknown) {

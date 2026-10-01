@@ -18,6 +18,12 @@ import api from './api';
 /** Vercel refuses a body over 4.5 MB before the server sees it; the server's own limit is this. */
 export const LEGACY_IMPORT_MAX_BYTES = 4_300_000;
 
+/**
+ * A file over that limit is sent gzipped (packForUpload): an .xls of repeated
+ * names shrinks to a quarter. This is the most the server unpacks.
+ */
+export const LEGACY_IMPORT_MAX_UNPACKED_BYTES = 40_000_000;
+
 /** Kogo's convention: a branch is what the category סניפים means (NewDocumentDialog/branchFieldApplies). */
 export const BRANCHES_CATEGORY = 'סניפים';
 
@@ -106,6 +112,28 @@ export interface LegacyTypeRow {
   last_date: string;
   latest_date: string;
   missing_in_span: number;
+  /** How many of them are invoices still open in the software — counted in the span, not imported. */
+  open?: number;
+}
+
+/** An invoice the software still shows as unpaid: listed beside the preview, never imported. */
+export interface LegacyOpenInvoice {
+  doc_type: LegacyDocType;
+  type_label: string;
+  number: number;
+  original_number: string;
+  date: string;
+  customer_name: string;
+  id_number: string;
+  invoice_total: string;
+  details: string;
+  location: string;
+}
+
+/** A company number the file has under several customers: each keeps a card of its own. */
+export interface LegacySharedId {
+  id_number: string;
+  customers: { key: string; ext_number: string; name: string; documents: number }[];
 }
 
 export interface LegacyLocation {
@@ -163,7 +191,12 @@ export interface LegacySummary {
     already_imported: number;
     first_date: string | null;
     last_date: string | null;
+    /** Open invoices in the file; `total` does not count them. */
+    open_invoices?: number;
   };
+  /** Missing on a preview made by a server from before open invoices were set aside. */
+  open_invoices?: { count: number; total: string; rows: LegacyOpenInvoice[] };
+  shared_ids?: LegacySharedId[];
   types: LegacyTypeRow[];
   customers: {
     total: number;
@@ -196,7 +229,15 @@ export interface LegacyCommitResult {
     cards_opened_or_updated?: boolean;
     linked_without_changing_cards?: number;
   };
-  documents: { created: number; updated: number; unchanged: number; linked_to_customers: number; total: number };
+  documents: {
+    created: number;
+    updated: number;
+    unchanged: number;
+    linked_to_customers: number;
+    total: number;
+    /** Open invoices the commit left out. */
+    open_skipped?: number;
+  };
 }
 
 export interface LegacyImport {
@@ -266,8 +307,9 @@ export type LegacyMapping = Record<string, LegacyTarget>;
 // Requests
 // ---------------------------------------------------------------------------
 
-// Reading ~8,000 rows and writing them in bulk takes a few seconds; a slow line should not cut it at 30.
-const SLOW = { timeout: 120000 };
+// The whole history is tens of thousands of rows, read and written in bulk. The
+// server has five minutes for a request; the screen waits nearly as long.
+const SLOW = { timeout: 280000 };
 
 const MULTIPART = { headers: { 'Content-Type': 'multipart/form-data' } };
 
@@ -298,15 +340,45 @@ export function previewFormData(file: File, options: LegacyPreviewOptions = {}):
   return body;
 }
 
+/** True where the browser can gzip a file itself (every current browser; not an old Safari). */
+export function canPackUploads(): boolean {
+  return typeof CompressionStream !== 'undefined';
+}
+
+/** Why a file that had to be packed still cannot be sent. The message is for the office, in Hebrew. */
+export class ImportFileTooBigError extends Error {}
+
+/**
+ * The file as it is sent: itself when it fits one request, gzipped (named
+ * '<name>.gz') when it does not. The server unpacks it and reads the file the
+ * office chose. Throws ImportFileTooBigError when even the packed file is too big.
+ */
+export async function packForUpload(file: File): Promise<File> {
+  if (file.size <= LEGACY_IMPORT_MAX_BYTES) return file;
+  if (!canPackUploads()) {
+    throw new ImportFileTooBigError(
+      `הקובץ גדול מדי (${(file.size / 1_000_000).toFixed(1)}MB). הגבול הוא 4.3MB — ייצאו טווח תאריכים קצר יותר.`,
+    );
+  }
+  const packed = await new Response(file.stream().pipeThrough(new CompressionStream('gzip'))).blob();
+  if (packed.size > LEGACY_IMPORT_MAX_BYTES) {
+    throw new ImportFileTooBigError(
+      `הקובץ גדול מדי גם אחרי דחיסה (${(packed.size / 1_000_000).toFixed(1)}MB). ייצאו טווח תאריכים קצר יותר, והעלו כל חלק בנפרד.`,
+    );
+  }
+  return new File([packed], `${file.name}.gz`, { type: 'application/gzip' });
+}
+
 export async function previewLegacyImport(file: File, options: LegacyPreviewOptions = {}): Promise<LegacyImport> {
-  const res = await api.post('/legacy-import/preview/', previewFormData(file, options), { ...SLOW, ...MULTIPART });
+  const sent = await packForUpload(file);
+  const res = await api.post('/legacy-import/preview/', previewFormData(sent, options), { ...SLOW, ...MULTIPART });
   return res.data;
 }
 
 /** A table file's columns, a few values of each, and the suggested mapping. The server writes nothing. */
 export async function describeLegacyColumns(file: File): Promise<LegacyColumnsInfo> {
   const body = new FormData();
-  body.append('file', file);
+  body.append('file', await packForUpload(file));
   const res = await api.post('/legacy-import/columns/', body, { ...SLOW, ...MULTIPART });
   return res.data;
 }
@@ -430,17 +502,64 @@ const FORMAT_WRONG_FILE: Record<LegacySourceFormat, string> = {
   uniform: 'יש לבחור את BKMVDATA.TXT או קובץ ZIP של המבנה האחיד',
 };
 
-/** Why a file cannot be sent, in Hebrew — or null. Checked before the upload, like the server does after. */
+/**
+ * Why a file cannot be sent, in Hebrew — or null. Checked before the upload,
+ * like the server does after. A file over one request's limit is fine where
+ * the browser can pack it (`canPack`), up to what the server unpacks.
+ */
 export function importFileProblem(
   file: { name: string; size: number } | null,
   format: LegacySourceFormat = 'tazman',
+  canPack: boolean = canPackUploads(),
 ): string | null {
   if (!file) return 'לא נבחר קובץ';
   if (!FORMAT_EXTENSIONS[format].test(file.name.trim())) return FORMAT_WRONG_FILE[format];
-  if (file.size > LEGACY_IMPORT_MAX_BYTES) {
-    return `הקובץ גדול מדי (${(file.size / 1_000_000).toFixed(1)}MB). הגבול הוא 4.3MB — ייצאו טווח תאריכים קצר יותר.`;
+  const megabytes = (file.size / 1_000_000).toFixed(1);
+  if (file.size > LEGACY_IMPORT_MAX_BYTES && !canPack) {
+    return `הקובץ גדול מדי (${megabytes}MB). הגבול הוא 4.3MB — ייצאו טווח תאריכים קצר יותר.`;
+  }
+  if (file.size > LEGACY_IMPORT_MAX_UNPACKED_BYTES) {
+    return `הקובץ גדול מדי (${megabytes}MB). הגבול הוא 40MB — ייצאו טווח תאריכים קצר יותר.`;
   }
   return null;
+}
+
+// ---------------------------------------------------------------------------
+// Open invoices: listed, never imported
+// ---------------------------------------------------------------------------
+
+/** Excel reads a UTF-8 CSV as Hebrew only with the byte-order mark in front. */
+const CSV_BOM = '\uFEFF';
+
+function csvCell(value: string | number): string {
+  const text = String(value ?? '');
+  return /[",\n\r]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+}
+
+/**
+ * The open invoices as a CSV the office keeps outside kogo: they are collected
+ * and closed in the software that issued them.
+ */
+export function openInvoicesCsv(rows: LegacyOpenInvoice[]): string {
+  const header = ['סוג מסמך', 'מספר', 'תאריך', 'לקוח', 'ת"ז / ח"פ', 'סכום', 'פרטים', 'מיקום'];
+  const lines = rows.map((row) => [
+    row.type_label,
+    row.original_number || row.number,
+    formatLegacyDate(row.date),
+    row.customer_name,
+    row.id_number,
+    row.invoice_total,
+    row.details,
+    row.location,
+  ]);
+  return CSV_BOM + [header, ...lines].map((line) => line.map(csvCell).join(',')).join('\r\n') + '\r\n';
+}
+
+/** 'חשבונית מס · 654 (5 פתוחות, לא ייובאו)' — the open ones of a type, in words, or ''. */
+export function openCountNote(row: Pick<LegacyTypeRow, 'open'>): string {
+  const open = row.open ?? 0;
+  if (!open) return '';
+  return open === 1 ? 'אחת מהן פתוחה ולא תיובא' : `${open} מהן פתוחות ולא ייובאו`;
 }
 
 /** The source a preview is sent with: a known software's slug, or the name the office typed for another. */
@@ -774,6 +893,14 @@ export function commitConfirmText(
   const lines = [
     `${summary.documents.total.toLocaleString('he-IL')} מסמכים יישמרו כהיסטוריה ${fromSourceText(summary)} (לא יופקו מחדש ולא ייכנסו לדוחות של קוגו).`,
   ];
+  const open = summary.open_invoices?.count ?? 0;
+  if (open) {
+    lines.push(
+      open === 1
+        ? 'חשבונית פתוחה אחת לא תיובא — היא נשארת בתוכנה שהפיקה אותה.'
+        : `${open.toLocaleString('he-IL')} חשבוניות פתוחות לא ייובאו — הן נשארות בתוכנה שהפיקה אותן.`,
+    );
+  }
   if (!createCustomers) {
     lines.push('לא ייפתחו ולא יעודכנו כרטיסי לקוחות. מסמך יקושר לכרטיס קיים רק לפי ח"פ/ת"ז או קישור קודם.');
   } else {

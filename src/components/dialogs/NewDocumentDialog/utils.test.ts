@@ -24,9 +24,58 @@ import {
   receiptDetailsPayload,
   serverErrorMessage,
   undatedConfirmedChecks,
+  businessCustomerPayload,
+  businessFormFromCustomer,
+  isCompanyNumber,
 } from './utils';
 import type { InvoiceDetailsData, ReceiptDetailsData } from './types';
 import { AUTO_SETTLEMENT_PICKS } from '@/lib/settlements';
+
+describe('the one \"ת.ז/ח.פ\" input and the card\'s two numbers', () => {
+  const card = {
+    first_name: 'רשת', last_name: 'מתנ"ס הדגמה', email: 'a@example.test', phone: '0500000001',
+    id_number: '', company_number: '', address: 'רחוב 1', business_type: 'חוגים', category: 'סניפים',
+    branch_id: null, notes: '', business_id: 'b1', business_category_id: 'c1',
+  };
+
+  it('a card with only a ח"פ shows it and saves it back as the ח"פ, not as a ת"ז too', () => {
+    const form = businessFormFromCustomer({ ...card, company_number: '580000001' });
+    expect(form.id_number).toBe('580000001');
+    const saved = businessCustomerPayload(form);
+    expect([saved.id_number, saved.company_number]).toEqual(['', '580000001']);
+    expect(saved).not.toHaveProperty('number_field');
+    // A dealer whose ע"מ is their own ID: still their ע"מ, also after it is corrected.
+    const dealer = businessFormFromCustomer({ ...card, company_number: '301234567' });
+    const corrected = businessCustomerPayload({ ...dealer, id_number: ' 301234568 ' });
+    expect([corrected.id_number, corrected.company_number]).toEqual(['', '301234568']);
+  });
+
+  it('a card with a ת"ז shows and saves the ת"ז, and its ח"פ is left as it is', () => {
+    const form = businessFormFromCustomer({ ...card, id_number: '301234567', company_number: '580000001' });
+    expect(form.id_number).toBe('301234567');
+    const saved = businessCustomerPayload({ ...form, id_number: '301234568' });
+    expect([saved.id_number, saved.company_number]).toEqual(['301234568', '580000001']);
+  });
+
+  it('a new customer\'s company number is saved as the ח"פ, anything else as the ת"ז', () => {
+    const blank = { ...businessFormFromCustomer(card), first_name: 'סטודיו', last_name: 'חדש' };
+    expect(blank.number_field).toBeUndefined();
+    const company = businessCustomerPayload({ ...blank, id_number: '51-234567-8' });
+    expect([company.id_number, company.company_number]).toEqual(['', '51-234567-8']);
+    const person = businessCustomerPayload({ ...blank, id_number: '301234567' });
+    expect([person.id_number, person.company_number]).toEqual(['301234567', '']);
+    const none = businessCustomerPayload(blank);
+    expect([none.id_number, none.company_number]).toEqual(['', '']);
+  });
+
+  it('knows a company number', () => {
+    expect(isCompanyNumber('512345678')).toBe(true);
+    expect(isCompanyNumber('58-000000-1')).toBe(true);
+    expect(isCompanyNumber('301234567')).toBe(false);
+    expect(isCompanyNumber('51234567')).toBe(false);
+    expect(isCompanyNumber('')).toBe(false);
+  });
+});
 
 describe('businessCustomerErrorMessage', () => {
   it("reads the server's field error — the branch a partner has to choose", () => {
