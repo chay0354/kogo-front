@@ -86,6 +86,11 @@ export interface StoreInvoice {
    * transaction number Tranzila reported, or a charge found in the terminal's
    * report, that the report neither confirmed nor ruled out. A manager
    * settles it with POST /store/invoices/{id}/payment-review/.
+   *
+   * `payment_review_numbers` lists every undecided number of the invoice,
+   * also when it is not in review: a number a person released on a failed
+   * order (it may still be completed), and a further number on a paid order
+   * (a second charge, or "not ours").
    */
   payment_in_review?: boolean;
   payment_review_numbers?: StorePaymentReviewNumber[];
@@ -95,6 +100,8 @@ export interface StorePaymentReviewNumber {
   index: string;
   /** Found in the report by sum and time; no notify ever named this order. */
   suspected: boolean;
+  /** A person found no charge and released it; the report is still asked about it. */
+  released?: boolean;
   reported_at: string;
 }
 

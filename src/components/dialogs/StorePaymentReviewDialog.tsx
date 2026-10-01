@@ -5,7 +5,7 @@ import { AlertTriangle, X } from 'lucide-react';
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 
-export type StorePaymentReviewAction = 'complete' | 'release';
+export type StorePaymentReviewAction = 'complete' | 'release' | 'close';
 
 export interface StorePaymentReviewEvidence {
   confirmation_code?: string;
@@ -21,6 +21,8 @@ export interface StorePaymentReviewNumberView {
 interface StorePaymentReviewDialogProps {
   isOpen: boolean;
   action: StorePaymentReviewAction;
+  /** The order is already paid: "complete" records a second charge, it sells nothing. */
+  paid?: boolean;
   itemDescription?: string;
   numbers: StorePaymentReviewNumberView[];
   loading?: boolean;
@@ -52,15 +54,37 @@ export function reviewEvidence(evidenceKind: EvidenceKind, evidence: string): St
   return evidenceKind === 'card' ? { card_last4: digits } : { confirmation_code: digits };
 }
 
+/** The dialog's words for each decision; on a paid order "complete" is "a second charge". */
+export function reviewDialogCopy(action: StorePaymentReviewAction, paid: boolean): { title: string; submit: string } {
+  if (action === 'close') return { title: 'סגירה — לא שלנו', submit: 'סגור — לא שלנו' };
+  if (action === 'release') return { title: 'אין תשלום — שחרור', submit: 'אין תשלום — שחרר' };
+  return paid
+    ? { title: 'חיוב שני — אימות', submit: 'רשום כחיוב שני' }
+    : { title: 'השלמה אחרי אימות', submit: 'השלם אחרי אימות' };
+}
+
 /**
- * A manager settles a store payment in review (CRM payment_followup):
+ * Where the evidence must come from. The approval number also shows on the
+ * "בדיקת עסקה" screen and in Tranzila: copied from there, any charge of the
+ * same sum — another customer's too — would confirm itself.
+ */
+export const EVIDENCE_FROM_CUSTOMER_WARNING =
+  'את מספר האישור או את 4 הספרות מקבלים מהלקוח — מהאישור שקיבל או מהכרטיס שלו. '
+  + 'לא להעתיק את מספר האישור ממסך "בדיקת עסקה" או מטרנזילה: כך כל חיוב באותו סכום, '
+  + 'גם של לקוח אחר, ייראה כאילו הוא של ההזמנה הזאת.';
+
+/**
+ * A manager decides about a store payment (CRM payment_followup):
  * "השלם אחרי אימות" goes through only if Tranzila's report confirms the charge
- * with the customer's own evidence; "אין תשלום — שחרר" lets the customer pay
- * again — only after checking in Tranzila that there is no charge.
+ * with the customer's own evidence (on a paid order it records a second
+ * charge); "אין תשלום — שחרר" lets the customer pay again — only after
+ * checking in Tranzila that there is no charge; "סגור — לא שלנו" takes a
+ * paid order's further number out of the follow-up.
  */
 export default function StorePaymentReviewDialog({
   isOpen,
   action,
+  paid = false,
   itemDescription,
   numbers,
   loading = false,
@@ -73,6 +97,7 @@ export default function StorePaymentReviewDialog({
   const [problem, setProblem] = useState('');
   const hasSuspected = numbers.some((n) => n.suspected);
   const complete = action === 'complete';
+  const copy = reviewDialogCopy(action, paid);
 
   const reset = () => {
     setReason('');
@@ -109,7 +134,7 @@ export default function StorePaymentReviewDialog({
               <AlertTriangle className="h-6 w-6 text-yellow-600" />
             </div>
             <DialogTitle className="text-lg font-semibold text-gray-900">
-              {complete ? 'השלמה אחרי אימות' : 'אין תשלום — שחרור'}
+              {copy.title}
             </DialogTitle>
           </div>
           {!loading && (
@@ -137,8 +162,15 @@ export default function StorePaymentReviewDialog({
           {complete ? (
             <div className="space-y-2">
               <p className="text-sm text-gray-700">
-                ההזמנה תושלם רק אם הדוח של טרנזילה מאשר את התשלום, מול מה שהלקוח מסר.
+                {paid
+                  ? 'ההזמנה כבר שולמה. אם הדוח של טרנזילה מאשר את העסקה מול מה שהלקוח מסר, היא תירשם כחיוב שני לזיכוי. שום דבר לא נמכר שוב.'
+                  : 'ההזמנה תושלם רק אם הדוח של טרנזילה מאשר את התשלום, מול מה שהלקוח מסר.'}
               </p>
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+                <p id="review-evidence-warning" className="text-sm text-yellow-800">
+                  {EVIDENCE_FROM_CUSTOMER_WARNING}
+                </p>
+              </div>
               <div className="grid grid-cols-2 gap-3">
                 <button
                   type="button"
@@ -173,6 +205,13 @@ export default function StorePaymentReviewDialog({
                 disabled={loading}
               />
             </div>
+          ) : action === 'close' ? (
+            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+              <p className="text-sm text-yellow-800">
+                <strong>סגרו רק אחרי שבדקתם בטרנזילה שהעסקה אינה של הלקוח הזה, או שאין עסקה כזאת.</strong>{' '}
+                המספר יפסיק להיבדק ולהופיע בתדריך. אם הדוח של טרנזילה מאשר אותו עכשיו, הוא יירשם כחיוב שני ולא ייסגר.
+              </p>
+            </div>
           ) : (
             <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
               <p className="text-sm text-yellow-800">
@@ -204,7 +243,7 @@ export default function StorePaymentReviewDialog({
               ביטול
             </Button>
             <Button type="submit" disabled={loading} className="flex-1 bg-yellow-600 hover:bg-yellow-700 text-white">
-              {loading ? 'מבצע…' : complete ? 'השלם אחרי אימות' : 'אין תשלום — שחרר'}
+              {loading ? 'מבצע…' : copy.submit}
             </Button>
           </div>
         </form>

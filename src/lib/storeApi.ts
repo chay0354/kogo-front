@@ -136,14 +136,15 @@ export async function fetchInvoice(id: string): Promise<StoreInvoice> {
 
 /**
  * A manager settles a store payment in review (CRM payment_followup):
- * 'complete' only goes through when Tranzila's report confirms it;
- * 'release' says no charge was found in Tranzila and lets the customer pay
- * again (the numbers stay followed up). The reason is kept on the invoice
- * with who and when.
+ * 'complete' only goes through when Tranzila's report confirms it (on a paid
+ * order it records a second charge, for a refund); 'release' says no charge
+ * was found in Tranzila and lets the customer pay again (the numbers stay
+ * followed up); 'close' says the further numbers of a paid order are not
+ * this order's. The reason is kept on the invoice with who and when.
  */
 export async function reviewStorePayment(
   id: string,
-  action: 'complete' | 'release',
+  action: 'complete' | 'release' | 'close',
   reason: string,
   // For 'complete': what the customer gave — the approval number, or the
   // card's last four digits. The CRM compares it with Tranzila's report; a

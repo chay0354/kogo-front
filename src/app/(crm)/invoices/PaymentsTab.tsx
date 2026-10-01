@@ -35,6 +35,7 @@ import {
   getCurrentMonthTotal,
   getPaymentStatusClass,
   getPaymentStatusLabel,
+  isStoreRowPaid,
   isWithinRange,
   ledgerRangeParams,
   localISODate,
@@ -44,6 +45,7 @@ import {
   paymentToLedgerRow,
   storeContactLine,
   storeInvoiceToLedgerRow,
+  storeReviewChoices,
   widerRange,
   withBranchCity,
   type LedgerOption,
@@ -757,9 +759,11 @@ export default function PaymentsTab({ ledger }: PaymentsTabProps) {
   /**
    * A store payment in review, settled by a manager in the dialog: "השלם אחרי
    * אימות" completes it only if Tranzila's report confirms the charge with
-   * the customer's own evidence; "אין תשלום — שחרר", only after checking in
-   * Tranzila, fails the order so the customer can pay again. A reason is
-   * required and kept on the invoice with who and when.
+   * the customer's own evidence (on a paid order: records a second charge);
+   * "אין תשלום — שחרר", only after checking in Tranzila, fails the order so
+   * the customer can pay again; "סגור — לא שלנו" takes a paid order's
+   * further number out of the follow-up. A reason is required and kept on
+   * the invoice with who and when.
    */
   async function handleReviewConfirm(reason: string, evidence: StorePaymentReviewEvidence) {
     if (!reviewTarget?.row.store_invoice_id) return;
@@ -784,6 +788,8 @@ export default function PaymentsTab({ ledger }: PaymentsTabProps) {
     const contact = row.source === 'store' ? storeContactLine(row) : '';
     const description = chargeDescription(row);
     const hasPdf = row.source === 'store' && Boolean(row.store_invoice_id);
+    // The undecided transaction numbers of a store row, and what a manager may decide.
+    const review = storeReviewChoices(row);
 
     return (
       <tr key={`${row.source}-${row.id}`}>
@@ -804,10 +810,9 @@ export default function PaymentsTab({ ledger }: PaymentsTabProps) {
           <span className={`${pageStyles.statusBadge} ${getPaymentStatusClass(row.status)}`} aria-label={statusLabel}>
             {statusLabel}
           </span>
-          {row.payment_in_review && (
+          {review.note && (
             <span className={styles.subLine} title={`מספרי עסקה: ${(row.review_numbers || []).join(', ')}`}>
-              תשלום בבדיקה
-              {(row.review_suspected || []).length > 0 && ' · חשוד — הדוח לא קושר אותו להזמנה'}
+              {review.note}
             </span>
           )}
         </td>
@@ -825,32 +830,23 @@ export default function PaymentsTab({ ledger }: PaymentsTabProps) {
                 <Download size={16} aria-hidden="true" />
               </button>
             )}
-            {row.payment_in_review && isManager && (
-              <>
-                <button
-                  type="button"
-                  className={styles.refundBtn}
-                  disabled={reviewingId === row.id}
-                  onClick={() => setReviewTarget({ row, action: 'complete' })}
-                >
-                  השלם אחרי אימות
-                </button>
-                <button
-                  type="button"
-                  className={styles.refundBtn}
-                  disabled={reviewingId === row.id}
-                  onClick={() => setReviewTarget({ row, action: 'release' })}
-                >
-                  אין תשלום — שחרר
-                </button>
-              </>
-            )}
+            {isManager && review.actions.map(({ action, label }) => (
+              <button
+                key={action}
+                type="button"
+                className={styles.refundBtn}
+                disabled={reviewingId === row.id}
+                onClick={() => setReviewTarget({ row, action })}
+              >
+                {label}
+              </button>
+            ))}
             {row.canRefund ? (
               <button type="button" className={styles.refundBtn} onClick={() => setRefundTarget(row)}>
                 זיכוי
               </button>
             ) : (
-              !hasPdf && !row.payment_in_review && <span className={styles.dash}>—</span>
+              !hasPdf && review.actions.length === 0 && <span className={styles.dash}>—</span>
             )}
           </div>
         </td>
@@ -1108,6 +1104,7 @@ export default function PaymentsTab({ ledger }: PaymentsTabProps) {
           key={reviewTarget ? `${reviewTarget.row.id}-${reviewTarget.action}` : 'closed'}
           isOpen={Boolean(reviewTarget)}
           action={reviewTarget?.action ?? 'complete'}
+          paid={reviewTarget ? isStoreRowPaid(reviewTarget.row) : false}
           itemDescription={reviewTarget?.row.description}
           numbers={(reviewTarget?.row.review_numbers || []).map((index) => ({
             index,

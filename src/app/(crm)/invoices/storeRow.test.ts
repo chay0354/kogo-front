@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import type { StoreInvoice } from '@/types/store';
-import { matchesPaymentSearch, storeContactLine, storeInvoiceToLedgerRow } from './utils';
+import {
+  isStoreRowPaid,
+  matchesPaymentSearch,
+  storeContactLine,
+  storeInvoiceToLedgerRow,
+  storeReviewChoices,
+} from './utils';
 
 const invoice: StoreInvoice = {
   id: 'inv-1',
@@ -86,6 +92,41 @@ describe('a store payment in review', () => {
       ],
     });
     expect(row.review_suspected).toEqual(['555555']);
+  });
+
+  it('offers a manager the decisions that fit the row', () => {
+    const inReview = storeInvoiceToLedgerRow({
+      ...invoice,
+      payment_status: 'pending',
+      payment_in_review: true,
+      payment_review_numbers: [{ index: '999999', suspected: false, reported_at: '2026-09-30T10:00:00Z' }],
+    });
+    expect(storeReviewChoices(inReview).actions.map((a) => a.action)).toEqual(['complete', 'release']);
+
+    // A failed order whose number a person released: the report may still confirm it.
+    const released = storeInvoiceToLedgerRow({
+      ...invoice,
+      payment_status: 'failed',
+      payment_in_review: false,
+      payment_review_numbers: [{ index: '999999', suspected: false, released: true, reported_at: '2026-09-30T10:00:00Z' }],
+    });
+    expect(storeReviewChoices(released).actions.map((a) => a.action)).toEqual(['complete']);
+    expect(storeReviewChoices(released).note).toContain('שוחרר');
+
+    // A paid order with a further number: a second charge, or not ours.
+    const paid = storeInvoiceToLedgerRow({
+      ...invoice,
+      payment_status: 'completed',
+      payment_in_review: false,
+      payment_review_numbers: [{ index: '111111', suspected: true, reported_at: '2026-09-30T10:00:00Z' }],
+    });
+    expect(isStoreRowPaid(paid)).toBe(true);
+    expect(storeReviewChoices(paid).actions).toEqual([
+      { action: 'complete', label: 'חיוב שני — אימות' },
+      { action: 'close', label: 'סגור — לא שלנו' },
+    ]);
+
+    expect(storeReviewChoices(storeInvoiceToLedgerRow(invoice))).toEqual({ note: '', actions: [] });
   });
 
   it('is not in review when the CRM says nothing', () => {
