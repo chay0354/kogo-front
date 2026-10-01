@@ -2,8 +2,11 @@ import type { Metadata, Viewport } from "next";
 // @ts-ignore: CSS import type declarations are handled by Next.js
 import "./globals.css";
 import { Providers } from "@/components/Providers";
+import { SITE_URL } from "@/lib/linkPreview";
 
 export const metadata: Metadata = {
+  // Link previews (src/lib/linkPreview.ts) need full picture addresses.
+  metadataBase: new URL(SITE_URL),
   title: "קוגומלו - ניהול חוגים",
   description: "מערכת ניהול חוגים לסניפי פעילות לילדים",
   icons: {
