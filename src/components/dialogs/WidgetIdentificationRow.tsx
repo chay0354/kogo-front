@@ -7,7 +7,9 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { formatSignedAt, formatSignedDate } from '@/lib/signatureUtils';
 import {
   fetchIdentificationSwitch,
+  identificationLocked,
   identificationSwitchLine,
+  releaseIdentificationLock,
   setIdentificationSwitch,
   type IdentificationSwitch,
 } from '@/lib/widgetIdentificationApi';
@@ -16,6 +18,9 @@ import {
  * The family card's line for the registration form's identification, with the
  * office's switch. Switching it off or back on asks for a reason, and the
  * history of every switch is one press away.
+ *
+ * When the form locked the family by itself — five wrong phones in a day — a
+ * second line says until when, with a button that opens it at once.
  *
  * Shows nothing at all when the server has no such switch (an older server).
  */
@@ -28,6 +33,8 @@ export default function WidgetIdentificationRow({ familyId }: { familyId: string
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [showHistory, setShowHistory] = useState(false);
+  const [opening, setOpening] = useState(false);
+  const [lockError, setLockError] = useState('');
   const request = useRef(0);
 
   useEffect(() => {
@@ -49,6 +56,20 @@ export default function WidgetIdentificationRow({ familyId }: { familyId: string
   }, [familyId]);
 
   if (missing) return null;
+
+  const openLock = async () => {
+    setOpening(true);
+    setLockError('');
+    try {
+      const next = await releaseIdentificationLock(familyId);
+      request.current += 1;
+      if (next) setState(next);
+    } catch (err: unknown) {
+      setLockError((err as { response?: { data?: { error?: string } } })?.response?.data?.error || 'הפתיחה נכשלה. נסו שוב.');
+    } finally {
+      setOpening(false);
+    }
+  };
 
   const save = async () => {
     if (!state || reason.trim().length < 2) {
@@ -87,7 +108,7 @@ export default function WidgetIdentificationRow({ familyId }: { familyId: string
             >
               {state.blocked ? 'הפעל' : 'כבה'}
             </Button>
-            {state.history.length > 0 ? (
+            {state.history.length + state.releases.length > 0 ? (
               <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={() => setShowHistory((open) => !open)}>
                 {showHistory ? 'הסתר היסטוריה' : 'היסטוריה'}
               </Button>
@@ -97,12 +118,29 @@ export default function WidgetIdentificationRow({ familyId }: { familyId: string
           <span className="font-medium">-</span>
         )}
       </div>
+      {state && !state.blocked && identificationLocked(state) ? (
+        <div className="flex justify-between gap-4 items-center text-sm" role="status">
+          <span className="text-amber-700">
+            נעול עד {formatSignedAt(state.locked_until)} · 5 טלפונים שגויים
+          </span>
+          <Button size="sm" variant="outline" className="h-7 px-2 text-xs" disabled={opening} onClick={openLock}>
+            {opening ? 'פותח...' : 'פתח עכשיו'}
+          </Button>
+        </div>
+      ) : null}
+      {lockError ? <p className="text-xs text-destructive" role="alert">{lockError}</p> : null}
       {showHistory && state ? (
         <ul className="text-xs text-muted-foreground space-y-1 pr-2 border-r-2 border-muted">
           {state.history.map((row, index) => (
             <li key={`${row.changed_at}-${index}`}>
               {formatSignedAt(row.changed_at)} · {row.blocked ? 'כובה' : 'הופעל'} · {row.reason}
               {row.changed_by_name ? ` · ${row.changed_by_name}` : ''}
+            </li>
+          ))}
+          {state.releases.map((row, index) => (
+            <li key={`release-${row.released_at}-${index}`}>
+              {formatSignedAt(row.released_at)} · נעילה נפתחה
+              {row.released_by_name ? ` · ${row.released_by_name}` : ''}
             </li>
           ))}
         </ul>
