@@ -9,8 +9,6 @@ interface Props {
   paid: boolean;
   /** Open from the start. For a first render only; the parent's presses take over. */
   defaultOpen?: boolean;
-  /** What the same line says before "worth knowing" — the consent to the terms, on the free trial's summary. */
-  children?: React.ReactNode;
 }
 
 /**
@@ -19,7 +17,7 @@ interface Props {
  * payment summary; a press anywhere else closes it. The explanation opens
  * upwards, so it never covers the button that approves.
  */
-export default function TrialInfo({ paid, defaultOpen = false, children }: Props) {
+export default function TrialInfo({ paid, defaultOpen = false }: Props) {
   const [open, setOpen] = useState(defaultOpen);
   const [arrow, setArrow] = useState<number | null>(null);
   const lineRef = useRef<HTMLDivElement | null>(null);
@@ -47,7 +45,6 @@ export default function TrialInfo({ paid, defaultOpen = false, children }: Props
 
   return (
     <div className={styles.infoLine} ref={lineRef}>
-      {children}
       <button ref={wordsRef} type="button" className={styles.infoLink} aria-expanded={open} onClick={press}>
         {TRIAL_INFO_LABEL}
       </button>

@@ -542,24 +542,13 @@
   line-height: 1.45;
 }
 
-/* One short line where a trial lesson is approved; its two dotted words open a short explanation. */
+/* Two dotted words where a trial lesson is approved; they open a short explanation. */
 .infoLine {
   position: relative;
   margin-top: 12px;
   font-size: 13.5px;
   line-height: 1.5;
   color: #4b5068;
-}
-/* "the terms" inside that line: opens the terms window. */
-.infoTerms {
-  background: none;
-  border: none;
-  padding: 0;
-  font: inherit;
-  color: #2B3090;
-  text-decoration: underline;
-  text-underline-offset: 3px;
-  cursor: pointer;
 }
 .consForm > .infoLine {
   margin-top: 0;

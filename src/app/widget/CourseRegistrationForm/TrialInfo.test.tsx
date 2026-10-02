@@ -73,9 +73,10 @@ describe('TrialInfo', () => {
     for (const line of trialInfoLines(true)) expect(html).toContain(line);
   });
 
-  it('carries what the line says before the two words', () => {
-    const html = renderToStaticMarkup(<TrialInfo paid={false}>באישור אני מסכים/ה לתקנון</TrialInfo>);
-    expect(html.indexOf('באישור אני מסכים/ה לתקנון')).toBeGreaterThan(-1);
-    expect(html.indexOf('באישור אני מסכים/ה לתקנון')).toBeLessThan(html.indexOf(TRIAL_INFO_LABEL));
+  it('says nothing about the terms: a free trial asks for no consent to them', () => {
+    for (const open of [false, true]) {
+      const html = renderToStaticMarkup(<TrialInfo paid={false} defaultOpen={open} />);
+      expect(html).not.toContain('תקנון');
+    }
   });
 });

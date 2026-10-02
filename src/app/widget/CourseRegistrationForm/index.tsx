@@ -1848,9 +1848,8 @@ export default function CourseRegistrationForm({
     </div>
   );
 
-  // The terms, read from a modal. Shared by the consents form (where reading to
-  // the end is required) and by the free trial's summary (where the link is
-  // there for whoever wants it).
+  // The terms, read from a modal on the consents form, where reading to the
+  // end is required. A free trial's summary asks for no consent and has none.
   const termsModal = showTerms ? (
     <div className={styles.termsOverlay} onClick={() => setShowTerms(false)}>
         <div className={styles.termsModal} onClick={(e) => e.stopPropagation()}>
@@ -2695,14 +2694,8 @@ export default function CourseRegistrationForm({
               </span>
             </div>
           </div>
-          {/* One short line: the consent to the terms, and what is worth knowing. */}
-          <TrialInfo paid={trialLessonIsPaid}>
-            באישור אני מסכים/ה{' '}
-            <button type="button" className={look.infoTerms} onClick={openTermsModal}>
-              לתקנון
-            </button>
-            <span aria-hidden="true"> · </span>
-          </TrialInfo>
+          {/* A free trial asks for no consent to the terms: only what is worth knowing. */}
+          <TrialInfo paid={trialLessonIsPaid} />
         </div>
 
         {errorMsg && <p className={styles.errorText}>{errorMsg}</p>}
@@ -2710,8 +2703,6 @@ export default function CourseRegistrationForm({
         <button type="submit" className={styles.submitButton}>
           אישור והרשמה
         </button>
-
-        {termsModal}
       </form>
     );
   }
