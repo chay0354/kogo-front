@@ -1,0 +1,1246 @@
+/*
+ * The registration form's newer screens: the step bar, the approvals as three
+ * steps, the payment summary, and the last screen. Navy #2B3090 and gold
+ * #F5C518 are the widget's own, as in index.module.css.
+ */
+
+/* A screen arriving. Each step is keyed, so this plays once per step. It must
+   not hold its last frame: a transform kept alive on the screen would trap the
+   terms window, which is fixed to the viewport, inside the form. */
+.stepIn {
+  animation: nlStepIn 420ms cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
+}
+@keyframes nlStepIn {
+  from { opacity: 0; transform: translateX(-22px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes nlRise {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes nlPop {
+  from { transform: scale(0) rotate(-20deg); }
+  to { transform: none; }
+}
+@keyframes nlGoldRing {
+  0% { box-shadow: 0 0 0 0 rgba(245, 197, 24, 0.7); }
+  100% { box-shadow: 0 0 0 12px rgba(245, 197, 24, 0); }
+}
+@keyframes nlNudge {
+  0% { box-shadow: 0 0 0 0 rgba(245, 197, 24, 0.75); }
+  100% { box-shadow: 0 0 0 14px rgba(245, 197, 24, 0); }
+}
+@keyframes nlShake {
+  20%, 60% { transform: translateX(-6px); }
+  40%, 80% { transform: translateX(6px); }
+}
+
+/* ---- progress through the registration ---- */
+.stepBar {
+  /* The page comes back to here when the screen changes. */
+  scroll-margin-top: 12px;
+  display: flex;
+  gap: 6px;
+  margin: 0 2px 16px;
+  padding: 0;
+  list-style: none;
+}
+.stepBarItem {
+  flex: 1;
+  position: relative;
+  padding-top: 11px;
+  text-align: center;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #a3a8c8;
+  transition: color 400ms;
+}
+.stepBarItem::before,
+.stepBarItem::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 0;
+  height: 4px;
+  border-radius: 4px;
+}
+.stepBarItem::before {
+  left: 0;
+  background: #e4e6f4;
+}
+.stepBarItem::after {
+  width: 0;
+  background: #2B3090;
+  transition: width 700ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.stepBarDone,
+.stepBarNow {
+  color: #2B3090;
+}
+.stepBarDone::after,
+.stepBarNow::after {
+  width: 100%;
+}
+.stepBarNow::after {
+  background: #F5C518;
+}
+
+/* ---- approvals: three numbered steps ---- */
+.consTop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.consTopTitle {
+  font-size: 15.5px;
+  font-weight: 700;
+  color: #1f2340;
+}
+.consCount {
+  flex-shrink: 0;
+  padding: 3px 11px;
+  border-radius: 999px;
+  background: #eef0fb;
+  color: #2B3090;
+  font-size: 12.5px;
+  font-weight: 700;
+  transition: background 300ms, color 300ms;
+}
+.consCountAll {
+  background: #16a34a;
+  color: #fff;
+}
+.consSteps {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.consStep {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+  border: 1.5px solid rgba(43, 48, 144, 0.15);
+  border-radius: 16px;
+  background: #fff;
+  scroll-margin: 16px;
+  transition: border-color 350ms, background 350ms, opacity 350ms, box-shadow 350ms;
+}
+.consStepHead {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.consStepTitle {
+  font-size: 15px;
+  font-weight: 700;
+  color: #2B3090;
+}
+.consStepHint {
+  margin-inline-start: auto;
+  font-size: 12px;
+  color: #6b7090;
+  text-align: left;
+}
+.consNum {
+  flex-shrink: 0;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: #DDE0F5;
+  color: #2B3090;
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1;
+  transition: background 300ms, color 300ms;
+}
+.consStepNow {
+  border-color: #2B3090;
+  box-shadow: 0 8px 20px rgba(43, 48, 144, 0.13);
+}
+.consStepNow .consNum {
+  background: #F5C518;
+}
+.consStepDone {
+  border-color: #cdeada;
+  background: #f5fbf7;
+}
+.consStepDone .consNum {
+  background: #16a34a;
+  color: #fff;
+  animation: nlPop 450ms cubic-bezier(0.3, 1.8, 0.5, 1);
+}
+.consStepLocked {
+  opacity: 0.55;
+}
+.consStepMissing {
+  border-color: #dc2626;
+  animation: nlShake 350ms;
+}
+.consLabel {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  font-size: 14px;
+  line-height: 1.55;
+  color: #1f2340;
+  cursor: pointer;
+}
+.consCheckbox {
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  margin: 2px 0 0;
+  accent-color: #2B3090;
+}
+.consOpenTerms {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 46px;
+  padding: 0 16px;
+  border: none;
+  border-radius: 12px;
+  background: #2B3090;
+  color: #fff;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.consOpenTerms:hover {
+  background: #1e2570;
+}
+.consOpenTermsAgain {
+  min-height: 38px;
+  border: 1.5px solid rgba(43, 48, 144, 0.35);
+  background: #fff;
+  color: #2B3090;
+  font-size: 13.5px;
+  font-weight: 600;
+}
+.consOpenTermsAgain:hover {
+  background: #eef0fb;
+}
+.consNote {
+  margin: 0;
+  font-size: 12.5px;
+  color: #6b7090;
+  line-height: 1.45;
+}
+.consTermsLink {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  color: #2B3090;
+  text-decoration: underline;
+  cursor: pointer;
+}
+.consError {
+  margin: 0;
+  font-size: 12.5px;
+  color: #dc2626;
+  line-height: 1.4;
+}
+.consSignature {
+  position: relative;
+  border-radius: 10px;
+}
+.consSignatureLocked {
+  pointer-events: none;
+  user-select: none;
+}
+/* An empty canvas dimmed alone still looks writable — cover it so it reads shut. */
+.consSignatureLocked::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 10px;
+  border: 1.5px dashed rgba(43, 48, 144, 0.35);
+  background: rgba(43, 48, 144, 0.07);
+}
+.consSignatureInvalid :global(canvas) {
+  border-color: #dc2626;
+}
+.readyButton {
+  animation: nlNudge 1.4s ease-out 2;
+}
+
+/* ---- payment summary ---- */
+.sumBox {
+  border: 1px solid #DDE0F5;
+  background: #f0f1fa;
+  border-radius: 16px;
+  padding: 16px;
+}
+.sumTitle {
+  margin: 0 0 14px;
+  text-align: center;
+  font-size: 18px;
+  font-weight: 800;
+  color: #1f2340;
+}
+.sumRow {
+  position: relative;
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  margin-top: 6px;
+  font-size: 14px;
+  color: #4b5068;
+}
+.sumRow:first-of-type {
+  margin-top: 0;
+}
+.sumRowValue {
+  color: #1f2340;
+  font-weight: 600;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.sumRowFree {
+  color: #16a34a;
+}
+/* While the price is on its way. Never a word about discounts. */
+.sumCheck {
+  display: flex;
+  align-items: center;
+  margin-top: 12px;
+  font-size: 12.5px;
+  color: #6b7090;
+}
+.sumNext {
+  margin: 4px 0 0;
+  text-align: left;
+  font-size: 12.5px;
+  color: #6b7090;
+  animation: nlRise 400ms cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
+}
+.sumRowStrong {
+  font-weight: 700;
+  color: #1f2340;
+}
+.sumRowStrong .sumRowValue {
+  color: #2B3090;
+  font-weight: 800;
+  display: inline-block;
+  transition: transform 250ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.sumBump {
+  transform: scale(1.14);
+}
+.disc {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: #fff;
+  border: 1px solid rgba(43, 48, 144, 0.15);
+  animation: nlRise 500ms cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
+}
+.discIcon {
+  flex-shrink: 0;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: #F5C518;
+  color: #2B3090;
+  display: grid;
+  place-items: center;
+  font-size: 14px;
+  font-weight: 800;
+  animation: nlPop 500ms cubic-bezier(0.3, 1.8, 0.5, 1) 250ms both, nlGoldRing 1s 450ms both;
+}
+.discCredit .discIcon {
+  background: #DDE0F5;
+}
+.discText {
+  flex: 1;
+  min-width: 0;
+}
+.discName {
+  display: block;
+  font-size: 14px;
+  font-weight: 700;
+  color: #1f2340;
+}
+.discWhy {
+  display: block;
+  font-size: 12px;
+  color: #6b7090;
+  line-height: 1.4;
+}
+.discAmount {
+  flex-shrink: 0;
+  text-align: left;
+  font-size: 14.5px;
+  font-weight: 800;
+  color: #16a34a;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.discCredit .discAmount {
+  color: #2B3090;
+}
+.discWhen {
+  display: block;
+  font-size: 10.5px;
+  font-weight: 600;
+  color: #6b7090;
+}
+/* A mid-month signup: the family pays for the lessons that are left. */
+.discPart {
+  background: #f4f6fd;
+}
+.discPart .discIcon {
+  background: #2B3090;
+  color: #fff;
+}
+.discPart .discAmount {
+  color: #2B3090;
+}
+.partDots {
+  display: flex;
+  gap: 5px;
+  margin-top: 6px;
+}
+.partDots i {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #d5d8ea;
+}
+.partDots .partDotOn {
+  background: #F5C518;
+  animation: nlPop 420ms cubic-bezier(0.3, 1.8, 0.5, 1) backwards;
+}
+.partDots .partDotOn:nth-child(2) { animation-delay: 80ms; }
+.partDots .partDotOn:nth-child(3) { animation-delay: 160ms; }
+.partDots .partDotOn:nth-child(4) { animation-delay: 240ms; }
+.partDots .partDotOn:nth-child(5) { animation-delay: 320ms; }
+.coin {
+  position: fixed;
+  z-index: 2000;
+  width: 16px;
+  height: 16px;
+  margin: -8px 0 0 -8px;
+  border-radius: 50%;
+  background: #F5C518;
+  box-shadow: 0 2px 6px rgba(43, 48, 144, 0.3);
+  pointer-events: none;
+}
+.sumTotal {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid #c5c9e8;
+  font-size: 15px;
+  font-weight: 800;
+  color: #1f2340;
+}
+.sumTotalValue {
+  display: inline-block;
+  font-size: 24px;
+  color: #2B3090;
+  font-variant-numeric: tabular-nums;
+  transition: transform 250ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.sumTotalStruck {
+  /* The figure is set left-to-right, so a logical margin would land on the wrong side. */
+  margin: 0 10px;
+  font-size: 14px;
+  font-weight: 500;
+  color: #9ca3af;
+  text-decoration: line-through;
+}
+.saved {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 14px;
+  padding: 11px 14px;
+  border-radius: 14px;
+  background: #FBF7EC;
+  border: 1.5px solid #F5C518;
+  color: #2B3090;
+  font-size: 14.5px;
+  font-weight: 700;
+  animation: nlPop 550ms cubic-bezier(0.3, 1.6, 0.5, 1) backwards;
+}
+.savedAmount {
+  font-size: 17px;
+  font-weight: 800;
+}
+.spark {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 7px;
+  height: 7px;
+  margin: -3px;
+  border-radius: 50%;
+  background: #F5C518;
+  opacity: 0;
+  animation: nlSpark 900ms ease-out 350ms both;
+}
+@keyframes nlSpark {
+  0% { transform: translate(0, 0) scale(0.4); opacity: 1; }
+  100% { transform: translate(var(--x), var(--y)) scale(1); opacity: 0; }
+}
+.creditNote {
+  margin: 8px 2px 0;
+  text-align: center;
+  font-size: 13px;
+  color: #2B3090;
+  line-height: 1.45;
+}
+
+/* the fee line opens a short explanation */
+.infoLink {
+  background: none;
+  border: none;
+  padding: 0 0 1px;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  border-bottom: 1.5px dotted currentColor;
+}
+.infoLink:hover {
+  color: #2B3090;
+}
+.infoPop {
+  position: absolute;
+  top: calc(100% + 10px);
+  right: -4px;
+  z-index: 6;
+  width: min(300px, 100%);
+  background: #2B3090;
+  color: #fff;
+  border-radius: 12px;
+  padding: 11px 13px;
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 1.6;
+  text-align: right;
+  box-shadow: 0 14px 34px rgba(30, 37, 112, 0.32);
+  transform-origin: top right;
+  animation: nlPopIn 260ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+.infoPop::before {
+  content: '';
+  position: absolute;
+  top: -5px;
+  right: 26px;
+  width: 12px;
+  height: 12px;
+  background: #2B3090;
+  transform: rotate(45deg);
+  border-radius: 2px;
+}
+@keyframes nlPopIn {
+  from { opacity: 0; transform: translateY(-6px) scale(0.95); }
+  to { opacity: 1; transform: none; }
+}
+
+/* ---- the last screen ---- */
+.done {
+  text-align: center;
+  padding: 34px 10px 20px;
+}
+.doneTick {
+  width: 68px;
+  height: 68px;
+  margin: 0 auto 14px;
+  border-radius: 50%;
+  background: #e6f6ec;
+  display: grid;
+  place-items: center;
+  animation: nlDoneTick 500ms cubic-bezier(0.3, 1.7, 0.5, 1) both;
+}
+@keyframes nlDoneTick {
+  from { transform: scale(0.4); opacity: 0; }
+}
+.doneTitle {
+  margin: 0 0 6px;
+  font-size: 19px;
+  font-weight: 700;
+  color: #2B3090;
+}
+.doneText {
+  margin: 0 auto;
+  max-width: 330px;
+  font-size: 14px;
+  color: #6b7090;
+  line-height: 1.5;
+}
+.paid {
+  max-width: 340px;
+  margin: 20px auto 0;
+  padding: 16px 18px 18px;
+  border-radius: 20px;
+  background: #2B3090;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  box-shadow: 0 14px 30px rgba(43, 48, 144, 0.26);
+  animation: nlRise 500ms cubic-bezier(0.2, 0.8, 0.2, 1) 150ms backwards;
+}
+.paidLabel {
+  font-size: 13.5px;
+  color: rgba(255, 255, 255, 0.82);
+}
+.paidValue {
+  font-size: 40px;
+  font-weight: 800;
+  line-height: 1.1;
+  color: #fff;
+  font-variant-numeric: tabular-nums;
+}
+.next {
+  max-width: 340px;
+  margin: 10px auto 0;
+  padding: 12px 14px;
+  border-radius: 16px;
+  background: #f0f1fa;
+  border: 1px solid #DDE0F5;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  text-align: right;
+  animation: nlRise 500ms cubic-bezier(0.2, 0.8, 0.2, 1) 300ms backwards;
+}
+.nextIcon {
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  background: #fff;
+  color: #2B3090;
+  display: grid;
+  place-items: center;
+}
+.nextLabel {
+  display: block;
+  font-size: 12.5px;
+  color: #6b7090;
+}
+.nextValue {
+  display: block;
+  font-size: 18px;
+  font-weight: 700;
+  color: #2B3090;
+}
+.gotTitle {
+  max-width: 340px;
+  margin: 20px auto 8px;
+  text-align: right;
+  font-size: 13px;
+  font-weight: 700;
+  color: #1f2340;
+}
+.gots {
+  max-width: 340px;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 10px;
+}
+.got {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 12px;
+  border-radius: 14px;
+  background: #FBF7EC;
+  border: 1.5px solid #F5C518;
+  text-align: right;
+  animation: nlRise 500ms cubic-bezier(0.2, 0.8, 0.2, 1) 450ms backwards;
+}
+.gotCredit {
+  background: #fff;
+  border-color: #DDE0F5;
+}
+.gotIcon {
+  width: 28px;
+  height: 28px;
+  margin-bottom: 4px;
+  border-radius: 50%;
+  background: #F5C518;
+  color: #2B3090;
+  display: grid;
+  place-items: center;
+  font-size: 13px;
+  font-weight: 800;
+}
+.gotCredit .gotIcon {
+  background: #DDE0F5;
+}
+.gotName {
+  font-size: 14px;
+  font-weight: 700;
+  color: #1f2340;
+}
+.gotLine {
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: #6b7090;
+}
+.gotLine strong {
+  color: #1f2340;
+  font-weight: 800;
+}
+.doneActions {
+  margin-top: 22px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .stepIn,
+  .disc,
+  .discIcon,
+  .saved,
+  .spark,
+  .infoPop,
+  .doneTick,
+  .paid,
+  .next,
+  .got,
+  .readyButton,
+  .consStepMissing,
+  .consStepDone .consNum,
+  .partDots .partDotOn {
+    animation: none;
+  }
+  .stepBarItem::after,
+  .sumRowStrong .sumRowValue,
+  .sumTotalValue {
+    transition: none;
+  }
+}
+
+/* ───────── a returning parent: two fields first, then the form opens ───────── */
+
+/* A block that opens and closes by its own height. */
+.reveal {
+  display: grid;
+  grid-template-rows: 0fr;
+  opacity: 0;
+  transition: grid-template-rows 600ms cubic-bezier(0.2, 0.8, 0.2, 1), opacity 450ms ease;
+}
+.reveal > .revealIn {
+  min-height: 0;
+  overflow: hidden;
+}
+.revealOpen {
+  grid-template-rows: 1fr;
+  opacity: 1;
+}
+/* Once open, nothing inside is clipped (focus rings, the fee popup). */
+.revealSettled > .revealIn {
+  overflow: visible;
+}
+.gap16 { padding-top: 16px; }
+.gap20 { padding-top: 20px; }
+
+.idHint {
+  margin: 9px 2px 0;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: #6b7090;
+}
+.idHint b {
+  color: #2B3090;
+}
+.idHintError {
+  color: #dc2626;
+}
+.dotSpin {
+  display: inline-block;
+  vertical-align: -3px;
+  width: 14px;
+  height: 14px;
+  margin-inline-end: 7px;
+  border-radius: 50%;
+  border: 2px solid rgba(43, 48, 144, 0.2);
+  border-top-color: #2B3090;
+  animation: nlSpin 700ms linear infinite;
+}
+@keyframes nlSpin { to { transform: rotate(360deg); } }
+.textButton {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: #2B3090;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+/* A field the system filled: hidden text, a green tick, opens on a press. */
+.field {
+  position: relative;
+}
+.fieldTick {
+  position: absolute;
+  top: 50%;
+  left: 12px;
+  width: 18px;
+  height: 18px;
+  margin-top: -9px;
+  border-radius: 50%;
+  background: #16a34a;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+  transform: scale(0);
+  transition: transform 300ms cubic-bezier(0.3, 1.7, 0.5, 1);
+}
+.fieldLtr > .fieldTick {
+  left: auto;
+  right: 12px;
+}
+.fieldFilling input {
+  border-color: #F5C518 !important;
+  box-shadow: 0 0 0 3px rgba(245, 197, 24, 0.4);
+}
+.fieldFilled .fieldTick {
+  transform: scale(1);
+}
+.fieldFilled input {
+  animation: nlSettle 1.2s ease-out;
+}
+@keyframes nlSettle { from { background: #e6f6ec; } to { background: #F6F7FD; } }
+.fieldLocked input {
+  background: #F6F7FD;
+  cursor: pointer;
+}
+.genderFilled {
+  margin-inline: -8px;
+  padding: 6px 8px;
+  border-radius: 10px;
+  animation: nlSettleSoft 1.2s ease-out;
+}
+@keyframes nlSettleSoft { from { background: #e6f6ec; } to { background: transparent; } }
+
+/* The "we know you" card. */
+.knownCard {
+  border: 2px solid #2B3090;
+  border-radius: 16px;
+  background: #FBF7EC;
+  padding: 16px;
+  overflow: hidden;
+}
+.knownCard > * {
+  animation: nlRise 400ms cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
+}
+.knownCardLeaving > * {
+  opacity: 0;
+  transform: translateY(-8px);
+  transition: opacity 220ms ease, transform 220ms ease;
+}
+.knownHead {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.knownMark {
+  display: inline-grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: #F5C518;
+  color: #2B3090;
+}
+.knownHead b {
+  font-size: 16px;
+  font-weight: 700;
+  color: #2B3090;
+  line-height: 1.3;
+}
+.knownFine {
+  margin: 12px 0 0;
+  padding-top: 10px;
+  border-top: 1px solid rgba(43, 48, 144, 0.14);
+  font-size: 12px;
+  color: #6b7090;
+  line-height: 1.45;
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: baseline;
+  flex-wrap: wrap;
+}
+.kids {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.kid {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  text-align: right;
+  background: #fff;
+  border: 1.5px solid rgba(43, 48, 144, 0.15);
+  border-radius: 14px;
+  padding: 12px;
+  font: inherit;
+  color: #2B3090;
+  cursor: pointer;
+  transition: border-color 200ms, box-shadow 300ms, transform 350ms cubic-bezier(0.2, 0.8, 0.2, 1), opacity 300ms ease, background 200ms;
+}
+.kid:hover {
+  border-color: #2B3090;
+  box-shadow: 0 4px 14px rgba(43, 48, 144, 0.12);
+}
+.kid:active {
+  transform: scale(0.99);
+}
+.kidAvatar {
+  flex-shrink: 0;
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 18px;
+  font-weight: 800;
+  background: #F5C518;
+  color: #2B3090;
+  transition: background 250ms, color 250ms;
+}
+.kid:nth-child(2) .kidAvatar {
+  background: #7BBFEA;
+  color: #fff;
+}
+.kidText {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.kidText b {
+  font-size: 15px;
+  font-weight: 700;
+}
+.kidText small {
+  font-size: 12.5px;
+  color: #6b7090;
+}
+.kidGo {
+  flex-shrink: 0;
+  opacity: 0.55;
+}
+.kidNew {
+  border-style: dashed;
+  background: transparent;
+}
+.kidNew .kidAvatar,
+.kid.kidNew:nth-child(2) .kidAvatar {
+  background: #fff;
+  color: #2B3090;
+  border: 1.5px dashed rgba(43, 48, 144, 0.4);
+  font-weight: 500;
+  font-size: 22px;
+}
+/* Choosing: the chosen row lifts and gets a tick, the rest fades. */
+.kidPicked {
+  border-color: #2B3090;
+  border-style: solid;
+  background: #fff;
+  box-shadow: 0 10px 26px rgba(43, 48, 144, 0.22);
+  transform: scale(1.03);
+}
+.kidPicked .kidGo {
+  opacity: 0;
+}
+.kidPicked .kidAvatar,
+.kid.kidPicked:nth-child(2) .kidAvatar {
+  background: #16a34a;
+  color: #fff;
+  border: none;
+}
+.kidPicked .kidAvatar svg {
+  animation: nlPop 450ms cubic-bezier(0.3, 1.7, 0.5, 1) both;
+}
+.fadeOut {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 300ms ease;
+}
+
+/* The line under the card's title: the parent was told on WhatsApp. One small row. */
+.secLine {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: -6px 2px 14px;
+  padding-inline-end: 6px;
+}
+.secIcon {
+  position: relative;
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+}
+.secWa {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: #25D366;
+  display: grid;
+  place-items: center;
+  animation: nlSecBump 500ms 970ms both, nlSecRing 1s 1050ms both;
+}
+.secShield {
+  position: absolute;
+  left: -8px;
+  bottom: -7px;
+  width: 17px;
+  height: 17px;
+  animation: nlPop 450ms cubic-bezier(0.3, 1.8, 0.5, 1) 1350ms both;
+}
+.secShield svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+.secFly {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  width: 9px;
+  height: 8px;
+  border-radius: 3px 3px 3px 1px;
+  background: #2B3090;
+  opacity: 0;
+  animation: nlSecFly 700ms cubic-bezier(0.5, 0, 0.3, 1) 350ms both;
+}
+.secText {
+  min-width: 0;
+  font-size: 11.5px;
+  font-weight: 500;
+  color: #2f6b47;
+  line-height: 1.35;
+}
+@keyframes nlSecFly {
+  0% { transform: translate(-70px, -3px) scale(1.1); opacity: 0; }
+  25% { opacity: 1; }
+  80% { opacity: 1; }
+  100% { transform: translate(0, 0) scale(0.25); opacity: 0; }
+}
+@keyframes nlSecBump { 0% { transform: scale(1); } 45% { transform: scale(1.2); } 100% { transform: scale(1); } }
+@keyframes nlSecRing { 0% { box-shadow: 0 0 0 0 rgba(37, 211, 102, 0.6); } 100% { box-shadow: 0 0 0 8px rgba(37, 211, 102, 0); } }
+
+/* After a choice the card folds into a strip. */
+.strip {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border-radius: 12px;
+  background: #F3F5FD;
+  border: 1.5px solid rgba(43, 48, 144, 0.2);
+  padding: 10px 12px;
+  animation: nlRise 500ms cubic-bezier(0.2, 0.8, 0.2, 1) 120ms backwards;
+}
+.stripDot {
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: #16a34a;
+  display: grid;
+  place-items: center;
+}
+.stripText {
+  flex: 1;
+  min-width: 0;
+  font-size: 13.5px;
+  line-height: 1.4;
+  color: #2B3090;
+}
+.stripText b {
+  font-weight: 700;
+}
+.stripText small {
+  display: block;
+  font-size: 12px;
+  color: #6b7090;
+}
+.kidNote {
+  margin: -6px 0 16px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: #eef2ff;
+  color: #2B3090;
+  font-size: 13px;
+  line-height: 1.45;
+}
+.kidNote .textButton {
+  margin-inline-start: 4px;
+}
+
+/* "Add another child / another class": the same dashed row as "another child" in the card. */
+.addRows {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.addRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  text-align: right;
+  background: transparent;
+  border: 1.5px dashed rgba(43, 48, 144, 0.35);
+  border-radius: 14px;
+  padding: 10px 12px;
+  font: inherit;
+  color: #2B3090;
+  cursor: pointer;
+  transition: border-color 200ms, background 200ms, box-shadow 300ms;
+}
+.addRow:hover {
+  border-color: #2B3090;
+  background: #fff;
+  box-shadow: 0 4px 14px rgba(43, 48, 144, 0.1);
+}
+.addRowPlus {
+  flex-shrink: 0;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: #fff;
+  border: 1.5px dashed rgba(43, 48, 144, 0.4);
+  font-size: 20px;
+  font-weight: 500;
+  line-height: 1;
+}
+.addRowText {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.addRowText b {
+  font-size: 14.5px;
+  font-weight: 700;
+}
+.addRowText small {
+  font-size: 12.5px;
+  color: #6b7090;
+}
+
+/* The secure payment screen: a small summary, a shield that draws itself, then the card. */
+.payBox {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px 16px;
+  border: 1px solid #DDE0F5;
+  background: #f0f1fa;
+  border-radius: 16px;
+}
+.paySafe {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin: 16px 0 4px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #2B3090;
+}
+.payShield {
+  flex-shrink: 0;
+  width: 30px;
+  height: 30px;
+  color: #2B3090;
+}
+.payShield svg {
+  width: 100%;
+  height: 100%;
+}
+.payShieldDraw {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: nlDrawIn 1s cubic-bezier(0.2, 0.8, 0.2, 1) 100ms forwards;
+}
+.payShieldLock {
+  color: #F5C518;
+  stroke: #b98f00;
+  opacity: 0;
+  transform-origin: 12px 13px;
+  animation: nlLockIn 450ms cubic-bezier(0.3, 1.8, 0.5, 1) 850ms forwards;
+}
+@keyframes nlDrawIn { to { stroke-dashoffset: 0; } }
+@keyframes nlLockIn { from { opacity: 0; transform: scale(0) rotate(-20deg); } to { opacity: 1; transform: none; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .reveal,
+  .fieldTick,
+  .kid,
+  .fadeOut,
+  .knownCardLeaving > * {
+    transition: none;
+  }
+  .knownCard > *,
+  .strip,
+  .secWa,
+  .secShield,
+  .secFly,
+  .fieldFilled input,
+  .genderFilled,
+  .kidPicked .kidAvatar svg,
+  .dotSpin,
+  .payShieldDraw,
+  .payShieldLock {
+    animation: none;
+  }
+  .payShieldDraw { stroke-dashoffset: 0; }
+  .payShieldLock { opacity: 1; }
+  .secFly { opacity: 0; }
+}
+
+/* The two numbers the form opens on; the page scrolls them to the top when a parent is found. */
+.topRow {
+  scroll-margin-top: 16px;
+}
+.welcome {
+  scroll-margin-top: 12px;
+}
+/* A closed block takes no room, whatever spacing the form gives its children. */
+.reveal:not(.revealOpen) {
+  margin-top: 0 !important;
+}
+
+.payTitle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}

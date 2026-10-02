@@ -19,6 +19,15 @@ export interface SavedParentDetails {
   parentLastName: string;
   parentPhone: string;
   parentEmail: string;
+  /**
+   * The parent the form identified, carried to the next child's form so it
+   * opens on "who are we registering now?" instead of asking again. Held in
+   * memory only, like the rest of this object; it carries hidden details and
+   * a token good for one sitting.
+   */
+  known?: import('./identification').KnownParent | null;
+  /** The phone shown is the one on the card (a similar number was corrected), so none was typed. */
+  phoneFromCard?: boolean;
 }
 
 export interface Props {
@@ -64,6 +73,8 @@ export interface TrialOccurrence {
 export type Step =
   | 'details'
   | 'discount_confirm'
+  // The price before the signature (a course registration; trials have none).
+  | 'summary'
   | 'consents'
   | 'submitting'
   | 'error'
@@ -106,9 +117,13 @@ export interface PaymentResponse {
   prorate_lessons_remaining?: number;
   total_lessons_this_month?: number;
   registration_fee?: number;
+  /** No fee on this registration because the child already paid it. */
+  registration_fee_paid_before?: boolean;
   monthly_amount?: number;
   /** Set when monthly billing only starts later — nothing but דמי רישום is charged now. */
   subscription_start_date?: string | null;
+  /** The day the standing order first runs, as the server set it. */
+  next_billing_date?: string | null;
   /** A paid trial the parent already settled, taken off this first charge. */
   trial_credit_amount?: number;
   trial_credit_paid?: number;

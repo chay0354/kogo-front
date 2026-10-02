@@ -16,10 +16,32 @@ describe('processingCopy', () => {
     expect(processingCopy('register', 6_000).activeStep).toBe(2);
   });
 
-  it('opens the verify phase on its last step, with the earlier ones done', () => {
+  it('opens the verify phase waiting for the answer, the card already out', () => {
     const copy = processingCopy('verify', 0);
-    expect(copy.activeStep).toBe(copy.steps.length - 1);
+    expect(copy.activeStep).toBe(1);
     expect(copy.subtitle).toContain('אל תשלמו שוב');
+  });
+
+  it('never says a charge was approved while its answer is still awaited', () => {
+    for (const phase of ['charge', 'verify'] as const) {
+      const copy = processingCopy(phase, 0);
+      expect([copy.title, copy.subtitle, ...copy.steps].join(' ')).not.toContain('אושר');
+    }
+  });
+
+  it('checks details while registering, and never mentions discounts', () => {
+    expect(processingCopy('register', 0).steps.join(' ')).not.toContain('הנח');
+  });
+
+  it('keeps every line short', () => {
+    for (const phase of ['register', 'charge', 'verify', 'trial_charge'] as const) {
+      for (const ms of [0, SLOW_AFTER_MS, VERY_SLOW_AFTER_MS]) {
+        const copy = processingCopy(phase, ms);
+        for (const line of [copy.title, copy.subtitle, copy.slowNote, ...copy.steps]) {
+          expect(line.length).toBeLessThanOrEqual(48);
+        }
+      }
+    }
   });
 
   it('stays quiet while fast, then reassures, then warns', () => {
