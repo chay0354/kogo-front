@@ -8,12 +8,28 @@
    not hold its last frame: a transform kept alive on the screen would trap the
    terms window, which is fixed to the viewport, inside the form. */
 .stepIn {
-  animation: nlStepIn 420ms cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
+  animation: nlStepIn 450ms cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
+}
+/* On the way back the screen comes in from the other side. */
+.stepInBack {
+  animation: nlStepInBack 450ms cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
 }
 @keyframes nlStepIn {
-  from { opacity: 0; transform: translateX(-22px); }
+  from { opacity: 0; transform: translateX(-30px); }
   to { opacity: 1; transform: none; }
 }
+@keyframes nlStepInBack {
+  from { opacity: 0; transform: translateX(30px); }
+  to { opacity: 1; transform: none; }
+}
+/* A screen leaving, just before the next one arrives. */
+.stepOut,
+.stepOutBack {
+  opacity: 0;
+  transition: opacity 200ms ease, transform 200ms ease;
+}
+.stepOut { transform: translateX(30px); }
+.stepOutBack { transform: translateX(-30px); }
 @keyframes nlRise {
   from { opacity: 0; transform: translateY(8px); }
   to { opacity: 1; transform: none; }
@@ -44,6 +60,10 @@
   margin: 0 2px 16px;
   padding: 0;
   list-style: none;
+}
+/* Sixteen under the bar on every screen, whatever spacing the form gives its children. */
+.stepBar + * {
+  margin-top: 0 !important;
 }
 .stepBarItem {
   flex: 1;
@@ -86,11 +106,24 @@
 }
 
 /* ---- approvals: three numbered steps ---- */
+/* The screen is one column, twelve apart; the title row sits close above the count. */
+.consForm {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.consForm > div:first-of-type {
+  margin-bottom: 2px;
+}
+.consForm > .stepBar {
+  margin-bottom: 4px;
+}
 .consTop {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 10px;
+  margin-bottom: 2px;
 }
 .consTopTitle {
   font-size: 15.5px;
@@ -232,14 +265,8 @@
   color: #6b7090;
   line-height: 1.45;
 }
-.consTermsLink {
-  background: none;
-  border: none;
-  padding: 0;
-  font: inherit;
-  color: #2B3090;
-  text-decoration: underline;
-  cursor: pointer;
+.consTermsLabel {
+  padding-top: 4px;
 }
 .consError {
   margin: 0;
@@ -263,6 +290,9 @@
   border-radius: 10px;
   border: 1.5px dashed rgba(43, 48, 144, 0.35);
   background: rgba(43, 48, 144, 0.07);
+}
+.consSignature :global(canvas) {
+  border-radius: 10px;
 }
 .consSignatureInvalid :global(canvas) {
   border-color: #dc2626;
@@ -470,7 +500,6 @@
   align-items: center;
   justify-content: center;
   gap: 8px;
-  margin-top: 14px;
   padding: 11px 14px;
   border-radius: 14px;
   background: #FBF7EC;
@@ -478,7 +507,10 @@
   color: #2B3090;
   font-size: 14.5px;
   font-weight: 700;
-  animation: nlPop 550ms cubic-bezier(0.3, 1.6, 0.5, 1) backwards;
+}
+/* It pops as its place opens, and the sparks fly a moment later. */
+.revealOpen .saved {
+  animation: nlPop 550ms cubic-bezier(0.3, 1.6, 0.5, 1) 150ms backwards;
 }
 .savedAmount {
   font-size: 17px;
@@ -494,7 +526,9 @@
   border-radius: 50%;
   background: #F5C518;
   opacity: 0;
-  animation: nlSpark 900ms ease-out 350ms both;
+}
+.revealOpen .spark {
+  animation: nlSpark 900ms ease-out 450ms both;
 }
 @keyframes nlSpark {
   0% { transform: translate(0, 0) scale(0.4); opacity: 1; }
@@ -709,10 +743,11 @@
 
 @media (prefers-reduced-motion: reduce) {
   .stepIn,
+  .stepInBack,
   .disc,
   .discIcon,
-  .saved,
-  .spark,
+  .revealOpen .saved,
+  .revealOpen .spark,
   .infoPop,
   .doneTick,
   .paid,
@@ -767,6 +802,9 @@
 .idHintError {
   color: #dc2626;
 }
+.idHint .textButton {
+  font-size: 12.5px;
+}
 .dotSpin {
   display: inline-block;
   vertical-align: -3px;
@@ -784,7 +822,7 @@
   border: none;
   padding: 0;
   font: inherit;
-  font-size: 13px;
+  font-size: 13.5px;
   font-weight: 600;
   color: #2B3090;
   text-decoration: underline;
@@ -830,10 +868,13 @@
   background: #F6F7FD;
   cursor: pointer;
 }
-.genderFilled {
+/* The room the green flash needs is there from the start, so nothing moves when it plays. */
+.genderRow {
   margin-inline: -8px;
   padding: 6px 8px;
   border-radius: 10px;
+}
+.genderFilled {
   animation: nlSettleSoft 1.2s ease-out;
 }
 @keyframes nlSettleSoft { from { background: #e6f6ec; } to { background: transparent; } }
@@ -1098,6 +1139,7 @@
   line-height: 1.45;
 }
 .kidNote .textButton {
+  font-size: 13px;
   margin-inline-start: 4px;
 }
 
@@ -1227,9 +1269,50 @@
   .secFly { opacity: 0; }
 }
 
+/* The class the form was opened for, above everything else. */
+.lessonCard {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  /* Sixteen under the title row, whatever spacing the form gives its children. */
+  margin-top: 16px !important;
+  padding: 12px 14px;
+  border-radius: 10px;
+  border: 1px solid rgba(43, 48, 144, 0.15);
+}
+.lessonCard b {
+  font-size: 14px;
+  font-weight: 600;
+  color: #2B3090;
+}
+.lessonCard span {
+  font-size: 13px;
+  color: #4b5563;
+}
+
+/* The fields of a block that opens rise in, one after the other. */
+.revealOpen .riseGrid > div {
+  animation: nlRise 500ms cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
+}
+.revealOpen .riseGrid > div:nth-child(1) { animation-delay: 140ms; }
+.revealOpen .riseGrid > div:nth-child(2) { animation-delay: 200ms; }
+.revealOpen .riseGrid > div:nth-child(3) { animation-delay: 260ms; }
+.revealOpen .riseGrid > div:nth-child(4) { animation-delay: 320ms; }
+.revealOpen .riseGrid > div:nth-child(5) { animation-delay: 380ms; }
+@media (prefers-reduced-motion: reduce) {
+  .revealOpen .riseGrid > div {
+    animation: none;
+  }
+  .stepOut,
+  .stepOutBack {
+    transition: none;
+  }
+}
+
 /* The two numbers the form opens on; the page scrolls them to the top when a parent is found. */
 .topRow {
-  scroll-margin-top: 16px;
+  /* The section's title stays on show above the two numbers. */
+  scroll-margin-top: 70px;
 }
 .welcome {
   scroll-margin-top: 12px;

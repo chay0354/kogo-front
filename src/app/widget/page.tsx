@@ -12,12 +12,14 @@ import type { SavedParentDetails } from './CourseRegistrationForm/types';
 import {
   STATIC_CITIES,
   drawerCourseTitle,
+  drawerLessonLine,
   resolveWidgetExternalLink,
   hideSeptemberStandingOrderNote,
 } from './page.utils';
 import { isCourseVisibleInWidgetCatalog , trialLessonChoices } from './lessonVisibility';
 import { AGE_OPTIONS, formatAge, isInstructorsCourse } from '@/lib/courseUtils';
 import { findWidgetAlternatives, isWidgetSelectionFull, type WidgetAlternative } from './alternativeLessons';
+import { scheduleLabel } from './catalogRows';
 import { sortWidgetCourseTypes } from './courseTypeOrder';
 import { WIDGET_MOTION_MS, holdsBandWhileOpen, prefersReducedMotion } from './widgetMotion';
 import { preloadInstructorPhotos } from './instructorPhotoPreload';
@@ -930,6 +932,11 @@ export default function WidgetPage() {
                     isBundle: Boolean(drawerBundle),
                     isInstructors: isInstructorsCourse(drawerCourse),
                   })}
+                  lessonLine={drawerLessonLine(
+                    scheduleLabel(drawerLesson, drawerBundle),
+                    (drawerBundle?.lessons?.length ?? 0) > 1,
+                    cities.find((c) => c.id === selectedCity)?.name,
+                  )}
                   isAdult={drawerCourse.is_adult ?? false}
                   bundleId={drawerBundle?.id}
                   lessonId={drawerLesson?.id}

@@ -89,6 +89,16 @@ export function resolveWidgetExternalLink(
 }
 
 /**
+ * The line under the course's name at the top of the registration form: when
+ * it meets and where — "יום שני · 17:00-17:45 · כפר סבא". The schedule is the
+ * catalogue's own wording, so the parent reads the same day and hours twice.
+ */
+export function drawerLessonLine(schedule: string, twiceAWeek: boolean, place?: string | null): string {
+  const when = schedule.trim() ? `${twiceAWeek ? 'ימי' : 'יום'} ${schedule.trim()}` : '';
+  return [when, (place || '').trim()].filter(Boolean).join(' · ');
+}
+
+/**
  * The course as it should read on the registration drawer — the same words the
  * catalogue row beside it uses.
  *

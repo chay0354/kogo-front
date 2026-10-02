@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { prefersReducedMotion } from '../widgetMotion';
 import styles from './newLook.module.css';
 import { formatShekelShort, paymentSummaryModel } from './paymentSummaryModel';
+import Reveal from './Reveal';
 import type { PaymentResponse } from './types';
 
 interface Props {
@@ -320,18 +321,21 @@ export default function PaymentSummary({
         ) : null}
       </div>
 
-      {settled && saved > 0 ? (
-        <div className={styles.saved}>
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="#F5C518" aria-hidden="true">
-            <path d="M12 2l2.4 6.2L21 9.3l-5 4.3L17.5 20 12 16.6 6.5 20 8 13.6 3 9.3l6.6-1.1z" />
-          </svg>
-          <span>
-            חסכתם <span className={styles.savedAmount} dir="ltr">{formatShekelShort(saved)}</span> בכל חודש
-          </span>
-          {[[-46, -26], [44, -28], [-70, 6], [70, 4], [-30, 28], [34, 30]].map(([x, y]) => (
-            <i key={`${x}:${y}`} className={styles.spark} style={{ '--x': `${x}px`, '--y': `${y}px` } as React.CSSProperties} />
-          ))}
-        </div>
+      {/* What was saved opens under the box once the sum has come to rest. */}
+      {saved > 0 ? (
+        <Reveal open={settled} gap={16}>
+          <div className={styles.saved}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="#F5C518" aria-hidden="true">
+              <path d="M12 2l2.4 6.2L21 9.3l-5 4.3L17.5 20 12 16.6 6.5 20 8 13.6 3 9.3l6.6-1.1z" />
+            </svg>
+            <span>
+              חסכתם <span className={styles.savedAmount} dir="ltr">{formatShekelShort(saved)}</span> בכל חודש
+            </span>
+            {[[-46, -26], [44, -28], [-70, 6], [70, 4], [-30, 28], [34, 30]].map(([x, y]) => (
+              <i key={`${x}:${y}`} className={styles.spark} style={{ '--x': `${x}px`, '--y': `${y}px` } as React.CSSProperties} />
+            ))}
+          </div>
+        </Reveal>
       ) : null}
     </>
   );

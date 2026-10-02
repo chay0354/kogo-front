@@ -1,5 +1,56 @@
 import { describe, expect, it } from 'vitest';
-import { readIdentifyAnswer } from './identification';
+import { isMobilePhone, nextPairMove, pairHintError, readIdentifyAnswer } from './identification';
+
+describe('isMobilePhone', () => {
+  it('takes ten digits that start with 05, and nothing else', () => {
+    expect(isMobilePhone('0541234567')).toBe(true);
+    for (const phone of ['', '054123456', '05412345678', '0341234567', '054-1234567', '•••••••••7']) {
+      expect(isMobilePhone(phone)).toBe(false);
+    }
+  });
+});
+
+describe('pairHintError', () => {
+  it('is silent while the numbers are still being typed', () => {
+    expect(pairHintError('11111111', false, '054123', false)).toBe('');
+    expect(pairHintError('', false, '', false)).toBe('');
+  });
+
+  it('names a whole identity number that is wrong, before the phone', () => {
+    expect(pairHintError('111111111', false, '0341234567', false)).toBe('מספר תעודת הזהות לא תקין');
+  });
+
+  it('names a whole phone that does not start with 05', () => {
+    expect(pairHintError('111111118', true, '0341234567', false)).toBe('מספר נייד מתחיל ב־05');
+  });
+
+  it('is silent when both are good', () => {
+    expect(pairHintError('111111118', true, '0541234567', true)).toBe('');
+  });
+});
+
+describe('nextPairMove', () => {
+  const whole = { idOk: true, phoneOk: true, key: '111111118|0541234567', lastKey: '', manualAwaitsPhone: false };
+
+  it('asks about a whole pair once', () => {
+    expect(nextPairMove(whole)).toBe('ask');
+    expect(nextPairMove({ ...whole, lastKey: whole.key })).toBe('stay');
+  });
+
+  it('waits while either number is not whole', () => {
+    expect(nextPairMove({ ...whole, idOk: false })).toBe('wait');
+    expect(nextPairMove({ ...whole, phoneOk: false, lastKey: whole.key })).toBe('wait');
+  });
+
+  it('asks again when a number was changed, also after "I will fill it in myself"', () => {
+    expect(nextPairMove({ ...whole, key: '111111118|0541234568', lastKey: whole.key })).toBe('ask');
+  });
+
+  it('keeps the form open while a phone that was the card\'s is typed, and does not ask about it', () => {
+    expect(nextPairMove({ ...whole, phoneOk: false, manualAwaitsPhone: true })).toBe('stay');
+    expect(nextPairMove({ ...whole, manualAwaitsPhone: true })).toBe('settle');
+  });
+});
 
 describe('readIdentifyAnswer', () => {
   it('reads a known parent with the hidden details as the server sent them', () => {
