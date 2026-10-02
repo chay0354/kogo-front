@@ -66,6 +66,40 @@ function requestHostBand() {
   }
 }
 
+/** Changed by hand whenever the sheet's geometry changes: it tells the check which widget a phone has loaded. */
+const WIDGET_CHECK_BUILD = 'w-0210d';
+
+/**
+ * The host's on-device check asked where things stand in here. The widget is
+ * inside a frame of another origin, so the host cannot look for itself; and a
+ * real phone is seen only through what it shows on its own screen. Answers
+ * with sizes and positions only — nothing of what was typed.
+ */
+function answerDeviceCheck() {
+  const span = (selector: string) => {
+    const el = document.querySelector<HTMLElement>(selector);
+    if (!el) return null;
+    const rect = el.getBoundingClientRect();
+    return [Math.round(rect.top), Math.round(rect.bottom)];
+  };
+  const sheet = document.querySelector<HTMLElement>('[data-kogo-sheet]');
+  try {
+    window.parent.postMessage({
+      type: 'kogo-widget-check-info',
+      build: WIDGET_CHECK_BUILD,
+      inner: [window.innerWidth, window.innerHeight],
+      band: hostBand,
+      frozen: bandFrozen,
+      sheet: span('[data-kogo-sheet]'),
+      sheetPad: sheet ? getComputedStyle(sheet).paddingBottom : null,
+      sheetScroll: sheet ? [Math.round(sheet.scrollTop), sheet.scrollHeight, sheet.clientHeight] : null,
+      card: span('[data-kogo-card]'),
+    }, '*');
+  } catch {
+    /* a host that cannot be reached is not waiting for an answer */
+  }
+}
+
 function ensureHostBandBridge() {
   if (bandBridgeReady || typeof window === 'undefined') return;
   bandBridgeReady = true;
@@ -73,6 +107,10 @@ function ensureHostBandBridge() {
     const data = event.data as {
       type?: string; top?: number; bottom?: number; edge?: number; ceiling?: number; under?: number;
     } | null;
+    if (data?.type === 'kogo-widget-check') {
+      answerDeviceCheck();
+      return;
+    }
     if (!data || data.type !== 'kogo-widget-visible-band') return;
     if (bandFrozen) return;
     const top = Number(data.top);
@@ -922,6 +960,7 @@ export default function WidgetPage() {
             <div className={`${styles.detailOverlay}${detailClosing ? ` ${styles.detailOverlayClosing}` : ''}`} onClick={closeDetail} />
             <div
               className={`${styles.detailPanel}${detailClosing ? ` ${styles.detailPanelClosing}` : ''}`}
+              data-kogo-card=""
               style={bandHeight ? { maxHeight: bandHeight } : undefined}
             >
               <CourseExpandedDetail
@@ -952,7 +991,7 @@ export default function WidgetPage() {
         <WidgetPortal>
           <div style={drawerFrame}>
             <div className={`${styles.drawerOverlay}${drawerClosing ? ` ${styles.drawerOverlayClosing}` : ''}`} onClick={closeDrawer} />
-            <div className={`${styles.drawerPanel}${drawerClosing ? ` ${styles.drawerPanelClosing}` : ''}`}>
+            <div className={`${styles.drawerPanel}${drawerClosing ? ` ${styles.drawerPanelClosing}` : ''}`} data-kogo-sheet="">
               {allBranches.find((b) => b.id === selectedBranch)?.is_external ? (
                 <div className={styles.externalBranchMessage}>
                   {(() => {
