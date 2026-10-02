@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formTitle, lessonCardLine, lessonNameForCard, lessonNameSize } from './formHeading';
+import { formTitle, lessonCardLine, lessonLineParts, lessonNameForCard, lessonNameSize } from './formHeading';
 
 describe('the top of the registration form', () => {
   it('says what the parent is doing, and never which class', () => {
@@ -30,5 +30,12 @@ describe('the top of the registration form', () => {
     expect(lessonNameForCard('קפוארה 3-4.5 בוי')).toBe('קפוארה 3-\u20604.5 בוי');
     expect(lessonNameForCard('קפוארה - מתחילים')).toBe('קפוארה - מתחילים');
     expect(lessonNameForCard('  ריקוד  ')).toBe('ריקוד');
+  });
+
+  it('splits the line under the name into its facts', () => {
+    expect(lessonLineParts('יום שני · 16:45-17:30 · פתח תקווה')).toEqual(['יום שני', '16:45-17:30', 'פתח תקווה']);
+    expect(lessonLineParts('ימי שני, רביעי · 17:00-17:45')).toEqual(['ימי שני, רביעי', '17:00-17:45']);
+    expect(lessonLineParts('')).toEqual([]);
+    expect(lessonLineParts(' · כפר סבא')).toEqual(['כפר סבא']);
   });
 });
