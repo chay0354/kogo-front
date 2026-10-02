@@ -1,10 +1,10 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ChevronDown, ChevronRight, FileText } from 'lucide-react';
+import { ChevronDown, ChevronRight } from 'lucide-react';
 import api from '@/lib/api';
-import SignatureCanvas from '../SignatureCanvas';
 import styles from './index.module.css';
+import look from './newLook.module.css';
 import { israeliIdFieldError, sanitizeIsraeliIdInput } from '@/lib/israeliId';
 import { readToEndState } from '@/lib/readToEnd';
 import { enrollmentSelectionKey, type EnrollmentSelection } from '../catalogRows';
@@ -18,6 +18,11 @@ import AdditionalChildSection, {
 import ExtraLessonPicker from './ExtraLessonPicker';
 import SelectedLessonCard from './SelectedLessonCard';
 import ProcessingPanel from './ProcessingPanel';
+import StepBar from './StepBar';
+import ConsentSteps from './ConsentSteps';
+import PaymentSummary from './PaymentSummary';
+import SuccessSummary from './SuccessSummary';
+import { formatShekelShort } from './paymentSummaryModel';
 import { registerDeadlineMs, useWaitDeadline, WAIT_SLACK_MS } from './waitDeadline';
 import type { ProcessingPhase } from './processingCopy';
 import { SkeletonLessonOptions, SkeletonTextLines } from '../WidgetSkeletons/WidgetSkeletons';
@@ -147,10 +152,6 @@ function emailFieldError(value: string): string | null {
   return null;
 }
 
-function formatShekel(value: number): string {
-  return `₪${Number(value).toFixed(2)}`;
-}
-
 const ALREADY_REGISTERED_LESSON = 'הילד כבר רשום לחוג זה';
 
 function lookupBlocksLesson(
@@ -162,53 +163,6 @@ function lookupBlocksLesson(
   const enrolled = new Set(lookup.enrolled_lesson_ids ?? []);
   if (enrolled.size === 0) return false;
   return selections.some((selection) => Boolean(selection.lessonId && enrolled.has(selection.lessonId)));
-}
-
-function withHanahatPrefix(label: string): string {
-  if (!label || label === 'הנחה' || /^הנח[הת]/.test(label)) return label;
-  return `הנחת ${label}`;
-}
-
-function discountLineLabel(discount: AppliedDiscount): string {
-  const name = (discount.name || '').trim();
-  const type = (discount.type || '').toLowerCase();
-  const reason = (discount.reason || '').trim();
-
-  if (type === 'early_signup' || /רישום מוקדם/.test(name)) {
-    return withHanahatPrefix(name || 'רישום מוקדם');
-  }
-  if (type === 'second_child' || /ילד שני|הנחת אחים/.test(name)) {
-    return withHanahatPrefix(name || 'ילד שני');
-  }
-  if (type === 'additional_lesson' || /שיעור נוסף/.test(name)) {
-    return withHanahatPrefix(name || 'שיעור נוסף');
-  }
-  return withHanahatPrefix(name || reason || 'הנחה');
-}
-
-function formatStandingOrderStart(isoDate: string): string {
-  const [yearPart, monthPart, dayPart] = isoDate.split('T')[0].split('-');
-  const day = Number(dayPart);
-  const month = Number(monthPart);
-  if (!day || !month) return isoDate;
-  return `${day}.${month}`;
-}
-
-function groupedDiscountLines(
-  discounts: AppliedDiscount[] | undefined,
-  fallbackAmount: number,
-): Array<{ label: string; amount: number }> {
-  const items = discounts ?? [];
-  if (items.length === 0) {
-    return fallbackAmount > 0 ? [{ label: 'הנחה', amount: fallbackAmount }] : [];
-  }
-  const grouped = new Map<string, number>();
-  for (const discount of items) {
-    const label = discountLineLabel(discount);
-    const amount = Number(discount.value ?? discount.amount ?? 0);
-    grouped.set(label, (grouped.get(label) ?? 0) + amount);
-  }
-  return [...grouped.entries()].map(([label, amount]) => ({ label, amount }));
 }
 
 export default function CourseRegistrationForm({
@@ -305,6 +259,11 @@ export default function CourseRegistrationForm({
   // working panel replaces the frame until the answer comes.
   const [hostedProcessing, setHostedProcessing] = useState(false);
   const [lookingUp, setLookingUp] = useState(false);
+  // The payment summary plays its discounts in once per basket; a second look
+  // (after a declined card) shows the figures at rest.
+  const summaryPlayedRef = useRef<string | null>(null);
+  const payActionRef = useRef<HTMLDivElement | null>(null);
+  const consentSubmitRef = useRef<HTMLButtonElement | null>(null);
   const [showTerms, setShowTerms] = useState(false);
   const [termsContent, setTermsContent] = useState('');
   const [loadingTerms, setLoadingTerms] = useState(false);
@@ -506,6 +465,10 @@ export default function CourseRegistrationForm({
       total_lessons_this_month:
         responses.length === 1 ? responses[0].total_lessons_this_month : undefined,
       subscription_start_date: responses.find((response) => response.subscription_start_date)?.subscription_start_date,
+      // Shown only when every registration in the basket starts on the same day.
+      next_billing_date: responses.every((response) => response.next_billing_date === responses[0].next_billing_date)
+        ? responses[0].next_billing_date
+        : undefined,
       // Only one registration in a basket can hold the credit — the others see it
       // already taken — so summing gives the single amount that was applied.
       trial_credit_amount: responses.reduce((sum, response) => sum + Number(response.trial_credit_amount ?? 0), 0),
@@ -532,6 +495,7 @@ export default function CourseRegistrationForm({
         prorate_lessons_remaining: res.data.prorate_lessons_remaining,
         total_lessons_this_month: res.data.total_lessons_this_month,
         subscription_start_date: res.data.subscription_start_date,
+        next_billing_date: res.data.next_billing_date,
         trial_credit_amount: res.data.trial_credit_amount,
         trial_credit_paid: res.data.trial_credit_paid,
         trial_credit_date: res.data.trial_credit_date,
@@ -1468,7 +1432,21 @@ export default function CourseRegistrationForm({
       </div>
   ) : null;
 
+  // A course registration walks three steps; a trial keeps its short form as it is.
+  const stepBar = isTrial ? null : (
+    <StepBar current={step === 'payment' ? 2 : step === 'consents' || step === 'error' || step === 'submitting' ? 1 : 0} />
+  );
+  const consentsReady = healthConsent && termsReadComplete && termsConsent && Boolean(signature);
+  // Everything is approved and signed: the button to send comes into view.
+  useEffect(() => {
+    if (consentsReady && (step === 'consents' || step === 'error')) {
+      consentSubmitRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+  }, [consentsReady, step]);
+
   const header = (
+    <>
+    {stepBar}
     <div className={styles.header}>
       <button
         type="button"
@@ -1481,11 +1459,12 @@ export default function CourseRegistrationForm({
       </button>
       <h3 className={styles.title}>{isTrial ? `הרשמה לשיעור ניסיון: ${courseName}` : `הרשמה לחוג: ${courseName}`}</h3>
     </div>
+    </>
   );
 
   if (step === 'details') {
     return (
-      <form noValidate onSubmit={handleDetailsSubmit} className={styles.form} dir="rtl">
+      <form key="details" noValidate onSubmit={handleDetailsSubmit} className={`${styles.form} ${look.stepIn}`} dir="rtl">
         {header}
 
         {addingSibling ? (
@@ -1840,7 +1819,7 @@ export default function CourseRegistrationForm({
       return null;
     }
     return (
-      <div className={styles.form} dir="rtl">
+      <div key={`discount-${discountQueueIndex}`} className={`${styles.form} ${look.stepIn}`} dir="rtl">
         {header}
         {currentDiscount ? (
           <p className={styles.discountContext}>
@@ -1877,8 +1856,9 @@ export default function CourseRegistrationForm({
     const parentName = `${parentFirstName} ${parentLastName}`.trim();
     return (
       <form
+        key="trial_confirm"
         noValidate
-        className={styles.form}
+        className={`${styles.form} ${look.stepIn}`}
         dir="rtl"
         onSubmit={(e) => {
           e.preventDefault();
@@ -1944,89 +1924,41 @@ export default function CourseRegistrationForm({
 
   if (step === 'consents' || step === 'error') {
     return (
-      <form noValidate onSubmit={handleFinalSubmit} className={styles.form} dir="rtl">
+      <form key="consents" noValidate onSubmit={handleFinalSubmit} className={`${styles.form} ${look.stepIn}`} dir="rtl">
         {header}
 
-        <label className={styles.consentLabel}>
-          <input type="checkbox" checked={healthConsent}
-            onChange={(e) => {
-              setHealthConsent(e.target.checked);
-              if (e.target.checked) clearConsentError('health');
-            }}
-            className={styles.checkbox} />
-          <span>אני מתחייב להודיע על כל שינוי במצב הבריאותי המשפיע על השתתפות הילד בפעילות.</span>
-        </label>
-        {consentErrors.health ? (
-          <p className={styles.fieldError}>{consentErrors.health}</p>
-        ) : null}
-
-        <div className={`${styles.termsGate}${termsReadComplete ? ` ${styles.termsGateDone}` : ''}`}>
-          <div className={styles.termsGateHead}>
-            <span className={styles.termsGateMark} aria-hidden="true">{termsReadComplete ? '✓' : '1'}</span>
-            <span className={styles.termsGateTitle}>קריאת התקנון והנהלים</span>
-          </div>
-          <button type="button" className={styles.termsOpenButton} onClick={openTermsModal}>
-            <FileText size={18} aria-hidden="true" />
-            {termsReadComplete ? 'פתחו שוב את התקנון' : 'פתחו את התקנון והנהלים'}
-          </button>
-          <p className={styles.termsGateNote}>
-            {termsReadComplete
-              ? 'קראתם את התקנון — אפשר לאשר ולחתום'
-              : termsOpenedOnce
-                ? 'גללו עד סוף התקנון ואשרו כדי להמשיך'
-                : 'האישור והחתימה ייפתחו אחרי קריאת התקנון'}
-          </p>
-        </div>
-
-        <div className={styles.termsConsentBlock}>
-          <label className={`${styles.consentLabel} ${!termsReadComplete ? styles.consentLabelDisabled : ''}`}>
-            <input type="checkbox" checked={termsConsent}
-              disabled={!termsReadComplete}
-              onChange={(e) => {
-                setTermsConsent(e.target.checked);
-                if (e.target.checked) clearConsentError('terms');
-              }}
-              className={styles.checkbox} />
-            <span>
-              אני מאשר/ת שקראתי בעיון את{' '}
-              <button type="button" className={styles.termsLink} onClick={openTermsModal}>
-                התקנון והנהלים
-              </button>
-              , אני מסכים/ה לכל התנאים ומתחייב/ת לשלם את שכר הלימוד כנדרש.
-            </span>
-          </label>
-          {!termsReadComplete ? (
-            <p className={styles.lockedNote}>האישור ייפתח אחרי קריאת התקנון</p>
-          ) : null}
-          {consentErrors.terms ? (
-            <p className={styles.fieldError}>{consentErrors.terms}</p>
-          ) : null}
-        </div>
-
-        <div className={`${styles.signatureWrapper}${consentErrors.signature ? ` ${styles.signatureInvalid}` : ''}`}>
-          <label className={styles.label}>חתימה *</label>
-          <div
-            className={`${styles.signatureArea}${!termsReadComplete ? ` ${styles.signatureAreaLocked}` : ''}`}
-            aria-disabled={!termsReadComplete}
-          >
-            <SignatureCanvas onChange={(value) => {
-              setSignature(value);
-              if (value) clearConsentError('signature');
-            }} />
-          </div>
-          {!termsReadComplete ? (
-            <p className={styles.lockedNote}>החתימה תיפתח אחרי קריאת התקנון</p>
-          ) : null}
-          {consentErrors.signature ? (
-            <p className={styles.fieldError}>{consentErrors.signature}</p>
-          ) : null}
-        </div>
+        <ConsentSteps
+          healthConsent={healthConsent}
+          onHealthChange={(checked) => {
+            setHealthConsent(checked);
+            if (checked) clearConsentError('health');
+          }}
+          termsReadComplete={termsReadComplete}
+          termsOpenedOnce={termsOpenedOnce}
+          termsConsent={termsConsent}
+          onTermsChange={(checked) => {
+            setTermsConsent(checked);
+            if (checked) clearConsentError('terms');
+          }}
+          onOpenTerms={openTermsModal}
+          signed={Boolean(signature)}
+          onSignature={(value) => {
+            setSignature(value);
+            if (value) clearConsentError('signature');
+          }}
+          errors={consentErrors}
+          paymentFollows={!isTrial || trialLessonIsPaid}
+        />
 
         {termsModal}
 
         {errorMsg && <p className={styles.errorText}>{errorMsg}</p>}
 
-        <button type="submit" className={styles.submitButton}>
+        <button
+          ref={consentSubmitRef}
+          type="submit"
+          className={`${styles.submitButton}${consentsReady ? ` ${look.readyButton}` : ''}`}
+        >
           {isTrial
             ? (trialLessonIsPaid ? 'שלח והמשך לתשלום' : 'שלח והרשם לניסיון')
             : 'שלח והמשך לתשלום'}
@@ -2037,123 +1969,65 @@ export default function CourseRegistrationForm({
 
   if (step === 'payment' && paymentData && hostedMode === 'hosted' && hostedProcessing) {
     return (
-      <ProcessingPanel
-        phase={isTrial && trialLessonIsPaid ? 'trial_charge' : 'charge'}
-        amountLabel={`₪${Number(paymentData.final_amount).toFixed(2)}`}
-      />
+      <>
+        {stepBar}
+        <ProcessingPanel
+          phase={isTrial && trialLessonIsPaid ? 'trial_charge' : 'charge'}
+          amountLabel={formatShekelShort(Number(paymentData.final_amount))}
+        />
+      </>
     );
   }
 
   if (step === 'payment' && paymentData && charging) {
     return (
-      <ProcessingPanel
-        // A paid trial holds one state from the first click to the last, the
-        // charge → verify hand-off included. It is a single small payment, and
-        // a screen that renames itself halfway through a short wait reads as
-        // something having gone wrong.
-        phase={isTrial && trialLessonIsPaid ? 'trial_charge' : chargePhase}
-        amountLabel={`₪${Number(paymentData.final_amount).toFixed(2)}`}
-      />
+      <>
+        {stepBar}
+        <ProcessingPanel
+          // A paid trial holds one state from the first click to the last, the
+          // charge → verify hand-off included. It is a single small payment, and
+          // a screen that renames itself halfway through a short wait reads as
+          // something having gone wrong.
+          phase={isTrial && trialLessonIsPaid ? 'trial_charge' : chargePhase}
+          amountLabel={formatShekelShort(Number(paymentData.final_amount))}
+        />
+      </>
     );
   }
 
   if (step === 'payment' && paymentData) {
-    const baseAmount = Number(paymentData.base_amount);
-    const discountAmount = Number(paymentData.discount_amount);
-    const priceAfterDiscount = Math.max(0, baseAmount - discountAmount);
-    const discountLines = groupedDiscountLines(paymentData.discounts_applied, discountAmount);
-    const hasDiscount = discountAmount > 0;
-    const monthlyAmount = Number(paymentData.monthly_amount ?? priceAfterDiscount);
-    const trialCredit = Number(paymentData.trial_credit_amount ?? 0);
+    const summaryTitle = registeredChildCount > 1
+      ? `סיכום תשלום עבור ${registeredChildCount} ילדים`
+      : registeredLessonCount > 1
+        ? `סיכום תשלום עבור ${registeredLessonCount} חוגים`
+        : (isTrial ? 'תשלום לשיעור ניסיון' : 'סיכום תשלום');
+    const playSummary = summaryPlayedRef.current !== paymentData.payment_id;
 
     return (
-      <div className={styles.paymentContainer} dir="rtl">
+      <div key="payment" className={`${styles.paymentContainer} ${look.stepIn}`} dir="rtl">
+        {stepBar}
         <h3 className={styles.title}>
           {isTrial ? `הרשמה לשיעור ניסיון: ${courseName}` : `הרשמה לחוג: ${courseName}`}
         </h3>
 
-        <div className={styles.paymentSummary}>
-          <p className={styles.summaryTitle}>
-            {registeredChildCount > 1
-              ? `סיכום תשלום עבור ${registeredChildCount} ילדים`
-              : registeredLessonCount > 1
-                ? `סיכום תשלום עבור ${registeredLessonCount} חוגים`
-                : (isTrial ? 'תשלום לשיעור ניסיון' : 'סיכום תשלום')}
-          </p>
-          <div className={styles.summaryRow}>
-            <span>{hasDiscount ? 'מחיר לפני הנחה' : 'מחיר בסיס'}</span>
-            <span className={hasDiscount ? styles.priceBefore : undefined}>{formatShekel(baseAmount)}</span>
-          </div>
-          {discountLines.map((line) => (
-            <div key={line.label} className={styles.discountRow}>
-              <span>{line.label}</span>
-              <span>-{formatShekel(line.amount)}</span>
-            </div>
-          ))}
-          {hasDiscount && (
-            <>
-              <hr className={styles.discountDivider} />
-              <div className={styles.afterDiscountRow}>
-                <span>מחיר אחרי הנחה</span>
-                <span>{formatShekel(priceAfterDiscount)}</span>
-              </div>
-            </>
-          )}
-          {(paymentData.prorated_amount ?? 0) > 0 && (
-            <>
-              <div className={styles.summaryRow}>
-                <span>
-                  החודש הנוכחי
-                  {(paymentData.prorate_lessons_remaining ?? 0) > 0
-                    && (paymentData.total_lessons_this_month ?? 0) > 0
-                    && ` \u2014 ${paymentData.prorate_lessons_remaining} מתוך ${paymentData.total_lessons_this_month} שיעורים`}
-                </span>
-                <span>{formatShekel(Number(paymentData.prorated_amount))}</span>
-              </div>
-              {monthlyAmount > 0 && Number(paymentData.prorated_amount) < monthlyAmount && (
-                <p className={styles.prorateNote}>
-                  נרשמתם באמצע החודש, ולכן החודש הראשון מחושב לפי השיעורים שנותרו —
-                  {' '}{formatShekel(Number(paymentData.prorated_amount))} במקום {formatShekel(monthlyAmount)}.
-                </p>
-              )}
-            </>
-          )}
-          {(paymentData.registration_fee ?? 0) > 0 && (
-            <div className={styles.summaryRow}>
-              <span>דמי רישום (חד-פעמי)</span>
-              <span>{formatShekel(Number(paymentData.registration_fee))}</span>
-            </div>
-          )}
-          {trialCredit > 0 && (
-            <div className={`${styles.summaryRow} ${styles.discountRow}`}>
-              <span>קיזוז שיעור ניסיון ששולם</span>
-              <span>-{formatShekel(trialCredit)}</span>
-            </div>
-          )}
-          <div className={styles.totalBlock}>
-            <div className={styles.totalRow}>
-              <span>תשלום כעת</span>
-              <span className={styles.totalAmount}>{formatShekel(Number(paymentData.final_amount))}</span>
-            </div>
-            {!isTrial && monthlyAmount > 0 && (
-              <div className={styles.totalRow}>
-                <span>תשלום חודשי</span>
-                <span className={styles.totalAmount}>{formatShekel(monthlyAmount)}</span>
-              </div>
-            )}
-          </div>
-          {trialCredit > 0 && paymentData.trial_credit_reason && (
-            <p className={styles.trialCreditNote}>{paymentData.trial_credit_reason}</p>
-          )}
-          {!isTrial && paymentData.subscription_start_date && (
-            <p className={styles.billingNote}>
-              {(paymentData.registration_fee ?? 0) > 0
-                ? `דמי רישום יגבו עכשיו והוראת קבע תתחיל ב-${formatStandingOrderStart(paymentData.subscription_start_date)}`
-                : `הוראת קבע תתחיל ב-${formatStandingOrderStart(paymentData.subscription_start_date)}`}
-            </p>
-          )}
-        </div>
+        <PaymentSummary
+          key={paymentData.payment_id}
+          payment={paymentData}
+          title={summaryTitle}
+          priceLabel={isTrial
+            ? 'שיעור ניסיון'
+            : (registeredChildCount > 1 || registeredLessonCount > 1 ? 'מחיר החוגים' : 'מחיר החוג')}
+          isTrial={isTrial}
+          animate={playSummary}
+          onSettled={() => {
+            if (summaryPlayedRef.current === paymentData.payment_id) return;
+            summaryPlayedRef.current = paymentData.payment_id;
+            // The figures are in place: bring what the parent does next into view.
+            payActionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+          }}
+        />
 
+        <div ref={payActionRef} className={styles.paymentContainer}>
         {hostedMode === 'card' ? (
           <>
           <div className={styles.cardFields}>
@@ -2195,7 +2069,7 @@ export default function CourseRegistrationForm({
             disabled={charging || !cardNumber || !expiryMonth || !expiryYear || !cvv}
             className={styles.submitButton}
           >
-            {charging ? 'מעבד...' : `שלם ₪${Number(paymentData.final_amount).toFixed(2)}`}
+            {charging ? 'מעבד...' : `שלם ${formatShekelShort(Number(paymentData.final_amount))}`}
           </button>
           </>
         ) : hostedMode === 'hosted' && hostedCheckout ? (
@@ -2222,6 +2096,7 @@ export default function CourseRegistrationForm({
             <span>פותחים את עמוד התשלום…</span>
           </div>
         )}
+        </div>
       </div>
     );
   }
@@ -2234,6 +2109,22 @@ export default function CourseRegistrationForm({
         <p className={styles.resultSubtext}>ניצור איתכם קשר בווטסאפ עם פרטי השיעור.</p>
         {successActions}
       </div>
+    );
+  }
+
+  if (step === 'payment_success' && paymentData) {
+    return (
+      <SuccessSummary
+        key="payment_success"
+        payment={paymentData}
+        text={registeredChildCount > 1
+          ? `${registeredChildCount} ילדים נרשמו בהצלחה.`
+          : registeredLessonCount > 1
+            ? `${selfRegistering ? parentFirstName : childFirstName} נרשמ/ה ל-${registeredLessonCount} חוגים.`
+            : `${selfRegistering ? parentFirstName : childFirstName} נרשמ/ה לחוג ${courseName}.`}
+      >
+        {successActions}
+      </SuccessSummary>
     );
   }
 
@@ -2309,7 +2200,12 @@ export default function CourseRegistrationForm({
   }
 
   if (step === 'submitting') {
-    return <ProcessingPanel phase="register" progress={registerProgress ?? undefined} />;
+    return (
+      <>
+        {stepBar}
+        <ProcessingPanel phase="register" progress={registerProgress ?? undefined} />
+      </>
+    );
   }
 
   // Nothing else should arrive here. When something does — a payment step with

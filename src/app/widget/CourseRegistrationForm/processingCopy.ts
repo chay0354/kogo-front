@@ -43,20 +43,25 @@ const STEPS: Record<ProcessingPhase, string[]> = {
   // like a long procedure, and the steps would be describing something the
   // parent is not buying.
   trial_charge: [],
+  // Few words each. The second register step says the child's details are
+  // being checked and never that discounts are: a parent who then gets none
+  // should not feel they missed out (owner, 1.10.2026).
   register: [
-    'שומרים את פרטי ההורה והילד',
-    'מחשבים את המחיר וההנחות',
+    'שומרים את הפרטים',
+    'בודקים את הנתונים',
     'מכינים את התשלום',
   ],
   charge: [
-    'שולחים את הכרטיס לחברת הסליקה',
-    'ממתינים לאישור החיוב',
-    'משלימים את ההרשמה ושולחים אישור',
+    'שולחים את הכרטיס',
+    'מחייבים את התשלום',
+    'משלימים את ההרשמה',
   ],
+  // The card went out and the answer is not known yet, so nothing here says
+  // the charge was approved: the wait stands on the middle step.
   verify: [
-    'הכרטיס התקבל אצל חברת הסליקה',
-    'החיוב אושר',
-    'מאמתים את האישור מולנו',
+    'הכרטיס נשלח',
+    'מאמתים את התשלום',
+    'משלימים את ההרשמה',
   ],
 };
 
@@ -64,7 +69,7 @@ const TITLES: Record<ProcessingPhase, string> = {
   trial_charge: 'מעבד פרטי תשלום',
   register: 'רושמים את הפרטים',
   charge: 'מבצעים את התשלום',
-  verify: 'מאמתים את אישור התשלום',
+  verify: 'מאמתים את התשלום',
 };
 
 const SUBTITLES: Record<ProcessingPhase, string> = {
@@ -72,9 +77,9 @@ const SUBTITLES: Record<ProcessingPhase, string> = {
   // presses again mid-charge can be charged twice, and that is true of a trial
   // exactly as it is of a subscription.
   trial_charge: 'אל תסגרו את הדף ואל תלחצו שוב.',
-  register: 'זה לוקח כמה שניות. אל תסגרו את הדף.',
-  charge: 'הכרטיס נשלח לסליקה. אל תסגרו את הדף ואל תלחצו שוב.',
-  verify: 'הכרטיס כבר נשלח. אל תשלמו שוב — ההרשמה תושלם ברגע שהאישור יגיע.',
+  register: 'אל תסגרו את הדף.',
+  charge: 'אל תסגרו את הדף ואל תלחצו שוב.',
+  verify: 'אל תסגרו את הדף ואל תשלמו שוב.',
 };
 
 export const SLOW_AFTER_MS = 10_000;
@@ -86,16 +91,16 @@ export function processingCopy(phase: ProcessingPhase, elapsedMs: number): Proce
   for (let i = 0; i < starts.length; i += 1) {
     if (elapsedMs >= starts[i]) activeStep = i;
   }
-  // While verifying, the first two steps are already behind us.
-  if (phase === 'verify') activeStep = STEPS.verify.length - 1;
+  // While verifying, the card is already out and its answer is awaited.
+  if (phase === 'verify') activeStep = 1;
 
   let slowNote = '';
   if (elapsedMs >= VERY_SLOW_AFTER_MS) {
     slowNote = phase === 'register'
-      ? 'עדיין עובדים על זה. אם המסך לא מתקדם עוד רגע, נציג הודעה ותוכלו לנסות שוב.'
-      : 'עדיין ממתינים לחברת הסליקה. אם המסך לא מתקדם עוד רגע, נציג הודעה. בכל מקרה אל תשלמו שוב.';
+      ? 'עדיין עובדים על זה. עוד רגע.'
+      : 'עדיין ממתינים לאישור. אל תשלמו שוב.';
   } else if (elapsedMs >= SLOW_AFTER_MS) {
-    slowNote = 'לוקח קצת יותר זמן מהרגיל. זה בסדר — אל תסגרו את הדף.';
+    slowNote = 'לוקח קצת יותר זמן מהרגיל. אל תסגרו את הדף.';
   }
 
   return {
