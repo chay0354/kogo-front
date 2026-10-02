@@ -46,7 +46,7 @@ import { prefersReducedMotion } from '../widgetMotion';
 import { registerDeadlineMs, useWaitDeadline, WAIT_SLACK_MS } from './waitDeadline';
 import type { ProcessingPhase } from './processingCopy';
 import { SkeletonLessonOptions, SkeletonTextLines } from '../WidgetSkeletons/WidgetSkeletons';
-import { trialNextStep } from './trialFlow';
+import { trialNextStep, trialWhen } from './trialFlow';
 import {
   CHECKOUT_POLL_MS,
   HOSTED_CHARGE_DEADLINE_MS,
@@ -2649,6 +2649,7 @@ export default function CourseRegistrationForm({
     );
     const childName = `${selfRegistering ? parentFirstName : childFirstName} ${selfRegistering ? parentLastName : childLastName}`.trim();
     const parentName = `${parentFirstName} ${parentLastName}`.trim();
+    const when = trialWhen(trialLessonDate, chosen);
     return (
       <form
         key="trial_confirm"
@@ -2662,41 +2663,44 @@ export default function CourseRegistrationForm({
       >
         {header}
 
-        <div className={`${styles.section} ${styles.fadeIn}`}>
-          <div className={styles.sectionTitle}>
-            <span className={styles.sectionTitleLine} />
-            <span className={styles.sectionTitleText}>סיכום</span>
-            <span className={styles.sectionTitleLine} />
+        {/* One card. What the parent came to check — when — stands at its head. */}
+        <div className={look.trialCard}>
+          <div className={look.trialWhen}>
+            <span className={look.trialWhenIcon} aria-hidden="true">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3.5" y="5" width="17" height="15.5" rx="3" />
+                <path d="M3.5 10h17M8 3v4M16 3v4" />
+              </svg>
+            </span>
+            {/* The day and the date, and the hours under them: two short lines at any width. */}
+            <span className={look.trialWhenText}>
+              <span>{when.day}</span>
+              {when.hours ? <span className={look.trialWhenHours} dir="ltr">{when.hours}</span> : null}
+            </span>
           </div>
-          {/* The class is named in the title row above; it is not said twice. */}
-          <div className={styles.paymentSummary}>
-            <div className={styles.summaryRow}>
-              <span>{selfRegistering ? 'משתתף/ת' : 'ילד/ה'}</span>
-              <span>{childName || '—'}</span>
-            </div>
-            {!selfRegistering && (
-              <div className={styles.summaryRow}>
-                <span>הורה</span>
-                <span>{parentName || '—'}{parentPhone ? ` · ${parentPhone}` : ''}</span>
-              </div>
-            )}
-            <div className={styles.summaryRow}>
-              <span>מועד</span>
-              <span>
-                {chosen
-                  ? `${chosen.day_name} · ${chosen.label} · ${chosen.start_time}–${chosen.end_time}`
-                  : (() => {
-                      const [y, m, d] = trialLessonDate.split('-').map(Number);
-                      return Number.isFinite(y) && Number.isFinite(m) && Number.isFinite(d)
-                        ? new Date(y, m - 1, d).toLocaleDateString('he-IL')
-                        : trialLessonDate;
-                    })()}
-              </span>
-            </div>
+          <div className={look.trialRow}>
+            <span>חוג</span>
+            <b>{courseName}</b>
           </div>
-          {/* A free trial asks for no consent to the terms: only what is worth knowing. */}
-          <TrialInfo paid={trialLessonIsPaid} />
+          <div className={look.trialRow}>
+            <span>{selfRegistering ? 'משתתף/ת' : 'ילד/ה'}</span>
+            <b>{childName || '—'}</b>
+          </div>
+          {!selfRegistering || !trialLessonIsPaid ? (
+            <div className={look.trialFoot}>
+              {!selfRegistering ? (
+                <span>
+                  הורה: {parentName || '—'}
+                  {parentPhone ? <>{' · '}<span dir="ltr">{parentPhone}</span></> : null}
+                </span>
+              ) : <span />}
+              {!trialLessonIsPaid ? <span className={look.trialFree}>ללא תשלום</span> : null}
+            </div>
+          ) : null}
         </div>
+
+        {/* A free trial asks for no consent to the terms: only what is worth knowing. */}
+        <TrialInfo paid={trialLessonIsPaid} />
 
         {errorMsg && <p className={styles.errorText}>{errorMsg}</p>}
 
