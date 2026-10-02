@@ -603,6 +603,8 @@
 .trialRow b {
   min-width: 0;
   text-align: left;
+  overflow-wrap: break-word;
+  text-wrap: balance;
   font-size: 15px;
   font-weight: 700;
   color: #1f2340;
@@ -1417,9 +1419,19 @@
   border: 1px solid rgba(43, 48, 144, 0.15);
 }
 .lessonCard b {
-  font-size: 14px;
-  font-weight: 600;
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.35;
   color: #2B3090;
+  /* A long name breaks between words, in lines of about the same length. */
+  overflow-wrap: break-word;
+  text-wrap: balance;
+}
+.lessonCard.lessonNameLong b {
+  font-size: 14px;
+}
+.lessonCard.lessonNameVeryLong b {
+  font-size: 13px;
 }
 .lessonCard span {
   font-size: 13px;
