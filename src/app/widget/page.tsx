@@ -19,7 +19,7 @@ import {
 import { isCourseVisibleInWidgetCatalog , trialLessonChoices } from './lessonVisibility';
 import { AGE_OPTIONS, formatAge, isInstructorsCourse } from '@/lib/courseUtils';
 import { findWidgetAlternatives, isWidgetSelectionFull, type WidgetAlternative } from './alternativeLessons';
-import { scheduleLabel } from './catalogRows';
+import { buildCatalogRows, scheduleLabel } from './catalogRows';
 import { sortWidgetCourseTypes } from './courseTypeOrder';
 import { WIDGET_MOTION_MS, holdsBandWhileOpen, prefersReducedMotion } from './widgetMotion';
 import { preloadInstructorPhotos } from './instructorPhotoPreload';
@@ -67,7 +67,17 @@ function requestHostBand() {
 }
 
 /** Changed by hand whenever the sheet's geometry changes: it tells the check which widget a phone has loaded. */
-const WIDGET_CHECK_BUILD = 'w-0210d';
+const WIDGET_CHECK_BUILD = 'w-0210e';
+
+/**
+ * What the host's on-device check asked to have opened without a finger: the
+ * class card, the registration form or the trial form — and whether the sheet
+ * is then to be scrolled to its end. A simulated phone is driven by an address
+ * and a screenshot, with nobody to tap.
+ */
+type CheckOpen = { what: 'card' | 'form' | 'trial'; end: boolean };
+let wantedCheckOpen: CheckOpen | null = null;
+const checkOpenSubscribers = new Set<() => void>();
 
 /**
  * The host's on-device check asked where things stand in here. The widget is
@@ -109,6 +119,14 @@ function ensureHostBandBridge() {
     } | null;
     if (data?.type === 'kogo-widget-check') {
       answerDeviceCheck();
+      return;
+    }
+    if (data?.type === 'kogo-widget-check-open') {
+      const asked = event.data as { what?: string; end?: boolean };
+      if (asked.what === 'card' || asked.what === 'form' || asked.what === 'trial') {
+        wantedCheckOpen = { what: asked.what, end: asked.end === true };
+        checkOpenSubscribers.forEach((notify) => notify());
+      }
       return;
     }
     if (!data || data.type !== 'kogo-widget-visible-band') return;
@@ -822,6 +840,89 @@ export default function WidgetPage() {
   };
 
   const handleTrialEnrollClick = () => handleEnrollClick(true);
+
+  // The on-device check asked for a sheet to be opened without a finger (the
+  // host's ?kogo-open). The filters are walked to the first class they lead
+  // to, one step each time a list arrives, and that class is opened. Nothing
+  // here runs unless the host asked.
+  const [checkOpen, setCheckOpen] = useState<CheckOpen | null>(() => wantedCheckOpen);
+  useEffect(() => {
+    const sync = () => setCheckOpen(wantedCheckOpen);
+    checkOpenSubscribers.add(sync);
+    sync();
+    return () => {
+      checkOpenSubscribers.delete(sync);
+    };
+  }, []);
+  useEffect(() => {
+    if (!checkOpen) return undefined;
+    const done = () => {
+      wantedCheckOpen = null;
+      setCheckOpen(null);
+    };
+    if (drawerCourse) {
+      const toItsEnd = checkOpen.end;
+      done();
+      // The sheet is shown from its end, once it has risen and filled. Not
+      // cleared with this effect — `done` re-runs it at once; a sheet that
+      // is gone by then is simply not found.
+      if (toItsEnd) {
+        window.setTimeout(() => {
+          const sheet = document.querySelector<HTMLElement>('[data-kogo-sheet]');
+          if (sheet) sheet.scrollTop = sheet.scrollHeight;
+        }, 1800);
+      }
+      return undefined;
+    }
+    if (!selectedCity) {
+      const city = cities.find((c) => allBranches.some((b) => b.city === c.id && !b.is_external));
+      if (city) setSelectedCity(city.id);
+      return undefined;
+    }
+    if (!selectedBranch) {
+      const branch = filteredBranches.find((b) => !b.is_external);
+      if (branch) setSelectedBranch(branch.id);
+      return undefined;
+    }
+    if (!selectedCourseType) {
+      if (courseTypes[0]) setSelectedCourseType(courseTypes[0].id);
+      return undefined;
+    }
+    const openable = (age: number) => buildCatalogRows(
+      branchCourses.filter((course) => (
+        String(course.course_type) === selectedCourseType
+        && isCourseVisibleInWidgetCatalog(course)
+        && age >= (course.min_age ?? 0) && age <= (course.max_age ?? 99)
+        && !course.external_link
+      )),
+      age,
+    ).filter((row) => !isWidgetSelectionFull(row.course, row.lesson, row.bundle));
+    if (!selectedAge) {
+      const age = AGE_OPTIONS.find((candidate) => openable(candidate).length > 0);
+      if (age != null) setSelectedAge(String(age));
+      return undefined;
+    }
+    if (!detailCourse) {
+      const row = openable(parseInt(selectedAge, 10))[0];
+      if (!row) return undefined;
+      setDetailCourse(row.course);
+      setDetailBundle(row.bundle);
+      setDetailLesson(row.lesson);
+      setDetailPriceOption(row.priceOption);
+      return undefined;
+    }
+    if (checkOpen.what === 'card') {
+      done();
+      return undefined;
+    }
+    handleEnrollClick(checkOpen.what === 'trial');
+    return undefined;
+    // Each step waits for the list the one before it asked for; the handlers are read as they are then.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    checkOpen, selectedCity, selectedBranch, selectedCourseType, selectedAge,
+    allBranches, filteredBranches, courseTypes, branchCourses, detailCourse, drawerCourse,
+  ]);
   const handleBundleEnrollClick = () => {
     if (detailBundleForLesson) handleEnrollClick(false, detailBundleForLesson);
   };
