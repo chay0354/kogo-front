@@ -2666,14 +2666,11 @@ export default function CourseRegistrationForm({
         <div className={`${styles.section} ${styles.fadeIn}`}>
           <div className={styles.sectionTitle}>
             <span className={styles.sectionTitleLine} />
-            <span className={styles.sectionTitleText}>סיכום ההרשמה לניסיון</span>
+            <span className={styles.sectionTitleText}>סיכום</span>
             <span className={styles.sectionTitleLine} />
           </div>
+          {/* The class is named in the title row above; it is not said twice. */}
           <div className={styles.paymentSummary}>
-            <div className={styles.summaryRow}>
-              <span>חוג</span>
-              <span>{courseName}</span>
-            </div>
             <div className={styles.summaryRow}>
               <span>{selfRegistering ? 'משתתף/ת' : 'ילד/ה'}</span>
               <span>{childName || '—'}</span>
@@ -2685,7 +2682,7 @@ export default function CourseRegistrationForm({
               </div>
             )}
             <div className={styles.summaryRow}>
-              <span>מועד הניסיון</span>
+              <span>מועד</span>
               <span>
                 {chosen
                   ? `${chosen.day_name} · ${chosen.label} · ${chosen.start_time}–${chosen.end_time}`
@@ -2698,20 +2695,20 @@ export default function CourseRegistrationForm({
               </span>
             </div>
           </div>
-          <p className={styles.helperText}>
+          {/* One short line: the consent to the terms, and what is worth knowing. */}
+          <TrialInfo paid={trialLessonIsPaid}>
             באישור אני מסכים/ה{' '}
-            <button type="button" className={styles.termsLink} onClick={openTermsModal}>
-              לתקנון ולנהלים
+            <button type="button" className={look.infoTerms} onClick={openTermsModal}>
+              לתקנון
             </button>
-            {' '}של קוגומלו.
-          </p>
-          <TrialInfo paid={trialLessonIsPaid} />
+            <span aria-hidden="true"> · </span>
+          </TrialInfo>
         </div>
 
         {errorMsg && <p className={styles.errorText}>{errorMsg}</p>}
 
         <button type="submit" className={styles.submitButton}>
-          אישור והרשמה לניסיון
+          אישור והרשמה
         </button>
 
         {termsModal}

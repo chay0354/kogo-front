@@ -31,8 +31,8 @@ const sleep = (ms: number) => new Promise<void>((resolve) => window.setTimeout(r
 
 // The waits between the moving parts. The price itself takes as long as the
 // server takes; these only give each part room to be seen, and no more.
-/** The "checking" line stays at least this long from the moment the screen is up. */
-const CHECKING_MIN_MS = 500;
+/** The "checking" line stays while the screen itself is still arriving (its entrance takes this long), and no longer. */
+const CHECKING_MIN_MS = 450;
 /** A tile has arrived enough for its coin to leave. */
 const BEFORE_COIN_MS = 300;
 /** Between the sum coming to rest and the next tile. */

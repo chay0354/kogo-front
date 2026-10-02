@@ -542,12 +542,24 @@
   line-height: 1.45;
 }
 
-/* A dotted line on its own that opens a short explanation — where a trial lesson is approved. */
+/* One short line where a trial lesson is approved; its two dotted words open a short explanation. */
 .infoLine {
   position: relative;
-  margin-top: 8px;
-  font-size: 13px;
+  margin-top: 12px;
+  font-size: 13.5px;
+  line-height: 1.5;
   color: #4b5068;
+}
+/* "the terms" inside that line: opens the terms window. */
+.infoTerms {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  color: #2B3090;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
 }
 .consForm > .infoLine {
   margin-top: 0;
@@ -568,6 +580,8 @@
 .infoLine .infoPop::before {
   top: auto;
   bottom: -5px;
+  /* Under the words that opened it, wherever they stand in the line. */
+  right: var(--arrow, 26px);
 }
 @keyframes nlPopInUp {
   from { opacity: 0; transform: translateY(6px) scale(0.95); }
