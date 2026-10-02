@@ -408,24 +408,54 @@
 }
 
 .trialDateOption {
-  @apply flex flex-wrap items-center gap-2 rounded-lg border border-gray-200 px-4 py-3 cursor-pointer transition-colors;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding: 13px 14px;
+  border-radius: 14px;
+  border: 1.5px solid #DDE0F5;
+  background: #fff;
+  cursor: pointer;
+  transition: border-color 150ms ease, background-color 150ms ease, box-shadow 150ms ease;
+}
+.trialDateOption:hover {
+  border-color: rgba(43, 48, 144, 0.45);
 }
 
-.trialDateOptionSelected {
+.trialDateOptionSelected,
+.trialDateOptionSelected:hover {
   border-color: #2B3090;
   background-color: #f0f1fa;
+  box-shadow: 0 6px 16px rgba(43, 48, 144, 0.12);
 }
 
 .trialDateRadio {
+  width: 18px;
+  height: 18px;
   accent-color: #2B3090;
 }
 
 .trialDateLabel {
-  @apply font-medium text-gray-900;
+  font-size: 15px;
+  font-weight: 700;
+  color: #1f2340;
 }
 
 .trialDateTime {
-  @apply text-sm text-gray-600 mr-auto;
+  margin-right: auto;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: #eef0fb;
+  color: #2B3090;
+  font-size: 13px;
+  font-weight: 600;
+  direction: ltr;
+  font-variant-numeric: tabular-nums;
+}
+.trialDateOptionSelected .trialDateTime {
+  background: #2B3090;
+  color: #fff;
 }
 
 /* Discount step */
@@ -847,6 +877,9 @@
 
 .trialDateOptionFull .trialDateTime {
   font-weight: 700;
+  direction: rtl;
+  background: #f3f4f6;
+  color: #6b7280;
 }
 
 /* Tranzila's page for the course (COURSE_HOSTED_PAGE_ENABLED). */

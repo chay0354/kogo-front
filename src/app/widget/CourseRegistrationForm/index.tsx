@@ -23,7 +23,9 @@ import ConsentSteps from './ConsentSteps';
 import PaymentSummary from './PaymentSummary';
 import SuccessSummary from './SuccessSummary';
 import TrialInfo from './TrialInfo';
-import { formTitle, lessonCardLine, lessonNameForCard, lessonNameSize } from './formHeading';
+import { formTitle, lessonCardLine, lessonNameForCard } from './formHeading';
+import LessonHead from './LessonHead';
+import ResultScreen from './ResultScreen';
 import { formatShekelShort, paymentSummaryModel } from './paymentSummaryModel';
 import MaskedField from './MaskedField';
 import Reveal from './Reveal';
@@ -105,12 +107,6 @@ const STEP_ORDER: Record<Step, number> = {
   payment_success: 6,
   trial_success: 6,
 };
-/** A long class name is set a size smaller in its card. */
-const LESSON_NAME_CLASS = {
-  regular: '',
-  long: look.lessonNameLong,
-  veryLong: look.lessonNameVeryLong,
-} as const;
 /** The shortest the "checking whether you are with us" line stays up. */
 const IDENTIFY_LINE_MIN_MS = 400;
 /** How long a screen takes to leave before the next one arrives. */
@@ -1839,16 +1835,16 @@ export default function CourseRegistrationForm({
   const canRegisterAnother = Boolean(onRegisterAnother) && !selfRegistering;
 
   const successActions = (
-    <div className={styles.successActions}>
+    <div className={look.endActions}>
       {canRegisterAnother ? (
-        <button type="button" onClick={handleRegisterAnother} className={styles.closeButton}>
+        <button type="button" onClick={handleRegisterAnother} className={look.endMain}>
           רשום ילד נוסף
         </button>
       ) : null}
       <button
         type="button"
         onClick={onComplete}
-        className={canRegisterAnother ? styles.outlineButton : styles.closeButton}
+        className={canRegisterAnother ? look.endSecond : look.endMain}
       >
         {canRegisterAnother ? 'סיום' : 'סגור'}
       </button>
@@ -1974,11 +1970,30 @@ export default function CourseRegistrationForm({
   );
 
   // The class the form was opened for, once, under the title — on every details form.
-  const lessonCardText = lessonCardLine(lessonLine, isTrial, trialLessonIds.length);
   const lessonCard = (
-    <div className={`${look.lessonCard} ${LESSON_NAME_CLASS[lessonNameSize(courseName)]}`}>
-      <b>{lessonNameForCard(courseName)}</b>
-      {lessonCardText ? <span>{lessonCardText}</span> : null}
+    <LessonHead name={courseName} line={lessonCardLine(lessonLine, isTrial, trialLessonIds.length)} />
+  );
+
+  // When the trial lesson is: the day and the date, and the hours under them —
+  // at the head of the trial's summary, and again on the screen that says it is booked.
+  const trialChosen = trialOccurrences.find(
+    (occ) => occ.date === trialLessonDate
+      && (occ.lesson_id ?? effectiveTrialLessonId) === effectiveTrialLessonId,
+  );
+  const trialWhenNow = trialWhen(trialLessonDate, trialChosen);
+  const trialWhenBlock = (
+    <div className={look.trialWhen}>
+      <span className={look.trialWhenIcon} aria-hidden="true">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+          <rect x="3.5" y="5" width="17" height="15.5" rx="3" />
+          <path d="M3.5 10h17M8 3v4M16 3v4" />
+        </svg>
+      </span>
+      {/* Two short lines at any width. */}
+      <span className={look.trialWhenText}>
+        <span>{trialWhenNow.day}</span>
+        {trialWhenNow.hours ? <span className={look.trialWhenHours} dir="ltr">{trialWhenNow.hours}</span> : null}
+      </span>
     </div>
   );
 
@@ -2653,13 +2668,8 @@ export default function CourseRegistrationForm({
   }
 
   if (step === 'trial_confirm') {
-    const chosen = trialOccurrences.find(
-      (occ) => occ.date === trialLessonDate
-        && (occ.lesson_id ?? effectiveTrialLessonId) === effectiveTrialLessonId,
-    );
     const childName = `${selfRegistering ? parentFirstName : childFirstName} ${selfRegistering ? parentLastName : childLastName}`.trim();
     const parentName = `${parentFirstName} ${parentLastName}`.trim();
-    const when = trialWhen(trialLessonDate, chosen);
     return (
       <form
         key="trial_confirm"
@@ -2675,19 +2685,7 @@ export default function CourseRegistrationForm({
 
         {/* One card. What the parent came to check — when — stands at its head. */}
         <div className={look.trialCard}>
-          <div className={look.trialWhen}>
-            <span className={look.trialWhenIcon} aria-hidden="true">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                <rect x="3.5" y="5" width="17" height="15.5" rx="3" />
-                <path d="M3.5 10h17M8 3v4M16 3v4" />
-              </svg>
-            </span>
-            {/* The day and the date, and the hours under them: two short lines at any width. */}
-            <span className={look.trialWhenText}>
-              <span>{when.day}</span>
-              {when.hours ? <span className={look.trialWhenHours} dir="ltr">{when.hours}</span> : null}
-            </span>
-          </div>
+          {trialWhenBlock}
           <div className={look.trialRow}>
             <span>חוג</span>
             <b>{lessonNameForCard(courseName)}</b>
@@ -2959,12 +2957,15 @@ export default function CourseRegistrationForm({
 
   if (step === 'trial_success') {
     return (
-      <div className={styles.resultContainer} dir="rtl">
-        <div className={styles.successIcon}>✓</div>
-        <p className={styles.resultTitle}>נרשמתם לשיעור ניסיון!</p>
-        <p className={styles.resultSubtext}>ניצור איתכם קשר בווטסאפ עם פרטי השיעור.</p>
-        {successActions}
-      </div>
+      <ResultScreen tone="done" title="נרשמתם לשיעור ניסיון" actions={successActions}>
+        <p className={look.doneText}>אישור ותזכורת יישלחו בוואטסאפ.</p>
+        {trialLessonDate ? (
+          <div className={look.resultCard}>
+            {trialWhenBlock}
+            <p className={look.resultCardLine}>{lessonNameForCard(courseName)}</p>
+          </div>
+        ) : null}
+      </ResultScreen>
     );
   }
 
@@ -2986,72 +2987,76 @@ export default function CourseRegistrationForm({
 
   if (step === 'payment_success') {
     return (
-      <div className={styles.resultContainer} dir="rtl">
-        <div className={styles.successIcon}>✓</div>
-        <p className={styles.resultTitle}>התשלום בוצע בהצלחה!</p>
-        <p className={styles.resultSubtext}>
+      <ResultScreen tone="done" title="ההרשמה הושלמה" actions={successActions}>
+        <p className={look.doneText}>
           {registeredChildCount > 1
             ? `${registeredChildCount} ילדים נרשמו בהצלחה.`
             : registeredLessonCount > 1
               ? `${selfRegistering ? parentFirstName : childFirstName} נרשמ/ה ל-${registeredLessonCount} חוגים.`
-              : `${selfRegistering ? parentFirstName : childFirstName} נרשמ/ה לחוג ${courseName}.`}
+              : `${selfRegistering ? parentFirstName : childFirstName} נרשמ/ה לחוג ${lessonNameForCard(courseName)}.`}
         </p>
-        {successActions}
-      </div>
+      </ResultScreen>
     );
   }
 
   if (step === 'payment_pending') {
     return (
-      <div className={styles.resultContainer} dir="rtl">
-        {pendingChecking ? <span className={styles.submittingSpinner} /> : <div className={styles.failIcon}>!</div>}
-        <p className={styles.resultTitle}>{pendingChecking ? 'בודקים את התשלום' : 'עדיין אין אישור מחברת הסליקה'}</p>
-        <p className={styles.resultSubtext}>
+      <ResultScreen
+        tone="wait"
+        busy={pendingChecking}
+        title={pendingChecking ? 'בודקים את התשלום' : 'עדיין אין אישור מחברת הסליקה'}
+        actions={(
+          <div className={look.endActions}>
+            {/* Asks the server again. It used to reopen the card form, which on
+                this screen is an invitation to pay twice. */}
+            <button
+              type="button"
+              onClick={() => setPendingChecking(true)}
+              className={look.endMain}
+              disabled={pendingChecking}
+            >
+              {pendingChecking ? 'בודקים…' : 'בדקו שוב'}
+            </button>
+            <button type="button" onClick={onComplete} className={look.endSecond}>
+              סגור
+            </button>
+          </div>
+        )}
+      >
+        <p className={look.doneText}>
           {errorMsg || 'הכרטיס כבר נשלח לסליקה. אל תשלמו שוב.'}
         </p>
         {!pendingChecking && (
-          <p className={styles.resultSubtext}>
+          <p className={look.resultNote}>
             אל תשלמו שוב. אם ההרשמה לא מופיעה תוך כמה דקות — צרו איתנו קשר ונבדוק מול חברת הסליקה.
           </p>
         )}
-        <div className={styles.resultActions}>
-          {/* Asks the server again. It used to reopen the card form, which on
-              this screen is an invitation to pay twice. */}
-          <button
-            type="button"
-            onClick={() => setPendingChecking(true)}
-            className={styles.primaryButton}
-            disabled={pendingChecking}
-          >
-            {pendingChecking ? 'בודקים…' : 'בדקו שוב'}
-          </button>
-          <button type="button" onClick={onComplete} className={styles.outlineButton}>
-            סגור
-          </button>
-        </div>
-      </div>
+      </ResultScreen>
     );
   }
 
   if (step === 'payment_failed') {
     return (
-      <div className={styles.resultContainer} dir="rtl">
-        <div className={styles.failIcon}>✗</div>
-        <p className={styles.resultTitle}>התשלום נכשל</p>
-        <p className={styles.resultSubtext}>{errorMsg || 'אנא נסה שנית או פנה לצוות.'}</p>
-        <div className={styles.resultActions}>
-          <button
-            type="button"
-            onClick={() => { setErrorMsg(''); setStep('payment'); }}
-            className={styles.primaryButton}
-          >
-            נסה שנית
-          </button>
-          <button type="button" onClick={onComplete} className={styles.outlineButton}>
-            סגור
-          </button>
-        </div>
-      </div>
+      <ResultScreen
+        tone="stop"
+        title="התשלום נכשל"
+        actions={(
+          <div className={look.endActions}>
+            <button
+              type="button"
+              onClick={() => { setErrorMsg(''); setStep('payment'); }}
+              className={look.endMain}
+            >
+              נסה שנית
+            </button>
+            <button type="button" onClick={onComplete} className={look.endSecond}>
+              סגור
+            </button>
+          </div>
+        )}
+      >
+        <p className={look.doneText}>{errorMsg || 'אנא נסה שנית או פנה לצוות.'}</p>
+      </ResultScreen>
     );
   }
 
@@ -3068,20 +3073,23 @@ export default function CourseRegistrationForm({
   // no payment to show — it used to fall through to the spinner above and spin
   // for good. Say so, and give the parent a way back.
   return (
-    <div className={styles.resultContainer} dir="rtl">
-      <div className={styles.failIcon}>!</div>
-      <p className={styles.resultTitle}>משהו השתבש בדרך</p>
-      <p className={styles.resultSubtext}>
+    <ResultScreen
+      tone="wait"
+      title="משהו השתבש בדרך"
+      actions={(
+        <div className={look.endActions}>
+          <button type="button" onClick={() => { setErrorMsg(''); setStep('details'); }} className={look.endMain}>
+            חזרה לטופס
+          </button>
+          <button type="button" onClick={onComplete} className={look.endSecond}>
+            סגור
+          </button>
+        </div>
+      )}
+    >
+      <p className={look.doneText}>
         {errorMsg || 'הפרטים שמילאתם נשמרו בטופס. חזרו אליו ונסו שוב.'}
       </p>
-      <div className={styles.resultActions}>
-        <button type="button" onClick={() => { setErrorMsg(''); setStep('details'); }} className={styles.primaryButton}>
-          חזרה לטופס
-        </button>
-        <button type="button" onClick={onComplete} className={styles.outlineButton}>
-          סגור
-        </button>
-      </div>
-    </div>
+    </ResultScreen>
   );
 }

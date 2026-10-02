@@ -38,3 +38,11 @@ export function lessonCardLine(line: string, isTrial: boolean, trialLessonCount:
 export function lessonNameForCard(name: string): string {
   return name.trim().replace(/(\S)([-–—])(?=\S)/g, '$1$2\u2060');
 }
+
+/**
+ * The line under a class name — "יום שני · 16:45-17:30 · פתח תקווה" — as the
+ * separate facts it is made of, each to stand in a small tag of its own.
+ */
+export function lessonLineParts(line: string): string[] {
+  return line.split('·').map((part) => part.trim()).filter(Boolean);
+}
