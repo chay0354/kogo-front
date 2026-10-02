@@ -274,6 +274,12 @@ export function sentCounts(rows: BroadcastRow[]) {
   };
 }
 
+/** Phones that did not get the message, the family's other phones included. */
+export function failedSoFar(rows: BroadcastRow[]): number {
+  const { failed, extraFailed } = sentCounts(rows);
+  return failed + extraFailed;
+}
+
 export type DockTone = 'check' | 'send' | 'ready' | 'warn' | 'done' | 'error';
 
 /**
@@ -310,15 +316,18 @@ export function dockSummary(s: RunSnapshot): {
         showPercent: false,
       };
     }
-    case 'sending':
+    case 'sending': {
+      // A failure shows while the run goes on, not only when it ends.
+      const failed = failedSoFar(s.sentRows);
       return {
-        tone: 'send',
+        tone: failed ? 'warn' : 'send',
         label: 'שולח הודעות',
-        detail: `${Math.min(s.sentRows.length, s.total)}/${s.total}`,
+        detail: `${Math.min(s.sentRows.length, s.total)}/${s.total}${failed ? ` · נכשלו ${failed}` : ''}`,
         done: s.sentRows.length,
         finished: false,
         showPercent: true,
       };
+    }
     case 'paused':
       return {
         tone: 'warn',
@@ -329,11 +338,13 @@ export function dockSummary(s: RunSnapshot): {
         showPercent: false,
       };
     case 'done': {
-      const { sent, failed } = sentCounts(s.sentRows);
+      // The family's other phones count too: the screen's own counts include them.
+      const { sent, extraSent } = sentCounts(s.sentRows);
+      const failed = failedSoFar(s.sentRows);
       return {
-        tone: 'done',
+        tone: failed ? 'warn' : 'done',
         label: 'השליחה הסתיימה',
-        detail: failed ? `נשלחו ${sent} · נכשלו ${failed}` : `נשלחו ${sent}`,
+        detail: failed ? `נשלחו ${sent + extraSent} · נכשלו ${failed}` : `נשלחו ${sent + extraSent}`,
         done: s.total,
         finished: true,
         showPercent: false,
