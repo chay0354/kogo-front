@@ -43,6 +43,46 @@ export interface IdentifyConfig {
   ticket: string;
 }
 
+/** A mobile number as the form takes it: ten digits that start with 05. */
+export function isMobilePhone(phone: string): boolean {
+  return /^05\d{8}$/.test(phone);
+}
+
+/** Under the two numbers, as soon as one of them is complete and wrong. */
+export function pairHintError(idNumber: string, idOk: boolean, phone: string, phoneOk: boolean): string {
+  if (idNumber.length === 9 && !idOk) return 'מספר תעודת הזהות לא תקין';
+  if (phone.length === 10 && !phoneOk) return 'מספר נייד מתחיל ב־05';
+  return '';
+}
+
+/**
+ * What a change to the two numbers does.
+ *
+ * - `wait`: one of them is not whole yet — whatever was open closes, and the form waits.
+ * - `ask`: a whole pair that was not asked about yet — the server is asked.
+ * - `stay`: nothing to do.
+ * - `settle`: the parent said "I'll fill it in myself" after taking the card's
+ *   phone, so there was no phone to type over. The form stayed open while the
+ *   phone was typed; now that it is whole, it is noted and not asked about.
+ *
+ * Any other change after "I'll fill it in myself" starts over, like every
+ * other change to the two numbers.
+ */
+export type PairMove = 'wait' | 'ask' | 'stay' | 'settle';
+
+export function nextPairMove(pair: {
+  idOk: boolean;
+  phoneOk: boolean;
+  key: string;
+  lastKey: string;
+  /** "I'll fill it in myself" is on, and the phone is still to be typed. */
+  manualAwaitsPhone: boolean;
+}): PairMove {
+  if (!pair.idOk || !pair.phoneOk) return pair.manualAwaitsPhone ? 'stay' : 'wait';
+  if (pair.manualAwaitsPhone) return 'settle';
+  return pair.key === pair.lastKey ? 'stay' : 'ask';
+}
+
 const DEVICE_KEY = 'kogo.widget.device';
 let memoryDevice = '';
 

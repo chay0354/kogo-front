@@ -54,9 +54,9 @@ export default function MaskedField({
   const wrapClass = [
     styles.field,
     ltr || (locked && type === 'date') ? styles.fieldLtr : '',
-    locked ? styles.fieldLocked : '',
     locked && filling ? styles.fieldFilling : '',
-    locked && !filling && settled ? styles.fieldFilled : '',
+    // Still a plain white field until its turn comes; grey and ticked once the value is in.
+    locked && !filling && settled ? `${styles.fieldLocked} ${styles.fieldFilled}` : '',
   ].filter(Boolean).join(' ');
 
   const openField = () => {

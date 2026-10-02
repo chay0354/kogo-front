@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { drawerCourseTitle, resolveWidgetExternalLink } from './page.utils';
+import { drawerCourseTitle, drawerLessonLine, resolveWidgetExternalLink } from './page.utils';
 import { COGOMELO_APPROVAL_PHRASE, INSTRUCTORS_TRACK_TITLE, stripWidgetApprovalPhrase } from '@/lib/courseUtils';
 
 const CARDCOM = 'https://secure.cardcom.solutions/EA/EA5/eIkY6Sol20OGBKtIK3aGTQ/PaymentSP';
@@ -80,5 +80,21 @@ describe('drawerCourseTitle', () => {
         isInstructors: false,
       }),
     ).toBe('כרטיסייה 10 כניסות');
+  });
+});
+
+describe('drawerLessonLine', () => {
+  test('says the day, the hours and the place of one weekly lesson', () => {
+    expect(drawerLessonLine('שני · 17:00-17:45', false, 'כפר סבא')).toBe('יום שני · 17:00-17:45 · כפר סבא');
+  });
+
+  test('says "days" for a track of two lessons a week', () => {
+    expect(drawerLessonLine('שני / רביעי · 17:00-17:45', true, 'כפר סבא')).toBe('ימי שני / רביעי · 17:00-17:45 · כפר סבא');
+  });
+
+  test('leaves out what is not known', () => {
+    expect(drawerLessonLine('', false, 'כפר סבא')).toBe('כפר סבא');
+    expect(drawerLessonLine('שני · 17:00-17:45', false, null)).toBe('יום שני · 17:00-17:45');
+    expect(drawerLessonLine('', false, '')).toBe('');
   });
 });

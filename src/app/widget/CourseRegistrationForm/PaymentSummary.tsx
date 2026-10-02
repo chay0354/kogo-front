@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { prefersReducedMotion } from '../widgetMotion';
 import styles from './newLook.module.css';
 import { formatShekelShort, paymentSummaryModel } from './paymentSummaryModel';
+import Reveal from './Reveal';
 import type { PaymentResponse } from './types';
 
 interface Props {
@@ -27,6 +28,15 @@ const FEE_EXPLANATION =
 
 const ALL = Number.MAX_SAFE_INTEGER;
 const sleep = (ms: number) => new Promise<void>((resolve) => window.setTimeout(resolve, ms));
+
+// The waits between the moving parts. The price itself takes as long as the
+// server takes; these only give each part room to be seen, and no more.
+/** The "checking" line stays while the screen itself is still arriving (its entrance takes this long), and no longer. */
+const CHECKING_MIN_MS = 450;
+/** A tile has arrived enough for its coin to leave. */
+const BEFORE_COIN_MS = 300;
+/** Between the sum coming to rest and the next tile. */
+const AFTER_COUNT_MS = 100;
 
 type Step = { kind: 'discount'; index: number } | { kind: 'part' } | { kind: 'credit' };
 
@@ -73,7 +83,7 @@ export default function PaymentSummary({
     if (!model) return undefined;
     let cancelled = false;
     // The look-up line stays a moment, however fast the answer came.
-    const lookUp = () => sleep(Math.max(0, 1000 - (Date.now() - openedAt.current)));
+    const lookUp = () => sleep(Math.max(0, CHECKING_MIN_MS - (Date.now() - openedAt.current)));
 
     if (still || steps.length === 0) {
       // Nothing to play: with no discount the price simply stands.
@@ -139,7 +149,7 @@ export default function PaymentSummary({
         setShown(index + 1);
         // The page moves a little ahead of what is arriving.
         payNowRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-        await sleep(520);
+        await sleep(BEFORE_COIN_MS);
         if (cancelled) return;
         await flyCoin(amountRefs.current[index], payNowRef.current);
         if (cancelled) return;
@@ -148,14 +158,14 @@ export default function PaymentSummary({
           : !counts
             ? 0
             : step.kind === 'part'
-              ? model.monthly - model.prorated
+              ? model.prorateOff
               : model.discountLines[step.index].amount;
         setBump(true);
         if (off > 0) await countDown(now, now - off);
         else await sleep(260);
         now -= off;
         setBump(false);
-        await sleep(260);
+        await sleep(AFTER_COUNT_MS);
       }
       if (cancelled) return;
       // The server's own figure, whatever the counting showed on the way.
@@ -270,7 +280,7 @@ export default function PaymentSummary({
                 </span>
                 <span className={styles.discAmount}>
                   <span dir="ltr" ref={(el) => { amountRefs.current[partAt] = el; }}>
-                    −{formatShekelShort(Math.round((model.monthly - model.prorated) * 100) / 100)}
+                    −{formatShekelShort(model.prorateOff)}
                   </span>
                   <span className={styles.discWhen}>בחודש הזה בלבד</span>
                 </span>
@@ -320,18 +330,21 @@ export default function PaymentSummary({
         ) : null}
       </div>
 
-      {settled && saved > 0 ? (
-        <div className={styles.saved}>
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="#F5C518" aria-hidden="true">
-            <path d="M12 2l2.4 6.2L21 9.3l-5 4.3L17.5 20 12 16.6 6.5 20 8 13.6 3 9.3l6.6-1.1z" />
-          </svg>
-          <span>
-            חסכתם <span className={styles.savedAmount} dir="ltr">{formatShekelShort(saved)}</span> בכל חודש
-          </span>
-          {[[-46, -26], [44, -28], [-70, 6], [70, 4], [-30, 28], [34, 30]].map(([x, y]) => (
-            <i key={`${x}:${y}`} className={styles.spark} style={{ '--x': `${x}px`, '--y': `${y}px` } as React.CSSProperties} />
-          ))}
-        </div>
+      {/* What was saved opens under the box once the sum has come to rest. */}
+      {saved > 0 ? (
+        <Reveal open={settled} gap={16}>
+          <div className={styles.saved}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="#F5C518" aria-hidden="true">
+              <path d="M12 2l2.4 6.2L21 9.3l-5 4.3L17.5 20 12 16.6 6.5 20 8 13.6 3 9.3l6.6-1.1z" />
+            </svg>
+            <span>
+              חסכתם <span className={styles.savedAmount} dir="ltr">{formatShekelShort(saved)}</span> בכל חודש
+            </span>
+            {[[-46, -26], [44, -28], [-70, 6], [70, 4], [-30, 28], [34, 30]].map(([x, y]) => (
+              <i key={`${x}:${y}`} className={styles.spark} style={{ '--x': `${x}px`, '--y': `${y}px` } as React.CSSProperties} />
+            ))}
+          </div>
+        </Reveal>
       ) : null}
     </>
   );

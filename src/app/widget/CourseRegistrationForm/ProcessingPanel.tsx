@@ -14,9 +14,16 @@ interface Props {
    * answers that came back, not from a clock.
    */
   progress?: { done: number; total: number };
+  /**
+   * The charge went through. The last station turns green for a moment and the
+   * final screen says the rest — there is no second "approved" message.
+   */
+  approved?: boolean;
 }
 
 const TICK_MS = 500;
+/** Where the sparks around the green station fly to. */
+const SPARKS = [[-30, -22], [28, -24], [-36, 12], [34, 14], [0, -36]] as const;
 
 const icon = (children: React.ReactNode) => (
   <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -49,7 +56,7 @@ const STATIONS: Record<ProcessingPhase, React.ReactNode[]> = {
  * stay. There is nothing to click — once a card is on its way, the only safe
  * action is to wait.
  */
-export default function ProcessingPanel({ phase, amountLabel, progress }: Props) {
+export default function ProcessingPanel({ phase, amountLabel, progress, approved = false }: Props) {
   const [elapsedMs, setElapsedMs] = useState(0);
 
   useEffect(() => {
@@ -63,28 +70,39 @@ export default function ProcessingPanel({ phase, amountLabel, progress }: Props)
 
   const copy = processingCopy(phase, elapsedMs);
   // A paid trial has one unchanging state: the dot waits at the middle station.
-  const at = copy.steps.length > 0 ? copy.activeStep : 1;
+  // Approved, every station is behind us.
+  const at = approved ? 3 : copy.steps.length > 0 ? copy.activeStep : 1;
+  const reached = Math.min(at, 2);
+  const activeStep = approved ? copy.steps.length : copy.activeStep;
 
   return (
-    <div className={styles.panel} dir="rtl" role="status" aria-live="polite" aria-busy="true">
+    <div className={styles.panel} dir="rtl" role="status" aria-live="polite" aria-busy={!approved}>
       <div className={styles.trip} aria-hidden="true">
         <span className={styles.tripLine}>
-          <span className={styles.tripFill} style={{ width: `${at * 50}%` }} />
+          <span className={styles.tripFill} style={{ width: `${reached * 50}%` }} />
         </span>
-        <span className={styles.tripDot} style={{ right: `calc(24px + (100% - 48px) * ${at / 2})` }} />
+        <span
+          className={styles.tripDot}
+          style={{ right: `calc(24px + (100% - 48px) * ${reached / 2})`, opacity: approved ? 0 : 1 }}
+        />
         {STATIONS[phase].map((station, index) => (
           <span
             key={index}
             className={`${styles.tripNode}${
-              index < at ? ` ${styles.tripNodePassed}` : index === at ? ` ${styles.tripNodeOn}` : ''
+              approved && index === 2
+                ? ` ${styles.tripNodeApproved}`
+                : index < at ? ` ${styles.tripNodePassed}` : index === at ? ` ${styles.tripNodeOn}` : ''
             }`}
           >
             {station}
+            {index === 2 ? SPARKS.map(([x, y]) => (
+              <i key={`${x}:${y}`} style={{ '--x': `${x}px`, '--y': `${y}px` } as React.CSSProperties} />
+            )) : null}
           </span>
         ))}
       </div>
 
-      <p className={styles.title}>{copy.title}</p>
+      <p className={`${styles.title}${approved ? ` ${styles.titleApproved}` : ''}`}>{copy.title}</p>
       {amountLabel && phase !== 'register' && (
         <p className={styles.amount}>{amountLabel}</p>
       )}
@@ -98,11 +116,15 @@ export default function ProcessingPanel({ phase, amountLabel, progress }: Props)
       {copy.steps.length > 0 && (
       <ol className={styles.steps}>
         {copy.steps.map((label, index) => {
-          const state = index < copy.activeStep ? 'done' : index === copy.activeStep ? 'active' : 'todo';
+          const state = index < activeStep ? 'done' : index === activeStep ? 'active' : 'todo';
           return (
             <li key={label} className={`${styles.step} ${styles[state]}`}>
               <span className={styles.stepMark} aria-hidden="true">
-                {state === 'done' ? '✓' : ''}
+                {state === 'done' ? (
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M5 12.5 10 17.5 19 7" />
+                  </svg>
+                ) : null}
               </span>
               <span className={styles.stepLabel}>{label}</span>
             </li>
@@ -121,7 +143,7 @@ export default function ProcessingPanel({ phase, amountLabel, progress }: Props)
         </p>
       )}
 
-      {copy.slowNote && <p className={styles.slowNote}>{copy.slowNote}</p>}
+      {copy.slowNote && !approved && <p className={styles.slowNote}>{copy.slowNote}</p>}
     </div>
   );
 }

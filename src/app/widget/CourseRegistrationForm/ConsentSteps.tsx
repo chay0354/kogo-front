@@ -3,21 +3,22 @@
 import { useEffect, useRef } from 'react';
 import { FileText } from 'lucide-react';
 import SignatureCanvas from '../SignatureCanvas';
+import Reveal from './Reveal';
+import { CONSENT_ORDER, type ConsentKey } from './consentCheck';
 import styles from './newLook.module.css';
-
-type ConsentKey = 'health' | 'terms' | 'signature';
 
 interface Props {
   healthConsent: boolean;
   onHealthChange: (checked: boolean) => void;
   termsReadComplete: boolean;
-  termsOpenedOnce: boolean;
   termsConsent: boolean;
   onTermsChange: (checked: boolean) => void;
   onOpenTerms: () => void;
   signed: boolean;
   onSignature: (value: string | null) => void;
   errors: Partial<Record<ConsentKey, string>>;
+  /** Goes up each time "send" was pressed with a step missing: that step shakes again and comes into view. */
+  missTick?: number;
   /** False for a free trial lesson: nothing is paid after these steps. */
   paymentFollows: boolean;
 }
@@ -39,13 +40,13 @@ export default function ConsentSteps({
   healthConsent,
   onHealthChange,
   termsReadComplete,
-  termsOpenedOnce,
   termsConsent,
   onTermsChange,
   onOpenTerms,
   signed,
   onSignature,
   errors,
+  missTick = 0,
   paymentFollows,
 }: Props) {
   const done = [healthConsent, termsReadComplete && termsConsent, signed];
@@ -54,13 +55,74 @@ export default function ConsentSteps({
   const stepRefs = useRef<Array<HTMLElement | null>>([]);
   const lastCount = useRef(count);
 
-  // After a step is finished the page moves on to the one that comes next.
+  // After a step is finished the page moves on to the one that comes next,
+  // once the finished one had a moment to turn green.
   useEffect(() => {
-    if (count > lastCount.current && next >= 0) {
-      stepRefs.current[next]?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-    }
+    const moved = count > lastCount.current && next >= 0;
     lastCount.current = count;
+    if (!moved) return undefined;
+    const timer = window.setTimeout(
+      () => stepRefs.current[next]?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }),
+      320,
+    );
+    return () => window.clearTimeout(timer);
   }, [count, next]);
+
+  // The terms were read to the end: their tick box opened, and the page shows it.
+  const readBefore = useRef(termsReadComplete);
+  useEffect(() => {
+    const justRead = termsReadComplete && !readBefore.current;
+    readBefore.current = termsReadComplete;
+    if (!justRead || termsConsent) return undefined;
+    const timer = window.setTimeout(
+      () => stepRefs.current[1]?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }),
+      400,
+    );
+    return () => window.clearTimeout(timer);
+    // Only the reading itself moves the page here; ticking the box is the effect above.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [termsReadComplete]);
+
+  // "Send" was pressed too early: the first step that is missing shakes and comes to the middle of the screen.
+  useEffect(() => {
+    if (!missTick) return;
+    const el = stepRefs.current[CONSENT_ORDER.findIndex((key) => errors[key])];
+    if (!el) return;
+    el.classList.remove(styles.consStepMissing);
+    void el.offsetWidth;
+    el.classList.add(styles.consStepMissing);
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    // One shake per press, whatever else changed since.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [missTick]);
+
+  // A signature counts once the finger is lifted, so the page does not move on in the middle of a stroke.
+  const stroking = useRef(false);
+  const heldSignature = useRef<string | null>(null);
+  const onSignatureRef = useRef(onSignature);
+  onSignatureRef.current = onSignature;
+  useEffect(() => {
+    const lifted = () => {
+      if (!stroking.current) return;
+      stroking.current = false;
+      if (heldSignature.current) onSignatureRef.current(heldSignature.current);
+      heldSignature.current = null;
+    };
+    window.addEventListener('pointerup', lifted);
+    window.addEventListener('pointercancel', lifted);
+    return () => {
+      window.removeEventListener('pointerup', lifted);
+      window.removeEventListener('pointercancel', lifted);
+    };
+  }, []);
+  const signatureChanged = (value: string | null) => {
+    if (stroking.current && value) {
+      heldSignature.current = value;
+      return;
+    }
+    heldSignature.current = null;
+    onSignature(value);
+  };
 
   const stepClass = (index: number, error?: string) => [
     styles.consStep,
@@ -116,8 +178,11 @@ export default function ConsentSteps({
             <FileText size={18} aria-hidden="true" />
             {termsReadComplete ? 'פתחו שוב את התקנון' : 'פתחו את התקנון והנהלים'}
           </button>
-          {termsReadComplete ? (
-            <label className={styles.consLabel}>
+          {!termsReadComplete ? (
+            <p className={styles.consNote}>קוראים עד הסוף ומאשרים. אחר כך מופיע כאן האישור.</p>
+          ) : null}
+          <Reveal open={termsReadComplete}>
+            <label className={`${styles.consLabel} ${styles.consTermsLabel}`}>
               <input
                 type="checkbox"
                 checked={termsConsent}
@@ -125,20 +190,10 @@ export default function ConsentSteps({
                 className={styles.consCheckbox}
               />
               <span>
-                אני מאשר/ת שקראתי בעיון את{' '}
-                <button type="button" className={styles.consTermsLink} onClick={onOpenTerms}>
-                  התקנון והנהלים
-                </button>
-                , אני מסכים/ה לכל התנאים ומתחייב/ת לשלם את שכר הלימוד כנדרש.
+                אני מאשר/ת שקראתי בעיון את התקנון והנהלים, אני מסכים/ה לכל התנאים ומתחייב/ת לשלם את שכר הלימוד כנדרש.
               </span>
             </label>
-          ) : (
-            <p className={styles.consNote}>
-              {termsOpenedOnce
-                ? 'גללו עד סוף התקנון ואשרו כדי להמשיך'
-                : 'קוראים עד הסוף ומאשרים. אחר כך מופיע כאן האישור.'}
-            </p>
-          )}
+          </Reveal>
           {errors.terms ? <p className={styles.consError}>{errors.terms}</p> : null}
         </section>
 
@@ -157,8 +212,9 @@ export default function ConsentSteps({
               errors.signature ? styles.consSignatureInvalid : '',
             ].filter(Boolean).join(' ')}
             aria-disabled={!termsReadComplete}
+            onPointerDown={() => { stroking.current = true; }}
           >
-            <SignatureCanvas onChange={onSignature} />
+            <SignatureCanvas onChange={signatureChanged} />
           </div>
           {errors.signature ? <p className={styles.consError}>{errors.signature}</p> : null}
         </section>

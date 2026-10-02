@@ -59,8 +59,8 @@ export function useTypedFill(
     setActive(null);
     setRunning(true);
     const run = async () => {
-      // The fields are still opening.
-      await sleep(820);
+      // The fields are still opening; the first one is in view by now.
+      await sleep(500);
       for (const step of list) {
         if (cancelled) return;
         setActive(step.key);

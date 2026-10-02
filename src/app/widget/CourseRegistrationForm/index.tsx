@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { ChevronDown, ChevronRight } from 'lucide-react';
 import api from '@/lib/api';
 import styles from './index.module.css';
@@ -22,6 +22,7 @@ import StepBar from './StepBar';
 import ConsentSteps from './ConsentSteps';
 import PaymentSummary from './PaymentSummary';
 import SuccessSummary from './SuccessSummary';
+import TrialInfo from './TrialInfo';
 import { formatShekelShort, paymentSummaryModel } from './paymentSummaryModel';
 import MaskedField from './MaskedField';
 import Reveal from './Reveal';
@@ -30,6 +31,9 @@ import {
   askIdentify,
   deviceId,
   fetchIdentifyConfig,
+  isMobilePhone,
+  nextPairMove,
+  pairHintError,
   type IdentifyAnswer,
   type IdentifyConfig,
   type KnownChild,
@@ -37,10 +41,12 @@ import {
 } from './identification';
 import { quoteItems, selectionFields, toPaymentResponse, type PlanChild } from './registrationPlan';
 import { useTypedFill, type FillStep } from './useTypedFill';
+import { consentErrors as everyConsentError, firstMissingConsent, type ConsentKey } from './consentCheck';
+import { prefersReducedMotion } from '../widgetMotion';
 import { registerDeadlineMs, useWaitDeadline, WAIT_SLACK_MS } from './waitDeadline';
 import type { ProcessingPhase } from './processingCopy';
 import { SkeletonLessonOptions, SkeletonTextLines } from '../WidgetSkeletons/WidgetSkeletons';
-import { trialNextStep } from './trialFlow';
+import { trialNextStep, trialWhen } from './trialFlow';
 import {
   CHECKOUT_POLL_MS,
   HOSTED_CHARGE_DEADLINE_MS,
@@ -81,7 +87,29 @@ type DiscountQueueItem = {
 type NameFieldKey = 'parentFirstName' | 'parentLastName' | 'childFirstName' | 'childLastName';
 type IdFieldKey = 'parentIdNumber' | 'childIdNumber';
 type DetailsFieldKey = NameFieldKey | IdFieldKey | 'parentPhone' | 'parentEmail' | 'childBirthDate' | 'childGender';
-type ConsentFieldKey = 'health' | 'terms' | 'signature';
+type ConsentFieldKey = ConsentKey;
+
+/** Where each screen stands in the flow, to tell a step forward from a step back. */
+const STEP_ORDER: Record<Step, number> = {
+  details: 0,
+  discount_confirm: 1,
+  trial_confirm: 1,
+  summary: 1,
+  consents: 2,
+  error: 2,
+  submitting: 3,
+  payment: 4,
+  payment_failed: 5,
+  payment_pending: 5,
+  payment_success: 6,
+  trial_success: 6,
+};
+/** The shortest the "checking whether you are with us" line stays up. */
+const IDENTIFY_LINE_MIN_MS = 400;
+/** How long a screen takes to leave before the next one arrives. */
+const SCREEN_LEAVE_MS = 200;
+/** The last station stays green this long before the final screen. */
+const APPROVED_SHOW_MS = 900;
 
 /**
  * One date in the trial picker.
@@ -182,6 +210,7 @@ function lookupBlocksLesson(
 export default function CourseRegistrationForm({
   courseId,
   courseName,
+  lessonLine = '',
   isAdult = false,
   bundleId,
   lessonId,
@@ -229,7 +258,8 @@ export default function CourseRegistrationForm({
   const [nearOffer, setNearOffer] = useState<{ lastDigit: string; nearToken: string } | null>(null);
   // A similar number was corrected to the card's: no phone was typed, and the hidden one shows.
   const [phoneFromCard, setPhoneFromCard] = useState(Boolean(initialParent?.phoneFromCard));
-  const [idHintError, setIdHintError] = useState('');
+  // "I'll fill it in myself" was said while the phone shown was the card's: the form stays open until one is typed.
+  const manualAwaitsPhoneRef = useRef(false);
   // Who is being registered: a child from the family's list, another child, or not chosen yet.
   const [pick, setPick] = useState<KnownChild | 'new' | null>(null);
   // A detail of the chosen child was changed: this is now a new child, and the card is left alone.
@@ -250,6 +280,8 @@ export default function CourseRegistrationForm({
   );
   const topRowRef = useRef<HTMLDivElement | null>(null);
   const welcomeRef = useRef<HTMLDivElement | null>(null);
+  // The height the card (or the strip) had just before the other one took its place.
+  const welcomeFromRef = useRef(0);
   const parentFieldsRef = useRef<HTMLDivElement | null>(null);
   const childSectionRef = useRef<HTMLDivElement | null>(null);
   const actionsRef = useRef<HTMLDivElement | null>(null);
@@ -262,6 +294,20 @@ export default function CourseRegistrationForm({
   const [quoteSettled, setQuoteSettled] = useState(false);
   const quoteRunRef = useRef(0);
   const summaryActionRef = useRef<HTMLButtonElement | null>(null);
+  // The screen on show is on its way out: forward it leaves to the right, back to the left.
+  const [leaving, setLeaving] = useState<'forward' | 'back' | null>(null);
+  /** One screen leaves, and then `arrive` puts the next one up. */
+  const leaveScreenThen = (back: boolean, arrive: () => void) => {
+    if (prefersReducedMotion()) {
+      arrive();
+      return;
+    }
+    setLeaving(back ? 'back' : 'forward');
+    window.setTimeout(() => {
+      setLeaving(null);
+      arrive();
+    }, SCREEN_LEAVE_MS);
+  };
 
   // Lookup result — used for discount step
   const [lookup, setLookup] = useState<LookupResult | null>(null);
@@ -280,7 +326,7 @@ export default function CourseRegistrationForm({
   // accepting them is that consent — the server records it on the family.
   const [termsConsent, setTermsConsent] = useState(false);
   const [termsReadComplete, setTermsReadComplete] = useState(false);
-  const [termsOpenedOnce, setTermsOpenedOnce] = useState(false);
+  const [consentMissTick, setConsentMissTick] = useState(0);
   const [termsScrolledToEnd, setTermsScrolledToEnd] = useState(false);
   const [termsCanJumpToEnd, setTermsCanJumpToEnd] = useState(false);
   const [signature, setSignature] = useState<string | null>(null);
@@ -296,6 +342,8 @@ export default function CourseRegistrationForm({
   const [cvv, setCvv] = useState('');
   const [cardHolderId, setCardHolderId] = useState('');
   const [charging, setCharging] = useState(false);
+  // The charge went through: the last station is green for a moment before the final screen.
+  const [chargeApproved, setChargeApproved] = useState(false);
   // 'charge' while the card round trip is open; 'verify' once the gateway
   // accepted the card and we are polling for the settled status.
   const [chargePhase, setChargePhase] = useState<ProcessingPhase>('charge');
@@ -428,11 +476,36 @@ export default function CourseRegistrationForm({
   const pickedKid = pick && pick !== 'new' ? pick : null;
   // The parent was identified and chose who to register: the hidden details stay on the server.
   const identified = idFirst && idStage === 'known' && known !== null && pick !== null;
+  // The two numbers the form opens on.
+  const idOk = parentIdNumber.length === 9 && isValidIsraeliId(parentIdNumber);
+  const phoneOk = isMobilePhone(parentPhone);
+  const idHintError = idFirst && !phoneFromCard ? pairHintError(parentIdNumber, idOk, parentPhone, phoneOk) : '';
+  // Identification is switched off on the server: the two numbers still come
+  // first, and the rest opens once both are in — as for a parent we do not know.
+  const openWithoutIdentify = idFirst && identifyConfig !== null && !identifyOn && idOk && phoneOk;
   // The rest of the form: open once we know whether this parent is known, and — if so — who is registered.
   const formOpen = !idFirst
-    || (identifyConfig !== null && !identifyOn)
+    || openWithoutIdentify
     || idStage === 'unknown' || idStage === 'near' || idStage === 'manual'
     || identified;
+
+  /** The form opened empty: the cursor waits in the parent's first name. */
+  const focusParentName = () => window.setTimeout(
+    () => parentFieldsRef.current?.querySelector('input')?.focus({ preventScroll: true }),
+    350,
+  );
+  /** The fields that just opened come into view. */
+  const followParentFields = () => window.setTimeout(
+    () => parentFieldsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }),
+    540,
+  );
+  useEffect(() => {
+    if (!openWithoutIdentify) return undefined;
+    const timers = [followParentFields(), focusParentName()];
+    return () => timers.forEach((timer) => window.clearTimeout(timer));
+    // The two helpers read the form at call time.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [openWithoutIdentify]);
 
   /** Forget what the server told us about this parent. Typed details are kept; the card's are not. */
   const dropIdentification = (stage: 'waiting' | 'checking' | 'unknown' | 'manual') => {
@@ -465,40 +538,45 @@ export default function CourseRegistrationForm({
       return;
     }
     setIdStage('unknown');
-    window.setTimeout(() => parentFieldsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 540);
+    followParentFields();
+    focusParentName();
   };
 
-  // Both numbers are in and valid: ask, once per pair.
+  // Both numbers are in and valid: ask, once per pair. Any change to them starts
+  // over — also after "I'll fill it in myself".
   useEffect(() => {
-    // "I'll fill it in myself" holds for the rest of this form: nothing is looked up again.
-    if (!identifyOn || phoneFromCard || idStage === 'manual') return;
-    const idOk = parentIdNumber.length === 9 && isValidIsraeliId(parentIdNumber);
-    const phoneOk = /^05\d{8}$/.test(parentPhone);
-    if (!idOk || !phoneOk) {
+    if (!identifyOn || phoneFromCard) return;
+    const key = `${parentIdNumber}|${parentPhone}`;
+    const move = nextPairMove({
+      idOk,
+      phoneOk,
+      key,
+      lastKey: lastIdentifyKeyRef.current,
+      manualAwaitsPhone: idStage === 'manual' && manualAwaitsPhoneRef.current,
+    });
+    if (move === 'stay') return;
+    manualAwaitsPhoneRef.current = false;
+    if (move === 'settle') {
+      lastIdentifyKeyRef.current = key;
+      return;
+    }
+    if (move === 'wait') {
       lastIdentifyKeyRef.current = '';
       identifyRunRef.current += 1;
       if (idStage !== 'waiting') dropIdentification('waiting');
-      setIdHintError(
-        parentIdNumber.length === 9 && !idOk
-          ? 'מספר תעודת הזהות לא תקין'
-          : parentPhone.length === PHONE_DIGITS && !phoneOk
-            ? 'מספר נייד מתחיל ב־05'
-            : '',
-      );
       return;
     }
-    setIdHintError('');
-    const key = `${parentIdNumber}|${parentPhone}`;
-    if (key === lastIdentifyKeyRef.current) return;
     lastIdentifyKeyRef.current = key;
     const run = ++identifyRunRef.current;
     dropIdentification('checking');
     const started = Date.now();
     void askIdentify({ parentIdNumber, parentPhone }, identifyConfig?.ticket ?? '').then((answer) => {
-      // The look-up line stays long enough to be read.
+      // The parent waits only as long as the server takes. The floor is the
+      // server's own shortest answer, so it only keeps the line from flashing
+      // when no answer came at all.
       window.setTimeout(() => {
         if (identifyRunRef.current === run) applyIdentifyAnswer(answer);
-      }, Math.max(0, 700 - (Date.now() - started)));
+      }, Math.max(0, IDENTIFY_LINE_MIN_MS - (Date.now() - started)));
     });
     // The stage and the helpers are read at call time; only the two numbers start a look-up.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -533,6 +611,7 @@ export default function CourseRegistrationForm({
 
   /** Who is being registered: a child from the list, or another one. */
   const chooseChild = (kid: KnownChild | 'new') => {
+    welcomeFromRef.current = welcomeRef.current?.offsetHeight ?? 0;
     setPick(kid);
     setChildEdited(false);
     setFieldErrors({});
@@ -550,6 +629,7 @@ export default function CourseRegistrationForm({
   };
 
   const pickAgain = () => {
+    welcomeFromRef.current = welcomeRef.current?.offsetHeight ?? 0;
     setPick(null);
     setChildEdited(false);
     setFillDone(false);
@@ -558,16 +638,46 @@ export default function CourseRegistrationForm({
     setChildIdNumber('');
     setChildBirthDate('');
     setChildGender('');
+    // The list is back: the two numbers and the card under them come to the top.
+    window.setTimeout(() => topRowRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 140);
   };
+
+  // The card folds into the strip, and the strip opens back into the card, as one box changing its height.
+  const welcomeView = known ? (pick === null ? 'card' : 'strip') : '';
+  useLayoutEffect(() => {
+    const box = welcomeRef.current;
+    const from = welcomeFromRef.current;
+    welcomeFromRef.current = 0;
+    if (!box || !from || prefersReducedMotion()) return undefined;
+    const to = box.offsetHeight;
+    if (!to || from === to) return undefined;
+    const clear = () => {
+      box.style.height = '';
+      box.style.overflow = '';
+      box.style.transition = '';
+    };
+    box.style.height = `${from}px`;
+    box.style.overflow = 'hidden';
+    box.style.transition = 'height 550ms cubic-bezier(0.2, 0.8, 0.2, 1)';
+    void box.offsetHeight;
+    box.style.height = `${to}px`;
+    const timer = window.setTimeout(clear, 570);
+    return () => {
+      window.clearTimeout(timer);
+      clear();
+    };
+  }, [welcomeView]);
 
   /** "I'll fill it in myself": the form opens empty, as for a parent we do not know. */
   const fillByHand = () => {
     identifyRunRef.current += 1;
     // A phone taken from the card goes with the identification: it is typed like the rest.
+    manualAwaitsPhoneRef.current = phoneFromCard;
     setPhoneFromCard(false);
     dropIdentification('manual');
     setChildFirstName('');
     setChildGender('');
+    focusParentName();
   };
 
   const openField = (key: string) => setOpenedFields((prev) => new Set(prev).add(key));
@@ -628,10 +738,17 @@ export default function CourseRegistrationForm({
       if (key === 'childLastName') actionsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     },
     () => {
+      if (pick === 'new') {
+        // Only the parent's details were filled. The child's are typed, starting with the name.
+        childSectionRef.current?.querySelector('input')?.focus({ preventScroll: true });
+        return;
+      }
       setFillDone(true);
       window.setTimeout(() => actionsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 280);
     },
   );
+  // A chosen child's gender is marked last, when the fields above it are in.
+  const genderOnShow = !(identified && pickedKid && !childEdited) || fillDone;
 
   const updateTermsScrollState = useCallback(() => {
     const el = termsBodyRef.current;
@@ -674,7 +791,6 @@ export default function CourseRegistrationForm({
 
   const openTermsModal = () => {
     setShowTerms(true);
-    setTermsOpenedOnce(true);
     if (!termsReadComplete) {
       setTermsScrolledToEnd(false);
     }
@@ -691,7 +807,8 @@ export default function CourseRegistrationForm({
   const confirmTermsRead = () => {
     if (!termsScrolledToEnd) return;
     setTermsReadComplete(true);
-    setTermsConsent(true);
+    // In a course registration the tick box opens and the parent ticks it. A trial keeps it ticked for them.
+    if (isTrial) setTermsConsent(true);
     setShowTerms(false);
     setConsentErrors((prev) => {
       if (!prev.terms) return prev;
@@ -880,7 +997,21 @@ export default function CourseRegistrationForm({
       return last;
     };
 
-    const showSuccess = () => setStep(isTrial ? 'trial_success' : 'payment_success');
+    let approvedShown = false;
+    const showSuccess = () => {
+      if (isTrial || !mine() || prefersReducedMotion()) {
+        setStep(isTrial ? 'trial_success' : 'payment_success');
+        return;
+      }
+      // No second "approved" message: the last station turns green, and the final screen says the rest.
+      approvedShown = true;
+      setChargeApproved(true);
+      window.setTimeout(() => {
+        setChargeApproved(false);
+        setChargePhase('charge');
+        setStep('payment_success');
+      }, APPROVED_SHOW_MS);
+    };
     const setStepIfMine = (next: Step) => { if (mine()) setStep(next); };
     const setErrorIfMine = (message: string) => { if (mine()) setErrorMsg(message); };
 
@@ -951,7 +1082,8 @@ export default function CourseRegistrationForm({
     } finally {
       if (mine()) {
         setCharging(false);
-        setChargePhase('charge');
+        // While the green station is on show the panel keeps the wording it had.
+        if (!approvedShown) setChargePhase('charge');
       }
     }
   };
@@ -1188,6 +1320,7 @@ export default function CourseRegistrationForm({
   /** The identification is no longer good (hours passed, or the office switched it off): go on by hand. */
   const identificationExpired = (message?: string) => {
     lastIdentifyKeyRef.current = `${parentIdNumber}|${parentPhone}`;
+    manualAwaitsPhoneRef.current = phoneFromCard;
     setPhoneFromCard(false);
     dropIdentification('manual');
     setAdditionalChildren((prev) => prev.map((child) => (
@@ -1211,13 +1344,18 @@ export default function CourseRegistrationForm({
     setQuote(null);
     setQuoteSettled(false);
     setQuoteState('loading');
+    // The question goes out at once, while the details screen takes its moment to leave.
+    const request = Promise.resolve().then(() => api.post(
+      '/customers/widget/quote/',
+      { items: quoteItems(parentPayload(), registrationPlan(primaryLookup, extraChildren)) },
+      { timeout: 25_000 },
+    ));
+    request.catch(() => undefined);
+    await new Promise<void>((resolve) => leaveScreenThen(false, resolve));
+    if (quoteRunRef.current !== run) return;
     setStep('summary');
     try {
-      const res = await api.post(
-        '/customers/widget/quote/',
-        { items: quoteItems(parentPayload(), registrationPlan(primaryLookup, extraChildren)) },
-        { timeout: 25_000 },
-      );
+      const res = await request;
       if (quoteRunRef.current !== run) return;
       const items = Array.isArray(res.data?.items) ? res.data.items as Array<Record<string, unknown>> : [];
       if (items.length === 0) throw new Error('empty quote');
@@ -1450,12 +1588,14 @@ export default function CourseRegistrationForm({
       return;
     }
     if (step === 'consents' || step === 'error') {
-      setStep(quoteState === 'ready' ? 'summary' : discountQueue.length > 0 ? 'discount_confirm' : 'details');
+      const before: Step = quoteState === 'ready' ? 'summary' : discountQueue.length > 0 ? 'discount_confirm' : 'details';
+      if (isTrial) setStep(before);
+      else leaveScreenThen(true, () => setStep(before));
       return;
     }
     if (step === 'summary') {
       quoteRunRef.current += 1;
-      setStep('details');
+      leaveScreenThen(true, () => setStep('details'));
       return;
     }
     if (step === 'discount_confirm') {
@@ -1553,22 +1693,17 @@ export default function CourseRegistrationForm({
     e.preventDefault();
     setErrorMsg('');
 
-    const errors: Partial<Record<ConsentFieldKey, string>> = {};
-    if (!healthConsent) {
-      errors.health = 'יש לאשר את ההתחייבות לגבי מצב בריאותי';
-    }
-    if (!termsReadComplete) {
-      errors.terms = 'יש לפתוח את התקנון, לגלול עד הסוף ולאשר';
-    } else if (!termsConsent) {
-      errors.terms = 'יש לאשר את התקנון והנהלים';
-    }
-    if (!signature) {
-      errors.signature = 'נדרשת חתימה';
-    }
+    const consentState = { healthConsent, termsReadComplete, termsConsent, signed: Boolean(signature) };
+    // A course registration names one step at a time — the first that is missing — and
+    // that step shakes and comes into view. A trial keeps its list of everything missing.
+    const errors: Partial<Record<ConsentFieldKey, string>> = isTrial
+      ? everyConsentError(consentState)
+      : firstMissingConsent(consentState);
 
     if (Object.keys(errors).length > 0) {
       setConsentErrors(errors);
-      setErrorMsg('יש להשלים את כל השדות הנדרשים');
+      if (isTrial) setErrorMsg('יש להשלים את כל השדות הנדרשים');
+      else setConsentMissTick((tick) => tick + 1);
       return;
     }
     setConsentErrors({});
@@ -1713,15 +1848,14 @@ export default function CourseRegistrationForm({
     </div>
   );
 
-  // The terms, read from a modal. Shared by the consents form (where reading to
-  // the end is required) and by the free trial's summary (where the link is
-  // there for whoever wants it).
+  // The terms, read from a modal on the consents form, where reading to the
+  // end is required. A free trial's summary asks for no consent and has none.
   const termsModal = showTerms ? (
     <div className={styles.termsOverlay} onClick={() => setShowTerms(false)}>
         <div className={styles.termsModal} onClick={(e) => e.stopPropagation()}>
           <div className={styles.termsHeader}>
             <span className={styles.termsModalTitle}>תקנון ונהלים</span>
-            <button type="button" className={styles.termsClose} onClick={() => setShowTerms(false)}>✕</button>
+            <button type="button" className={styles.termsClose} onClick={() => setShowTerms(false)} aria-label="סגירה">✕</button>
           </div>
           <div className={styles.termsBodyWrap}>
             <div
@@ -1788,12 +1922,31 @@ export default function CourseRegistrationForm({
     document.querySelector('[data-screen-top]')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }, [step]);
   const consentsReady = healthConsent && termsReadComplete && termsConsent && Boolean(signature);
-  // Everything is approved and signed: the button to send comes into view.
+  // Everything is approved and signed: the button to send comes into view,
+  // once the last step had a moment to turn green.
   useEffect(() => {
-    if (consentsReady && (step === 'consents' || step === 'error')) {
-      consentSubmitRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-    }
+    if (!consentsReady || (step !== 'consents' && step !== 'error')) return undefined;
+    const timer = window.setTimeout(
+      () => consentSubmitRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }),
+      320,
+    );
+    return () => window.clearTimeout(timer);
   }, [consentsReady, step]);
+
+  // A screen arrives from the left on the way forward and from the right on the way back.
+  const shownStepRef = useRef(step);
+  const cameBackRef = useRef(false);
+  if (shownStepRef.current !== step) {
+    cameBackRef.current = STEP_ORDER[step] < STEP_ORDER[shownStepRef.current];
+    shownStepRef.current = step;
+  }
+  const screenMotion = isTrial
+    ? look.stepIn
+    : leaving === 'back'
+      ? look.stepOutBack
+      : leaving === 'forward'
+        ? look.stepOut
+        : cameBackRef.current ? look.stepInBack : look.stepIn;
 
   const header = (
     <>
@@ -1917,10 +2070,11 @@ export default function CourseRegistrationForm({
     );
 
     // A course registration: the identity number and the phone come first, and the rest opens from them.
-    const idLine = !identifyOn
-      ? null
-      : idHintError
-        ? <p className={`${look.idHint} ${look.idHintError}`}>{idHintError}</p>
+    const idLine = idHintError
+      ? <p className={`${look.idHint} ${look.idHintError}`}>{idHintError}</p>
+      : identifyConfig !== null && !identifyOn
+        // Identification is off on the server: nothing will be filled in, so nothing is promised.
+        ? (formOpen ? null : <p className={look.idHint}>מתחילים בתעודת זהות ובטלפון.</p>)
         : idStage === 'checking'
           ? <p className={look.idHint}><span className={look.dotSpin} />בודקים אם אתם כבר רשומים אצלנו…</p>
           : idStage === 'near' && nearOffer
@@ -2012,7 +2166,7 @@ export default function CourseRegistrationForm({
         </Reveal>
 
         <Reveal open={formOpen} gap={16}>
-          <div ref={parentFieldsRef} className={styles.grid2}>
+          <div ref={parentFieldsRef} className={`${styles.grid2} ${look.riseGrid}`}>
             <div>
               <label className={styles.label}>שם פרטי</label>
               <MaskedField
@@ -2083,13 +2237,13 @@ export default function CourseRegistrationForm({
             ) : null}
             {identified && pickedKid && childEdited ? (
               <p className={look.kidNote}>
-                שיניתם פרט של {pickedKid.firstName}, אז נרשום ילד/ה חדש/ה. הפרטים של {pickedKid.firstName} נשארים אצלנו כמו שהם.
+                שיניתם פרט של {pickedKid.firstName}, אז נרשום ילד/ה חדש/ה. הפרטים של {pickedKid.firstName} נשארים אצלנו כמו שהם.{' '}
                 <button type="button" className={look.textButton} onClick={() => chooseChild(pickedKid)}>
                   חזרה ל{pickedKid.firstName}
                 </button>
               </p>
             ) : null}
-            <div className={styles.grid2}>
+            <div className={`${styles.grid2}${idFirst ? ` ${look.riseGrid}` : ''}`}>
               <div>
                 <label className={styles.label}>שם פרטי *</label>
                 <MaskedField
@@ -2178,14 +2332,14 @@ export default function CourseRegistrationForm({
               <div style={{ gridColumn: '1 / -1' }}>
                 <label className={styles.label}>מין *</label>
                 <div
-                  className={`${styles.genderOptions}${
+                  className={`${styles.genderOptions}${idFirst ? ` ${look.genderRow}` : ''}${
                     fillDone && identified && pickedKid && !childEdited && childGender ? ` ${look.genderFilled}` : ''
                   }`}
                 >
                   {(['male', 'female'] as const).map((g) => (
                     <label key={g} className={styles.radioLabel}>
                       <input type="radio" name="gender" value={g}
-                        checked={childGender === g}
+                        checked={childGender === g && genderOnShow}
                         onChange={() => {
                           setChildGender(g);
                           clearFieldError('childGender');
@@ -2203,10 +2357,11 @@ export default function CourseRegistrationForm({
             </div>
           </div>
         )}
-        {canAddExtraLesson ? (
+        {canAddExtraLesson && (!idFirst || primaryExtraLessons.length > 0) ? (
           <div className={styles.primaryLessons}>
-            <label className={styles.label}>החוגים שנבחרו</label>
-            <SelectedLessonCard selection={primarySelection} />
+            {/* The class the form was opened for stands at the top of an identity-first form. */}
+            <label className={styles.label}>{idFirst ? 'חוגים נוספים' : 'החוגים שנבחרו'}</label>
+            {idFirst ? null : <SelectedLessonCard selection={primarySelection} />}
             {primaryExtraLessons.map((selection, extraIndex) => (
               replacingPrimaryExtraIndex === extraIndex && primaryExtraPickerOpen ? null : (
                 <SelectedLessonCard
@@ -2375,8 +2530,15 @@ export default function CourseRegistrationForm({
     );
 
     return (
-      <form key="details" noValidate onSubmit={handleDetailsSubmit} className={`${styles.form} ${look.stepIn}`} dir="rtl">
+      <form key="details" noValidate onSubmit={handleDetailsSubmit} className={`${styles.form} ${screenMotion}`} dir="rtl">
         {header}
+
+        {idFirst ? (
+          <div className={look.lessonCard}>
+            <b>{courseName}</b>
+            {lessonLine ? <span>{lessonLine}</span> : null}
+          </div>
+        ) : null}
 
         {addingSibling && !idFirst ? (
           <p className={styles.siblingNotice}>
@@ -2408,7 +2570,7 @@ export default function CourseRegistrationForm({
     const who = (selfRegistering ? parentFirstName : childFirstName).trim();
     const oneRegistration = additionalChildren.length === 0 && primaryExtraLessons.length === 0;
     return (
-      <div key="summary" className={`${styles.form} ${look.stepIn}`} dir="rtl">
+      <div key="summary" className={`${styles.form} ${screenMotion}`} dir="rtl">
         {header}
         <div>
           <PaymentSummary
@@ -2422,10 +2584,10 @@ export default function CourseRegistrationForm({
             onSettled={() => {
               if (quoteSettled) return;
               setQuoteSettled(true);
-              // The saving line opens above the button, so the button comes into view a moment later.
+              // The saving line opens above the button, so the button comes into view after it did.
               window.setTimeout(
                 () => summaryActionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }),
-                400,
+                quote && paymentSummaryModel(quote).discountLines.length > 0 ? 650 : 150,
               );
             }}
           />
@@ -2436,7 +2598,7 @@ export default function CourseRegistrationForm({
             type="button"
             className={`${styles.submitButton}${quoteSettled ? ` ${look.readyButton}` : ''}`}
             disabled={!quote}
-            onClick={() => setStep('consents')}
+            onClick={() => leaveScreenThen(false, () => setStep('consents'))}
           >
             המשך לאישורים ולתשלום
           </button>
@@ -2452,7 +2614,7 @@ export default function CourseRegistrationForm({
       return null;
     }
     return (
-      <div key={`discount-${discountQueueIndex}`} className={`${styles.form} ${look.stepIn}`} dir="rtl">
+      <div key={`discount-${discountQueueIndex}`} className={`${styles.form} ${screenMotion}`} dir="rtl">
         {header}
         {currentDiscount ? (
           <p className={styles.discountContext}>
@@ -2487,11 +2649,12 @@ export default function CourseRegistrationForm({
     );
     const childName = `${selfRegistering ? parentFirstName : childFirstName} ${selfRegistering ? parentLastName : childLastName}`.trim();
     const parentName = `${parentFirstName} ${parentLastName}`.trim();
+    const when = trialWhen(trialLessonDate, chosen);
     return (
       <form
         key="trial_confirm"
         noValidate
-        className={`${styles.form} ${look.stepIn}`}
+        className={`${styles.form} ${screenMotion}`}
         dir="rtl"
         onSubmit={(e) => {
           e.preventDefault();
@@ -2500,64 +2663,57 @@ export default function CourseRegistrationForm({
       >
         {header}
 
-        <div className={`${styles.section} ${styles.fadeIn}`}>
-          <div className={styles.sectionTitle}>
-            <span className={styles.sectionTitleLine} />
-            <span className={styles.sectionTitleText}>סיכום ההרשמה לניסיון</span>
-            <span className={styles.sectionTitleLine} />
+        {/* One card. What the parent came to check — when — stands at its head. */}
+        <div className={look.trialCard}>
+          <div className={look.trialWhen}>
+            <span className={look.trialWhenIcon} aria-hidden="true">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3.5" y="5" width="17" height="15.5" rx="3" />
+                <path d="M3.5 10h17M8 3v4M16 3v4" />
+              </svg>
+            </span>
+            {/* The day and the date, and the hours under them: two short lines at any width. */}
+            <span className={look.trialWhenText}>
+              <span>{when.day}</span>
+              {when.hours ? <span className={look.trialWhenHours} dir="ltr">{when.hours}</span> : null}
+            </span>
           </div>
-          <div className={styles.paymentSummary}>
-            <div className={styles.summaryRow}>
-              <span>חוג</span>
-              <span>{courseName}</span>
-            </div>
-            <div className={styles.summaryRow}>
-              <span>{selfRegistering ? 'משתתף/ת' : 'ילד/ה'}</span>
-              <span>{childName || '—'}</span>
-            </div>
-            {!selfRegistering && (
-              <div className={styles.summaryRow}>
-                <span>הורה</span>
-                <span>{parentName || '—'}{parentPhone ? ` · ${parentPhone}` : ''}</span>
-              </div>
-            )}
-            <div className={styles.summaryRow}>
-              <span>מועד הניסיון</span>
-              <span>
-                {chosen
-                  ? `${chosen.day_name} · ${chosen.label} · ${chosen.start_time}–${chosen.end_time}`
-                  : (() => {
-                      const [y, m, d] = trialLessonDate.split('-').map(Number);
-                      return Number.isFinite(y) && Number.isFinite(m) && Number.isFinite(d)
-                        ? new Date(y, m - 1, d).toLocaleDateString('he-IL')
-                        : trialLessonDate;
-                    })()}
-              </span>
-            </div>
+          <div className={look.trialRow}>
+            <span>חוג</span>
+            <b>{courseName}</b>
           </div>
-          <p className={styles.helperText}>
-            באישור אני מסכים/ה{' '}
-            <button type="button" className={styles.termsLink} onClick={openTermsModal}>
-              לתקנון ולנהלים
-            </button>
-            {' '}של קוגומלו.
-          </p>
+          <div className={look.trialRow}>
+            <span>{selfRegistering ? 'משתתף/ת' : 'ילד/ה'}</span>
+            <b>{childName || '—'}</b>
+          </div>
+          {!selfRegistering || !trialLessonIsPaid ? (
+            <div className={look.trialFoot}>
+              {!selfRegistering ? (
+                <span>
+                  הורה: {parentName || '—'}
+                  {parentPhone ? <>{' · '}<span dir="ltr">{parentPhone}</span></> : null}
+                </span>
+              ) : <span />}
+              {!trialLessonIsPaid ? <span className={look.trialFree}>ללא תשלום</span> : null}
+            </div>
+          ) : null}
         </div>
+
+        {/* A free trial asks for no consent to the terms: only what is worth knowing. */}
+        <TrialInfo paid={trialLessonIsPaid} />
 
         {errorMsg && <p className={styles.errorText}>{errorMsg}</p>}
 
         <button type="submit" className={styles.submitButton}>
-          אישור והרשמה לניסיון
+          אישור והרשמה
         </button>
-
-        {termsModal}
       </form>
     );
   }
 
   if (step === 'consents' || step === 'error') {
     return (
-      <form key="consents" noValidate onSubmit={handleFinalSubmit} className={`${styles.form} ${look.stepIn}`} dir="rtl">
+      <form key="consents" noValidate onSubmit={handleFinalSubmit} className={`${look.consForm} ${screenMotion}`} dir="rtl">
         {header}
 
         <ConsentSteps
@@ -2567,7 +2723,6 @@ export default function CourseRegistrationForm({
             if (checked) clearConsentError('health');
           }}
           termsReadComplete={termsReadComplete}
-          termsOpenedOnce={termsOpenedOnce}
           termsConsent={termsConsent}
           onTermsChange={(checked) => {
             setTermsConsent(checked);
@@ -2580,10 +2735,14 @@ export default function CourseRegistrationForm({
             if (value) clearConsentError('signature');
           }}
           errors={consentErrors}
+          missTick={consentMissTick}
           paymentFollows={!isTrial || trialLessonIsPaid}
         />
 
         {termsModal}
+
+        {/* A trial lesson that goes through the approvals: what is worth knowing, next to the button that approves. */}
+        {isTrial ? <TrialInfo paid={trialLessonIsPaid} /> : null}
 
         {errorMsg && <p className={styles.errorText}>{errorMsg}</p>}
 
@@ -2612,11 +2771,12 @@ export default function CourseRegistrationForm({
     );
   }
 
-  if (step === 'payment' && paymentData && charging) {
+  if (step === 'payment' && paymentData && (charging || chargeApproved)) {
     return (
       <>
         {stepBar}
         <ProcessingPanel
+          approved={chargeApproved}
           // A paid trial holds one state from the first click to the last, the
           // charge → verify hand-off included. It is a single small payment, and
           // a screen that renames itself halfway through a short wait reads as
@@ -2644,7 +2804,7 @@ export default function CourseRegistrationForm({
     const paying = paymentSummaryModel(paymentData);
 
     return (
-      <div key="payment" className={`${styles.paymentContainer} ${look.stepIn}`} dir="rtl">
+      <div key="payment" className={`${styles.paymentContainer} ${screenMotion}`} dir="rtl">
         {stepBar}
         {sameAsQuoted ? (
           <h3 className={`${styles.title} ${look.payTitle}`}>

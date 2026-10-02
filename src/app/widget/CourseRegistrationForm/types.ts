@@ -33,6 +33,8 @@ export interface SavedParentDetails {
 export interface Props {
   courseId: string;
   courseName: string;
+  /** When the chosen class meets and where, for the card at the top of the form. */
+  lessonLine?: string;
   isAdult?: boolean;
   bundleId?: string;
   lessonId?: string;
