@@ -5,7 +5,7 @@ import { ChevronDown, ChevronRight } from 'lucide-react';
 import api from '@/lib/api';
 import styles from './index.module.css';
 import look from './newLook.module.css';
-import { israeliIdFieldError, sanitizeIsraeliIdInput } from '@/lib/israeliId';
+import { isValidIsraeliId, israeliIdFieldError, sanitizeIsraeliIdInput } from '@/lib/israeliId';
 import { readToEndState } from '@/lib/readToEnd';
 import { enrollmentSelectionKey, type EnrollmentSelection } from '../catalogRows';
 import AdditionalChildSection, {
@@ -22,7 +22,21 @@ import StepBar from './StepBar';
 import ConsentSteps from './ConsentSteps';
 import PaymentSummary from './PaymentSummary';
 import SuccessSummary from './SuccessSummary';
-import { formatShekelShort } from './paymentSummaryModel';
+import { formatShekelShort, paymentSummaryModel } from './paymentSummaryModel';
+import MaskedField from './MaskedField';
+import Reveal from './Reveal';
+import { KnownParentCard, KnownStrip } from './KnownParentCard';
+import {
+  askIdentify,
+  deviceId,
+  fetchIdentifyConfig,
+  type IdentifyAnswer,
+  type IdentifyConfig,
+  type KnownChild,
+  type KnownParent,
+} from './identification';
+import { quoteItems, selectionFields, toPaymentResponse, type PlanChild } from './registrationPlan';
+import { useTypedFill, type FillStep } from './useTypedFill';
 import { registerDeadlineMs, useWaitDeadline, WAIT_SLACK_MS } from './waitDeadline';
 import type { ProcessingPhase } from './processingCopy';
 import { SkeletonLessonOptions, SkeletonTextLines } from '../WidgetSkeletons/WidgetSkeletons';
@@ -36,7 +50,7 @@ import {
   readCheckoutStart,
   readFrameMessage,
 } from '@/lib/courseCheckout';
-import type { AppliedDiscount, Props, Step, LookupResult, PaymentResponse, TrialOccurrence } from './types';
+import type { Props, Step, LookupResult, PaymentResponse, TrialOccurrence } from './types';
 
 export type { CourseLesson } from './types';
 
@@ -200,6 +214,55 @@ export default function CourseRegistrationForm({
   const [childGender, setChildGender] = useState<'male' | 'female' | ''>('');
   const [selfRegistering, setSelfRegistering] = useState(false);
 
+  // ── a returning parent ──────────────────────────────────────────────────
+  // A course registration opens on two fields, the identity number and the
+  // phone. A trial and an adult signing themselves up keep the form they had;
+  // so does "another child" for a parent who was not identified, whose details
+  // are already in hand.
+  const idFirst = !isTrial && !isAdult && (!addingSibling || Boolean(initialParent?.known));
+  // Null until the server says whether identification is on.
+  const [identifyConfig, setIdentifyConfig] = useState<IdentifyConfig | null>(null);
+  const [idStage, setIdStage] = useState<'waiting' | 'checking' | 'unknown' | 'near' | 'known' | 'manual'>(
+    initialParent?.known ? 'known' : 'waiting',
+  );
+  const [known, setKnown] = useState<KnownParent | null>(initialParent?.known ?? null);
+  const [nearOffer, setNearOffer] = useState<{ lastDigit: string; nearToken: string } | null>(null);
+  // A similar number was corrected to the card's: no phone was typed, and the hidden one shows.
+  const [phoneFromCard, setPhoneFromCard] = useState(Boolean(initialParent?.phoneFromCard));
+  const [idHintError, setIdHintError] = useState('');
+  // Who is being registered: a child from the family's list, another child, or not chosen yet.
+  const [pick, setPick] = useState<KnownChild | 'new' | null>(null);
+  // A detail of the chosen child was changed: this is now a new child, and the card is left alone.
+  const [childEdited, setChildEdited] = useState(false);
+  // Hidden fields the parent pressed to retype.
+  const [openedFields, setOpenedFields] = useState<Set<string>>(
+    () => new Set(
+      initialParent?.known
+        ? (['parentFirstName', 'parentLastName', 'parentEmail'] as const).filter((key) => Boolean(initialParent[key]))
+        : [],
+    ),
+  );
+  const [fillRun, setFillRun] = useState(0);
+  const [fillDone, setFillDone] = useState(false);
+  const identifyRunRef = useRef(0);
+  const lastIdentifyKeyRef = useRef(
+    initialParent?.known ? `${initialParent.parentIdNumber}|${initialParent.parentPhone}` : '',
+  );
+  const topRowRef = useRef<HTMLDivElement | null>(null);
+  const welcomeRef = useRef<HTMLDivElement | null>(null);
+  const parentFieldsRef = useRef<HTMLDivElement | null>(null);
+  const childSectionRef = useRef<HTMLDivElement | null>(null);
+  const actionsRef = useRef<HTMLDivElement | null>(null);
+
+  // The price before the signature: the server's quote of this very form.
+  const [quote, setQuote] = useState<PaymentResponse | null>(null);
+  // 'ready' once a quote was shown; 'unavailable' when the server gave none
+  // (an older server, a limit, no network) and the form went on without it.
+  const [quoteState, setQuoteState] = useState<'idle' | 'loading' | 'ready' | 'unavailable'>('idle');
+  const [quoteSettled, setQuoteSettled] = useState(false);
+  const quoteRunRef = useRef(0);
+  const summaryActionRef = useRef<HTMLButtonElement | null>(null);
+
   // Lookup result — used for discount step
   const [lookup, setLookup] = useState<LookupResult | null>(null);
   const [additionalChildren, setAdditionalChildren] = useState<AdditionalChildEnrollment[]>([]);
@@ -349,6 +412,227 @@ export default function CourseRegistrationForm({
       .finally(() => setLoadingTerms(false));
   }, []);
 
+  // ── identification ──────────────────────────────────────────────────────
+  useEffect(() => {
+    if (!idFirst) return undefined;
+    let cancelled = false;
+    void fetchIdentifyConfig().then((config) => {
+      if (!cancelled) setIdentifyConfig(config);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [idFirst]);
+
+  const identifyOn = idFirst && identifyConfig?.enabled === true;
+  const pickedKid = pick && pick !== 'new' ? pick : null;
+  // The parent was identified and chose who to register: the hidden details stay on the server.
+  const identified = idFirst && idStage === 'known' && known !== null && pick !== null;
+  // The rest of the form: open once we know whether this parent is known, and — if so — who is registered.
+  const formOpen = !idFirst
+    || (identifyConfig !== null && !identifyOn)
+    || idStage === 'unknown' || idStage === 'near' || idStage === 'manual'
+    || identified;
+
+  /** Forget what the server told us about this parent. Typed details are kept; the card's are not. */
+  const dropIdentification = (stage: 'waiting' | 'checking' | 'unknown' | 'manual') => {
+    if (pickedKid && !childEdited) {
+      // These came from the card, not from the parent's hands.
+      setChildFirstName('');
+      setChildGender('');
+    }
+    setKnown(null);
+    setNearOffer(null);
+    setPick(null);
+    setChildEdited(false);
+    setOpenedFields(new Set());
+    setFillDone(false);
+    setIdStage(stage);
+  };
+
+  const applyIdentifyAnswer = (answer: IdentifyAnswer) => {
+    if (answer.status === 'known') {
+      setKnown(answer.parent);
+      setNearOffer(null);
+      setPick(null);
+      setIdStage('known');
+      window.setTimeout(() => topRowRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 140);
+      return;
+    }
+    if (answer.status === 'near') {
+      setNearOffer({ lastDigit: answer.lastDigit, nearToken: answer.nearToken });
+      setIdStage('near');
+      return;
+    }
+    setIdStage('unknown');
+    window.setTimeout(() => parentFieldsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 540);
+  };
+
+  // Both numbers are in and valid: ask, once per pair.
+  useEffect(() => {
+    // "I'll fill it in myself" holds for the rest of this form: nothing is looked up again.
+    if (!identifyOn || phoneFromCard || idStage === 'manual') return;
+    const idOk = parentIdNumber.length === 9 && isValidIsraeliId(parentIdNumber);
+    const phoneOk = /^05\d{8}$/.test(parentPhone);
+    if (!idOk || !phoneOk) {
+      lastIdentifyKeyRef.current = '';
+      identifyRunRef.current += 1;
+      if (idStage !== 'waiting') dropIdentification('waiting');
+      setIdHintError(
+        parentIdNumber.length === 9 && !idOk
+          ? 'מספר תעודת הזהות לא תקין'
+          : parentPhone.length === PHONE_DIGITS && !phoneOk
+            ? 'מספר נייד מתחיל ב־05'
+            : '',
+      );
+      return;
+    }
+    setIdHintError('');
+    const key = `${parentIdNumber}|${parentPhone}`;
+    if (key === lastIdentifyKeyRef.current) return;
+    lastIdentifyKeyRef.current = key;
+    const run = ++identifyRunRef.current;
+    dropIdentification('checking');
+    const started = Date.now();
+    void askIdentify({ parentIdNumber, parentPhone }, identifyConfig?.ticket ?? '').then((answer) => {
+      // The look-up line stays long enough to be read.
+      window.setTimeout(() => {
+        if (identifyRunRef.current === run) applyIdentifyAnswer(answer);
+      }, Math.max(0, 700 - (Date.now() - started)));
+    });
+    // The stage and the helpers are read at call time; only the two numbers start a look-up.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [parentIdNumber, parentPhone, identifyOn, phoneFromCard]);
+
+  /** "A similar number is on file — press to update": the card's number is taken, shown hidden. */
+  const acceptNearPhone = () => {
+    if (!nearOffer) return;
+    const offer = nearOffer;
+    const run = ++identifyRunRef.current;
+    setNearOffer(null);
+    setIdStage('checking');
+    void askIdentify({ nearToken: offer.nearToken }, identifyConfig?.ticket ?? '').then((answer) => {
+      if (identifyRunRef.current !== run) return;
+      if (answer.status === 'known') {
+        setPhoneFromCard(true);
+        setParentPhone('');
+        clearFieldError('parentPhone');
+      }
+      applyIdentifyAnswer(answer.status === 'near' ? { status: 'unknown' } : answer);
+    });
+  };
+
+  /** The parent pressed the hidden phone: it is typed again, and the look-up starts over. */
+  const retypePhone = () => {
+    setPhoneFromCard(false);
+    setParentPhone('');
+    lastIdentifyKeyRef.current = '';
+    identifyRunRef.current += 1;
+    dropIdentification('waiting');
+  };
+
+  /** Who is being registered: a child from the list, or another one. */
+  const chooseChild = (kid: KnownChild | 'new') => {
+    setPick(kid);
+    setChildEdited(false);
+    setFieldErrors({});
+    setErrorMsg('');
+    setChildFirstName(kid === 'new' ? '' : kid.firstName);
+    setChildLastName('');
+    setChildIdNumber('');
+    setChildBirthDate('');
+    setChildGender(kid === 'new' ? '' : kid.gender);
+    setOpenedFields((prev) => new Set([...prev].filter((key) => key.startsWith('parent'))));
+    setFillDone(false);
+    setFillRun((run) => run + 1);
+    // The page moves ahead of the filling: the strip goes to the top while the fields are still opening.
+    window.setTimeout(() => welcomeRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 160);
+  };
+
+  const pickAgain = () => {
+    setPick(null);
+    setChildEdited(false);
+    setFillDone(false);
+    setChildFirstName('');
+    setChildLastName('');
+    setChildIdNumber('');
+    setChildBirthDate('');
+    setChildGender('');
+  };
+
+  /** "I'll fill it in myself": the form opens empty, as for a parent we do not know. */
+  const fillByHand = () => {
+    identifyRunRef.current += 1;
+    // A phone taken from the card goes with the identification: it is typed like the rest.
+    setPhoneFromCard(false);
+    dropIdentification('manual');
+    setChildFirstName('');
+    setChildGender('');
+  };
+
+  const openField = (key: string) => setOpenedFields((prev) => new Set(prev).add(key));
+  const closeField = (key: string) => setOpenedFields((prev) => {
+    const next = new Set(prev);
+    next.delete(key);
+    return next;
+  });
+  /** The hidden value of a parent's detail, while it is the card's and not retyped. */
+  const parentMask = (field: 'firstName' | 'lastName' | 'email'): string => (identified && known ? known[field] : '');
+  const childMask = (field: 'firstName' | 'lastName' | 'idNumber' | 'birthDate'): string =>
+    (identified && pickedKid && !childEdited ? pickedKid[field] : '');
+  /** The detail is the card's own: nothing to type, nothing to check, and the server completes it. */
+  const fromCard = (mask: string, key: string) => Boolean(mask) && !openedFields.has(key);
+
+  /**
+   * A detail of the chosen child was typed over. The stored child is never
+   * changed from the form, so from here this is a new child: the other hidden
+   * details open empty, and `keep` holds what was just typed.
+   */
+  const turnIntoNewChild = (keep: 'firstName' | 'lastName' | 'idNumber' | 'birthDate' | 'gender') => {
+    if (!pickedKid || childEdited) return;
+    setChildEdited(true);
+    setFillDone(false);
+    if (keep !== 'firstName') setChildFirstName('');
+    if (keep !== 'gender') setChildGender('');
+    setOpenedFields((prev) => new Set([...prev].filter((key) => key.startsWith('parent'))));
+  };
+
+  /** The family's children still free to be chosen in an "another child" section. */
+  const knownKidsFor = (sectionId: string): KnownChild[] => {
+    if (!identified || !known) return [];
+    const taken = new Set<string>();
+    if (pickedKid && !childEdited) taken.add(pickedKid.id);
+    additionalChildren.forEach((child) => {
+      if (child.id !== sectionId && child.known) taken.add(child.known.id);
+    });
+    return known.children.filter((kid) => !taken.has(kid.id));
+  };
+
+  // The hidden values type themselves in, field after field.
+  const fillSteps: FillStep[] | null = identified && known ? [
+    { key: 'parentFirstName', text: fromCard(known.firstName, 'parentFirstName') ? known.firstName : '' },
+    { key: 'parentLastName', text: fromCard(known.lastName, 'parentLastName') ? known.lastName : '' },
+    { key: 'parentEmail', text: fromCard(known.email, 'parentEmail') ? known.email : '' },
+    ...(pickedKid && !childEdited ? [
+      { key: 'childFirstName', text: pickedKid.firstName },
+      { key: 'childLastName', text: pickedKid.lastName },
+      { key: 'childIdNumber', text: pickedKid.idNumber },
+      { key: 'childBirthDate', text: pickedKid.birthDate },
+    ] : []),
+  ].filter((step) => step.text) : null;
+  const fillOf = useTypedFill(
+    fillSteps,
+    String(fillRun),
+    (key) => {
+      if (key === 'parentLastName') childSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      if (key === 'childLastName') actionsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    },
+    () => {
+      setFillDone(true);
+      window.setTimeout(() => actionsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 280);
+    },
+  );
+
   const updateTermsScrollState = useCallback(() => {
     const el = termsBodyRef.current;
     if (!el) return;
@@ -432,16 +716,21 @@ export default function CourseRegistrationForm({
   ): Partial<Record<AdditionalChildFieldKey, string>> => {
     const errors: Partial<Record<AdditionalChildFieldKey, string>> = {};
     if (!child.selection) errors.selection = 'יש לבחור חוג ומפגש';
+    // A child chosen from the family's list: what the card holds is not typed and not checked.
+    const held = (field: 'lastName' | 'idNumber' | 'birthDate') =>
+      Boolean(child.known?.[field]) && !(child.openedFields ?? []).includes(field);
     const firstErr = nameFieldError(child.firstName);
-    const lastErr = nameFieldError(child.lastName);
+    const lastErr = held('lastName') ? null : nameFieldError(child.lastName);
     if (firstErr) errors.firstName = firstErr;
     if (lastErr) errors.lastName = lastErr;
-    const idErr = israeliIdFieldError(child.idNumber);
-    if (idErr) errors.idNumber = idErr;
-    else if (usedIdNumbers.has(child.idNumber.replace(/\D/g, ''))) {
-      errors.idNumber = 'ת.ז. כבר בשימוש לילד אחר בטופס';
+    if (!held('idNumber')) {
+      const idErr = israeliIdFieldError(child.idNumber);
+      if (idErr) errors.idNumber = idErr;
+      else if (usedIdNumbers.has(child.idNumber.replace(/\D/g, ''))) {
+        errors.idNumber = 'ת.ז. כבר בשימוש לילד אחר בטופס';
+      }
     }
-    if (!child.birthDate.trim()) errors.birthDate = 'תאריך לידה חובה';
+    if (!held('birthDate') && !child.birthDate.trim()) errors.birthDate = 'תאריך לידה חובה';
     if (!child.gender) errors.gender = 'יש לבחור מין';
     return errors;
   };
@@ -469,6 +758,8 @@ export default function CourseRegistrationForm({
       next_billing_date: responses.every((response) => response.next_billing_date === responses[0].next_billing_date)
         ? responses[0].next_billing_date
         : undefined,
+      // "Already paid" is said only when no registration in the basket charges the fee and all say so.
+      registration_fee_paid_before: responses.every((response) => response.registration_fee_paid_before === true),
       // Only one registration in a basket can hold the credit — the others see it
       // already taken — so summing gives the single amount that was applied.
       trial_credit_amount: responses.reduce((sum, response) => sum + Number(response.trial_credit_amount ?? 0), 0),
@@ -481,31 +772,7 @@ export default function CourseRegistrationForm({
 
   const registerEnrollment = async (payload: Record<string, unknown>): Promise<PaymentResponse> => {
     const res = await api.post('/customers/widget/register/', payload);
-    if (res.data.is_bundle) {
-      return {
-        child_id: res.data.child_id,
-        payment_id: res.data.payments[0].payment_id,
-        payment_ids: res.data.payments.map((payment: { payment_id: string }) => payment.payment_id),
-        final_amount: res.data.final_amount,
-        base_amount: res.data.base_amount,
-        discount_amount: res.data.discount_amount,
-        prorated_amount: res.data.prorated_amount,
-        registration_fee: res.data.registration_fee,
-        monthly_amount: res.data.monthly_amount,
-        prorate_lessons_remaining: res.data.prorate_lessons_remaining,
-        total_lessons_this_month: res.data.total_lessons_this_month,
-        subscription_start_date: res.data.subscription_start_date,
-        next_billing_date: res.data.next_billing_date,
-        trial_credit_amount: res.data.trial_credit_amount,
-        trial_credit_paid: res.data.trial_credit_paid,
-        trial_credit_date: res.data.trial_credit_date,
-        trial_credit_reason: res.data.trial_credit_reason,
-        discounts_applied: res.data.payments.flatMap(
-          (payment: { discounts_applied?: AppliedDiscount[] }) => payment.discounts_applied ?? [],
-        ),
-      };
-    }
-    return res.data as PaymentResponse;
+    return toPaymentResponse(res.data);
   };
 
   const buildDiscountQueue = (
@@ -869,25 +1136,133 @@ export default function CourseRegistrationForm({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step, hostedMode, hostedCheckout]);
 
+  /** The parent's part of every registration: typed details, or the token and the details left empty. */
+  const parentPayload = (): Record<string, unknown> => ({
+    parent_id_number: parentIdNumber,
+    parent_first_name: fromCard(parentMask('firstName'), 'parentFirstName') ? '' : parentFirstName,
+    parent_last_name: fromCard(parentMask('lastName'), 'parentLastName') ? '' : parentLastName,
+    parent_phone: phoneFromCard ? '' : parentPhone,
+    parent_email: fromCard(parentMask('email'), 'parentEmail') ? '' : parentEmail,
+    // Sent only for a parent the form identified; the server completes what is empty from the card.
+    ...(identified && known ? { identify_token: known.token, device_id: deviceId() } : {}),
+  });
+
+  /** Every child of the form with its courses, in the order they are registered — and quoted. */
+  const registrationPlan = (
+    primaryLookup: LookupResult | null,
+    extraChildren: AdditionalChildEnrollment[],
+  ): PlanChild[] => {
+    const confirmed = (found: LookupResult | null | undefined) =>
+      (found as (LookupResult & { _confirmed?: boolean }) | null | undefined)?._confirmed ?? false;
+    const primaryFromCard = identified && pickedKid && !childEdited;
+    return [
+      {
+        payload: {
+          ...(primaryFromCard ? { identified_child_id: pickedKid.id } : {}),
+          child_first_name: selfRegistering ? parentFirstName : childFirstName,
+          child_last_name: selfRegistering ? parentLastName : childLastName,
+          child_id_number: selfRegistering ? parentIdNumber : childIdNumber,
+          child_birth_date: childBirthDate,
+          child_gender: childGender,
+        },
+        selections: [primarySelection, ...primaryExtraLessons],
+        discountConfirmed: confirmed(primaryLookup),
+        startingChildId: primaryLookup?.child_id ?? '',
+      },
+      ...extraChildren.map((child) => ({
+        payload: {
+          ...(identified && child.known ? { identified_child_id: child.known.id } : {}),
+          child_first_name: child.firstName,
+          child_last_name: child.lastName,
+          child_id_number: child.idNumber,
+          child_birth_date: child.birthDate,
+          child_gender: child.gender,
+        },
+        selections: childLessonSelections(child),
+        discountConfirmed: confirmed(child.lookup),
+        startingChildId: child.lookup?.child_id ?? '',
+      })),
+    ];
+  };
+
+  /** The identification is no longer good (hours passed, or the office switched it off): go on by hand. */
+  const identificationExpired = (message?: string) => {
+    lastIdentifyKeyRef.current = `${parentIdNumber}|${parentPhone}`;
+    setPhoneFromCard(false);
+    dropIdentification('manual');
+    setAdditionalChildren((prev) => prev.map((child) => (
+      child.known ? { ...child, known: null, knownWas: null, firstName: '', gender: '' as const } : child
+    )));
+    setQuote(null);
+    setQuoteState('idle');
+    setErrorMsg(message || 'הזיהוי פג. מלאו את הפרטים והמשיכו כרגיל.');
+    setStep('details');
+  };
+
+  /**
+   * The price before the signature. The server runs the registration of this
+   * very form and rolls it back, so what is shown is what will be charged.
+   * A refusal the parent can act on (a child already in the class) goes back
+   * to the details; no quote at all — an older server, a limit, no network —
+   * and the form goes on to the approvals as it did before there was one.
+   */
+  const openSummary = async (primaryLookup: LookupResult | null, extraChildren: AdditionalChildEnrollment[]) => {
+    const run = ++quoteRunRef.current;
+    setQuote(null);
+    setQuoteSettled(false);
+    setQuoteState('loading');
+    setStep('summary');
+    try {
+      const res = await api.post(
+        '/customers/widget/quote/',
+        { items: quoteItems(parentPayload(), registrationPlan(primaryLookup, extraChildren)) },
+        { timeout: 25_000 },
+      );
+      if (quoteRunRef.current !== run) return;
+      const items = Array.isArray(res.data?.items) ? res.data.items as Array<Record<string, unknown>> : [];
+      if (items.length === 0) throw new Error('empty quote');
+      setRegisteredChildCount(1 + extraChildren.length);
+      setRegisteredLessonCount(items.length);
+      setQuote(mergePaymentResponses(items.map((item) => ({ ...toPaymentResponse(item), payment_id: '' }))));
+      setQuoteState('ready');
+    } catch (err: unknown) {
+      if (quoteRunRef.current !== run) return;
+      const response = (err as { response?: { status?: number; data?: { error?: string; index?: number; identification_expired?: boolean } } })?.response;
+      if (response?.data?.identification_expired) {
+        identificationExpired(response.data.error);
+        return;
+      }
+      if (response?.data?.error && typeof response.data.index === 'number' && (response.status ?? 500) < 500) {
+        setQuoteState('idle');
+        setErrorMsg(response.data.error);
+        setStep('details');
+        return;
+      }
+      setQuoteState('unavailable');
+      setStep('consents');
+    }
+  };
+
   const handleDetailsSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg('');
 
     const errors: Partial<Record<DetailsFieldKey, string>> = {};
-    const parentFirstErr = nameFieldError(parentFirstName);
-    const parentLastErr = nameFieldError(parentLastName);
+    // A detail that is the card's own is not typed and not checked: the server completes it.
+    const parentFirstErr = fromCard(parentMask('firstName'), 'parentFirstName') ? null : nameFieldError(parentFirstName);
+    const parentLastErr = fromCard(parentMask('lastName'), 'parentLastName') ? null : nameFieldError(parentLastName);
     if (parentFirstErr) errors.parentFirstName = parentFirstErr;
     if (parentLastErr) errors.parentLastName = parentLastErr;
     if (!selfRegistering) {
       const childFirstErr = nameFieldError(childFirstName);
-      const childLastErr = nameFieldError(childLastName);
+      const childLastErr = fromCard(childMask('lastName'), 'childLastName') ? null : nameFieldError(childLastName);
       if (childFirstErr) errors.childFirstName = childFirstErr;
       if (childLastErr) errors.childLastName = childLastErr;
     }
 
     const parentIdErr = israeliIdFieldError(parentIdNumber);
     if (parentIdErr) errors.parentIdNumber = parentIdErr;
-    if (!selfRegistering) {
+    if (!selfRegistering && !fromCard(childMask('idNumber'), 'childIdNumber')) {
       const childIdErr = israeliIdFieldError(childIdNumber);
       if (childIdErr) errors.childIdNumber = childIdErr;
       else {
@@ -899,13 +1274,15 @@ export default function CourseRegistrationForm({
       }
     }
 
-    const parentPhoneErr = phoneFieldError(parentPhone);
+    const parentPhoneErr = phoneFromCard ? null : phoneFieldError(parentPhone);
     if (parentPhoneErr) errors.parentPhone = parentPhoneErr;
 
-    const parentEmailErr = emailFieldError(parentEmail);
+    const parentEmailErr = fromCard(parentMask('email'), 'parentEmail') ? null : emailFieldError(parentEmail);
     if (parentEmailErr) errors.parentEmail = parentEmailErr;
 
-    if (!childBirthDate.trim()) errors.childBirthDate = 'תאריך לידה חובה';
+    if (!fromCard(childMask('birthDate'), 'childBirthDate') && !childBirthDate.trim()) {
+      errors.childBirthDate = 'תאריך לידה חובה';
+    }
     if (!childGender) errors.childGender = 'יש לבחור מין';
 
     const usedIdNumbers = new Set<string>();
@@ -957,8 +1334,11 @@ export default function CourseRegistrationForm({
     setLookingUp(true);
     const lookupChildFirstName = selfRegistering ? parentFirstName : childFirstName;
     const lookupChildLastName = selfRegistering ? parentLastName : childLastName;
+    const primaryFromCard = identified && Boolean(pickedKid) && !childEdited;
     try {
-      const lookupRequests: Array<Promise<{ id: 'primary' | string; data: LookupResult }>> = [
+      // A child chosen from the family's list is known to the server by the
+      // choice itself, and its last name never reached this browser: no look-up.
+      const lookupRequests: Array<Promise<{ id: 'primary' | string; data: LookupResult }>> = primaryFromCard ? [] : [
         api.post('/customers/widget/lookup/', {
           parent_id_number: parentIdNumber,
           child_first_name: lookupChildFirstName,
@@ -969,6 +1349,7 @@ export default function CourseRegistrationForm({
       ];
 
       for (const child of nextAdditionalChildren) {
+        if (child.known) continue;
         lookupRequests.push(
           api.post('/customers/widget/lookup/', {
             parent_id_number: parentIdNumber,
@@ -996,7 +1377,7 @@ export default function CourseRegistrationForm({
       setLookup(primaryLookup);
       const resolvedAdditional = nextAdditionalChildren.map((child) => ({
         ...child,
-        lookup: lookupByChildId.get(child.id) ?? child.lookup,
+        lookup: child.known ? null : (lookupByChildId.get(child.id) ?? child.lookup),
       }));
       if (nextAdditionalChildren.length > 0) {
         setAdditionalChildren(resolvedAdditional);
@@ -1024,23 +1405,14 @@ export default function CourseRegistrationForm({
         return;
       }
 
-      const queue = buildDiscountQueue(
-        primaryLookup,
-        resolvedAdditional,
-        lookupChildFirstName.trim() || 'ילד 1',
-      );
-
-      if (queue.length > 0) {
-        setDiscountQueue(queue);
-        setDiscountQueueIndex(0);
-        setStep('discount_confirm');
-      } else {
-        setDiscountQueue([]);
-        setDiscountQueueIndex(0);
-        setStep('consents');
-      }
+      // The "is this a sibling?" question is no longer asked: the summary that
+      // comes next shows every discount the family gets, whatever the answer was.
+      setDiscountQueue([]);
+      setDiscountQueueIndex(0);
+      void openSummary(primaryLookup, resolvedAdditional);
     } catch {
-      setStep('consents');
+      if (isTrial) setStep('consents');
+      else void openSummary(null, nextAdditionalChildren);
     } finally {
       setLookingUp(false);
     }
@@ -1075,7 +1447,12 @@ export default function CourseRegistrationForm({
       return;
     }
     if (step === 'consents' || step === 'error') {
-      setStep(discountQueue.length > 0 ? 'discount_confirm' : 'details');
+      setStep(quoteState === 'ready' ? 'summary' : discountQueue.length > 0 ? 'discount_confirm' : 'details');
+      return;
+    }
+    if (step === 'summary') {
+      quoteRunRef.current += 1;
+      setStep('details');
       return;
     }
     if (step === 'discount_confirm') {
@@ -1206,9 +1583,6 @@ export default function CourseRegistrationForm({
     setStep('submitting');
     setErrorMsg('');
 
-    const discountConfirmed = (lookup as (LookupResult & { _confirmed?: boolean }) | null)?._confirmed ?? false;
-    const existingChildId = lookup?.child_id ?? '';
-
     const registerChildFirstName = selfRegistering ? parentFirstName : childFirstName;
     const registerChildLastName = selfRegistering ? parentLastName : childLastName;
     const registerChildIdNumber = selfRegistering ? parentIdNumber : childIdNumber;
@@ -1228,12 +1602,8 @@ export default function CourseRegistrationForm({
 
     try {
       const paymentResponses: PaymentResponse[] = [];
-      const parentPayload = {
-        parent_id_number: parentIdNumber,
-        parent_first_name: parentFirstName,
-        parent_last_name: parentLastName,
-        parent_phone: parentPhone,
-        parent_email: parentEmail,
+      const signedPayload = {
+        ...parentPayload(),
         signature,
         // The accepted terms carry the consent (checked above: no submit without them).
         computerized_docs_consent: termsConsent,
@@ -1242,27 +1612,18 @@ export default function CourseRegistrationForm({
         health_consent: healthConsent,
       };
 
-      const registerChildLessons = async (
-        childPayload: Record<string, unknown>,
-        selections: Array<{
-          courseId: string;
-          bundleId?: string;
-          lessonId?: string;
-          priceOptionId?: string;
-        }>,
-        discountConfirmedForChild: boolean,
-        startingChildId: string,
-      ) => {
-        let resolvedChildId = startingChildId;
-        for (const [index, selection] of selections.entries()) {
+      // The same plan the quote was priced from, in the same order.
+      for (const child of registrationPlan(lookup, additionalChildren)) {
+        if (child.selections.length === 0) {
+          throw new Error('חסרה בחירת חוג לילד נוסף');
+        }
+        let resolvedChildId = child.startingChildId;
+        for (const [index, selection] of child.selections.entries()) {
           const response = await registerEnrollment({
-            ...parentPayload,
-            ...childPayload,
-            course_id: selection.courseId,
-            bundle_id: selection.bundleId,
-            lesson_id: selection.lessonId,
-            price_option_id: selection.priceOptionId,
-            discount_confirmed: index === 0 ? discountConfirmedForChild : Boolean(resolvedChildId),
+            ...signedPayload,
+            ...child.payload,
+            ...selectionFields(selection),
+            discount_confirmed: index === 0 ? child.discountConfirmed : Boolean(resolvedChildId),
             existing_child_id: resolvedChildId,
           });
           if (response.child_id) {
@@ -1273,40 +1634,6 @@ export default function CourseRegistrationForm({
             setRegisterProgress((prev) => (prev ? { ...prev, done: paymentResponses.length } : prev));
           }
         }
-      };
-
-      await registerChildLessons(
-        {
-          child_first_name: registerChildFirstName,
-          child_last_name: registerChildLastName,
-          child_id_number: registerChildIdNumber,
-          child_birth_date: childBirthDate,
-          child_gender: childGender,
-        },
-        [primarySelection, ...primaryExtraLessons],
-        discountConfirmed,
-        existingChildId,
-      );
-
-      for (const child of additionalChildren) {
-        const childDiscountConfirmed = (child.lookup as (LookupResult & { _confirmed?: boolean }) | null)?._confirmed ?? false;
-        const childExistingId = child.lookup?.child_id ?? '';
-        const selections = childLessonSelections(child);
-        if (selections.length === 0) {
-          throw new Error('חסרה בחירת חוג לילד נוסף');
-        }
-        await registerChildLessons(
-          {
-            child_first_name: child.firstName,
-            child_last_name: child.lastName,
-            child_id_number: child.idNumber,
-            child_birth_date: child.birthDate,
-            child_gender: child.gender,
-          },
-          selections,
-          childDiscountConfirmed,
-          childExistingId,
-        );
       }
 
       const lessonCount = 1 + primaryExtraLessons.length + additionalChildren.reduce(
@@ -1322,10 +1649,13 @@ export default function CourseRegistrationForm({
       setStep('payment');
     } catch (err: unknown) {
       if (attemptRef.current !== attempt) return;
-      const msg =
-        (err as { response?: { data?: { error?: string } } })?.response?.data?.error ??
-        'אירעה שגיאה. נסה שנית.';
-      setErrorMsg(msg);
+      const data = (err as { response?: { data?: { error?: string; identification_expired?: boolean } } })?.response?.data;
+      if (data?.identification_expired) {
+        // Nothing was registered: the hidden details are no longer available, so they are typed.
+        identificationExpired(data.error);
+        return;
+      }
+      setErrorMsg(data?.error ?? 'אירעה שגיאה. נסה שנית.');
       setStep('error');
     }
   };
@@ -1348,6 +1678,9 @@ export default function CourseRegistrationForm({
     parentLastName,
     parentPhone,
     parentEmail,
+    // An identified parent stays identified for the next child of the same sitting.
+    known: identified ? known : null,
+    phoneFromCard: identified ? phoneFromCard : false,
   });
 
   const handleRegisterAnother = () => {
@@ -1434,8 +1767,23 @@ export default function CourseRegistrationForm({
 
   // A course registration walks three steps; a trial keeps its short form as it is.
   const stepBar = isTrial ? null : (
-    <StepBar current={step === 'payment' ? 2 : step === 'consents' || step === 'error' || step === 'submitting' ? 1 : 0} />
+    <StepBar
+      current={
+        step === 'payment' ? 3
+          : step === 'consents' || step === 'error' || step === 'submitting' ? 2
+            : step === 'summary' ? 1 : 0
+      }
+    />
   );
+  // A new screen is read from its top: the step bar (or, for a trial, the title row) comes into view.
+  const firstScreenRef = useRef(true);
+  useEffect(() => {
+    if (firstScreenRef.current) {
+      firstScreenRef.current = false;
+      return;
+    }
+    document.querySelector('[data-screen-top]')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, [step]);
   const consentsReady = healthConsent && termsReadComplete && termsConsent && Boolean(signature);
   // Everything is approved and signed: the button to send comes into view.
   useEffect(() => {
@@ -1447,7 +1795,7 @@ export default function CourseRegistrationForm({
   const header = (
     <>
     {stepBar}
-    <div className={styles.header}>
+    <div className={styles.header} {...(isTrial ? { 'data-screen-top': '' } : {})}>
       <button
         type="button"
         onClick={goBackOneStep}
@@ -1463,178 +1811,383 @@ export default function CourseRegistrationForm({
   );
 
   if (step === 'details') {
-    return (
-      <form key="details" noValidate onSubmit={handleDetailsSubmit} className={`${styles.form} ${look.stepIn}`} dir="rtl">
-        {header}
-
-        {addingSibling ? (
-          <p className={styles.siblingNotice}>
-            פרטי ההורה נשמרו מההרשמה הקודמת. מלאו רק את פרטי הילד הנוסף.
-          </p>
-        ) : null}
-
-        {isAdult && !addingSibling && (
-          <label className={styles.selfRegToggle}>
-            <input type="checkbox" checked={selfRegistering}
-              onChange={(e) => setSelfRegistering(e.target.checked)}
-              className={styles.selfRegCheckbox} />
-            אני נרשם/ת עבור עצמי
-          </label>
-        )}
-
-        <div className={styles.section}>
-          <div className={styles.sectionTitle}>
-            <span className={styles.sectionTitleLine} />
-            {/* Someone enrolling themselves is filling in their own details, and being
-                  asked for a parent's is what makes them hesitate over whose
-                  identity number belongs in the field below. */}
-              <span className={styles.sectionTitleText}>
-                {selfRegistering ? 'הפרטים שלי' : 'פרטי הורה'}
-              </span>
-            <span className={styles.sectionTitleLine} />
+    // The form as it always was: a trial, an adult signing up, another child of a parent typed in before.
+    const classicParentSection = (
+          <div className={styles.section}>
+            <div className={styles.sectionTitle}>
+              <span className={styles.sectionTitleLine} />
+              {/* Someone enrolling themselves is filling in their own details, and being
+                    asked for a parent's is what makes them hesitate over whose
+                    identity number belongs in the field below. */}
+                <span className={styles.sectionTitleText}>
+                  {selfRegistering ? 'הפרטים שלי' : 'פרטי הורה'}
+                </span>
+              <span className={styles.sectionTitleLine} />
+            </div>
+            <div className={styles.grid2}>
+              <div>
+                <label className={styles.label}>שם פרטי</label>
+                <input type="text" value={parentFirstName}
+                  onChange={(e) => { setParentFirstName(e.target.value); clearFieldError('parentFirstName'); }}
+                  className={fieldInputClass('parentFirstName')} />
+                {fieldErrors.parentFirstName ? (
+                  <p className={styles.fieldError}>{fieldErrors.parentFirstName}</p>
+                ) : null}
+              </div>
+              <div>
+                <label className={styles.label}>שם משפחה</label>
+                <input type="text" value={parentLastName}
+                  onChange={(e) => { setParentLastName(e.target.value); clearFieldError('parentLastName'); }}
+                  className={fieldInputClass('parentLastName')} />
+                {fieldErrors.parentLastName ? (
+                  <p className={styles.fieldError}>{fieldErrors.parentLastName}</p>
+                ) : null}
+              </div>
+              <div>
+                <label className={styles.label}>
+                  {selfRegistering ? 'תעודת זהות שלי *' : 'ת.ז. הורה *'}
+                </label>
+                <input type="text" inputMode="numeric" value={parentIdNumber}
+                  onChange={(e) => {
+                    setParentIdNumber(sanitizeIsraeliIdInput(e.target.value));
+                    clearFieldError('parentIdNumber');
+                  }}
+                  className={fieldInputClass('parentIdNumber')} dir="ltr" />
+                {fieldErrors.parentIdNumber ? (
+                  <p className={styles.fieldError}>{fieldErrors.parentIdNumber}</p>
+                ) : null}
+              </div>
+              <div>
+                <label className={styles.label}>טלפון נייד</label>
+                <input type="tel" inputMode="numeric" value={parentPhone}
+                  onChange={(e) => {
+                    setParentPhone(sanitizePhoneInput(e.target.value));
+                    clearFieldError('parentPhone');
+                  }}
+                  className={fieldInputClass('parentPhone')} dir="ltr"
+                  maxLength={PHONE_DIGITS} autoComplete="tel" />
+                {fieldErrors.parentPhone ? (
+                  <p className={styles.fieldError}>{fieldErrors.parentPhone}</p>
+                ) : null}
+              </div>
+              <div className={styles.gridFull}>
+                <label className={styles.label}>דוא&quot;ל *</label>
+                <input type="text" value={parentEmail}
+                  onChange={(e) => { setParentEmail(e.target.value); clearFieldError('parentEmail'); }}
+                  className={fieldInputClass('parentEmail')}
+                  autoComplete="email" dir="ltr" inputMode="email" />
+                {fieldErrors.parentEmail ? (
+                  <p className={styles.fieldError}>{fieldErrors.parentEmail}</p>
+                ) : null}
+              </div>
+              {selfRegistering && (
+                <>
+                  <div className={styles.fadeIn}>
+                    <label className={styles.label}>תאריך לידה *</label>
+                    <input type="date" value={childBirthDate}
+                      onChange={(e) => { setChildBirthDate(e.target.value); clearFieldError('childBirthDate'); }}
+                      className={`${fieldInputClass('childBirthDate')} ${styles.inputDate}`} />
+                    {fieldErrors.childBirthDate ? (
+                      <p className={styles.fieldError}>{fieldErrors.childBirthDate}</p>
+                    ) : null}
+                  </div>
+                  <div className={`${styles.fadeIn} ${styles.gridFull}`}>
+                    <label className={styles.label}>מין *</label>
+                    <div className={styles.genderOptions}>
+                      {(['male', 'female'] as const).map((g) => (
+                        <label key={g} className={styles.radioLabel}>
+                          <input type="radio" name="gender" value={g}
+                            checked={childGender === g} onChange={() => { setChildGender(g); clearFieldError('childGender'); }}
+                            style={{ accentColor: '#2B3090' }} />
+                          {g === 'male' ? 'זכר' : 'נקבה'}
+                        </label>
+                      ))}
+                    </div>
+                    {fieldErrors.childGender ? (
+                      <p className={styles.fieldError}>{fieldErrors.childGender}</p>
+                    ) : null}
+                  </div>
+                </>
+              )}
+            </div>
           </div>
+    );
+
+    // A course registration: the identity number and the phone come first, and the rest opens from them.
+    const idLine = !identifyOn
+      ? null
+      : idHintError
+        ? <p className={`${look.idHint} ${look.idHintError}`}>{idHintError}</p>
+        : idStage === 'checking'
+          ? <p className={look.idHint}><span className={look.dotSpin} />בודקים אם אתם כבר רשומים אצלנו…</p>
+          : idStage === 'near' && nearOffer
+            ? (
+              <p className={look.idHint}>
+                זיהינו במערכת מספר דומה, שמסתיים ב־<b dir="ltr">{nearOffer.lastDigit}</b>.{' '}
+                <button type="button" className={look.textButton} onClick={acceptNearPhone}>לחצו כאן לעדכון</button>
+              </p>
+            )
+            : idStage === 'waiting'
+              ? <p className={look.idHint}>מתחילים בתעודת זהות ובטלפון. אם אתם כבר רשומים אצלנו, נמלא את שאר הפרטים בשבילכם.</p>
+              : null;
+    const idFirstParentSection = (
+      <div className={styles.section}>
+        <div className={styles.sectionTitle}>
+          <span className={styles.sectionTitleLine} />
+          <span className={styles.sectionTitleText}>פרטי הורה</span>
+          <span className={styles.sectionTitleLine} />
+        </div>
+        <div ref={topRowRef} className={look.topRow}>
           <div className={styles.grid2}>
             <div>
+              <label className={styles.label}>ת.ז. הורה *</label>
+              <input type="text" inputMode="numeric" value={parentIdNumber}
+                onChange={(e) => {
+                  setParentIdNumber(sanitizeIsraeliIdInput(e.target.value));
+                  clearFieldError('parentIdNumber');
+                }}
+                className={fieldInputClass('parentIdNumber')} dir="ltr" maxLength={9} autoComplete="off" />
+              {fieldErrors.parentIdNumber ? (
+                <p className={styles.fieldError}>{fieldErrors.parentIdNumber}</p>
+              ) : null}
+            </div>
+            <div>
+              <label className={styles.label}>טלפון נייד *</label>
+              <MaskedField
+                mask={phoneFromCard && known ? known.phone : ''}
+                open={false}
+                onOpen={retypePhone}
+                onClose={() => undefined}
+                type="tel"
+                value={parentPhone}
+                onChange={(value) => {
+                  setParentPhone(sanitizePhoneInput(value));
+                  clearFieldError('parentPhone');
+                }}
+                className={fieldInputClass('parentPhone')}
+                ltr
+                inputMode="numeric"
+                maxLength={PHONE_DIGITS}
+                autoComplete="tel"
+              />
+              {fieldErrors.parentPhone ? (
+                <p className={styles.fieldError}>{fieldErrors.parentPhone}</p>
+              ) : null}
+            </div>
+          </div>
+          {idLine}
+        </div>
+
+        <Reveal open={idStage === 'known' && known !== null} gap={16}>
+          <div ref={welcomeRef} className={look.welcome}>
+            {known && pick === null ? (
+              <KnownParentCard
+                key={`who-${fillRun}`}
+                title={
+                  addingSibling
+                    ? 'את מי רושמים עכשיו?'
+                    : known.children.length === 1
+                      ? `מצאנו אתכם אצלנו. רושמים את ${known.children[0].firstName}?`
+                      : 'מצאנו אתכם אצלנו. את מי רושמים?'
+                }
+                kids={known.children}
+                noticeSent={known.noticeSent && !addingSibling}
+                newHint="שעוד לא רשום/ה אצלנו"
+                fine="נמלא את הפרטים מההרשמה הקודמת שלכם. הם יוצגו מוסתרים."
+                onManual={fillByHand}
+                onChoose={chooseChild}
+              />
+            ) : known ? (
+              <KnownStrip
+                title={pickedKid && !childEdited ? `מילאנו את הפרטים של ${pickedKid.firstName}` : 'מילאנו את פרטי ההורה'}
+                note="הפרטים מוסתרים לשמירה על הפרטיות. לשינוי לוחצים על השדה."
+                actionLabel={pickedKid ? 'החלפת ילד/ה' : 'חזרה לבחירה'}
+                onAction={pickAgain}
+              />
+            ) : null}
+          </div>
+        </Reveal>
+
+        <Reveal open={formOpen} gap={16}>
+          <div ref={parentFieldsRef} className={styles.grid2}>
+            <div>
               <label className={styles.label}>שם פרטי</label>
-              <input type="text" value={parentFirstName}
-                onChange={(e) => { setParentFirstName(e.target.value); clearFieldError('parentFirstName'); }}
-                className={fieldInputClass('parentFirstName')} />
+              <MaskedField
+                mask={parentMask('firstName')}
+                open={openedFields.has('parentFirstName')}
+                onOpen={() => openField('parentFirstName')}
+                onClose={() => closeField('parentFirstName')}
+                {...fillOf('parentFirstName')}
+                value={parentFirstName}
+                onChange={(value) => { setParentFirstName(value); clearFieldError('parentFirstName'); }}
+                className={fieldInputClass('parentFirstName')}
+              />
               {fieldErrors.parentFirstName ? (
                 <p className={styles.fieldError}>{fieldErrors.parentFirstName}</p>
               ) : null}
             </div>
             <div>
               <label className={styles.label}>שם משפחה</label>
-              <input type="text" value={parentLastName}
-                onChange={(e) => { setParentLastName(e.target.value); clearFieldError('parentLastName'); }}
-                className={fieldInputClass('parentLastName')} />
+              <MaskedField
+                mask={parentMask('lastName')}
+                open={openedFields.has('parentLastName')}
+                onOpen={() => openField('parentLastName')}
+                onClose={() => closeField('parentLastName')}
+                {...fillOf('parentLastName')}
+                value={parentLastName}
+                onChange={(value) => { setParentLastName(value); clearFieldError('parentLastName'); }}
+                className={fieldInputClass('parentLastName')}
+              />
               {fieldErrors.parentLastName ? (
                 <p className={styles.fieldError}>{fieldErrors.parentLastName}</p>
               ) : null}
             </div>
-            <div>
-              <label className={styles.label}>
-                {selfRegistering ? 'תעודת זהות שלי *' : 'ת.ז. הורה *'}
-              </label>
-              <input type="text" inputMode="numeric" value={parentIdNumber}
-                onChange={(e) => {
-                  setParentIdNumber(sanitizeIsraeliIdInput(e.target.value));
-                  clearFieldError('parentIdNumber');
-                }}
-                className={fieldInputClass('parentIdNumber')} dir="ltr" />
-              {fieldErrors.parentIdNumber ? (
-                <p className={styles.fieldError}>{fieldErrors.parentIdNumber}</p>
-              ) : null}
-            </div>
-            <div>
-              <label className={styles.label}>טלפון נייד</label>
-              <input type="tel" inputMode="numeric" value={parentPhone}
-                onChange={(e) => {
-                  setParentPhone(sanitizePhoneInput(e.target.value));
-                  clearFieldError('parentPhone');
-                }}
-                className={fieldInputClass('parentPhone')} dir="ltr"
-                maxLength={PHONE_DIGITS} autoComplete="tel" />
-              {fieldErrors.parentPhone ? (
-                <p className={styles.fieldError}>{fieldErrors.parentPhone}</p>
-              ) : null}
-            </div>
             <div className={styles.gridFull}>
               <label className={styles.label}>דוא&quot;ל *</label>
-              <input type="text" value={parentEmail}
-                onChange={(e) => { setParentEmail(e.target.value); clearFieldError('parentEmail'); }}
+              <MaskedField
+                mask={parentMask('email')}
+                open={openedFields.has('parentEmail')}
+                onOpen={() => openField('parentEmail')}
+                onClose={() => closeField('parentEmail')}
+                {...fillOf('parentEmail')}
+                value={parentEmail}
+                onChange={(value) => { setParentEmail(value); clearFieldError('parentEmail'); }}
                 className={fieldInputClass('parentEmail')}
-                autoComplete="email" dir="ltr" inputMode="email" />
+                ltr
+                inputMode="email"
+                autoComplete="email"
+              />
               {fieldErrors.parentEmail ? (
                 <p className={styles.fieldError}>{fieldErrors.parentEmail}</p>
               ) : null}
             </div>
-            {selfRegistering && (
-              <>
-                <div className={styles.fadeIn}>
-                  <label className={styles.label}>תאריך לידה *</label>
-                  <input type="date" value={childBirthDate}
-                    onChange={(e) => { setChildBirthDate(e.target.value); clearFieldError('childBirthDate'); }}
-                    className={`${fieldInputClass('childBirthDate')} ${styles.inputDate}`} />
-                  {fieldErrors.childBirthDate ? (
-                    <p className={styles.fieldError}>{fieldErrors.childBirthDate}</p>
-                  ) : null}
-                </div>
-                <div className={`${styles.fadeIn} ${styles.gridFull}`}>
-                  <label className={styles.label}>מין *</label>
-                  <div className={styles.genderOptions}>
-                    {(['male', 'female'] as const).map((g) => (
-                      <label key={g} className={styles.radioLabel}>
-                        <input type="radio" name="gender" value={g}
-                          checked={childGender === g} onChange={() => { setChildGender(g); clearFieldError('childGender'); }}
-                          style={{ accentColor: '#2B3090' }} />
-                        {g === 'male' ? 'זכר' : 'נקבה'}
-                      </label>
-                    ))}
-                  </div>
-                  {fieldErrors.childGender ? (
-                    <p className={styles.fieldError}>{fieldErrors.childGender}</p>
-                  ) : null}
-                </div>
-              </>
-            )}
           </div>
-        </div>
+        </Reveal>
+      </div>
+    );
 
+    const restOfForm = (
+      <>
         {!selfRegistering && (
-          <div className={`${styles.section} ${styles.fadeIn}`}>
+          <div ref={childSectionRef} className={`${styles.section} ${styles.fadeIn}`}>
             <div className={styles.sectionTitle}>
               <span className={styles.sectionTitleLine} />
-              <span className={styles.sectionTitleText}>{addingSibling ? 'פרטי הילד הנוסף' : 'פרטי הילד'}</span>
+              <span className={styles.sectionTitleText}>{addingSibling && !idFirst ? 'פרטי הילד הנוסף' : 'פרטי הילד'}</span>
               <span className={styles.sectionTitleLine} />
             </div>
+            {identified && pick === 'new' ? (
+              <p className={look.kidNote}>פרטי ההורה כבר אצלנו. נשאר למלא רק את פרטי הילד/ה.</p>
+            ) : null}
+            {identified && pickedKid && childEdited ? (
+              <p className={look.kidNote}>
+                שיניתם פרט של {pickedKid.firstName}, אז נרשום ילד/ה חדש/ה. הפרטים של {pickedKid.firstName} נשארים אצלנו כמו שהם.
+                <button type="button" className={look.textButton} onClick={() => chooseChild(pickedKid)}>
+                  חזרה ל{pickedKid.firstName}
+                </button>
+              </p>
+            ) : null}
             <div className={styles.grid2}>
               <div>
                 <label className={styles.label}>שם פרטי *</label>
-                <input type="text" value={childFirstName}
-                  onChange={(e) => { setChildFirstName(e.target.value); clearFieldError('childFirstName'); }}
-                  className={fieldInputClass('childFirstName')} />
+                <MaskedField
+                  mask={childMask('firstName')}
+                  keepsValue
+                  open={openedFields.has('childFirstName')}
+                  onOpen={() => openField('childFirstName')}
+                  onClose={() => closeField('childFirstName')}
+                  {...fillOf('childFirstName')}
+                  value={childFirstName}
+                  onChange={(value) => {
+                    setChildFirstName(value);
+                    clearFieldError('childFirstName');
+                    if (pickedKid && value !== pickedKid.firstName) turnIntoNewChild('firstName');
+                  }}
+                  className={fieldInputClass('childFirstName')}
+                />
                 {fieldErrors.childFirstName ? (
                   <p className={styles.fieldError}>{fieldErrors.childFirstName}</p>
                 ) : null}
               </div>
               <div>
                 <label className={styles.label}>שם משפחה *</label>
-                <input type="text" value={childLastName}
-                  onChange={(e) => { setChildLastName(e.target.value); clearFieldError('childLastName'); }}
-                  className={fieldInputClass('childLastName')} />
+                <MaskedField
+                  mask={childMask('lastName')}
+                  open={openedFields.has('childLastName')}
+                  onOpen={() => openField('childLastName')}
+                  onClose={() => closeField('childLastName')}
+                  {...fillOf('childLastName')}
+                  value={childLastName}
+                  onChange={(value) => {
+                    setChildLastName(value);
+                    clearFieldError('childLastName');
+                    if (value) turnIntoNewChild('lastName');
+                  }}
+                  className={fieldInputClass('childLastName')}
+                />
                 {fieldErrors.childLastName ? (
                   <p className={styles.fieldError}>{fieldErrors.childLastName}</p>
                 ) : null}
               </div>
               <div>
                 <label className={styles.label}>ת.ז. ילד *</label>
-                <input type="text" inputMode="numeric" value={childIdNumber}
-                  onChange={(e) => {
-                    setChildIdNumber(sanitizeIsraeliIdInput(e.target.value));
+                <MaskedField
+                  mask={childMask('idNumber')}
+                  open={openedFields.has('childIdNumber')}
+                  onOpen={() => openField('childIdNumber')}
+                  onClose={() => closeField('childIdNumber')}
+                  {...fillOf('childIdNumber')}
+                  value={childIdNumber}
+                  onChange={(value) => {
+                    setChildIdNumber(sanitizeIsraeliIdInput(value));
                     clearFieldError('childIdNumber');
+                    if (value) turnIntoNewChild('idNumber');
                   }}
-                  className={fieldInputClass('childIdNumber')} dir="ltr" />
+                  className={fieldInputClass('childIdNumber')}
+                  ltr
+                  inputMode="numeric"
+                />
                 {fieldErrors.childIdNumber ? (
                   <p className={styles.fieldError}>{fieldErrors.childIdNumber}</p>
                 ) : null}
               </div>
               <div>
                 <label className={styles.label}>תאריך לידה *</label>
-                <input type="date" value={childBirthDate}
-                  onChange={(e) => { setChildBirthDate(e.target.value); clearFieldError('childBirthDate'); }}
-                  className={`${fieldInputClass('childBirthDate')} ${styles.inputDate}`} />
+                <MaskedField
+                  mask={childMask('birthDate')}
+                  open={openedFields.has('childBirthDate')}
+                  onOpen={() => openField('childBirthDate')}
+                  onClose={() => closeField('childBirthDate')}
+                  {...fillOf('childBirthDate')}
+                  type="date"
+                  value={childBirthDate}
+                  onChange={(value) => {
+                    setChildBirthDate(value);
+                    clearFieldError('childBirthDate');
+                    if (value) turnIntoNewChild('birthDate');
+                  }}
+                  className={fieldInputClass('childBirthDate')}
+                  dateClassName={styles.inputDate}
+                />
                 {fieldErrors.childBirthDate ? (
                   <p className={styles.fieldError}>{fieldErrors.childBirthDate}</p>
                 ) : null}
               </div>
               <div style={{ gridColumn: '1 / -1' }}>
                 <label className={styles.label}>מין *</label>
-                <div className={styles.genderOptions}>
+                <div
+                  className={`${styles.genderOptions}${
+                    fillDone && identified && pickedKid && !childEdited && childGender ? ` ${look.genderFilled}` : ''
+                  }`}
+                >
                   {(['male', 'female'] as const).map((g) => (
                     <label key={g} className={styles.radioLabel}>
                       <input type="radio" name="gender" value={g}
-                        checked={childGender === g} onChange={() => { setChildGender(g); clearFieldError('childGender'); }}
+                        checked={childGender === g}
+                        onChange={() => {
+                          setChildGender(g);
+                          clearFieldError('childGender');
+                          if (pickedKid?.gender && g !== pickedKid.gender) turnIntoNewChild('gender');
+                        }}
                         style={{ accentColor: '#2B3090' }} />
                       {g === 'male' ? 'זכר' : 'נקבה'}
                     </label>
@@ -1647,7 +2200,6 @@ export default function CourseRegistrationForm({
             </div>
           </div>
         )}
-
         {canAddExtraLesson ? (
           <div className={styles.primaryLessons}>
             <label className={styles.label}>החוגים שנבחרו</label>
@@ -1680,6 +2232,7 @@ export default function CourseRegistrationForm({
             index={index}
             child={child}
             catalogDefaultFilters={catalogDefaultFilters}
+            knownKids={knownKidsFor(child.id)}
             onChange={(next) => {
               setAdditionalChildren((prev) => prev.map((item) => (item.id === child.id ? next : item)));
             }}
@@ -1690,11 +2243,11 @@ export default function CourseRegistrationForm({
         ))}
 
         {canAddAnotherChild || canAddExtraLesson ? (
-          <div className={styles.addActions}>
+          <div className={look.addRows}>
             {canAddAnotherChild && additionalChildren.length < MAX_ADDITIONAL_CHILDREN ? (
               <button
                 type="button"
-                className={styles.addChildButton}
+                className={look.addRow}
                 onClick={() => {
                   setPrimaryExtraPickerOpen(false);
                   setReplacingPrimaryExtraIndex(null);
@@ -1704,28 +2257,31 @@ export default function CourseRegistrationForm({
                   ]);
                 }}
               >
-                + הוסיפו ילד נוסף
+                <span className={look.addRowPlus} aria-hidden="true">+</span>
+                <span className={look.addRowText}>
+                  <b>הוסיפו ילד נוסף</b>
+                  <small>אח או אחות, באותה הרשמה</small>
+                </span>
               </button>
             ) : null}
 
             {canAddExtraLesson && primaryExtraLessons.length < MAX_EXTRA_LESSONS && !primaryExtraPickerOpen ? (
-              <>
-                <button
-                  type="button"
-                  className={styles.addLessonButton}
-                  onClick={() => {
-                    setReplacingPrimaryExtraIndex(null);
-                    setPrimaryExtraPickerOpen(true);
-                  }}
-                >
-                  + חוג נוסף
-                </button>
-                <p className={styles.addLessonHint}>
-                  {selfRegistering
-                    ? 'הוסיפו חוג נוסף לאותו נרשם'
-                    : `הוסיפו חוג נוסף עבור ${childFirstName.trim() || 'הילד הראשי'}`}
-                </p>
-              </>
+              <button
+                type="button"
+                className={look.addRow}
+                onClick={() => {
+                  setReplacingPrimaryExtraIndex(null);
+                  setPrimaryExtraPickerOpen(true);
+                }}
+              >
+                <span className={look.addRowPlus} aria-hidden="true">+</span>
+                <span className={look.addRowText}>
+                  <b>חוג נוסף</b>
+                  <small>
+                    {selfRegistering ? 'לאותו נרשם' : `עבור ${childFirstName.trim() || 'הילד הראשי'}`}
+                  </small>
+                </span>
+              </button>
             ) : null}
 
             {primaryExtraPickerOpen ? (
@@ -1800,15 +2356,89 @@ export default function CourseRegistrationForm({
 
         {errorMsg && <p className={styles.errorText}>{errorMsg}</p>}
 
-        <div className={styles.formActions}>
-          <button type="submit" className={styles.submitButton} disabled={lookingUp}>
+        <div ref={actionsRef} className={styles.formActions}>
+          <button
+            type="submit"
+            className={`${styles.submitButton}${fillDone && identified ? ` ${look.readyButton}` : ''}`}
+            disabled={lookingUp}
+          >
             {lookingUp ? <span className={styles.spinner} /> : 'המשך'}
           </button>
           <button type="button" className={styles.backPageButton} onClick={onBack} disabled={lookingUp}>
             חזרה לעמוד הקודם
           </button>
         </div>
+      </>
+    );
+
+    return (
+      <form key="details" noValidate onSubmit={handleDetailsSubmit} className={`${styles.form} ${look.stepIn}`} dir="rtl">
+        {header}
+
+        {addingSibling && !idFirst ? (
+          <p className={styles.siblingNotice}>
+            פרטי ההורה נשמרו מההרשמה הקודמת. מלאו רק את פרטי הילד הנוסף.
+          </p>
+        ) : null}
+
+        {isAdult && !addingSibling && (
+          <label className={styles.selfRegToggle}>
+            <input type="checkbox" checked={selfRegistering}
+              onChange={(e) => setSelfRegistering(e.target.checked)}
+              className={styles.selfRegCheckbox} />
+            אני נרשם/ת עבור עצמי
+          </label>
+        )}
+
+        {idFirst ? idFirstParentSection : classicParentSection}
+
+        {idFirst ? (
+          <Reveal open={formOpen}>
+            <div className={styles.form}>{restOfForm}</div>
+          </Reveal>
+        ) : restOfForm}
       </form>
+    );
+  }
+
+  if (step === 'summary') {
+    const who = (selfRegistering ? parentFirstName : childFirstName).trim();
+    const oneRegistration = additionalChildren.length === 0 && primaryExtraLessons.length === 0;
+    return (
+      <div key="summary" className={`${styles.form} ${look.stepIn}`} dir="rtl">
+        {header}
+        <div>
+          <PaymentSummary
+            key={`quote-${quoteRunRef.current}`}
+            payment={quote}
+            title="סיכום ההרשמה"
+            priceLabel={oneRegistration ? (who ? `${courseName} · ${who}` : courseName) : 'מחיר החוגים'}
+            isTrial={false}
+            animate={!quoteSettled}
+            checkingLabel={selfRegistering ? 'בודקים את הנתונים…' : 'בודקים את נתוני הילד/ה…'}
+            onSettled={() => {
+              if (quoteSettled) return;
+              setQuoteSettled(true);
+              // The saving line opens above the button, so the button comes into view a moment later.
+              window.setTimeout(
+                () => summaryActionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }),
+                400,
+              );
+            }}
+          />
+        </div>
+        <div className={styles.formActions}>
+          <button
+            ref={summaryActionRef}
+            type="button"
+            className={`${styles.submitButton}${quoteSettled ? ` ${look.readyButton}` : ''}`}
+            disabled={!quote}
+            onClick={() => setStep('consents')}
+          >
+            המשך לאישורים ולתשלום
+          </button>
+        </div>
+      </div>
     );
   }
 
@@ -2002,30 +2632,77 @@ export default function CourseRegistrationForm({
         ? `סיכום תשלום עבור ${registeredLessonCount} חוגים`
         : (isTrial ? 'תשלום לשיעור ניסיון' : 'סיכום תשלום');
     const playSummary = summaryPlayedRef.current !== paymentData.payment_id;
+    const near = (a: unknown, b: unknown) => Math.abs(Number(a ?? 0) - Number(b ?? 0)) < 0.005;
+    // The parent already saw this very price before signing: the payment screen only recalls it.
+    const quotedBefore = !isTrial && quoteState === 'ready' && quote !== null;
+    const sameAsQuoted = quotedBefore
+      && near(quote.final_amount, paymentData.final_amount)
+      && near(quote.monthly_amount, paymentData.monthly_amount);
+    const paying = paymentSummaryModel(paymentData);
 
     return (
       <div key="payment" className={`${styles.paymentContainer} ${look.stepIn}`} dir="rtl">
         {stepBar}
-        <h3 className={styles.title}>
-          {isTrial ? `הרשמה לשיעור ניסיון: ${courseName}` : `הרשמה לחוג: ${courseName}`}
-        </h3>
+        {sameAsQuoted ? (
+          <h3 className={`${styles.title} ${look.payTitle}`}>
+            <span className={look.payShield} aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path className={look.payShieldDraw} pathLength={1} d="M12 2.5 4.5 5.3v5.9c0 4.8 3.2 8.8 7.5 10.3 4.3-1.5 7.5-5.5 7.5-10.3V5.3z" />
+                <g className={look.payShieldLock}>
+                  <rect x="9" y="11" width="6" height="4.5" rx="1" />
+                  <path d="M10.2 11V9.6a1.8 1.8 0 0 1 3.6 0V11" />
+                </g>
+              </svg>
+            </span>
+            תשלום מאובטח
+          </h3>
+        ) : (
+          <h3 className={styles.title}>
+            {isTrial ? `הרשמה לשיעור ניסיון: ${courseName}` : `הרשמה לחוג: ${courseName}`}
+          </h3>
+        )}
 
-        <PaymentSummary
-          key={paymentData.payment_id}
-          payment={paymentData}
-          title={summaryTitle}
-          priceLabel={isTrial
-            ? 'שיעור ניסיון'
-            : (registeredChildCount > 1 || registeredLessonCount > 1 ? 'מחיר החוגים' : 'מחיר החוג')}
-          isTrial={isTrial}
-          animate={playSummary}
-          onSettled={() => {
-            if (summaryPlayedRef.current === paymentData.payment_id) return;
-            summaryPlayedRef.current = paymentData.payment_id;
-            // The figures are in place: bring what the parent does next into view.
-            payActionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-          }}
-        />
+        {sameAsQuoted ? (
+          <>
+            <div className={look.payBox}>
+              <div className={look.sumRow}>
+                <span>תשלום כעת</span>
+                <span className={look.sumRowValue} dir="ltr">{formatShekelShort(paying.payNow)}</span>
+              </div>
+              {paying.monthly > 0 ? (
+                <div className={look.sumRow}>
+                  <span>{paying.monthlyFrom ? `תשלום חודשי, ${paying.monthlyFrom}` : 'תשלום חודשי'}</span>
+                  <span className={look.sumRowValue} dir="ltr">{formatShekelShort(paying.monthly)}</span>
+                </div>
+              ) : null}
+            </div>
+          </>
+        ) : (
+          <>
+            {quotedBefore ? (
+              <p className={look.kidNote} style={{ margin: 0 }}>הסכום עודכן מאז הסיכום. זה הסכום לתשלום.</p>
+            ) : null}
+            <div>
+              <PaymentSummary
+                key={paymentData.payment_id}
+                payment={paymentData}
+                title={summaryTitle}
+                priceLabel={isTrial
+                  ? 'שיעור ניסיון'
+                  : (registeredChildCount > 1 || registeredLessonCount > 1 ? 'מחיר החוגים' : 'מחיר החוג')}
+                isTrial={isTrial}
+                animate={playSummary && !quotedBefore}
+                checkingLabel=""
+                onSettled={() => {
+                  if (summaryPlayedRef.current === paymentData.payment_id) return;
+                  summaryPlayedRef.current = paymentData.payment_id;
+                  // The figures are in place: bring what the parent does next into view.
+                  payActionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                }}
+              />
+            </div>
+          </>
+        )}
 
         <div ref={payActionRef} className={styles.paymentContainer}>
         {hostedMode === 'card' ? (
@@ -2091,10 +2768,18 @@ export default function CourseRegistrationForm({
             </button>
           </>
         ) : (
-          <div className={styles.hostedLoading}>
-            <span className={styles.submittingSpinner} />
-            <span>פותחים את עמוד התשלום…</span>
-          </div>
+          <p className={look.paySafe}>
+            <span className={look.payShield} aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path className={look.payShieldDraw} pathLength={1} d="M12 2.5 4.5 5.3v5.9c0 4.8 3.2 8.8 7.5 10.3 4.3-1.5 7.5-5.5 7.5-10.3V5.3z" />
+                <g className={look.payShieldLock}>
+                  <rect x="9" y="11" width="6" height="4.5" rx="1" />
+                  <path d="M10.2 11V9.6a1.8 1.8 0 0 1 3.6 0V11" />
+                </g>
+              </svg>
+            </span>
+            פותחים את עמוד התשלום המאובטח…
+          </p>
         )}
         </div>
       </div>
@@ -2118,10 +2803,10 @@ export default function CourseRegistrationForm({
         key="payment_success"
         payment={paymentData}
         text={registeredChildCount > 1
-          ? `${registeredChildCount} ילדים נרשמו בהצלחה.`
+          ? `${registeredChildCount} ילדים בפנים. נתראה בשיעור הראשון!`
           : registeredLessonCount > 1
-            ? `${selfRegistering ? parentFirstName : childFirstName} נרשמ/ה ל-${registeredLessonCount} חוגים.`
-            : `${selfRegistering ? parentFirstName : childFirstName} נרשמ/ה לחוג ${courseName}.`}
+            ? `${selfRegistering ? parentFirstName : childFirstName} בפנים, ב-${registeredLessonCount} חוגים. נתראה בשיעור הראשון!`
+            : `${selfRegistering ? parentFirstName : childFirstName} בפנים. נתראה בשיעור הראשון!`}
       >
         {successActions}
       </SuccessSummary>

@@ -106,43 +106,61 @@ describe('paymentSummaryModel', () => {
     expect(paymentSummaryModel(payment({ next_billing_date: '2026-09-01' }), today).standingOrderStart).toBeNull();
   });
 
-  it('counts this charge down from the list price only when a whole month is in it', () => {
-    // A full month, the fee, a sibling discount and a paid trial: 300 + 120 - 30.
+  it('counts this charge down from the list price when the figures add up', () => {
+    // A full month, the fee, a sibling discount and a paid trial: 350 + 120 → 300 + 120 - 30.
     const full = paymentSummaryModel(payment({
       final_amount: 390, discount_amount: 50, monthly_amount: 300, prorated_amount: 300,
       trial_credit_amount: 30, trial_credit_paid: 30,
       discounts_applied: [{ name: 'הנחת ילד שני', type: 'second_child', value: 50 }],
     }));
-    expect(full.chargesFullMonthNow).toBe(true);
-    expect(full.payNowBeforeCredit + 50).toBe(350 + 120);
+    expect(full.countsFromListPrice).toBe(true);
+    expect(full.listPayNow).toBe(470);
     expect(full.trialPaid).toBe(30);
   });
 
-  it('leaves this charge alone for a mid-month signup: the discount is not all in it', () => {
-    // 4 of 5 lessons left: 240 of the 300, plus the fee.
+  it('counts a mid-month signup down too: list price, the discount, the part of the month, the trial', () => {
+    // 4 of 5 lessons left: 240 of the 300, plus the fee, less the trial.
     const part = paymentSummaryModel(payment({
-      final_amount: 360, discount_amount: 50, monthly_amount: 300, prorated_amount: 240,
-      prorate_lessons_remaining: 4, total_lessons_this_month: 5,
+      final_amount: 330, discount_amount: 50, monthly_amount: 300, prorated_amount: 240,
+      prorate_lessons_remaining: 4, total_lessons_this_month: 5, trial_credit_amount: 30,
       discounts_applied: [{ name: 'הנחת ילד שני', type: 'second_child', value: 50 }],
     }));
     expect(part.prorateExplained).toBe(true);
-    expect(part.chargesFullMonthNow).toBe(false);
-    expect(part.payNow).toBe(360);
+    expect(part.countsFromListPrice).toBe(true);
+    // 470 - 50 (discount) - 60 (the lesson already gone) - 30 (trial) = 330, the server's own figure.
+    expect(part.listPayNow - 50 - (part.monthly - part.prorated) - part.trialCredit).toBe(part.payNow);
   });
 
-  it('leaves this charge alone when only the fee is charged now', () => {
+  it('shows the figures at rest when only the fee is charged now', () => {
     const feeOnly = paymentSummaryModel(payment({
       final_amount: 120, discount_amount: 50, monthly_amount: 300, prorated_amount: 0,
+      discounts_applied: [{ name: 'הנחת ילד שני', type: 'second_child', value: 50 }],
     }));
-    expect(feeOnly.chargesFullMonthNow).toBe(false);
+    expect(feeOnly.countsFromListPrice).toBe(false);
     expect(feeOnly.prorateExplained).toBe(false);
   });
 
-  it('leaves this charge alone when the figures do not add up to a whole month', () => {
+  it('shows the figures at rest when they do not add up', () => {
     const odd = paymentSummaryModel(payment({
       final_amount: 400, discount_amount: 50, monthly_amount: 300, prorated_amount: 300,
+      discounts_applied: [{ name: 'הנחת ילד שני', type: 'second_child', value: 50 }],
     }));
-    expect(odd.chargesFullMonthNow).toBe(false);
+    expect(odd.countsFromListPrice).toBe(false);
+  });
+
+  it('says the fee was paid before only when the server says so and none is charged', () => {
+    expect(paymentSummaryModel(payment({ registration_fee: 0, final_amount: 350, registration_fee_paid_before: true })).feePaidBefore).toBe(true);
+    expect(paymentSummaryModel(payment({ registration_fee: 0, final_amount: 350 })).feePaidBefore).toBe(false);
+    expect(paymentSummaryModel(payment({ registration_fee_paid_before: true })).feePaidBefore).toBe(false);
+  });
+
+  it('says "next month" for the first of next month and a date for any other day', () => {
+    const today = new Date(2026, 9, 2);
+    expect(paymentSummaryModel(payment({ next_billing_date: '2026-11-01' }), today).monthlyFrom).toBe('מהחודש הבא');
+    expect(paymentSummaryModel(payment({ subscription_start_date: '2027-09-01' }), today).monthlyFrom).toBe('מ-1.9');
+    expect(paymentSummaryModel(payment(), today).monthlyFrom).toBe('');
+    // December → January of the next year.
+    expect(paymentSummaryModel(payment({ next_billing_date: '2027-01-01' }), new Date(2026, 11, 15)).monthlyFrom).toBe('מהחודש הבא');
   });
 });
 

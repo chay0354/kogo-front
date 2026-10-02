@@ -281,3 +281,8 @@
   font-weight: 600;
   color: #2B3090;
 }
+
+/* The strip that says a child was chosen from the family's list. */
+.knownRow {
+  margin-bottom: 12px;
+}

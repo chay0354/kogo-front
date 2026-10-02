@@ -41,6 +41,7 @@ import {
   readComputerizedDocsConsent,
   type ComputerizedDocsConsent,
 } from '@/components/dialogs/computerizedDocsConsent';
+import WidgetIdentificationRow from '@/components/dialogs/WidgetIdentificationRow';
 import EditMonthAmountDialog from '@/components/dialogs/EditMonthAmountDialog';
 import CustomerDetailsEditor from '@/components/dialogs/CustomerDetailsEditor';
 import ChildStatusHistory from '@/components/dialogs/ChildStatusHistory';
@@ -1279,6 +1280,8 @@ export default function ChildProfileDialog({
                             <span className="font-medium">-</span>
                           )}
                         </div>
+                        {/* The registration form recognising this family, and the office's switch for it. */}
+                        {child.family_id ? <WidgetIdentificationRow familyId={child.family_id} /> : null}
                         <div className="flex justify-between gap-4 items-center">
                           <span className="text-muted-foreground text-sm flex items-center gap-2">
                             <MapPin className="h-4 w-4" />

@@ -136,7 +136,7 @@ export default function ConsentSteps({
             <p className={styles.consNote}>
               {termsOpenedOnce
                 ? 'גללו עד סוף התקנון ואשרו כדי להמשיך'
-                : 'האישור והחתימה ייפתחו אחרי קריאת התקנון'}
+                : 'קוראים עד הסוף ומאשרים. אחר כך מופיע כאן האישור.'}
             </p>
           )}
           {errors.terms ? <p className={styles.consError}>{errors.terms}</p> : null}

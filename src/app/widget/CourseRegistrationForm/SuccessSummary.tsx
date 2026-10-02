@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { prefersReducedMotion } from '../widgetMotion';
 import styles from './newLook.module.css';
-import { formatShekelShort, formatStandingOrderStart, paymentSummaryModel } from './paymentSummaryModel';
+import { formatShekelShort, paymentSummaryModel } from './paymentSummaryModel';
 import type { PaymentResponse } from './types';
 
 interface Props {
@@ -65,9 +65,7 @@ export default function SuccessSummary({ payment, text, children }: Props) {
           </span>
           <span>
             <span className={styles.nextLabel}>
-              {model.standingOrderStart
-                ? `הוראת קבע, מ-${formatStandingOrderStart(model.standingOrderStart)}`
-                : 'תשלום חודשי, בהוראת קבע'}
+              {model.monthlyFrom ? `${model.monthlyFrom}, בהוראת קבע` : 'בהוראת קבע'}
             </span>
             <span className={styles.nextValue}><span dir="ltr">{formatShekelShort(model.monthly)}</span> לחודש</span>
           </span>

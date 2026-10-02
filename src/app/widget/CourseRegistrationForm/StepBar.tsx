@@ -2,12 +2,12 @@
 
 import styles from './newLook.module.css';
 
-const STEPS = ['פרטים', 'אישורים', 'תשלום'] as const;
+const STEPS = ['פרטים', 'סיכום', 'אישורים', 'תשלום'] as const;
 
-/** Where the parent stands in a course registration: details, approvals, payment. */
-export default function StepBar({ current }: { current: 0 | 1 | 2 }) {
+/** Where the parent stands in a course registration: details, the price, approvals, payment. */
+export default function StepBar({ current }: { current: 0 | 1 | 2 | 3 }) {
   return (
-    <ol className={styles.stepBar} aria-label="שלבי ההרשמה">
+    <ol className={styles.stepBar} aria-label="שלבי ההרשמה" data-screen-top="">
       {STEPS.map((label, index) => (
         <li
           key={label}

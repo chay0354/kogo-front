@@ -83,12 +83,18 @@ export interface PaymentSummaryModel {
   /** The first month costs less than a full one, and the parent is owed the reason. */
   prorateExplained: boolean;
   /**
-   * This charge holds one whole month, the fee and nothing else, so a monthly
-   * discount comes off it in full and the screen may count it down from the
-   * list price. False for a mid-month signup and for a charge of the fee alone.
+   * This charge is this month's part plus the fee, less a paid trial — and the
+   * server's figures add up to exactly that. Then the screen may count the
+   * charge down from the list price (`listPayNow`), each step a sum of the
+   * server's own figures. False for a charge of the fee alone, and whenever
+   * the figures do not add up: the screen then shows them at rest.
    */
-  chargesFullMonthNow: boolean;
+  countsFromListPrice: boolean;
+  /** The full price of a first charge: a month at the list price, and the fee. */
+  listPayNow: number;
   registrationFee: number;
+  /** No fee on this registration because the child already paid it. */
+  feePaidBefore: boolean;
   /** A paid trial taken off this first charge only. */
   trialCredit: number;
   /** What the family paid for that trial. */
@@ -100,6 +106,8 @@ export interface PaymentSummaryModel {
   payNowBeforeCredit: number;
   /** The day the monthly payment begins, when it is still ahead; null when unknown or already here. */
   standingOrderStart: string | null;
+  /** That day in words: "מהחודש הבא" for the first of next month, else "מ-1.9"; empty when unknown. */
+  monthlyFrom: string;
 }
 
 /** The date as the server writes it (YYYY-MM-DD), in the browser's own day. */
@@ -119,26 +127,38 @@ export function paymentSummaryModel(payment: PaymentResponse, today: Date = new 
   const registrationFee = Number(payment.registration_fee ?? 0);
   const sameAmount = (a: number, b: number) => Math.abs(a - b) < 0.005;
   const monthlyStart = payment.subscription_start_date || payment.next_billing_date || null;
+  const standingOrderStart = monthlyStart && monthlyStart.split('T')[0] > isoDay(today) ? monthlyStart : null;
+  const discountLines = groupedDiscountLines(payment.discounts_applied, discountAmount);
+  const lineTotal = discountLines.reduce((sum, line) => sum + line.amount, 0);
+  const firstOfNextMonth = isoDay(new Date(today.getFullYear(), today.getMonth() + 1, 1));
   return {
     base,
     hasDiscount: discountAmount > 0,
-    discountLines: groupedDiscountLines(payment.discounts_applied, discountAmount),
+    discountLines,
     priceAfterDiscount,
     monthly,
     prorated,
     prorateLessonsRemaining: Number(payment.prorate_lessons_remaining ?? 0),
     totalLessonsThisMonth: Number(payment.total_lessons_this_month ?? 0),
     prorateExplained: prorated > 0 && monthly > 0 && prorated < monthly,
-    chargesFullMonthNow: prorated > 0
-      && sameAmount(prorated, monthly)
+    countsFromListPrice: prorated > 0
+      && prorated <= monthly + 0.005
       && sameAmount(monthly, priceAfterDiscount)
-      && sameAmount(monthly + registrationFee - trialCredit, payNow),
+      && sameAmount(lineTotal, discountAmount)
+      && sameAmount(prorated + registrationFee - trialCredit, payNow),
+    listPayNow: base + registrationFee,
     registrationFee,
+    feePaidBefore: registrationFee === 0 && payment.registration_fee_paid_before === true,
     trialCredit,
     trialPaid: Number(payment.trial_credit_paid ?? 0) || trialCredit,
     trialCreditReason: trialCredit > 0 ? (payment.trial_credit_reason ?? '') : '',
     payNow,
     payNowBeforeCredit: payNow + trialCredit,
-    standingOrderStart: monthlyStart && monthlyStart.split('T')[0] > isoDay(today) ? monthlyStart : null,
+    standingOrderStart,
+    monthlyFrom: !standingOrderStart
+      ? ''
+      : standingOrderStart.split('T')[0] === firstOfNextMonth
+        ? 'מהחודש הבא'
+        : `מ-${formatStandingOrderStart(standingOrderStart)}`,
   };
 }
