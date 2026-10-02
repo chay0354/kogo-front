@@ -567,6 +567,30 @@
   }
 }
 
+/* On a phone the registration form takes the screen. Whatever of the page
+   still shows around it — beside it, or above and below it when the host page
+   is scrolled — is frosted, so that only the form reads. The form itself is
+   mounted outside the page, and is not touched by this. */
+@media (max-width: 767px) {
+  .pageBehindForm {
+    filter: blur(9px) saturate(1.15);
+    opacity: 0.8;
+    pointer-events: none;
+    user-select: none;
+  }
+
+  /* A light veil over the frosted page, in place of the grey one. */
+  .drawerOverlay {
+    background-color: rgb(238 240 251 / 0.55);
+  }
+}
+
+@media (max-width: 767px) and (prefers-reduced-motion: no-preference) {
+  .page {
+    transition: filter 320ms ease, opacity 320ms ease;
+  }
+}
+
 /* Mobile custom dropdown */
 
 .dropdownBackdrop {

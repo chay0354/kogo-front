@@ -818,7 +818,11 @@ export default function WidgetPage() {
           : null;
 
   return (
-    <div ref={pageRef} dir="rtl" className={styles.page}>
+    <div
+      ref={pageRef}
+      dir="rtl"
+      className={`${styles.page}${drawerCourse && !drawerClosing ? ` ${styles.pageBehindForm}` : ''}`}
+    >
       {/* Filter strip */}
       <div className={styles.filterStrip}>
         <h1 className={styles.filterStripTitle}>הרשמה לחוגים / שיעור נסיון</h1>
