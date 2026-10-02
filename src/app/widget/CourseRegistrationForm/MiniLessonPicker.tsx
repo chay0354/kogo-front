@@ -24,6 +24,8 @@ interface MiniLessonPickerProps {
   defaultFilters: WidgetFilterDefaults;
   excludedSelectionKeys: Set<string>;
   onSelect: (selection: EnrollmentSelection) => void;
+  /** Inside a panel that has its own frame and its own title: no border, no "search" line. */
+  flat?: boolean;
 }
 
 function MiniFilterField({
@@ -79,6 +81,7 @@ export default function MiniLessonPicker({
   defaultFilters,
   excludedSelectionKeys,
   onSelect,
+  flat = false,
 }: MiniLessonPickerProps) {
   const [selectedCity, setSelectedCity] = useState(defaultFilters.city);
   const [selectedBranch, setSelectedBranch] = useState(defaultFilters.branch);
@@ -250,7 +253,11 @@ export default function MiniLessonPicker({
       return;
     }
     setFullNotice(false);
-    onSelect(selectionFromCatalogPick(course, bundle ?? null, lesson ?? null, priceOption ?? null));
+    onSelect({
+      ...selectionFromCatalogPick(course, bundle ?? null, lesson ?? null, priceOption ?? null),
+      // The city the class was found under, for its card in the form.
+      displayPlace: STATIC_CITIES.find((city) => city.id === selectedCity)?.name,
+    });
   };
 
   const activeField = !selectedCity ? 'city'
@@ -260,12 +267,14 @@ export default function MiniLessonPicker({
           : null;
 
   return (
-    <div className={styles.root}>
-      <div className={styles.filterHeader}>
-        <span className={styles.filterHeaderLine} />
-        <span className={styles.filterHeaderText}>חיפוש חוג</span>
-        <span className={styles.filterHeaderLine} />
-      </div>
+    <div className={`${styles.root}${flat ? ` ${styles.rootFlat}` : ''}`}>
+      {flat ? null : (
+        <div className={styles.filterHeader}>
+          <span className={styles.filterHeaderLine} />
+          <span className={styles.filterHeaderText}>חיפוש חוג</span>
+          <span className={styles.filterHeaderLine} />
+        </div>
+      )}
 
       <div className={styles.filterGrid}>
         <MiniFilterField

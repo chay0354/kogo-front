@@ -635,12 +635,6 @@
   line-height: 1.4;
 }
 
-.primaryLessons {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
 .discountContext {
   margin: 0 0 8px;
   font-size: 13px;

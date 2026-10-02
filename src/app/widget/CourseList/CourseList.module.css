@@ -22,12 +22,26 @@
   font-size: 0.75rem;
 }
 
+/* A long name gets the room it needs: the row grows with it. */
 .listCompact .row {
-  height: 56px;
+  height: auto;
+  min-height: 56px;
 }
 
+.listCompact .nameZone {
+  padding-top: 7px;
+  padding-bottom: 7px;
+}
+
+/* Inside the form the list is narrow: a class name takes more lines rather than being cut. */
 .listCompact .courseName {
   font-size: 0.8125rem;
+  line-height: 1.25;
+  white-space: normal;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
 }
 
 .listCompact .accordionCard {

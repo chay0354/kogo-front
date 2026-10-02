@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { formTitle, lessonCardLine, lessonLineParts, lessonNameForCard, lessonNameSize } from './formHeading';
+import {
+  childTitle,
+  formTitle,
+  lessonCardLine,
+  lessonLineParts,
+  lessonNameForCard,
+  lessonNameSize,
+  pickedLessonLine,
+} from './formHeading';
 
 describe('the top of the registration form', () => {
   it('says what the parent is doing, and never which class', () => {
@@ -37,5 +45,30 @@ describe('the top of the registration form', () => {
     expect(lessonLineParts('ימי שני, רביעי · 17:00-17:45')).toEqual(['ימי שני, רביעי', '17:00-17:45']);
     expect(lessonLineParts('')).toEqual([]);
     expect(lessonLineParts(' · כפר סבא')).toEqual(['כפר סבא']);
+  });
+});
+
+describe('a class chosen inside the form', () => {
+  it('reads like the card at the top: the day, the hours, the city', () => {
+    expect(pickedLessonLine('ראשון · 18:00-18:45', 'כפר סבא')).toBe('יום ראשון · 18:00-18:45 · כפר סבא');
+    expect(lessonLineParts(pickedLessonLine('ראשון · 18:00-18:45', 'כפר סבא'))).toEqual(['יום ראשון', '18:00-18:45', 'כפר סבא']);
+  });
+
+  it('says "ימי" for a track of two days', () => {
+    expect(pickedLessonLine('ראשון / שלישי · 16:00-16:45', 'פתח תקווה')).toBe('ימי ראשון / שלישי · 16:00-16:45 · פתח תקווה');
+  });
+
+  it('leaves out what it does not know', () => {
+    expect(pickedLessonLine('ראשון · 18:00-18:45')).toBe('יום ראשון · 18:00-18:45');
+    expect(pickedLessonLine('', 'כפר סבא')).toBe('כפר סבא');
+    expect(pickedLessonLine('', null)).toBe('');
+  });
+});
+
+describe('a child added in the form', () => {
+  it('is called by number until there is a name, and by name from then on', () => {
+    expect(childTitle(2, '')).toBe('ילד/ה 2');
+    expect(childTitle(3, '   ')).toBe('ילד/ה 3');
+    expect(childTitle(2, ' נועם ')).toBe('נועם');
   });
 });

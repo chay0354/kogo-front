@@ -140,3 +140,42 @@ export function KnownStrip({ title, note, actionLabel, onAction }: StripProps) {
     </div>
   );
 }
+
+interface FoldStripProps {
+  /** Who this part is about — as much as may be shown. */
+  title: string;
+  note?: string;
+  /** The part is open under the line. */
+  open: boolean;
+  /** Something is missing or wrong in it: no tick, and it does not close. */
+  missing?: boolean;
+  onToggle: () => void;
+}
+
+/**
+ * A part of the form that is filled in, folded into one line — in the look of
+ * the strip above. A press anywhere on it opens the part to be edited, and
+ * closes it again.
+ */
+export function FoldStrip({ title, note, open, missing = false, onToggle }: FoldStripProps) {
+  return (
+    <button
+      type="button"
+      className={`${styles.strip} ${styles.foldStrip}`}
+      aria-expanded={open}
+      onClick={() => {
+        if (open && missing) return;
+        onToggle();
+      }}
+    >
+      <span className={`${styles.stripDot}${missing ? ` ${styles.stripDotMissing}` : ''}`} aria-hidden="true">
+        {missing ? '!' : TICK(13)}
+      </span>
+      <span className={styles.stripText}>
+        <b>{title}</b>
+        {note ? <small>{note}</small> : null}
+      </span>
+      {open && missing ? null : <span className={styles.textButton}>{open ? 'סגירה' : 'עריכה'}</span>}
+    </button>
+  );
+}
