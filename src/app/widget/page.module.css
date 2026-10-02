@@ -591,15 +591,23 @@
   /* The form is a sheet that rises from the bottom of the screen: both of its
      upper corners are rounded, and it has no lower edge. A phone's browser
      floats its own bar over the page (Safari 26), and a sheet that stops at
-     the visible edge leaves a bare strip behind that bar — so the sheet's
-     white is painted on below its edge. Only paint: the content and its
-     scrolling stay inside the visible part. The host page lets the frame run
-     that far down (cogomelo-site, CourseWidget.module.css). */
+     the visible edge leaves a bare strip behind that bar. So where the host
+     shows this frame below that edge, the sheet itself runs on there
+     (--kogo-under-bar, set on its frame in page.tsx): what it holds scrolls
+     on behind the bar, as a page does. The same room is kept free under its
+     last line, so that scrolled to the end nothing is left behind the bar,
+     and whatever is scrolled into view stops above it. The white painted on
+     below its edge is for a host that shows less than it said. */
   .drawerPanel {
     /* As a system sheet: it starts a little under the top of the screen, with
        wide round upper corners (the owner, against Apple's own sheet). */
     top: 10px;
-    height: calc(100% - 10px);
+    height: calc(100% - 10px + var(--kogo-under-bar, 0px));
+    padding-bottom: calc(1.5rem + var(--kogo-under-bar, 0px));
+    scroll-padding-bottom: var(--kogo-under-bar, 0px);
+    /* A drag that reaches the sheet's end stays in the sheet: the host page
+       under it is not to be dragged along (it now carries this frame). */
+    overscroll-behavior: contain;
     border-radius: 38px 38px 0 0;
     box-shadow:
       0 -10px 30px rgb(43 48 144 / 0.14),

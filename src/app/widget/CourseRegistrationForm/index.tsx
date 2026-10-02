@@ -1939,19 +1939,25 @@ export default function CourseRegistrationForm({
   }, [consentsReady, step]);
 
   // A screen arrives from the left on the way forward and from the right on the way back.
+  // The screen the form opens on does neither: the sheet that holds it is itself
+  // on its way in — rising from the bottom of a phone's screen — and a slide
+  // across it at the same moment reads as the form coming in on a slant.
   const shownStepRef = useRef(step);
   const cameBackRef = useRef(false);
+  const openingScreenRef = useRef(true);
   if (shownStepRef.current !== step) {
     cameBackRef.current = STEP_ORDER[step] < STEP_ORDER[shownStepRef.current];
     shownStepRef.current = step;
+    openingScreenRef.current = false;
   }
+  const arriving = openingScreenRef.current ? '' : look.stepIn;
   const screenMotion = isTrial
-    ? look.stepIn
+    ? arriving
     : leaving === 'back'
       ? look.stepOutBack
       : leaving === 'forward'
         ? look.stepOut
-        : cameBackRef.current ? look.stepInBack : look.stepIn;
+        : cameBackRef.current ? look.stepInBack : arriving;
 
   const header = (
     <>
