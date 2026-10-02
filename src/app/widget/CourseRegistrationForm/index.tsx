@@ -22,6 +22,7 @@ import StepBar from './StepBar';
 import ConsentSteps from './ConsentSteps';
 import PaymentSummary from './PaymentSummary';
 import SuccessSummary from './SuccessSummary';
+import TrialInfo from './TrialInfo';
 import { formatShekelShort, paymentSummaryModel } from './paymentSummaryModel';
 import MaskedField from './MaskedField';
 import Reveal from './Reveal';
@@ -103,6 +104,8 @@ const STEP_ORDER: Record<Step, number> = {
   payment_success: 6,
   trial_success: 6,
 };
+/** The shortest the "checking whether you are with us" line stays up. */
+const IDENTIFY_LINE_MIN_MS = 400;
 /** How long a screen takes to leave before the next one arrives. */
 const SCREEN_LEAVE_MS = 200;
 /** The last station stays green this long before the final screen. */
@@ -568,10 +571,12 @@ export default function CourseRegistrationForm({
     dropIdentification('checking');
     const started = Date.now();
     void askIdentify({ parentIdNumber, parentPhone }, identifyConfig?.ticket ?? '').then((answer) => {
-      // The look-up line stays long enough to be read.
+      // The parent waits only as long as the server takes. The floor is the
+      // server's own shortest answer, so it only keeps the line from flashing
+      // when no answer came at all.
       window.setTimeout(() => {
         if (identifyRunRef.current === run) applyIdentifyAnswer(answer);
-      }, Math.max(0, 700 - (Date.now() - started)));
+      }, Math.max(0, IDENTIFY_LINE_MIN_MS - (Date.now() - started)));
     });
     // The stage and the helpers are read at call time; only the two numbers start a look-up.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -2700,6 +2705,7 @@ export default function CourseRegistrationForm({
             </button>
             {' '}של קוגומלו.
           </p>
+          <TrialInfo paid={trialLessonIsPaid} />
         </div>
 
         {errorMsg && <p className={styles.errorText}>{errorMsg}</p>}
@@ -2742,6 +2748,9 @@ export default function CourseRegistrationForm({
         />
 
         {termsModal}
+
+        {/* A trial lesson that goes through the approvals: what is worth knowing, next to the button that approves. */}
+        {isTrial ? <TrialInfo paid={trialLessonIsPaid} /> : null}
 
         {errorMsg && <p className={styles.errorText}>{errorMsg}</p>}
 

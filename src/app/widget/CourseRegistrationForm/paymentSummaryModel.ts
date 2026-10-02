@@ -82,6 +82,8 @@ export interface PaymentSummaryModel {
   totalLessonsThisMonth: number;
   /** The first month costs less than a full one, and the parent is owed the reason. */
   prorateExplained: boolean;
+  /** What joining mid-month takes off this first charge: a full month less this month's part. 0 for a whole month. */
+  prorateOff: number;
   /**
    * This charge is this month's part plus the fee, less a paid trial — and the
    * server's figures add up to exactly that. Then the screen may count the
@@ -131,6 +133,7 @@ export function paymentSummaryModel(payment: PaymentResponse, today: Date = new 
   const discountLines = groupedDiscountLines(payment.discounts_applied, discountAmount);
   const lineTotal = discountLines.reduce((sum, line) => sum + line.amount, 0);
   const firstOfNextMonth = isoDay(new Date(today.getFullYear(), today.getMonth() + 1, 1));
+  const prorateExplained = prorated > 0 && monthly > 0 && prorated < monthly;
   return {
     base,
     hasDiscount: discountAmount > 0,
@@ -140,7 +143,8 @@ export function paymentSummaryModel(payment: PaymentResponse, today: Date = new 
     prorated,
     prorateLessonsRemaining: Number(payment.prorate_lessons_remaining ?? 0),
     totalLessonsThisMonth: Number(payment.total_lessons_this_month ?? 0),
-    prorateExplained: prorated > 0 && monthly > 0 && prorated < monthly,
+    prorateExplained,
+    prorateOff: prorateExplained ? Math.round((monthly - prorated) * 100) / 100 : 0,
     countsFromListPrice: prorated > 0
       && prorated <= monthly + 0.005
       && sameAmount(monthly, priceAfterDiscount)

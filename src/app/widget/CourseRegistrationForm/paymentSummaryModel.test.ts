@@ -75,6 +75,23 @@ describe('paymentSummaryModel', () => {
     expect(paymentSummaryModel(payment({ prorated_amount: 0 })).prorateExplained).toBe(false);
   });
 
+  it('says what joining mid-month took off: a full month at the price after discounts, less this month\'s part', () => {
+    // Four lessons of five, after a sibling discount of 50: 300 a month, 240 this month.
+    const part = paymentSummaryModel(payment({
+      final_amount: 360, discount_amount: 50, monthly_amount: 300, prorated_amount: 240,
+      discounts_applied: [{ name: 'הנחת ילד שני', type: 'second_child', value: 50 }],
+    }));
+    expect(part.prorateOff).toBe(60);
+    // The summary counts down by exactly these: 470, less 50, less 60.
+    expect(part.listPayNow - part.discountLines[0].amount - part.prorateOff).toBe(part.payNow);
+    // Agorot stay agorot, and never drift.
+    expect(paymentSummaryModel(payment({ monthly_amount: 350, prorated_amount: 262.5 })).prorateOff).toBe(87.5);
+    expect(paymentSummaryModel(payment({ monthly_amount: 299.9, prorated_amount: 199.9 })).prorateOff).toBe(100);
+    // A whole month, or no part at all: nothing was taken off.
+    expect(paymentSummaryModel(payment({ monthly_amount: 350, prorated_amount: 350 })).prorateOff).toBe(0);
+    expect(paymentSummaryModel(payment({ prorated_amount: 0 })).prorateOff).toBe(0);
+  });
+
   it('adds up two discounts that carry the same name', () => {
     expect(groupedDiscountLines([
       { name: 'הנחת ילד שני', type: 'second_child', value: 50 },

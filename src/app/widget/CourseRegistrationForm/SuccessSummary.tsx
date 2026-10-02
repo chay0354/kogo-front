@@ -72,7 +72,7 @@ export default function SuccessSummary({ payment, text, children }: Props) {
         </div>
       )}
 
-      {(model.discountLines.length > 0 || model.trialCredit > 0) && (
+      {(model.discountLines.length > 0 || model.prorateExplained || model.trialCredit > 0) && (
         <>
           <p className={styles.gotTitle}>מה קיבלתם</p>
           <div className={styles.gots}>
@@ -85,6 +85,21 @@ export default function SuccessSummary({ payment, text, children }: Props) {
                 </span>
               </div>
             ))}
+            {/* A mid-month signup: the first charge was for the lessons that were left. */}
+            {model.prorateExplained && (
+              <div className={`${styles.got} ${styles.gotPart}`}>
+                <span className={styles.gotIcon} aria-hidden="true">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="3.5" y="5" width="17" height="15.5" rx="3" />
+                    <path d="M3.5 10h17M8 3v4M16 3v4" />
+                  </svg>
+                </span>
+                <span className={styles.gotName}>הצטרפתם באמצע החודש</span>
+                <span className={styles.gotLine}>
+                  <strong dir="ltr">{formatShekelShort(model.prorateOff)}</strong> פחות בחודש הזה
+                </span>
+              </div>
+            )}
             {model.trialCredit > 0 && (
               <div className={`${styles.got} ${styles.gotCredit}`}>
                 <span className={styles.gotIcon} aria-hidden="true">₪</span>

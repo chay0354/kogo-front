@@ -542,6 +542,38 @@
   line-height: 1.45;
 }
 
+/* A dotted line on its own that opens a short explanation — where a trial lesson is approved. */
+.infoLine {
+  position: relative;
+  margin-top: 8px;
+  font-size: 13px;
+  color: #4b5068;
+}
+.consForm > .infoLine {
+  margin-top: 0;
+}
+.infoPop p {
+  margin: 0;
+}
+.infoPop p + p {
+  margin-top: 8px;
+}
+/* Here the explanation opens upwards, so it never covers the button that approves. */
+.infoLine .infoPop {
+  top: auto;
+  bottom: calc(100% + 10px);
+  transform-origin: bottom right;
+  animation-name: nlPopInUp;
+}
+.infoLine .infoPop::before {
+  top: auto;
+  bottom: -5px;
+}
+@keyframes nlPopInUp {
+  from { opacity: 0; transform: translateY(6px) scale(0.95); }
+  to { opacity: 1; transform: none; }
+}
+
 /* the fee line opens a short explanation */
 .infoLink {
   background: none;
@@ -723,6 +755,15 @@
 .gotCredit .gotIcon {
   background: #DDE0F5;
 }
+/* A mid-month signup, in the colours its tile has on the summary. */
+.gotPart {
+  background: #f4f6fd;
+  border-color: #DDE0F5;
+}
+.gotPart .gotIcon {
+  background: #2B3090;
+  color: #fff;
+}
 .gotName {
   font-size: 14px;
   font-weight: 700;
@@ -749,6 +790,7 @@
   .revealOpen .saved,
   .revealOpen .spark,
   .infoPop,
+  .infoLine .infoPop,
   .doneTick,
   .paid,
   .next,
