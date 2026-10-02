@@ -26,6 +26,7 @@ import TrialInfo from './TrialInfo';
 import { formTitle, lessonCardLine, lessonNameForCard } from './formHeading';
 import LessonHead from './LessonHead';
 import ResultScreen from './ResultScreen';
+import TrialCalendarButton from './TrialCalendarButton';
 import { formatShekelShort, paymentSummaryModel } from './paymentSummaryModel';
 import MaskedField from './MaskedField';
 import Reveal from './Reveal';
@@ -263,6 +264,7 @@ export default function CourseRegistrationForm({
   const [phoneFromCard, setPhoneFromCard] = useState(Boolean(initialParent?.phoneFromCard));
   // "I'll fill it in myself" was said while the phone shown was the card's: the form stays open until one is typed.
   const manualAwaitsPhoneRef = useRef(false);
+  const bookedTrialRef = useRef<{ lessonId: string; date: string; when: { day: string; hours: string } } | null>(null);
   // Who is being registered: a child from the family's list, another child, or not chosen yet.
   const [pick, setPick] = useState<KnownChild | 'new' | null>(null);
   // A detail of the chosen child was changed: this is now a new child, and the card is left alone.
@@ -1981,7 +1983,12 @@ export default function CourseRegistrationForm({
       && (occ.lesson_id ?? effectiveTrialLessonId) === effectiveTrialLessonId,
   );
   const trialWhenNow = trialWhen(trialLessonDate, trialChosen);
-  const trialWhenBlock = (
+  // The lesson as it was chosen, kept for the screen that says it is booked:
+  // the date picker's own state is cleared whenever the list of dates loads again.
+  if (trialLessonDate) {
+    bookedTrialRef.current = { lessonId: effectiveTrialLessonId ?? '', date: trialLessonDate, when: trialWhenNow };
+  }
+  const whenBlock = (when: { day: string; hours: string }) => (
     <div className={look.trialWhen}>
       <span className={look.trialWhenIcon} aria-hidden="true">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
@@ -1991,11 +1998,12 @@ export default function CourseRegistrationForm({
       </span>
       {/* Two short lines at any width. */}
       <span className={look.trialWhenText}>
-        <span>{trialWhenNow.day}</span>
-        {trialWhenNow.hours ? <span className={look.trialWhenHours} dir="ltr">{trialWhenNow.hours}</span> : null}
+        <span>{when.day}</span>
+        {when.hours ? <span className={look.trialWhenHours} dir="ltr">{when.hours}</span> : null}
       </span>
     </div>
   );
+  const trialWhenBlock = whenBlock(trialWhenNow);
 
   if (step === 'details') {
     // The form as it always was: a trial, an adult signing up, another child of a parent typed in before.
@@ -2959,10 +2967,12 @@ export default function CourseRegistrationForm({
     return (
       <ResultScreen tone="done" title="נרשמתם לשיעור ניסיון" actions={successActions}>
         <p className={look.doneText}>אישור ותזכורת יישלחו בוואטסאפ.</p>
-        {trialLessonDate ? (
+        {bookedTrialRef.current ? (
           <div className={look.resultCard}>
-            {trialWhenBlock}
+            {whenBlock(bookedTrialRef.current.when)}
             <p className={look.resultCardLine}>{lessonNameForCard(courseName)}</p>
+            {/* The lesson, with where it is and what to bring, into the parent's own calendar. */}
+            <TrialCalendarButton lessonId={bookedTrialRef.current.lessonId} date={bookedTrialRef.current.date} />
           </div>
         ) : null}
       </ResultScreen>
