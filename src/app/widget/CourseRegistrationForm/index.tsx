@@ -23,6 +23,7 @@ import ConsentSteps from './ConsentSteps';
 import PaymentSummary from './PaymentSummary';
 import SuccessSummary from './SuccessSummary';
 import TrialInfo from './TrialInfo';
+import { formTitle, lessonCardLine, lessonNameForCard, lessonNameSize } from './formHeading';
 import { formatShekelShort, paymentSummaryModel } from './paymentSummaryModel';
 import MaskedField from './MaskedField';
 import Reveal from './Reveal';
@@ -104,6 +105,12 @@ const STEP_ORDER: Record<Step, number> = {
   payment_success: 6,
   trial_success: 6,
 };
+/** A long class name is set a size smaller in its card. */
+const LESSON_NAME_CLASS = {
+  regular: '',
+  long: look.lessonNameLong,
+  veryLong: look.lessonNameVeryLong,
+} as const;
 /** The shortest the "checking whether you are with us" line stays up. */
 const IDENTIFY_LINE_MIN_MS = 400;
 /** How long a screen takes to leave before the next one arrives. */
@@ -1961,9 +1968,18 @@ export default function CourseRegistrationForm({
         <ChevronRight size={16} aria-hidden="true" />
         חזרה
       </button>
-      <h3 className={styles.title}>{isTrial ? `הרשמה לשיעור ניסיון: ${courseName}` : `הרשמה לחוג: ${courseName}`}</h3>
+      <h3 className={styles.title}>{formTitle(isTrial)}</h3>
     </div>
     </>
+  );
+
+  // The class the form was opened for, once, under the title — on every details form.
+  const lessonCardText = lessonCardLine(lessonLine, isTrial, trialLessonIds.length);
+  const lessonCard = (
+    <div className={`${look.lessonCard} ${LESSON_NAME_CLASS[lessonNameSize(courseName)]}`}>
+      <b>{lessonNameForCard(courseName)}</b>
+      {lessonCardText ? <span>{lessonCardText}</span> : null}
+    </div>
   );
 
   if (step === 'details') {
@@ -2357,11 +2373,10 @@ export default function CourseRegistrationForm({
             </div>
           </div>
         )}
-        {canAddExtraLesson && (!idFirst || primaryExtraLessons.length > 0) ? (
+        {canAddExtraLesson && primaryExtraLessons.length > 0 ? (
           <div className={styles.primaryLessons}>
-            {/* The class the form was opened for stands at the top of an identity-first form. */}
-            <label className={styles.label}>{idFirst ? 'חוגים נוספים' : 'החוגים שנבחרו'}</label>
-            {idFirst ? null : <SelectedLessonCard selection={primarySelection} />}
+            {/* The class the form was opened for stands at the top of the form. */}
+            <label className={styles.label}>חוגים נוספים</label>
             {primaryExtraLessons.map((selection, extraIndex) => (
               replacingPrimaryExtraIndex === extraIndex && primaryExtraPickerOpen ? null : (
                 <SelectedLessonCard
@@ -2533,12 +2548,7 @@ export default function CourseRegistrationForm({
       <form key="details" noValidate onSubmit={handleDetailsSubmit} className={`${styles.form} ${screenMotion}`} dir="rtl">
         {header}
 
-        {idFirst ? (
-          <div className={look.lessonCard}>
-            <b>{courseName}</b>
-            {lessonLine ? <span>{lessonLine}</span> : null}
-          </div>
-        ) : null}
+        {lessonCard}
 
         {addingSibling && !idFirst ? (
           <p className={styles.siblingNotice}>
@@ -2577,7 +2587,7 @@ export default function CourseRegistrationForm({
             key={`quote-${quoteRunRef.current}`}
             payment={quote}
             title="סיכום ההרשמה"
-            priceLabel={oneRegistration ? (who ? `${courseName} · ${who}` : courseName) : 'מחיר החוגים'}
+            priceLabel={oneRegistration ? (who ? `${lessonNameForCard(courseName)} · ${who}` : lessonNameForCard(courseName)) : 'מחיר החוגים'}
             isTrial={false}
             animate={!quoteSettled}
             checkingLabel={selfRegistering ? 'בודקים את הנתונים…' : 'בודקים את נתוני הילד/ה…'}
@@ -2680,7 +2690,7 @@ export default function CourseRegistrationForm({
           </div>
           <div className={look.trialRow}>
             <span>חוג</span>
-            <b>{courseName}</b>
+            <b>{lessonNameForCard(courseName)}</b>
           </div>
           <div className={look.trialRow}>
             <span>{selfRegistering ? 'משתתף/ת' : 'ילד/ה'}</span>
@@ -2820,9 +2830,7 @@ export default function CourseRegistrationForm({
             תשלום מאובטח
           </h3>
         ) : (
-          <h3 className={styles.title}>
-            {isTrial ? `הרשמה לשיעור ניסיון: ${courseName}` : `הרשמה לחוג: ${courseName}`}
-          </h3>
+          <h3 className={styles.title}>{formTitle(isTrial)}</h3>
         )}
 
         {sameAsQuoted ? (

@@ -1,0 +1,40 @@
+/**
+ * The top of the registration form, written once.
+ *
+ * Beside "back" stand a few words that say what the parent is doing — never
+ * which class. A class name is the office's own wording and can be long
+ * ("קפוארה 3-4.5 בוי יום שני"); beside the button it broke into two crooked
+ * lines. The class has a card of its own under the title, where a long name
+ * has room: it is set a size smaller, and wraps as a whole.
+ */
+export function formTitle(isTrial: boolean): string {
+  return isTrial ? 'הרשמה לשיעור ניסיון' : 'הרשמה לחוג';
+}
+
+export type LessonNameSize = 'regular' | 'long' | 'veryLong';
+
+/** How large a class name is set in its card: the longer the name, the smaller. */
+export function lessonNameSize(name: string): LessonNameSize {
+  const length = name.trim().length;
+  if (length > 44) return 'veryLong';
+  if (length > 26) return 'long';
+  return 'regular';
+}
+
+/**
+ * The line under the class name. A trial that can be taken on more than one
+ * of the class's days has no single day and hour to show, so only the name stands.
+ */
+export function lessonCardLine(line: string, isTrial: boolean, trialLessonCount: number): string {
+  if (isTrial && trialLessonCount !== 1) return '';
+  return line.trim();
+}
+
+/**
+ * A class name as it is written in a card. A browser may break a line after a
+ * dash, which split "ג׳–ד׳" across two lines; a dash between two characters is
+ * tied to what follows it, so a name breaks between words only.
+ */
+export function lessonNameForCard(name: string): string {
+  return name.trim().replace(/(\S)([-–—])(?=\S)/g, '$1$2\u2060');
+}
