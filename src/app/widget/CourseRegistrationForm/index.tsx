@@ -1341,6 +1341,8 @@ export default function CourseRegistrationForm({
       const lookupRequests: Array<Promise<{ id: 'primary' | string; data: LookupResult }>> = primaryFromCard ? [] : [
         api.post('/customers/widget/lookup/', {
           parent_id_number: parentIdNumber,
+          // The server says what it knows of a family only to whoever typed the family's own phone.
+          parent_phone: parentPhone,
           child_first_name: lookupChildFirstName,
           child_last_name: lookupChildLastName,
           lesson_id: isTrial ? effectiveTrialLessonId : lessonId,
@@ -1353,6 +1355,7 @@ export default function CourseRegistrationForm({
         lookupRequests.push(
           api.post('/customers/widget/lookup/', {
             parent_id_number: parentIdNumber,
+            parent_phone: parentPhone,
             child_first_name: child.firstName,
             child_last_name: child.lastName,
             lesson_id: child.selection?.lessonId,
