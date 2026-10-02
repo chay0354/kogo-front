@@ -476,6 +476,10 @@
     max-height: 86vh;
     max-height: 86dvh;
     padding-top: 6px;
+    /* Painted on below its edge, under the browser's floating bar (see .drawerPanel). */
+    box-shadow:
+      0 -10px 30px rgb(0 0 0 / 0.12),
+      0 220px 0 0 #fff;
   }
 
   .detailPanel::before {
@@ -582,6 +586,20 @@
   /* A light veil over the frosted page, in place of the grey one. */
   .drawerOverlay {
     background-color: rgb(238 240 251 / 0.55);
+  }
+
+  /* The form is a sheet that rises from the bottom of the screen: both of its
+     upper corners are rounded, and it has no lower edge. A phone's browser
+     floats its own bar over the page (Safari 26), and a sheet that stops at
+     the visible edge leaves a bare strip behind that bar — so the sheet's
+     white is painted on below its edge. Only paint: the content and its
+     scrolling stay inside the visible part. The host page lets the frame run
+     that far down (cogomelo-site, CourseWidget.module.css). */
+  .drawerPanel {
+    border-radius: 20px 20px 0 0;
+    box-shadow:
+      0 -10px 30px rgb(43 48 144 / 0.14),
+      0 220px 0 0 #fff;
   }
 }
 
