@@ -12,6 +12,7 @@ import {
   type CatalogRow,
 } from '../catalogRows';
 import { isWidgetSelectionFull } from '../alternativeLessons';
+import { lessonNameForCard } from '../CourseRegistrationForm/formHeading';
 import styles from './CourseList.module.css';
 
 interface CourseListProps {
@@ -84,7 +85,8 @@ function CourseRowItem({
     >
       <div className={styles.nameZone}>
         <span className={styles.bullet} aria-hidden="true" />
-        <span className={styles.courseName}>{displayTitle}</span>
+        {/* Inside the form the name may take two lines; it breaks between words, never at a dash inside one. */}
+        <span className={styles.courseName}>{lessonNameForCard(displayTitle)}</span>
       </div>
       <div className={styles.divider} />
       <div className={styles.slotZone}>

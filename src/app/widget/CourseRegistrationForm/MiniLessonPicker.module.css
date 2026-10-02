@@ -8,6 +8,14 @@
   background: #fff;
 }
 
+/* Inside the form's own panel: the panel is the frame. */
+.rootFlat {
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+}
+
 .filterHeader {
   display: flex;
   align-items: center;

@@ -46,3 +46,20 @@ export function lessonNameForCard(name: string): string {
 export function lessonLineParts(line: string): string[] {
   return line.split('·').map((part) => part.trim()).filter(Boolean);
 }
+
+/**
+ * The line of a class chosen inside the form, in the words of the card at the
+ * top: "ראשון · 18:00-18:45" and the city it was found under become
+ * "יום ראשון · 18:00-18:45 · כפר סבא". A track of two days reads "ימי".
+ */
+export function pickedLessonLine(schedule: string, place?: string | null): string {
+  const text = schedule.trim();
+  const days = text.split('·')[0] ?? '';
+  const when = text ? `${days.includes('/') ? 'ימי' : 'יום'} ${text}` : '';
+  return [when, (place || '').trim()].filter(Boolean).join(' · ');
+}
+
+/** What a child added in the form is called: the first name once there is one, "ילד/ה 2" until then. */
+export function childTitle(number: number, firstName: string): string {
+  return firstName.trim() || `ילד/ה ${number}`;
+}

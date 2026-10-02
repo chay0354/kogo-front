@@ -28,6 +28,8 @@ export interface EnrollmentSelection {
   displaySchedule: string;
   displayPrice: number | null;
   isFull?: boolean;
+  /** Where the class meets, for its card in the form. Shown only — never sent. */
+  displayPlace?: string;
 }
 
 const GENERIC_BUNDLE_NAMES = new Set([

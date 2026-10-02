@@ -9,28 +9,30 @@ import { isValidIsraeliId, israeliIdFieldError, sanitizeIsraeliIdInput } from '@
 import { readToEndState } from '@/lib/readToEnd';
 import { enrollmentSelectionKey, type EnrollmentSelection } from '../catalogRows';
 import AdditionalChildSection, {
+  childDetailsFilled,
   childLessonSelections,
   createEmptyAdditionalChild,
   MAX_EXTRA_LESSONS,
   type AdditionalChildEnrollment,
   type AdditionalChildFieldKey,
 } from './AdditionalChildSection';
-import ExtraLessonPicker from './ExtraLessonPicker';
-import SelectedLessonCard from './SelectedLessonCard';
+import ChildLessons from './ChildLessons';
+import RegistrationOverview from './RegistrationOverview';
+import { kidMark, lessonTag, type OverviewKid } from './overviewModel';
 import ProcessingPanel from './ProcessingPanel';
 import StepBar from './StepBar';
 import ConsentSteps from './ConsentSteps';
 import PaymentSummary from './PaymentSummary';
 import SuccessSummary from './SuccessSummary';
 import TrialInfo from './TrialInfo';
-import { formTitle, lessonCardLine, lessonNameForCard } from './formHeading';
+import { childTitle, formTitle, lessonCardLine, lessonNameForCard, pickedLessonLine } from './formHeading';
 import LessonHead from './LessonHead';
 import ResultScreen from './ResultScreen';
 import TrialCalendarButton from './TrialCalendarButton';
 import { formatShekelShort, paymentSummaryModel } from './paymentSummaryModel';
 import MaskedField from './MaskedField';
 import Reveal from './Reveal';
-import { KnownParentCard, KnownStrip } from './KnownParentCard';
+import { FoldStrip, KnownParentCard, KnownStrip } from './KnownParentCard';
 import {
   askIdentify,
   deviceId,
@@ -92,6 +94,11 @@ type NameFieldKey = 'parentFirstName' | 'parentLastName' | 'childFirstName' | 'c
 type IdFieldKey = 'parentIdNumber' | 'childIdNumber';
 type DetailsFieldKey = NameFieldKey | IdFieldKey | 'parentPhone' | 'parentEmail' | 'childBirthDate' | 'childGender';
 type ConsentFieldKey = ConsentKey;
+
+/** A part of the details screen that folds into one line: 'folded' — the line alone; 'editing' — open under it. */
+type FoldState = Record<string, 'folded' | 'editing'>;
+const PARENT_PART_KEYS: DetailsFieldKey[] = ['parentFirstName', 'parentLastName', 'parentIdNumber', 'parentPhone', 'parentEmail'];
+const CHILD_PART_KEYS: DetailsFieldKey[] = ['childFirstName', 'childLastName', 'childIdNumber', 'childBirthDate', 'childGender'];
 
 /** Where each screen stands in the flow, to tell a step forward from a step back. */
 const STEP_ORDER: Record<Step, number> = {
@@ -318,8 +325,12 @@ export default function CourseRegistrationForm({
   const [lookup, setLookup] = useState<LookupResult | null>(null);
   const [additionalChildren, setAdditionalChildren] = useState<AdditionalChildEnrollment[]>([]);
   const [primaryExtraLessons, setPrimaryExtraLessons] = useState<EnrollmentSelection[]>([]);
-  const [primaryExtraPickerOpen, setPrimaryExtraPickerOpen] = useState(false);
-  const [replacingPrimaryExtraIndex, setReplacingPrimaryExtraIndex] = useState<number | null>(null);
+  // The child section that was added a moment ago: it plays its entrance once.
+  const [freshChildId, setFreshChildId] = useState<string | null>(null);
+  // Parts that are filled in fold into one line once the form holds more than one thing.
+  const [foldState, setFoldState] = useState<FoldState>({});
+  // The list of classes under the first child is open: one more class is being chosen.
+  const [primaryListOpen, setPrimaryListOpen] = useState(false);
   const [discountQueue, setDiscountQueue] = useState<DiscountQueueItem[]>([]);
   const [discountQueueIndex, setDiscountQueueIndex] = useState(0);
   const [registeredChildCount, setRegisteredChildCount] = useState(1);
@@ -404,6 +415,12 @@ export default function CourseRegistrationForm({
 
   const canAddAnotherChild = !isTrial && !selfRegistering;
   const canAddExtraLesson = !isTrial;
+  // More than one thing in the registration, or one more being chosen: what is done makes room.
+  const foldMode = !isTrial && (additionalChildren.length > 0 || primaryExtraLessons.length > 0 || primaryListOpen);
+  useEffect(() => {
+    // Back to one child and one class: the form reads as it always did.
+    if (!foldMode) setFoldState((prev) => (Object.keys(prev).length > 0 ? {} : prev));
+  }, [foldMode]);
   const primarySelection: EnrollmentSelection = {
     courseId,
     courseName,
@@ -414,15 +431,6 @@ export default function CourseRegistrationForm({
     displaySchedule: '',
     displayPrice: null,
   };
-  const primaryExcludedSelectionKeys = (() => {
-    const keys = new Set<string>([primarySelectionKey]);
-    primaryExtraLessons.forEach((selection, extraIndex) => {
-      if (replacingPrimaryExtraIndex === extraIndex) return;
-      keys.add(enrollmentSelectionKey(selection));
-    });
-    return keys;
-  })();
-
   useEffect(() => {
     setSelectedTrialLessonId(lessonId ?? '');
   }, [lessonId]);
@@ -512,8 +520,18 @@ export default function CourseRegistrationForm({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [openWithoutIdentify]);
 
+  /** The parent's part and the first child's are being filled again: they stand open. Other children stay as they are. */
+  const unfoldFirstParts = () => setFoldState((prev) => {
+    if (!prev.parent && !prev.primary) return prev;
+    const next = { ...prev };
+    delete next.parent;
+    delete next.primary;
+    return next;
+  });
+
   /** Forget what the server told us about this parent. Typed details are kept; the card's are not. */
   const dropIdentification = (stage: 'waiting' | 'checking' | 'unknown' | 'manual') => {
+    unfoldFirstParts();
     if (pickedKid && !childEdited) {
       // These came from the card, not from the parent's hands.
       setChildFirstName('');
@@ -617,6 +635,7 @@ export default function CourseRegistrationForm({
   /** Who is being registered: a child from the list, or another one. */
   const chooseChild = (kid: KnownChild | 'new') => {
     welcomeFromRef.current = welcomeRef.current?.offsetHeight ?? 0;
+    unfoldFirstParts();
     setPick(kid);
     setChildEdited(false);
     setFieldErrors({});
@@ -635,6 +654,7 @@ export default function CourseRegistrationForm({
 
   const pickAgain = () => {
     welcomeFromRef.current = welcomeRef.current?.offsetHeight ?? 0;
+    unfoldFirstParts();
     setPick(null);
     setChildEdited(false);
     setFillDone(false);
@@ -1328,6 +1348,8 @@ export default function CourseRegistrationForm({
     manualAwaitsPhoneRef.current = phoneFromCard;
     setPhoneFromCard(false);
     dropIdentification('manual');
+    // Children chosen from the list lose what the card held: every part stands open again.
+    setFoldState({});
     setAdditionalChildren((prev) => prev.map((child) => (
       child.known ? { ...child, known: null, knownWas: null, firstName: '', gender: '' as const } : child
     )));
@@ -1386,10 +1408,8 @@ export default function CourseRegistrationForm({
     }
   };
 
-  const handleDetailsSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setErrorMsg('');
-
+  /** What "continue" would mark on the parent's and the first child's fields, as they stand now. */
+  const detailsFieldErrors = (): Partial<Record<DetailsFieldKey, string>> => {
     const errors: Partial<Record<DetailsFieldKey, string>> = {};
     // A detail that is the card's own is not typed and not checked: the server completes it.
     const parentFirstErr = fromCard(parentMask('firstName'), 'parentFirstName') ? null : nameFieldError(parentFirstName);
@@ -1427,21 +1447,82 @@ export default function CourseRegistrationForm({
       errors.childBirthDate = 'תאריך לידה חובה';
     }
     if (!childGender) errors.childGender = 'יש לבחור מין';
+    return errors;
+  };
 
+  /** The same for every child added in the form, in order: an identity number may not repeat one above it. */
+  const additionalChildrenErrors = (): Array<Partial<Record<AdditionalChildFieldKey, string>>> => {
     const usedIdNumbers = new Set<string>();
     if (!selfRegistering && childIdNumber.replace(/\D/g, '')) {
       usedIdNumbers.add(childIdNumber.replace(/\D/g, ''));
     }
-
-    let additionalHasErrors = false;
-    const nextAdditionalChildren = additionalChildren.map((child) => {
+    return additionalChildren.map((child) => {
       const childErrors = validateAdditionalChildFields(child, usedIdNumbers);
       if (child.idNumber.replace(/\D/g, '') && !childErrors.idNumber) {
         usedIdNumbers.add(child.idNumber.replace(/\D/g, ''));
       }
-      if (Object.keys(childErrors).length > 0) additionalHasErrors = true;
-      return { ...child, errors: childErrors };
+      return childErrors;
     });
+  };
+
+  /** The fields of the parent's part; an adult registering themselves has the birth date and the gender there too. */
+  const parentPartKeys = (): DetailsFieldKey[] =>
+    (selfRegistering ? [...PARENT_PART_KEYS, 'childBirthDate', 'childGender'] : PARENT_PART_KEYS);
+
+  /**
+   * "Another class" or "another child" was pressed: every part that is filled
+   * in and in order folds into one line, to make room. A part with something
+   * missing stays open. Nothing is cleared; this is what is on show, no more.
+   */
+  const foldFilledParts = () => {
+    if (isTrial) return;
+    const errors = detailsFieldErrors();
+    const additionalErrors = additionalChildrenErrors();
+    const clean = (keys: DetailsFieldKey[]) => keys.every((key) => !errors[key]);
+    setFoldState((prev) => {
+      const next = { ...prev };
+      if (clean(parentPartKeys())) next.parent = 'folded';
+      if (!selfRegistering && clean(CHILD_PART_KEYS)) next.primary = 'folded';
+      additionalChildren.forEach((child, index) => {
+        if (child.selection && Object.keys(additionalErrors[index]).length === 0) next[child.id] = 'folded';
+      });
+      return next;
+    });
+  };
+
+  /** "Continue" found something to fix: a folded part that holds it opens, and the first marked field comes into view. */
+  const showFirstError = (
+    errors: Partial<Record<DetailsFieldKey, string>>,
+    additionalErrors: Array<Partial<Record<AdditionalChildFieldKey, string>>>,
+  ) => {
+    setFoldState((prev) => {
+      const next = { ...prev };
+      if (next.parent && parentPartKeys().some((key) => errors[key])) next.parent = 'editing';
+      if (next.primary && !selfRegistering && CHILD_PART_KEYS.some((key) => errors[key])) next.primary = 'editing';
+      additionalChildren.forEach((child, index) => {
+        if (next[child.id] && Object.keys(additionalErrors[index]).some((key) => key !== 'selection')) {
+          next[child.id] = 'editing';
+        }
+      });
+      return next;
+    });
+    // After the part that opens has taken most of its height.
+    window.setTimeout(() => {
+      const form = actionsRef.current?.closest('form');
+      const target = form?.querySelector(`.${styles.fieldError}, [data-field-error]`)
+        ?? form?.querySelector('[data-kid-error]');
+      target?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 380);
+  };
+
+  const handleDetailsSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErrorMsg('');
+
+    const errors = detailsFieldErrors();
+    const additionalErrors = additionalChildrenErrors();
+    const additionalHasErrors = additionalErrors.some((childErrors) => Object.keys(childErrors).length > 0);
+    const nextAdditionalChildren = additionalChildren.map((child, index) => ({ ...child, errors: additionalErrors[index] }));
     if (additionalChildren.length > 0) {
       setAdditionalChildren(nextAdditionalChildren);
     }
@@ -1449,6 +1530,7 @@ export default function CourseRegistrationForm({
     if (Object.keys(errors).length > 0 || additionalHasErrors) {
       setFieldErrors(errors);
       setErrorMsg('יש לתקן את השדות המסומנים');
+      if (foldMode) showFirstError(errors, additionalErrors);
       return;
     }
     setFieldErrors({});
@@ -2012,9 +2094,107 @@ export default function CourseRegistrationForm({
   const trialWhenBlock = whenBlock(trialWhenNow);
 
   if (step === 'details') {
+    // The classes of whoever the form was opened for. One more class is asked for
+    // here, under their own details, and lands here — not at the foot of the form.
+    const primaryName = (selfRegistering ? parentFirstName : childFirstName).trim();
+    const primaryLessons = canAddExtraLesson ? (
+      <ChildLessons
+        divided
+        owner={selfRegistering ? '' : primaryName}
+        addHint={selfRegistering ? 'לאותו נרשם' : primaryName ? `עבור ${primaryName}` : 'לאותו ילד/ה'}
+        fixedFirst={{ name: courseName, line: lessonCardLine(lessonLine, false, 1), key: primarySelectionKey }}
+        extras={primaryExtraLessons}
+        maxExtras={MAX_EXTRA_LESSONS}
+        defaultFilters={catalogDefaultFilters}
+        onExtras={setPrimaryExtraLessons}
+        onListChange={(open) => {
+          setPrimaryListOpen(open);
+          if (open) foldFilledParts();
+        }}
+      />
+    ) : null;
+
+    // A part that is filled in, as one line with a tick and "edit"; the part itself opens and closes under it.
+    const liveErrors = foldMode ? detailsFieldErrors() : {};
+    const liveAdditionalErrors = foldMode ? additionalChildrenErrors() : [];
+    const partIsValid = (keys: DetailsFieldKey[]) => keys.every((key) => !liveErrors[key]);
+    const foldable = (key: 'parent' | 'primary', strip: { title: string; note: string }, body: React.ReactNode) => {
+      if (isTrial) return body;
+      const state = foldMode ? foldState[key] : undefined;
+      const valid = partIsValid(key === 'parent' ? parentPartKeys() : CHILD_PART_KEYS);
+      return (
+        <>
+          <Reveal fold open={Boolean(state)}>
+            <FoldStrip
+              title={strip.title}
+              note={strip.note}
+              open={state === 'editing'}
+              missing={state === 'editing' && !valid}
+              onToggle={() => setFoldState((prev) => ({ ...prev, [key]: state === 'folded' ? 'editing' : 'folded' }))}
+            />
+          </Reveal>
+          <Reveal fold open={state !== 'folded'}>
+            <div className={state ? look.foldBody : undefined}>{body}</div>
+          </Reveal>
+        </>
+      );
+    };
+    // What the line may say. A detail the card holds is shown as the card sent it — hidden — never the real one.
+    const shownParent = (typed: string, mask: string, fieldKey: string) => (fromCard(mask, fieldKey) ? mask : typed.trim());
+    const parentStrip = {
+      title: [
+        shownParent(parentFirstName, parentMask('firstName'), 'parentFirstName'),
+        shownParent(parentLastName, parentMask('lastName'), 'parentLastName'),
+      ].filter(Boolean).join(' '),
+      note: `${selfRegistering ? 'הפרטים שלי' : 'הורה'} · ${phoneFromCard && known ? known.phone : parentPhone}`,
+    };
+    const primaryFromList = identified && pickedKid && !childEdited;
+    const primaryStrip = {
+      // A child chosen from the family's list is shown by first name only.
+      title: primaryFromList ? pickedKid.firstName : `${childFirstName} ${childLastName}`.trim(),
+      note: 'פרטי הילד/ה',
+    };
+
+    // "In this registration": every child and their classes, once the form holds more than one thing.
+    const primaryDetailsIn = selfRegistering
+      ? Boolean(childBirthDate.trim() && childGender)
+      : Boolean(
+        childFirstName.trim()
+        && (fromCard(childMask('lastName'), 'childLastName') || childLastName.trim())
+        && (fromCard(childMask('idNumber'), 'childIdNumber') || childIdNumber.trim())
+        && (fromCard(childMask('birthDate'), 'childBirthDate') || childBirthDate.trim())
+        && childGender,
+      );
+    const selectionTag = (selection: EnrollmentSelection) =>
+      lessonTag(selection.displayTitle, pickedLessonLine(selection.displaySchedule, selection.displayPlace));
+    const overviewKids: OverviewKid[] = canAddExtraLesson ? [
+      {
+        key: 'primary',
+        name: selfRegistering ? (primaryName || 'ההרשמה שלי') : childTitle(1, childFirstName),
+        mark: kidMark(1, primaryName),
+        lessons: [lessonTag(courseName, lessonLine), ...primaryExtraLessons.map(selectionTag)],
+        missing: primaryDetailsIn ? '' : 'details',
+      },
+      ...additionalChildren.map((child, index): OverviewKid => ({
+        key: child.id,
+        name: childTitle(index + 2, child.firstName),
+        mark: kidMark(index + 2, child.firstName),
+        lessons: childLessonSelections(child).map(selectionTag),
+        missing: !child.selection ? 'lesson' : childDetailsFilled(child) ? '' : 'details',
+      })),
+    ] : [];
+    const goToKid = (key: string) => {
+      const form = actionsRef.current?.closest('form');
+      const target = key === 'primary'
+        ? (childSectionRef.current ?? form)
+        : form?.querySelector(`[data-kid="${key}"]`);
+      target?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    };
+
     // The form as it always was: a trial, an adult signing up, another child of a parent typed in before.
     const classicParentSection = (
           <div className={styles.section}>
+            {foldable('parent', parentStrip, (<>
             <div className={styles.sectionTitle}>
               <span className={styles.sectionTitleLine} />
               {/* Someone enrolling themselves is filling in their own details, and being
@@ -2111,6 +2291,8 @@ export default function CourseRegistrationForm({
                 </>
               )}
             </div>
+            </>))}
+            {selfRegistering ? primaryLessons : null}
           </div>
     );
 
@@ -2134,6 +2316,7 @@ export default function CourseRegistrationForm({
               : null;
     const idFirstParentSection = (
       <div className={styles.section}>
+        {foldable('parent', parentStrip, (<>
         <div className={styles.sectionTitle}>
           <span className={styles.sectionTitleLine} />
           <span className={styles.sectionTitleText}>פרטי הורה</span>
@@ -2265,6 +2448,7 @@ export default function CourseRegistrationForm({
             </div>
           </div>
         </Reveal>
+        </>))}
       </div>
     );
 
@@ -2272,6 +2456,7 @@ export default function CourseRegistrationForm({
       <>
         {!selfRegistering && (
           <div ref={childSectionRef} className={`${styles.section} ${styles.fadeIn}`}>
+            {foldable('primary', primaryStrip, (<>
             <div className={styles.sectionTitle}>
               <span className={styles.sectionTitleLine} />
               <span className={styles.sectionTitleText}>{addingSibling && !idFirst ? 'פרטי הילד הנוסף' : 'פרטי הילד'}</span>
@@ -2400,33 +2585,10 @@ export default function CourseRegistrationForm({
                 ) : null}
               </div>
             </div>
+            </>))}
+            {primaryLessons}
           </div>
         )}
-        {canAddExtraLesson && primaryExtraLessons.length > 0 ? (
-          <div className={styles.primaryLessons}>
-            {/* The class the form was opened for stands at the top of the form. */}
-            <label className={styles.label}>חוגים נוספים</label>
-            {primaryExtraLessons.map((selection, extraIndex) => (
-              replacingPrimaryExtraIndex === extraIndex && primaryExtraPickerOpen ? null : (
-                <SelectedLessonCard
-                  key={`${enrollmentSelectionKey(selection)}-${extraIndex}`}
-                  selection={selection}
-                  onChange={() => {
-                    setReplacingPrimaryExtraIndex(extraIndex);
-                    setPrimaryExtraPickerOpen(true);
-                  }}
-                  onRemove={() => {
-                    setPrimaryExtraLessons((prev) => prev.filter((_, itemIndex) => itemIndex !== extraIndex));
-                    if (replacingPrimaryExtraIndex === extraIndex) {
-                      setPrimaryExtraPickerOpen(false);
-                      setReplacingPrimaryExtraIndex(null);
-                    }
-                  }}
-                />
-              )
-            ))}
-          </div>
-        ) : null}
 
         {additionalChildren.map((child, index) => (
           <AdditionalChildSection
@@ -2435,6 +2597,12 @@ export default function CourseRegistrationForm({
             child={child}
             catalogDefaultFilters={catalogDefaultFilters}
             knownKids={knownKidsFor(child.id)}
+            fresh={freshChildId === child.id}
+            onShown={() => setFreshChildId(null)}
+            fold={foldMode ? foldState[child.id] : undefined}
+            detailsValid={Object.keys(liveAdditionalErrors[index] ?? {}).every((key) => key === 'selection')}
+            onFold={(next) => setFoldState((prev) => ({ ...prev, [child.id]: next }))}
+            onListOpen={foldFilledParts}
             onChange={(next) => {
               setAdditionalChildren((prev) => prev.map((item) => (item.id === child.id ? next : item)));
             }}
@@ -2444,72 +2612,25 @@ export default function CourseRegistrationForm({
           />
         ))}
 
-        {canAddAnotherChild || canAddExtraLesson ? (
+        {canAddAnotherChild && additionalChildren.length < MAX_ADDITIONAL_CHILDREN ? (
           <div className={look.addRows}>
-            {canAddAnotherChild && additionalChildren.length < MAX_ADDITIONAL_CHILDREN ? (
-              <button
-                type="button"
-                className={look.addRow}
-                onClick={() => {
-                  setPrimaryExtraPickerOpen(false);
-                  setReplacingPrimaryExtraIndex(null);
-                  setAdditionalChildren((prev) => [
-                    ...prev,
-                    createEmptyAdditionalChild(`child-${Date.now()}-${prev.length}`),
-                  ]);
-                }}
-              >
-                <span className={look.addRowPlus} aria-hidden="true">+</span>
-                <span className={look.addRowText}>
-                  <b>הוסיפו ילד נוסף</b>
-                  <small>אח או אחות, באותה הרשמה</small>
-                </span>
-              </button>
-            ) : null}
-
-            {canAddExtraLesson && primaryExtraLessons.length < MAX_EXTRA_LESSONS && !primaryExtraPickerOpen ? (
-              <button
-                type="button"
-                className={look.addRow}
-                onClick={() => {
-                  setReplacingPrimaryExtraIndex(null);
-                  setPrimaryExtraPickerOpen(true);
-                }}
-              >
-                <span className={look.addRowPlus} aria-hidden="true">+</span>
-                <span className={look.addRowText}>
-                  <b>חוג נוסף</b>
-                  <small>
-                    {selfRegistering ? 'לאותו נרשם' : `עבור ${childFirstName.trim() || 'הילד הראשי'}`}
-                  </small>
-                </span>
-              </button>
-            ) : null}
-
-            {primaryExtraPickerOpen ? (
-              <ExtraLessonPicker
-                defaultFilters={catalogDefaultFilters}
-                excludedSelectionKeys={primaryExcludedSelectionKeys}
-                canCancel
-                onCancel={() => {
-                  setPrimaryExtraPickerOpen(false);
-                  setReplacingPrimaryExtraIndex(null);
-                }}
-                onSelect={(selection) => {
-                  if (replacingPrimaryExtraIndex != null) {
-                    setPrimaryExtraLessons((prev) =>
-                      prev.map((item, extraIndex) =>
-                        extraIndex === replacingPrimaryExtraIndex ? selection : item,
-                      ),
-                    );
-                  } else {
-                    setPrimaryExtraLessons((prev) => [...prev, selection]);
-                  }
-                  setPrimaryExtraPickerOpen(false);
-                  setReplacingPrimaryExtraIndex(null);
-                }}
-              />
-            ) : null}
+            <button
+              type="button"
+              className={look.addRow}
+              onClick={() => {
+                const id = `child-${Date.now()}-${additionalChildren.length}`;
+                // Whatever is filled in makes room for the child being added.
+                foldFilledParts();
+                setFreshChildId(id);
+                setAdditionalChildren((prev) => [...prev, createEmptyAdditionalChild(id)]);
+              }}
+            >
+              <span className={look.addRowPlus} aria-hidden="true">+</span>
+              <span className={look.addRowText}>
+                <b>הוסיפו ילד נוסף</b>
+                <small>אח או אחות, באותה הרשמה</small>
+              </span>
+            </button>
           </div>
         ) : null}
 
@@ -2555,6 +2676,8 @@ export default function CourseRegistrationForm({
             )}
           </div>
         )}
+
+        <RegistrationOverview kids={overviewKids} onGo={goToKid} />
 
         {errorMsg && <p className={styles.errorText}>{errorMsg}</p>}
 
