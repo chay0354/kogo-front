@@ -44,7 +44,13 @@ function panelHeightForOptions(optionCount: number) {
  * screen, so only the host page knows the real band — it reports it to us.
  */
 // `bottom` leaves room for the host's floating buttons; `edge` is the true visible bottom.
-type VisibleBand = { top: number; bottom: number; edge?: number };
+// `top` is under the host's fixed header; `ceiling` is the true visible top, where the screen begins.
+// `under` is how far below `edge` the host lets this frame run on, and be seen, once a sheet is
+// open: the strip behind a phone browser's floating bar.
+type VisibleBand = { top: number; bottom: number; edge?: number; ceiling?: number; under?: number };
+
+/** More than any browser's bar takes; a host asking for more than this is not believed. */
+const MAX_UNDER_BAR = 200;
 
 let hostBand: VisibleBand | null = null;
 const bandSubscribers = new Set<() => void>();
@@ -64,14 +70,26 @@ function ensureHostBandBridge() {
   if (bandBridgeReady || typeof window === 'undefined') return;
   bandBridgeReady = true;
   window.addEventListener('message', (event: MessageEvent) => {
-    const data = event.data as { type?: string; top?: number; bottom?: number; edge?: number } | null;
+    const data = event.data as {
+      type?: string; top?: number; bottom?: number; edge?: number; ceiling?: number; under?: number;
+    } | null;
     if (!data || data.type !== 'kogo-widget-visible-band') return;
     if (bandFrozen) return;
     const top = Number(data.top);
     const bottom = Number(data.bottom);
     if (!Number.isFinite(top) || !Number.isFinite(bottom) || bottom - top < 80) return;
     const edge = Number(data.edge);
-    hostBand = { top, bottom, edge: Number.isFinite(edge) && edge > bottom ? edge : bottom };
+    const ceiling = Number(data.ceiling);
+    const under = Number(data.under);
+    hostBand = {
+      top,
+      bottom,
+      edge: Number.isFinite(edge) && edge > bottom ? edge : bottom,
+      // A host that does not say where the screen begins: the sheet starts under its header, as before.
+      ceiling: Number.isFinite(ceiling) && ceiling >= 0 && ceiling <= top ? ceiling : top,
+      // A host that says nothing of it shows nothing below the visible edge: the sheet ends there.
+      under: Number.isFinite(under) && under > 0 ? Math.min(under, MAX_UNDER_BAR) : 0,
+    };
     bandSubscribers.forEach((notify) => notify());
   });
   requestHostBand();
@@ -172,6 +190,11 @@ function pinVisibleSlice(_page: HTMLElement | null) {
     writeScrollY(iframeScroll);
     bandFrozen = false;
   };
+}
+
+/** A phone, by the width the styles themselves call one (page.module.css, max-width: 767px). */
+function isPhoneWidth() {
+  return typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches;
 }
 
 /** Render modals on document.body so fixed positioning is not affected by page scroll. */
@@ -447,6 +470,24 @@ export default function WidgetPage() {
         zIndex: 1000,
       }
     : undefined;
+  // The registration form on a phone is a sheet over the whole screen: the host
+  // hides its header while it is open, so the sheet is framed from where the
+  // screen begins and not from under that header.
+  //
+  // The sheet itself runs on below the visible edge as far as the host shows
+  // this frame there (`under`): a phone browser floats its bar over the page,
+  // and the sheet — what it holds, scrolling — is seen behind that bar like any
+  // page. The frame stays the visible part, so whatever else opens inside it
+  // still opens there; the room is handed to the styles (page.module.css),
+  // which lengthen the sheet by it and keep its last line clear of the bar.
+  const drawerFrame = band && bandFrame && isPhoneWidth()
+    ? {
+        ...bandFrame,
+        top: band.ceiling ?? band.top,
+        height: (band.edge ?? band.bottom) - (band.ceiling ?? band.top),
+        '--kogo-under-bar': `${band.under ?? 0}px`,
+      } as React.CSSProperties
+    : bandFrame;
   const [drawerClosing, setDrawerClosing] = useState(false);
   const [savedParent, setSavedParent] = useState<SavedParentDetails | null>(null);
   const [addingAnotherChild, setAddingAnotherChild] = useState(false);
@@ -909,7 +950,7 @@ export default function WidgetPage() {
       {/* Enrollment side drawer */}
       {drawerCourse && (
         <WidgetPortal>
-          <div style={bandFrame}>
+          <div style={drawerFrame}>
             <div className={`${styles.drawerOverlay}${drawerClosing ? ` ${styles.drawerOverlayClosing}` : ''}`} onClick={closeDrawer} />
             <div className={`${styles.drawerPanel}${drawerClosing ? ` ${styles.drawerPanelClosing}` : ''}`}>
               {allBranches.find((b) => b.id === selectedBranch)?.is_external ? (
