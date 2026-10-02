@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { identificationSwitchLine, readIdentificationSwitch } from './widgetIdentificationApi';
+import { identificationLocked, identificationSwitchLine, readIdentificationSwitch } from './widgetIdentificationApi';
 
 const day = (iso: string) => iso.slice(0, 10);
 
@@ -12,6 +12,21 @@ describe('readIdentificationSwitch', () => {
     expect(state?.blocked).toBe(true);
     expect(state?.history).toHaveLength(1);
     expect(state?.history[0].changed_by_name).toBe('משרד');
+  });
+
+  it('reads the lock and who opened one before', () => {
+    const state = readIdentificationSwitch({
+      blocked: false, locked_until: '2026-10-03T11:11:00Z',
+      releases: [{ released_at: '2026-10-02T12:00:00Z', released_by_name: 'משרד' }],
+    });
+    expect(state?.locked_until).toBe('2026-10-03T11:11:00Z');
+    expect(state?.releases).toEqual([{ released_at: '2026-10-02T12:00:00Z', released_by_name: 'משרד' }]);
+  });
+
+  it('knows of no lock on a server that says nothing of one', () => {
+    const state = readIdentificationSwitch({ blocked: false });
+    expect(state?.locked_until).toBeNull();
+    expect(state?.releases).toEqual([]);
   });
 
   it('is null for an answer that is not the switch', () => {
@@ -31,5 +46,20 @@ describe('identificationSwitchLine', () => {
     expect(identificationSwitchLine(readIdentificationSwitch({ blocked: false, consent_at: '2026-10-01T08:00:00Z' })!, day)).toBe('פעיל');
     expect(identificationSwitchLine(readIdentificationSwitch({ blocked: false, consent_at: null })!, day))
       .toBe('פעיל · ההורה עוד לא אישר בתקנון');
+  });
+});
+
+describe('identificationLocked', () => {
+  const at = Date.parse('2026-10-02T12:00:00Z');
+
+  it('is locked until the time the server gave', () => {
+    const state = readIdentificationSwitch({ blocked: false, locked_until: '2026-10-03T11:11:00Z' })!;
+    expect(identificationLocked(state, at)).toBe(true);
+    expect(identificationLocked(state, Date.parse('2026-10-03T11:12:00Z'))).toBe(false);
+  });
+
+  it('is not locked without a time, or with one that cannot be read', () => {
+    expect(identificationLocked(readIdentificationSwitch({ blocked: false })!, at)).toBe(false);
+    expect(identificationLocked(readIdentificationSwitch({ blocked: false, locked_until: 'soon' })!, at)).toBe(false);
   });
 });

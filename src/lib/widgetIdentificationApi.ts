@@ -6,6 +6,9 @@
  * dispute between parents, a restraining order, a parent who asked — the form
  * never recognises them and opens empty, as for a new parent. Every change
  * needs a reason and is kept with who made it and when.
+ *
+ * The form also locks an identity number by itself, for a day, after five
+ * wrong phones were tried with it. The office can open it at once.
  */
 import api from './api';
 
@@ -16,12 +19,21 @@ export interface IdentificationSwitchEntry {
   changed_by_name: string;
 }
 
+export interface IdentificationRelease {
+  released_at: string;
+  released_by_name: string;
+}
+
 export interface IdentificationSwitch {
   blocked: boolean;
   blocked_at: string | null;
   reason: string;
   /** When the parent accepted terms that say they may be recognised; null if never. */
   consent_at: string | null;
+  /** Set while five wrong phones hold the family locked: when it opens by itself. */
+  locked_until: string | null;
+  /** The times the office opened such a lock, latest first. */
+  releases: IdentificationRelease[];
   history: IdentificationSwitchEntry[];
 }
 
@@ -33,6 +45,14 @@ export function readIdentificationSwitch(data: unknown): IdentificationSwitch | 
     blocked_at: body.blocked_at ?? null,
     reason: String(body.reason ?? ''),
     consent_at: body.consent_at ?? null,
+    // A server that knows nothing of the lock says nothing of it.
+    locked_until: typeof body.locked_until === 'string' && body.locked_until ? body.locked_until : null,
+    releases: Array.isArray(body.releases)
+      ? body.releases.map((row) => ({
+        released_at: String(row?.released_at ?? ''),
+        released_by_name: String(row?.released_by_name ?? ''),
+      }))
+      : [],
     history: Array.isArray(body.history)
       ? body.history.map((row) => ({
         blocked: row?.blocked === true,
@@ -60,6 +80,21 @@ export async function setIdentificationSwitch(
     reason: reason.trim(),
   });
   return readIdentificationSwitch(res.data);
+}
+
+/** Opens a family the form locked after wrong phones. Answers with the family's state after it. */
+export async function releaseIdentificationLock(familyId: string): Promise<IdentificationSwitch | null> {
+  const res = await api.post(`/customers/families/${encodeURIComponent(familyId)}/widget-identification/`, {
+    release_lock: true,
+  });
+  return readIdentificationSwitch(res.data);
+}
+
+/** The lock is still on at this moment. */
+export function identificationLocked(state: IdentificationSwitch, now: number = Date.now()): boolean {
+  if (!state.locked_until) return false;
+  const until = Date.parse(state.locked_until);
+  return Number.isFinite(until) && until > now;
 }
 
 /** The one line the card shows. */
