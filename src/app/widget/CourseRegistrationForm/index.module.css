@@ -660,6 +660,9 @@
 .termsOverlay {
   position: fixed;
   inset: 0;
+  box-sizing: border-box;
+  padding: 16px;
+  padding-block-end: max(16px, env(safe-area-inset-bottom, 0px));
   background: rgba(0, 0, 0, 0.45);
   display: flex;
   align-items: center;
@@ -672,6 +675,12 @@
   width: 90%;
   max-width: 480px;
   max-height: 70vh;
+  /* The host iframe deliberately continues below a phone browser's floating
+     bar. Its vh can therefore be taller than the part of the frame that is
+     actually visible. Never let that larger vh push the footer outside the
+     overlay's measured visible band. */
+  max-height: min(70vh, 100%);
+  max-height: min(70dvh, 100%);
   display: flex;
   flex-direction: column;
   overflow: hidden;
