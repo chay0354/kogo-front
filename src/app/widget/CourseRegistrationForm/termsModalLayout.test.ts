@@ -23,6 +23,6 @@ describe('the registration terms modal viewport contract', () => {
     const modal = rule('.termsModal');
 
     expect(modal).toContain('max-height: min(70vh, 100%)');
-    expect(modal).toContain('max-height: min(70dvh, 100%)');
+    expect(modal).toContain('max-height: min(70svh, calc(100% - var(--kogo-under-bar, 0px)))');
   });
 });
