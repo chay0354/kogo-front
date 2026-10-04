@@ -680,7 +680,10 @@
      actually visible. Never let that larger vh push the footer outside the
      overlay's measured visible band. */
   max-height: min(70vh, 100%);
-  max-height: min(70dvh, 100%);
+  /* svh is the conservative viewport on phones while browser controls are
+     shown; the host-provided under-bar value covers the iframe slice that
+     Chrome/Safari leave behind their floating controls. */
+  max-height: min(70svh, calc(100% - var(--kogo-under-bar, 0px)));
   display: flex;
   flex-direction: column;
   overflow: hidden;
