@@ -22,6 +22,7 @@ import { findWidgetAlternatives, isWidgetSelectionFull, type WidgetAlternative }
 import { buildCatalogRows, scheduleLabel } from './catalogRows';
 import { sortWidgetCourseTypes } from './courseTypeOrder';
 import { WIDGET_MOTION_MS, holdsBandWhileOpen, prefersReducedMotion } from './widgetMotion';
+import { movedEdge, type VisibleBand } from './visibleBand';
 import { preloadInstructorPhotos } from './instructorPhotoPreload';
 import { SkeletonCourseList, SkeletonFilterOptions } from './WidgetSkeletons/WidgetSkeletons';
 import styles from './page.module.css';
@@ -47,7 +48,9 @@ function panelHeightForOptions(optionCount: number) {
 // `top` is under the host's fixed header; `ceiling` is the true visible top, where the screen begins.
 // `under` is how far below `edge` the host lets this frame run on, and be seen, once a sheet is
 // open: the strip behind a phone browser's floating bar.
-type VisibleBand = { top: number; bottom: number; edge?: number; ceiling?: number; under?: number };
+
+/** Where the form puts what opens over its sheet (see the layer in the drawer below). */
+const SHEET_LAYER_ID = 'kogo-sheet-layer';
 
 /** More than any browser's bar takes; a host asking for more than this is not believed. */
 const MAX_UNDER_BAR = 200;
@@ -67,7 +70,7 @@ function requestHostBand() {
 }
 
 /** Changed by hand whenever the sheet's geometry changes: it tells the check which widget a phone has loaded. */
-const WIDGET_CHECK_BUILD = 'w-0210e';
+const WIDGET_CHECK_BUILD = 'w-0510a';
 
 /**
  * What the host's on-device check asked to have opened without a finger: the
@@ -75,7 +78,7 @@ const WIDGET_CHECK_BUILD = 'w-0210e';
  * is then to be scrolled to its end. A simulated phone is driven by an address
  * and a screenshot, with nobody to tap.
  */
-type CheckOpen = { what: 'card' | 'form' | 'trial'; end: boolean };
+type CheckOpen = { what: 'card' | 'form' | 'trial' | 'consents' | 'terms'; end: boolean };
 let wantedCheckOpen: CheckOpen | null = null;
 const checkOpenSubscribers = new Set<() => void>();
 
@@ -123,10 +126,25 @@ function ensureHostBandBridge() {
     }
     if (data?.type === 'kogo-widget-check-open') {
       const asked = event.data as { what?: string; end?: boolean };
-      if (asked.what === 'card' || asked.what === 'form' || asked.what === 'trial') {
+      if (
+        asked.what === 'card' || asked.what === 'form' || asked.what === 'trial'
+        || asked.what === 'consents' || asked.what === 'terms'
+      ) {
         wantedCheckOpen = { what: asked.what, end: asked.end === true };
         checkOpenSubscribers.forEach((notify) => notify());
       }
+      return;
+    }
+    if (data?.type === 'kogo-widget-visible-edge') {
+      // The one thing taken while a band is held. A sheet is laid out for the
+      // screen it opened on, and a phone browser's bars come back after that
+      // (with the keyboard, mostly): the screen ends higher than it did, and
+      // the foot of the sheet — and of the terms window over it — stood behind
+      // the bar. The host says where the screen ends now; the rest of the band stays.
+      const next = movedEdge(hostBand, Number(data.edge));
+      if (!next) return;
+      hostBand = next;
+      bandSubscribers.forEach((notify) => notify());
       return;
     }
     if (!data || data.type !== 'kogo-widget-visible-band') return;
@@ -862,7 +880,15 @@ export default function WidgetPage() {
     };
     if (drawerCourse) {
       const toItsEnd = checkOpen.end;
+      const formScreen = checkOpen.what === 'consents' || checkOpen.what === 'terms' ? checkOpen.what : null;
       done();
+      // The approvals screen, or the terms window on it, shown with nobody to fill
+      // the form first: the form is told once it has mounted and is listening.
+      if (formScreen) {
+        window.setTimeout(() => {
+          window.dispatchEvent(new CustomEvent('kogo-check-form', { detail: formScreen }));
+        }, 1200);
+      }
       // The sheet is shown from its end, once it has risen and filled. Not
       // cleared with this effect — `done` re-runs it at once; a sheet that
       // is gone by then is simply not found.
@@ -1142,6 +1168,11 @@ export default function WidgetPage() {
                 />
               )}
             </div>
+            {/* What opens over the sheet — the terms window — is put in here by the form.
+                This box is the part of the sheet that is on the screen; the sheet itself is
+                longer than that and scrolls, so a window laid out against it lands off-centre
+                with its last button below the fold. */}
+            <div id={SHEET_LAYER_ID} className={styles.sheetLayer} />
           </div>
         </WidgetPortal>
       )}

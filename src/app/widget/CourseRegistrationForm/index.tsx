@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { ChevronDown, ChevronRight } from 'lucide-react';
 import api from '@/lib/api';
 import styles from './index.module.css';
@@ -813,6 +814,35 @@ export default function CourseRegistrationForm({
       setTermsScrolledToEnd(false);
     }
   }, [showTerms, loadingTerms, termsContent, termsReadComplete, updateTermsScrollState]);
+
+  // The sheet was laid out for the screen it opened on, and a phone browser's bars
+  // may have come back since (they do, with the keyboard). On every new screen of
+  // the form, and when the terms window opens, the host is asked where the screen
+  // ends now, so that what stands at the foot of it is seen (page.tsx, movedEdge).
+  useEffect(() => {
+    try {
+      if (window.parent !== window) window.parent.postMessage({ type: 'kogo-widget-request-viewport' }, '*');
+    } catch {
+      /* a host that cannot be reached is not asked */
+    }
+  }, [step, showTerms]);
+
+  // The on-device check (the host's ?kogo-open=consents|terms) shows the approvals
+  // screen, or the terms window on it, with nobody to fill the form first. It is a
+  // look, not a registration: sending from a screen shown this way goes back to the
+  // details whenever one of them is missing (handleFinalSubmit).
+  const shownForCheckRef = useRef(false);
+  useEffect(() => {
+    const onAsk = (event: Event) => {
+      const what = (event as CustomEvent<string>).detail;
+      if (what !== 'consents' && what !== 'terms') return;
+      shownForCheckRef.current = true;
+      setStep('consents');
+      if (what === 'terms') setShowTerms(true);
+    };
+    window.addEventListener('kogo-check-form', onAsk);
+    return () => window.removeEventListener('kogo-check-form', onAsk);
+  }, []);
 
   const openTermsModal = () => {
     setShowTerms(true);
@@ -1780,6 +1810,15 @@ export default function CourseRegistrationForm({
     e.preventDefault();
     setErrorMsg('');
 
+    // The approvals were put up by the on-device check, past the details: nothing is sent without them.
+    if (shownForCheckRef.current) {
+      const additionalMissing = additionalChildrenErrors().some((childErrors) => Object.keys(childErrors).length > 0);
+      if (Object.keys(detailsFieldErrors()).length > 0 || additionalMissing) {
+        setStep('details');
+        return;
+      }
+    }
+
     const consentState = { healthConsent, termsReadComplete, termsConsent, signed: Boolean(signature) };
     // A course registration names one step at a time — the first that is missing — and
     // that step shakes and comes into view. A trial keeps its list of everything missing.
@@ -1988,6 +2027,15 @@ export default function CourseRegistrationForm({
         </div>
       </div>
   ) : null;
+  // The window opens over the part of the sheet that is on the screen: the widget
+  // page keeps a layer there (#kogo-sheet-layer) and the window is put in it. Left
+  // inside the sheet it is laid out against the whole sheet — which is longer than
+  // the screen and scrolls — and lands off-centre, its approving button below the
+  // fold. Where there is no such layer the window stays in the form, as it was.
+  const sheetLayer = termsModal && typeof document !== 'undefined'
+    ? document.getElementById('kogo-sheet-layer')
+    : null;
+  const termsWindow = termsModal && sheetLayer ? createPortal(termsModal, sheetLayer) : termsModal;
 
   // A course registration walks three steps; a trial keeps its short form as it is.
   const stepBar = isTrial ? null : (
@@ -2884,7 +2932,7 @@ export default function CourseRegistrationForm({
           paymentFollows={!isTrial || trialLessonIsPaid}
         />
 
-        {termsModal}
+        {termsWindow}
 
         {/* A trial lesson that goes through the approvals: what is worth knowing, next to the button that approves. */}
         {isTrial ? <TrialInfo paid={trialLessonIsPaid} /> : null}
