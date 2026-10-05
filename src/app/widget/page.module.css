@@ -553,6 +553,22 @@
   pointer-events: none;
 }
 
+/* The part of the sheet that is on the screen, as a place to open a window over
+   it (page.tsx, #kogo-sheet-layer). Inside the framed drawer "fixed" means the
+   frame — the visible band the host reports — and standing alone it means the
+   screen; either way this is what the reader sees, whatever the sheet's own
+   length. Empty, it lets every touch through. */
+.sheetLayer {
+  position: fixed;
+  inset: 0;
+  z-index: 1002;
+  pointer-events: none;
+}
+
+.sheetLayer > * {
+  pointer-events: auto;
+}
+
 @media (prefers-reduced-motion: no-preference) {
   .drawerOverlay {
     animation: widgetFadeIn 340ms cubic-bezier(0.32, 0.72, 0, 1) both;

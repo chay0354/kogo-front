@@ -669,24 +669,46 @@
   justify-content: center;
   z-index: 1000;
 }
+/* The overlay is the visible part of the sheet, but the sheet is seen past it:
+   below, behind a phone browser's floating bar (as far as the host shows this
+   frame there), and above, behind the clock. The dimming runs on over both, so
+   the window does not stand on a dimmed screen with a bright strip under it. */
+.termsOverlay::before,
+.termsOverlay::after {
+  content: '';
+  position: absolute;
+  inset-inline: 0;
+  background: rgba(0, 0, 0, 0.45);
+  pointer-events: none;
+}
+.termsOverlay::before {
+  bottom: 100%;
+  height: 160px;
+}
+.termsOverlay::after {
+  top: 100%;
+  height: var(--kogo-under-bar, 0px);
+}
 .termsModal {
   background: #fff;
   border-radius: 16px;
-  width: 90%;
+  width: 100%;
   max-width: 480px;
-  max-height: 70vh;
-  /* The host iframe deliberately continues below a phone browser's floating
-     bar. Its vh can therefore be taller than the part of the frame that is
-     actually visible. Never let that larger vh push the footer outside the
-     overlay's measured visible band. */
-  max-height: min(70vh, 100%);
-  /* svh is the conservative viewport on phones while browser controls are
-     shown; the host-provided under-bar value covers the iframe slice that
-     Chrome/Safari leave behind their floating controls. */
-  max-height: min(70svh, calc(100% - var(--kogo-under-bar, 0px)));
+  /* The overlay is the part of the sheet that is on the screen (the widget page
+     puts this window in #kogo-sheet-layer), so "100%" is the room really there:
+     the window stands in the middle of it and is never taller than it, and its
+     footer — the button that approves — is always on show. Viewport units say
+     nothing in here: inside the host's frame they measure the frame, which is
+     longer than the screen. */
+  max-height: min(640px, 100%);
   display: flex;
   flex-direction: column;
   overflow: hidden;
+}
+/* The text scrolls between a head and a foot that keep their size. */
+.termsHeader,
+.termsFooter {
+  flex: none;
 }
 .termsHeader {
   display: flex;
@@ -729,6 +751,8 @@
 .termsBody {
   padding: 20px;
   overflow-y: auto;
+  /* Reading to the end must not drag the sheet behind the window along. */
+  overscroll-behavior: contain;
   flex: 1;
   min-height: 0;
   direction: rtl;
