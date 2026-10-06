@@ -107,6 +107,8 @@ export interface Lesson {
   is_recurring: boolean;
   /** null — follows the studio rule; true/false — this lesson's own answer. */
   trial_registration_open?: boolean | null;
+  /** How many children this one lesson takes; null — no limit of its own (the group's and the room's apply). */
+  capacity?: number | null;
   notes: string;
 }
 
@@ -271,6 +273,8 @@ export interface LessonFormData {
   instructor_salary_override?: number;
   max_students?: number;
   notes?: string;
+  /** This lesson's own limit, as typed; empty — none. */
+  capacity?: string;
   /** 'rule' follows the studio-wide setting; 'open' / 'closed' is this lesson's own answer. */
   trial_registration?: TrialRegistrationChoice;
 }

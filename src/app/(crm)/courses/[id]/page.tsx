@@ -604,6 +604,10 @@ export default function CourseTypeDetailsPage() {
                                       {lesson.room?.name && (
                                         <div className={styles.lessonInstructor}>{lesson.room.name}</div>
                                       )}
+                                      {/* The lesson's own limit, said on its row: a day that fills before its group does is otherwise a riddle. */}
+                                      {typeof lesson.capacity === 'number' && lesson.capacity > 0 && (
+                                        <div className={styles.lessonInstructor}>עד {lesson.capacity} בשיעור הזה</div>
+                                      )}
                                     </td>
                                     <td className={styles.td}>{lessonEnrollmentDisplay(lesson)}</td>
                                     <td className={`${styles.td} ${styles.tdCenter}`}>
