@@ -1028,7 +1028,10 @@ export default function ChildProfileDialog({
   );
   const allDocuments = useMemo(() => {
     if (otherCards.documents.length === 0) return documents;
-    return [...documents, ...otherCards.documents].sort((a, b) => (
+    // One receipt can name both cards (a family checkout): it is listed once, as this card's.
+    const own = new Set(documents.map(documentKey));
+    const others = otherCards.documents.filter((doc) => !own.has(documentKey(doc)));
+    return [...documents, ...others].sort((a, b) => (
       a.date === b.date ? b.document_number.localeCompare(a.document_number) : b.date.localeCompare(a.date)
     ));
   }, [documents, otherCards.documents]);
