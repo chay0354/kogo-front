@@ -268,6 +268,38 @@
   background: #fdecec;
 }
 
+/* זיכוי on a lesson receipt — the payments tab's button, so it is found where it is looked for. */
+.refundBtn {
+  height: 34px;
+  padding: 0 12px;
+  border-radius: 10px;
+  border: 1px solid var(--kg-line);
+  background: #fff;
+  color: var(--kg-ink2);
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 800;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.refundBtn:hover:not(:disabled) {
+  background: #fff6f6;
+  border-color: #f5cdce;
+  color: #a92f34;
+}
+
+.refundBtn:focus-visible {
+  outline: 2px solid var(--kg-bar-a);
+  outline-offset: 2px;
+}
+
+.refundBtn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
 .approveBtn {
   height: 34px;
   padding: 0 12px;
@@ -378,6 +410,7 @@
 @media (hover: none) and (pointer: coarse) {
   .iconBtn,
   .approveBtn,
+  .refundBtn,
   .reportBtn,
   .reportSelect,
   .emptyBtn {

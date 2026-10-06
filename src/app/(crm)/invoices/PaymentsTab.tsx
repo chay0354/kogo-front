@@ -3,7 +3,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { AlertCircle, ChevronLeft, ChevronRight, Download, FileSearch, ShoppingBag, X } from 'lucide-react';
-import RefundDialog from '@/components/dialogs/RefundDialog';
+import RefundDialog, { type RefundOptions } from '@/components/dialogs/RefundDialog';
+import { refundRequestBody } from '@/lib/customerProblems';
 import StorePaymentReviewDialog, {
   type StorePaymentReviewAction,
   type StorePaymentReviewEvidence,
@@ -721,14 +722,19 @@ export default function PaymentsTab({ ledger }: PaymentsTabProps) {
     if (wider) ledger.setFilter('dateFrom', wider.dateFrom);
   }
 
-  async function handleRefundConfirm(amount: number | null, reason: string) {
+  async function handleRefundConfirm(amount: number | null, reason: string, options?: RefundOptions) {
     if (!refundTarget) return;
     setRefundLoading(true);
     try {
-      const endpoint = refundTarget.source === 'payment'
+      const isPayment = refundTarget.source === 'payment';
+      const endpoint = isPayment
         ? `/customers/payments/${refundTarget.id}/refund/`
         : `/store/invoices/${refundTarget.id}/refund/`;
-      await api.post(endpoint, { amount, reason });
+      // The standing-order field goes only with a lesson charge whose box was ticked.
+      const cancelOrder = isPayment && Boolean(options?.cancelStandingOrder);
+      const response = await api.post(endpoint, refundRequestBody(amount, reason, cancelOrder));
+      // Asked to cancel the standing order too: say what became of it.
+      if (cancelOrder && response.data?.message) window.alert(response.data.message);
       if (refundTarget.source === 'payment') {
         charges.markRefunded(refundTarget.id);
         setRefunds((prev) => ({ queryKey, n: prev.queryKey === queryKey ? prev.n + 1 : 1 }));
@@ -1127,6 +1133,7 @@ export default function PaymentsTab({ ledger }: PaymentsTabProps) {
           maxAmount={refundTarget?.amount ?? 0}
           itemDescription={refundTarget?.description}
           loading={refundLoading}
+          paymentId={refundTarget?.source === 'payment' ? refundTarget.id : null}
         />
         <StorePaymentReviewDialog
           key={reviewTarget ? `${reviewTarget.row.id}-${reviewTarget.action}` : 'closed'}

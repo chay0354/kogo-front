@@ -28,11 +28,15 @@ import {
 } from '@/lib/draftsAndCredits';
 import { useScopedBranches } from '@/hooks/useScopedBranches';
 import BusinessCustomerCardButton from '@/components/dialogs/BusinessCustomerCardButton';
+import RefundDialog, { type RefundOptions } from '@/components/dialogs/RefundDialog';
+import api from '@/lib/api';
+import { refundRequestBody } from '@/lib/customerProblems';
+import BodyPortal from './BodyPortal';
 import DocumentDetailButton from '@/components/dialogs/DocumentDetailButton';
 import theme from '@/components/dashboard/theme/dashboard.module.css';
 import LedgerFilterBar, { LedgerSelect } from './LedgerFilterBar';
 import { allocationOriginalMessage } from './manualDelivery';
-import { documentDownloadRoute } from './documentDownload';
+import { documentDownloadRoute, lessonReceiptRefund } from './documentDownload';
 import MissingReceiptsPanel, { MISSING_RECEIPTS_PANEL_ID } from './MissingReceiptsPanel';
 import type { LedgerFiltersState } from './useLedgerFilters';
 import { useLedgerDocuments } from './useLedgerDocuments';
@@ -227,6 +231,30 @@ export default function DocumentsTab({ ledger, refreshKey = 0, onCredit }: Docum
 
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
   const [reminders, setReminders] = useState<Record<string, ReminderState>>({});
+  // "זיכוי" on a lesson receipt (6.10.2026): the same window and the same
+  // request as the payments tab — the office looked for it here.
+  const [refundTarget, setRefundTarget] = useState<{ paymentId: string; amount: number; description: string } | null>(null);
+  const [refundLoading, setRefundLoading] = useState(false);
+
+  async function handleRefundConfirm(amount: number | null, reason: string, options?: RefundOptions) {
+    if (!refundTarget) return;
+    setRefundLoading(true);
+    try {
+      const response = await api.post(
+        `/customers/payments/${refundTarget.paymentId}/refund/`,
+        refundRequestBody(amount, reason, Boolean(options?.cancelStandingOrder)),
+      );
+      toast.success(response.data?.message || 'התשלום זוכה בהצלחה');
+      setRefundTarget(null);
+      // The receipt's row changes, and the credit note is a new row.
+      await reload();
+    } catch (error: unknown) {
+      const data = (error as { response?: { data?: { error?: string } } })?.response?.data;
+      window.alert(data?.error || 'שגיאה בביצוע הזיכוי');
+    } finally {
+      setRefundLoading(false);
+    }
+  }
 
   // Until a row says which city it is in, its branch answers for it.
   const cityByBranch = useMemo(() => {
@@ -481,6 +509,7 @@ export default function DocumentsTab({ ledger, refreshKey = 0, onCredit }: Docum
               const reminder = reminders[doc.id];
               const ack = creditAckState(doc);
               const creditPrefill = onCredit ? creditPrefillFromRow(doc) : null;
+              const refund = lessonReceiptRefund(doc);
 
               return (
                 <tr key={doc.id}>
@@ -588,6 +617,22 @@ export default function DocumentsTab({ ledger, refreshKey = 0, onCredit }: Docum
                             <Trash2 size={16} aria-hidden="true" />
                           </button>
                         </>
+                      )}
+                      {refund && (
+                        <button
+                          type="button"
+                          className={styles.refundBtn}
+                          title="זיכוי החיוב שהקבלה הזאת הופקה עליו — הכסף חוזר לכרטיס ומופקת הודעת זיכוי"
+                          aria-label={`זיכוי ${doc.document_number}`}
+                          disabled={refundLoading}
+                          onClick={() => setRefundTarget({
+                            paymentId: refund.paymentId,
+                            amount: refund.amount,
+                            description: `${doc.document_number} · ${doc.customer_name || ''}`.trim(),
+                          })}
+                        >
+                          זיכוי
+                        </button>
                       )}
                       {creditPrefill && onCredit && (
                         <button
@@ -803,6 +848,19 @@ export default function DocumentsTab({ ledger, refreshKey = 0, onCredit }: Docum
 
         {renderList()}
       </section>
+
+      <BodyPortal>
+        <RefundDialog
+          isOpen={Boolean(refundTarget)}
+          onClose={() => { if (!refundLoading) setRefundTarget(null); }}
+          onConfirm={handleRefundConfirm}
+          title="זיכוי חיוב"
+          maxAmount={refundTarget?.amount ?? 0}
+          itemDescription={refundTarget?.description}
+          loading={refundLoading}
+          paymentId={refundTarget?.paymentId ?? null}
+        />
+      </BodyPortal>
     </div>
   );
 }
