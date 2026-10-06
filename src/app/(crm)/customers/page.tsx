@@ -25,6 +25,7 @@ import {
   formatWhatsAppLink
 } from '@/lib/customerUtils';
 import { sortWidgetCourseTypes } from '@/app/widget/courseTypeOrder';
+import { ageGroupOptions as ageGroupsOf, coursesForFilters, settleCustomerFilters } from './courseFilters';
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from '@/components/DropdownMenu';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogCloseButton } from '@/components/ui/dialog';
 import ChildProfileDialog from '@/components/dialogs/ChildProfileDialog';
@@ -43,6 +44,7 @@ function childrenListParams(filters: CustomerFilters, page: number) {
   if (filters.branch !== 'all') params.append('branch', filters.branch);
   if (filters.city !== 'all') params.append('city', filters.city);
   if (filters.course_type !== 'all') params.append('course_type', filters.course_type);
+  if (filters.age_group !== 'all') params.append('age_group', filters.age_group);
   if (filters.course !== 'all') params.append('course', filters.course);
   if (filters.course !== 'all' && filters.lesson !== 'all') params.append('lesson', filters.lesson);
   if (filters.day_of_week !== 'all') params.append('day_of_week', filters.day_of_week);
@@ -101,6 +103,7 @@ const EMPTY_CUSTOMER_FILTERS: CustomerFilters = {
   city: 'all',
   branch: 'all',
   course_type: 'all',
+  age_group: 'all',
   course: 'all',
   lesson: 'all',
   day_of_week: 'all',
@@ -154,13 +157,18 @@ export default function CustomersPage() {
     () => courseTypes.map((t) => ({ value: t.id, label: t.name })),
     [courseTypes],
   );
+  // תחום → קבוצת גיל → חוג: each list offers only what the choices before it leave.
+  const ageGroupOptions = useMemo(
+    () => ageGroupsOf(courses, filters.course_type),
+    [courses, filters.course_type],
+  );
   const courseOptions = useMemo(
     () =>
-      courses.map((c: any) => ({
+      coursesForFilters(courses, filters).map((c: any) => ({
         value: c.id,
         label: `${c.name}${c.display_id ? ` #${c.display_id}` : ''}`,
       })),
-    [courses],
+    [courses, filters.course_type, filters.age_group],
   );
   const instructorOptions = useMemo(
     () => instructors.map((i: any) => ({ value: i.id, label: i.full_name })),
@@ -294,25 +302,8 @@ export default function CustomersPage() {
   }, [user?.id, user?.role, user?.branch_ids?.join(','), filters, childrenPage]);
 
 
-  const visibleCourses = useMemo(() => {
-    if (filters.course_type === 'all') return courses;
-    return courses.filter((course) => String(course.course_type) === filters.course_type);
-  }, [courses, filters.course_type]);
-
   const updateFilter = (key: keyof CustomerFilters, value: string) => {
-    setFilters(prev => {
-      const next = { ...prev, [key]: value };
-      if (key === 'course_type' && value !== 'all') {
-        const selected = courses.find((course) => course.id === prev.course);
-        if (selected && String(selected.course_type) !== value) {
-          next.course = 'all';
-        }
-      }
-      if (key === 'course' || next.course === 'all') {
-        next.lesson = 'all';
-      }
-      return next;
-    });
+    setFilters(prev => settleCustomerFilters({ ...prev, [key]: value }, key, courses));
     setChildrenPage(1);
   };
   
@@ -569,6 +560,7 @@ export default function CustomersPage() {
               { key: 'city', label: 'ערים', options: cityOptions },
               { key: 'branch', label: 'סניפים', options: branchOptions },
               { key: 'course_type', label: 'תחומים', options: courseTypeOptions },
+              { key: 'age_group', label: 'קבוצות גיל', options: ageGroupOptions },
               { key: 'course', label: 'חוגים', options: courseOptions },
               ...(filters.course !== 'all' ? [{ key: 'lesson' as const, label: 'שיעורים', options: lessonOptions }] : []),
               { key: 'day_of_week', label: 'ימים', options: DAY_OPTIONS },

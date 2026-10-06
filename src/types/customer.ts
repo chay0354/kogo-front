@@ -146,6 +146,9 @@ export interface Course {
   name: string;
   branch_name: string;
   course_type?: string;
+  /** The course's age group, on the 1–16 age-group scale (AGE_GROUP_LABELS). */
+  min_age?: number | null;
+  max_age?: number | null;
 }
 
 export interface Instructor {
@@ -160,6 +163,8 @@ export interface CustomerFilters {
   city: string;
   branch: string;
   course_type: string;
+  /** The course's age group, 'min-max' on the age-group scale ('3-4'); the server's `age_group`. */
+  age_group: string;
   course: string;
   /** One slot of the chosen course (lesson id) — only meaningful when `course` is set. */
   lesson: string;
