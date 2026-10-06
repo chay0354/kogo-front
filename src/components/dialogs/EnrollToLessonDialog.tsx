@@ -58,6 +58,8 @@ interface Lesson {
   enrolled_students_count?: number | null;
   room_capacity?: number | null;
   max_students?: number | null;
+  /** The lesson's own limit, when it has one. */
+  capacity?: number | null;
 }
 
 interface Bundle {
@@ -90,8 +92,8 @@ const formatSeatsSuffix = (seats: number | null) => {
 };
 
 const lessonSeatsLeft = (lesson: Lesson) => {
-  const caps = [lesson.max_students, lesson.room_capacity].filter(
-    (v): v is number => typeof v === 'number'
+  const caps = [lesson.max_students, lesson.room_capacity, lesson.capacity].filter(
+    (v): v is number => typeof v === 'number' && v > 0
   );
   const capacity = caps.length ? Math.min(...caps) : null;
   return computeSeatsLeft(capacity, lesson.enrolled_students_count);

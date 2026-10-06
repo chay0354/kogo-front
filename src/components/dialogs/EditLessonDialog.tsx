@@ -41,6 +41,11 @@ function trialRegistrationFlag(choice: TrialRegistrationChoice): boolean | null 
   return null;
 }
 
+/** The lesson's own limit as the field shows it: a number, or empty for "none". */
+function lessonCapacityText(lesson: Lesson): string {
+  return typeof lesson.capacity === 'number' && lesson.capacity > 0 ? String(lesson.capacity) : '';
+}
+
 function lessonInstructorId(lesson: Lesson): string {
   if (!lesson.instructor) return '';
   if (typeof lesson.instructor === 'string') return lesson.instructor;
@@ -87,6 +92,7 @@ export default function EditLessonDialog({
     start_time: lesson.start_time,
     end_time: lesson.end_time,
     notes: lesson.notes || '',
+    capacity: lessonCapacityText(lesson),
     trial_registration: trialRegistrationValue(lesson.trial_registration_open),
   });
 
@@ -117,7 +123,8 @@ export default function EditLessonDialog({
         start_time: normalizeTimeValue(lesson.start_time, '16:00'),
         end_time: normalizeTimeValue(lesson.end_time, '16:45'),
         notes: lesson.notes || '',
-    trial_registration: trialRegistrationValue(lesson.trial_registration_open),
+        capacity: lessonCapacityText(lesson),
+        trial_registration: trialRegistrationValue(lesson.trial_registration_open),
       });
     }
   }, [lesson]);
@@ -164,6 +171,13 @@ export default function EditLessonDialog({
       return;
     }
 
+    const capacityText = (formData.capacity ?? '').trim();
+    const capacity = capacityText === '' ? null : Number(capacityText);
+    if (capacity !== null && (!Number.isInteger(capacity) || capacity < 1)) {
+      setError('קיבולת לשיעור: מספר שלם מ־1 ומעלה, או להשאיר ריק');
+      return;
+    }
+
     setLoading(true);
     try {
       await api.put(`/courses/lessons/${lesson.id}/`, {
@@ -175,13 +189,14 @@ export default function EditLessonDialog({
         end_time: formData.end_time,
         notes: formData.notes || '',
         trial_registration_open: trialRegistrationFlag(formData.trial_registration ?? 'rule'),
+        capacity,
         is_recurring: true,
         status: 'scheduled',
       });
       onSuccess();
     } catch (err: unknown) {
       const errorData = (err as { response?: { data?: Record<string, unknown> } })?.response?.data;
-      const fieldError = errorData?.room || errorData?.instructor;
+      const fieldError = errorData?.room || errorData?.instructor || errorData?.capacity;
       const message =
         (Array.isArray(fieldError) ? fieldError.join(', ') : fieldError) ||
         errorData?.detail ||
@@ -337,6 +352,23 @@ export default function EditLessonDialog({
                 <option value="open">פתוח — גם כשהכלל סגור</option>
                 <option value="closed">סגור — בלי כפתור ניסיון בווידג'ט</option>
               </select>
+              <label htmlFor="lesson_capacity" className="block text-sm font-medium text-gray-700 mb-1">
+                קיבולת לשיעור הזה
+              </label>
+              <input
+                id="lesson_capacity"
+                type="number"
+                min={1}
+                step={1}
+                inputMode="numeric"
+                placeholder="ללא הגבלה משלו"
+                value={formData.capacity ?? ''}
+                onChange={(e) => setFormData({ ...formData, capacity: e.target.value })}
+                className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+              />
+              <p className="text-xs text-gray-500 mt-1 mb-4">
+                ריק = לפי הקבוצה והחדר. מספר סוגר רק את היום הזה, ושאר ימי הקבוצה לא מושפעים.
+              </p>
               <label htmlFor="notes" className="block text-sm font-medium text-gray-700 mb-1">
                 הערות
               </label>
