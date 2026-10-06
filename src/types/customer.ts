@@ -115,6 +115,13 @@ export interface ChildWithDetails {
   attendance_rate: number;
   
   created_at: string | null;
+  /**
+   * What the server found wrong with the child (6.10.2026): how many problems,
+   * and their short titles. Absent or null when it did not say — an older
+   * server, or a row it built without them. Read through lib/customerProblems.
+   */
+  problems_count?: number | null;
+  problem_titles?: string[] | null;
   /** Brothers and sisters on the same family, so the office can move between them. */
   siblings?: {
     id: string;
@@ -173,6 +180,8 @@ export interface CustomerFilters {
   instructor: string;
   status: string;
   absent_irregularly: string;
+  /** '1' — only children the server found a problem with; the server's `has_problems`. */
+  has_problems: string;
 }
 
 export type ViewMode = 'children' | 'courses';

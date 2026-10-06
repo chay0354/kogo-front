@@ -1,18 +1,33 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { AlertTriangle, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import api from '@/lib/api';
+import { readRefundInfo, standingOrderLeftAloneNote, type RefundInfo } from '@/lib/customerProblems';
+
+/** What the office chose beside the sum and the reason. */
+export interface RefundOptions {
+  /** "לבטל גם את הוראת הקבע" was ticked. */
+  cancelStandingOrder: boolean;
+}
 
 interface RefundDialogProps {
   isOpen: boolean;
   onClose: () => void;
-  onConfirm: (amount: number | null, reason: string) => void;
+  onConfirm: (amount: number | null, reason: string, options: RefundOptions) => void;
   title: string;
   maxAmount: number;
   itemDescription?: string;
   loading?: boolean;
+  /**
+   * The lesson charge (Payment) being refunded. With it the window asks the
+   * server, before anyone confirms, whether the charge can be refunded at all
+   * and whether a standing order will charge it again next month. Left out —
+   * a store sale — the window is as it always was.
+   */
+  paymentId?: string | null;
 }
 
 export default function RefundDialog({
@@ -22,11 +37,38 @@ export default function RefundDialog({
   title,
   maxAmount,
   itemDescription,
-  loading = false
+  loading = false,
+  paymentId = null,
 }: RefundDialogProps) {
   const [amount, setAmount] = useState<string>('');
   const [reason, setReason] = useState<string>('');
   const [isPartialRefund, setIsPartialRefund] = useState<boolean>(false);
+  // What the server says about this charge. Null until it answers, and when it
+  // cannot be asked (an older server, a store sale): the window then works as before.
+  const [info, setInfo] = useState<RefundInfo | null>(null);
+  const [cancelStandingOrder, setCancelStandingOrder] = useState<boolean>(false);
+
+  useEffect(() => {
+    setInfo(null);
+    setCancelStandingOrder(false);
+    if (!isOpen || !paymentId) return;
+    let stale = false;
+    api
+      .get(`/customers/payments/${paymentId}/refund-info/`)
+      .then((response) => {
+        if (!stale) setInfo(readRefundInfo(response.data));
+      })
+      .catch(() => {
+        // The refund itself still checks everything on the server.
+        if (!stale) setInfo(null);
+      });
+    return () => {
+      stale = true;
+    };
+  }, [isOpen, paymentId]);
+
+  const blockedReason = info && !info.refundable ? info.blockedReason : '';
+  const hasStandingOrder = Boolean(info?.refundable && info.standingOrders.length > 0);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -38,16 +80,17 @@ export default function RefundDialog({
         alert(`הסכום חייב להיות בין 0 ל-${maxAmount.toFixed(2)}`);
         return;
       }
-      onConfirm(numAmount, reason || 'זיכוי חלקי');
+      onConfirm(numAmount, reason || 'זיכוי חלקי', { cancelStandingOrder });
     } else {
       // Full refund
-      onConfirm(null, reason || 'זיכוי מלא');
+      onConfirm(null, reason || 'זיכוי מלא', { cancelStandingOrder });
     }
     
     // Reset form
     setAmount('');
     setReason('');
     setIsPartialRefund(false);
+    setCancelStandingOrder(false);
   };
 
   const handleClose = () => {
@@ -55,6 +98,7 @@ export default function RefundDialog({
       setAmount('');
       setReason('');
       setIsPartialRefund(false);
+      setCancelStandingOrder(false);
       onClose();
     }
   };
@@ -83,7 +127,25 @@ export default function RefundDialog({
         </div>
 
         {/* Body */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-5">
+        <form
+          onSubmit={(e) => {
+            // A charge that cannot be refunded is not sent, whatever submitted the form.
+            if (blockedReason) {
+              e.preventDefault();
+              return;
+            }
+            handleSubmit(e);
+          }}
+          className="p-6 space-y-5"
+        >
+            {/* The charge cannot be refunded: said here, before anyone confirms. */}
+            {blockedReason && (
+              <div className="bg-red-50 border border-red-200 rounded-lg p-4" role="alert">
+                <p className="text-sm font-semibold text-red-800">אי אפשר לזכות את החיוב הזה</p>
+                <p className="text-sm text-red-800 mt-1">{blockedReason}</p>
+              </div>
+            )}
+
             {/* Item description */}
             {itemDescription && (
               <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
@@ -167,6 +229,31 @@ export default function RefundDialog({
               />
             </div>
 
+            {/* A monthly charge with a live standing order behind it comes back next month. */}
+            {hasStandingOrder && info && (
+              <div className="rounded-lg border border-gray-200 bg-gray-50 p-4 space-y-2">
+                <label htmlFor="cancel-standing-order" className="flex items-start gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    id="cancel-standing-order"
+                    className="mt-1 h-4 w-4"
+                    checked={cancelStandingOrder}
+                    onChange={(e) => setCancelStandingOrder(e.target.checked)}
+                    disabled={loading}
+                    aria-describedby="cancel-standing-order-note"
+                  />
+                  <span className="text-sm font-medium text-gray-900">
+                    לבטל גם את הוראת הקבע, כדי שלא יחויב שוב בחודש הבא
+                  </span>
+                </label>
+                <p id="cancel-standing-order-note" className="text-sm text-gray-600 pr-7">
+                  {cancelStandingOrder
+                    ? 'אחרי שהזיכוי יעבור, הוראת הקבע תבוטל ולא יהיה חיוב נוסף.'
+                    : standingOrderLeftAloneNote(info)}
+                </p>
+              </div>
+            )}
+
             {/* Warning message */}
             <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
               <p className="text-sm text-yellow-800">
@@ -187,7 +274,7 @@ export default function RefundDialog({
               </Button>
               <Button
                 type="submit"
-                disabled={loading}
+                disabled={loading || Boolean(blockedReason)}
                 className="flex-1 bg-yellow-600 hover:bg-yellow-700 text-white"
               >
                 {loading ? (

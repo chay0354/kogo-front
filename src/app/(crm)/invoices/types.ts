@@ -120,6 +120,15 @@ export interface DocumentRow extends LedgerDimensions {
    * through /customers/invoices/<id>/pdf/?copy=1. An older server leaves it out.
    */
   lesson_invoice_id?: string;
+  /**
+   * On a lesson receipt (6.10.2026): the charge it was issued for, and whether
+   * "זיכוי" can be offered on the row — one completed charge that took money
+   * and was not declined. An older server leaves them out (no button).
+   */
+  payment_id?: string | null;
+  payment_refundable?: boolean;
+  payment_amount?: number;
+  payment_is_monthly?: boolean;
   tranzila_doc_id?: string;
   source?: string;
   tranzila_issued?: boolean;

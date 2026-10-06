@@ -26,3 +26,20 @@ export function documentDownloadRoute(
   if (doc.source === 'local') return { kind: 'local', id: doc.id };
   return null;
 }
+
+/**
+ * "זיכוי" on a documents-tab row (6.10.2026): offered on a lesson receipt whose
+ * charge the server says can be refunded — one completed charge that took
+ * money and was not declined; never on a receipt already refunded in full, a
+ * store sale or a manual document. Null — no button — also on a server that
+ * does not say.
+ */
+export function lessonReceiptRefund(
+  doc: Pick<DocumentRow, 'lesson_invoice_id' | 'payment_id' | 'payment_refundable' | 'payment_amount' | 'total_amount' | 'status'>,
+): { paymentId: string; amount: number } | null {
+  if (!doc.lesson_invoice_id || !doc.payment_id || doc.payment_refundable !== true) return null;
+  if (doc.status === 'refunded') return null;
+  const amount = Number(doc.payment_amount ?? doc.total_amount) || 0;
+  if (amount <= 0) return null;
+  return { paymentId: String(doc.payment_id), amount };
+}
