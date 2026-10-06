@@ -693,6 +693,14 @@ export default function WidgetPage() {
     return isCourseVisibleInWidgetCatalog(course);
   }), [branchCourses, selectedCourseType, selectedAge]);
 
+  // The lessons a trial date may be chosen from, kept as one list for as long as
+  // the opened class is the same: a list made anew on every draw looks like a
+  // change of lessons to whoever is handed it.
+  const drawerTrialLessons = useMemo(
+    () => (drawerLesson ? [] : trialLessonChoices(drawerBundle)),
+    [drawerLesson, drawerBundle],
+  );
+
   const catalogDefaultFilters = useMemo(
     () => ({
       city: selectedCity,
@@ -1152,7 +1160,7 @@ export default function WidgetPage() {
                   bundleId={drawerBundle?.id}
                   lessonId={drawerLesson?.id}
                   priceOptionId={drawerPriceOption?.id}
-                  trialLessonOptions={drawerLesson ? [] : trialLessonChoices(drawerBundle)}
+                  trialLessonOptions={drawerTrialLessons}
                   isTrial={drawerIsTrial}
                   trialLessonIsPaid={drawerCourse.trial_lesson_is_paid ?? false}
                   trialLessonPrice={
