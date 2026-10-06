@@ -1149,8 +1149,8 @@ export default function ChildProfileDialog({
             </div>
           </div>
 
-              {/* What is wrong and what to do — above every tab. */}
-              <ChildProblemsBanner problems={problemDetail.problems} />
+              {/* What is wrong, by title — above every tab. A sibling's card starts closed. */}
+              <ChildProblemsBanner key={child.id} problems={problemDetail.problems} />
 
               {/* Tab 1: Details */}
               <TabsContent value="details" className="pt-6 px-0">

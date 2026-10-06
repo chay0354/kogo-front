@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
   fromOtherCard,
+  groupProblemsByTitle,
   problemCount,
+  problemTextLines,
   problemsSummary,
   readProblemDetail,
   readRefundInfo,
@@ -116,5 +118,60 @@ describe('the refund window', () => {
     expect(refundRequestBody(null, 'זיכוי מלא')).toEqual({ amount: null, reason: 'זיכוי מלא' });
     expect(refundRequestBody(120, 'חלקי', false)).toEqual({ amount: 120, reason: 'חלקי' });
     expect(refundRequestBody(null, 'עזב', true)).toEqual({ amount: null, reason: 'עזב', cancel_standing_order: true });
+  });
+});
+
+describe('the text of a problem, as the card draws it', () => {
+  it('reads bold and list lines', () => {
+    const lines = problemTextLines(
+      'באוקטובר 2026 ירדו **2 חיובים חודשיים** על קפוארה:\n• 1.10.2026 — **₪225** (בכרטיס הנוסף של הילד)\n• 1.10.2026 — **₪215**',
+    );
+    expect(lines).toHaveLength(3);
+    expect(lines[0].item).toBe(false);
+    expect(lines[0].parts).toEqual([
+      { text: 'באוקטובר 2026 ירדו ', bold: false },
+      { text: '2 חיובים חודשיים', bold: true },
+      { text: ' על קפוארה:', bold: false },
+    ]);
+    expect(lines[1].item).toBe(true);
+    expect(lines[1].parts[0]).toEqual({ text: '1.10.2026 — ', bold: false });
+    expect(lines[1].parts[1]).toEqual({ text: '₪225', bold: true });
+    expect(lines[2].parts[1]).toEqual({ text: '₪215', bold: true });
+  });
+
+  it('keeps plain text as one plain line', () => {
+    expect(problemTextLines('לבדוק בטרנזילה אם החיוב עבר.')).toEqual([
+      { item: false, parts: [{ text: 'לבדוק בטרנזילה אם החיוב עבר.', bold: false }] },
+    ]);
+  });
+
+  it('shows a mark that was left open as it was written', () => {
+    expect(problemTextLines('סכום **פתוח')).toEqual([
+      { item: false, parts: [{ text: 'סכום **פתוח', bold: false }] },
+    ]);
+  });
+
+  it('drops empty lines and reads nothing from nothing', () => {
+    expect(problemTextLines('שורה\n\n• פריט\n')).toHaveLength(2);
+    expect(problemTextLines('')).toEqual([]);
+    expect(problemTextLines(null)).toEqual([]);
+  });
+});
+
+describe('problems under one title', () => {
+  const problem = (title: string, what: string) => ({ code: 'double_charge', title, what, action: '' });
+
+  it('puts two double charges under one heading, in the order they came', () => {
+    const groups = groupProblemsByTitle([
+      problem('חיוב כפול באותו חודש', 'ספטמבר'),
+      problem('לילד יש כרטיס נוסף במערכת', 'כרטיס'),
+      problem('חיוב כפול באותו חודש', 'אוקטובר'),
+    ]);
+    expect(groups.map((group) => group.title)).toEqual(['חיוב כפול באותו חודש', 'לילד יש כרטיס נוסף במערכת']);
+    expect(groups[0].problems.map((item) => item.what)).toEqual(['ספטמבר', 'אוקטובר']);
+  });
+
+  it('is empty when nothing is wrong', () => {
+    expect(groupProblemsByTitle([])).toEqual([]);
   });
 });

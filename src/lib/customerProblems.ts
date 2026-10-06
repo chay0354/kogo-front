@@ -14,10 +14,64 @@ export interface CustomerProblem {
   code: string;
   /** A few words — the list's tooltip and the card's heading. */
   title: string;
-  /** What happened, with sums and dates. */
+  /** What happened, with sums and dates. Marked text — see problemTextLines. */
   what: string;
-  /** What to do about it. */
+  /** What to do about it. Marked text — see problemTextLines. */
   action: string;
+}
+
+/** A run of words in a problem's text; `bold` is the point of the line. */
+export interface ProblemTextPart {
+  text: string;
+  bold: boolean;
+}
+
+/** One line of a problem's text; `item` is a line of a list. */
+export interface ProblemTextLine {
+  item: boolean;
+  parts: ProblemTextPart[];
+}
+
+/**
+ * A problem's text, read into lines the card can draw.
+ *
+ * The server writes two marks and nothing else (problem_flags.Problem):
+ * `**…**` is bold, and a line that starts with "• " is an item of a list.
+ * Text with neither mark comes back as plain lines, and a `**` left open is
+ * shown as written — never swallowed.
+ */
+export function problemTextLines(text: string | null | undefined): ProblemTextLine[] {
+  return String(text ?? '')
+    .split('\n')
+    .map((raw) => raw.trim())
+    .filter((raw) => raw !== '')
+    .map((raw) => {
+      const item = raw.startsWith('•');
+      const body = item ? raw.slice(1).trim() : raw;
+      const pieces = body.split('**');
+      // An odd number of pieces means every mark was closed.
+      if (pieces.length % 2 === 0) return { item, parts: [{ text: body, bold: false }] };
+      const parts = pieces
+        .map((piece, index) => ({ text: piece, bold: index % 2 === 1 }))
+        .filter((part) => part.text !== '');
+      return { item, parts };
+    });
+}
+
+/** Problems that share a title, under that title once — in the order they came. */
+export interface ProblemGroup {
+  title: string;
+  problems: CustomerProblem[];
+}
+
+export function groupProblemsByTitle(problems: ReadonlyArray<CustomerProblem>): ProblemGroup[] {
+  const groups: ProblemGroup[] = [];
+  for (const problem of problems) {
+    const group = groups.find((existing) => existing.title === problem.title);
+    if (group) group.problems.push(problem);
+    else groups.push({ title: problem.title, problems: [problem] });
+  }
+  return groups;
 }
 
 /** Another card of the same child on the family (the same name) — hidden from the list. */
