@@ -32,7 +32,16 @@ import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { Skeleton } from '@/components/ui/skeleton';
 import { GroupIdBadge } from '@/components/GroupIdBadge/GroupIdBadge';
 import api from '@/lib/api';
-import RefundDialog from '@/components/dialogs/RefundDialog';
+import RefundDialog, { type RefundOptions } from '@/components/dialogs/RefundDialog';
+import ChildProblemsBanner from '@/components/dialogs/ChildProblemsBanner';
+import {
+  OTHER_CARD_LABEL,
+  fromOtherCard,
+  readProblemDetail,
+  refundRequestBody,
+  type ChildProblemDetail,
+  type CustomerProblem,
+} from '@/lib/customerProblems';
 import EditStandingOrderDialog from '@/components/dialogs/EditStandingOrderDialog';
 import { upcomingCharges, type UpcomingCharge } from '@/components/dialogs/upcomingCharges';
 import { subscriptionBadge } from '@/components/dialogs/subscriptionStatus';
@@ -78,6 +87,19 @@ interface ChildProfileDialogProps {
    * this record into another card of the same child.
    */
   onChildUpdated?: (child: ChildWithDetails | null) => void;
+  /** The card read the child's problems afresh — so the list's light can follow a fix made here. */
+  onProblemsLoaded?: (childId: string, problems: CustomerProblem[]) => void;
+}
+
+const NO_PROBLEMS: ChildProblemDetail = { problems: [], duplicateCards: [] };
+
+/** The mark on a row that belongs to the child's other card. */
+function OtherCardMark() {
+  return (
+    <span className="mr-2 inline-flex rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-900 whitespace-nowrap">
+      {OTHER_CARD_LABEL}
+    </span>
+  );
 }
 
 function daysUntil(dateString: string | null): number | null {
@@ -223,6 +245,8 @@ interface ChildDocument {
   download_url: string;
   /** How the signed original reached the family; null when none is stored (or the server sends none). */
   delivery_status: DocumentDeliveryStatus | null;
+  /** Set here, not by the server: the document belongs to the child's other card. */
+  from_other_card?: boolean;
 }
 
 type DocumentsStatus = 'loading' | 'ready' | 'error';
@@ -490,6 +514,7 @@ function ChildDocumentsTable({
                     </td>
                     <td className="px-3 py-2 min-w-[10rem] break-words">
                       {documentDescription(doc)}
+                      {doc.from_other_card && <OtherCardMark />}
                       {doc.issued_late && (
                         <div className="mt-0.5 text-xs text-muted-foreground">
                           הופק באיחור{paidAt ? ` · התשלום התקבל ${paidAt}` : ''}
@@ -542,6 +567,7 @@ export default function ChildProfileDialog({
   onOpenSibling,
   startInEditMode = false,
   onChildUpdated,
+  onProblemsLoaded,
 }: ChildProfileDialogProps) {
   const [tab, setTab] = useState('details');
   // The details tab as fields. Opened by the tab's own button or by the list's
@@ -565,6 +591,17 @@ export default function ChildProfileDialog({
   const [payments, setPayments] = useState<any[]>([]);
   const [storeInvoices, setStoreInvoices] = useState<any[]>([]);
   const [recurringPayments, setRecurringPayments] = useState<any[]>([]);
+  // What is wrong with this child, and the child's other cards on the family
+  // (the same name — the cards the list hides). Their charges, standing orders
+  // and documents are listed here beside the card's own, each marked.
+  const [problemDetail, setProblemDetail] = useState<ChildProblemDetail>(NO_PROBLEMS);
+  const problemsRequest = useRef(0);
+  const [otherCards, setOtherCards] = useState<{
+    payments: any[];
+    storeInvoices: any[];
+    recurringPayments: any[];
+    documents: ChildDocument[];
+  }>({ payments: [], storeInvoices: [], recurringPayments: [], documents: [] });
   // Every document issued for this child — receipts, store sales, manual documents
   // and credit notes. Scoped to the child on purpose: a parent's other children have
   // their own invoices and they do not belong on this card.
@@ -629,6 +666,10 @@ export default function ChildProfileDialog({
   useEffect(() => {
     setEditing(false);
     setSavedNote('');
+    // Another child's problems and other cards must not show while this one loads.
+    problemsRequest.current += 1;
+    setProblemDetail(NO_PROBLEMS);
+    setOtherCards({ payments: [], storeInvoices: [], recurringPayments: [], documents: [] });
   }, [child.id]);
   // …and each open starts where the list asked: reading, or editing. Declared
   // second so that an open for a new child ends in the mode it asked for.
@@ -736,12 +777,65 @@ export default function ChildProfileDialog({
     }
   };
 
+  // What is wrong, and which other cards the child has — then those cards'
+  // charges and documents, through the routes the card already uses for its
+  // own. Their standing orders come with the answer itself: the standing-orders
+  // route writes on every read, and is not asked for another card. A server
+  // without the route answers 404 and the card opens as it always did. An
+  // answer for a card that has since moved on is dropped.
+  const fetchProblems = async () => {
+    const request = ++problemsRequest.current;
+    let detail = NO_PROBLEMS;
+    let answered = false;
+    try {
+      const response = await api.get(`/customers/children/${child.id}/problems/`);
+      detail = readProblemDetail(response.data);
+      answered = true;
+    } catch {
+      detail = NO_PROBLEMS;
+    }
+    if (request !== problemsRequest.current) return;
+    setProblemDetail(detail);
+    // Only a real answer moves the list's light: a failed request is not "no problems".
+    if (answered) onProblemsLoaded?.(child.id, detail.problems);
+
+    const list = (data: any) => {
+      const rows = data?.results || data || [];
+      return Array.isArray(rows) ? rows : [];
+    };
+    const perCard = await Promise.all(
+      detail.duplicateCards.map(async (card) => {
+        const [paymentsRes, storeRes, documentsRes] = await Promise.all([
+          api.get(`/customers/payments/?child_id=${card.id}`).catch(() => ({ data: [] })),
+          api.get(`/store/invoices/?child_id=${card.id}`).catch(() => ({ data: [] })),
+          api.get(`/customers/children/${card.id}/documents/`).catch(() => ({ data: { documents: [] } })),
+        ]);
+        return {
+          payments: fromOtherCard(list(paymentsRes.data)),
+          storeInvoices: fromOtherCard(list(storeRes.data)),
+          recurringPayments: fromOtherCard(card.standing_orders),
+          documents: fromOtherCard(readChildDocuments(documentsRes.data)),
+        };
+      }),
+    );
+    if (request !== problemsRequest.current) return;
+    setOtherCards({
+      payments: perCard.flatMap((card) => card.payments),
+      storeInvoices: perCard.flatMap((card) => card.storeInvoices),
+      recurringPayments: perCard.flatMap((card) => card.recurringPayments),
+      documents: perCard.flatMap((card) => card.documents),
+    });
+  };
+
   const fetchPaymentData = async () => {
     setLoadingPayments(true);
     // The documents come with the rest of the payment data, on their own flag: the
     // charges do not wait for them, and each charge row picks up its invoice once
     // they are in.
     const documentsLoaded = fetchDocuments();
+    // On its own, like the documents: a refund or a cancelled standing order may
+    // have just put a problem right.
+    const problemsLoaded = fetchProblems();
     try {
       const [paymentsRes, storeInvoicesRes, recurringRes] = await Promise.all([
         api.get(`/customers/payments/?child_id=${child.id}`).catch(() => ({ data: [] })),
@@ -762,6 +856,7 @@ export default function ChildProfileDialog({
       setLoadingPayments(false);
     }
     await documentsLoaded;
+    await problemsLoaded;
   };
   
   // The family's own record, not the list row, so the line is current.
@@ -862,21 +957,24 @@ export default function ChildProfileDialog({
     }
   };
 
-  const handleRefundConfirm = async (amount: number | null, reason: string) => {
+  const handleRefundConfirm = async (amount: number | null, reason: string, options?: RefundOptions) => {
     if (!refundItem) return;
     
     setRefundLoading(true);
     try {
-      const endpoint = refundItem.type === 'payment'
+      const isPayment = refundItem.type === 'payment';
+      const endpoint = isPayment
         ? `/customers/payments/${refundItem.id}/refund/`
         : `/store/invoices/${refundItem.id}/refund/`;
       
-      await api.post(endpoint, {
-        amount: amount, // null for full refund
-        reason: reason
-      });
+      // amount is null for a full refund. The standing-order field goes only
+      // with a lesson charge, and only when its box was ticked.
+      const response = await api.post(
+        endpoint,
+        refundRequestBody(amount, reason, isPayment && Boolean(options?.cancelStandingOrder)),
+      );
       
-      alert(refundItem.type === 'payment' ? 'התשלום זוכה בהצלחה' : 'החשבונית זוכתה בהצלחה');
+      alert(isPayment ? response.data?.message || 'התשלום זוכה בהצלחה' : 'החשבונית זוכתה בהצלחה');
       setRefundDialogOpen(false);
       setRefundItem(null);
       // Brings the documents back too — a refund can issue a credit note.
@@ -918,8 +1016,25 @@ export default function ChildProfileDialog({
     [child.enrollments],
   );
 
+  // The card's own rows first, then the other card's — marked from_other_card.
+  const allPayments = useMemo(() => [...payments, ...otherCards.payments], [payments, otherCards.payments]);
+  const allStoreInvoices = useMemo(
+    () => [...storeInvoices, ...otherCards.storeInvoices],
+    [storeInvoices, otherCards.storeInvoices],
+  );
+  const allRecurring = useMemo(
+    () => [...recurringPayments, ...otherCards.recurringPayments],
+    [recurringPayments, otherCards.recurringPayments],
+  );
+  const allDocuments = useMemo(() => {
+    if (otherCards.documents.length === 0) return documents;
+    return [...documents, ...otherCards.documents].sort((a, b) => (
+      a.date === b.date ? b.document_number.localeCompare(a.document_number) : b.date.localeCompare(a.date)
+    ));
+  }, [documents, otherCards.documents]);
+
   const oneTimeCharges = useMemo(() => {
-    const fromPayments = payments
+    const fromPayments = allPayments
       // Monthly charges belong here too. The invoices screen has always let them be
       // refunded; leaving them off the child's own card made it look as though a
       // month could not be put right, and the office went looking elsewhere.
@@ -938,7 +1053,7 @@ export default function ChildProfileDialog({
         raw: payment,
       }));
 
-    const fromStore = storeInvoices
+    const fromStore = allStoreInvoices
       .filter((invoice) => ['completed', 'refunded', 'refund_failed'].includes(invoice.payment_status))
       .map((invoice) => ({
         key: `store-${invoice.id}`,
@@ -958,17 +1073,19 @@ export default function ChildProfileDialog({
       const bTime = b.date ? new Date(b.date).getTime() : 0;
       return bTime - aTime;
     });
-  }, [payments, storeInvoices]);
+  }, [allPayments, allStoreInvoices]);
 
   const chargeDocuments = useMemo(
-    () => matchChargeDocuments(oneTimeCharges, documents),
-    [oneTimeCharges, documents],
+    () => matchChargeDocuments(oneTimeCharges, allDocuments),
+    [oneTimeCharges, allDocuments],
   );
 
+  // The other card's standing orders are listed too: one of them is how a
+  // child came to be charged twice, and this is where it is cancelled.
   const standingOrders = useMemo(() => {
     const rank = (status: string) => (status === 'active' ? 0 : 1);
-    return [...recurringPayments].sort((a, b) => rank(a.status) - rank(b.status));
-  }, [recurringPayments]);
+    return [...allRecurring].sort((a, b) => rank(a.status) - rank(b.status));
+  }, [allRecurring]);
 
   // What the family actually pays, and why — read off the standing order itself.
   const discountRows = useMemo(() => childDiscounts(recurringPayments), [recurringPayments]);
@@ -1028,6 +1145,9 @@ export default function ChildProfileDialog({
               </TabsList>
             </div>
           </div>
+
+              {/* What is wrong and what to do — above every tab. */}
+              <ChildProblemsBanner problems={problemDetail.problems} />
 
               {/* Tab 1: Details */}
               <TabsContent value="details" className="pt-6 px-0">
@@ -1521,6 +1641,8 @@ export default function ChildProfileDialog({
                         </div>
                         <p className="text-sm text-muted-foreground mb-3">
                           דמי רישום, שיעורי ניסיון, רכישות מהחנות וחיובים חודשיים — כאן גם מורידים חשבונית ומזכים
+                          {(otherCards.payments.length > 0 || otherCards.storeInvoices.length > 0)
+                            && `. שורות שמסומנות "${OTHER_CARD_LABEL}" נרשמו על הכרטיס הכפול שלו`}
                         </p>
                         {oneTimeCharges.length === 0 ? (
                           <div className="border rounded-lg px-4 py-8 text-center text-muted-foreground">
@@ -1547,7 +1669,10 @@ export default function ChildProfileDialog({
                                       <td className="p-3 text-sm text-muted-foreground whitespace-nowrap">
                                         {charge.date ? new Date(charge.date).toLocaleDateString('he-IL') : '-'}
                                       </td>
-                                      <td className="p-3">{charge.description}</td>
+                                      <td className="p-3">
+                                        {charge.description}
+                                        {charge.raw?.from_other_card && <OtherCardMark />}
+                                      </td>
                                       <td className="p-3 font-medium whitespace-nowrap">{formatShekel(charge.amount)}</td>
                                       <td className="p-3">
                                         <Badge variant={badge.variant}>{badge.label}</Badge>
@@ -1589,18 +1714,19 @@ export default function ChildProfileDialog({
                       <div>
                         <div className="flex items-baseline justify-between gap-3 mb-1">
                           <h3 className="font-semibold text-lg">מסמכים</h3>
-                          {documentsStatus === 'ready' && documents.length > 0 && (
+                          {documentsStatus === 'ready' && allDocuments.length > 0 && (
                             <span className="text-sm text-muted-foreground tabular-nums">
-                              {documents.length === 1 ? 'מסמך אחד' : `${documents.length} מסמכים`}
+                              {allDocuments.length === 1 ? 'מסמך אחד' : `${allDocuments.length} מסמכים`}
                             </span>
                           )}
                         </div>
                         <p className="text-sm text-muted-foreground mb-3">
                           כל החשבוניות, הקבלות והזיכויים של {child.first_name} — מסמכים של אחים אינם מוצגים כאן
+                          {otherCards.documents.length > 0 && `. מסמכים שמסומנים "${OTHER_CARD_LABEL}" שייכים לכרטיס הכפול שלו`}
                         </p>
                         <ChildDocumentsTable
                           status={documentsStatus}
-                          documents={documents}
+                          documents={allDocuments}
                           downloadingKeys={downloadingKeys}
                           onDownload={handleDownloadDocument}
                           onRetry={fetchDocuments}
@@ -1667,6 +1793,7 @@ export default function ChildProfileDialog({
                                         || recurring.initial_payment_details?.description
                                         || '-'}
                                       <GroupIdBadge displayId={recurring.initial_payment_details?.lesson_course_display_id} />
+                                      {recurring.from_other_card && <OtherCardMark />}
                                     </td>
                                     <td className="p-3 font-medium whitespace-nowrap">
                                       {formatShekel(recurring.amount)}
@@ -1874,6 +2001,7 @@ export default function ChildProfileDialog({
         maxAmount={refundItem.amount}
         itemDescription={refundItem.description}
         loading={refundLoading}
+        paymentId={refundItem.type === 'payment' ? refundItem.id : null}
       />
     )}
     <EditStandingOrderDialog

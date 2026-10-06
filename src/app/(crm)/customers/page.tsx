@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { Users, MoreHorizontal, Eye, Edit, UserPlus, Trash2, UserCheck, Search, MessageCircle } from 'lucide-react';
+import { Users, MoreHorizontal, Eye, Edit, UserPlus, Trash2, UserCheck, Search, MessageCircle, AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import { useBroadcastRun } from '@/components/broadcast/BroadcastRunProvider';
 import PageHeader from '@/components/PageHeader';
@@ -35,6 +35,7 @@ import { canSaveStatusChange, updateChildStatus } from '@/lib/childStatusApi';
 import EnrollToLessonDialog from '@/components/dialogs/EnrollToLessonDialog';
 import ChangeChildLessonDialog from '@/components/dialogs/ChangeChildLessonDialog';
 import CrossFade from '@/components/ui/CrossFade';
+import { problemCount, problemsSummary, serverReportsProblems, type CustomerProblem } from '@/lib/customerProblems';
 
 type CourseTypeOption = { id: string; name: string };
 
@@ -51,6 +52,7 @@ function childrenListParams(filters: CustomerFilters, page: number) {
   if (filters.instructor !== 'all') params.append('instructor', filters.instructor);
   if (filters.status !== 'all') params.append('status', filters.status);
   if (filters.absent_irregularly !== 'all') params.append('absent_irregularly', filters.absent_irregularly);
+  if (filters.has_problems !== 'all') params.append('has_problems', filters.has_problems);
   params.append('page', String(page));
   return params;
 }
@@ -68,6 +70,10 @@ const STATUS_OPTIONS = [
 const ABSENCE_OPTIONS = [
   { value: 'true', label: 'רק עם היעדרות חריגה' },
   { value: 'false', label: 'ללא היעדרות חריגה' },
+];
+
+const PROBLEM_OPTIONS = [
+  { value: '1', label: 'רק עם תקלות' },
 ];
 
 const DAY_OPTIONS = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שבת'].map((label, value) => ({
@@ -110,6 +116,7 @@ const EMPTY_CUSTOMER_FILTERS: CustomerFilters = {
   instructor: 'all',
   status: 'all',
   absent_irregularly: 'all',
+  has_problems: 'all',
 };
 
 export default function CustomersPage() {
@@ -120,6 +127,10 @@ export default function CustomersPage() {
   const [childrenPage, setChildrenPage] = useState<number>(1);
   const [childrenHasNext, setChildrenHasNext] = useState<boolean>(false);
   const [childrenHasPrev, setChildrenHasPrev] = useState<boolean>(false);
+  // The "רק עם תקלות" filter is offered once the server has shown that it works
+  // the problems out. An older server ignores the parameter, and a filter that
+  // filters nothing would be a lie on the screen.
+  const [problemsKnown, setProblemsKnown] = useState<boolean>(false);
   
   // Filter options
   const [branches, setBranches] = useState<Branch[]>([]);
@@ -280,6 +291,7 @@ export default function CustomersPage() {
         // Extract results from paginated response
         const results = response.data.results || response.data || [];
         setChildren(results);
+        if (serverReportsProblems(results)) setProblemsKnown(true);
         setChildrenTotalCount(typeof response.data.count === 'number' ? response.data.count : results.length);
         setChildrenHasNext(Boolean(response.data.next));
         setChildrenHasPrev(Boolean(response.data.previous));
@@ -432,6 +444,17 @@ export default function CustomersPage() {
     setDeleteDialogOpen(true);
   };
   
+  // The card read the child's problems afresh — after a refund or a cancelled
+  // standing order made there, the row's light follows without a reload.
+  const handleProblemsLoaded = (childId: string, problems: CustomerProblem[]) => {
+    const titles = Array.from(new Set(problems.map((problem) => problem.title)));
+    setChildren((prev) => prev.map((row) => (
+      row.id === childId && typeof row.problems_count === 'number'
+        ? { ...row, problems_count: problems.length, problem_titles: titles }
+        : row
+    )));
+  };
+
   // The card saved the customer's details. The card takes the fresh row at
   // once; the list is read again, since the family's phone, names and extra
   // phones show on every sibling's row too.
@@ -567,6 +590,7 @@ export default function CustomersPage() {
               { key: 'instructor', label: 'מדריכים', options: instructorOptions },
               { key: 'status', label: 'כל הסטטוסים', options: STATUS_OPTIONS },
               { key: 'absent_irregularly', label: 'היעדרות חריגה', options: ABSENCE_OPTIONS },
+              ...(problemsKnown ? [{ key: 'has_problems' as const, label: 'תקלות', options: PROBLEM_OPTIONS }] : []),
             ]}
             values={filters}
             onChange={updateFilter}
@@ -681,6 +705,8 @@ export default function CustomersPage() {
                     const status = getCustomerTableStatus(child);
                     const courses = groupEnrollmentsForTable(child.enrollments ?? []);
                     const whatsappLink = formatWhatsAppLink(child.parent_phone);
+                    const problems = problemCount(child);
+                    const problemsText = problemsSummary(child);
                     
                     return (
                       <tr 
@@ -711,6 +737,24 @@ export default function CustomersPage() {
                               'bg-gray-400'
                             }`} title={status.description}></span>
                             <span className="font-medium">{child.full_name}</span>
+                            {problems > 0 && (
+                              // The red light (owner, 6.10.2026). An icon and a number, a tooltip and a
+                              // spoken text — the colour is never the only sign. Opens the card, where
+                              // each problem says what happened and what to do.
+                              <button
+                                type="button"
+                                className="inline-flex flex-shrink-0 items-center gap-0.5 rounded-full border border-red-300 bg-red-50 px-1.5 py-0.5 text-[11px] font-bold leading-none text-red-700 hover:bg-red-100"
+                                title={`${problemsText} — לחצו לפרטים`}
+                                aria-label={`${problemsText}. פתיחת הכרטיס של ${child.full_name}`}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleViewProfile(child);
+                                }}
+                              >
+                                <AlertCircle size={12} aria-hidden="true" />
+                                {problems > 1 && <span aria-hidden="true">{problems}</span>}
+                              </button>
+                            )}
                             <span className={`text-xs px-1.5 py-0.5 rounded border flex-shrink-0 inline-flex items-center justify-center min-w-[24px] ${
                               child.gender === 'male' ? 'bg-blue-50 text-blue-700 border-blue-200' :
                               child.gender === 'female' ? 'bg-pink-50 text-pink-700 border-pink-200' :
@@ -952,6 +996,7 @@ export default function CustomersPage() {
             onClose={() => setProfileDialogOpen(false)}
             startInEditMode={profileStartsEditing}
             onChildUpdated={handleChildUpdated}
+            onProblemsLoaded={handleProblemsLoaded}
             onOpenEnroll={() => {
               setProfileDialogOpen(false);
               setEnrollDialogOpen(true);

@@ -39,6 +39,7 @@ const FILTERS: CustomerFilters = {
   instructor: 'all',
   status: 'all',
   absent_irregularly: 'all',
+  has_problems: 'all',
 };
 
 describe('courseAgeGroupKey', () => {
