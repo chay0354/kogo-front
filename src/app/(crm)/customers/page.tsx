@@ -391,6 +391,7 @@ export default function CustomersPage() {
     if (!requestedChildId || openedFromLink.current === requestedChildId) return;
     openedFromLink.current = requestedChildId;
     let cancelled = false;
+    let opened = false;
     (async () => {
       try {
         const res = await api.get(`/customers/children/${requestedChildId}/`);
@@ -409,6 +410,7 @@ export default function CustomersPage() {
           }
         }
         if (cancelled) return;
+        opened = true;
         setSelectedChild(card);
         setProfileStartsEditing(false);
         setProfileDialogOpen(true);
@@ -418,6 +420,8 @@ export default function CustomersPage() {
     })();
     return () => {
       cancelled = true;
+      // A run cut short has opened nothing: the next run has to try again.
+      if (!opened) openedFromLink.current = '';
     };
   }, [requestedChildId]);
 
@@ -737,24 +741,6 @@ export default function CustomersPage() {
                               'bg-gray-400'
                             }`} title={status.description}></span>
                             <span className="font-medium">{child.full_name}</span>
-                            {problems > 0 && (
-                              // The red light (owner, 6.10.2026). An icon and a number, a tooltip and a
-                              // spoken text — the colour is never the only sign. Opens the card, where
-                              // each problem says what happened and what to do.
-                              <button
-                                type="button"
-                                className="inline-flex flex-shrink-0 items-center gap-0.5 rounded-full border border-red-300 bg-red-50 px-1.5 py-0.5 text-[11px] font-bold leading-none text-red-700 hover:bg-red-100"
-                                title={`${problemsText} — לחצו לפרטים`}
-                                aria-label={`${problemsText}. פתיחת הכרטיס של ${child.full_name}`}
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleViewProfile(child);
-                                }}
-                              >
-                                <AlertCircle size={12} aria-hidden="true" />
-                                {problems > 1 && <span aria-hidden="true">{problems}</span>}
-                              </button>
-                            )}
                             <span className={`text-xs px-1.5 py-0.5 rounded border flex-shrink-0 inline-flex items-center justify-center min-w-[24px] ${
                               child.gender === 'male' ? 'bg-blue-50 text-blue-700 border-blue-200' :
                               child.gender === 'female' ? 'bg-pink-50 text-pink-700 border-pink-200' :
@@ -887,6 +873,7 @@ export default function CustomersPage() {
                         
                         {/* Status */}
                         <td onClick={(e) => e.stopPropagation()}>
+                          <div className="flex items-center gap-1.5">
                           <button
                             type="button"
                             title="לחץ לשינוי סטטוס"
@@ -902,6 +889,23 @@ export default function CustomersPage() {
                           >
                             {status.hebrewStatus}
                           </button>
+                          {problems > 0 && (
+                            // The red light (owner, 6.10.2026), beside the status — where he asked
+                            // for it. An icon and a number, a tooltip and a spoken text — the colour
+                            // is never the only sign. Opens the card, where each problem says what
+                            // happened and what to do.
+                            <button
+                              type="button"
+                              className="inline-flex flex-shrink-0 items-center gap-0.5 rounded-full border border-red-600 bg-red-600 px-1.5 py-1 text-[11px] font-bold leading-none text-white hover:bg-red-700"
+                              title={`${problemsText} — לחצו לפרטים`}
+                              aria-label={`${problemsText}. פתיחת הכרטיס של ${child.full_name}`}
+                              onClick={() => handleViewProfile(child)}
+                            >
+                              <AlertCircle size={12} aria-hidden="true" />
+                              {problems > 1 && <span aria-hidden="true">{problems}</span>}
+                            </button>
+                          )}
+                          </div>
                         </td>
                         
                         {/* Actions */}
