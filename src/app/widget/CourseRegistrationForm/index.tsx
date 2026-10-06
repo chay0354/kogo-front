@@ -436,8 +436,15 @@ export default function CourseRegistrationForm({
     setSelectedTrialLessonId(lessonId ?? '');
   }, [lessonId]);
 
+  // The dates are loaded — and the date that was chosen is let go — only when
+  // the lessons themselves change: by what they are (`trialLessonIdsKey`), never
+  // by the list that carries them. The widget page hands this form a new list
+  // every time it draws itself, and it draws itself whenever the host says
+  // where the screen is; hanging this on the list threw the parent's chosen
+  // date away between the details and the confirmation ("יש לבחור תאריך").
   useEffect(() => {
-    if (!isTrial || trialLessonIds.length === 0) {
+    const lessonIds = trialLessonIdsKey ? trialLessonIdsKey.split(',') : [];
+    if (!isTrial || lessonIds.length === 0) {
       setTrialOccurrences([]);
       setTrialLessonDate('');
       setSelectedTrialLessonId(lessonId ?? '');
@@ -449,9 +456,9 @@ export default function CourseRegistrationForm({
     setSelectedTrialLessonId(lessonId ?? '');
 
     const params =
-      trialLessonIds.length === 1
-        ? { lesson_id: trialLessonIds[0], count: 3 }
-        : { lesson_ids: trialLessonIds.join(','), count: 3 };
+      lessonIds.length === 1
+        ? { lesson_id: lessonIds[0], count: 3 }
+        : { lesson_ids: lessonIds.join(','), count: 3 };
 
     api.get('/customers/widget/lesson-occurrences/', { params })
       .then((res) => {
@@ -464,7 +471,7 @@ export default function CourseRegistrationForm({
       })
       .catch(() => setTrialOccurrences([]))
       .finally(() => setLoadingTrialDates(false));
-  }, [isTrial, lessonId, trialLessonIdsKey, trialLessonOptions]);
+  }, [isTrial, lessonId, trialLessonIdsKey]);
 
   useEffect(() => {
     setLoadingTerms(true);
