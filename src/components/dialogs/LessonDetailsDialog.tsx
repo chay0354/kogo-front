@@ -17,6 +17,14 @@ import {
 import { LessonDetail, AttendanceStatus } from '@/types/schedule';
 import { fetchLessonDetail, cancelLesson, restoreLesson, markAttendance, formatTime } from '@/lib/scheduleUtils';
 import { isSessionLost, SESSION_LOST_MESSAGE } from '@/lib/attendanceMarks';
+import { readableError } from '@/lib/apiError';
+import {
+  LESSON_CAPACITY_ERROR,
+  LESSON_CAPACITY_LABEL,
+  LESSON_CAPACITY_WEEKLY_HINT,
+  lessonCapacityText,
+  readLessonCapacity,
+} from '@/lib/lessonCapacity';
 import { useAuth } from '@/components/AuthProvider';
 import { GroupIdBadge } from '@/components/GroupIdBadge/GroupIdBadge';
 import api from '@/lib/api';
@@ -112,6 +120,10 @@ export default function LessonDetailsDialog({
   const [ghostPhoneNumber, setGhostPhoneNumber] = useState('');
   const [isCreatingGhost, setIsCreatingGhost] = useState(false);
   const [studentFilter, setStudentFilter] = useState<StudentFilter>('all');
+  // The lesson's own limit, as typed here. Empty = none of its own.
+  const [limitText, setLimitText] = useState('');
+  const [limitSaving, setLimitSaving] = useState(false);
+  const [limitNote, setLimitNote] = useState<{ kind: 'saved' | 'error'; text: string } | null>(null);
 
   const isManager = user?.role === 'manager';
   const isOpen = Boolean(lessonId && occurrenceDate);
@@ -154,6 +166,15 @@ export default function LessonDetailsDialog({
     setStudentFilter('all');
   }, [lessonId, occurrenceDate]);
 
+  // The field follows the lesson on screen: another lesson, or this one read again.
+  const ownLimit = lesson?.capacity;
+  useEffect(() => {
+    setLimitText(lessonCapacityText({ capacity: ownLimit }));
+  }, [lessonId, ownLimit]);
+  useEffect(() => {
+    setLimitNote(null);
+  }, [lessonId, occurrenceDate]);
+
   const loadLessonDetails = async () => {
     if (!lessonId || !occurrenceDate) return;
 
@@ -181,6 +202,43 @@ export default function LessonDetailsDialog({
       setError('שגיאה בטעינת פרטי השיעור');
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  /**
+   * Change how many children this lesson takes, from the schedule (owner,
+   * 7.10.2026). Saved through the lessons address the catalog's windows use;
+   * only the two numbers on screen change, so ticks not saved yet stay put.
+   */
+  const handleSaveLimit = async () => {
+    if (!lesson) return;
+    const typed = readLessonCapacity(limitText);
+    if (!typed.ok) {
+      setLimitNote({ kind: 'error', text: LESSON_CAPACITY_ERROR });
+      return;
+    }
+    setLimitSaving(true);
+    setLimitNote(null);
+    try {
+      const res = await api.patch(`/courses/lessons/${lesson.id}/`, { capacity: typed.capacity });
+      const applies = res.data?.effective_capacity;
+      setLesson((shown) =>
+        shown && shown.id === lesson.id
+          ? {
+              ...shown,
+              capacity: res.data?.capacity ?? null,
+              room_capacity: typeof applies === 'number' ? applies : undefined,
+            }
+          : shown,
+      );
+      setLimitNote({ kind: 'saved', text: 'נשמר' });
+      // The copy kept for a quick reopen, and the week behind the window.
+      if (occurrenceDate) void fetchLessonDetail(lesson.id, occurrenceDate).catch(() => undefined);
+      onSuccess?.();
+    } catch (err: unknown) {
+      setLimitNote({ kind: 'error', text: readableError(err, 'שמירת הקיבולת נכשלה') });
+    } finally {
+      setLimitSaving(false);
     }
   };
 
@@ -409,6 +467,52 @@ export default function LessonDetailsDialog({
                     value={`${lesson.enrollments.length} / ${lesson.room_capacity || 20}`}
                   />
                 </div>
+
+                {/* The lesson's own limit, changed where the lesson is looked at. */}
+                {isManager && !isCancelled && lesson.capacity !== undefined ? (
+                  <div className="rounded-xl border border-gray-200 bg-white p-3.5">
+                    <label
+                      htmlFor="schedule-lesson-capacity"
+                      className="block text-xs font-medium text-gray-500 mb-1.5"
+                    >
+                      {LESSON_CAPACITY_LABEL}
+                    </label>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <input
+                        id="schedule-lesson-capacity"
+                        type="number"
+                        min={1}
+                        step={1}
+                        inputMode="numeric"
+                        placeholder="ללא הגבלה משלו"
+                        value={limitText}
+                        onChange={(e) => {
+                          setLimitText(e.target.value);
+                          setLimitNote(null);
+                        }}
+                        className="w-36 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-200"
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={handleSaveLimit}
+                        disabled={limitSaving || limitText.trim() === lessonCapacityText(lesson)}
+                      >
+                        {limitSaving ? 'שומר...' : 'שמירה'}
+                      </Button>
+                      {limitNote ? (
+                        <span
+                          role="status"
+                          className={`text-sm ${limitNote.kind === 'saved' ? 'text-emerald-700' : 'text-red-600'}`}
+                        >
+                          {limitNote.text}
+                        </span>
+                      ) : null}
+                    </div>
+                    <p className="text-xs text-gray-500 mt-1.5">{LESSON_CAPACITY_WEEKLY_HINT}</p>
+                  </div>
+                ) : null}
 
                 {/* Attendance summary */}
                 <div className="rounded-xl border bg-gray-50/80 p-4 space-y-4">
