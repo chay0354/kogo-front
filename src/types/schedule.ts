@@ -35,6 +35,12 @@ export type Lesson = {
 
 export type LessonDetail = Lesson & {
   instructor_email: string;
+  /**
+   * The lesson's own limit; null — none of its own (the group's and the room's
+   * apply). `room_capacity` is the limit that applies. Missing from a server
+   * that does not send it yet — the window then offers no edit.
+   */
+  capacity?: number | null;
   cancellation_reason?: string | null;
   cancelled_at?: string | null;
   enrollments: Array<{

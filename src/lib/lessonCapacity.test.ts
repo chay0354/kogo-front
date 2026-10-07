@@ -34,3 +34,12 @@ describe('readLessonCapacity', () => {
     }
   });
 });
+
+describe('the schedule window', () => {
+  it('knows the field is unchanged, so the save button rests', () => {
+    // The window compares what is typed with what the lesson shows.
+    expect('6'.trim() === lessonCapacityText({ capacity: 6 })).toBe(true);
+    expect(''.trim() === lessonCapacityText({ capacity: null })).toBe(true);
+    expect('7'.trim() === lessonCapacityText({ capacity: 6 })).toBe(false);
+  });
+});

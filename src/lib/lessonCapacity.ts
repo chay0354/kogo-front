@@ -9,6 +9,8 @@
 
 export const LESSON_CAPACITY_LABEL = 'קיבולת לשיעור הזה';
 export const LESSON_CAPACITY_HINT = 'ריק = לפי הקבוצה והחדר. מספר סוגר רק את היום הזה, ושאר ימי הקבוצה לא מושפעים.';
+/** In the schedule a lesson is opened on one date, so the hint says the limit is the weekly lesson's. */
+export const LESSON_CAPACITY_WEEKLY_HINT = 'חל על השיעור הזה בכל שבוע. ריק = לפי הקבוצה והחדר.';
 export const LESSON_CAPACITY_ERROR = 'קיבולת לשיעור: מספר שלם מ־1 ומעלה, או להשאיר ריק';
 
 /** The limit as the field shows it: a number, or empty for "none". */
