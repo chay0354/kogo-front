@@ -780,15 +780,36 @@ export function matchesDocumentSearch(doc: DocumentRow, query: string): boolean 
 }
 
 /**
- * Newest first. issue_date is a day, so same-day documents fall back to the
- * document number, highest first — digits compared as numbers, so 1000 sits
- * above 999 — which keeps the order from shifting between renders. A document
- * without a date goes last.
+ * When a document went out, in milliseconds: the moment the server gives
+ * (`issued_at`), or — on a row that only knows its day — that day's first
+ * minute. NaN when it has neither.
+ */
+function issuedMoment(doc: Pick<DocumentRow, 'issued_at' | 'issue_date'>): number {
+  const moment = doc.issued_at ? Date.parse(doc.issued_at) : NaN;
+  if (!Number.isNaN(moment)) return moment;
+  const day = String(doc.issue_date ?? '').slice(0, 10);
+  return day ? Date.parse(`${day}T00:00:00`) : NaN;
+}
+
+/**
+ * What went out last comes first (owner, 7.10.2026): the list is ordered by
+ * the moment each document was issued. The document's date is a day and its
+ * number runs in its own type's series, so neither says which of a day's
+ * documents is the newest — a tax invoice issued a minute ago used to stand
+ * under the morning's receipts, and one issued today for yesterday's date
+ * stood under all of today's.
+ *
+ * Two documents of the same moment fall back to the document number, highest
+ * first — digits compared as numbers, so 1000 sits above 999 — which keeps the
+ * order from shifting between renders. A document with no date at all goes last.
  */
 export function compareDocumentsNewestFirst(a: DocumentRow, b: DocumentRow): number {
-  const dayA = String(a.issue_date ?? '').slice(0, 10);
-  const dayB = String(b.issue_date ?? '').slice(0, 10);
-  if (dayA !== dayB) return dayA < dayB ? 1 : -1;
+  const momentA = issuedMoment(a);
+  const momentB = issuedMoment(b);
+  const knownA = !Number.isNaN(momentA);
+  const knownB = !Number.isNaN(momentB);
+  if (knownA !== knownB) return knownA ? -1 : 1;
+  if (knownA && knownB && momentA !== momentB) return momentA < momentB ? 1 : -1;
   return String(b.document_number ?? '').localeCompare(String(a.document_number ?? ''), 'he', {
     numeric: true,
   });

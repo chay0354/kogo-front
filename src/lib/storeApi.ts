@@ -169,6 +169,12 @@ export interface StorePaymentReviewResult {
   warning: string;
 }
 
+/** The store invoice's PDF itself, for showing on the screen (the download below saves the same file). */
+export async function fetchStoreInvoicePdf(id: string): Promise<Blob> {
+  const response = await api.get(`/store/invoices/${id}/download/`, { responseType: 'blob' });
+  return new Blob([response.data], { type: 'application/pdf' });
+}
+
 export async function downloadStoreInvoicePdf(id: string, invoiceNumber: string): Promise<void> {
   const response = await api.get(`/store/invoices/${id}/download/`, {
     responseType: 'blob',

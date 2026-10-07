@@ -334,10 +334,6 @@
   line-height: 1.5;
 }
 
-.closeInvoiceRow {
-  margin-bottom: 1rem;
-}
-
 /* Notes two-column grid */
 .notesGrid {
   display: grid;
@@ -1257,19 +1253,6 @@
   color: hsl(var(--foreground));
   min-width: 4rem;
   text-align: left;
-}
-
-.totalsCheckboxRow {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  cursor: pointer;
-  accent-color: hsl(var(--primary));
-}
-
-.totalsCheckboxLabel {
-  font-size: 0.875rem;
-  color: hsl(var(--foreground));
 }
 
 /* ─── Receipt details step ─────────────────────────────────────── */

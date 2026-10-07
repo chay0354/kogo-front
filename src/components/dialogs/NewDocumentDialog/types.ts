@@ -161,7 +161,6 @@ export interface InvoiceDetailsData {
   discountAmount: number;
   discountPercent: number;
   vatExempt: boolean;
-  closeInvoice: boolean;
   customerNotes: string;
   internalNotes: string;
   paymentTerms: string;
