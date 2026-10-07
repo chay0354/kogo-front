@@ -53,6 +53,7 @@ import {
   standingOrderRows,
   standingOrderStatusLabel,
 } from './cardUpdateLink';
+import { branchMissing, pickedBranchesBusiness } from './incomePlace';
 import styles from './SendCardLinkDialog.module.css';
 
 interface SendCardLinkDialogProps {
@@ -809,6 +810,8 @@ export default function SendCardLinkDialog({ open, onOpenChange, child }: SendCa
     () => businesses.find((b) => b.id === businessId)?.categories.filter((c) => c.is_active) ?? [],
     [businesses, businessId],
   );
+  // Under the business סניפים the one-time charge is a branch's income.
+  const branchesBusiness = pickedBranchesBusiness(businesses, businessId);
 
   const enrolledIds = useMemo(
     () => new Set((child.enrollments || []).map((e) => e.lesson_id).filter(Boolean) as string[]),
@@ -980,6 +983,11 @@ export default function SendCardLinkDialog({ open, onOpenChange, child }: SendCa
       }
       if (description.trim().length < 2) {
         setError('יש להזין תיאור לחיוב');
+        return;
+      }
+      const noBranch = branchMissing(branchesBusiness, branchId, child.branch_id);
+      if (noBranch) {
+        setError(noBranch);
         return;
       }
       input = {
@@ -1397,16 +1405,8 @@ export default function SendCardLinkDialog({ open, onOpenChange, child }: SendCa
                     />
                   </div>
                 </div>
+                {/* Business first, then the branch: under סניפים the branch is what files the charge. */}
                 <div className={styles.grid3}>
-                  <div>
-                    <label className={styles.label} htmlFor="cl-branch">סניף</label>
-                    <select id="cl-branch" className={styles.input} value={branchId} onChange={(e) => setBranchId(e.target.value)}>
-                      <option value="">סניף המשפחה</option>
-                      {branches.map((b) => (
-                        <option key={b.id} value={b.id}>{b.name}</option>
-                      ))}
-                    </select>
-                  </div>
                   <div>
                     <label className={styles.label} htmlFor="cl-business">עסק</label>
                     <select
@@ -1420,6 +1420,16 @@ export default function SendCardLinkDialog({ open, onOpenChange, child }: SendCa
                     >
                       <option value="">ללא (סניף)</option>
                       {businesses.map((b) => (
+                        <option key={b.id} value={b.id}>{b.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className={styles.label} htmlFor="cl-branch">סניף</label>
+                    <select id="cl-branch" className={styles.input} value={branchId} onChange={(e) => setBranchId(e.target.value)}>
+                      {/* A family with no branch has none to fall back to: under סניפים one must be picked. */}
+                      <option value="">{branchesBusiness && !child.branch_id ? 'בחירת סניף' : 'סניף המשפחה'}</option>
+                      {branches.map((b) => (
                         <option key={b.id} value={b.id}>{b.name}</option>
                       ))}
                     </select>

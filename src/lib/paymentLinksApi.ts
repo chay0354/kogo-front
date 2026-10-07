@@ -130,7 +130,8 @@ export type PaymentLinkPayment = {
 export type BusinessChargeInput = {
   business_customer_id: string;
   business_id: string;
-  business_category_id: string;
+  /** Null only under the business סניפים, where the branch files the charge. */
+  business_category_id: string | null;
   branch_id?: string | null;
   target_invoice_id?: string | null;
   amount: string;
