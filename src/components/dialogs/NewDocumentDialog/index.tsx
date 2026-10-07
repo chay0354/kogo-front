@@ -61,6 +61,18 @@ import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import type { ChildWithDetails } from '@/types/customer';
 import { useScopedBranches } from '@/hooks/useScopedBranches';
 import { useAuth } from '@/components/AuthProvider';
+import {
+  fileCustomerLocation,
+  hasLocation,
+  locationComplete,
+  locationMissing,
+  locationOf,
+  sameLocation,
+  savedNote,
+  type CustomerLocation,
+  type LocationQuestion,
+} from '@/lib/businessCustomerLocation';
+import LocationChangeDialog from './LocationChangeDialog';
 import LegacyHistoryPanel from '@/components/LegacyHistory/LegacyHistoryPanel';
 import BusinessDocsConsentField from '@/components/dialogs/BusinessDocsConsentField';
 import { setBusinessCustomerConsent } from '@/lib/signingApi';
@@ -112,6 +124,19 @@ import type {
   NewDocumentDialogProps,
   ReceiptDetailsData,
 } from './types';
+
+/** A card's location with the two names the form shows beside the ids. */
+type SavedCardLocation = CustomerLocation & { business_type: string; category: string };
+
+function savedCardLocation(form: BusinessCustomerFormData): SavedCardLocation {
+  return { ...locationOf(form), business_type: form.business_type, category: form.category };
+}
+
+/** The card's fields without its location: that is changed through the location flow alone. */
+function withoutLocation<T extends Partial<BusinessCustomerFormData>>(payload: T) {
+  const { business_id: _b, business_category_id: _c, branch_id: _br, business_type: _t, category: _cat, ...rest } = payload;
+  return rest;
+}
 
 function httpStatus(error: unknown): number | undefined {
   return (error as { response?: { status?: number } } | null)?.response?.status;
@@ -236,6 +261,79 @@ export default function NewDocumentDialog({ open, onClose, initialCredit = null 
   const payerChildId = clientType === 'existing' ? selectedCustomerId : null;
   const payerBusinessId = clientType === 'business' ? businessCustomerId : null;
 
+  // Where the selected customer's card is filed, as the server last confirmed
+  // it — with the two names the form shows beside the ids. null while no
+  // saved customer is selected. The office files a customer by picking the
+  // business, category and branch here: a card with no location is filed the
+  // moment the choice is complete, and a change to a location already set is
+  // asked about first (LocationChangeDialog) — from now on, or backwards too.
+  const { user: currentUser } = useAuth();
+  const isManager = currentUser?.role === 'manager';
+  const [savedLocation, setSavedLocation] = useState<SavedCardLocation | null>(null);
+  // false once the server answers that it has no location route (an older server).
+  const [locationApi, setLocationApi] = useState(true);
+  const [locationQuestion, setLocationQuestion] = useState<LocationQuestion | null>(null);
+  const [locationNote, setLocationNote] = useState('');
+  const [locationError, setLocationError] = useState('');
+  const locationManaged = isManager && locationApi && businessCustomerId !== null && savedLocation !== null;
+  const formLocation = locationOf(businessFormData);
+  const formLocationKey = [formLocation.business_id, formLocation.business_category_id, formLocation.branch_id].join('|');
+  const formLocationComplete = locationComplete(formLocation, branchFieldApplies(businessFormData.category));
+  const locationPending = locationManaged && savedLocation !== null && !sameLocation(formLocation, savedLocation);
+  const questionOpen = locationQuestion !== null;
+
+  useEffect(() => {
+    if (businessCustomerId === null) {
+      setSavedLocation(null);
+      setLocationQuestion(null);
+      setLocationNote('');
+      setLocationError('');
+    }
+  }, [businessCustomerId]);
+
+  useEffect(() => {
+    if (!locationPending || !formLocationComplete || questionOpen || currentStep !== 'businessClientDetails') return;
+    if (businessCustomerId === null) return;
+    const customerId = businessCustomerId;
+    const location = formLocation;
+    const names = { business_type: businessFormData.business_type, category: businessFormData.category };
+    let superseded = false;
+    // A moment's pause, so a category and its branch picked one after the other are one save.
+    const timer = setTimeout(async () => {
+      try {
+        const answer = await fileCustomerLocation(customerId, location);
+        if (answer.kind === 'saved') {
+          // The card is filed there now, whatever the form has moved on to.
+          setSavedLocation({ ...location, ...names });
+          if (!superseded) {
+            setLocationNote(savedNote(answer));
+            setLocationError('');
+          }
+        } else if (!superseded) {
+          setLocationNote('');
+          setLocationQuestion(answer);
+        }
+      } catch (err) {
+        if (superseded) return;
+        const status = httpStatus(err);
+        if (status === 404 || status === 405) {
+          // An older server: the location is saved with the rest of the card on "הבא", as before.
+          setLocationApi(false);
+          return;
+        }
+        setLocationNote('');
+        setLocationError(serverErrorMessage(err, 'שמירת המיקום נכשלה. המיקום נשאר כפי שהיה.'));
+        setBusinessFormData((prev) => (savedLocation ? { ...prev, ...savedLocation } : prev));
+      }
+    }, 400);
+    return () => {
+      superseded = true;
+      clearTimeout(timer);
+    };
+    // The location's key stands for the three ids; the names ride along with it.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [locationPending, formLocationComplete, questionOpen, currentStep, businessCustomerId, formLocationKey]);
+
   // The number the document would take if it were issued now — the next in its
   // type's run, which may continue the previous software's. Read when the type
   // is chosen and again on each step after it, so the summary shows the
@@ -305,7 +403,11 @@ export default function NewDocumentDialog({ open, onClose, initialCredit = null 
       // The summary and the business step show the customer's details.
       api.get(`/customers/business-customers/${encodeURIComponent(customerId)}/`)
         .then((res) => {
-          if (appliedPrefill.current === key && res.data) setBusinessFormData(businessFormFromCustomer(res.data));
+          if (appliedPrefill.current === key && res.data) {
+            const form = businessFormFromCustomer(res.data);
+            setBusinessFormData(form);
+            setSavedLocation(savedCardLocation(form));
+          }
         })
         .catch(() => undefined);
     }
@@ -423,6 +525,16 @@ export default function NewDocumentDialog({ open, onClose, initialCredit = null 
     // used to change nothing at all — the form moved on and the card kept its
     // old details, which is how a corrected e-mail or phone quietly vanished.
     if (currentStep === 'businessClientDetails') {
+      if (locationPending) {
+        // The location on screen is not the card's yet: still being chosen, saved or asked about.
+        const missing = locationMissing(formLocation, branchFieldApplies(businessFormData.category));
+        setSubmitError(
+          missing
+            ? `המיקום של הלקוח עוד לא נשמר: ${missing}.`
+            : 'המיקום של הלקוח נשמר עכשיו — לחצו "הבא" שוב בעוד רגע.',
+        );
+        return;
+      }
       const named =
         businessFormData.first_name.trim() !== '' && businessFormData.last_name.trim() !== '';
       if (named) {
@@ -442,8 +554,13 @@ export default function NewDocumentDialog({ open, onClose, initialCredit = null 
                 return;
               }
             }
+            // From here on its location is changed through the location flow, like any saved customer's.
+            setSavedLocation(savedCardLocation(businessFormData));
           } else {
-            await updateBusinessCustomer(businessCustomerId, businessCustomerPayload(businessFormData));
+            const payload = businessCustomerPayload(businessFormData);
+            // A saved customer's location is changed by the location flow alone — with
+            // its question — so the rest of the card is saved here without it.
+            await updateBusinessCustomer(businessCustomerId, locationManaged ? withoutLocation(payload) : payload);
           }
           goNext(true);
         } catch (err: unknown) {
@@ -693,9 +810,17 @@ export default function NewDocumentDialog({ open, onClose, initialCredit = null 
               selectedBusinessCustomerId={businessCustomerId}
               onFormChange={setBusinessFormData}
               onSelectExisting={(customer) => {
+                const form = businessFormFromCustomer(customer);
                 setBusinessCustomerId(customer.id);
-                setBusinessFormData(businessFormFromCustomer(customer));
+                setBusinessFormData(form);
+                setSavedLocation(savedCardLocation(form));
+                setLocationNote('');
+                setLocationError('');
               }}
+              locationManaged={locationManaged}
+              locationFiled={savedLocation !== null && hasLocation(savedLocation)}
+              locationNote={locationNote}
+              locationError={locationError}
               docsConsentPending={pendingDocsConsent}
               onDocsConsentPendingChange={setPendingDocsConsent}
               onClearSelection={() => {
@@ -772,6 +897,26 @@ export default function NewDocumentDialog({ open, onClose, initialCredit = null 
               expectedNumber={expectedNumber}
             />
           )}
+
+          <LocationChangeDialog
+            question={locationQuestion}
+            customerName={`${businessFormData.first_name} ${businessFormData.last_name}`.trim()}
+            mayMoveDocuments={isManager}
+            onConfirm={async (scope) => {
+              if (businessCustomerId === null) return;
+              const answer = await fileCustomerLocation(businessCustomerId, formLocation, scope);
+              if (answer.kind !== 'saved') return;
+              setSavedLocation(savedCardLocation(businessFormData));
+              setLocationNote(savedNote(answer));
+              setLocationError('');
+              setLocationQuestion(null);
+            }}
+            onCancel={() => {
+              // Back to where the card is filed: nothing was changed.
+              setBusinessFormData((prev) => (savedLocation ? { ...prev, ...savedLocation } : prev));
+              setLocationQuestion(null);
+            }}
+          />
 
           {currentStep === 'summary' && (
             <SummaryStep
@@ -931,6 +1076,13 @@ interface BusinessClientStepProps {
   /** A new customer's consent to documents by email, to record once it is saved. */
   docsConsentPending: boolean;
   onDocsConsentPendingChange: (pending: boolean) => void;
+  /** The selected customer's location is saved as it is chosen here, not with "הבא". */
+  locationManaged?: boolean;
+  /** The card already has a location: changing it is asked about. */
+  locationFiled?: boolean;
+  /** What happened to the location last: saved, or why not. */
+  locationNote?: string;
+  locationError?: string;
 }
 
 function BusinessClientStep({
@@ -943,6 +1095,10 @@ function BusinessClientStep({
   onClearSelection,
   docsConsentPending,
   onDocsConsentPendingChange,
+  locationManaged = false,
+  locationFiled = false,
+  locationNote = '',
+  locationError = '',
 }: BusinessClientStepProps) {
   const { user } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
@@ -1381,6 +1537,22 @@ function BusinessClientStep({
             ))}
           </Select>
         </div>
+
+        {locationManaged ? (
+          <div className={`${styles.formRow} ${styles.formRowFull}`} aria-live="polite">
+            {locationError ? (
+              <p className={styles.fieldError} role="alert">{locationError}</p>
+            ) : locationNote ? (
+              <p className={styles.locationSaved}>{locationNote}</p>
+            ) : (
+              <p className={styles.fieldNote}>
+                {locationFiled
+                  ? 'המיקום שמור בכרטיס הלקוח. אם תשנו אותו, תישאלו אם לשנות רק מעכשיו או גם את המסמכים שכבר הופקו.'
+                  : 'ללקוח עוד אין מיקום. בחרו עסק, קטגוריה וסניף — המיקום נשמר בכרטיס מיד, בלי לחכות ל"הבא".'}
+              </p>
+            )}
+          </div>
+        ) : null}
 
         {/* סעיף 18ב(ג): tax documents go by email only to a customer that agreed. */}
         <BusinessDocsConsentField

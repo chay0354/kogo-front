@@ -270,6 +270,27 @@ export const LEGACY_IMPORT_SCOPES: { value: LegacyImportScope; label: string; hi
   },
 ];
 
+/**
+ * Whether the customers' cards are filed by the import. For a cards-only
+ * import the answer is no unless the office asks: the cards come in with no
+ * business, category or branch, and the office files each customer itself —
+ * in the new-document wizard, where the first choice is saved at once and a
+ * later change is asked about. With documents, each document needs its
+ * location, so the table always applies.
+ */
+export function filesLocations(scope: LegacyImportScope, fileCardsByLocation: boolean): boolean {
+  return scope !== 'cards' || fileCardsByLocation;
+}
+
+/** The mapping a commit sends: the table's, or none when the cards come in unfiled. */
+export function mappingToSend(
+  mapping: LegacyMapping,
+  scope: LegacyImportScope,
+  fileCardsByLocation: boolean,
+): LegacyMapping {
+  return filesLocations(scope, fileCardsByLocation) ? mapping : {};
+}
+
 /** The two switches the server reads for a scope. */
 export function scopeFlags(scope: LegacyImportScope): { createCustomers: boolean; importDocuments: boolean } {
   return { createCustomers: scope !== 'history', importDocuments: scope !== 'cards' };
@@ -959,6 +980,10 @@ export function commitConfirmText(
         ? `הורים משלמי מנוי: ${c.parents.toLocaleString('he-IL')} ייפתחו או יעודכנו כלקוחות עסקיים.`
         : 'הורים משלמי מנוי לא ייפתחו כלקוחות עסקיים.',
       'אף מסמך לא יישמר, והמספור של קוגו לא מושפע.',
+      // No target in the mapping at all: the cards come in clean, for the office to file.
+      Object.keys(mappingPayload(mapping)).length === 0
+        ? 'הכרטיסים ייכנסו בלי מיקום (עסק, קטגוריה, סניף). תשייכו כל לקוח בעצמכם, והמיקום יישמר בכרטיס שלו.'
+        : `הכרטיסים ישויכו לעסק ולסניף לפי טבלת המיקומים (${progress.mapped} מתוך ${progress.total} מיקומים משויכים).`,
       'ייבוא חוזר של אותו קובץ לא ישכפל כרטיסים.',
     ].join('\n');
   }
