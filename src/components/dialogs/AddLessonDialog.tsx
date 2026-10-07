@@ -4,6 +4,12 @@ import { useState, useEffect } from 'react';
 import api from '@/lib/api';
 import { LessonFormData } from '@/types/course';
 import { addMinutesToTime } from '@/lib/timeUtils';
+import {
+  LESSON_CAPACITY_ERROR,
+  LESSON_CAPACITY_HINT,
+  LESSON_CAPACITY_LABEL,
+  readLessonCapacity,
+} from '@/lib/lessonCapacity';
 import { TimeField } from '@/components/ui/time-picker';
 import StudioBusyWarning, { useStudioBusyConflicts } from '@/components/dialogs/StudioBusyWarning';
 import dialogMotion from '@/components/ui/motion.module.css';
@@ -41,6 +47,8 @@ export default function AddLessonDialog({
     end_time: '16:45',
     notes: '',
   });
+  // The lesson's own limit, as typed. Empty = none of its own.
+  const [capacityText, setCapacityText] = useState('');
   const [rooms, setRooms] = useState<Room[]>([]);
   const [loadingRooms, setLoadingRooms] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -63,6 +71,7 @@ export default function AddLessonDialog({
         course: courseId,
         room: teamRoomId || '',
       }));
+      setCapacityText('');
       setError('');
     }
   }, [open, courseId, teamRoomId]);
@@ -100,6 +109,12 @@ export default function AddLessonDialog({
       return;
     }
 
+    const typedCapacity = readLessonCapacity(capacityText);
+    if (!typedCapacity.ok) {
+      setError(LESSON_CAPACITY_ERROR);
+      return;
+    }
+
     setLoading(true);
     try {
       await api.post('/courses/lessons/', {
@@ -109,6 +124,7 @@ export default function AddLessonDialog({
         start_time: formData.start_time,
         end_time: formData.end_time,
         notes: formData.notes || '',
+        capacity: typedCapacity.capacity,
         price: null,
         lesson_price_override: null,
         additional_course_prices: [],
@@ -163,7 +179,7 @@ export default function AddLessonDialog({
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <p className="text-sm text-gray-500">
-              סניף וקיבולת נקבעים ברמת הקבוצה.
+              הסניף והקיבולת נקבעים ברמת הקבוצה. לשיעור הזה אפשר לקבוע הגבלה משלו, למטה.
             </p>
 
             <div>
@@ -226,6 +242,24 @@ export default function AddLessonDialog({
                 helperText="מתעדכן אוטומטית (+45 דקות)"
                 minuteStep={5}
               />
+            </div>
+
+            <div>
+              <label htmlFor="add-lesson-capacity" className="block text-sm font-medium text-gray-700 mb-1">
+                {LESSON_CAPACITY_LABEL}
+              </label>
+              <input
+                id="add-lesson-capacity"
+                type="number"
+                min={1}
+                step={1}
+                inputMode="numeric"
+                placeholder="ללא הגבלה משלו"
+                value={capacityText}
+                onChange={(e) => setCapacityText(e.target.value)}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500"
+              />
+              <p className="text-xs text-gray-500 mt-1">{LESSON_CAPACITY_HINT}</p>
             </div>
 
             {error && (

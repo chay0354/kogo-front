@@ -20,6 +20,13 @@ import {
   getInstructorMonthlySalaryFromProfile,
   LESSONS_PER_MONTH,
 } from '@/lib/courseUtils';
+import {
+  LESSON_CAPACITY_ERROR,
+  LESSON_CAPACITY_HINT,
+  lessonCapacityText,
+  readLessonCapacity,
+} from '@/lib/lessonCapacity';
+import { sortBySchedule } from '@/lib/lessonSchedule';
 import LessonPriceOptionsEditor from '@/components/dialogs/LessonPriceOptionsEditor';
 import InstructorSelect from '@/components/InstructorSelect';
 import StudioBusyWarning, { useStudioBusyConflicts } from '@/components/dialogs/StudioBusyWarning';
@@ -56,6 +63,13 @@ function asCourseWithLessons(course: Course | CourseWithLessons): CourseWithLess
   return course as CourseWithLessons;
 }
 
+/** Every scheduled lesson's own limit as its field shows it, by lesson id. */
+function limitsOfLessons(lessons: CourseWithLessons['lessons'] | undefined): Record<string, string> {
+  return Object.fromEntries(
+    (lessons || []).filter((l) => l.status === 'scheduled').map((l) => [l.id, lessonCapacityText(l)])
+  );
+}
+
 export default function EditCourseDialog({
   course,
   open,
@@ -89,6 +103,10 @@ export default function EditCourseDialog({
   const [extraTiers, setExtraTiers] = useState<LessonPriceTier[]>(() =>
     tiersFromCourseLessons(courseWithLessons.lessons)
   );
+  // Each lesson's own limit, as typed — by lesson id. Empty = none of its own.
+  const [lessonLimits, setLessonLimits] = useState<Record<string, string>>(() =>
+    limitsOfLessons(courseWithLessons.lessons)
+  );
   const [instructorId, setInstructorId] = useState('');
   const [instructorSalaryOverride, setInstructorSalaryOverride] = useState<number | undefined>();
   const [branchId, setBranchId] = useState('');
@@ -121,6 +139,7 @@ export default function EditCourseDialog({
       external_link: course.external_link || '',
     });
     setExtraTiers(tiersFromCourseLessons(courseWithLessons.lessons));
+    setLessonLimits(limitsOfLessons(courseWithLessons.lessons));
     setInstructorId(courseWithLessons.instructor?.id || '');
     setInstructorSalaryOverride(
       courseWithLessons.instructor_salary_override != null
@@ -204,6 +223,21 @@ export default function EditCourseDialog({
       return;
     }
 
+    // A limit per lesson is checked before anything is saved, so the group
+    // never saves with half its lessons refused. Only a limit that was changed
+    // here is sent: one set meanwhile in the lesson's own window is left alone.
+    const changedLimits: Record<string, number | null> = {};
+    for (const lesson of (courseWithLessons.lessons || []).filter((l) => l.status === 'scheduled')) {
+      const typed = readLessonCapacity(lessonLimits[lesson.id]);
+      if (!typed.ok) {
+        setError(LESSON_CAPACITY_ERROR);
+        return;
+      }
+      if ((lessonLimits[lesson.id] ?? '').trim() !== lessonCapacityText(lesson)) {
+        changedLimits[lesson.id] = typed.capacity;
+      }
+    }
+
     setLoading(true);
     try {
       await api.patch(`/courses/courses/${course.id}/`, {
@@ -224,6 +258,7 @@ export default function EditCourseDialog({
             api.patch(`/courses/lessons/${lesson.id}/`, {
               room: roomId,
               price: null,
+              ...(lesson.id in changedLimits ? { capacity: changedLimits[lesson.id] } : {}),
               ...tierPayload,
             })
           )
@@ -440,6 +475,34 @@ export default function EditCourseDialog({
                 />
               </div>
             </div>
+
+            {/* A limit for one lesson, right under the group's — where the office looks for it. */}
+            {scheduledLessons.length > 0 && (
+              <fieldset className="rounded-lg border border-gray-200 p-4">
+                <legend className="px-1 text-sm font-medium text-gray-700">קיבולת לשיעור מסוים (לא חובה)</legend>
+                <div className="space-y-2">
+                  {sortBySchedule(scheduledLessons).map((lesson) => (
+                    <div key={lesson.id} className="flex items-center justify-between gap-3">
+                      <label htmlFor={`lesson-capacity-${lesson.id}`} className="text-sm text-gray-700">
+                        {getDayName(lesson.day_of_week)} {formatTimeRange(lesson.start_time, lesson.end_time)}
+                      </label>
+                      <input
+                        id={`lesson-capacity-${lesson.id}`}
+                        type="number"
+                        min={1}
+                        step={1}
+                        inputMode="numeric"
+                        placeholder="כמו הקבוצה"
+                        value={lessonLimits[lesson.id] ?? ''}
+                        onChange={(e) => setLessonLimits({ ...lessonLimits, [lesson.id]: e.target.value })}
+                        className="w-32 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
+                      />
+                    </div>
+                  ))}
+                </div>
+                <p className="text-xs text-gray-500 mt-2">{LESSON_CAPACITY_HINT}</p>
+              </fieldset>
+            )}
 
             <div className="grid grid-cols-2 gap-4">
               <div>

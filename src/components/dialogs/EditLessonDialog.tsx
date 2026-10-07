@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import api, { fetchInstructorsDropdown } from '@/lib/api';
 import { LessonFormData, Lesson, TrialRegistrationChoice } from '@/types/course';
 import { addMinutesToTime, normalizeTimeValue } from '@/lib/timeUtils';
+import { LESSON_CAPACITY_ERROR, lessonCapacityText, readLessonCapacity } from '@/lib/lessonCapacity';
 import { TimeField } from '@/components/ui/time-picker';
 import InstructorSelect from '@/components/InstructorSelect';
 import StudioBusyWarning, { useStudioBusyConflicts } from '@/components/dialogs/StudioBusyWarning';
@@ -41,10 +42,6 @@ function trialRegistrationFlag(choice: TrialRegistrationChoice): boolean | null 
   return null;
 }
 
-/** The lesson's own limit as the field shows it: a number, or empty for "none". */
-function lessonCapacityText(lesson: Lesson): string {
-  return typeof lesson.capacity === 'number' && lesson.capacity > 0 ? String(lesson.capacity) : '';
-}
 
 function lessonInstructorId(lesson: Lesson): string {
   if (!lesson.instructor) return '';
@@ -171,12 +168,12 @@ export default function EditLessonDialog({
       return;
     }
 
-    const capacityText = (formData.capacity ?? '').trim();
-    const capacity = capacityText === '' ? null : Number(capacityText);
-    if (capacity !== null && (!Number.isInteger(capacity) || capacity < 1)) {
-      setError('קיבולת לשיעור: מספר שלם מ־1 ומעלה, או להשאיר ריק');
+    const typedCapacity = readLessonCapacity(formData.capacity);
+    if (!typedCapacity.ok) {
+      setError(LESSON_CAPACITY_ERROR);
       return;
     }
+    const capacity = typedCapacity.capacity;
 
     setLoading(true);
     try {
