@@ -20,6 +20,7 @@ import {
   copyText,
   type VatMode,
 } from './businessCharge';
+import { branchMissing, categoryNeeded, pickedBranchesBusiness } from './incomePlace';
 import styles from './BusinessChargeDialog.module.css';
 
 type Mode = 'new' | 'invoice';
@@ -120,6 +121,10 @@ export default function BusinessChargeDialog({ open, onClose, onCreated }: {
     [businesses, businessId],
   );
 
+  // Under the business סניפים the charge is a branch's: the branch is asked
+  // for right after the business and must be named; a category is an extra.
+  const branchesBusiness = pickedBranchesBusiness(businesses, businessId);
+
   function chooseCustomer(row: BusinessCustomer) {
     setCustomer(row);
     setQuery(row.full_name);
@@ -140,7 +145,9 @@ export default function BusinessChargeDialog({ open, onClose, onCreated }: {
 
   async function submit() {
     setError('');
-    if (!businessId || !categoryId) return setError('יש לבחור עסק וקטגוריה');
+    if (!businessId || (categoryNeeded(branchesBusiness, true) && !categoryId)) return setError('יש לבחור עסק וקטגוריה');
+    const noBranch = branchMissing(branchesBusiness, branchId);
+    if (noBranch) return setError(noBranch);
     if (!breakdown || breakdown.gross < 100) return setError('יש להזין סכום תקין');
     if (!description.trim()) return setError('יש להזין תיאור לחיוב');
     if (mode === 'invoice' && !invoiceId) return setError('יש לבחור חשבונית פתוחה');
@@ -153,7 +160,7 @@ export default function BusinessChargeDialog({ open, onClose, onCreated }: {
           ...form,
           business_type: '', category: '', notes: '',
           business_id: businessId,
-          business_category_id: categoryId,
+          business_category_id: categoryId || null,
           branch_id: branchId || null,
         });
         customerId = created.id;
@@ -162,7 +169,7 @@ export default function BusinessChargeDialog({ open, onClose, onCreated }: {
       const link = await createBusinessCharge({
         business_customer_id: customerId,
         business_id: businessId,
-        business_category_id: categoryId,
+        business_category_id: categoryId || null,
         branch_id: branchId || null,
         target_invoice_id: mode === 'invoice' ? invoiceId : null,
         // Always the total the customer pays, VAT included, to the agora.
@@ -292,10 +299,20 @@ export default function BusinessChargeDialog({ open, onClose, onCreated }: {
               <div className={styles.section}>
                 <h3>2. שיוך ההכנסה</h3>
                 <div className={styles.grid}>
-                  <div className={styles.field}><label>עסק</label><select value={businessId} onChange={(e) => { setBusinessId(e.target.value); setCategoryId(''); }}><option value="">בחירה</option>{businesses.map((row) => <option key={row.id} value={row.id}>{row.name}</option>)}</select></div>
-                  <div className={styles.field}><label>קטגוריה</label><select value={categoryId} onChange={(e) => setCategoryId(e.target.value)} disabled={!businessId}><option value="">בחירה</option>{categories.map((row) => <option key={row.id} value={row.id}>{row.name}</option>)}</select></div>
-                  <div className={`${styles.field} ${styles.fieldFull}`}><label>סניף (אופציונלי)</label><select value={branchId} onChange={(e) => setBranchId(e.target.value)}><option value="">ללא סניף</option>{branches.map((row) => <option key={row.id} value={row.id}>{row.name}</option>)}</select></div>
+                  <div className={styles.field}><label htmlFor="charge-business">עסק</label><select id="charge-business" value={businessId} onChange={(e) => { setBusinessId(e.target.value); setCategoryId(''); }}><option value="">בחירה</option>{businesses.map((row) => <option key={row.id} value={row.id}>{row.name}</option>)}</select></div>
+                  {branchesBusiness ? (
+                    <>
+                      <div className={styles.field}><label htmlFor="charge-branch">סניף</label><select id="charge-branch" value={branchId} onChange={(e) => setBranchId(e.target.value)}><option value="">בחירה</option>{branches.map((row) => <option key={row.id} value={row.id}>{row.name}</option>)}</select></div>
+                      <div className={`${styles.field} ${styles.fieldFull}`}><label htmlFor="charge-category">קטגוריה (לא חובה)</label><select id="charge-category" value={categoryId} onChange={(e) => setCategoryId(e.target.value)}><option value="">בלי קטגוריה</option>{categories.map((row) => <option key={row.id} value={row.id}>{row.name}</option>)}</select></div>
+                    </>
+                  ) : (
+                    <>
+                      <div className={styles.field}><label htmlFor="charge-category">קטגוריה</label><select id="charge-category" value={categoryId} onChange={(e) => setCategoryId(e.target.value)} disabled={!businessId}><option value="">בחירה</option>{categories.map((row) => <option key={row.id} value={row.id}>{row.name}</option>)}</select></div>
+                      <div className={`${styles.field} ${styles.fieldFull}`}><label htmlFor="charge-branch">סניף (אופציונלי)</label><select id="charge-branch" value={branchId} onChange={(e) => setBranchId(e.target.value)}><option value="">ללא סניף</option>{branches.map((row) => <option key={row.id} value={row.id}>{row.name}</option>)}</select></div>
+                    </>
+                  )}
                 </div>
+                {branchesBusiness && <p className={styles.hint}>ההכנסה תירשם בסניף שנבחר.</p>}
               </div>
 
               <div className={styles.section}>

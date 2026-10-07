@@ -13,6 +13,7 @@ import {
   type PaymentLinkInput,
   type PaymentLinkOption,
 } from '@/lib/paymentLinksApi';
+import { branchMissing, pickedBranchesBusiness } from './incomePlace';
 
 interface PaymentLinkDialogProps {
   open: boolean;
@@ -96,6 +97,9 @@ export default function PaymentLinkDialog({ open, onOpenChange, link, onSaved }:
     [businesses, business],
   );
 
+  // Under the business סניפים the link collects for a branch.
+  const branchesBusiness = pickedBranchesBusiness(businesses, business);
+
   const activeOptions = options.filter((o) => o.is_active !== false);
 
   const updateOption = (index: number, patch: Partial<PaymentLinkOption>) => {
@@ -119,6 +123,11 @@ export default function PaymentLinkDialog({ open, onOpenChange, link, onSaved }:
     }
     if (!business) {
       setError('יש לבחור עסק — כל תשלום משויך לעסק');
+      return;
+    }
+    const noBranch = branchMissing(branchesBusiness, branch);
+    if (noBranch) {
+      setError(noBranch);
       return;
     }
     if (activeOptions.length === 0) {
@@ -165,6 +174,20 @@ export default function PaymentLinkDialog({ open, onOpenChange, link, onSaved }:
       setSaving(false);
     }
   };
+
+  const branchField = (
+    <div>
+      <label className="block text-sm font-medium mb-1" htmlFor="pl-branch">
+        {branchesBusiness ? 'סניף *' : 'סניף (לא חובה)'}
+      </label>
+      <select id="pl-branch" className="input w-full" value={branch} onChange={(e) => setBranch(e.target.value)}>
+        <option value="">{branchesBusiness ? 'בחרו סניף' : 'ללא סניף'}</option>
+        {branches.map((b) => (
+          <option key={b.id} value={b.id}>{b.name}</option>
+        ))}
+      </select>
+    </div>
+  );
 
   return (
     <Dialog open={open} onOpenChange={(next) => !saving && onOpenChange(next)}>
@@ -213,6 +236,8 @@ export default function PaymentLinkDialog({ open, onOpenChange, link, onSaved }:
                 ))}
               </select>
             </div>
+            {/* Under the business סניפים the branch comes right after the business, and must be named. */}
+            {branchesBusiness ? branchField : null}
             <div>
               <label className="block text-sm font-medium mb-1" htmlFor="pl-category">קטגוריה</label>
               <select
@@ -228,15 +253,7 @@ export default function PaymentLinkDialog({ open, onOpenChange, link, onSaved }:
                 ))}
               </select>
             </div>
-            <div>
-              <label className="block text-sm font-medium mb-1" htmlFor="pl-branch">סניף (לא חובה)</label>
-              <select id="pl-branch" className="input w-full" value={branch} onChange={(e) => setBranch(e.target.value)}>
-                <option value="">ללא סניף</option>
-                {branches.map((b) => (
-                  <option key={b.id} value={b.id}>{b.name}</option>
-                ))}
-              </select>
-            </div>
+            {branchesBusiness ? null : branchField}
           </div>
 
           <div>
