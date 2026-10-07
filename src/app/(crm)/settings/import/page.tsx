@@ -14,6 +14,7 @@ import {
   FORMAT_ACCEPT,
   ImportFileTooBigError,
   LEGACY_DOC_TYPE_LABELS,
+  LEGACY_IMPORT_SCOPES,
   TAZMAN_SOURCE,
   applyMappingChange,
   branchAllowed,
@@ -35,12 +36,14 @@ import {
   openCountNote,
   openInvoicesCsv,
   previewLegacyImport,
+  scopeFlags,
   type LegacyColumnMapping,
   type LegacyColumnsInfo,
   type LegacyCommitResult,
   type LegacyDocType,
   type LegacyDocument,
   type LegacyImport,
+  type LegacyImportScope,
   type LegacyKnownSource,
   type LegacyMapping,
   type LegacyOpenInvoice,
@@ -93,7 +96,10 @@ export default function SettingsImportPage() {
   const [columnMapping, setColumnMapping] = useState<LegacyColumnMapping>({});
   const [fixedDocType, setFixedDocType] = useState<LegacyDocType | ''>('');
   const [typeValues, setTypeValues] = useState<Record<string, LegacyDocType>>({});
-  const [createCustomers, setCreateCustomers] = useState(true);
+  // What the import writes. Cards only is where it opens: the business numbers
+  // its documents afresh in kogo and wants its customers, not the old documents.
+  const [scope, setScope] = useState<LegacyImportScope>('cards');
+  const { createCustomers, importDocuments } = scopeFlags(scope);
   const [file, setFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState('');
@@ -183,7 +189,7 @@ export default function SettingsImportPage() {
     setPreview(next);
     setMapping(initialMapping(next.summary.locations));
     setIncludeParents(false);
-    setCreateCustomers(true);
+    setScope('cards');
   }
 
   async function previewWithMapping() {
@@ -201,7 +207,7 @@ export default function SettingsImportPage() {
   async function commit() {
     if (!preview) return;
     try {
-      const done = await commitLegacyImport(preview.id, mapping, includeParents, createCustomers);
+      const done = await commitLegacyImport(preview.id, mapping, includeParents && createCustomers, createCustomers, importDocuments);
       setResult(done);
       // Cards were created or changed: the wizard's search and history must not serve old copies.
       queryClient.invalidateQueries({ queryKey: ['legacy-documents'] });
@@ -309,11 +315,20 @@ export default function SettingsImportPage() {
               לקוחות עסקיים: <strong>{result.customers.created}</strong> נפתחו, <strong>{result.customers.updated}</strong>{' '}
               עודכנו, {result.customers.unchanged} ללא שינוי
             </li>
-            <li>
-              מסמכים: <strong>{result.documents.created.toLocaleString('he-IL')}</strong> נשמרו,{' '}
-              {result.documents.updated.toLocaleString('he-IL')} עודכנו, {result.documents.unchanged.toLocaleString('he-IL')} ללא
-              שינוי · {result.documents.linked_to_customers.toLocaleString('he-IL')} מקושרים ללקוח עסקי
-            </li>
+            {result.documents.imported === false ? (
+              <li>
+                לא נשמר אף מסמך — כרטיסים בלבד.
+                {result.documents.left_in_previous_software
+                  ? ` ${result.documents.left_in_previous_software.toLocaleString('he-IL')} המסמכים שבקובץ נשארו בתוכנה שהפיקה אותם.`
+                  : ''}
+              </li>
+            ) : (
+              <li>
+                מסמכים: <strong>{result.documents.created.toLocaleString('he-IL')}</strong> נשמרו,{' '}
+                {result.documents.updated.toLocaleString('he-IL')} עודכנו, {result.documents.unchanged.toLocaleString('he-IL')} ללא
+                שינוי · {result.documents.linked_to_customers.toLocaleString('he-IL')} מקושרים ללקוח עסקי
+              </li>
+            )}
             {result.customers.skipped_deleted ? (
               <li>{result.customers.skipped_deleted} לקוחות שנמחקו בתוכנה הקודמת לא נפתחו</li>
             ) : null}
@@ -330,8 +345,9 @@ export default function SettingsImportPage() {
             ) : null}
           </ul>
           <p className="text-sm text-muted-foreground mt-2">
-            ההיסטוריה של כל לקוח מופיעה בכרטיס הלקוח העסקי ובאשף &quot;מסמך חדש&quot; כשבוחרים אותו. עכשיו אפשר לצרף
-            את קובצי ה-PDF של המסמכים — בחלק שלמטה.
+            {result.documents.imported === false
+              ? 'הלקוחות מופיעים באשף "מסמך חדש": מקלידים שם, ח"פ, אימייל או טלפון, והפרטים מתמלאים. המסמכים שיופקו להם ימוספרו במספור של קוגו.'
+              : 'ההיסטוריה של כל לקוח מופיעה בכרטיס הלקוח העסקי ובאשף "מסמך חדש" כשבוחרים אותו. עכשיו אפשר לצרף את קובצי ה-PDF של המסמכים — בחלק שלמטה.'}
           </p>
         </div>
       ) : null}
@@ -463,16 +479,24 @@ export default function SettingsImportPage() {
                 </tbody>
               </table>
             </div>
-            <label className={styles.parents}>
-              <input type="checkbox" checked={createCustomers} onChange={(e) => setCreateCustomers(e.target.checked)} />
-              <span>
-                לפתוח ולעדכן כרטיסי לקוחות עסקיים
-                <span className="block text-xs text-muted-foreground">
-                  בלי הסימון המסמכים נשמרים כהיסטוריה בלבד: שום כרטיס לא נפתח ולא משתנה, ומסמך מקושר לכרטיס קיים רק לפי
-                  ח&quot;פ/ת&quot;ז או קישור מייבוא קודם.
-                </span>
-              </span>
-            </label>
+            <fieldset className={styles.scope}>
+              <legend className={styles.scopeLegend}>מה לייבא</legend>
+              {LEGACY_IMPORT_SCOPES.map((option) => (
+                <label key={option.value} className={styles.parents}>
+                  <input
+                    type="radio"
+                    name="legacy-import-scope"
+                    value={option.value}
+                    checked={scope === option.value}
+                    onChange={() => setScope(option.value)}
+                  />
+                  <span>
+                    {option.label}
+                    <span className="block text-xs text-muted-foreground">{option.hint}</span>
+                  </span>
+                </label>
+              ))}
+            </fieldset>
             <label className={styles.parents}>
               <input
                 type="checkbox"
@@ -484,7 +508,7 @@ export default function SettingsImportPage() {
                 לפתוח גם את {summary.customers.parents.toLocaleString('he-IL')} ההורים משלמי המנוי כלקוחות עסקיים
                 <span className="block text-xs text-muted-foreground">
                   בדרך כלל הם כבר קיימים בקוגו כמשפחות ({summary.customers.parents_matching_family.toLocaleString('he-IL')} מהם
-                  נמצאו לפי טלפון או אימייל). בלי הסימון המסמכים שלהם נשמרים בהיסטוריה בלבד.
+                  נמצאו לפי טלפון או אימייל). בלי הסימון לא נפתח להם כרטיס.
                 </span>
               </span>
             </label>
@@ -643,7 +667,7 @@ export default function SettingsImportPage() {
               if (yes) await commit();
             }}
             title={`לייבא ${fromSourceText(summary)}?`}
-            message={commitConfirmText(summary, includeParents && createCustomers, mapping, createCustomers)}
+            message={commitConfirmText(summary, includeParents && createCustomers, mapping, createCustomers, importDocuments)}
             confirmText="ייבוא"
             type="question"
           />

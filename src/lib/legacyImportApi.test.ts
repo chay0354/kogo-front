@@ -10,6 +10,7 @@ vi.mock('./api', () => ({ default: api }));
 import {
   ImportFileTooBigError,
   LEGACY_IMPORT_MAX_BYTES,
+  LEGACY_IMPORT_SCOPES,
   LEGACY_IMPORT_MAX_UNPACKED_BYTES,
   applyMappingChange,
   branchAllowed,
@@ -25,6 +26,7 @@ import {
   openInvoicesCsv,
   packForUpload,
   previewLegacyImport,
+  scopeFlags,
   lastNumbersByType,
   mappingPayload,
   mappingProgress,
@@ -314,6 +316,41 @@ describe('commitConfirmText', () => {
 
   it('says so when parents are included', () => {
     expect(commitConfirmText(summary, true, {})).toMatch(/1,925 ייפתחו|1925 ייפתחו/);
+  });
+
+  it('cards only: says which cards open, and that no document is kept', () => {
+    const text = commitConfirmText(summary, false, {}, true, false);
+    expect(text).toContain('ייפתחו כרטיסי לקוחות בלבד מהתוכנה הקודמת: 110 חדשים, 2 קיימים יעודכנו');
+    expect(text).toContain('אף מסמך לא יישמר, והמספור של קוגו לא מושפע');
+    expect(text).toContain('הורים משלמי מנוי לא ייפתחו');
+    // Nothing about documents that will not be written.
+    expect(text).not.toContain('יישמרו כהיסטוריה');
+    expect(text).not.toContain('ממיקומים ללא שיוך');
+  });
+});
+
+describe('what an import writes', () => {
+  it('is cards only, cards and history, or history only', () => {
+    expect(LEGACY_IMPORT_SCOPES.map((s) => s.value)).toEqual(['cards', 'all', 'history']);
+    expect(scopeFlags('cards')).toEqual({ createCustomers: true, importDocuments: false });
+    expect(scopeFlags('all')).toEqual({ createCustomers: true, importDocuments: true });
+    expect(scopeFlags('history')).toEqual({ createCustomers: false, importDocuments: true });
+  });
+
+  it('tells the server to keep no document only for cards only', async () => {
+    api.post.mockResolvedValue({ data: { customers: {}, documents: {} } });
+    await commitLegacyImport('imp-1', {}, false, true, false);
+    expect(api.post).toHaveBeenLastCalledWith(
+      '/legacy-import/imp-1/commit/',
+      { mapping: {}, include_subscription_parents: false, import_documents: false },
+      expect.anything(),
+    );
+    await commitLegacyImport('imp-1', {}, false, true, true);
+    expect(api.post).toHaveBeenLastCalledWith(
+      '/legacy-import/imp-1/commit/',
+      { mapping: {}, include_subscription_parents: false },
+      expect.anything(),
+    );
   });
 });
 

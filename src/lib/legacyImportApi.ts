@@ -237,7 +237,42 @@ export interface LegacyCommitResult {
     total: number;
     /** Open invoices the commit left out. */
     open_skipped?: number;
+    /** false for a cards-only commit: no document was kept. Missing on an older server, which always kept them. */
+    imported?: boolean;
+    /** Cards only: how many documents the file had, all of them left in the software that issued them. */
+    left_in_previous_software?: number;
   };
+}
+
+/**
+ * What a commit writes. 'cards': the customers' cards and not one document —
+ * the business numbers its documents afresh in kogo and only wants its
+ * customers remembered. 'all': the cards and every document as history.
+ * 'history': the documents only, no card opened or changed.
+ */
+export type LegacyImportScope = 'cards' | 'all' | 'history';
+
+export const LEGACY_IMPORT_SCOPES: { value: LegacyImportScope; label: string; hint: string }[] = [
+  {
+    value: 'cards',
+    label: 'כרטיסי לקוחות בלבד',
+    hint: 'נפתחים ומתעדכנים כרטיסי הלקוחות העסקיים, עם כל הפרטים שלהם. אף מסמך לא נשמר, והמספור של קוגו לא מושפע.',
+  },
+  {
+    value: 'all',
+    label: 'כרטיסי לקוחות והיסטוריית המסמכים',
+    hint: 'בנוסף לכרטיסים, כל מסמך נשמר כהיסטוריה על הלקוח שלו. המסמכים לא מופקים מחדש ולא נכנסים לדוחות.',
+  },
+  {
+    value: 'history',
+    label: 'היסטוריית המסמכים בלבד',
+    hint: 'שום כרטיס לא נפתח ולא משתנה. מסמך מקושר לכרטיס קיים רק לפי ח"פ/ת"ז או קישור מייבוא קודם.',
+  },
+];
+
+/** The two switches the server reads for a scope. */
+export function scopeFlags(scope: LegacyImportScope): { createCustomers: boolean; importDocuments: boolean } {
+  return { createCustomers: scope !== 'history', importDocuments: scope !== 'cards' };
 }
 
 export interface LegacyImport {
@@ -396,6 +431,7 @@ export async function commitLegacyImport(
   mapping: LegacyMapping,
   includeSubscriptionParents: boolean,
   createCustomers = true,
+  importDocuments = true,
 ): Promise<LegacyCommitResult> {
   const res = await api.post(
     `/legacy-import/${id}/commit/`,
@@ -404,6 +440,8 @@ export async function commitLegacyImport(
       include_subscription_parents: includeSubscriptionParents,
       // The server opens and updates cards unless told not to.
       ...(createCustomers ? {} : { create_customers: false }),
+      // And keeps every document as history unless told not to.
+      ...(importDocuments ? {} : { import_documents: false }),
     },
     SLOW,
   );
@@ -887,9 +925,21 @@ export function commitConfirmText(
   includeParents: boolean,
   mapping: LegacyMapping,
   createCustomers = true,
+  importDocuments = true,
 ): string {
   const c = summary.customers;
   const progress = mappingProgress(summary.locations, mapping);
+  if (!importDocuments) {
+    // Cards only: what is opened, and that nothing else of the file is kept.
+    return [
+      `ייפתחו כרטיסי לקוחות בלבד ${fromSourceText(summary)}: ${c.business_create} חדשים, ${c.business_update} קיימים יעודכנו.`,
+      includeParents
+        ? `הורים משלמי מנוי: ${c.parents.toLocaleString('he-IL')} ייפתחו או יעודכנו כלקוחות עסקיים.`
+        : 'הורים משלמי מנוי לא ייפתחו כלקוחות עסקיים.',
+      'אף מסמך לא יישמר, והמספור של קוגו לא מושפע.',
+      'ייבוא חוזר של אותו קובץ לא ישכפל כרטיסים.',
+    ].join('\n');
+  }
   const lines = [
     `${summary.documents.total.toLocaleString('he-IL')} מסמכים יישמרו כהיסטוריה ${fromSourceText(summary)} (לא יופקו מחדש ולא ייכנסו לדוחות של קוגו).`,
   ];
