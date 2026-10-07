@@ -23,6 +23,8 @@ import {
   commitConfirmText,
   commitLegacyImport,
   describeLegacyColumns,
+  filesLocations,
+  mappingToSend,
   fetchLegacyDocuments,
   fetchLegacyImports,
   fetchLegacySources,
@@ -104,11 +106,17 @@ export default function SettingsImportPage() {
   // Whether the server keeps no document on a cards-only commit; unknown until it answers.
   const [cardsOnlySupported, setCardsOnlySupported] = useState(false);
   const blocked = scopeProblem(scope, cardsOnlySupported);
+  // Cards only: the cards come in with no location, and the office files each
+  // customer itself — unless it asks for the file's locations to do it.
+  const [fileCardsByLocation, setFileCardsByLocation] = useState(false);
+  const locationsApply = filesLocations(scope, fileCardsByLocation);
   const [file, setFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState('');
   const [preview, setPreview] = useState<LegacyImport | null>(null);
   const [mapping, setMapping] = useState<LegacyMapping>({});
+  // What a commit sends: the table's mapping, or none when the cards come in unfiled.
+  const sentMapping = mappingToSend(mapping, scope, fileCardsByLocation);
   const [includeParents, setIncludeParents] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [result, setResult] = useState<LegacyCommitResult | null>(null);
@@ -200,6 +208,7 @@ export default function SettingsImportPage() {
     setMapping(initialMapping(next.summary.locations));
     setIncludeParents(false);
     setScope('cards');
+    setFileCardsByLocation(false);
   }
 
   async function previewWithMapping() {
@@ -221,7 +230,7 @@ export default function SettingsImportPage() {
       return;
     }
     try {
-      const done = await commitLegacyImport(preview.id, mapping, includeParents && createCustomers, createCustomers, importDocuments);
+      const done = await commitLegacyImport(preview.id, sentMapping, includeParents && createCustomers, createCustomers, importDocuments);
       setResult(done);
       // Cards were created or changed: the wizard's search and history must not serve old copies.
       queryClient.invalidateQueries({ queryKey: ['legacy-documents'] });
@@ -516,6 +525,22 @@ export default function SettingsImportPage() {
                 </p>
               ) : null}
             </fieldset>
+            {scope === 'cards' ? (
+              <label className={styles.parents}>
+                <input
+                  type="checkbox"
+                  checked={fileCardsByLocation}
+                  onChange={(e) => setFileCardsByLocation(e.target.checked)}
+                />
+                <span>
+                  לשייך את הכרטיסים לעסק ולסניף לפי המיקום שבקובץ
+                  <span className="block text-xs text-muted-foreground">
+                    בלי הסימון הכרטיסים נכנסים בלי מיקום, ואתם משייכים כל לקוח בעצמכם באשף &quot;מסמך חדש&quot;:
+                    הבחירה הראשונה נשמרת מיד בכרטיס, ושינוי מאוחר שואל אם לשנות רק מעכשיו או גם אחורה.
+                  </span>
+                </span>
+              </label>
+            ) : null}
             <label className={styles.parents}>
               <input
                 type="checkbox"
@@ -574,7 +599,8 @@ export default function SettingsImportPage() {
             </section>
           ) : null}
 
-          {/* 6. Locations */}
+          {/* 6. Locations — not when the cards come in unfiled */}
+          {locationsApply ? (
           <section className="card">
             <h3 className="text-lg font-semibold mb-2">מיקומים — עסק, קטגוריה וסניף</h3>
             <p className="text-sm text-muted-foreground mb-2">
@@ -669,6 +695,7 @@ export default function SettingsImportPage() {
               </table>
             </div>
           </section>
+          ) : null}
 
           {/* 7. Confirm */}
           <div className="flex flex-wrap items-center justify-end gap-3">
@@ -686,7 +713,7 @@ export default function SettingsImportPage() {
               if (yes) await commit();
             }}
             title={`לייבא ${fromSourceText(summary)}?`}
-            message={commitConfirmText(summary, includeParents && createCustomers, mapping, createCustomers, importDocuments)}
+            message={commitConfirmText(summary, includeParents && createCustomers, sentMapping, createCustomers, importDocuments)}
             confirmText="ייבוא"
             type="question"
           />

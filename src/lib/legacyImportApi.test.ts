@@ -17,6 +17,8 @@ import {
   categoriesFor,
   commitConfirmText,
   commitLegacyImport,
+  filesLocations,
+  mappingToSend,
   documentAmount,
   fetchLegacyDocuments,
   fetchLegacySources,
@@ -318,6 +320,26 @@ describe('commitConfirmText', () => {
 
   it('says so when parents are included', () => {
     expect(commitConfirmText(summary, true, {})).toMatch(/1,925 ייפתחו|1925 ייפתחו/);
+  });
+
+  it('cards only: says whether the cards come in filed or clean', () => {
+    const clean = commitConfirmText(summary, false, {}, true, false);
+    expect(clean).toContain('הכרטיסים ייכנסו בלי מיקום');
+    const filed = commitConfirmText(
+      summary, false, { 'כפר סבא': { business_id: 'lessons', category_id: 'branches', branch_id: 'zamir' } }, true, false,
+    );
+    expect(filed).toContain('ישויכו לעסק ולסניף לפי טבלת המיקומים (1 מתוך 1');
+    expect(filed).not.toContain('בלי מיקום');
+  });
+
+  it('sends no mapping when the cards come in unfiled, and the table otherwise', () => {
+    const table = { 'כפר סבא': { business_id: 'lessons', category_id: 'branches', branch_id: 'zamir' } };
+    expect(filesLocations('cards', false)).toBe(false);
+    expect(mappingToSend(table, 'cards', false)).toEqual({});
+    expect(mappingToSend(table, 'cards', true)).toBe(table);
+    // With documents each one needs its location: the table always applies.
+    expect(mappingToSend(table, 'all', false)).toBe(table);
+    expect(mappingToSend(table, 'history', false)).toBe(table);
   });
 
   it('cards only: says which cards open, and that no document is kept', () => {
