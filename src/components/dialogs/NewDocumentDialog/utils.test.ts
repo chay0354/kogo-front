@@ -18,6 +18,7 @@ import {
   invoicePaymentBalance,
   invoicePaymentRows,
   invoicePerCheckApplies,
+  isBranchesBusiness,
   israelToday,
   receiptAmountAgorot,
   receiptCapacityAgorot,
@@ -238,6 +239,49 @@ describe('branchFieldApplies', () => {
     expect(branchFieldApplies('')).toBe(false);
     expect(branchFieldApplies(null)).toBe(false);
     expect(branchFieldApplies(undefined)).toBe(false);
+  });
+
+  // Owner, 7.10.2026: "סניפים" chosen as the business itself opens the branch.
+  it('asks for a branch as soon as the business chosen is סניפים, whatever the category', () => {
+    expect(branchFieldApplies('', 'סניפים')).toBe(true);
+    expect(branchFieldApplies(null, ' סניפים ')).toBe(true);
+    expect(branchFieldApplies('אירועים', 'סניפים')).toBe(true);
+  });
+
+  it('asks for none under any other business', () => {
+    expect(branchFieldApplies('כללי', 'חוגים')).toBe(false);
+    expect(branchFieldApplies('', 'מותג קוגומלו')).toBe(false);
+    expect(branchFieldApplies('', '')).toBe(false);
+    expect(isBranchesBusiness('סניפים')).toBe(true);
+    expect(isBranchesBusiness('חוגים')).toBe(false);
+    expect(isBranchesBusiness(null)).toBe(false);
+  });
+});
+
+describe('canAdvanceFromStep — a customer of the business סניפים', () => {
+  const form = (over: Record<string, unknown>) => ({
+    first_name: 'הפקות', last_name: 'הדגמה', business_type: 'סניפים', category: '', branch_id: null, ...over,
+  }) as never;
+  const advance = (data: never) =>
+    canAdvanceFromStep('businessClientDetails', 'business', null, null, data, null, null);
+
+  it('moves on once the branch is chosen, with no category at all', () => {
+    expect(advance(form({ branch_id: 'north' }))).toBe(true);
+  });
+
+  it('does not move on without the branch, category or not', () => {
+    expect(advance(form({}))).toBe(false);
+    expect(advance(form({ category: 'אירועים' }))).toBe(false);
+  });
+
+  it('still asks every other business for its category', () => {
+    expect(advance(form({ business_type: 'חוגים', branch_id: 'north' }))).toBe(false);
+    expect(advance(form({ business_type: 'חוגים', category: 'כללי' }))).toBe(true);
+  });
+
+  it('adds no second branch step: the branch was chosen with the business', () => {
+    expect(getWizardSteps('business', 'חשבונית מס', '').map((s) => s.id)).not.toContain('selectBranch');
+    expect(getWizardSteps('business', 'חשבונית מס', 'אירועים').map((s) => s.id)).not.toContain('selectBranch');
   });
 });
 

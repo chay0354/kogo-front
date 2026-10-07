@@ -73,14 +73,28 @@ export function hasLocation(location: CustomerLocation): boolean {
  * and — when the category is the one that means a branch — the branch. Until
  * then the office is still choosing, and nothing is sent.
  */
-export function locationComplete(location: CustomerLocation, branchApplies: boolean): boolean {
-  return Boolean(location.business_id && location.business_category_id && (!branchApplies || location.branch_id));
+export function locationComplete(
+  location: CustomerLocation,
+  branchApplies: boolean,
+  /** Under the business סניפים a category is optional: the branch is what files the customer. */
+  categoryOptional = false,
+): boolean {
+  return Boolean(
+    location.business_id
+    && (categoryOptional || location.business_category_id)
+    && (!branchApplies || location.branch_id),
+  );
 }
 
 /** What the form is missing before its location can be saved, in words — or '' when nothing. */
-export function locationMissing(location: CustomerLocation, branchApplies: boolean): string {
+export function locationMissing(
+  location: CustomerLocation,
+  branchApplies: boolean,
+  categoryOptional = false,
+): string {
   if (!location.business_id) return 'יש לבחור עסק';
-  if (!location.business_category_id) return 'יש לבחור קטגוריה';
+  if (categoryOptional && branchApplies && !location.branch_id) return 'יש לבחור סניף';
+  if (!categoryOptional && !location.business_category_id) return 'יש לבחור קטגוריה';
   if (branchApplies && !location.branch_id) return 'יש לבחור סניף';
   return '';
 }

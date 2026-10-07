@@ -1,5 +1,5 @@
 import type { InvoicePaymentInput, ReceiptDetailsInput } from '@/types/document';
-import { ALL_WIZARD_STEPS, ALLOCATION_THRESHOLD_ILS, BRANCHES_CATEGORY } from './constants';
+import { ALL_WIZARD_STEPS, ALLOCATION_THRESHOLD_ILS, BRANCHES_BUSINESS, BRANCHES_CATEGORY } from './constants';
 import type {
   BusinessCustomerFormData,
   CheckRow,
@@ -451,14 +451,25 @@ export function getDocumentDetailsLabel(docType: string | null): string {
   return 'פרטי מסמך';
 }
 
+/** Whether the business chosen is "סניפים": the one whose customers and documents belong to a branch. */
+export function isBranchesBusiness(business: string | null | undefined): boolean {
+  return (business ?? '').trim() === BRANCHES_BUSINESS;
+}
+
 /**
- * A branch is what the category סניפים means. Ask for one only once that
- * category is the one chosen — asking earlier is asking a question the
- * category is about to answer, and a branch picked under any other category
- * would ride along on a document that never asked for it.
+ * When a branch is asked for. Two ways in:
+ *  - the business itself is "סניפים" (owner, 7.10.2026): the branch is the
+ *    point of it, asked right after the business, before any category;
+ *  - the older way, a category named סניפים under another business: the branch
+ *    is asked once that category is the one chosen.
+ * Under anything else no branch is asked for, and one picked earlier must not
+ * ride along on a document that never asked for it.
  */
-export function branchFieldApplies(category: string | null | undefined): boolean {
-  return (category ?? '').trim() === BRANCHES_CATEGORY;
+export function branchFieldApplies(
+  category: string | null | undefined,
+  business?: string | null,
+): boolean {
+  return (category ?? '').trim() === BRANCHES_CATEGORY || isBranchesBusiness(business);
 }
 
 
@@ -524,8 +535,11 @@ export function canAdvanceFromStep(
         businessFormData.first_name.trim() !== '' &&
         businessFormData.last_name.trim() !== '');
     const hasType = businessFormData?.business_type?.trim() !== '';
-    const hasCategory = businessFormData?.category?.trim() !== '';
-    return hasId && hasType && hasCategory;
+    // Under the business סניפים the branch is what must be chosen; a category there is optional.
+    const hasPlace = isBranchesBusiness(businessFormData?.business_type)
+      ? Boolean(businessFormData?.branch_id)
+      : businessFormData?.category?.trim() !== '';
+    return hasId && hasType && hasPlace;
   }
   if (stepId === 'docType') return docType !== null;
   if (stepId === 'documentDetails') {

@@ -123,6 +123,11 @@ export default function BusinessTaxonomySection() {
                   <span className="text-xs text-muted-foreground">אין קטגוריות עדיין</span>
                 ) : null}
               </div>
+              {b.name.trim() === 'סניפים' ? (
+                <p className="mt-2 text-xs text-muted-foreground">
+                  קטגוריות לסניפים. במסמך ללקוח עסקי בוחרים "סניפים", אחר כך סניף, ואפשר לסמן קטגוריה מכאן.
+                </p>
+              ) : null}
               <form
                 className="mt-2 flex items-center gap-2"
                 onSubmit={(e) => {
