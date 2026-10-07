@@ -67,6 +67,19 @@
   font-size: 0.875rem;
 }
 
+/* What the import writes: three choices, one of them always on. */
+.scope {
+  margin: 1rem 0 0;
+  padding: 0;
+  border: 0;
+}
+
+.scopeLegend {
+  padding: 0;
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
 .parents {
   display: flex;
   gap: 0.5rem;

@@ -10,6 +10,7 @@ vi.mock('./api', () => ({ default: api }));
 import {
   ImportFileTooBigError,
   LEGACY_IMPORT_MAX_BYTES,
+  LEGACY_IMPORT_SCOPES,
   LEGACY_IMPORT_MAX_UNPACKED_BYTES,
   applyMappingChange,
   branchAllowed,
@@ -18,6 +19,7 @@ import {
   commitLegacyImport,
   documentAmount,
   fetchLegacyDocuments,
+  fetchLegacySources,
   formatLegacyDate,
   importFileProblem,
   initialMapping,
@@ -25,6 +27,8 @@ import {
   openInvoicesCsv,
   packForUpload,
   previewLegacyImport,
+  scopeFlags,
+  scopeProblem,
   lastNumbersByType,
   mappingPayload,
   mappingProgress,
@@ -314,6 +318,53 @@ describe('commitConfirmText', () => {
 
   it('says so when parents are included', () => {
     expect(commitConfirmText(summary, true, {})).toMatch(/1,925 ייפתחו|1925 ייפתחו/);
+  });
+
+  it('cards only: says which cards open, and that no document is kept', () => {
+    const text = commitConfirmText(summary, false, {}, true, false);
+    expect(text).toContain('ייפתחו כרטיסי לקוחות בלבד מהתוכנה הקודמת: 110 חדשים, 2 קיימים יעודכנו');
+    expect(text).toContain('אף מסמך לא יישמר, והמספור של קוגו לא מושפע');
+    expect(text).toContain('הורים משלמי מנוי לא ייפתחו');
+    // Nothing about documents that will not be written.
+    expect(text).not.toContain('יישמרו כהיסטוריה');
+    expect(text).not.toContain('ממיקומים ללא שיוך');
+  });
+});
+
+describe('what an import writes', () => {
+  it('is cards only, cards and history, or history only', () => {
+    expect(LEGACY_IMPORT_SCOPES.map((s) => s.value)).toEqual(['cards', 'all', 'history']);
+    expect(scopeFlags('cards')).toEqual({ createCustomers: true, importDocuments: false });
+    expect(scopeFlags('all')).toEqual({ createCustomers: true, importDocuments: true });
+    expect(scopeFlags('history')).toEqual({ createCustomers: false, importDocuments: true });
+  });
+
+  it('is not sent as cards only to a server that would keep the documents anyway', async () => {
+    expect(scopeProblem('cards', false)).toContain('הייבוא לא נשלח');
+    expect(scopeProblem('cards', true)).toBeNull();
+    expect(scopeProblem('all', false)).toBeNull();
+    expect(scopeProblem('history', false)).toBeNull();
+    // An older server's answer has no such field: read as "does not".
+    api.get.mockResolvedValueOnce({ data: { sources: [], fields: [] } });
+    expect((await fetchLegacySources()).cardsOnly).toBe(false);
+    api.get.mockResolvedValueOnce({ data: { sources: [], fields: [], cards_only: true } });
+    expect((await fetchLegacySources()).cardsOnly).toBe(true);
+  });
+
+  it('tells the server to keep no document only for cards only', async () => {
+    api.post.mockResolvedValue({ data: { customers: {}, documents: {} } });
+    await commitLegacyImport('imp-1', {}, false, true, false);
+    expect(api.post).toHaveBeenLastCalledWith(
+      '/legacy-import/imp-1/commit/',
+      { mapping: {}, include_subscription_parents: false, import_documents: false },
+      expect.anything(),
+    );
+    await commitLegacyImport('imp-1', {}, false, true, true);
+    expect(api.post).toHaveBeenLastCalledWith(
+      '/legacy-import/imp-1/commit/',
+      { mapping: {}, include_subscription_parents: false },
+      expect.anything(),
+    );
   });
 });
 
