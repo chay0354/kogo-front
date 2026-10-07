@@ -19,6 +19,7 @@ import {
   commitLegacyImport,
   documentAmount,
   fetchLegacyDocuments,
+  fetchLegacySources,
   formatLegacyDate,
   importFileProblem,
   initialMapping,
@@ -27,6 +28,7 @@ import {
   packForUpload,
   previewLegacyImport,
   scopeFlags,
+  scopeProblem,
   lastNumbersByType,
   mappingPayload,
   mappingProgress,
@@ -335,6 +337,18 @@ describe('what an import writes', () => {
     expect(scopeFlags('cards')).toEqual({ createCustomers: true, importDocuments: false });
     expect(scopeFlags('all')).toEqual({ createCustomers: true, importDocuments: true });
     expect(scopeFlags('history')).toEqual({ createCustomers: false, importDocuments: true });
+  });
+
+  it('is not sent as cards only to a server that would keep the documents anyway', async () => {
+    expect(scopeProblem('cards', false)).toContain('הייבוא לא נשלח');
+    expect(scopeProblem('cards', true)).toBeNull();
+    expect(scopeProblem('all', false)).toBeNull();
+    expect(scopeProblem('history', false)).toBeNull();
+    // An older server's answer has no such field: read as "does not".
+    api.get.mockResolvedValueOnce({ data: { sources: [], fields: [] } });
+    expect((await fetchLegacySources()).cardsOnly).toBe(false);
+    api.get.mockResolvedValueOnce({ data: { sources: [], fields: [], cards_only: true } });
+    expect((await fetchLegacySources()).cardsOnly).toBe(true);
   });
 
   it('tells the server to keep no document only for cards only', async () => {

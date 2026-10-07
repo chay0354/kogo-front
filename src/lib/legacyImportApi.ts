@@ -418,12 +418,34 @@ export async function describeLegacyColumns(file: File): Promise<LegacyColumnsIn
   return res.data;
 }
 
-export async function fetchLegacySources(): Promise<{ sources: LegacyKnownSource[]; fields: LegacyTableField[] }> {
+export async function fetchLegacySources(): Promise<{
+  sources: LegacyKnownSource[];
+  fields: LegacyTableField[];
+  /**
+   * The server keeps no document on a cards-only commit. false for a server
+   * from before that existed: it would ignore the flag and import every
+   * document, so the screen must not send a cards-only commit to it.
+   */
+  cardsOnly: boolean;
+}> {
   const res = await api.get('/legacy-import/sources/');
   return {
     sources: Array.isArray(res.data?.sources) ? res.data.sources : [],
     fields: Array.isArray(res.data?.fields) ? res.data.fields : [],
+    cardsOnly: res.data?.cards_only === true,
   };
+}
+
+/**
+ * Why a commit of this scope must not be sent, or null. Cards only is sent
+ * only to a server that says it honours it — an older one would quietly keep
+ * every document the owner asked to leave behind.
+ */
+export function scopeProblem(scope: LegacyImportScope, serverKeepsCardsAlone: boolean): string | null {
+  if (scope === 'cards' && !serverKeepsCardsAlone) {
+    return 'השרת עדיין לא מעודכן לייבוא כרטיסים בלבד, ולכן הייבוא לא נשלח — אחרת היו נשמרים גם המסמכים. רעננו את הדף ונסו שוב בעוד כמה דקות.';
+  }
+  return null;
 }
 
 export async function commitLegacyImport(

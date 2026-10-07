@@ -37,6 +37,7 @@ import {
   openInvoicesCsv,
   previewLegacyImport,
   scopeFlags,
+  scopeProblem,
   type LegacyColumnMapping,
   type LegacyColumnsInfo,
   type LegacyCommitResult,
@@ -100,6 +101,9 @@ export default function SettingsImportPage() {
   // its documents afresh in kogo and wants its customers, not the old documents.
   const [scope, setScope] = useState<LegacyImportScope>('cards');
   const { createCustomers, importDocuments } = scopeFlags(scope);
+  // Whether the server keeps no document on a cards-only commit; unknown until it answers.
+  const [cardsOnlySupported, setCardsOnlySupported] = useState(false);
+  const blocked = scopeProblem(scope, cardsOnlySupported);
   const [file, setFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState('');
@@ -118,8 +122,14 @@ export default function SettingsImportPage() {
   useEffect(() => {
     if (!isManager) return;
     fetchLegacySources()
-      .then((data) => setSources(data.sources))
-      .catch(() => setSources([]));
+      .then((data) => {
+        setSources(data.sources);
+        setCardsOnlySupported(data.cardsOnly);
+      })
+      .catch(() => {
+        setSources([]);
+        setCardsOnlySupported(false);
+      });
   }, [isManager]);
 
   const summary = preview?.summary;
@@ -206,6 +216,10 @@ export default function SettingsImportPage() {
 
   async function commit() {
     if (!preview) return;
+    if (blocked) {
+      toast.error(blocked);
+      return;
+    }
     try {
       const done = await commitLegacyImport(preview.id, mapping, includeParents && createCustomers, createCustomers, importDocuments);
       setResult(done);
@@ -496,6 +510,11 @@ export default function SettingsImportPage() {
                   </span>
                 </label>
               ))}
+              {blocked ? (
+                <p className="text-sm text-red-600 mt-2" role="alert">
+                  {blocked}
+                </p>
+              ) : null}
             </fieldset>
             <label className={styles.parents}>
               <input
@@ -656,7 +675,7 @@ export default function SettingsImportPage() {
             <Button variant="outline" onClick={() => { setPreview(null); setFile(null); }}>
               ביטול
             </Button>
-            <Button variant="gradient" onClick={() => setConfirmOpen(true)}>
+            <Button variant="gradient" onClick={() => setConfirmOpen(true)} disabled={Boolean(blocked)}>
               ייבוא
             </Button>
           </div>
