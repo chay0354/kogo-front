@@ -45,6 +45,14 @@ export const BUSINESS_CATEGORY_OPTIONS = [...BUSINESS_TYPE_OPTIONS] as const;
 export const BRANCHES_CATEGORY = 'סניפים';
 
 /**
+ * The business that means "one of our branches" (owner, 7.10.2026). Chosen as
+ * the business itself it asks for the branch right away, and the document's
+ * income is that branch's; a category under it is optional. The server holds
+ * the same name (business_customer_location.BRANCHES_BUSINESS).
+ */
+export const BRANCHES_BUSINESS = 'סניפים';
+
+/**
  * Above this, before VAT, a tax invoice to a business customer needs a מספר
  * הקצאה (סעיף 38(א1) לחוק מע"מ, "עולה על"). The server's setting
  * ALLOCATION_THRESHOLD_ILS decides; this only drives the dialog's warning.

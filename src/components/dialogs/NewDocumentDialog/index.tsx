@@ -79,7 +79,6 @@ import { setBusinessCustomerConsent } from '@/lib/signingApi';
 import styles from './index.module.css';
 import {
   ALLOCATION_THRESHOLD_ILS,
-  BRANCHES_CATEGORY,
   CLIENT_TYPE_OPTIONS,
   DOCUMENT_TYPE_OPTIONS,
 } from './constants';
@@ -88,6 +87,7 @@ import {
   allocationNumberError,
   allocationRequired,
   branchFieldApplies,
+  isBranchesBusiness,
   businessCustomerErrorMessage,
   serverErrorMessage,
   DOCUMENT_TYPE_OF,
@@ -278,7 +278,9 @@ export default function NewDocumentDialog({ open, onClose, initialCredit = null 
   const locationManaged = isManager && locationApi && businessCustomerId !== null && savedLocation !== null;
   const formLocation = locationOf(businessFormData);
   const formLocationKey = [formLocation.business_id, formLocation.business_category_id, formLocation.branch_id].join('|');
-  const formLocationComplete = locationComplete(formLocation, branchFieldApplies(businessFormData.category));
+  const formBranchApplies = branchFieldApplies(businessFormData.category, businessFormData.business_type);
+  const formBranchesBusiness = isBranchesBusiness(businessFormData.business_type);
+  const formLocationComplete = locationComplete(formLocation, formBranchApplies, formBranchesBusiness);
   const locationPending = locationManaged && savedLocation !== null && !sameLocation(formLocation, savedLocation);
   const questionOpen = locationQuestion !== null;
 
@@ -527,7 +529,7 @@ export default function NewDocumentDialog({ open, onClose, initialCredit = null 
     if (currentStep === 'businessClientDetails') {
       if (locationPending) {
         // The location on screen is not the card's yet: still being chosen, saved or asked about.
-        const missing = locationMissing(formLocation, branchFieldApplies(businessFormData.category));
+        const missing = locationMissing(formLocation, formBranchApplies, formBranchesBusiness);
         setSubmitError(
           missing
             ? `המיקום של הלקוח עוד לא נשמר: ${missing}.`
@@ -623,7 +625,9 @@ export default function NewDocumentDialog({ open, onClose, initialCredit = null 
       client_type: clientType ?? 'existing',
       child_id: clientType === 'existing' ? selectedCustomerId : null,
       business_customer_id: clientType === 'business' ? businessCustomerId : null,
-      branch_id: selectedBranchId,
+      // A customer of the business סניפים: the branch chosen with the business is the document's.
+      branch_id: selectedBranchId
+        ?? (clientType === 'business' && formBranchesBusiness ? businessFormData.branch_id : null),
     };
 
     // The open invoices the document pays (WS-3). An older server ignores the key.
@@ -1227,7 +1231,33 @@ function BusinessClientStep({
   // The step will not advance without a category, so a business that has none
   // is a dead end unless the screen says where categories come from.
   const businessHasNoCategory = Boolean(formData.business_id) && businessCategories.length === 0;
-  const branchApplies = branchFieldApplies(formData.category);
+  // "סניפים" chosen as the business: the branch is asked right under it, and a category is optional.
+  const branchesBusiness = isBranchesBusiness(formData.business_type);
+  const branchApplies = branchFieldApplies(formData.category, formData.business_type);
+  const branchField = (
+    <div className={styles.formRow}>
+      <label htmlFor="biz-branch-affiliation" className={styles.fieldLabel}>
+        {branchesBusiness ? 'סניף' : 'שיוך לסניף'}
+      </label>
+      <Select
+        id="biz-branch-affiliation"
+        className={styles.formSelect}
+        value={formData.branch_id ?? ''}
+        onChange={(e) => updateField('branch_id', e.target.value || null)}
+        disabled={branchesLoading}
+      >
+        <option value="">בחר סניף</option>
+        {sortedBranches.map((branch) => (
+          <option key={branch.id} value={branch.id}>
+            {branch.name}
+          </option>
+        ))}
+      </Select>
+      {branchesBusiness ? (
+        <p className={styles.fieldNote}>ההכנסה מהמסמך תירשם בסניף הזה.</p>
+      ) : null}
+    </div>
+  );
 
   return (
     <div>
@@ -1478,9 +1508,12 @@ function BusinessClientStep({
           </Select>
         </div>
 
+        {/* Only once "סניפים" is the business chosen: which branch. */}
+        {branchesBusiness ? branchField : null}
+
         <div className={styles.formRow}>
           <label htmlFor="biz-category" className={styles.fieldLabel}>
-            קטגוריה
+            קטגוריה{branchesBusiness ? <span className={styles.optionalLabel}> (לא חובה)</span> : null}
           </label>
           <Select
             id="biz-category"
@@ -1494,19 +1527,25 @@ function BusinessClientStep({
                 business_category_id: category?.id ?? null,
                 category: category?.name ?? '',
                 // A branch picked under סניפים must not ride along once the
-                // category is something else.
-                branch_id: branchFieldApplies(category?.name) ? formData.branch_id : null,
+                // category is something else — unless the business itself is סניפים.
+                branch_id: branchFieldApplies(category?.name, formData.business_type) ? formData.branch_id : null,
               });
             }}
           >
-            <option value="">{formData.business_id ? 'בחר קטגוריה' : 'בחר עסק תחילה'}</option>
+            <option value="">
+              {!formData.business_id ? 'בחר עסק תחילה' : branchesBusiness ? 'בלי קטגוריה' : 'בחר קטגוריה'}
+            </option>
             {businessCategories.map((c) => (
               <option key={c.id} value={c.id}>
                 {c.name}
               </option>
             ))}
           </Select>
-          {businessHasNoCategory ? (
+          {branchesBusiness ? (
+            <p className={styles.fieldNote}>
+              קטגוריות לסניפים מוסיפים בהגדרות ← כספים ← עסקים וקטגוריות.
+            </p>
+          ) : businessHasNoCategory ? (
             <p className={styles.fieldNote}>
               לעסק הזה אין עדיין קטגוריה פעילה. הוסיפו אחת בהגדרות ← כספים ← עסקים וקטגוריות, ואז חזרו לכאן.
             </p>
@@ -1518,25 +1557,7 @@ function BusinessClientStep({
           asked once that category is the one chosen — and it is asked after it,
           not before. Same rule the wizard's own branch step follows.
         */}
-        <div className={styles.formRow}>
-          <label htmlFor="biz-branch-affiliation" className={styles.fieldLabel}>
-            שיוך לסניף
-          </label>
-          <Select
-            id="biz-branch-affiliation"
-            className={styles.formSelect}
-            value={formData.branch_id ?? ''}
-            onChange={(e) => updateField('branch_id', e.target.value || null)}
-            disabled={branchesLoading || !branchApplies}
-          >
-            <option value="">{branchApplies ? 'בחר סניף' : `רק לקטגוריית ${BRANCHES_CATEGORY}`}</option>
-            {sortedBranches.map((branch) => (
-              <option key={branch.id} value={branch.id}>
-                {branch.name}
-              </option>
-            ))}
-          </Select>
-        </div>
+        {!branchesBusiness && branchApplies ? branchField : null}
 
         {locationManaged ? (
           <div className={`${styles.formRow} ${styles.formRowFull}`} aria-live="polite">

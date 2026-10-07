@@ -60,6 +60,17 @@ describe('a location', () => {
     expect(locationMissing({ ...NORTH, branch_id: null }, true)).toBe('יש לבחור סניף');
     expect(locationMissing(NORTH, true)).toBe('');
   });
+
+  // Owner, 7.10.2026: under the business סניפים the branch files the customer; a category is optional.
+  it('under the business סניפים is complete with the branch alone', () => {
+    const branchOnly = { ...NORTH, business_category_id: null };
+    expect(locationComplete(branchOnly, true, true)).toBe(true);
+    expect(locationComplete(NORTH, true, true)).toBe(true);
+    expect(locationComplete({ ...branchOnly, branch_id: null }, true, true)).toBe(false);
+    expect(locationMissing(branchOnly, true, true)).toBe('');
+    expect(locationMissing({ ...branchOnly, branch_id: null }, true, true)).toBe('יש לבחור סניף');
+    expect(locationMissing(EMPTY_LOCATION, true, true)).toBe('יש לבחור עסק');
+  });
 });
 
 describe('how far a change goes', () => {
