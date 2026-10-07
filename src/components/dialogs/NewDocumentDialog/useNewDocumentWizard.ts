@@ -90,7 +90,6 @@ function createInitialInvoiceDetails(): InvoiceDetailsData {
     discountAmount: 0,
     discountPercent: 0,
     vatExempt: false,
-    closeInvoice: false,
     customerNotes: '',
     internalNotes: '',
     paymentTerms: 'שוטף + 30',

@@ -94,6 +94,12 @@ export interface DocumentRow extends LedgerDimensions {
   id: string;
   document_number: string;
   issue_date: string;
+  /**
+   * The moment the document went out (UTC, ISO), from every source — what the
+   * list is ordered by. Empty when only the day is known; an older server
+   * leaves it out.
+   */
+  issued_at?: string;
   customer_name: string;
   document_type: string;
   document_type_code?: string;
@@ -142,6 +148,13 @@ export interface DocumentRow extends LedgerDimensions {
   customer_ack_at?: string | null;
   /** הלקוח הפרטי (ילד) של מסמך ידני — כדי לפתוח ממנו זיכוי. */
   child_id?: string | null;
+  /**
+   * The document's signed original, once it was signed (7.10.2026): its id —
+   * the page can show that file itself — and the moment it was signed. Null /
+   * empty while there is none; left out by an older server and on a partner's list.
+   */
+  signed_original_id?: string | null;
+  signed_at?: string;
   /** מספר ההקצאה מרשות המסים, כפי שהוזן. ריק כשטרם הוזן. */
   allocation_number?: string;
   /** האם המסמך חוצה את הסף שמחייב מספר הקצאה. נקבע בשרת. */

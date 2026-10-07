@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useState, type ReactNode } from 'react';
-import { AlertCircle, Bell, Download, FileArchive, FileMinus, FileSearch, FileSpreadsheet, FileWarning, Trash2, X } from 'lucide-react';
+import { AlertCircle, Bell, Download, Eye, FileArchive, FileMinus, FileSearch, FileSpreadsheet, FileWarning, Trash2, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { Skeleton, TableSkeleton } from '@/components/ui/skeleton';
 import { useAuth } from '@/components/AuthProvider';
@@ -37,6 +37,7 @@ import theme from '@/components/dashboard/theme/dashboard.module.css';
 import LedgerFilterBar, { LedgerSelect } from './LedgerFilterBar';
 import { allocationOriginalMessage } from './manualDelivery';
 import { documentDownloadRoute, lessonReceiptRefund } from './documentDownload';
+import DocumentViewDialog from './DocumentViewDialog';
 import MissingReceiptsPanel, { MISSING_RECEIPTS_PANEL_ID } from './MissingReceiptsPanel';
 import type { LedgerFiltersState } from './useLedgerFilters';
 import { useLedgerDocuments } from './useLedgerDocuments';
@@ -230,6 +231,8 @@ export default function DocumentsTab({ ledger, refreshKey = 0, onCredit }: Docum
   }
 
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
+  // The row whose document is on the screen (DocumentViewDialog), or none.
+  const [viewing, setViewing] = useState<DocumentRow | null>(null);
   const [reminders, setReminders] = useState<Record<string, ReminderState>>({});
   // "זיכוי" on a lesson receipt (6.10.2026): the same window and the same
   // request as the payments tab — the office looked for it here.
@@ -375,6 +378,17 @@ export default function DocumentsTab({ ledger, refreshKey = 0, onCredit }: Docum
     } finally {
       setDiscardingId(null);
     }
+  }
+
+  /** "הצג": the document on the screen. A file kept elsewhere opens in a tab of its own, as its download does. */
+  function handleView(doc: DocumentRow) {
+    const route = documentDownloadRoute(doc);
+    if (!route) return;
+    if (route.kind === 'url') {
+      window.open(route.url, '_blank', 'noopener,noreferrer');
+      return;
+    }
+    setViewing(doc);
   }
 
   async function handleDownload(doc: DocumentRow) {
@@ -663,6 +677,17 @@ export default function DocumentsTab({ ledger, refreshKey = 0, onCredit }: Docum
                           <Bell size={16} aria-hidden="true" />
                         </button>
                       )}
+                      {canDownload && (
+                        <button
+                          type="button"
+                          className={styles.iconBtn}
+                          title="הצג בלי להוריד"
+                          aria-label={`הצגת ${doc.document_number}`}
+                          onClick={() => handleView(doc)}
+                        >
+                          <Eye size={16} aria-hidden="true" />
+                        </button>
+                      )}
                       {canDownload ? (
                         <button
                           type="button"
@@ -848,6 +873,10 @@ export default function DocumentsTab({ ledger, refreshKey = 0, onCredit }: Docum
 
         {renderList()}
       </section>
+
+      <BodyPortal>
+        <DocumentViewDialog doc={viewing} onClose={() => setViewing(null)} />
+      </BodyPortal>
 
       <BodyPortal>
         <RefundDialog

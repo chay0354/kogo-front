@@ -402,7 +402,7 @@ describe('invoice-receipt payments (G)', () => {
       documentNumber: '', documentDate: '2026-09-25', description: 'סדנה', currency: 'ILS',
       pricesIncludeVat: false,
       lineItems: [{ id: '1', sku: '', description: 'סדנה', quantity: 1, price: 200 }],
-      discountAmount: 0, discountPercent: 0, vatExempt: false, closeInvoice: false,
+      discountAmount: 0, discountPercent: 0, vatExempt: false,
       customerNotes: '', internalNotes: '', paymentTerms: '', dueDate: '',
       paymentMethods: [], payments: payments(), withholdingAmount: 0, allocationNumber: '',
       linkedInvoiceId: '', receiptNotes: '', settlementPicks: AUTO_SETTLEMENT_PICKS,

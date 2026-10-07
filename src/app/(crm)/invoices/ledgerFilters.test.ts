@@ -306,6 +306,37 @@ describe('compareDocumentsNewestFirst', () => {
       row({ document_number: 'dated', issue_date: '2026-01-01' }),
     ])).toEqual(['dated', 'undated']);
   });
+
+  it('puts what went out last first, whatever its series and its number', () => {
+    // One day, three series. By number alone "ST-900" stood on top all day.
+    expect(order([
+      row({ document_number: 'ST-900', issue_date: '2026-10-07', issued_at: '2026-10-07T05:00:00+00:00' }),
+      row({ document_number: 'IN-0007', issue_date: '2026-10-07', issued_at: '2026-10-07T09:00:00+00:00' }),
+      row({ document_number: 'CR-0002', issue_date: '2026-10-07', issued_at: '2026-10-07T12:30:00+00:00' }),
+    ])).toEqual(['CR-0002', 'IN-0007', 'ST-900']);
+  });
+
+  it('puts a document issued now for an earlier date above the documents issued before it', () => {
+    expect(order([
+      row({ document_number: 'today-morning', issue_date: '2026-10-07', issued_at: '2026-10-07T06:00:00+00:00' }),
+      row({ document_number: 'dated-yesterday', issue_date: '2026-10-06', issued_at: '2026-10-07T11:00:00+00:00' }),
+    ])).toEqual(['dated-yesterday', 'today-morning']);
+  });
+
+  it('reads the moment whatever zone it was written in', () => {
+    expect(order([
+      row({ document_number: 'earlier', issued_at: '2026-10-07T11:00:00+03:00' }),
+      row({ document_number: 'later', issued_at: '2026-10-07T09:00:00+00:00' }),
+    ])).toEqual(['later', 'earlier']);
+  });
+
+  it('stands a row that only knows its day at that day, among rows that know their hour', () => {
+    expect(order([
+      row({ document_number: 'day-only-07', issue_date: '2026-10-07' }),
+      row({ document_number: 'timed-06', issue_date: '2026-10-06', issued_at: '2026-10-06T15:00:00+00:00' }),
+      row({ document_number: 'day-only-05', issue_date: '2026-10-05' }),
+    ])).toEqual(['day-only-07', 'timed-06', 'day-only-05']);
+  });
 });
 
 describe('matchesDocumentSearch', () => {

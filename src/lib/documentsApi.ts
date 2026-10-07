@@ -63,6 +63,11 @@ export async function fetchTranzilaDocuments(params?: {
     id: string;
     document_number: string;
     issue_date: string;
+    /** The moment the document went out (UTC, ISO); empty when only its day is known. */
+    issued_at?: string;
+    /** The signed original's id and the moment it was signed, once there is one. */
+    signed_original_id?: string | null;
+    signed_at?: string;
     customer_name: string;
     document_type: string;
     document_type_code?: string;
@@ -625,6 +630,23 @@ export async function downloadLessonReceiptCopy(invoiceId: string, documentNumbe
   });
   const name = String(documentNumber || '').replace(/[\\/:*?"<>|]+/g, '-').trim() || 'קבלה';
   saveBlob(res.data, 'application/pdf', `${name} - העתק.pdf`);
+}
+
+/**
+ * The same files the two downloads above save, handed back instead of saved:
+ * the page shows a document on the screen without leaving a file behind.
+ */
+export async function fetchLessonReceiptCopy(invoiceId: string): Promise<Blob> {
+  const res = await api.get(`/customers/invoices/${encodeURIComponent(invoiceId)}/pdf/`, {
+    params: { copy: '1' },
+    responseType: 'blob',
+  });
+  return new Blob([res.data], { type: 'application/pdf' });
+}
+
+export async function fetchDocumentPdf(id: string): Promise<Blob> {
+  const res = await api.get(`/documents/documents/${id}/pdf/`, { responseType: 'blob' });
+  return new Blob([res.data], { type: 'application/pdf' });
 }
 
 /**

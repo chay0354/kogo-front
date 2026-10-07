@@ -481,3 +481,138 @@
 .ackConfirmed {
   color: #047857;
 }
+
+/* ─── A document on the screen (DocumentViewDialog) ─────────────────────── */
+
+.viewDialog {
+  display: flex;
+  flex-direction: column;
+  /* The window keeps its head and its foot; the page between them takes what is left. */
+  height: 90vh;
+  overflow: hidden;
+}
+
+.viewHead {
+  padding: 16px 20px 10px;
+  border-bottom: 1px solid var(--kg-line);
+}
+
+.viewTitleRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.viewTitle {
+  font-size: 1.05rem;
+  color: var(--kg-ink);
+}
+
+.viewSigned {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: #e9f7ef;
+  color: #17683a;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.viewEditions {
+  display: inline-flex;
+  margin-top: 10px;
+  margin-inline-start: 10px;
+  border: 1px solid var(--kg-line);
+  border-radius: 10px;
+  overflow: hidden;
+  vertical-align: middle;
+}
+
+.viewEdition {
+  padding: 6px 14px;
+  background: #fff;
+  color: var(--kg-ink2);
+  font-size: 0.85rem;
+  cursor: pointer;
+  border: 0;
+}
+
+.viewEdition + .viewEdition {
+  border-inline-start: 1px solid var(--kg-line);
+}
+
+.viewEditionOn {
+  background: #f3f1fc;
+  color: var(--kg-ink);
+  font-weight: 700;
+}
+
+.viewEdition:focus-visible,
+.viewAction:focus-visible {
+  outline: 2px solid var(--kg-bar-a);
+  outline-offset: 2px;
+}
+
+.viewHint {
+  margin-top: 8px;
+  font-size: 0.8rem;
+  color: var(--kg-ink2);
+}
+
+.viewBody {
+  flex: 1;
+  min-height: 0;
+  background: #f4f4f7;
+}
+
+.viewFrame {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: #fff;
+}
+
+.viewState {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 100%;
+  color: var(--kg-ink2);
+  font-size: 0.9rem;
+}
+
+.viewFoot {
+  display: flex;
+  justify-content: flex-start;
+  gap: 8px;
+  padding: 10px 20px 14px;
+  border-top: 1px solid var(--kg-line);
+}
+
+.viewAction {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  border-radius: 10px;
+  border: 1px solid var(--kg-line);
+  background: #fff;
+  color: var(--kg-ink);
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.viewAction:hover:not(:disabled) {
+  background: #f3f1fc;
+}
+
+.viewAction:disabled {
+  opacity: 0.5;
+  cursor: default;
+}

@@ -2015,16 +2015,6 @@ function TransactionInvoiceStep({ data, onChange, expectedNumber = null }: Trans
         </span>
       </div>
 
-      {/* לסגור חשבונית */}
-      <label className={`${styles.totalsCheckboxRow} ${styles.closeInvoiceRow}`}>
-        <input
-          type="checkbox"
-          checked={data.closeInvoice}
-          onChange={(e) => onChange({ ...data, closeInvoice: e.target.checked })}
-        />
-        <span className={styles.totalsCheckboxLabel}>לסגור חשבונית</span>
-      </label>
-
       {/* Notes — two columns */}
       <div className={styles.notesGrid}>
         <div className={styles.formRow}>
@@ -2593,15 +2583,6 @@ function InvoiceDetailsStep({
           <span className={styles.totalsValue}>₪{finalTotal.toFixed(2)}</span>
         </div>
 
-
-        <label className={styles.totalsCheckboxRow}>
-          <input
-            type="checkbox"
-            checked={data.closeInvoice}
-            onChange={(e) => onChange({ ...data, closeInvoice: e.target.checked })}
-          />
-          <span className={styles.totalsCheckboxLabel}>לסגור חשבונית</span>
-        </label>
       </div>
 
       {/* מספר הקצאה — a tax invoice to a business customer (B) */}
