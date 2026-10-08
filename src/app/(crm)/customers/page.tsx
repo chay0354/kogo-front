@@ -20,7 +20,8 @@ import { ChildWithDetails, CustomerFilters, Branch, Course, Instructor, Enrollme
 import { 
   getCustomerTableStatus,
   formatEnrollmentSlot,
-  groupEnrollmentsForTable,
+  chipKindLabel,
+  chipsForCustomerRow,
   isTrialEnrollment,
   formatWhatsAppLink
 } from '@/lib/customerUtils';
@@ -710,7 +711,8 @@ export default function CustomersPage() {
                 <tbody>
                   {children.map((child, index) => {
                     const status = getCustomerTableStatus(child);
-                    const courses = groupEnrollmentsForTable(child.enrollments ?? []);
+                    // A trial shows only on a child who is on a trial status (chipsForCustomerRow).
+                    const courses = chipsForCustomerRow(child);
                     const whatsappLink = formatWhatsAppLink(child.parent_phone);
                     const problems = problemCount(child);
                     const problemsText = problemsSummary(child);
@@ -810,7 +812,7 @@ export default function CustomersPage() {
                                       const slotLabel = formatEnrollmentSlot(enrollment);
                                       return (
                                         <span
-                                          key={enrollment.enrollment_id || enrollment.lesson_id}
+                                          key={enrollment.enrollment_id || enrollment.lesson_id || group.key}
                                           className="inline-flex items-center gap-1"
                                         >
                                           {slotLabel ? (
@@ -863,7 +865,7 @@ export default function CustomersPage() {
                                         trial ? 'bg-orange-200/80 text-orange-900' : 'bg-sky-200/80 text-sky-900'
                                       }`}
                                     >
-                                      {trial ? 'ניסיון' : 'רגיל'}
+                                      {chipKindLabel(group)}
                                     </span>
                                   </div>
                                 );

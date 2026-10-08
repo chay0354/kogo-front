@@ -160,6 +160,91 @@ export function groupEnrollmentsForTable(enrollments: EnrollmentDetail[]): Group
   return order.map((key) => groups.get(key)!);
 }
 
+/** The two statuses a trial lesson is shown for in the customers list. */
+const TRIAL_SHOWN_FOR = new Set(['trial_signed', 'trial_completed']);
+
+type RowOfChips = {
+  status?: string | null;
+  enrollments?: EnrollmentDetail[] | null;
+  trial_enrollment?: {
+    enrollment_id: string;
+    course_name: string;
+    trial_lesson_date: string | null;
+    trial_outcome?: 'attended' | 'no_show' | 'unmarked' | null;
+    trial_number?: number;
+  } | null;
+};
+
+function localIsoDate(now: Date): string {
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  return `${now.getFullYear()}-${month}-${day}`;
+}
+
+/**
+ * The chips of one child's row in the customers list.
+ *
+ * Owner, 8.10.2026: a trial lesson is shown only on a child who is נרשם לניסיון
+ * or ביצע ניסיון — the trial booked, or the one already held, with its date. On
+ * anyone else (a student above all) "when they tried" beside their classes is
+ * noise, so a trial whose date has passed is left out. A trial still ahead is a
+ * live booking the office moves and cancels from this chip; it stays.
+ *
+ * A trial already held is no longer among the child's live classes, so its chip
+ * is built from the trial the server names for the child (`trial_enrollment`).
+ * That chip carries no ids: there is nothing left to move or cancel.
+ */
+export function chipsForCustomerRow(child: RowOfChips, now: Date = new Date()): GroupedEnrollmentChip[] {
+  const groups = groupEnrollmentsForTable(child.enrollments ?? []);
+  if (!TRIAL_SHOWN_FOR.has(child.status ?? '')) {
+    const today = localIsoDate(now);
+    return groups.filter(
+      (group) => !group.trial || group.slots.some((slot) => (slot.trial_lesson_date ?? '') >= today),
+    );
+  }
+  const held = child.trial_enrollment;
+  if (!held?.course_name || !(held.trial_lesson_date || held.trial_outcome)) return groups;
+  if (groups.some((group) => group.trial)) return groups;
+  return [
+    ...groups,
+    {
+      key: `held-trial:${held.enrollment_id}`,
+      courseId: '',
+      courseName: held.course_name,
+      trial: true,
+      slots: [
+        {
+          lesson_id: '',
+          enrollment_id: '',
+          course_name: held.course_name,
+          course_id: '',
+          course_display_id: null,
+          // A held trial is a date, not a weekly slot. The server sends null here
+          // for any row without one (a course-level row); the type does not say so.
+          day_of_week: null as unknown as number,
+          start_time: '',
+          end_time: '',
+          branch_name: null,
+          instructor_name: null,
+          status: 'inactive',
+          trial_lesson_date: held.trial_lesson_date,
+          trial_outcome: held.trial_outcome ?? null,
+          trial_number: held.trial_number,
+        },
+      ],
+    },
+  ];
+}
+
+/** The small word at the end of a chip: רגיל, ניסיון, or what became of a trial already held. */
+export function chipKindLabel(group: GroupedEnrollmentChip): string {
+  if (!group.trial) return 'רגיל';
+  const outcome = group.slots[0]?.trial_outcome;
+  if (outcome === 'attended') return 'ניסיון · הגיע';
+  if (outcome === 'no_show') return 'ניסיון · לא הגיע';
+  return 'ניסיון';
+}
+
 /**
  * Get status dot CSS classes
  */
