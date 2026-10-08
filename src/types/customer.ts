@@ -180,7 +180,10 @@ export interface CustomerFilters {
   instructor: string;
   status: string;
   absent_irregularly: string;
-  /** '1' — only children the server found a problem with; the server's `has_problems`. */
+  /**
+   * '1' — only children the server found a problem with; a problem's code
+   * ('signup_declined') — only that kind. The server's `has_problems`.
+   */
   has_problems: string;
 }
 

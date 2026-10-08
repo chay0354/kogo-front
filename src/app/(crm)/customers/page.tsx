@@ -72,8 +72,11 @@ const ABSENCE_OPTIONS = [
   { value: 'false', label: 'ללא היעדרות חריגה' },
 ];
 
+// '1' — any problem. A problem's own code narrows to that kind alone
+// (kogo-back problem_flags): the people to phone after a sign-up charge failed.
 const PROBLEM_OPTIONS = [
   { value: '1', label: 'רק עם תקלות' },
+  { value: 'signup_declined', label: 'ניסו להירשם והחיוב נכשל' },
 ];
 
 const DAY_OPTIONS = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שבת'].map((label, value) => ({
