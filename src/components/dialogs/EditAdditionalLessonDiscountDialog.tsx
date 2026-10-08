@@ -3,6 +3,12 @@
 import { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
 import { AdditionalLessonDiscount, AdditionalLessonDiscountFormData } from '@/types/discount';
+import {
+  anotherClassExample,
+  anotherClassKind,
+  anotherClassProblem,
+  type AnotherClassKind,
+} from '@/lib/anotherClassDiscount';
 import dialogMotion from '@/components/ui/motion.module.css';
 import { useDialogExit } from '@/components/ui/motion';
 
@@ -27,6 +33,7 @@ export default function EditAdditionalLessonDiscountDialog({
 
   // Form state
   const [formData, setFormData] = useState<AdditionalLessonDiscountFormData>({
+    discount_type: 'fixed',
     value: 0,
     is_active: true,
   });
@@ -34,6 +41,9 @@ export default function EditAdditionalLessonDiscountDialog({
   useEffect(() => {
     if (isOpen && discount) {
       setFormData({
+        // Nothing set yet: open on the amount off — the way the owner asked for
+        // it (8.10.2026). A figure already set keeps the kind it was set in.
+        discount_type: discount.value > 0 ? anotherClassKind(discount) : 'fixed',
         value: discount.value,
         is_active: discount.is_active,
       });
@@ -41,11 +51,10 @@ export default function EditAdditionalLessonDiscountDialog({
     }
   }, [isOpen, discount]);
 
-  const validateForm = (): string | null => {
-    if (formData.value < 0) return 'ערך ההנחה לא יכול להיות שלילי';
-    if (formData.value === 0) return 'מחיר שיעור נוסף חייב להיות גדול מ-0';
-    return null;
-  };
+  const kind: AnotherClassKind = formData.discount_type ?? 'fixed';
+  const example = anotherClassExample(kind, formData.value);
+
+  const validateForm = (): string | null => anotherClassProblem(kind, formData.value) || null;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -107,17 +116,60 @@ export default function EditAdditionalLessonDiscountDialog({
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-sm text-blue-900">
             <p className="font-medium mb-1">איך זה עובד?</p>
             <p>
-              ההנחה תוחל אוטומטית על ילדים פעילים הרשומים ליותר משיעור אחד.
-              השיעור הראשון משלם מחיר מלא, והשיעורים הנוספים (2, 3, וכו') משלמים את המחיר הקבוע שמוגדר כאן.
+              ההנחה חלה אוטומטית על ילד שרשום ליותר מחוג אחד.
+              החוג הראשון במחיר מלא, וכל חוג נוסף (2, 3 וכו׳) מקבל את ההנחה.
             </p>
+          </div>
+
+          {/* Kind */}
+          <div>
+            <label className="block text-sm font-medium mb-2">
+              סוג הנחה <span className="text-destructive">*</span>
+            </label>
+            <div className="space-y-2">
+              <label className="flex items-center gap-2 p-3 border border-border rounded-lg cursor-pointer hover:bg-accent">
+                <input
+                  type="radio"
+                  name="another_class_kind"
+                  value="fixed"
+                  checked={kind === 'fixed'}
+                  onChange={() => setFormData({ ...formData, discount_type: 'fixed' })}
+                  className="w-4 h-4"
+                />
+                <div>
+                  <div className="font-medium">הפחתה מהמחיר</div>
+                  <div className="text-xs text-muted-foreground">
+                    אותו סכום יורד מכל חוג נוסף, בכל סוגי החוגים. מצטרף להנחת אח ולרישום מוקדם.
+                  </div>
+                </div>
+              </label>
+              <label className="flex items-center gap-2 p-3 border border-border rounded-lg cursor-pointer hover:bg-accent">
+                <input
+                  type="radio"
+                  name="another_class_kind"
+                  value="fixed_final_price"
+                  checked={kind === 'fixed_final_price'}
+                  onChange={() => setFormData({ ...formData, discount_type: 'fixed_final_price' })}
+                  className="w-4 h-4"
+                />
+                <div>
+                  <div className="font-medium">מחיר קבוע לחוג נוסף</div>
+                  <div className="text-xs text-muted-foreground">
+                    כל חוג נוסף עולה את הסכום הזה. זה המחיר הסופי — הנחות אחרות לא יורדות ממנו.
+                  </div>
+                </div>
+              </label>
+            </div>
           </div>
 
           {/* Discount Value */}
           <div>
-            <label className="block text-sm font-medium mb-2">
-              מחיר לשיעור נוסף (₪) <span className="text-destructive">*</span>
+            <label htmlFor="another-class-value" className="block text-sm font-medium mb-2">
+              {kind === 'fixed' ? 'כמה יורד מכל חוג נוסף (₪)' : 'מחיר לחוג נוסף (₪)'}{' '}
+              <span className="text-destructive">*</span>
             </label>
             <input
+              id="another-class-value"
               type="number"
               value={formData.value}
               onChange={(e) =>
@@ -128,9 +180,7 @@ export default function EditAdditionalLessonDiscountDialog({
               step="0.01"
               required
             />
-            <p className="text-xs text-muted-foreground mt-1">
-              המחיר הקבוע לשיעור נוסף (למשל 100 ₪ לשיעור)
-            </p>
+            {example ? <p className="text-xs text-muted-foreground mt-1">{example}</p> : null}
           </div>
 
           {/* Active Status */}
@@ -152,7 +202,7 @@ export default function EditAdditionalLessonDiscountDialog({
           {formData.value === 0 && (
             <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 text-sm text-yellow-900">
               <p>
-                ⚠️ המחיר חייב להיות גדול מ-0. ההנחה לא תפעל ללא מחיר מוגדר.
+                ⚠️ הסכום חייב להיות גדול מ-0. בלי סכום ההנחה לא פועלת.
               </p>
             </div>
           )}

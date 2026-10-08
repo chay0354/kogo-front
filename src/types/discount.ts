@@ -54,11 +54,14 @@ export interface SecondChildDiscountFormData {
 
 export interface AdditionalLessonDiscount {
   id: string;
+  /** 'fixed' — shekels off every extra class; 'fixed_final_price' — the extra class's own price. */
+  discount_type?: 'fixed' | 'fixed_final_price';
   value: number;
   is_active: boolean;
 }
 
 export interface AdditionalLessonDiscountFormData {
+  discount_type?: 'fixed' | 'fixed_final_price';
   value: number;
   is_active: boolean;
 }

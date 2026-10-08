@@ -6,6 +6,7 @@ import { CardGridSkeleton, StatCardsSkeleton } from '@/components/ui/skeleton';
 import EditEarlySignupDiscountDialog from '@/components/dialogs/EditEarlySignupDiscountDialog';
 import EditSecondChildDiscountDialog from '@/components/dialogs/EditSecondChildDiscountDialog';
 import EditAdditionalLessonDiscountDialog from '@/components/dialogs/EditAdditionalLessonDiscountDialog';
+import { anotherClassDescription, anotherClassKind, anotherClassValueLabel } from '@/lib/anotherClassDiscount';
 import {
   fetchEarlySignupDiscounts,
   createEarlySignupDiscount,
@@ -115,6 +116,18 @@ export default function DiscountsSection() {
 
   const handleSaveSecondChild = async (data: SecondChildDiscountFormData) => {
     await updateSecondChildDiscount(data);
+  };
+
+  /**
+   * A discount was saved: close its window here, then read the discounts again.
+   *
+   * The reload swaps the whole section for its loading state, which takes the
+   * window down mid-way through its own closing — and with "open" still true it
+   * came straight back, as if nothing had been saved.
+   */
+  const savedAndClosed = (setOpen: (open: boolean) => void) => {
+    setOpen(false);
+    void loadDiscounts();
   };
 
   // Additional Lesson Handlers
@@ -331,7 +344,7 @@ export default function DiscountsSection() {
                   הנחת שיעור נוסף
                 </h2>
                 <p className="text-sm text-muted-foreground mt-1">
-                  מחיר קבוע לשיעורים נוספים לילד פעיל (שיעור ראשון במחיר מלא)
+                  {anotherClassDescription(anotherClassKind(additionalLessonDiscount))}
                 </p>
               </div>
               <button
@@ -349,7 +362,9 @@ export default function DiscountsSection() {
               <div className="space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="bg-white rounded-lg p-6 border border-gray-200">
-                    <div className="text-sm text-muted-foreground mb-2">מחיר לשיעור נוסף</div>
+                    <div className="text-sm text-muted-foreground mb-2">
+                      {anotherClassValueLabel(anotherClassKind(additionalLessonDiscount))}
+                    </div>
                     <div className="text-3xl font-bold text-purple-600">
                       {additionalLessonDiscount.value.toFixed(2)} ₪
                     </div>
@@ -392,7 +407,7 @@ export default function DiscountsSection() {
         <EditEarlySignupDiscountDialog
           isOpen={showEarlySignupDialog}
           onClose={() => setShowEarlySignupDialog(false)}
-          onSuccess={loadDiscounts}
+          onSuccess={() => savedAndClosed(setShowEarlySignupDialog)}
           discount={selectedEarlySignup}
           onSave={handleSaveEarlySignup}
         />
@@ -402,7 +417,7 @@ export default function DiscountsSection() {
         <EditSecondChildDiscountDialog
           isOpen={showSecondChildDialog}
           onClose={() => setShowSecondChildDialog(false)}
-          onSuccess={loadDiscounts}
+          onSuccess={() => savedAndClosed(setShowSecondChildDialog)}
           discount={secondChildDiscount}
           onSave={handleSaveSecondChild}
         />
@@ -412,7 +427,7 @@ export default function DiscountsSection() {
         <EditAdditionalLessonDiscountDialog
           isOpen={showAdditionalLessonDialog}
           onClose={() => setShowAdditionalLessonDialog(false)}
-          onSuccess={loadDiscounts}
+          onSuccess={() => savedAndClosed(setShowAdditionalLessonDialog)}
           discount={additionalLessonDiscount}
           onSave={handleSaveAdditionalLesson}
         />
