@@ -2,7 +2,7 @@
 
 import { memo, useEffect, useRef } from 'react';
 import { Inbox, Plug, Search, X } from 'lucide-react';
-import { CHAT_BOXES, boxCount, handledByChip } from '@/lib/wahub/boxes';
+import { BOX_GROUPS, boxCount, boxesInGroup, handledByChip } from '@/lib/wahub/boxes';
 import { displayName, formatListTime, previewText, waitingLabel } from '@/lib/wahub/format';
 import type { WahubBox, WahubBoxCounts, WahubContact } from '@/types/wahub';
 import type { ListStatus } from '../hooks/usePagedContacts';
@@ -186,27 +186,33 @@ export default function ChatList({
           )}
         </label>
 
-        <div className={cx(s.chips, 'mt-2.5')} role="group" aria-label="תיבות">
-          {CHAT_BOXES.map((def) => {
-            const active = box === def.key;
-            const count = boxCount(counts, def.key);
-            const loud = def.key === 'needs_human' && (count ?? 0) > 0 && !active;
-            return (
-              <button
-                key={def.key}
-                type="button"
-                aria-pressed={active}
-                onClick={() => onBox(def.key)}
-                title={def.hint}
-                className={cx(s.chipbtn, active && s.on)}
-              >
-                {def.label}
-                {count !== null && (
-                  <span className={cx(s.cnt, s.num, loud && s.cntHot)}>{count.toLocaleString('he-IL')}</span>
-                )}
-              </button>
-            );
-          })}
+        {/* Two worlds, kept apart on purpose: what a person must handle, and what the bot handles (owner, 11.10). */}
+        <div className="mt-2.5 flex flex-col gap-1.5" role="group" aria-label="תיבות">
+          {BOX_GROUPS.map((group) => (
+            <div key={group.key} className={cx(s.chips, 'items-center')}>
+              {group.label && <span className={s.boxGroupLabel}>{group.label}</span>}
+              {boxesInGroup(group.key).map((def) => {
+                const active = box === def.key;
+                const count = boxCount(counts, def.key);
+                const loud = def.key === 'needs_human' && (count ?? 0) > 0 && !active;
+                return (
+                  <button
+                    key={def.key}
+                    type="button"
+                    aria-pressed={active}
+                    onClick={() => onBox(def.key)}
+                    title={def.hint}
+                    className={cx(s.chipbtn, active && s.on)}
+                  >
+                    {def.label}
+                    {count !== null && (
+                      <span className={cx(s.cnt, s.num, loud && s.cntHot)}>{count.toLocaleString('he-IL')}</span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          ))}
         </div>
       </div>
 
