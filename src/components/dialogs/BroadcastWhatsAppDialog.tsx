@@ -7,7 +7,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogCloseButton } f
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import BroadcastProgress from '@/components/broadcast/BroadcastProgress';
-import LinkContactPanel from '@/components/broadcast/LinkContactPanel';
+import BroadcastOutcomePanel from '@/components/broadcast/BroadcastOutcomePanel';
 import ContactIndexPanel, { unfindablePhones } from '@/components/broadcast/ContactIndexPanel';
 import type { BroadcastDraft } from '@/components/broadcast/BroadcastRunProvider';
 import {
@@ -498,55 +498,23 @@ export default function BroadcastWhatsAppDialog({
                 </div>
               </div>
             )}
+            {sentRows.length > 0 && (
+              <BroadcastOutcomePanel
+                rows={sentRows}
+                finished={phase === 'done'}
+                nameFor={(childId, fallback) => names[childId] || fallback}
+                linked={linked}
+                onLinked={(phone, displayName) => setLinked((prev) => ({ ...prev, [phone]: displayName }))}
+                skipLabel={(reason) => REASON_LABELS[reason || ''] || reason || ''}
+              />
+            )}
+            {/* The fix for every "cannot find" at once, under the list of who did not get it. */}
             {phase === 'done' && unfindablePhones(sentRows).length > 0 && (
               <ContactIndexPanel
                 phones={unfindablePhones(sentRows)}
                 collapsible
                 onFound={(phone, displayName) => setLinked((prev) => ({ ...prev, [phone]: displayName }))}
               />
-            )}
-            {sentRows.length > 0 && (
-              <div className="max-h-64 overflow-y-auto rounded-lg border divide-y text-sm">
-                {sentRows.map((row) => (
-                  <div key={row.child_id} className="px-3 py-2 space-y-2">
-                    <div className="flex items-center justify-between gap-3">
-                      <div className="min-w-0">
-                        <span className="font-medium">{nameFor(row)}</span>
-                        {row.parent_name && <span className="text-muted-foreground"> · {row.parent_name}</span>}
-                      </div>
-                      <span
-                        className={
-                          row.status === 'sent'
-                            ? 'text-emerald-700'
-                            : row.status === 'failed'
-                              ? 'text-red-700'
-                              : 'text-muted-foreground'
-                        }
-                      >
-                        {rowStatusLabel(row)}
-                      </span>
-                    </div>
-                    {row.status === 'failed' && row.reason === 'contact_unfindable' && row.phone && (
-                      <LinkContactPanel
-                        phone={row.phone}
-                        linkedAs={linked[row.phone]}
-                        onLinked={(displayName) => setLinked((prev) => ({ ...prev, [row.phone]: displayName }))}
-                      />
-                    )}
-                    <ExtraPhoneLines row={row} />
-                    {(row.extra_phones ?? [])
-                      .filter((extra) => extra.status === 'failed' && extra.reason === 'contact_unfindable' && extra.phone)
-                      .map((extra) => (
-                        <LinkContactPanel
-                          key={extra.phone}
-                          phone={extra.phone}
-                          linkedAs={linked[extra.phone]}
-                          onLinked={(displayName) => setLinked((prev) => ({ ...prev, [extra.phone]: displayName }))}
-                        />
-                      ))}
-                  </div>
-                ))}
-              </div>
             )}
             {phase === 'sending' && minimizeHint}
             {phase === 'done' && (
