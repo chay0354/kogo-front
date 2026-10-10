@@ -512,6 +512,15 @@ button.kpi:active {
   align-items: center;
 }
 
+/* "נציג" / "בוט" before each row of boxes */
+.boxGroupLabel {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.3px;
+  color: var(--faint);
+  min-width: 30px;
+}
+
 .chipbtn {
   height: 32px;
   padding: 0 10px 0 8px;

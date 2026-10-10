@@ -136,7 +136,7 @@ describe('who is shown in the leads tab', () => {
 
 describe('the number beside the menu entry', () => {
   test('is the people waiting plus the people asking for a person', () => {
-    expect(menuBadgeCount({ waiting: 3, needs_human: 2 })).toBe(5);
+    expect(menuBadgeCount({ waiting: 3, needs_human: 2 })).toBe(2);
   });
 
   test('is nothing when nobody waits, or when the server has not answered', () => {

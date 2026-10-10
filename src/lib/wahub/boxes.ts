@@ -10,12 +10,16 @@ import type {
 
 export type Tone = 'neutral' | 'primary' | 'danger' | 'warning' | 'info' | 'success' | 'muted';
 
+export type BoxGroup = 'all' | 'human' | 'bot';
+
 export interface BoxDef {
   key: WahubBox;
   label: string;
   /** One plain line that says who is in this box — shown on hover and in the empty state. */
   hint: string;
   tone: Tone;
+  /** Two worlds the owner wants kept apart on screen: what a person must handle, and what the bot handles. */
+  group: BoxGroup;
 }
 
 /**
@@ -27,12 +31,23 @@ export interface BoxDef {
  * "בטיפול נציג" already is that list.
  */
 export const CHAT_BOXES: BoxDef[] = [
-  { key: 'all', label: 'הכול', hint: 'כל השיחות', tone: 'neutral' },
-  { key: 'needs_human', label: 'מבקשים נציג', hint: 'הלקוח ביקש בן אדם, ואף אחד עוד לא לקח את השיחה', tone: 'danger' },
-  { key: 'human', label: 'בטיפול נציג', hint: 'נציג לקח את השיחה, הבוט שותק', tone: 'info' },
-  { key: 'waiting', label: 'מחכים לתשובה', hint: 'הלקוח כתב, ואף אחד (בוט או נציג) עוד לא ענה', tone: 'warning' },
-  { key: 'unread', label: 'לא נקראו', hint: 'הודעות שאף אחד מהצוות עוד לא פתח', tone: 'primary' },
+  { key: 'all', label: 'הכול', hint: 'כל השיחות', tone: 'neutral', group: 'all' },
+  { key: 'needs_human', label: 'מבקשים נציג', hint: 'הלקוח ביקש בן אדם, ואף אחד עוד לא לקח את השיחה', tone: 'danger', group: 'human' },
+  { key: 'human', label: 'בטיפול נציג', hint: 'נציג לקח את השיחה, הבוט שותק', tone: 'info', group: 'human' },
+  { key: 'waiting', label: 'מחכים לתשובה', hint: 'הלקוח כתב, והבוט עוד לא ענה', tone: 'warning', group: 'bot' },
+  { key: 'unread', label: 'לא נקראו', hint: 'הודעות שאף אחד מהצוות עוד לא פתח', tone: 'primary', group: 'bot' },
 ];
+
+/** The group labels, in display order. */
+export const BOX_GROUPS: { key: BoxGroup; label: string }[] = [
+  { key: 'all', label: '' },
+  { key: 'human', label: 'נציג' },
+  { key: 'bot', label: 'בוט' },
+];
+
+export function boxesInGroup(group: BoxGroup): BoxDef[] {
+  return CHAT_BOXES.filter((def) => def.group === group);
+}
 
 /** The plain line for a box, for hover text and empty states. */
 export function boxHint(box: WahubBox): string {
@@ -154,11 +169,15 @@ export function matchesLeadView(
 }
 
 /** The small number beside the menu entry: people who are waiting for a person. */
+/**
+ * The red mark on the menu counts only what needs a person — customers who
+ * asked for one. Everything the bot handles (waiting, unread) is not a call
+ * on the owner's attention (owner, 11.10.2026).
+ */
 export function menuBadgeCount(summary: Pick<WahubSummary, 'waiting' | 'needs_human'> | null | undefined): number {
   if (!summary) return 0;
-  const waiting = Number(summary.waiting) || 0;
   const needsHuman = Number(summary.needs_human) || 0;
-  return Math.max(0, waiting) + Math.max(0, needsHuman);
+  return Math.max(0, needsHuman);
 }
 
 /** 120 → "99+": the badge is a nudge, not a report. */
