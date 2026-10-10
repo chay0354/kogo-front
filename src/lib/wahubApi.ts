@@ -10,6 +10,7 @@ import type {
   WahubContactsQuery,
   WahubCounts,
   WahubFollowupPatch,
+  WahubForCustomer,
   WahubFromKogo,
   WahubKnowledgeHistoryEntry,
   WahubKnowledgeImportResult,
@@ -34,8 +35,10 @@ import type {
   WahubStatus,
   WahubSummary,
   WahubTag,
+  WahubUnregisteredLeads,
   WahubUpdates,
 } from '@/types/wahub';
+import { unregisteredParams } from './wahub/unregistered';
 
 /**
  * Every call the "וואטסאפ ולידים" screens make, one function per endpoint of
@@ -534,6 +537,56 @@ export async function fetchWahubReviewSummary(): Promise<WahubReviewSummary> {
     auto_mode: Boolean(data.auto_mode),
     notes_7d: data.notes_7d == null ? undefined : Number(data.notes_7d),
   };
+}
+
+// ---------------------------------------------------------------------------
+// Stage 3 — who asked and did not register; the WhatsApp block on a customer's
+// card (docs/WAHUB-CONTRACT-STAGE3.md §א, §ב). Nothing here sends a message.
+// ---------------------------------------------------------------------------
+
+/** GET leads/unregistered/ — hot first, then whoever has waited longest. Not paged: the list is small. */
+export async function fetchWahubUnregisteredLeads(
+  query: { days?: number; hot?: boolean } = {},
+): Promise<WahubUnregisteredLeads> {
+  const res = await api.get(`${BASE}/leads/unregistered/`, {
+    params: unregisteredParams(query.days ?? 30, Boolean(query.hot)),
+  });
+  const data = (res.data ?? {}) as Partial<WahubUnregisteredLeads>;
+  const counts = data.counts ?? { total: 0, hot: 0, oldest_days: null };
+  return {
+    days: Number(data.days ?? query.days ?? 30),
+    counts: {
+      total: Number(counts.total ?? 0),
+      hot: Number(counts.hot ?? 0),
+      oldest_days: counts.oldest_days == null ? null : Number(counts.oldest_days),
+    },
+    leads: data.leads ?? [],
+  };
+}
+
+function readForCustomer(raw: unknown, family: string): WahubForCustomer {
+  const data = (raw ?? {}) as Partial<WahubForCustomer>;
+  return {
+    family: String(data.family ?? family),
+    phones: data.phones ?? [],
+    contacts: data.contacts ?? [],
+    checked_at: data.checked_at ?? null,
+  };
+}
+
+/** GET for-customer/?family=<uuid> — the family's WhatsApp contacts, by every phone on its card. 404 for a family that does not exist. */
+export async function fetchWahubForCustomer(family: string): Promise<WahubForCustomer> {
+  const res = await api.get(`${BASE}/for-customer/`, { params: { family } });
+  return readForCustomer(res.data, family);
+}
+
+/**
+ * POST for-customer/recheck/ — runs the cross-check against Kogo again for each
+ * contact found, and answers like the GET. The only write: the `kogo_*` fields.
+ */
+export async function recheckWahubForCustomer(family: string): Promise<WahubForCustomer> {
+  const res = await api.post(`${BASE}/for-customer/recheck/`, { family }, { timeout: 60_000 });
+  return readForCustomer(res.data, family);
 }
 
 // ---------------------------------------------------------------------------

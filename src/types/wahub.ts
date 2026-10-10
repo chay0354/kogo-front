@@ -243,6 +243,8 @@ export interface WahubSummary {
   outbound_today: number;
   oldest_waiting_since: string | null;
   by_day: WahubDayStat[];
+  /** Stage 3: who asked in the last 30 days and did not register. Absent on a server built before it. */
+  unregistered_leads?: WahubUnregisteredCounts;
 }
 
 export interface WahubStatus {
@@ -730,4 +732,91 @@ export interface WahubDemoScenario {
   key: string;
   title: string;
   description: string;
+}
+
+// ---------------------------------------------------------------------------
+// Stage 3, part א (docs/WAHUB-CONTRACT-STAGE3.md): who asked and did not
+// register, and the WhatsApp block on a customer's card. Field for field.
+// ---------------------------------------------------------------------------
+
+/** `counts` of GET leads/unregistered/, and `unregistered_leads` on GET summary/ (30 days). */
+export interface WahubUnregisteredCounts {
+  total: number;
+  hot: number;
+  /** Days since the oldest lead on the list last wrote; null when the list is empty. */
+  oldest_days: number | null;
+}
+
+/** One row of GET leads/unregistered/ — a flat line, not a full contact. */
+export interface WahubUnregisteredLead {
+  id: number;
+  name: string;
+  phone: string;
+  /** 050-000-0000. Not in the contract's row; the server sends it, and a row without it shows `phone`. */
+  phone_display?: string;
+  is_demo: boolean;
+  first_inbound_at: string | null;
+  last_inbound_at: string | null;
+  days_since_first: number | null;
+  days_since_last: number | null;
+  /** The summary when there is one, otherwise the last inbound message, up to 160 characters. */
+  asked: string;
+  known_interest: WahubInterest;
+  known_interest_label: string;
+  known_city: string;
+  known_branch_name: string;
+  known_course_type: string;
+  kogo_outcome: WahubOutcome;
+  kogo_outcome_label: string;
+  kogo_detail: string;
+  followup_status: WahubFollowupStatus;
+  followup_status_label: string;
+  followup_due: string | null;
+  /** Interested in a trial or in registering, or tried and the charge failed, or a trial ahead / done. */
+  hot: boolean;
+  handled_by: WahubHandledBy;
+  needs_human: boolean;
+}
+
+/** GET leads/unregistered/?days=30&hot=0|1 — hot first, then whoever has waited longest. */
+export interface WahubUnregisteredLeads {
+  days: number;
+  counts: WahubUnregisteredCounts;
+  leads: WahubUnregisteredLead[];
+}
+
+/** One WhatsApp contact of a family, as GET for-customer/ lists it. */
+export interface WahubForCustomerContact {
+  id: number;
+  name: string;
+  phone: string;
+  /** As above: sent by the server, optional here. */
+  phone_display?: string;
+  is_demo: boolean;
+  last_message_at: string | null;
+  last_message_text: string;
+  last_message_direction: WahubMessageDirection | '';
+  last_message_sender: WahubSender | '';
+  handled_by: WahubHandledBy;
+  needs_human: boolean;
+  known_summary: string;
+  known_interest_label: string;
+  followup_status: WahubFollowupStatus;
+  followup_status_label: string;
+  followup_due: string | null;
+  kogo_outcome: WahubOutcome;
+  kogo_outcome_label: string;
+  /** The cross-check tied this contact to this very family. */
+  linked: boolean;
+  /** /wahub?tab=chats&contact=<id> */
+  link: string;
+}
+
+/** GET for-customer/?family=<uuid> and POST for-customer/recheck/. */
+export interface WahubForCustomer {
+  family: string;
+  /** Every phone of the family the contacts were looked up by. */
+  phones: string[];
+  contacts: WahubForCustomerContact[];
+  checked_at: string | null;
 }

@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { BellRing, CalendarClock, Hourglass, UserPlus } from 'lucide-react';
 import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
@@ -15,6 +16,7 @@ import { useNow } from './hooks/useNow';
 import { useWahubSummary } from './hooks/useWahubQueries';
 import { ContactAvatar, EmptyState, ErrorState, Skeleton } from './shared/bits';
 import { NUMBER_TONE, cx } from './shared/tones';
+import UnregisteredCard from './today/UnregisteredCard';
 import s from './wahub.module.css';
 
 const LIST_LIMIT = 10;
@@ -164,6 +166,9 @@ export default function TodayTab({ status, onGo, onOpenChat }: TodayTabProps) {
     retry: false,
   });
 
+  // "שאלו ולא נרשמו" opens its list in place; the list is read only while it is open.
+  const [unregisteredOpen, setUnregisteredOpen] = useState(false);
+
   const data = summary.data;
   const waitingUnreliable = status ? !status.bot_replies_seen : false;
   const chart = (data?.by_day ?? []).map((day) => ({
@@ -219,6 +224,13 @@ export default function TodayTab({ status, onGo, onOpenChat }: TodayTabProps) {
           onClick={() => onGo({ tab: 'leads', queue: 'all' })}
         />
       </section>
+
+      <UnregisteredCard
+        counts={data?.unregistered_leads}
+        open={unregisteredOpen}
+        onToggle={() => setUnregisteredOpen((value) => !value)}
+        onOpenChat={onOpenChat}
+      />
 
       <section className={s.card}>
         <div className={cx(s.ct, 'flex-wrap')}>
