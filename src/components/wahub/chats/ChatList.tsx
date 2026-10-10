@@ -2,7 +2,7 @@
 
 import { memo, useEffect, useRef } from 'react';
 import { Inbox, Plug, Search, X } from 'lucide-react';
-import { CHAT_BOXES, boxCount } from '@/lib/wahub/boxes';
+import { CHAT_BOXES, boxCount, handledByChip } from '@/lib/wahub/boxes';
 import { displayName, formatListTime, previewText, waitingLabel } from '@/lib/wahub/format';
 import type { WahubBox, WahubBoxCounts, WahubContact } from '@/types/wahub';
 import type { ListStatus } from '../hooks/usePagedContacts';
@@ -24,6 +24,7 @@ const ChatRow = memo(function ChatRow({ contact, selected, arrived, now, onOpen 
   const { chat } = contact;
   const unread = chat.unread_count > 0;
   const waiting = waitingLabel(chat.waiting_since, now);
+  const who = handledByChip(contact);
   const preview = previewText(contact.last_message);
 
   return (
@@ -54,18 +55,17 @@ const ChatRow = memo(function ChatRow({ contact, selected, arrived, now, onOpen 
             )}
           </span>
 
-          {(chat.needs_human || waiting || chat.handled_by === 'human') && (
-            <span className="mt-1.5 flex flex-wrap items-center gap-1.5">
-              {chat.needs_human && (
-                <span className={cx(s.rowTag, s.pBad)}>
-                  <i className={s.pillDot} aria-hidden="true" />
-                  מבקש נציג
-                </span>
-              )}
-              {waiting && <span className={cx(s.rowTag, s.pWarn)}>{waiting}</span>}
-              {chat.handled_by === 'human' && <span className={cx(s.rowTag, s.pGold)}>בטיפול נציג</span>}
-            </span>
-          )}
+          <span className="mt-1.5 flex flex-wrap items-center gap-1.5">
+            {/* Who answers this conversation — on every row, so the state is never a guess (owner, 10.10). */}
+            <span className={cx(s.rowTag, who.tone === 'human' ? s.pGold : s.pMute)}>{who.label}</span>
+            {chat.needs_human && (
+              <span className={cx(s.rowTag, s.pBad)}>
+                <i className={s.pillDot} aria-hidden="true" />
+                מבקש נציג
+              </span>
+            )}
+            {waiting && <span className={cx(s.rowTag, s.pWarn)}>{waiting}</span>}
+          </span>
         </span>
       </button>
     </li>
@@ -197,6 +197,7 @@ export default function ChatList({
                 type="button"
                 aria-pressed={active}
                 onClick={() => onBox(def.key)}
+                title={def.hint}
                 className={cx(s.chipbtn, active && s.on)}
               >
                 {def.label}

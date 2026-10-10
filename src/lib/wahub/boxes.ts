@@ -13,21 +13,38 @@ export type Tone = 'neutral' | 'primary' | 'danger' | 'warning' | 'info' | 'succ
 export interface BoxDef {
   key: WahubBox;
   label: string;
+  /** One plain line that says who is in this box — shown on hover and in the empty state. */
+  hint: string;
   tone: Tone;
 }
 
 /**
- * The boxes above the conversations list, in the order they are shown. The
- * server also knows a "bot" box; the screen does not offer it, because "הכול"
- * less "בטיפול נציג" already is that list.
+ * The boxes above the conversations list, in the order they are shown.
+ *
+ * The owner's order (10.10.2026): the two "נציג" boxes first, because they are
+ * what the office works from; then the two bot-side states. The server also
+ * knows a "bot" box; the screen does not offer it, because "הכול" less
+ * "בטיפול נציג" already is that list.
  */
 export const CHAT_BOXES: BoxDef[] = [
-  { key: 'all', label: 'הכול', tone: 'neutral' },
-  { key: 'waiting', label: 'מחכים לתשובה', tone: 'warning' },
-  { key: 'needs_human', label: 'מבקשים נציג', tone: 'danger' },
-  { key: 'unread', label: 'לא נקראו', tone: 'primary' },
-  { key: 'human', label: 'בטיפול נציג', tone: 'info' },
+  { key: 'all', label: 'הכול', hint: 'כל השיחות', tone: 'neutral' },
+  { key: 'needs_human', label: 'מבקשים נציג', hint: 'הלקוח ביקש בן אדם, ואף אחד עוד לא לקח את השיחה', tone: 'danger' },
+  { key: 'human', label: 'בטיפול נציג', hint: 'נציג לקח את השיחה, הבוט שותק', tone: 'info' },
+  { key: 'waiting', label: 'מחכים לתשובה', hint: 'הלקוח כתב, ואף אחד (בוט או נציג) עוד לא ענה', tone: 'warning' },
+  { key: 'unread', label: 'לא נקראו', hint: 'הודעות שאף אחד מהצוות עוד לא פתח', tone: 'primary' },
 ];
+
+/** The plain line for a box, for hover text and empty states. */
+export function boxHint(box: WahubBox): string {
+  return CHAT_BOXES.find((def) => def.key === box)?.hint ?? '';
+}
+
+/** Who answers this conversation right now, as a short chip for every row. */
+export function handledByChip(contact: WahubContact): { label: string; tone: 'bot' | 'human' } {
+  return contact.chat.handled_by === 'human'
+    ? { label: 'נציג עונה', tone: 'human' }
+    : { label: 'הבוט עונה', tone: 'bot' };
+}
 
 export interface QueueDef {
   key: WahubQueue;

@@ -22,10 +22,10 @@ describe('the boxes above the conversations', () => {
   test('are the five the screen offers, in order, each with its Hebrew name', () => {
     expect(CHAT_BOXES.map((box) => [box.key, box.label])).toEqual([
       ['all', 'הכול'],
-      ['waiting', 'מחכים לתשובה'],
       ['needs_human', 'מבקשים נציג'],
-      ['unread', 'לא נקראו'],
       ['human', 'בטיפול נציג'],
+      ['waiting', 'מחכים לתשובה'],
+      ['unread', 'לא נקראו'],
     ]);
   });
 
