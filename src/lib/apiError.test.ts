@@ -24,4 +24,10 @@ describe('readableError', () => {
     expect(readableError({ response: { data: 'Bad Request' } })).toBe('Bad Request');
     expect(readableError({ response: { data: { name: [] } } })).toBe('השמירה נכשלה');
   });
+
+  it('never shows a server error page as the message', () => {
+    const page = '<!DOCTYPE html>\n<html lang="en"><head><title>Page not found</title></head><body>…</body></html>';
+    expect(readableError({ response: { data: page } }, 'הייבוא לא הצליח')).toBe('הייבוא לא הצליח');
+    expect(readableError({ response: { data: '  <html><body>Server Error (500)</body></html>' } })).toBe('השמירה נכשלה');
+  });
 });

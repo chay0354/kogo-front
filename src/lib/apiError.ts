@@ -8,7 +8,8 @@
 export function readableError(e: unknown, fallback = 'השמירה נכשלה'): string {
   const data = (e as { response?: { data?: unknown } })?.response?.data;
   if (!data) return fallback;
-  if (typeof data === 'string') return data.trim() || fallback;
+  // A server error page (Django's 404/500 HTML) is not a sentence for a manager.
+  if (typeof data === 'string') return !data.trim() || /^\s*<(!doctype|html)/i.test(data) ? fallback : data.trim();
   const body = data as Record<string, unknown>;
   if (body.detail) return String(body.detail);
   if (body.error) return String(body.error);
