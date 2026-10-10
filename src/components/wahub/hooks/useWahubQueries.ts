@@ -7,6 +7,7 @@ import {
   fetchWahubStatus,
   fetchWahubSummary,
   fetchWahubTags,
+  fetchWahubUnregisteredLeads,
 } from '@/lib/wahubApi';
 import { menuBadgeCount } from '@/lib/wahub/boxes';
 
@@ -16,6 +17,8 @@ export const wahubKeys = {
   tags: ['wahub', 'tags'] as const,
   quickReplies: ['wahub', 'quick-replies'] as const,
   automations: ['wahub', 'automations'] as const,
+  /** The "שאלו ולא נרשמו" list, one entry per range and per "רק חמים". */
+  unregistered: (days: number, hot: boolean) => ['wahub', 'today', 'unregistered', days, hot ? 1 : 0] as const,
 };
 
 /** The figures of the "היום" tab and of the menu badge. Re-read on a timer while the tab is in view. */
@@ -74,6 +77,21 @@ export function useWahubAutomations(enabled: boolean) {
     queryFn: fetchWhatsAppAutomations,
     enabled,
     staleTime: 5 * 60_000,
+    retry: false,
+  });
+}
+
+/**
+ * Who asked and did not register (stage 3). Read only while the card is open —
+ * closed, the card shows the summary's figures and asks the server for nothing.
+ */
+export function useUnregisteredLeads(days: number, hot: boolean, enabled: boolean) {
+  return useQuery({
+    queryKey: wahubKeys.unregistered(days, hot),
+    queryFn: () => fetchWahubUnregisteredLeads({ days, hot }),
+    enabled,
+    refetchInterval: enabled ? 30_000 : false,
+    staleTime: 10_000,
     retry: false,
   });
 }
