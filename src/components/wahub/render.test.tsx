@@ -61,6 +61,7 @@ function renderThread(contact: WahubContactDetail | null, messages: WahubMessage
       now={NOW}
       visible
       simulated={false}
+      sendingOff={false}
       handoverBusy={false}
       resolveBusy={false}
       showBack={false}
@@ -81,6 +82,7 @@ const STATUS: WahubStatus = {
   bot_replies_seen: true,
   ai_configured: true,
   send_configured: true,
+  sending_enabled: true,
   simulate_send: false,
   last_inbound_at: '2026-10-08T11:57:00+03:00',
   contacts_total: 40,

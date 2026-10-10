@@ -132,6 +132,8 @@ interface ChatThreadProps {
   /** The conversation is on screen right now (not behind another tab or pane). */
   visible: boolean;
   simulated: boolean;
+  /** The owner's switch is off: nothing may be sent to a customer yet. */
+  sendingOff: boolean;
   /** Which of the two handover buttons is waiting for the server. */
   handoverBusy: boolean;
   resolveBusy: boolean;
@@ -242,7 +244,7 @@ export default function ChatThread({
   thread,
   now,
   visible,
-  simulated,
+  simulated, sendingOff,
   handoverBusy,
   resolveBusy,
   showBack,
@@ -449,6 +451,7 @@ export default function ChatThread({
         contact={contact}
         sending={thread.sending}
         simulated={simulated}
+        sendingOff={sendingOff}
         onSend={thread.send}
         onSendFlow={thread.sendFlow}
         onOpenSettings={onOpenSettings}

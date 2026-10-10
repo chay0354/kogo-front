@@ -23,7 +23,7 @@ export function connectionLevel(status: WahubStatus | undefined): { level: Level
   if (!status) return { level: 'unknown', word: '' };
   if (!status.inbound_configured) return { level: 'off', word: 'לא מחובר' };
   if (!status.last_inbound_at) return { level: 'warn', word: 'ממתין להודעה ראשונה' };
-  if (!status.bot_replies_seen || !status.send_configured || status.simulate_send) {
+  if (!status.bot_replies_seen || !status.send_configured || !status.sending_enabled || status.simulate_send) {
     return { level: 'warn', word: 'חלקי' };
   }
   return { level: 'ok', word: 'תקין' };
@@ -104,6 +104,10 @@ export default function WahubStatusChips({
             {status.simulate_send ? (
               <>
                 <B>הדמיה</B> – לא נשלח באמת
+              </>
+            ) : !status.sending_enabled ? (
+              <>
+                <B>כבויה</B> – כלום לא יוצא ללקוחות עד שתפעיל
               </>
             ) : status.send_configured ? (
               <B>פעילה</B>

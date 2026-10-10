@@ -210,12 +210,16 @@ function ConnectionSection({ status, onChanged }: { status: WahubStatus; onChang
           }
         />
         <StateRow
-          ok={status.simulate_send ? false : status.send_configured}
+          ok={status.simulate_send || !status.sending_enabled ? false : status.send_configured}
           title="שליחה"
           text={
             status.simulate_send ? (
               <>
                 <B>מצב הדמיה</B> – הודעות נרשמות ולא נשלחות.
+              </>
+            ) : !status.sending_enabled ? (
+              <>
+                <B>כבויה</B> – שום הודעה לא יוצאת ללקוחות, ו"קח שיחה" לא נוגע בבוט. מפעילים בהגדרות המערכת (WAHUB_SENDING_ENABLED) כשמוכנים.
               </>
             ) : status.send_configured ? (
               'פעילה, דרך ManyChat.'
