@@ -136,6 +136,8 @@ interface ComposerProps {
   sending: boolean;
   /** The server records the message and sends nothing (local simulation). */
   simulated: boolean;
+  /** The owner's switch is off: nothing may be sent to a customer yet. */
+  sendingOff: boolean;
   onSend: (text: string) => Promise<boolean>;
   onSendFlow: (automationId: string) => Promise<boolean>;
   onOpenSettings: () => void;
@@ -146,7 +148,7 @@ interface ComposerProps {
  * hours after the customer's last message WhatsApp takes a template only, so
  * the box locks and says why.
  */
-export default function Composer({ contact, sending, simulated, onSend, onSendFlow, onOpenSettings }: ComposerProps) {
+export default function Composer({ contact, sending, simulated, sendingOff, onSend, onSendFlow, onOpenSettings }: ComposerProps) {
   const [text, setText] = useState('');
   const [menu, setMenu] = useState<Menu>(null);
   const textarea = useRef<HTMLTextAreaElement | null>(null);
@@ -154,7 +156,7 @@ export default function Composer({ contact, sending, simulated, onSend, onSendFl
 
   const replies = useWahubQuickReplies();
   const automations = useWahubAutomations(menu === 'templates');
-  const canType = contact.chat.can_free_text;
+  const canType = contact.chat.can_free_text && !sendingOff;
   const name = contact.name || contact.phone_display || contact.phone;
 
   // Each conversation starts with an empty box.
@@ -297,19 +299,23 @@ export default function Composer({ contact, sending, simulated, onSend, onSendFl
           <div className={s.lockBox}>
             <Lock aria-hidden="true" />
             <p>
-              {contact.last_inbound_at
-                ? 'עברו 24 שעות מההודעה האחרונה של הלקוח. אפשר לשלוח רק תבנית.'
-                : 'הלקוח עוד לא כתב לנו. אפשר לשלוח רק תבנית.'}
+              {sendingOff
+                ? 'השליחה ללקוחות כבויה. כלום לא יוצא מכאן עד שמפעילים אותה בהגדרות המערכת.'
+                : contact.last_inbound_at
+                  ? 'עברו 24 שעות מההודעה האחרונה של הלקוח. אפשר לשלוח רק תבנית.'
+                  : 'הלקוח עוד לא כתב לנו. אפשר לשלוח רק תבנית.'}
             </p>
-            <button
-              type="button"
-              onClick={() => setMenu(menu === 'templates' ? null : 'templates')}
-              aria-expanded={menu === 'templates'}
-              className={cx(s.btn, s.btnSm, s.btnP)}
-            >
-              <LayoutTemplate aria-hidden="true" />
-              שלח תבנית
-            </button>
+            {!sendingOff && (
+              <button
+                type="button"
+                onClick={() => setMenu(menu === 'templates' ? null : 'templates')}
+                aria-expanded={menu === 'templates'}
+                className={cx(s.btn, s.btnSm, s.btnP)}
+              >
+                <LayoutTemplate aria-hidden="true" />
+                שלח תבנית
+              </button>
+            )}
           </div>
         )}
       </div>

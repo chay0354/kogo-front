@@ -255,6 +255,7 @@ export default function ChatsTab({
             now={now}
             visible={active && showThread}
             simulated={Boolean(status?.simulate_send)}
+            sendingOff={status ? !status.sending_enabled && !status.simulate_send : false}
             handoverBusy={Boolean(busy.handover)}
             resolveBusy={Boolean(busy.resolve)}
             showBack={layout === 'narrow'}

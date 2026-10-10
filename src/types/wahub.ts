@@ -248,6 +248,8 @@ export interface WahubStatus {
   bot_replies_seen: boolean;
   ai_configured: boolean;
   send_configured: boolean;
+  /** The owner's switch: until it is on, nothing is sent to a customer and the bot is not touched. */
+  sending_enabled: boolean;
   simulate_send: boolean;
   last_inbound_at: string | null;
   contacts_total: number;
