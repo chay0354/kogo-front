@@ -1,0 +1,1657 @@
+/*
+ * The look of the "וואטסאפ ולידים" section.
+ *
+ * The owner drew a new design language ("קוגומלו למחשב"); this section is the
+ * first built in it. Everything here follows that sketch
+ * (docs/design/kogomelo-desktop-sketch.css): its variables, and its card, tile,
+ * button, pill, filter chip, segmented tabs, list row, initials mark, search
+ * box, form, empty state, switch, live dot and soft entrance.
+ *
+ * The variables are set on .wahub — the wrapper of the section — and nowhere
+ * else, so no other screen of the CRM changes. The CRM has no dark mode, so
+ * only the sketch's light values are here.
+ *
+ * What the sketch does not have — a conversations screen — is derived from the
+ * same variables, and marked "derived" below.
+ */
+
+.wahub {
+  --bg: #f3f5fd;
+  --surface: #ffffff;
+  --surface-2: #f7f8fd;
+  --ink: #1f2340;
+  --muted: #6b7090;
+  --faint: #a3a8c8;
+  --line: rgba(43, 48, 144, 0.12);
+  --line-2: rgba(43, 48, 144, 0.07);
+  --navy: #2b3090;
+  --navy-2: #1e2570;
+  --navy-ink: #2b3090;
+  --navy-soft: rgba(43, 48, 144, 0.08);
+  --lav: #dde0f5;
+  --lav-2: #eef0fb;
+  --gold: #f5c518;
+  --gold-ink: #8a5a00;
+  --gold-bg: #fbf3d4;
+  --good: #16a34a;
+  --good-bg: #e6f6ec;
+  --bad: #c81e1e;
+  --bad-bg: #fde8e8;
+  --warn: #b45309;
+  --warn-bg: #fff4d6;
+  --shadow: 0 1px 3px rgba(43, 48, 144, 0.04), 0 6px 20px rgba(43, 48, 144, 0.06);
+  --float: 0 14px 34px rgba(43, 48, 144, 0.22);
+  --ease: cubic-bezier(0.32, 0.72, 0, 1);
+
+  background: var(--bg);
+  color: var(--ink);
+  font-size: 14px;
+  line-height: 1.45;
+  font-variant-numeric: tabular-nums;
+}
+
+.wahub h1,
+.wahub h2,
+.wahub h3,
+.wahub h4 {
+  margin: 0;
+  text-wrap: balance;
+}
+
+.wahub button {
+  cursor: pointer;
+}
+
+.wahub button:disabled {
+  cursor: default;
+}
+
+.wahub a {
+  color: var(--navy-ink);
+}
+
+.wahub :focus-visible {
+  outline: 2px solid var(--navy);
+  outline-offset: 2px;
+}
+
+/* ---------- text ---------- */
+
+.h1 {
+  font-size: 21px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.subT {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--muted);
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.num {
+  font-variant-numeric: tabular-nums;
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+
+.t1 {
+  font-weight: 700;
+  font-size: 13.5px;
+  color: var(--ink);
+}
+
+.t2 {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.muted {
+  color: var(--muted);
+}
+
+.navyInk {
+  color: var(--navy-ink);
+}
+
+.badText {
+  color: var(--bad);
+}
+
+.warnText {
+  color: var(--warn);
+}
+
+.goodText {
+  color: var(--good);
+}
+
+/* A small heading inside a panel (the sketch's .sect h4). */
+.sectTitle {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--faint);
+  letter-spacing: 0.3px;
+}
+
+.link {
+  color: var(--navy-ink);
+  font-weight: 700;
+  background: none;
+  border: 0;
+  padding: 0;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+/* ---------- card ---------- */
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  box-shadow: var(--shadow);
+  padding: 16px 18px;
+  min-width: 0;
+}
+
+/* A card whose content runs to its edges (lists, the conversations frame). */
+.cardFlush {
+  padding: 0;
+  overflow: hidden;
+}
+
+.ct {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.ct h3 {
+  font-size: 15px;
+  font-weight: 800;
+}
+
+.ct span,
+.ct p {
+  font-size: 12.5px;
+  color: var(--muted);
+  font-weight: 600;
+  margin: 0;
+}
+
+/* The title row of a flush card. */
+.ctFlush {
+  margin: 0;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--line-2);
+}
+
+/* ---------- number tile ---------- */
+
+.kpi {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 14px 16px;
+  position: relative;
+  overflow: hidden;
+  text-align: start;
+  width: 100%;
+  font: inherit;
+  color: inherit;
+  transition:
+    border-color 0.15s,
+    transform 0.15s var(--ease);
+}
+
+button.kpi:hover {
+  border-color: var(--navy);
+}
+
+button.kpi:active {
+  transform: scale(0.99);
+}
+
+.kpiOn {
+  border-color: var(--navy);
+  box-shadow:
+    var(--shadow),
+    inset 0 0 0 1px var(--navy);
+}
+
+.kpiLabel {
+  font-size: 12.5px;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.kpiValue {
+  font-size: 28px;
+  font-weight: 900;
+  color: var(--navy-ink);
+  /* Heebo 900 at 28px overflows a 1.1 line box upward and the card clips it;
+     the icon sits on the start edge, so the number keeps clear of it too. */
+  line-height: 1.3;
+  padding-inline-end: 52px;
+}
+
+.kpiNote {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.kpiIcon {
+  position: absolute;
+  inset-inline-end: 12px;
+  top: 12px;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  background: var(--lav-2);
+  color: var(--navy-ink);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* The small square an icon sits in, at the head of a card. */
+.iconBox {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  background: var(--lav-2);
+  color: var(--navy-ink);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+}
+
+/* ---------- buttons ---------- */
+
+.btn {
+  height: 34px;
+  padding: 0 14px;
+  border-radius: 9px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--ink);
+  font-weight: 600;
+  font-size: 13.5px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  white-space: nowrap;
+  flex: none;
+  text-decoration: none;
+  transition:
+    background 0.15s,
+    transform 0.15s;
+}
+
+.btn:hover {
+  background: var(--lav-2);
+}
+
+.btn:active {
+  transform: scale(0.98);
+}
+
+.btn:disabled {
+  opacity: 0.55;
+  transform: none;
+}
+
+.btn svg {
+  width: 16px;
+  height: 16px;
+  flex: none;
+}
+
+.btnP {
+  background: var(--navy);
+  color: #fff;
+  border-color: transparent;
+  box-shadow: 0 4px 12px rgba(43, 48, 144, 0.22);
+}
+
+.btnP:hover {
+  background: var(--navy-2);
+}
+
+.btnP:disabled {
+  background: var(--navy);
+  box-shadow: none;
+}
+
+.btnBad {
+  background: var(--bad);
+  color: #fff;
+  border-color: transparent;
+}
+
+.btnBad:hover {
+  background: var(--bad);
+  filter: brightness(0.92);
+}
+
+.btnSm {
+  height: 30px;
+  padding: 0 10px;
+  font-size: 12.5px;
+}
+
+.btnSm svg {
+  width: 14px;
+  height: 14px;
+}
+
+/* A mark that is set (follow-up buttons). */
+.btnOn,
+.btnOn:hover {
+  background: var(--navy);
+  color: #fff;
+  border-color: transparent;
+}
+
+.ib {
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
+  border: 0;
+  background: transparent;
+  color: var(--navy-ink);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+}
+
+.ib:hover {
+  background: var(--navy-soft);
+}
+
+.ib svg {
+  width: 18px;
+  height: 18px;
+}
+
+.ibSm {
+  width: 28px;
+  height: 28px;
+  border-radius: 7px;
+}
+
+.ibSm svg {
+  width: 15px;
+  height: 15px;
+}
+
+.ibBad:hover {
+  background: var(--bad-bg);
+  color: var(--bad);
+}
+
+/* ---------- pill ---------- */
+
+.pill {
+  font-size: 11.5px;
+  font-weight: 700;
+  border-radius: 999px;
+  padding: 2px 9px;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  line-height: 18px;
+  max-width: 100%;
+}
+
+.pill svg {
+  width: 13px;
+  height: 13px;
+  flex: none;
+}
+
+.pillWrap {
+  white-space: normal;
+  border-radius: 12px;
+}
+
+.pillDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  display: block;
+  background: currentColor;
+  flex: none;
+}
+
+.pNav {
+  background: var(--lav-2);
+  color: var(--navy-ink);
+}
+
+.pGood {
+  background: var(--good-bg);
+  color: var(--good);
+}
+
+.pBad {
+  background: var(--bad-bg);
+  color: var(--bad);
+}
+
+.pWarn {
+  background: var(--warn-bg);
+  color: var(--warn);
+}
+
+.pGold {
+  background: var(--gold-bg);
+  color: var(--gold-ink);
+}
+
+.pMute {
+  background: var(--lav-2);
+  color: var(--muted);
+}
+
+/* A tag the office named: an outlined pill with its colour as a dot. */
+.tag {
+  font-size: 11.5px;
+  font-weight: 700;
+  border-radius: 999px;
+  padding: 1px 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  line-height: 18px;
+  max-width: 100%;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  color: var(--ink);
+}
+
+.tagDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 3px;
+  flex: none;
+}
+
+.tagX {
+  border: 0;
+  background: none;
+  color: var(--muted);
+  padding: 0 2px;
+  margin-inline-end: -4px;
+  font-size: 14px;
+  line-height: 1;
+}
+
+.tagX:hover {
+  color: var(--bad);
+}
+
+/* ---------- filter chip with a count ---------- */
+
+.chips {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.chipbtn {
+  height: 32px;
+  padding: 0 10px 0 8px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ink);
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+}
+
+.chipbtn:hover {
+  border-color: var(--navy);
+  color: var(--navy-ink);
+}
+
+.chipbtn svg {
+  width: 14px;
+  height: 14px;
+  opacity: 0.8;
+  flex: none;
+}
+
+.cnt {
+  font-size: 11px;
+  font-weight: 800;
+  background: var(--lav-2);
+  color: var(--navy-ink);
+  border-radius: 999px;
+  padding: 0 6px;
+  min-width: 20px;
+  text-align: center;
+  line-height: 17px;
+}
+
+/* People asking for a person: the count itself is loud. */
+.cntHot {
+  background: var(--bad);
+  color: #fff;
+}
+
+.chipbtn.on,
+.chipbtn.on:hover {
+  background: var(--navy);
+  color: #fff;
+  border-color: transparent;
+}
+
+.chipbtn.on .cnt {
+  background: rgba(255, 255, 255, 0.22);
+  color: #fff;
+}
+
+/* The two status chips beside the title: the state is in the dot and in a word. */
+.chipOk {
+  border-color: transparent;
+  background: var(--good-bg);
+  color: var(--good);
+}
+
+.chipWarn {
+  border-color: transparent;
+  background: var(--warn-bg);
+  color: var(--warn);
+}
+
+.chipBad {
+  border-color: transparent;
+  background: var(--bad-bg);
+  color: var(--bad);
+}
+
+.chipOk:hover,
+.chipWarn:hover,
+.chipBad:hover {
+  color: inherit;
+  filter: brightness(0.97);
+}
+
+/* ---------- segmented tabs ---------- */
+
+.seg {
+  display: flex;
+  background: var(--lav);
+  border-radius: 9px;
+  padding: 3px;
+  gap: 2px;
+  width: fit-content;
+  max-width: 100%;
+}
+
+.seg button {
+  height: 28px;
+  padding: 0 11px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  font-weight: 700;
+  font-size: 12.5px;
+  color: var(--muted);
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  transition:
+    background 0.15s,
+    color 0.15s;
+}
+
+.seg button svg {
+  width: 15px;
+  height: 15px;
+}
+
+.seg button.on {
+  background: var(--surface);
+  color: var(--navy-ink);
+  box-shadow: 0 1px 3px rgba(43, 48, 144, 0.14);
+}
+
+/* The section's own four tabs: the same control, a size up. */
+.segLg button {
+  height: 34px;
+  padding: 0 16px;
+  font-size: 13.5px;
+}
+
+.segBadge {
+  font-size: 11px;
+  font-weight: 800;
+  background: var(--bad);
+  color: #fff;
+  border-radius: 999px;
+  padding: 0 6px;
+  min-width: 20px;
+  text-align: center;
+  line-height: 17px;
+}
+
+/* ---------- list ---------- */
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px;
+  margin: 0;
+  list-style: none;
+}
+
+.listRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  padding: 6px 10px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  text-align: start;
+  color: inherit;
+  width: 100%;
+  font: inherit;
+}
+
+.listRow:hover {
+  background: var(--lav-2);
+}
+
+.listRow.on,
+.listRow.on:hover {
+  background: var(--navy);
+  color: #fff;
+}
+
+.listRow.on .t1 {
+  color: #fff;
+}
+
+.listRow.on .t2,
+.listRow.on .rowTime {
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.listRow.on .av {
+  background: rgba(255, 255, 255, 0.2);
+  color: #fff;
+}
+
+.listRow.on .rowTag,
+.listRow.on .unread {
+  background: rgba(255, 255, 255, 0.2);
+  color: #fff;
+}
+
+.listRow.on .avDot {
+  border-color: var(--navy);
+}
+
+.rowTime {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+  flex: none;
+}
+
+/* The small marks under a row's preview (derived). */
+.rowTag {
+  font-size: 11px;
+  font-weight: 700;
+  border-radius: 999px;
+  padding: 0 7px;
+  line-height: 17px;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* "לא נקראו" — navy. */
+.unread {
+  font-size: 11px;
+  font-weight: 800;
+  background: var(--navy);
+  color: #fff;
+  border-radius: 999px;
+  padding: 0 6px;
+  min-width: 20px;
+  text-align: center;
+  line-height: 18px;
+  flex: none;
+}
+
+/* ---------- initials mark ---------- */
+
+.av {
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+  background: var(--lav);
+  color: var(--navy-ink);
+  font-weight: 800;
+  font-size: 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  position: relative;
+}
+
+.avMd {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  font-size: 14px;
+}
+
+.avBig {
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+  font-size: 17px;
+}
+
+/* "מבקש נציג" — a bad-coloured dot on the mark. */
+.avDot {
+  position: absolute;
+  top: -3px;
+  inset-inline-start: -3px;
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: var(--bad);
+  border: 2px solid var(--surface);
+}
+
+/* ---------- search ---------- */
+
+.search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 34px;
+  padding: 0 10px;
+  border-radius: 9px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 13.5px;
+  cursor: text;
+  min-width: 0;
+}
+
+.search:focus-within {
+  outline: 2px solid var(--navy);
+  outline-offset: 0;
+  border-color: transparent;
+}
+
+.search svg {
+  width: 15px;
+  height: 15px;
+  flex: none;
+}
+
+.search input {
+  border: 0;
+  background: transparent;
+  flex: 1;
+  min-width: 0;
+  outline: none;
+  color: var(--ink);
+  font: inherit;
+}
+
+.search input::placeholder {
+  color: var(--faint);
+}
+
+.search input::-webkit-search-cancel-button {
+  display: none;
+}
+
+.search button {
+  border: 0;
+  background: none;
+  color: var(--muted);
+  padding: 2px;
+  border-radius: 6px;
+  display: inline-flex;
+}
+
+/* ---------- forms ---------- */
+
+.form {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px 12px;
+}
+
+.form label,
+.fieldLabel {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--muted);
+  min-width: 0;
+}
+
+.full {
+  grid-column: 1 / -1;
+}
+
+.form input,
+.form select,
+.form textarea,
+.field {
+  height: 38px;
+  border-radius: 9px;
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+  padding: 0 10px;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--ink);
+  min-width: 0;
+  width: 100%;
+  font-family: inherit;
+}
+
+.form textarea,
+textarea.field {
+  height: auto;
+  min-height: 60px;
+  padding: 8px 10px;
+  line-height: 1.5;
+  resize: vertical;
+}
+
+.form input:focus,
+.form select:focus,
+.form textarea:focus,
+.field:focus {
+  outline: 2px solid var(--navy);
+  outline-offset: 0;
+  border-color: transparent;
+}
+
+.field::placeholder,
+.form input::placeholder,
+.form textarea::placeholder {
+  color: var(--faint);
+  font-weight: 400;
+}
+
+.fieldSm {
+  height: 30px;
+  font-size: 13px;
+  width: auto;
+}
+
+.fieldLtr {
+  direction: ltr;
+  text-align: right;
+}
+
+/* ---------- empty state ---------- */
+
+.emptyState {
+  padding: 48px 24px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+
+.emptyTight {
+  padding: 28px 20px;
+}
+
+.emptyIc {
+  width: 56px;
+  height: 56px;
+  border-radius: 16px;
+  background: var(--lav-2);
+  color: var(--navy-ink);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.emptyIc svg {
+  width: 26px;
+  height: 26px;
+}
+
+.emptyIcBad {
+  background: var(--bad-bg);
+  color: var(--bad);
+}
+
+.emptyState h3 {
+  font-size: 17px;
+  font-weight: 800;
+}
+
+.emptyState p {
+  margin: 0;
+  color: var(--muted);
+  max-width: 46ch;
+}
+
+/* ---------- switch ---------- */
+
+.switchRow {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+  background: none;
+  border: 0;
+  padding: 6px 8px;
+  border-radius: 9px;
+}
+
+.switch {
+  position: relative;
+  width: 40px;
+  height: 24px;
+  border-radius: 12px;
+  background: var(--faint);
+  border: 0;
+  flex: none;
+  transition: background 0.2s;
+  padding: 0;
+  display: block;
+}
+
+.switch::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #fff;
+  transition: transform 0.25s var(--ease);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+}
+
+.switch[aria-checked='true'],
+[aria-checked='true'] > .switch {
+  background: var(--good);
+}
+
+.switch[aria-checked='true']::after,
+[aria-checked='true'] > .switch::after {
+  transform: translateX(16px);
+}
+
+/* ---------- live dot, soft entrance ---------- */
+
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--good);
+  display: inline-block;
+  box-shadow: 0 0 0 0 rgba(22, 163, 74, 0.5);
+  animation: pulse 1.8s infinite;
+  vertical-align: middle;
+  flex: none;
+}
+
+@keyframes pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(22, 163, 74, 0.45);
+  }
+  70% {
+    box-shadow: 0 0 0 8px rgba(22, 163, 74, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(22, 163, 74, 0);
+  }
+}
+
+/* A row or a message that just arrived comes in softly. */
+.feedin {
+  animation: feedIn 0.5s var(--ease);
+}
+
+@keyframes feedIn {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* A message comes up from the writing box, so it rises rather than falls. */
+.feedinUp {
+  animation: feedInUp 0.4s var(--ease);
+}
+
+@keyframes feedInUp {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.pg {
+  animation: pgIn 0.32s var(--ease);
+}
+
+@keyframes pgIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* ---------- loading shape ---------- */
+
+.skeleton {
+  display: block;
+  border-radius: 9px;
+  background: linear-gradient(90deg, var(--lav-2) 25%, var(--surface-2) 37%, var(--lav-2) 63%);
+  background-size: 400% 100%;
+  animation: shimmer 1.4s ease-in-out infinite;
+}
+
+@keyframes shimmer {
+  from {
+    background-position: 100% 50%;
+  }
+  to {
+    background-position: 0 50%;
+  }
+}
+
+.spin {
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ---------- strips and boxes ---------- */
+
+/* "אין חיבור, מנסה שוב" */
+.strip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 12px;
+  border-radius: 10px;
+  background: var(--warn-bg);
+  color: var(--warn);
+  font-size: 13px;
+  font-weight: 700;
+  margin: 0;
+}
+
+.strip svg {
+  width: 16px;
+  height: 16px;
+  flex: none;
+}
+
+/* A question asked inside the page, where the action was pressed. */
+.confirm {
+  border-radius: 12px;
+  padding: 12px 14px;
+  background: var(--warn-bg);
+  color: var(--ink);
+  font-size: 13.5px;
+  line-height: 1.55;
+}
+
+.confirmBad {
+  background: var(--bad-bg);
+}
+
+.noteGood {
+  border-radius: 12px;
+  padding: 12px 14px;
+  background: var(--good-bg);
+  color: var(--ink);
+  font-size: 13.5px;
+  line-height: 1.55;
+}
+
+.noteBad {
+  border-radius: 12px;
+  padding: 10px 12px;
+  background: var(--bad-bg);
+  color: var(--bad);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+/* "מה ידוע" — what the system worked out, in a box of its own. */
+.known {
+  border-radius: 12px;
+  background: var(--lav-2);
+  padding: 10px 12px;
+}
+
+.knownTitle {
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--navy-ink);
+}
+
+.knownText {
+  margin: 4px 0 0;
+  font-size: 13.5px;
+  line-height: 1.55;
+  color: var(--ink);
+  white-space: pre-line;
+}
+
+.kv {
+  display: grid;
+  gap: 3px;
+  margin: 8px 0 0;
+  font-size: 13px;
+}
+
+.kv div {
+  display: flex;
+  gap: 6px;
+  min-width: 0;
+}
+
+.kv dt {
+  color: var(--muted);
+  font-weight: 600;
+  flex: none;
+}
+
+.kv dd {
+  margin: 0;
+  font-weight: 600;
+  min-width: 0;
+}
+
+/* The last message, quoted on a lead card. */
+.quote {
+  margin: 10px 0 0;
+  border-inline-start: 2px solid var(--lav);
+  padding-inline-start: 10px;
+  font-size: 13.5px;
+  line-height: 1.55;
+  color: var(--ink);
+  white-space: pre-line;
+}
+
+/* A sub-panel inside a card: an inline form, a code box. */
+.inset {
+  border-radius: 12px;
+  background: var(--surface-2);
+  border: 1px solid var(--line-2);
+  padding: 12px;
+}
+
+.code {
+  display: block;
+  direction: ltr;
+  text-align: left;
+  border-radius: 9px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  padding: 8px 10px;
+  font-size: 13px;
+  word-break: break-all;
+  user-select: all;
+  color: var(--ink);
+  min-width: 0;
+  flex: 1;
+}
+
+/* A panel section (the sketch's .sect), stacked with hairlines. */
+.sect {
+  padding: 14px 16px;
+  border-top: 1px solid var(--line-2);
+}
+
+.sect:first-child {
+  border-top: 0;
+}
+
+.rows > * + * {
+  border-top: 1px solid var(--line-2);
+}
+
+/* The log: who did what, and when. */
+.logItem {
+  border-inline-start: 2px solid var(--lav);
+  padding-inline-start: 10px;
+}
+
+/* A floating menu or a details bubble. */
+.pop {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  box-shadow: var(--float);
+  overflow: hidden;
+  animation: feedInUp 0.22s var(--ease);
+}
+
+.popDown {
+  animation-name: feedIn;
+}
+
+.popTitle {
+  padding: 9px 12px;
+  border-bottom: 1px solid var(--line-2);
+  background: var(--surface-2);
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--muted);
+  margin: 0;
+}
+
+.menuItem {
+  display: block;
+  width: 100%;
+  text-align: start;
+  border: 0;
+  background: transparent;
+  padding: 8px 12px;
+  font: inherit;
+  color: var(--ink);
+}
+
+.menuItem:hover {
+  background: var(--lav-2);
+}
+
+/* ---------- conversations (derived from the same variables) ---------- */
+
+.chatFrame {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+
+.pane {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+}
+
+.paneLineEnd {
+  border-inline-end: 1px solid var(--line-2);
+}
+
+.paneLineStart {
+  border-inline-start: 1px solid var(--line-2);
+}
+
+.paneHead {
+  flex: none;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--line-2);
+}
+
+.threadHead {
+  flex: none;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--line-2);
+  background: var(--surface);
+}
+
+.threadBg {
+  background: var(--surface-2);
+}
+
+/* "מבקש נציג" above the messages. */
+.needStrip {
+  flex: none;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  padding: 8px 14px;
+  background: var(--bad-bg);
+  color: var(--bad);
+  border-bottom: 1px solid var(--line-2);
+  font-size: 13.5px;
+}
+
+.needStrip strong {
+  font-weight: 800;
+}
+
+.dayMark {
+  display: flex;
+  justify-content: center;
+  margin: 12px 0;
+}
+
+.dayMark span {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--muted);
+  background: var(--surface);
+  border: 1px solid var(--line-2);
+  border-radius: 999px;
+  padding: 2px 12px;
+}
+
+.bubbleRow {
+  display: flex;
+}
+
+.bubbleRowOut {
+  justify-content: flex-end;
+}
+
+.bubbleCol {
+  display: flex;
+  flex-direction: column;
+  max-width: min(82%, 560px);
+}
+
+.bubbleRowOut .bubbleCol {
+  align-items: flex-end;
+}
+
+/* Radius 14, with one small corner on the sender's side. */
+.bubble {
+  border-radius: 14px;
+  padding: 8px 12px;
+  border: 1px solid transparent;
+  min-width: 0;
+}
+
+.bubble p {
+  margin: 0;
+}
+
+.bubbleText {
+  font-size: 14px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.bubbleMeta {
+  font-size: 11px;
+  font-weight: 700;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 6px;
+  margin-bottom: 2px;
+  opacity: 0.85;
+}
+
+.bubbleTime {
+  font-size: 10.5px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 3px;
+  opacity: 0.75;
+}
+
+.bubbleTime svg {
+  width: 12px;
+  height: 12px;
+}
+
+/* The customer — surface with a hairline. */
+.bCustomer {
+  background: var(--surface);
+  border-color: var(--line);
+  color: var(--ink);
+  border-end-start-radius: 4px;
+}
+
+/* The bot — light lavender. */
+.bBot {
+  background: var(--lav-2);
+  color: var(--ink);
+  border-end-end-radius: 4px;
+}
+
+/* The office — navy. */
+.bOffice {
+  background: var(--navy);
+  color: #fff;
+  border-end-end-radius: 4px;
+}
+
+.bOffice a {
+  color: #fff;
+}
+
+/* A system message, or a template that was sent — gold. */
+.bSystem {
+  background: var(--gold-bg);
+  color: var(--gold-ink);
+  border-end-end-radius: 4px;
+}
+
+/* A message that did not go out. */
+.bFailed {
+  background: var(--bad-bg);
+  color: var(--bad);
+  border-color: var(--bad);
+}
+
+.bFailed a {
+  color: var(--bad);
+}
+
+.bSending {
+  opacity: 0.7;
+}
+
+.simMark {
+  font-size: 10px;
+  font-weight: 800;
+  background: var(--gold);
+  color: #1f2340;
+  border-radius: 999px;
+  padding: 0 6px;
+  line-height: 15px;
+}
+
+.failNote {
+  margin: 3px 0 0;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--bad);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.failNote svg {
+  width: 14px;
+  height: 14px;
+  flex: none;
+}
+
+/* "הודעה חדשה ↓" */
+.newPill {
+  position: absolute;
+  inset-inline: 0;
+  bottom: 12px;
+  margin-inline: auto;
+  width: fit-content;
+  height: 32px;
+  padding: 0 14px;
+  border-radius: 999px;
+  border: 0;
+  background: var(--navy);
+  color: #fff;
+  font-size: 12.5px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  box-shadow: var(--float);
+  animation: feedInUp 0.3s var(--ease);
+}
+
+.newPill svg {
+  width: 15px;
+  height: 15px;
+}
+
+.composer {
+  flex: none;
+  border-top: 1px solid var(--line-2);
+  background: var(--surface);
+  padding: 10px 12px;
+}
+
+.composer textarea {
+  flex: 1;
+  min-width: 0;
+  min-height: 38px;
+  max-height: 160px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+  padding: 8px 12px;
+  font: inherit;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--ink);
+  resize: none;
+}
+
+.composer textarea:focus {
+  outline: 2px solid var(--navy);
+  outline-offset: 0;
+  border-color: transparent;
+}
+
+.composer textarea::placeholder {
+  color: var(--faint);
+}
+
+/* The writing box, locked: more than 24 hours since the customer wrote. */
+.lockBox {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  border-radius: 12px;
+  background: var(--warn-bg);
+  color: var(--warn);
+  padding: 10px 12px;
+  font-size: 13.5px;
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+.lockBox svg {
+  width: 16px;
+  height: 16px;
+  flex: none;
+}
+
+.lockBox p {
+  margin: 0;
+  flex: 1;
+  min-width: 0;
+}
+
+/* Who is answering: the bot, or a person. */
+.handBot {
+  background: var(--lav-2);
+  color: var(--navy-ink);
+}
+
+.handHuman {
+  background: var(--gold-bg);
+  color: var(--gold-ink);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dot,
+  .feedin,
+  .feedinUp,
+  .pg,
+  .pop,
+  .newPill,
+  .skeleton {
+    animation: none;
+  }
+
+  .btn,
+  .kpi,
+  .switch::after {
+    transition: none;
+  }
+}

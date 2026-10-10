@@ -3,17 +3,23 @@
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import type { Ref } from 'react';
-import { Users, BookOpen, Calendar, MapPin, GraduationCap, LayoutDashboard, Settings, ShoppingBag, KeyRound, FileText, FileSignature, PanelRightClose, PanelRightOpen, LogOut } from 'lucide-react';
+import { Users, BookOpen, Calendar, MapPin, GraduationCap, LayoutDashboard, Settings, ShoppingBag, KeyRound, FileText, FileSignature, PanelRightClose, PanelRightOpen, LogOut, MessagesSquare } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/components/AuthProvider';
 import type { UserRole } from '@/lib/auth';
 import { SIDEBAR_WIDTH, type SidebarMode } from '@/components/sidebarShell';
 import styles from '@/components/Sidebar.module.css';
+import { useWahubBadge } from '@/components/wahub/hooks/useWahubQueries';
+import { badgeText } from '@/lib/wahub/boxes';
+
+/** The WhatsApp and leads section. Managers only: a partner's menu leaves it out, and AppLayout turns them away. */
+const WAHUB_HREF = '/wahub';
 
 const MANAGER_MENU = [
   { name: 'דף הבית', href: '/', icon: LayoutDashboard },
   { name: 'לקוחות', href: '/customers', icon: Users },
+  { name: 'וואטסאפ ולידים', href: WAHUB_HREF, icon: MessagesSquare },
   { name: 'קטלוג חוגים', href: '/courses', icon: BookOpen },
   { name: 'לוח זמנים', href: '/schedule', icon: Calendar },
   { name: 'שכירויות', href: '/rentals', icon: KeyRound },
@@ -36,7 +42,7 @@ const MANUAL_ITEM = { name: 'ספר-מערכת', href: '/manual', icon: BookOpen
 
 const PARTNER_MENU = [
   ...MANAGER_MENU.filter(
-    (item) => !['/settings', '/whatsapp', '/credit-cards', '/payment-links'].includes(item.href)
+    (item) => !['/settings', '/whatsapp', WAHUB_HREF, '/credit-cards', '/payment-links'].includes(item.href)
   ),
   MANUAL_ITEM,
 ];
@@ -73,6 +79,9 @@ export default function Sidebar({ mode, onToggle, onNavigate, toggleRef }: Sideb
   const router = useRouter();
   const { user, logout } = useAuth();
   const menuItems = getMenuItems(user?.role);
+  // People waiting for an answer plus people asking for a person. Asked for
+  // only on a manager's menu, re-read every 30 seconds, and gone at zero.
+  const wahubBadge = badgeText(useWahubBadge(user?.role === 'manager'));
   const railed = mode === 'rail';
   const open = mode === 'expanded' || mode === 'drawer';
 
@@ -140,6 +149,7 @@ export default function Sidebar({ mode, onToggle, onNavigate, toggleRef }: Sideb
             const Icon = item.icon;
             // A hub with sub-pages (הגדרות) stays lit on every page under it.
             const isActive = pathname === item.href || (item.href !== '/' && pathname.startsWith(`${item.href}/`));
+            const badge = item.href === WAHUB_HREF ? wahubBadge : '';
 
             return (
               <li key={item.href}>
@@ -161,8 +171,30 @@ export default function Sidebar({ mode, onToggle, onNavigate, toggleRef }: Sideb
                     }
                   `}
                 >
-                  <Icon className="w-5 h-5 shrink-0" />
+                  <span className="relative flex shrink-0">
+                    <Icon className="w-5 h-5" />
+                    {badge && railed && (
+                      <span
+                        aria-hidden="true"
+                        className="absolute -top-2 -start-2 min-w-[18px] rounded-full bg-red-500 px-1 text-center text-[10px] font-bold leading-[18px] text-white"
+                      >
+                        {badge}
+                      </span>
+                    )}
+                  </span>
                   <span className={railed ? 'sr-only' : 'whitespace-nowrap'}>{item.name}</span>
+                  {badge && (
+                    <span
+                      className={
+                        railed
+                          ? 'sr-only'
+                          : 'ms-auto min-w-[22px] rounded-full bg-red-500 px-1.5 text-center text-xs font-bold leading-[22px] text-white'
+                      }
+                    >
+                      <span className="sr-only">מחכים לתשובה או מבקשים נציג: </span>
+                      {badge}
+                    </span>
+                  )}
                 </Link>
               </li>
             );
