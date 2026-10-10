@@ -3,10 +3,11 @@
 import { memo, useState } from 'react';
 import { MessageCircle, MessagesSquare } from 'lucide-react';
 import { formatWhatsAppLink } from '@/lib/customerUtils';
+import { isDemoContact } from '@/lib/wahub/demo';
 import { followupDueLine } from '@/lib/wahub/followup';
 import { displayName, formatDateTime, formatShortDate, hasName, previewText } from '@/lib/wahub/format';
 import type { WahubContact, WahubFollowupPatch, WahubTag } from '@/types/wahub';
-import { ContactAvatar, Pill } from '../shared/bits';
+import { ContactAvatar, DemoTag, Pill } from '../shared/bits';
 import { FollowupMarks, KnownBox, NoteField, OutcomeChip, TagPicker } from '../shared/ContactParts';
 import { cx } from '../shared/tones';
 import s from '../wahub.module.css';
@@ -57,6 +58,7 @@ const LeadCard = memo(function LeadCard({
           <span dir="ltr" className={cx(s.num, 'select-all text-[13.5px] font-bold')}>
             {contact.phone_display || contact.phone}
           </span>
+          {isDemoContact(contact) && <DemoTag />}
           {whatsapp && (
             <a
               href={whatsapp}

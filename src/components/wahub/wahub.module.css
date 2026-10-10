@@ -1664,3 +1664,608 @@ textarea.field {
     transition: none;
   }
 }
+
+/* ---------- stage 2: the bot (knowledge, shadow, review) — derived from the same variables ---------- */
+
+/* The group heading of a kind in the knowledge list. */
+.kindHead {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  background: var(--surface-2);
+  border-bottom: 1px solid var(--line-2);
+}
+
+.kindHead h3 {
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--navy-ink);
+}
+
+.kindHead p {
+  margin: 0;
+  font-size: 12px;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+/* One knowledge item: a title line, details a press away. */
+.kRow {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 14px;
+  border: 0;
+  border-top: 1px solid var(--line-2);
+  background: transparent;
+  text-align: start;
+  color: inherit;
+  font: inherit;
+}
+
+.kRow:hover {
+  background: var(--lav-2);
+}
+
+.kRow[aria-expanded='true'] {
+  background: var(--lav-2);
+}
+
+.kRowOff .t1 {
+  color: var(--muted);
+  text-decoration: line-through;
+  text-decoration-color: var(--faint);
+}
+
+/* The open item's body, under its row. */
+.kBody {
+  padding: 4px 14px 16px;
+  border-top: 1px dashed var(--line-2);
+  background: var(--surface);
+}
+
+/* Field: label on top, value under it, reads well in a two-column grid. */
+.kField {
+  min-width: 0;
+}
+
+.kField dt {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--faint);
+  margin-bottom: 2px;
+}
+
+.kField dd {
+  margin: 0;
+  font-size: 13.5px;
+  line-height: 1.55;
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+
+/* ✓ / ✗ examples. */
+.exGood,
+.exBad {
+  border-radius: 10px;
+  padding: 8px 10px;
+  font-size: 13px;
+  line-height: 1.5;
+  white-space: pre-line;
+}
+
+.exGood {
+  background: var(--good-bg);
+  color: var(--ink);
+}
+
+.exBad {
+  background: var(--bad-bg);
+  color: var(--ink);
+}
+
+/* The questionnaire's options: a card per answer. */
+.optCard {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  text-align: start;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  width: 100%;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.optCard:hover {
+  border-color: var(--navy);
+  background: var(--lav-2);
+}
+
+.optCard[aria-pressed='true'] {
+  border-color: var(--navy);
+  box-shadow: inset 0 0 0 1px var(--navy);
+  background: var(--lav-2);
+}
+
+.optCard b {
+  font-size: 13.5px;
+  font-weight: 800;
+}
+
+.optCard span {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+/* The weekly hours table. */
+.week {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13.5px;
+}
+
+.week th {
+  text-align: start;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--muted);
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--line);
+  white-space: nowrap;
+}
+
+.week td {
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--line-2);
+  vertical-align: middle;
+}
+
+.week tr.today td {
+  background: var(--gold-bg);
+}
+
+.week tr.off td {
+  color: var(--muted);
+}
+
+.week input[type='time'] {
+  height: 32px;
+  width: 104px;
+  direction: ltr;
+}
+
+/* "עכשיו: פתוח" — the state in one word on a tinted ground. */
+.nowBox {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  border-radius: 12px;
+  padding: 10px 14px;
+  font-size: 13.5px;
+  font-weight: 600;
+}
+
+.nowOpen {
+  background: var(--good-bg);
+  color: var(--good);
+}
+
+.nowClosed {
+  background: var(--bad-bg);
+  color: var(--bad);
+}
+
+.nowBox strong {
+  font-size: 15px;
+  font-weight: 900;
+}
+
+/* The shadow bot's proposed answer. */
+.shadowRow {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: -2px;
+}
+
+.shadowToggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: min(82%, 560px);
+  height: 26px;
+  padding: 0 10px;
+  border-radius: 999px;
+  border: 1px dashed var(--navy);
+  background: var(--surface);
+  color: var(--navy-ink);
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.shadowToggle:hover {
+  background: var(--lav-2);
+}
+
+.shadowToggle svg {
+  width: 14px;
+  height: 14px;
+  flex: none;
+}
+
+.shadowToggle .preview {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 500;
+  color: var(--muted);
+}
+
+.shadowCard {
+  max-width: min(82%, 560px);
+  border: 1px dashed var(--navy);
+  border-radius: 14px;
+  background: var(--surface);
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  animation: feedIn 0.22s var(--ease);
+}
+
+/* The shadow's own bubble: lavender like the bot, dashed because it was never sent. */
+.bShadow {
+  background: var(--lav-2);
+  color: var(--ink);
+  border: 1px dashed var(--navy);
+  border-end-end-radius: 4px;
+}
+
+/* "דמה" — the answer came without a model. */
+.stubMark {
+  font-size: 10px;
+  font-weight: 800;
+  background: var(--gold);
+  color: #1f2340;
+  border-radius: 999px;
+  padding: 0 6px;
+  line-height: 15px;
+}
+
+/* 👍 / 👎 */
+.thumb {
+  height: 30px;
+  padding: 0 10px;
+  border-radius: 9px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 12.5px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.thumb:hover {
+  background: var(--lav-2);
+}
+
+.thumb svg {
+  width: 14px;
+  height: 14px;
+}
+
+.thumbGood[aria-pressed='true'] {
+  background: var(--good-bg);
+  color: var(--good);
+  border-color: var(--good);
+}
+
+.thumbBad[aria-pressed='true'] {
+  background: var(--bad-bg);
+  color: var(--bad);
+  border-color: var(--bad);
+}
+
+/* Old / new, side by side where there is room. */
+.pair {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+}
+
+@media (min-width: 720px) {
+  .pair {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.pairCol {
+  border-radius: 12px;
+  background: var(--surface-2);
+  border: 1px solid var(--line-2);
+  padding: 10px 12px;
+  min-width: 0;
+}
+
+.pairCol h4 {
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--muted);
+  margin-bottom: 6px;
+}
+
+.pairText {
+  margin: 0;
+  font-size: 13.5px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* Before / after of a proposal. */
+.diff {
+  display: grid;
+  gap: 6px;
+}
+
+.diffRow {
+  display: grid;
+  grid-template-columns: 96px 1fr 1fr;
+  gap: 8px;
+  font-size: 13px;
+  align-items: start;
+}
+
+.diffRow > span:first-child {
+  font-weight: 700;
+  color: var(--muted);
+}
+
+.diffBefore,
+.diffAfter {
+  border-radius: 8px;
+  padding: 5px 8px;
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+
+.diffBefore {
+  background: var(--bad-bg);
+  color: var(--ink);
+  text-decoration: line-through;
+  text-decoration-color: var(--bad);
+}
+
+.diffAfter {
+  background: var(--good-bg);
+  color: var(--ink);
+}
+
+.diffSame {
+  background: var(--surface-2);
+  text-decoration: none;
+}
+
+@media (max-width: 560px) {
+  .diffRow {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* An evidence line: who said what. */
+.evLine {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.evLine .who {
+  flex: none;
+  font-size: 11px;
+  font-weight: 800;
+  border-radius: 999px;
+  padding: 1px 7px;
+  line-height: 17px;
+}
+
+.evLine p {
+  margin: 0;
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+
+/* The floating "יש הצעות לעדכון הבוט (N)" — on the LEFT, as the owner asked. */
+.fab {
+  position: fixed;
+  left: 20px;
+  bottom: 24px;
+  z-index: 40;
+  height: 44px;
+  padding: 0 18px 0 14px;
+  border-radius: 999px;
+  border: 0;
+  background: var(--navy);
+  color: #fff;
+  font-weight: 800;
+  font-size: 14px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  box-shadow: var(--float);
+  animation: feedInUp 0.3s var(--ease);
+}
+
+.fab:hover {
+  background: var(--navy-2);
+}
+
+.fab svg {
+  width: 18px;
+  height: 18px;
+}
+
+.fab .fabN {
+  background: var(--gold);
+  color: #1f2340;
+  border-radius: 999px;
+  padding: 0 8px;
+  line-height: 20px;
+  font-size: 12.5px;
+  font-weight: 900;
+}
+
+.fabScrim {
+  position: fixed;
+  inset: 0;
+  z-index: 44;
+  background: rgba(10, 12, 40, 0.28);
+  animation: fadeIn 0.2s;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* The side panel of the proposals, sliding in from the left. */
+.fabPanel {
+  position: fixed;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 45;
+  width: min(460px, 100vw);
+  background: var(--surface);
+  border-inline-start: 1px solid var(--line);
+  box-shadow: var(--float);
+  display: flex;
+  flex-direction: column;
+  animation: slideFromLeft 0.3s var(--ease);
+  direction: rtl;
+}
+
+@keyframes slideFromLeft {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: none;
+  }
+}
+
+.fabPanelHead {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--line-2);
+  background: var(--surface-2);
+}
+
+.fabPanelHead h2 {
+  font-size: 15px;
+  font-weight: 800;
+  flex: 1;
+}
+
+.fabPanelBody {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 12px 14px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  background: var(--bg);
+}
+
+/* The demo box under the writing box of an invented contact: gold, dashed, unmistakable. */
+.demoBox {
+  flex: none;
+  border-top: 2px dashed var(--gold);
+  background: var(--gold-bg);
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.demoBox .pairCol {
+  background: var(--surface);
+  border-style: dashed;
+  border-color: var(--gold);
+}
+
+/* The statuses of a conversation, grouped. */
+.stPrimary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  border-radius: 10px;
+  background: var(--lav-2);
+  padding: 8px 10px;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.stGroup {
+  margin-top: 8px;
+}
+
+.stGroup h5 {
+  margin: 0 0 3px;
+  font-size: 11.5px;
+  font-weight: 800;
+  color: var(--faint);
+  letter-spacing: 0.3px;
+}
+
+.stRow {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 3px 0;
+  font-size: 12.5px;
+  border-top: 1px solid var(--line-2);
+}
+
+.stRow dt {
+  color: var(--muted);
+  font-weight: 600;
+  flex: none;
+}
+
+.stRow dd {
+  margin: 0;
+  font-weight: 700;
+  text-align: end;
+  min-width: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fab,
+  .fabScrim,
+  .fabPanel,
+  .shadowCard {
+    animation: none;
+  }
+}

@@ -40,6 +40,8 @@ export interface WahubLiveHandle {
   rewind(snapshot: LiveSnapshot): void;
   /** Resolves once the first cursor is in hand (or was given up on). */
   whenReady(): Promise<void>;
+  /** Something changed that the poll cannot carry (a contact was deleted): every list reads itself again, quietly. */
+  resync(): void;
 }
 
 export interface WahubLive {
@@ -99,6 +101,9 @@ export function useWahubLive(enabled = true): WahubLive {
         if (!snapshot.cursor) return;
         const waiting = pendingRewind.current;
         if (!waiting || snapshot.seq < waiting.seq) pendingRewind.current = snapshot;
+      },
+      resync() {
+        resyncListeners.current.forEach((listener) => listener());
       },
       whenReady() {
         return Promise.race([

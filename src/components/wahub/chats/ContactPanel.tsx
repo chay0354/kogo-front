@@ -8,6 +8,8 @@ import { ContactAvatar, PanelSection, Pill } from '../shared/bits';
 import { EventsLog, FollowupMarks, KnownBox, KogoBox, NoteField, TagPicker } from '../shared/ContactParts';
 import { cx } from '../shared/tones';
 import s from '../wahub.module.css';
+import ContactStatusBlock from './ContactStatusBlock';
+import ServiceNoteBox from './ServiceNoteBox';
 
 interface ContactPanelProps {
   contact: WahubContactDetail;
@@ -24,6 +26,8 @@ interface ContactPanelProps {
   onRename: (name: string) => void;
   onRecheck: () => void;
   onAnalyze: () => void;
+  /** Stage 2: how many shadow proposals this conversation has, and when the last one was. */
+  shadow?: { count: number; lastAt: string | null } | null;
 }
 
 function NameLine({ contact, onRename }: { contact: WahubContactDetail; onRename: (name: string) => void }) {
@@ -114,6 +118,7 @@ export default function ContactPanel({
   onRename,
   onRecheck,
   onAnalyze,
+  shadow = null,
 }: ContactPanelProps) {
   return (
     <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
@@ -141,6 +146,12 @@ export default function ContactPanel({
             <span className={cx(s.t2, '!text-[11px]')}>{contact.messages_count.toLocaleString('he-IL')} הודעות</span>
           </div>
         </div>
+      </div>
+
+      {/* Titles first (owner, 10.10): the statuses open on a press; "הבוט טעה כאן" opens a short box. */}
+      <div className={cx(s.sect, 'flex flex-col gap-2')}>
+        <ContactStatusBlock contact={contact} now={now} shadow={shadow} />
+        <ServiceNoteBox contactId={contact.id} />
       </div>
 
       <div className={s.sect}>
