@@ -1,16 +1,34 @@
 import api from './api';
 import { unwrapApiList } from './scopedFilters';
 import { contactsParams, countsParams } from './wahub/params';
+import { newContactBody, type DemoSender, type NewContactInput } from './wahub/demo';
 import type {
+  WahubApproveResult,
   WahubContact,
   WahubContactDetail,
+  WahubDemoScenario,
   WahubContactsQuery,
   WahubCounts,
   WahubFollowupPatch,
+  WahubFromKogo,
+  WahubKnowledgeHistoryEntry,
+  WahubKnowledgeItem,
+  WahubKnowledgeKind,
+  WahubKnowledgeProposal,
+  WahubKnowledgeWrite,
   WahubMessagesPage,
+  WahubOfficeHoursNow,
   WahubPage,
+  WahubProposalStatus,
   WahubQuickReply,
+  WahubReviewNoteResult,
+  WahubReviewSummary,
+  WahubScopeLevel,
   WahubSendResult,
+  WahubShadowReply,
+  WahubShadowSummary,
+  WahubShadowTry,
+  WahubShadowVerdict,
   WahubSharedFilters,
   WahubStatus,
   WahubSummary,
@@ -162,15 +180,68 @@ export async function analyzeWahubContact(id: number): Promise<WahubContact> {
   return res.data as WahubContact;
 }
 
-export async function createWahubContact(body: {
-  phone: string;
-  name: string;
-  note?: string;
-}): Promise<WahubContact> {
-  const payload: { phone: string; name: string; note?: string } = { phone: body.phone, name: body.name };
-  if (body.note?.trim()) payload.note = body.note.trim();
-  const res = await api.post(`${BASE}/contacts/`, payload);
+/** A contact added by hand. With `isDemo`, an invented one that never receives a message (stage 2, §ה). */
+export async function createWahubContact(body: NewContactInput): Promise<WahubContact> {
+  const res = await api.post(`${BASE}/contacts/`, newContactBody(body));
   return res.data as WahubContact;
+}
+
+// ---------------------------------------------------------------------------
+// Demo (stage 2, §ה): invented customers, typed messages, ready-made scenarios.
+// A demo contact never receives a message, whatever the sending switch says.
+// ---------------------------------------------------------------------------
+
+/** The answer to POST contacts/{id}/simulate-inbound/: the contact as it now stands, and whether the line was kept. */
+export interface WahubSimulateResult {
+  contact: WahubContact | null;
+  /** False when the server dropped the line: the same text, from the same side, within thirty seconds. */
+  stored: boolean;
+  stored_message_id: number | null;
+}
+
+/**
+ * "The customer wrote" / "the old bot answered", typed by the owner into a
+ * demo conversation. Refused by the server for a contact that is not demo.
+ * The server answers with the contact itself (kogo-back views.simulate_inbound)
+ * plus `stored`; the message reaches the conversation through its own read.
+ */
+export async function simulateWahubInbound(
+  id: number,
+  body: { text: string; sender: DemoSender },
+): Promise<WahubSimulateResult> {
+  const res = await api.post(`${BASE}/contacts/${id}/simulate-inbound/`, body, { timeout: 30_000 });
+  const data = (res.data ?? {}) as Partial<WahubContact> & {
+    stored?: boolean;
+    stored_message_id?: number | null;
+    contact?: WahubContact;
+  };
+  const contact = data.contact ?? (typeof data.id === 'number' && data.chat ? (data as WahubContact) : null);
+  return {
+    contact,
+    stored: data.stored !== false,
+    stored_message_id: typeof data.stored_message_id === 'number' ? data.stored_message_id : null,
+  };
+}
+
+export async function fetchWahubDemoScenarios(): Promise<WahubDemoScenario[]> {
+  const res = await api.get(`${BASE}/demo/scenarios/`);
+  return unwrapApiList<WahubDemoScenario>(res.data);
+}
+
+/** Makes the demo contact of a scenario, with its conversation already summarised, cross-checked and shadowed. */
+export async function createWahubDemoScenario(scenario: string): Promise<WahubContact> {
+  const res = await api.post(`${BASE}/demo/scenario/`, { scenario }, { timeout: 90_000 });
+  const data = res.data as WahubContact | { contact?: WahubContact };
+  return ('contact' in data && data.contact ? data.contact : data) as WahubContact;
+}
+
+/** Removes every demo contact with its messages. Real contacts are not touched. */
+export async function deleteWahubDemoContacts(): Promise<{ deleted: number | null }> {
+  const res = await api.delete(`${BASE}/demo/contacts/`, { timeout: 60_000 });
+  // The server counts what went (kogo-back demo.delete_demo_contacts): `contacts`, `messages`, `proposals`, `notes`.
+  const data = (res.data ?? {}) as { contacts?: number; deleted?: number; count?: number };
+  const deleted = data.contacts ?? data.deleted ?? data.count;
+  return { deleted: typeof deleted === 'number' ? deleted : null };
 }
 
 // ---------------------------------------------------------------------------
@@ -227,6 +298,235 @@ export async function fetchWahubStatus(): Promise<WahubStatus> {
 export async function createWahubInboundKey(): Promise<{ key: string }> {
   const res = await api.post(`${BASE}/settings/inbound-key/`);
   return res.data as { key: string };
+}
+
+// ---------------------------------------------------------------------------
+// Stage 2 — the bot's knowledge (docs/WAHUB-CONTRACT-STAGE2.md §א)
+// ---------------------------------------------------------------------------
+
+export interface WahubKnowledgeQuery {
+  kind?: WahubKnowledgeKind | '';
+  scope_level?: WahubScopeLevel | '';
+  /** Only the active items. Left out, the server answers with all of them. */
+  active?: boolean;
+  search?: string;
+}
+
+export async function fetchWahubKnowledge(query: WahubKnowledgeQuery = {}): Promise<WahubKnowledgeItem[]> {
+  const params: Record<string, string> = {};
+  if (query.kind) params.kind = query.kind;
+  if (query.scope_level) params.scope_level = query.scope_level;
+  if (query.active) params.active = '1';
+  if (query.search?.trim()) params.search = query.search.trim();
+  const res = await api.get(`${BASE}/knowledge/`, { params: Object.keys(params).length ? params : undefined });
+  return unwrapApiList<WahubKnowledgeItem>(res.data);
+}
+
+export async function createWahubKnowledge(body: WahubKnowledgeWrite): Promise<WahubKnowledgeItem> {
+  const res = await api.post(`${BASE}/knowledge/`, body);
+  return res.data as WahubKnowledgeItem;
+}
+
+export async function updateWahubKnowledge(id: number, patch: WahubKnowledgeWrite): Promise<WahubKnowledgeItem> {
+  const res = await api.patch(`${BASE}/knowledge/${id}/`, patch);
+  return res.data as WahubKnowledgeItem;
+}
+
+/** A soft delete: the item stays, with `is_active` false. */
+export async function deleteWahubKnowledge(id: number): Promise<void> {
+  await api.delete(`${BASE}/knowledge/${id}/`);
+}
+
+export async function fetchWahubKnowledgeHistory(id: number): Promise<WahubKnowledgeHistoryEntry[]> {
+  const res = await api.get(`${BASE}/knowledge/${id}/history/`);
+  return unwrapApiList<WahubKnowledgeHistoryEntry>(res.data);
+}
+
+export async function restoreWahubKnowledge(id: number, version: number): Promise<WahubKnowledgeItem> {
+  const res = await api.post(`${BASE}/knowledge/${id}/restore/`, { version });
+  return res.data as WahubKnowledgeItem;
+}
+
+/** What the bot reads from Kogo itself — read only, with the fields the owner still has to fill marked. */
+export async function fetchWahubFromKogo(): Promise<WahubFromKogo> {
+  const res = await api.get(`${BASE}/knowledge/from-kogo/`, { timeout: 60_000 });
+  const data = (res.data ?? {}) as Partial<WahubFromKogo>;
+  const pricing = data.pricing_summary ?? { courses: [], courses_total: 0, courses_without_price: 0, paid_trials: 0 };
+  return {
+    branches: data.branches ?? [],
+    course_types: data.course_types ?? [],
+    pricing_summary: {
+      courses: pricing.courses ?? [],
+      courses_total: Number(pricing.courses_total ?? pricing.courses?.length ?? 0),
+      courses_without_price: Number(pricing.courses_without_price ?? 0),
+      paid_trials: Number(pricing.paid_trials ?? 0),
+    },
+    registration_fee: data.registration_fee ?? null,
+    discounts: data.discounts ?? [],
+    blocked_dates: data.blocked_dates ?? [],
+    note: data.note,
+  };
+}
+
+export async function fetchWahubOfficeHoursNow(): Promise<WahubOfficeHoursNow> {
+  const res = await api.get(`${BASE}/knowledge/office-hours/now/`);
+  const data = (res.data ?? {}) as Partial<WahubOfficeHoursNow>;
+  return {
+    now: data.now,
+    open: Boolean(data.open),
+    today: data.today ?? {},
+    special: data.special ?? null,
+    message_if_closed: data.message_if_closed ?? null,
+    send_mode: data.send_mode,
+    send_mode_label: data.send_mode_label,
+    configured: data.configured,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Stage 2 — the shadow bot (§ב). It never sends anything.
+// ---------------------------------------------------------------------------
+
+/** The shadow replies of one conversation, newest first. */
+export async function fetchWahubContactShadow(contactId: number): Promise<WahubShadowReply[]> {
+  const res = await api.get(`${BASE}/contacts/${contactId}/shadow/`, { timeout: 15_000 });
+  return unwrapApiList<WahubShadowReply>(res.data).map((reply) => ({ ...reply, contact_id: reply.contact_id ?? contactId }));
+}
+
+/**
+ * The owner's mark on a shadow reply. The server answers with the reply as it
+ * now stands, plus `proposal_id` when a 👎 with a note became a proposal.
+ */
+export async function setWahubShadowVerdict(
+  id: number,
+  body: { verdict: Exclude<WahubShadowVerdict, null>; note?: string },
+): Promise<WahubShadowReply | null> {
+  const payload = { verdict: body.verdict, note: body.note?.trim() ?? '' };
+  const res = await api.post(`${BASE}/shadow/${id}/verdict/`, payload);
+  const data = res.data as Partial<WahubShadowReply> | undefined;
+  return data && typeof data.id === 'number' && typeof data.text === 'string' ? (data as WahubShadowReply) : null;
+}
+
+/** The replies marked "bad" — the list to fix. Each carries its contact and the customer's text. */
+export async function fetchWahubShadowBad(): Promise<WahubShadowReply[]> {
+  const res = await api.get(`${BASE}/shadow/bad/`);
+  return unwrapApiList<WahubShadowReply>(res.data);
+}
+
+/** The latest shadow replies across every conversation (the server's `shadow/recent/`, up to 100), newest first. */
+export async function fetchWahubShadowRecent(): Promise<WahubShadowReply[]> {
+  const res = await api.get(`${BASE}/shadow/recent/`, { timeout: 30_000 });
+  return unwrapApiList<WahubShadowReply>(res.data);
+}
+
+export interface WahubShadowTryBody {
+  question: string;
+  contact_id?: number | null;
+  /** "Pretend it is now …", ISO 8601. */
+  pretend_now?: string | null;
+  /** The last message the system sent the customer (a template, a broadcast), so "כן/לא" can be read. */
+  last_outbound?: string | null;
+  /** Keep the question as a test (a TrialQuestion). */
+  save?: boolean;
+}
+
+/** "נסה שאלה": an answer right now, with the same parts as a shadow reply. Not saved unless `save` is set. */
+export async function tryWahubShadow(body: WahubShadowTryBody): Promise<WahubShadowTry> {
+  const payload: Record<string, unknown> = { question: body.question.trim() };
+  if (body.contact_id) payload.contact_id = body.contact_id;
+  if (body.pretend_now) payload.pretend_now = body.pretend_now;
+  if (body.last_outbound?.trim()) payload.last_outbound = body.last_outbound.trim();
+  if (body.save) payload.save = true;
+  const res = await api.post(`${BASE}/shadow/try/`, payload, { timeout: 90_000 });
+  const data = (res.data ?? {}) as Partial<WahubShadowTry>;
+  return {
+    text: data.text ?? '',
+    reasoning: data.reasoning ?? '',
+    tools_used: data.tools_used ?? [],
+    knowledge_used: data.knowledge_used ?? [],
+    model: data.model,
+    took_ms: data.took_ms,
+    request_human: data.request_human,
+    request_human_reason: data.request_human_reason,
+    question: data.question,
+    pretend_now: data.pretend_now ?? null,
+    trial_question_id: data.trial_question_id ?? null,
+  };
+}
+
+export async function fetchWahubShadowSummary(): Promise<WahubShadowSummary> {
+  const res = await api.get(`${BASE}/shadow/summary/`);
+  const data = (res.data ?? {}) as Partial<WahubShadowSummary>;
+  return {
+    proposed_7d: Number(data.proposed_7d ?? 0),
+    judged_good: Number(data.judged_good ?? 0),
+    judged_bad: Number(data.judged_bad ?? 0),
+    awaiting_verdict: Number(data.awaiting_verdict ?? 0),
+    avg_ms: data.avg_ms == null ? null : Number(data.avg_ms),
+    stub_7d: data.stub_7d == null ? undefined : Number(data.stub_7d),
+    shadow_configured: data.shadow_configured,
+    model: data.model,
+    pending: data.pending == null ? undefined : Number(data.pending),
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Stage 2 — review and proposals (§ד). Nothing changes the knowledge without a press.
+// ---------------------------------------------------------------------------
+
+/** Without a status: every proposal (the history). With one: that status only. */
+export async function fetchWahubProposals(status?: WahubProposalStatus | ''): Promise<WahubKnowledgeProposal[]> {
+  const res = await api.get(`${BASE}/review/proposals/`, { params: status ? { status } : undefined });
+  return unwrapApiList<WahubKnowledgeProposal>(res.data);
+}
+
+export async function fetchWahubProposal(id: number): Promise<WahubKnowledgeProposal> {
+  const res = await api.get(`${BASE}/review/proposals/${id}/`);
+  return res.data as WahubKnowledgeProposal;
+}
+
+/**
+ * Applies the change to the knowledge. The server answers `{proposal, item}`;
+ * a bare item (the contract's first wording) is read as well.
+ */
+export async function approveWahubProposal(id: number, note?: string): Promise<Partial<WahubApproveResult>> {
+  const body = note?.trim() ? { note: note.trim() } : {};
+  const res = await api.post(`${BASE}/review/proposals/${id}/approve/`, body, { timeout: 60_000 });
+  const data = (res.data ?? {}) as Partial<WahubApproveResult> & Partial<WahubKnowledgeItem>;
+  if (data.item || data.proposal) return { proposal: data.proposal, item: data.item };
+  return typeof data.id === 'number' && typeof data.kind === 'string' ? { item: data as WahubKnowledgeItem } : {};
+}
+
+export async function rejectWahubProposal(id: number, note: string): Promise<WahubKnowledgeProposal | null> {
+  const res = await api.post(`${BASE}/review/proposals/${id}/reject/`, { note: note.trim() });
+  const data = res.data as Partial<WahubKnowledgeProposal> | undefined;
+  return data && typeof data.id === 'number' && typeof data.status === 'string' ? (data as WahubKnowledgeProposal) : null;
+}
+
+/** "הבוט טעה כאן": a note from the office. The reviewer turns it into a proposal, now or later. */
+export async function postWahubReviewNote(body: {
+  text: string;
+  contact_id?: number | null;
+  message_id?: number | null;
+}): Promise<WahubReviewNoteResult> {
+  const payload: Record<string, unknown> = { text: body.text.trim() };
+  if (body.contact_id) payload.contact_id = body.contact_id;
+  if (body.message_id) payload.message_id = body.message_id;
+  const res = await api.post(`${BASE}/review/notes/`, payload, { timeout: 60_000 });
+  const data = (res.data ?? {}) as Partial<WahubReviewNoteResult>;
+  return { note_id: Number(data.note_id ?? 0), proposal_id: data.proposal_id ?? null, detail: data.detail };
+}
+
+export async function fetchWahubReviewSummary(): Promise<WahubReviewSummary> {
+  const res = await api.get(`${BASE}/review/summary/`);
+  const data = (res.data ?? {}) as Partial<WahubReviewSummary>;
+  return {
+    pending: Number(data.pending ?? 0),
+    applied_7d: Number(data.applied_7d ?? 0),
+    rejected_7d: Number(data.rejected_7d ?? 0),
+    auto_mode: Boolean(data.auto_mode),
+    notes_7d: data.notes_7d == null ? undefined : Number(data.notes_7d),
+  };
 }
 
 // ---------------------------------------------------------------------------

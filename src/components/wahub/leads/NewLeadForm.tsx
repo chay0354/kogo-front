@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { X } from 'lucide-react';
 import { readableError } from '@/lib/apiError';
+import { suggestDemoPhone } from '@/lib/wahub/demo';
 import { createWahubContact, existingContactId } from '@/lib/wahubApi';
 import type { WahubContact } from '@/types/wahub';
 import { Spinner } from '../shared/bits';
@@ -23,6 +24,7 @@ export default function NewLeadForm({ onClose, onCreated, onOpenExisting }: NewL
   const [phone, setPhone] = useState('');
   const [name, setName] = useState('');
   const [note, setNote] = useState('');
+  const [demo, setDemo] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [existingId, setExistingId] = useState<number | null>(null);
@@ -37,7 +39,7 @@ export default function NewLeadForm({ onClose, onCreated, onOpenExisting }: NewL
     setError('');
     setExistingId(null);
     try {
-      const contact = await createWahubContact({ phone: phone.trim(), name: name.trim(), note });
+      const contact = await createWahubContact({ phone: phone.trim(), name: name.trim(), note, isDemo: demo });
       onCreated(contact);
       onClose();
     } catch (failure) {
@@ -91,6 +93,23 @@ export default function NewLeadForm({ onClose, onCreated, onOpenExisting }: NewL
             <textarea value={note} onChange={(event) => setNote(event.target.value)} rows={2} maxLength={2000} />
           </label>
         </div>
+
+        {/* Stage 2 (§ה): an invented contact to watch the system with. It never receives a message. */}
+        <button
+          type="button"
+          role="switch"
+          aria-checked={demo}
+          onClick={() => {
+            const next = !demo;
+            setDemo(next);
+            if (next && !phone.trim()) setPhone(suggestDemoPhone());
+          }}
+          className={cx(s.switchRow, 'mt-2 !px-0')}
+        >
+          <span className={s.switch} aria-hidden="true" />
+          לקוח דמו
+          <span className="font-medium">· מומצא, לא מקבל שום הודעה</span>
+        </button>
 
         {error && (
           <div role="alert" className={cx(s.noteBad, 'mt-3')}>

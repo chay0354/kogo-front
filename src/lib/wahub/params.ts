@@ -1,4 +1,5 @@
 import type {
+  WahubBotSub,
   WahubBox,
   WahubContactsQuery,
   WahubQueue,
@@ -63,7 +64,10 @@ export function countsParams(
   return params;
 }
 
-export const WAHUB_TABS: WahubTab[] = ['chats', 'today', 'leads', 'settings'];
+export const WAHUB_TABS: WahubTab[] = ['chats', 'today', 'leads', 'bot', 'settings'];
+
+/** The sub-tabs of "הבוט", in the order they are shown. It opens on the knowledge. */
+export const WAHUB_BOT_SUBS: WahubBotSub[] = ['knowledge', 'hours', 'try', 'shadow', 'review', 'demo'];
 
 export const WAHUB_BOXES: WahubBox[] = ['all', 'waiting', 'needs_human', 'unread', 'human', 'bot'];
 
@@ -96,12 +100,20 @@ export function parseContactId(value: string | null | undefined): number | null 
   return Number.isSafeInteger(id) && id > 0 ? id : null;
 }
 
+export function parseBotSub(value: string | null | undefined): WahubBotSub {
+  return WAHUB_BOT_SUBS.includes(value as WahubBotSub) ? (value as WahubBotSub) : 'knowledge';
+}
+
 /** What the address of the page holds, so a link opens the same thing. */
 export interface WahubUrlState {
   tab: WahubTab;
   contact: number | null;
   box: WahubBox;
   queue: WahubQueue;
+  /** The sub-tab of "הבוט". */
+  sub: WahubBotSub;
+  /** A knowledge item to open, on the knowledge sub-tab. */
+  item: number | null;
 }
 
 interface ParamReader {
@@ -114,14 +126,17 @@ export function parseWahubUrl(params: ParamReader | null | undefined): WahubUrlS
     contact: parseContactId(params?.get('contact')),
     box: parseBox(params?.get('box')),
     queue: parseQueue(params?.get('queue')),
+    sub: parseBotSub(params?.get('sub')),
+    item: parseContactId(params?.get('item')),
   };
 }
 
 /**
- * /wahub?tab=chats&contact=12
+ * /wahub?tab=chats&contact=12 — /wahub?tab=bot&sub=hours — /wahub?tab=bot&item=7
  *
  * The tab is always written, so a copied link says where it leads. An open
- * conversation belongs to the chats tab only.
+ * conversation belongs to the chats tab only; a sub-tab and an open knowledge
+ * item belong to the bot tab only.
  */
 export function buildWahubUrl(state: WahubUrlState, pathname = '/wahub'): string {
   const params = new URLSearchParams();
@@ -131,5 +146,9 @@ export function buildWahubUrl(state: WahubUrlState, pathname = '/wahub'): string
     if (state.contact) params.set('contact', String(state.contact));
   }
   if (state.tab === 'leads' && state.queue !== 'all') params.set('queue', state.queue);
+  if (state.tab === 'bot') {
+    if (state.sub !== 'knowledge') params.set('sub', state.sub);
+    if (state.sub === 'knowledge' && state.item) params.set('item', String(state.item));
+  }
   return `${pathname}?${params.toString()}`;
 }

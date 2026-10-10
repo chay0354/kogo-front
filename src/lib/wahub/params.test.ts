@@ -4,6 +4,7 @@ import {
   buildWahubUrl,
   contactsParams,
   countsParams,
+  parseBotSub,
   parseBox,
   parseContactId,
   parseQueue,
@@ -101,11 +102,20 @@ describe('the address of the page', () => {
       contact: 12,
       box: 'all',
       queue: 'all',
+      sub: 'knowledge',
+      item: null,
     });
   });
 
   test('opens on the conversations tab when the address says nothing', () => {
-    expect(parseWahubUrl(new URLSearchParams(''))).toEqual({ tab: 'chats', contact: null, box: 'all', queue: 'all' });
+    expect(parseWahubUrl(new URLSearchParams(''))).toEqual({
+      tab: 'chats',
+      contact: null,
+      box: 'all',
+      queue: 'all',
+      sub: 'knowledge',
+      item: null,
+    });
     expect(parseWahubUrl(null).tab).toBe('chats');
   });
 
@@ -119,21 +129,40 @@ describe('the address of the page', () => {
     expect(parseContactId('12')).toBe(12);
   });
 
+  const base = { contact: null, box: 'all', queue: 'all', sub: 'knowledge', item: null } as const;
+
   test('writes a link that opens the same conversation', () => {
-    expect(buildWahubUrl({ tab: 'chats', contact: 12, box: 'all', queue: 'all' })).toBe('/wahub?tab=chats&contact=12');
+    expect(buildWahubUrl({ ...base, tab: 'chats', contact: 12 })).toBe('/wahub?tab=chats&contact=12');
   });
 
   test('a box and a queue are written only when one is chosen, each on its own tab', () => {
-    expect(buildWahubUrl({ tab: 'chats', contact: null, box: 'waiting', queue: 'due' })).toBe(
-      '/wahub?tab=chats&box=waiting',
-    );
-    expect(buildWahubUrl({ tab: 'leads', contact: 12, box: 'waiting', queue: 'due' })).toBe('/wahub?tab=leads&queue=due');
-    expect(buildWahubUrl({ tab: 'today', contact: 12, box: 'waiting', queue: 'due' })).toBe('/wahub?tab=today');
+    expect(buildWahubUrl({ ...base, tab: 'chats', box: 'waiting', queue: 'due' })).toBe('/wahub?tab=chats&box=waiting');
+    expect(buildWahubUrl({ ...base, tab: 'leads', contact: 12, box: 'waiting', queue: 'due' })).toBe('/wahub?tab=leads&queue=due');
+    expect(buildWahubUrl({ ...base, tab: 'today', contact: 12, box: 'waiting', queue: 'due' })).toBe('/wahub?tab=today');
+  });
+
+  test('the bot tab writes its sub-tab, and an open knowledge item on the knowledge sub-tab only', () => {
+    expect(buildWahubUrl({ ...base, tab: 'bot' })).toBe('/wahub?tab=bot');
+    expect(buildWahubUrl({ ...base, tab: 'bot', sub: 'hours' })).toBe('/wahub?tab=bot&sub=hours');
+    expect(buildWahubUrl({ ...base, tab: 'bot', item: 7 })).toBe('/wahub?tab=bot&item=7');
+    expect(buildWahubUrl({ ...base, tab: 'bot', sub: 'shadow', item: 7 })).toBe('/wahub?tab=bot&sub=shadow');
+    // A sub-tab left over from the bot tab is never written on another tab.
+    expect(buildWahubUrl({ ...base, tab: 'chats', sub: 'review', item: 7 })).toBe('/wahub?tab=chats');
+  });
+
+  test('an unknown sub-tab opens the knowledge', () => {
+    expect(parseBotSub('nonsense')).toBe('knowledge');
+    expect(parseBotSub('review')).toBe('review');
+    expect(parseBotSub('demo')).toBe('demo');
+    expect(parseWahubUrl(new URLSearchParams('tab=bot&sub=try')).sub).toBe('try');
+    expect(parseWahubUrl(new URLSearchParams('tab=bot&item=9')).item).toBe(9);
   });
 
   test('what is written is what is read back', () => {
-    const state = { tab: 'chats' as const, contact: 44, box: 'unread' as const, queue: 'all' as const };
+    const state = { ...base, tab: 'chats' as const, contact: 44, box: 'unread' as const };
     const url = buildWahubUrl(state);
     expect(parseWahubUrl(new URLSearchParams(url.split('?')[1]))).toEqual(state);
+    const bot = { ...base, tab: 'bot' as const, sub: 'hours' as const };
+    expect(parseWahubUrl(new URLSearchParams(buildWahubUrl(bot).split('?')[1]))).toEqual(bot);
   });
 });

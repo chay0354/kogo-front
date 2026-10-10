@@ -3,10 +3,11 @@
 import { memo, useEffect, useRef } from 'react';
 import { Inbox, Plug, Search, X } from 'lucide-react';
 import { BOX_GROUPS, boxCount, boxesInGroup, handledByChip } from '@/lib/wahub/boxes';
+import { isDemoContact } from '@/lib/wahub/demo';
 import { displayName, formatListTime, previewText, waitingLabel } from '@/lib/wahub/format';
 import type { WahubBox, WahubBoxCounts, WahubContact } from '@/types/wahub';
 import type { ListStatus } from '../hooks/usePagedContacts';
-import { ContactAvatar, EmptyState, ErrorState, Skeleton, Spinner } from '../shared/bits';
+import { ContactAvatar, DemoTag, EmptyState, ErrorState, Skeleton, Spinner } from '../shared/bits';
 import { cx } from '../shared/tones';
 import s from '../wahub.module.css';
 
@@ -58,6 +59,7 @@ const ChatRow = memo(function ChatRow({ contact, selected, arrived, now, onOpen 
           <span className="mt-1.5 flex flex-wrap items-center gap-1.5">
             {/* Who answers this conversation — on every row, so the state is never a guess (owner, 10.10). */}
             <span className={cx(s.rowTag, who.tone === 'human' ? s.pGold : s.pMute)}>{who.label}</span>
+            {isDemoContact(contact) && <DemoTag size="row" />}
             {chat.needs_human && (
               <span className={cx(s.rowTag, s.pBad)}>
                 <i className={s.pillDot} aria-hidden="true" />

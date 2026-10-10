@@ -15,14 +15,17 @@ import {
   UserRound,
 } from 'lucide-react';
 import { formatWhatsAppLink } from '@/lib/customerUtils';
+import { isDemoContact, type DemoSender } from '@/lib/wahub/demo';
 import { agoText, displayName, formatClock, hasName, messageTypeLabel } from '@/lib/wahub/format';
 import { groupMessagesByDay, isOptimistic } from '@/lib/wahub/messages';
-import type { WahubContactDetail, WahubMessage } from '@/types/wahub';
+import type { WahubContactDetail, WahubMessage, WahubShadowReply } from '@/types/wahub';
 import type { ContactThread } from '../hooks/useContactThread';
-import { ContactAvatar, ErrorState, Skeleton, Spinner } from '../shared/bits';
+import { ContactAvatar, DemoTag, ErrorState, Skeleton, Spinner } from '../shared/bits';
 import { cx } from '../shared/tones';
 import s from '../wahub.module.css';
 import Composer from './Composer';
+import DemoComposer from './DemoComposer';
+import ShadowRow from './ShadowRow';
 
 /** Scrolling is settled before the browser paints; where there is no browser there is nothing to settle. */
 const useBeforePaint = typeof window === 'undefined' ? useEffect : useLayoutEffect;
@@ -147,6 +150,14 @@ interface ChatThreadProps {
   onRelease: () => void;
   onResolveNeedsHuman: () => void;
   onOpenSettings: () => void;
+  /** Stage 2: the shadow bot's proposal under the customer message it answers. */
+  shadowByMessage?: ReadonlyMap<number, WahubShadowReply>;
+  shadowBusyId?: number | null;
+  onShadowVerdict?: (reply: WahubShadowReply, verdict: 'good' | 'bad', note: string) => void;
+  onOpenKnowledgeItem?: (id: number) => void;
+  /** Stage 2 (§ה): a demo contact takes typed messages "from the customer" and "from the old bot". */
+  onSimulate?: (text: string, sender: DemoSender) => Promise<boolean>;
+  simulating?: boolean;
 }
 
 function ThreadHeader({
@@ -183,6 +194,7 @@ function ThreadHeader({
           {displayName(contact)}
         </p>
         <p className={cx(s.t2, 'm-0 flex flex-wrap items-center gap-x-2')}>
+          {isDemoContact(contact) && <DemoTag />}
           {hasName(contact) && (
             <span dir="ltr" className={cx(s.num, 'select-all')}>
               {phone}
@@ -255,6 +267,12 @@ export default function ChatThread({
   onRelease,
   onResolveNeedsHuman,
   onOpenSettings,
+  shadowByMessage,
+  shadowBusyId = null,
+  onShadowVerdict,
+  onOpenKnowledgeItem,
+  onSimulate,
+  simulating = false,
 }: ChatThreadProps) {
   const { contact, messages, status } = thread;
   const scroller = useRef<HTMLDivElement | null>(null);
@@ -428,9 +446,22 @@ export default function ChatThread({
                       <span>{day.label}</span>
                     </p>
                     <div className="flex flex-col gap-1.5">
-                      {day.messages.map((message) => (
-                        <MessageBubble key={message.id} message={message} arrived={arrived.has(message.id)} />
-                      ))}
+                      {day.messages.map((message) => {
+                        const shadow = message.direction === 'in' ? shadowByMessage?.get(message.id) : undefined;
+                        return (
+                          <div key={message.id} className="flex flex-col gap-1">
+                            <MessageBubble message={message} arrived={arrived.has(message.id)} />
+                            {shadow && (
+                              <ShadowRow
+                                reply={shadow}
+                                busy={shadowBusyId === shadow.id}
+                                onVerdict={(value, note) => onShadowVerdict?.(shadow, value, note)}
+                                onOpenItem={(id) => onOpenKnowledgeItem?.(id)}
+                              />
+                            )}
+                          </div>
+                        );
+                      })}
                     </div>
                   </section>
                 ))
@@ -456,6 +487,7 @@ export default function ChatThread({
         onSendFlow={thread.sendFlow}
         onOpenSettings={onOpenSettings}
       />
+      {onSimulate && isDemoContact(contact) && <DemoComposer contact={contact} busy={simulating} onSimulate={onSimulate} />}
     </div>
   );
 }

@@ -3,10 +3,18 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { MessagesSquare } from 'lucide-react';
 import { useAuth } from '@/components/AuthProvider';
+import { toast } from 'sonner';
+import { readableError } from '@/lib/apiError';
+import { attachShadowReplies } from '@/lib/wahub/bot';
 import { matchesBox } from '@/lib/wahub/boxes';
+import { simulateInboundBody, type DemoSender } from '@/lib/wahub/demo';
 import { israelToday } from '@/lib/wahub/format';
 import { mergeLiveContacts } from '@/lib/wahub/live';
+import { lastServerMessageId } from '@/lib/wahub/messages';
+import { simulateWahubInbound } from '@/lib/wahubApi';
 import type { WahubBox, WahubBoxCounts, WahubContact, WahubStatus, WahubTag } from '@/types/wahub';
+import { useVerdict } from '../bot/shadow/useVerdict';
+import { useContactShadow } from '../hooks/useBotQueries';
 import { useContactMutations, type ContactStore } from '../hooks/useContactMutations';
 import { useContactThread, type ContactThread } from '../hooks/useContactThread';
 import { useElementWidth } from '../hooks/useElementWidth';
@@ -44,6 +52,8 @@ interface ChatsTabProps {
   onBox: (box: WahubBox) => void;
   onOpenContact: (id: number | null) => void;
   onOpenSettings: () => void;
+  /** A knowledge item named under a shadow reply: the bot tab opens on it. */
+  onOpenKnowledgeItem: (id: number) => void;
 }
 
 /**
@@ -64,6 +74,7 @@ export default function ChatsTab({
   onBox,
   onOpenContact,
   onOpenSettings,
+  onOpenKnowledgeItem,
 }: ChatsTabProps) {
   const { user } = useAuth();
   const now = useNow();
@@ -194,6 +205,47 @@ export default function ChatsTab({
 
   const openContact = useCallback((id: number) => onOpenContact(id), [onOpenContact]);
   const contact = thread.contact;
+
+  // The shadow bot's proposals for the open conversation (stage 2). Asked for
+  // again whenever a newer message is in hand, because a proposal follows a
+  // customer's message by a minute or so.
+  const messagesVersion = lastServerMessageId(thread.messages) ?? 0;
+  const shadow = useContactShadow(contactId, active && contactId != null, messagesVersion);
+  const shadowReplies = shadow.data;
+  const shadowByMessage = useMemo(
+    () => attachShadowReplies(thread.messages, shadowReplies ?? []),
+    [thread.messages, shadowReplies],
+  );
+  const shadowSummary = useMemo(
+    () => (shadowReplies ? { count: shadowReplies.length, lastAt: shadowReplies[0]?.created_at ?? null } : null),
+    [shadowReplies],
+  );
+  const { verdict: shadowVerdict, busyId: shadowBusyId } = useVerdict();
+
+  /** A demo conversation: "the customer sent" / "the old bot answered", typed by the owner. Nothing goes out. */
+  const simulate = useCallback(
+    async (text: string, sender: DemoSender): Promise<boolean> => {
+      const id = openIdRef.current;
+      const body = simulateInboundBody(text, sender);
+      if (id == null || !body) return false;
+      try {
+        const result = await simulateWahubInbound(id, body);
+        if (result.contact) applyContact(result.contact);
+        if (!result.stored) {
+          // The server keeps one copy of the same line within thirty seconds (the inbound rule); the text stays in the box.
+          toast.warning('לא נרשם: אותה הודעה נכנסה לפני פחות מ-30 שניות.');
+          return false;
+        }
+        // The message itself comes with the conversation's own read, like any other.
+        void threadRef.current?.refreshQuietly();
+        return true;
+      } catch (error) {
+        toast.error(readableError(error, 'ההודעה המדומה לא נרשמה'));
+        return false;
+      }
+    },
+    [applyContact],
+  );
   const allTags: WahubTag[] = tags.data ?? NO_TAGS;
 
   const showList = layout !== 'narrow' || contactId == null;
@@ -266,6 +318,11 @@ export default function ChatsTab({
             onRelease={() => void withBusy('handover', () => mutations.release(contactId))}
             onResolveNeedsHuman={() => void withBusy('resolve', () => mutations.resolveNeedsHuman(contactId))}
             onOpenSettings={onOpenSettings}
+            shadowByMessage={shadowByMessage}
+            shadowBusyId={shadowBusyId}
+            onShadowVerdict={(reply, value, note) => void shadowVerdict(reply, value, note)}
+            onOpenKnowledgeItem={onOpenKnowledgeItem}
+            onSimulate={simulate}
           />
         </section>
       )}
@@ -289,6 +346,7 @@ export default function ChatsTab({
             onRename={(name) => void mutations.rename(contact.id, name)}
             onRecheck={() => void withBusy('recheck', () => mutations.recheck(contact.id))}
             onAnalyze={() => void withBusy('analyze', () => mutations.analyze(contact.id))}
+            shadow={shadowSummary}
           />
         </aside>
       )}

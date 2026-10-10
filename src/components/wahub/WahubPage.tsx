@@ -4,10 +4,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import dynamic from 'next/dynamic';
 import { useSearchParams } from 'next/navigation';
 import { useQueryClient } from '@tanstack/react-query';
-import { CalendarDays, MessagesSquare, Settings, Users, WifiOff } from 'lucide-react';
+import { Bot, CalendarDays, MessagesSquare, Settings, Users, WifiOff } from 'lucide-react';
 import { badgeText } from '@/lib/wahub/boxes';
 import { buildWahubUrl, parseWahubUrl, type WahubUrlState } from '@/lib/wahub/params';
-import type { WahubBox, WahubQueue, WahubTab } from '@/types/wahub';
+import type { WahubBotSub, WahubBox, WahubQueue, WahubTab } from '@/types/wahub';
 import ChatsTab from './chats/ChatsTab';
 import { useWahubLive } from './hooks/useWahubLive';
 import { useWahubStatus, wahubKeys } from './hooks/useWahubQueries';
@@ -24,18 +24,22 @@ function TabLoading() {
 const TodayTab = dynamic(() => import('./TodayTab'), { ssr: false, loading: TabLoading });
 const LeadsTab = dynamic(() => import('./leads/LeadsTab'), { ssr: false, loading: TabLoading });
 const SettingsTab = dynamic(() => import('./settings/SettingsTab'), { ssr: false, loading: TabLoading });
+const BotTab = dynamic(() => import('./bot/BotTab'), { ssr: false, loading: TabLoading });
+// The floating "יש הצעות לעדכון הבוט" button: part of the whole section, not of a tab.
+const ProposalsFab = dynamic(() => import('./bot/review/ProposalsFab'), { ssr: false });
 
 const TABS: Array<{ key: WahubTab; label: string; icon: typeof Users }> = [
   { key: 'chats', label: 'שיחות', icon: MessagesSquare },
   { key: 'today', label: 'היום', icon: CalendarDays },
   { key: 'leads', label: 'לידים', icon: Users },
+  { key: 'bot', label: 'הבוט', icon: Bot },
   { key: 'settings', label: 'הגדרות', icon: Settings },
 ];
 
 /**
  * The "וואטסאפ ולידים" section.
  *
- * One page, four tabs. The tab and the open conversation live in the address
+ * One page, five tabs. The tab and the open conversation live in the address
  * (/wahub?tab=chats&contact=12), so a link opens exactly what was on screen.
  * The live update runs here, above the tabs, for as long as the page is open.
  */
@@ -69,21 +73,54 @@ export default function WahubPage() {
   // the tab it is on. Each tab's own are remembered here while another tab is in
   // front, so coming back finds the same conversation and the same queue — and a
   // tab that is out of view is not told its view changed.
-  const kept = useRef({ box: url.box, contact: url.contact, queue: url.queue });
+  const kept = useRef({ box: url.box, contact: url.contact, queue: url.queue, sub: url.sub, item: url.item });
   if (url.tab === 'chats') {
     kept.current.box = url.box;
     kept.current.contact = url.contact;
   }
   if (url.tab === 'leads') kept.current.queue = url.queue;
+  if (url.tab === 'bot') {
+    kept.current.sub = url.sub;
+    kept.current.item = url.item;
+  }
   const chatsBox = kept.current.box;
   const chatsContact = kept.current.contact;
   const leadsQueue = kept.current.queue;
+  const botSub = kept.current.sub;
+  const botItem = kept.current.item;
+
+  // A question handed to "נסה שאלה" from elsewhere in the section (a fact just added).
+  const [tryQuestion, setTryQuestion] = useState('');
 
   const openTab = useCallback(
     (tab: WahubTab) =>
-      go({ tab, box: kept.current.box, contact: kept.current.contact, queue: kept.current.queue }),
+      go({
+        tab,
+        box: kept.current.box,
+        contact: kept.current.contact,
+        queue: kept.current.queue,
+        sub: kept.current.sub,
+        item: kept.current.item,
+      }),
     [go],
   );
+  const setBotSub = useCallback((sub: WahubBotSub) => go({ tab: 'bot', sub, item: null }, 'replace'), [go]);
+  /** A knowledge item, from anywhere: the bot tab opens on it. */
+  const openKnowledgeItem = useCallback(
+    (id: number | null) => {
+      const current = parseWahubUrl(new URLSearchParams(window.location.search));
+      go({ tab: 'bot', sub: 'knowledge', item: id }, current.tab === 'bot' ? 'replace' : 'push');
+    },
+    [go],
+  );
+  const openTry = useCallback(
+    (question: string) => {
+      setTryQuestion(question);
+      go({ tab: 'bot', sub: 'try', item: null });
+    },
+    [go],
+  );
+  const openReview = useCallback(() => go({ tab: 'bot', sub: 'review', item: null }), [go]);
   const openSettings = useCallback(() => go({ tab: 'settings' }), [go]);
   const openChat = useCallback(
     (id: number) => go({ tab: 'chats', contact: id, box: kept.current.box }),
@@ -201,6 +238,7 @@ export default function WahubPage() {
             onBox={setBox}
             onOpenContact={openContact}
             onOpenSettings={openSettings}
+            onOpenKnowledgeItem={openKnowledgeItem}
           />
         </div>
       )}
@@ -208,6 +246,27 @@ export default function WahubPage() {
       {url.tab === 'today' && (
         <div role="tabpanel" id="wahub-panel-today" aria-labelledby="wahub-tab-today">
           <TodayTab status={status.data} onGo={goTo} onOpenChat={openChat} />
+        </div>
+      )}
+
+      {(visited.has('bot') || url.tab === 'bot') && (
+        <div
+          role="tabpanel"
+          id="wahub-panel-bot"
+          aria-labelledby="wahub-tab-bot"
+          className={url.tab === 'bot' ? '' : 'hidden'}
+        >
+          <BotTab
+            sub={botSub}
+            status={status.data}
+            openItemId={botItem}
+            tryQuestion={tryQuestion}
+            onSub={setBotSub}
+            onOpenItem={openKnowledgeItem}
+            onTryQuestion={openTry}
+            onOpenChat={openChat}
+            onDemoChanged={() => live.resync()}
+          />
         </div>
       )}
 
@@ -239,6 +298,8 @@ export default function WahubPage() {
           />
         </div>
       )}
+
+      <ProposalsFab onOpenChat={openChat} onOpenItem={(id) => openKnowledgeItem(id)} onOpenReview={openReview} />
     </div>
   );
 }

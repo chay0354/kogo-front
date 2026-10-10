@@ -36,6 +36,15 @@ export function Pill({
   );
 }
 
+/** "דמו" — an invented contact (stage 2, §ה). Gold, so it is never mistaken for a real one. */
+export function DemoTag({ size = 'pill' }: { size?: 'pill' | 'row' }) {
+  return (
+    <span className={cx(size === 'row' ? s.rowTag : s.pill, s.pGold)} title="לקוח דמו – לא מקבל שום הודעה">
+      דמו
+    </span>
+  );
+}
+
 /** A tag in the colour the office gave it. The name is always written, never the colour alone. */
 export function TagChip({ tag, onRemove }: { tag: WahubTag; onRemove?: () => void }) {
   return (

@@ -1,4 +1,4 @@
-import type { WahubContact, WahubMessage } from '@/types/wahub';
+import type { WahubContact, WahubKnowledgeItem, WahubKnowledgeProposal, WahubMessage, WahubShadowReply } from '@/types/wahub';
 
 /** Builders for the tests beside this file. Not used by any screen. */
 
@@ -92,6 +92,67 @@ export function makeMessage(id: number, overrides: Partial<WahubMessage> = {}): 
     status: 'received',
     error: '',
     sent_at: '2026-10-08T09:00:00+03:00',
+    ...overrides,
+  };
+}
+
+export function makeKnowledgeItem(id: number, overrides: Partial<WahubKnowledgeItem> = {}): WahubKnowledgeItem {
+  return {
+    id,
+    kind: 'fact',
+    kind_label: 'עובדה',
+    title: `רשומה ${id}`,
+    body: '',
+    scope: { level: 'business', id: null, label: 'כל העסק' },
+    valid_from: null,
+    valid_until: null,
+    is_active: true,
+    when_to_say: 'if_asked',
+    when_to_say_label: 'רק אם שואלים',
+    example_good: '',
+    example_bad: '',
+    source_note: '',
+    updated_at: '2026-10-10T10:00:00+03:00',
+    updated_by_name: 'דור',
+    version: 1,
+    ...overrides,
+  };
+}
+
+export function makeShadowReply(id: number, overrides: Partial<WahubShadowReply> = {}): WahubShadowReply {
+  return {
+    id,
+    after_message_id: 1,
+    text: `הצעה ${id}`,
+    reasoning: '',
+    tools_used: [],
+    knowledge_used: [],
+    created_at: `2026-10-10T10:${String(id).padStart(2, '0')}:00+03:00`,
+    old_bot_reply: null,
+    verdict: null,
+    verdict_note: '',
+    ...overrides,
+  };
+}
+
+export function makeProposal(id: number, overrides: Partial<WahubKnowledgeProposal> = {}): WahubKnowledgeProposal {
+  return {
+    id,
+    status: 'pending',
+    status_label: 'ממתין לאישור',
+    source: 'reviewer',
+    source_label: 'סריקה יזומה',
+    contact_id: null,
+    message_id: null,
+    shadow_id: null,
+    title: `הצעה ${id}`,
+    explanation: '',
+    change: { action: 'create', item_id: null, kind: 'fact', before: null, after: { title: 'x' } },
+    evidence: [],
+    created_at: '2026-10-10T10:00:00+03:00',
+    decided_at: null,
+    decided_by_name: null,
+    decision_note: '',
     ...overrides,
   };
 }
