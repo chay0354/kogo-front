@@ -458,22 +458,6 @@ export type WahubKnowledgeWrite = Partial<
   note?: string;
 };
 
-/** The answer of POST knowledge/import/: the old bot's knowledge, filed once from the screen. */
-export interface WahubKnowledgeImportResult {
-  dry_run: boolean;
-  /** Records created by this click (0 on a second click). */
-  created_total: number;
-  created: Partial<Record<WahubKnowledgeKind, number>>;
-  /** Records that were already here and were left alone. */
-  skipped: number;
-  /** Created inactive: an owner's decision is still open, or the date has passed. */
-  inactive: number;
-  tags: number;
-  quick_replies: number;
-  /** All knowledge records after the import. */
-  total: number;
-}
-
 export interface WahubKnowledgeHistoryEntry {
   version: number;
   changed_at: string;

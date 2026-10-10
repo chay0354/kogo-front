@@ -12,7 +12,6 @@ import type {
   WahubFollowupPatch,
   WahubFromKogo,
   WahubKnowledgeHistoryEntry,
-  WahubKnowledgeImportResult,
   WahubKnowledgeItem,
   WahubKnowledgeKind,
   WahubKnowledgeProposal,
@@ -331,12 +330,6 @@ export async function createWahubKnowledge(body: WahubKnowledgeWrite): Promise<W
 export async function updateWahubKnowledge(id: number, patch: WahubKnowledgeWrite): Promise<WahubKnowledgeItem> {
   const res = await api.patch(`${BASE}/knowledge/${id}/`, patch);
   return res.data as WahubKnowledgeItem;
-}
-
-/** Files the old bot's knowledge (the 137 records in the server's seed) once; a second call adds nothing. Sends nothing. */
-export async function importWahubOldKnowledge(): Promise<WahubKnowledgeImportResult> {
-  const res = await api.post(`${BASE}/knowledge/import/`, {});
-  return res.data as WahubKnowledgeImportResult;
 }
 
 /** A soft delete: the item stays, with `is_active` false. */

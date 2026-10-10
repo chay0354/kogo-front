@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { BookOpen, Download, Plus, Search, X } from 'lucide-react';
+import { BookOpen, Plus, Search, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { readableError } from '@/lib/apiError';
 import {
@@ -16,7 +16,6 @@ import { israelToday } from '@/lib/wahub/format';
 import {
   createWahubKnowledge,
   deleteWahubKnowledge,
-  importWahubOldKnowledge,
   restoreWahubKnowledge,
   updateWahubKnowledge,
 } from '@/lib/wahubApi';
@@ -78,7 +77,6 @@ export default function KnowledgeTab({ openItemId, onOpenItem, onTryQuestion }: 
   const [fromKogo, setFromKogo] = useState(false);
   const [busyId, setBusyId] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
-  const [importing, setImporting] = useState(false);
 
   const query = useWahubKnowledge(includeInactive ? {} : { active: true });
   const items = query.data ?? NO_ITEMS;
@@ -178,27 +176,6 @@ export default function KnowledgeTab({ openItemId, onOpenItem, onTryQuestion }: 
     onOpenItem(null);
   }
 
-  // The old bot's knowledge, filed once from the screen (production has no shell). A second click adds nothing.
-  async function importOld() {
-    setImporting(true);
-    try {
-      const result = await importWahubOldKnowledge();
-      cache.invalidate();
-      if (result.created_total === 0) {
-        toast.success(`הידע של הבוט הישן כבר כאן (${result.skipped} רשומות). לא נוסף כלום.`);
-      } else {
-        const parts = [`יובאו ${result.created_total} רשומות מהבוט הישן`];
-        if (result.inactive) parts.push(`${result.inactive} מהן לא פעילות, מחכות להחלטה שלך`);
-        if (result.skipped) parts.push(`${result.skipped} כבר היו`);
-        toast.success(`${parts.join(' · ')}.`);
-      }
-    } catch (error) {
-      toast.error(readableError(error, 'הייבוא לא הצליח'));
-    } finally {
-      setImporting(false);
-    }
-  }
-
   return (
     <div className="flex flex-col gap-3.5">
       <section className={cx(s.card, 'flex flex-col gap-2.5')} aria-label="חיפוש וסינון">
@@ -237,16 +214,6 @@ export default function KnowledgeTab({ openItemId, onOpenItem, onTryQuestion }: 
           >
             <Plus aria-hidden="true" />
             הוסף רשומה
-          </button>
-          <button
-            type="button"
-            onClick={importOld}
-            disabled={importing}
-            title="מכניס את ההוראות של הבוט הישן כרשומות ידע, לפי טבלת המיפוי וההחלטות שלך. פעם אחת: לחיצה שנייה לא מכפילה ולא דורסת עריכות."
-            className={cx(s.btn, '!h-[38px]')}
-          >
-            <Download aria-hidden="true" />
-            {importing ? 'מייבא…' : 'ייבוא מהבוט הישן'}
           </button>
         </div>
         <div className={s.chips} role="group" aria-label="סינון לפי סוג">
