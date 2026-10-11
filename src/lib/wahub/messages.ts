@@ -48,6 +48,52 @@ export function newMessages(
   return incoming.filter((message) => !have.has(message.id));
 }
 
+/** How long after it arrived a recording may still get its transcript (the server fetches and transcribes in the background). */
+export const MEDIA_WAIT_MS = 15 * 60_000;
+
+/**
+ * The oldest customer recording that is still waiting for its words: young,
+ * and with no transcript yet. The server writes the transcript on the message
+ * later, and "anything after the last id?" would never bring it — so the poll
+ * asks from just before this one. null when nothing is waiting.
+ */
+export function oldestWaitingRecordingId(messages: ReadonlyArray<WahubMessage>, nowMs: number): number | null {
+  let oldest: number | null = null;
+  for (const message of messages) {
+    if (isOptimistic(message) || message.direction !== 'in' || message.message_type !== 'voice') continue;
+    if ((message.transcript ?? '').trim()) continue;
+    if (nowMs - time(message.sent_at) > MEDIA_WAIT_MS) continue;
+    if (oldest === null || message.id < oldest) oldest = message.id;
+  }
+  return oldest;
+}
+
+/**
+ * The messages in `incoming` that are new, or that the server changed since
+ * the conversation got them: a transcript written, a file kept, a kind found
+ * out, a send that failed. Unchanged copies are left out, so a poll that
+ * re-reads a waiting recording does not redraw the conversation.
+ */
+export function changedMessages(
+  existing: ReadonlyArray<WahubMessage>,
+  incoming: ReadonlyArray<WahubMessage>,
+): WahubMessage[] {
+  const have = new Map<number, WahubMessage>();
+  for (const message of existing) have.set(message.id, message);
+  return incoming.filter((message) => {
+    const old = have.get(message.id);
+    if (!old) return true;
+    return (
+      (old.transcript ?? '') !== (message.transcript ?? '') ||
+      (old.media_url ?? '') !== (message.media_url ?? '') ||
+      old.message_type !== message.message_type ||
+      Boolean(old.has_media) !== Boolean(message.has_media) ||
+      old.status !== message.status ||
+      old.text !== message.text
+    );
+  });
+}
+
 /** The id to ask "anything after this?" with: the highest one the server gave. */
 export function lastServerMessageId(messages: ReadonlyArray<WahubMessage>): number | null {
   let last: number | null = null;
