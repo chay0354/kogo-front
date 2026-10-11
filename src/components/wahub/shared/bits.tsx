@@ -45,6 +45,18 @@ export function DemoTag({ size = 'pill' }: { size?: 'pill' | 'row' }) {
   );
 }
 
+/**
+ * "בדיקה חיה" — the new bot answers this person for real, in WhatsApp. Amber,
+ * as a warning: red stays for "מבקש נציג" alone (the owner's rule).
+ */
+export function LiveTestTag({ size = 'pill' }: { size?: 'pill' | 'row' }) {
+  return (
+    <span className={cx(size === 'row' ? s.rowTag : s.pill, s.pWarn)} title="בדיקה חיה – הבוט החדש עונה לו באמת בוואטסאפ">
+      בדיקה חיה
+    </span>
+  );
+}
+
 /** A tag in the colour the office gave it. The name is always written, never the colour alone. */
 export function TagChip({ tag, onRemove }: { tag: WahubTag; onRemove?: () => void }) {
   return (

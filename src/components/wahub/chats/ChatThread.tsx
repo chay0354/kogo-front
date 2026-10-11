@@ -1,31 +1,20 @@
 'use client';
 
-import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import {
-  AlertCircle,
-  ArrowDown,
-  ArrowRight,
-  Bot,
-  Check,
-  ExternalLink,
-  Hand,
-  Info,
-  MessageCircle,
-  Undo2,
-  UserRound,
-} from 'lucide-react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { AlertCircle, ArrowDown, ArrowRight, Bot, Check, Hand, Info, MessageCircle, Undo2, UserRound } from 'lucide-react';
 import { formatWhatsAppLink } from '@/lib/customerUtils';
-import { isDemoContact, type DemoSender } from '@/lib/wahub/demo';
-import { agoText, displayName, formatClock, hasName, messageTypeLabel } from '@/lib/wahub/format';
+import { isDemoContact, type DemoInput } from '@/lib/wahub/demo';
+import { agoText, displayName, hasName } from '@/lib/wahub/format';
 import { groupMessagesByDay, isOptimistic } from '@/lib/wahub/messages';
 import { phoneStatusLine } from '@/lib/wahub/screens';
-import type { WahubContactDetail, WahubMessage, WahubShadowReply } from '@/types/wahub';
+import type { WahubContactDetail, WahubSender, WahubShadowReply } from '@/types/wahub';
 import type { ContactThread } from '../hooks/useContactThread';
-import { ContactAvatar, DemoTag, ErrorState, Skeleton, Spinner } from '../shared/bits';
+import { ContactAvatar, DemoTag, ErrorState, LiveTestTag, Skeleton, Spinner } from '../shared/bits';
 import { cx } from '../shared/tones';
 import s from '../wahub.module.css';
 import Composer from './Composer';
-import DemoComposer from './DemoComposer';
+import DemoComposer, { type DemoReplyControls } from './DemoComposer';
+import MessageBubble, { TypingBubble } from './MessageBubble';
 import ShadowRow from './ShadowRow';
 
 /** Scrolling is settled before the browser paints; where there is no browser there is nothing to settle. */
@@ -37,86 +26,19 @@ const NO_IDS: ReadonlySet<number> = new Set();
 const NEAR_BOTTOM_PX = 80;
 
 /**
- * Whose bubble it is, in the section's colours: the customer on a plain
- * surface, the bot in light lavender, the office in navy, and a system message
- * or a template in gold. A message that did not go out is red, whoever sent it.
+ * The senders whose made-up bubble (an id below zero) was on screen at the
+ * last draw and is gone now: the server's copy took its place, so a message
+ * from that sender that has just appeared is not a new arrival.
  */
-function bubbleTone(message: WahubMessage): string {
-  if (message.status === 'failed') return s.bFailed;
-  if (message.sender === 'customer') return s.bCustomer;
-  if (message.sender === 'system' || message.message_type === 'template') return s.bSystem;
-  if (message.sender === 'bot') return s.bBot;
-  return s.bOffice;
+function settledSenders(pending: ReadonlyMap<number, WahubSender>, messages: ReadonlyArray<{ id: number }>): Set<WahubSender> {
+  const settled = new Set<WahubSender>();
+  if (!pending.size) return settled;
+  const current = new Set(messages.map((message) => message.id));
+  pending.forEach((sender, id) => {
+    if (!current.has(id)) settled.add(sender);
+  });
+  return settled;
 }
-
-function senderLine(message: WahubMessage): string {
-  if (message.sender === 'customer') return '';
-  const label = message.sender_label || '';
-  if (message.sender === 'office' && message.sender_name) return `${label || 'משרד'} · ${message.sender_name}`;
-  return label;
-}
-
-/**
- * One bubble. The customer stands on one side; the bot, the office and the
- * system on the other, each in its own shade and with a small label saying who.
- */
-const MessageBubble = memo(function MessageBubble({ message, arrived }: { message: WahubMessage; arrived: boolean }) {
-  const mine = message.direction === 'out';
-  const failed = message.status === 'failed';
-  const sending = message.local_state === 'sending';
-  const typeLabel = messageTypeLabel(message.message_type);
-  const who = senderLine(message);
-
-  return (
-    <div className={cx(s.bubbleRow, mine && s.bubbleRowOut, arrived && s.feedinUp)}>
-      <div className={s.bubbleCol}>
-        <div className={cx(s.bubble, bubbleTone(message), sending && s.bSending)}>
-          {(who || typeLabel || message.status === 'simulated') && (
-            <p className={s.bubbleMeta}>
-              {who && <span>{who}</span>}
-              {typeLabel && <span>{who ? '· ' : ''}{typeLabel}</span>}
-              {message.status === 'simulated' && <span className={s.simMark}>הדמיה</span>}
-            </p>
-          )}
-          {message.text && (
-            <p className={s.bubbleText} dir="auto">
-              {message.text}
-            </p>
-          )}
-          {message.media_url && (
-            <a
-              href={message.media_url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="mt-1 inline-flex items-center gap-1 text-[13px] font-semibold underline"
-            >
-              <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
-              פתח את הקובץ
-            </a>
-          )}
-          <p className={cx(s.bubbleTime, mine && 'justify-end')}>
-            {sending ? (
-              <>
-                <Spinner className="h-3 w-3" /> נשלח…
-              </>
-            ) : (
-              <>
-                {formatClock(message.sent_at)}
-                {mine && message.status === 'sent' && <Check aria-label="נשלח" />}
-              </>
-            )}
-          </p>
-        </div>
-        {failed && (
-          <p className={s.failNote} role="alert">
-            <AlertCircle aria-hidden="true" />
-            לא נשלח{message.error ? ` – ${message.error}` : ''}
-          </p>
-        )}
-      </div>
-    </div>
-  );
-});
 
 function ThreadSkeleton() {
   return (
@@ -156,10 +78,18 @@ interface ChatThreadProps {
   shadowBusyId?: number | null;
   onShadowVerdict?: (reply: WahubShadowReply, verdict: 'good' | 'bad', note: string) => void;
   onOpenKnowledgeItem?: (id: number) => void;
-  /** Stage 2 (§ה): a demo contact takes typed messages "from the customer" and "from the old bot". */
-  onSimulate?: (text: string, sender: DemoSender) => Promise<boolean>;
-  simulating?: boolean;
+  /**
+   * A demo contact's conversation is typed by the owner: words, a recording or
+   * a picture "from the customer", and the old bot's answers. Resolves true
+   * when the server kept the message.
+   */
+  onSimulate?: (input: DemoInput) => Promise<boolean>;
+  /** The new bot answering in a demo conversation: its switch, "ענה עכשיו", and "הבוט כותב…". */
+  demoReply?: DemoReplyControls;
 }
+
+/** Until the tab hands the real one over: the switch shows on, and nothing is asked of the server. */
+const NO_REPLY: DemoReplyControls = { auto: true, armed: false, inFlight: false, setAuto: () => {}, replyNow: () => {} };
 
 function ThreadHeader({
   contact,
@@ -182,6 +112,7 @@ function ThreadHeader({
   const whatsapp = formatWhatsAppLink(contact.phone);
   const phone = contact.phone_display || contact.phone;
   const demo = isDemoContact(contact);
+  const liveTest = contact.live_test === true;
 
   return (
     <header className={s.threadHead}>
@@ -195,10 +126,11 @@ function ThreadHeader({
         {/* The name is a press away from the details; on a phone a short state line sits under it, as in a messaging app. */}
         <button type="button" onClick={onDetails} title="פרטי איש הקשר" className={s.threadName}>
           <span dir="auto">{displayName(contact)}</span>
-          <span className={s.threadStatus}>{phoneStatusLine(contact.chat, demo)}</span>
+          <span className={s.threadStatus}>{phoneStatusLine(contact.chat, demo, liveTest)}</span>
         </button>
         <p className={cx(s.t2, s.threadSub, 'm-0 flex flex-wrap items-center gap-x-2')}>
           {demo && <DemoTag />}
+          {liveTest && <LiveTestTag />}
           {hasName(contact) && (
             <span dir="ltr" className={cx(s.num, 'select-all')}>
               {phone}
@@ -287,15 +219,25 @@ export default function ChatThread({
   onShadowVerdict,
   onOpenKnowledgeItem,
   onSimulate,
-  simulating = false,
+  demoReply = NO_REPLY,
 }: ChatThreadProps) {
   const { contact, messages, status } = thread;
+  // "הבוט כותב…" stands at the end of a demo conversation while the new bot's answer is on its way.
+  const typing = demoReply.inFlight && isDemoContact(contact);
   const scroller = useRef<HTMLDivElement | null>(null);
   const atBottom = useRef(true);
   const [unseen, setUnseen] = useState(0);
-  const seen = useRef<{ contactId: number | null; ids: Set<number>; height: number; olderLoads: number }>({
+  const seen = useRef<{
+    contactId: number | null;
+    ids: Set<number>;
+    /** Who "sent" each bubble that is still on its way (its id is below zero). */
+    pending: Map<number, WahubSender>;
+    height: number;
+    olderLoads: number;
+  }>({
     contactId: null,
     ids: new Set(),
+    pending: new Map(),
     height: 0,
     olderLoads: 0,
   });
@@ -310,10 +252,9 @@ export default function ChatThread({
     if (before.contactId !== thread.contactId || before.ids.size === 0 || before.olderLoads !== thread.olderLoads) {
       return NO_IDS;
     }
-    const current = new Set(messages.map((message) => message.id));
-    const settled = Array.from(before.ids).some((id) => id < 0 && !current.has(id));
+    const settled = settledSenders(before.pending, messages);
     const fresh = messages.filter(
-      (message) => !before.ids.has(message.id) && !(settled && message.sender === 'office' && message.id > 0),
+      (message) => !before.ids.has(message.id) && !(message.id > 0 && settled.has(message.sender)),
     );
     return fresh.length > 0 && fresh.length <= 5 ? new Set(fresh.map((message) => message.id)) : NO_IDS;
   }, [messages, thread.contactId, thread.olderLoads]);
@@ -339,9 +280,10 @@ export default function ChatThread({
     const element = scroller.current;
     const before = seen.current;
     const ids = new Set(messages.map((message) => message.id));
+    const pending = new Map(messages.filter(isOptimistic).map((message) => [message.id, message.sender] as const));
 
     if (!element) {
-      seen.current = { contactId: thread.contactId, ids, height: 0, olderLoads: thread.olderLoads };
+      seen.current = { contactId: thread.contactId, ids, pending, height: 0, olderLoads: thread.olderLoads };
       return;
     }
 
@@ -357,20 +299,23 @@ export default function ChatThread({
       const added = messages.filter((message) => !before.ids.has(message.id));
       if (added.length) {
         const typedHere = added.some(isOptimistic);
-        // The server's copy replacing the bubble the office just typed is not news.
-        const settled = Array.from(before.ids).some((id) => id < 0 && !ids.has(id));
-        const news = added.filter((message) => !isOptimistic(message) && !(settled && message.sender === 'office'));
+        // The server's copy replacing a bubble that was just typed here is not news.
+        const settled = settledSenders(before.pending, messages);
+        const news = added.filter((message) => !isOptimistic(message) && !settled.has(message.sender));
         if (typedHere || atBottom.current) {
           element.scrollTop = element.scrollHeight;
           atBottom.current = true;
         } else if (news.length) {
           setUnseen((count) => count + news.length);
         }
+      } else if (atBottom.current) {
+        // Nothing new, but the end may have grown ("הבוט כותב…" came or went): stay on it.
+        element.scrollTop = element.scrollHeight;
       }
     }
 
-    seen.current = { contactId: thread.contactId, ids, height: element.scrollHeight, olderLoads: thread.olderLoads };
-  }, [messages, thread.contactId, thread.olderLoads, status]);
+    seen.current = { contactId: thread.contactId, ids, pending, height: element.scrollHeight, olderLoads: thread.olderLoads };
+  }, [messages, thread.contactId, thread.olderLoads, status, typing]);
 
   // Out of view the scroller has no size, so "stay at the newest" could not be
   // kept while messages arrived. Coming back into view puts it right.
@@ -489,6 +434,11 @@ export default function ChatThread({
                   </section>
                 ))
               )}
+              {typing && (
+                <div className="mt-1.5">
+                  <TypingBubble />
+                </div>
+              )}
             </>
           )}
         </div>
@@ -510,7 +460,7 @@ export default function ChatThread({
         onSendFlow={thread.sendFlow}
         onOpenSettings={onOpenSettings}
       />
-      {onSimulate && isDemoContact(contact) && <DemoComposer contact={contact} busy={simulating} onSimulate={onSimulate} />}
+      {onSimulate && isDemoContact(contact) && <DemoComposer contact={contact} onSend={onSimulate} reply={demoReply} />}
     </div>
   );
 }

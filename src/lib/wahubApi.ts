@@ -1,7 +1,7 @@
 import api from './api';
 import { unwrapApiList } from './scopedFilters';
 import { contactsParams, countsParams } from './wahub/params';
-import { newContactBody, type DemoSender, type NewContactInput } from './wahub/demo';
+import { buildSimulateRequest, newContactBody, type DemoInput, type NewContactInput } from './wahub/demo';
 import type {
   WahubApproveResult,
   WahubContact,
@@ -17,6 +17,8 @@ import type {
   WahubKnowledgeKind,
   WahubKnowledgeProposal,
   WahubKnowledgeWrite,
+  WahubMessage,
+  WahubMessageMedia,
   WahubMessagesPage,
   WahubOfficeHoursNow,
   WahubPage,
@@ -200,30 +202,96 @@ export interface WahubSimulateResult {
   /** False when the server dropped the line: the same text, from the same side, within thirty seconds. */
   stored: boolean;
   stored_message_id: number | null;
+  /** The message as kept (הבהרה 1), so the bubble is drawn at once; null on an older server. */
+  message: WahubMessage | null;
+}
+
+function readMessage(raw: unknown): WahubMessage | null {
+  const data = raw as Partial<WahubMessage> | null | undefined;
+  return data && typeof data.id === 'number' && typeof data.sender === 'string' ? (data as WahubMessage) : null;
 }
 
 /**
  * "The customer wrote" / "the old bot answered", typed by the owner into a
- * demo conversation. Refused by the server for a contact that is not demo.
- * The server answers with the contact itself (kogo-back views.simulate_inbound)
- * plus `stored`; the message reaches the conversation through its own read.
+ * demo conversation — or a recording or a picture the customer "sent", as
+ * multipart (docs/WAHUB-CONTRACT-REAL-DEMO.md, א). Refused by the server for a
+ * contact that is not demo. The server answers with the contact itself plus
+ * `stored` and the message kept.
  */
-export async function simulateWahubInbound(
-  id: number,
-  body: { text: string; sender: DemoSender },
-): Promise<WahubSimulateResult> {
-  const res = await api.post(`${BASE}/contacts/${id}/simulate-inbound/`, body, { timeout: 30_000 });
+export async function simulateWahubInbound(id: number, input: DemoInput): Promise<WahubSimulateResult> {
+  const request = buildSimulateRequest(input);
+  if (!request) throw new Error('nothing to send');
+  const url = `${BASE}/contacts/${id}/simulate-inbound/`;
+  const res =
+    'json' in request
+      ? await api.post(url, request.json, { timeout: 30_000 })
+      : // The client's default header is JSON; said plainly, axios hands the form to the browser, which sets the boundary.
+        await api.post(url, request.form, { timeout: 120_000, headers: { 'Content-Type': 'multipart/form-data' } });
   const data = (res.data ?? {}) as Partial<WahubContact> & {
     stored?: boolean;
     stored_message_id?: number | null;
     contact?: WahubContact;
+    message?: unknown;
   };
   const contact = data.contact ?? (typeof data.id === 'number' && data.chat ? (data as WahubContact) : null);
   return {
     contact,
     stored: data.stored !== false,
     stored_message_id: typeof data.stored_message_id === 'number' ? data.stored_message_id : null,
+    message: readMessage(data.message),
   };
+}
+
+/** The answer to POST demo/contacts/{id}/reply/ (הבהרה 3). */
+export interface WahubDemoReplyResult {
+  /** The shadow reply made; null when there was nothing to answer, or on a failure. */
+  shadow: WahubShadowReply | null;
+  /** The failure of Claude or of the transcription, in Hebrew; nothing was kept. */
+  error: string;
+  /** The new bot's message written into the conversation (`post`), or null. */
+  message: WahubMessage | null;
+  /** The contact as it now stands, so the list row is refreshed without a second read. */
+  contact: WahubContact | null;
+}
+
+/**
+ * The new bot answers the demo contact's unanswered messages now — the same
+ * code the cron runs, one answer per burst — and with `post` writes it into
+ * the conversation as its own message. Nothing is sent to anybody. Up to fifty
+ * seconds; a failure is a 200 with `shadow.error`.
+ */
+export async function replyWahubDemo(id: number, post = true): Promise<WahubDemoReplyResult> {
+  const res = await api.post(`${BASE}/demo/contacts/${id}/reply/`, { post }, { timeout: 60_000 });
+  const data = (res.data ?? {}) as { shadow?: unknown; message?: unknown; contact?: unknown };
+  const shadow = (data.shadow ?? null) as (Partial<WahubShadowReply> & { error?: string }) | null;
+  const failed = shadow && typeof shadow.id !== 'number' ? String(shadow.error ?? '') : '';
+  const contactData = data.contact as Partial<WahubContact> | null | undefined;
+  return {
+    shadow: shadow && typeof shadow.id === 'number' ? ({ ...shadow, contact_id: shadow.contact_id ?? id } as WahubShadowReply) : null,
+    error: failed,
+    message: readMessage(data.message),
+    contact: contactData && typeof contactData.id === 'number' && contactData.chat ? (contactData as WahubContact) : null,
+  };
+}
+
+/** GET messages/{id}/media/ → a short-lived address of the recording or the picture (הבהרה 2). 404 `no_media` for a message without one. */
+export async function fetchWahubMessageMedia(messageId: number): Promise<WahubMessageMedia> {
+  const res = await api.get(`${BASE}/messages/${messageId}/media/`, { timeout: 30_000 });
+  const data = (res.data ?? {}) as Partial<WahubMessageMedia>;
+  if (!data.url) throw new Error('no url');
+  return { url: String(data.url), expires_in: data.expires_in == null ? null : Number(data.expires_in) };
+}
+
+// ---------------------------------------------------------------------------
+// Live test (docs/WAHUB-CONTRACT-LIVE-TEST.md): the new bot answers one real
+// person — the owner's own number — through ManyChat. Everyone else is untouched.
+// ---------------------------------------------------------------------------
+
+/** POST contacts/{id}/live-test/ {on} — the contact as it now stands, with `live_test`. Reaches ManyChat (the handoff tag). */
+export async function setWahubLiveTest(id: number, on: boolean): Promise<WahubContact> {
+  const res = await api.post(`${BASE}/contacts/${id}/live-test/`, { on }, { timeout: 60_000 });
+  const data = res.data as WahubContact | { contact?: WahubContact };
+  return ('contact' in data && data.contact ? data.contact : data) as WahubContact;
 }
 
 export async function fetchWahubDemoScenarios(): Promise<WahubDemoScenario[]> {

@@ -45,6 +45,8 @@ function thread(contact: WahubContactDetail | null, messages: WahubMessage[], ex
     stateRef: { current: {} as never },
     putContact: noop,
     onLiveContact: noop,
+    putMessages: noop,
+    settleMessage: noop,
     loadOlder: async () => {},
     send: async () => true,
     sendFlow: async () => true,

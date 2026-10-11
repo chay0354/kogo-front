@@ -3,12 +3,15 @@
 import { useQuery } from '@tanstack/react-query';
 import { fetchWhatsAppAutomations } from '@/lib/whatsappApi';
 import {
+  fetchWahubContacts,
+  fetchWahubMessageMedia,
   fetchWahubQuickReplies,
   fetchWahubStatus,
   fetchWahubSummary,
   fetchWahubTags,
   fetchWahubUnregisteredLeads,
 } from '@/lib/wahubApi';
+import type { WahubContact } from '@/types/wahub';
 import { menuBadgeCount } from '@/lib/wahub/boxes';
 
 export const wahubKeys = {
@@ -19,7 +22,14 @@ export const wahubKeys = {
   automations: ['wahub', 'automations'] as const,
   /** The "שאלו ולא נרשמו" list, one entry per range and per "רק חמים". */
   unregistered: (days: number, hot: boolean) => ['wahub', 'today', 'unregistered', days, hot ? 1 : 0] as const,
+  /** The short-lived address of a message's recording or picture. */
+  media: (messageId: number) => ['wahub', 'media', messageId] as const,
+  /** The people in a live test (the settings list). */
+  liveTestContacts: ['wahub', 'live-test', 'contacts'] as const,
 };
+
+/** The address is good for an hour (הבהרה 2); it is asked for again a little before that. */
+const MEDIA_FRESH_MS = 50 * 60_000;
 
 /** The figures of the "היום" tab and of the menu badge. Re-read on a timer while the tab is in view. */
 export function useWahubSummary(
@@ -89,6 +99,41 @@ export function useUnregisteredLeads(days: number, hot: boolean, enabled: boolea
   return useQuery({
     queryKey: wahubKeys.unregistered(days, hot),
     queryFn: () => fetchWahubUnregisteredLeads({ days, hot }),
+    enabled,
+    refetchInterval: enabled ? 30_000 : false,
+    staleTime: 10_000,
+    retry: false,
+  });
+}
+
+/**
+ * The signed address of a message's file, asked for when the bubble is drawn
+ * and kept for most of its hour. One request per message, however many times
+ * the conversation is drawn again.
+ */
+export function useMessageMedia(messageId: number, enabled: boolean) {
+  return useQuery({
+    queryKey: wahubKeys.media(messageId),
+    queryFn: () => fetchWahubMessageMedia(messageId),
+    enabled: enabled && messageId > 0,
+    staleTime: MEDIA_FRESH_MS,
+    gcTime: MEDIA_FRESH_MS,
+    retry: false,
+  });
+}
+
+/**
+ * Who the new bot answers for real. Asked with `live_test=1`; a server that
+ * does not know the filter answers with everyone, so the flag is checked here
+ * as well — the list is never wider than the people marked.
+ */
+export function useLiveTestContacts(enabled: boolean) {
+  return useQuery({
+    queryKey: wahubKeys.liveTestContacts,
+    queryFn: async (): Promise<WahubContact[]> => {
+      const page = await fetchWahubContacts({ view: 'chats', liveTest: true, pageSize: 100 });
+      return page.results.filter((contact) => contact.live_test === true);
+    },
     enabled,
     refetchInterval: enabled ? 30_000 : false,
     staleTime: 10_000,

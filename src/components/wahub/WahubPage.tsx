@@ -268,6 +268,7 @@ export default function WahubPage() {
             statusLoading={status.isLoading}
             statusError={status.isError}
             onRetryStatus={() => void status.refetch()}
+            onOpenChat={openChat}
           />
         </div>
       )}

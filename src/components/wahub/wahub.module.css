@@ -1533,6 +1533,189 @@ textarea.field {
   line-height: 15px;
 }
 
+/* The new bot — soft green, its own: never mistaken for the old bot's lavender or the office's navy. */
+.bNewBot {
+  background: var(--good-bg);
+  color: var(--ink);
+  border-color: rgba(22, 163, 74, 0.35);
+  border-end-end-radius: 4px;
+}
+
+.newBotMark {
+  color: var(--good);
+  font-weight: 800;
+}
+
+/* A recording or a picture inside a bubble. */
+.media {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 2px 0 4px;
+}
+
+.mediaThumb {
+  display: block;
+  padding: 0;
+  border: 0;
+  background: none;
+  border-radius: 10px;
+  overflow: hidden;
+  cursor: zoom-in;
+  max-width: 100%;
+}
+
+/* One size for the grey shape and for the picture, so the conversation does not jump when the address arrives. */
+.mediaImg {
+  display: block;
+  width: 200px;
+  height: 200px;
+  max-width: 100%;
+  object-fit: cover;
+  border-radius: 10px;
+  background: var(--lav-2);
+}
+
+.mediaAudio {
+  display: block;
+  width: 260px;
+  max-width: 100%;
+  height: 40px;
+}
+
+.transcript {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.45;
+  opacity: 0.85;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.transcript strong {
+  font-weight: 800;
+}
+
+.mediaNote {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+  opacity: 0.85;
+}
+
+/* "פתח את הקובץ" and "נסו שוב": in the bubble's own colour, so they read on navy as on white. */
+.mediaLink,
+.mediaRetry {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 2px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.mediaRetry {
+  margin-top: 0;
+  font-size: 12px;
+}
+
+.mediaLink svg {
+  width: 14px;
+  height: 14px;
+  flex: none;
+}
+
+/* "כותב…" — three dots that breathe. */
+.typing {
+  display: flex;
+  gap: 4px;
+  padding: 4px 0 2px;
+}
+
+.typing i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--good);
+  opacity: 0.4;
+  animation: typingDot 1.2s infinite var(--ease);
+}
+
+.typing i:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.typing i:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+@keyframes typingDot {
+  0%,
+  60%,
+  100% {
+    opacity: 0.35;
+    transform: translateY(0);
+  }
+  30% {
+    opacity: 1;
+    transform: translateY(-3px);
+  }
+}
+
+/* The picture, large. Rendered on the body, outside the section: plain colours, no variables. */
+.lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(31, 35, 64, 0.86);
+  cursor: zoom-out;
+  animation: feedIn 0.18s ease-out;
+}
+
+.lightbox img {
+  max-width: min(94vw, 1200px);
+  max-height: 92vh;
+  border-radius: 12px;
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.4);
+  cursor: default;
+}
+
+.lightboxClose {
+  position: absolute;
+  top: 14px;
+  inset-inline-end: 14px;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 0;
+  background: rgba(255, 255, 255, 0.14);
+  color: #fff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.lightboxClose:hover {
+  background: rgba(255, 255, 255, 0.26);
+}
+
+.lightboxClose svg {
+  width: 22px;
+  height: 22px;
+}
+
 .failNote {
   margin: 3px 0 0;
   font-size: 12px;
@@ -1654,7 +1837,10 @@ textarea.field {
   .pg,
   .pop,
   .newPill,
-  .skeleton {
+  .skeleton,
+  .typing i,
+  .recDot,
+  .lightbox {
     animation: none;
   }
 
@@ -2200,6 +2386,7 @@ textarea.field {
 /* The demo box under the writing box of an invented contact: gold, dashed, unmistakable. */
 .demoBox {
   flex: none;
+  container: demo / inline-size;
   border-top: 2px dashed var(--gold);
   background: var(--gold-bg);
   padding: 10px 12px;
@@ -2208,10 +2395,240 @@ textarea.field {
   gap: 8px;
 }
 
-.demoBox .pairCol {
+/* The customer's line of the demo box — a writing box like WhatsApp's: the tools, the words, send. */
+.demoLine {
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+}
+
+.demoField {
+  flex: 1;
+  min-width: 0;
+  min-height: 38px;
+  max-height: 140px;
+  border-radius: 12px;
+  border: 1px dashed var(--gold);
   background: var(--surface);
-  border-style: dashed;
-  border-color: var(--gold);
+  padding: 8px 12px;
+  font: inherit;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--ink);
+  resize: none;
+}
+
+.demoField:focus {
+  outline: 2px solid var(--navy);
+  outline-offset: 0;
+  border-color: transparent;
+}
+
+.demoField::placeholder {
+  color: var(--faint);
+}
+
+.demoLabel {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--muted);
+}
+
+.demoLabel svg {
+  width: 14px;
+  height: 14px;
+}
+
+/* Recording: a red dot that breathes, the clock, cancel, and send. */
+.recLine {
+  flex: 1;
+  min-width: 0;
+  min-height: 38px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 12px;
+  border-radius: 12px;
+  background: var(--surface);
+  border: 1px dashed var(--bad);
+  color: var(--ink);
+  font-size: 13.5px;
+  font-weight: 700;
+}
+
+.recDot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--bad);
+  flex: none;
+  animation: recPulse 1s infinite;
+}
+
+@keyframes recPulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.25;
+  }
+}
+
+/* The picture chosen, before it is sent. */
+.imgPreview {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 8px;
+  border-radius: 12px;
+  background: var(--surface);
+  border: 1px dashed var(--gold);
+}
+
+.imgPreviewBox {
+  position: relative;
+  flex: none;
+  width: 72px;
+  height: 72px;
+  border-radius: 8px;
+  background: var(--lav-2);
+  color: var(--navy-ink);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.imgPreviewBox svg {
+  width: 24px;
+  height: 24px;
+}
+
+.imgPreviewBox img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.imgPreviewText {
+  flex: 1;
+  min-width: 0;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--muted);
+}
+
+.imgPreviewText strong {
+  display: block;
+  color: var(--ink);
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The new bot's line under the box: the switch, "ענה עכשיו", and what it is doing. */
+.demoBotLine {
+  display: flex;
+  align-items: center;
+  gap: 6px 10px;
+  font-size: 12.5px;
+  min-width: 0;
+}
+
+/* The switch and the buttons keep their size and their one line; only the keys' hint gives way. */
+.demoBotLine > .switchRow,
+.demoBotLine > .btn {
+  flex: none;
+  white-space: nowrap;
+}
+
+.demoKeys {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+}
+
+/* A box too narrow for the whole line (the conversation beside the list on a small screen): the hint goes. */
+@container demo (max-width: 660px) {
+  .demoKeys {
+    display: none;
+  }
+}
+
+.demoBotLine .switchRow {
+  padding: 2px 4px;
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.demoBotState {
+  color: var(--good);
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+/* What went wrong with a recording or a picture, said above the line. */
+.demoProblem {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--bad);
+}
+
+.demoProblem svg {
+  width: 14px;
+  height: 14px;
+  flex: none;
+}
+
+/* "כתוב כבוט הישן": a second, smaller line, a press away. */
+.demoOld {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  border-radius: 12px;
+  border: 1px dashed var(--gold);
+  background: var(--surface);
+  padding: 8px 10px;
+}
+
+.demoOldLine {
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+}
+
+.demoOldLine .demoField {
+  border-style: solid;
+  border-color: var(--line);
+  background: var(--surface-2);
+}
+
+/* "בדיקה חיה" in the details: amber, like its tag, because real messages go out. */
+.liveBox {
+  border-radius: 12px;
+  border: 1px solid var(--line-2);
+  background: var(--surface-2);
+  padding: 10px 12px;
+}
+
+.liveBoxOn {
+  background: var(--warn-bg);
+  border-color: rgba(180, 83, 9, 0.3);
 }
 
 /* The statuses of a conversation, grouped. */
@@ -2318,8 +2735,7 @@ textarea.field {
 .threadStatus,
 .phoneIb,
 .searchToggle,
-.composerSim,
-.demoToggle {
+.composerSim {
   display: none;
 }
 
@@ -2791,8 +3207,8 @@ textarea.field {
     line-height: 1.4;
   }
 
-  /* The "הדמיה" bar of a demo customer: above the box, folded until pressed.
-     Everything else in the column keeps order 0, so the two land last, bar then box. */
+  /* The demo box of an invented customer: above the office's box, its line always out.
+     Everything else in the column keeps order 0, so the two land last, demo then box. */
   .pane > .demoBox {
     order: 1;
     padding: 8px 12px;
@@ -2803,18 +3219,73 @@ textarea.field {
     order: 2;
   }
 
-  .demoHint {
+  /* The header's state line already says "דמו"; the gold ground and the dashed line say the rest. */
+  .demoTitle {
     display: none;
   }
 
+  /* "כתוב כבוט הישן" folds to its arrow, a finger's width. */
   .demoToggle {
-    display: inline-flex;
     width: 36px;
     height: 36px;
+    padding: 0;
+    border-radius: 50%;
   }
 
-  .demoFolded {
-    display: none;
+  .demoBotLine {
+    flex-wrap: wrap;
+    gap: 4px 6px;
+  }
+
+  .demoBotLine .switchRow {
+    font-size: 12.5px;
+    gap: 8px;
+  }
+
+  /* The customer's line on a phone: round box, round buttons, a finger's width — like the box under it. */
+  .demoField {
+    min-height: 40px;
+    border-radius: 20px;
+    padding: 9px 14px;
+    font-size: 15px;
+  }
+
+  .demoLine .ib {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+  }
+
+  .demoLine .ib svg {
+    width: 20px;
+    height: 20px;
+  }
+
+  /* "שלח" is a round navy button here too. */
+  .demoLine .btnP {
+    width: 40px;
+    height: 40px !important;
+    padding: 0;
+    border-radius: 50%;
+  }
+
+  .recLine {
+    min-height: 40px;
+    border-radius: 20px;
+  }
+
+  .mediaImg {
+    width: 180px;
+    height: 180px;
+  }
+
+  .mediaAudio {
+    width: 220px;
+  }
+
+  .imgPreviewBox {
+    width: 56px;
+    height: 56px;
   }
 
   /* ---- the details: a column of cards ---- */
