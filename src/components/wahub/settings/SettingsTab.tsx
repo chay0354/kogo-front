@@ -2,7 +2,7 @@
 
 import { useState, type ReactNode } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Check, Copy, KeyRound, MessageSquareText, Pencil, Plug, Plus, Sparkles, Tags, Trash2 } from 'lucide-react';
+import { Check, Copy, KeyRound, MessageSquareText, Pencil, Plug, Plus, Radio, Sparkles, Tags, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { readableError } from '@/lib/apiError';
 import {
@@ -11,14 +11,16 @@ import {
   createWahubTag,
   deleteWahubQuickReply,
   deleteWahubTag,
+  setWahubLiveTest,
   updateWahubQuickReply,
   updateWahubTag,
 } from '@/lib/wahubApi';
-import { agoText, formatDateTime } from '@/lib/wahub/format';
-import type { WahubQuickReply, WahubStatus, WahubTag } from '@/types/wahub';
+import { agoText, displayName, formatDateTime, hasName } from '@/lib/wahub/format';
+import { liveTestCount } from '@/lib/wahub/liveTest';
+import type { WahubContact, WahubQuickReply, WahubStatus, WahubTag } from '@/types/wahub';
 import { useNow } from '../hooks/useNow';
-import { useWahubQuickReplies, useWahubTags, wahubKeys } from '../hooks/useWahubQueries';
-import { EmptyState, ErrorState, InlineConfirm, Pill, Skeleton, Spinner, TagChip } from '../shared/bits';
+import { useLiveTestContacts, useWahubQuickReplies, useWahubTags, wahubKeys } from '../hooks/useWahubQueries';
+import { EmptyState, ErrorState, InlineConfirm, LiveTestTag, Pill, Skeleton, Spinner, TagChip } from '../shared/bits';
 import { ColorDots, TAG_COLORS } from '../shared/ContactParts';
 import { cx } from '../shared/tones';
 import s from '../wahub.module.css';
@@ -234,6 +236,136 @@ function ConnectionSection({ status, onChanged }: { status: WahubStatus; onChang
           text={`${status.contacts_total.toLocaleString('he-IL')} אנשי קשר · ${status.messages_last_24h.toLocaleString('he-IL')} הודעות ב-24 השעות האחרונות`}
         />
       </ul>
+    </SettingsCard>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// בדיקה חיה
+// ---------------------------------------------------------------------------
+
+/**
+ * Who is in a live test, as a list: name, phone, the way to the conversation
+ * and a way to stop the test. Drawn from what it is given, so it can be shown
+ * without a server.
+ */
+export function LiveTestList({
+  contacts,
+  total,
+  stoppingId,
+  onOpenChat,
+  onStop,
+}: {
+  contacts: WahubContact[];
+  /** How many the server counts — it may know of more than the list could read. */
+  total: number;
+  stoppingId: number | null;
+  onOpenChat: (id: number) => void;
+  onStop: (contact: WahubContact) => void;
+}) {
+  if (contacts.length === 0 && total === 0) {
+    return (
+      <p className={cx(s.muted, 'm-0 text-[13.5px] leading-relaxed')}>
+        אין אנשי קשר בבדיקה חיה. מפעילים אותה מפרטי איש הקשר, בתוך השיחה שלו.
+      </p>
+    );
+  }
+  const missing = Math.max(0, total - contacts.length);
+  return (
+    <>
+      <ul className={cx(s.rows, 'm-0 list-none p-0')} aria-label="אנשי קשר בבדיקה חיה">
+        {contacts.map((contact) => (
+          <li key={contact.id} className="flex flex-wrap items-center gap-x-3 gap-y-1.5 py-2.5">
+            <div className="min-w-0 flex-1">
+              <p className={cx(s.t1, 'm-0 flex flex-wrap items-center gap-1.5')}>
+                <span dir="auto" className="truncate">
+                  {displayName(contact)}
+                </span>
+                <LiveTestTag />
+              </p>
+              {hasName(contact) && (
+                <p dir="ltr" className={cx(s.t2, s.num, 'm-0 text-end !text-[12.5px]')}>
+                  {contact.phone_display || contact.phone}
+                </p>
+              )}
+            </div>
+            <div className="flex shrink-0 gap-2">
+              <button type="button" onClick={() => onOpenChat(contact.id)} className={cx(s.btn, s.btnSm)}>
+                לשיחה
+              </button>
+              <button
+                type="button"
+                onClick={() => onStop(contact)}
+                disabled={stoppingId !== null}
+                aria-label={`כבה את הבדיקה החיה של ${displayName(contact)}`}
+                className={cx(s.btn, s.btnSm)}
+              >
+                {stoppingId === contact.id && <Spinner className="h-3.5 w-3.5" />}
+                כבה
+              </button>
+            </div>
+          </li>
+        ))}
+      </ul>
+      {missing > 0 && (
+        <p className={cx(s.t2, 'm-0 mt-2 !text-[12.5px]')}>
+          {missing === 1 ? 'יש עוד איש קשר אחד בבדיקה חיה שלא מוצג כאן.' : `יש עוד ${missing} אנשי קשר בבדיקה חיה שלא מוצגים כאן.`}
+        </p>
+      )}
+    </>
+  );
+}
+
+function LiveTestSection({
+  status,
+  onChanged,
+  onOpenChat,
+}: {
+  status: WahubStatus;
+  onChanged: () => void;
+  onOpenChat: (id: number) => void;
+}) {
+  const queryClient = useQueryClient();
+  const contacts = useLiveTestContacts(true);
+  const [stoppingId, setStoppingId] = useState<number | null>(null);
+
+  async function stop(contact: WahubContact) {
+    setStoppingId(contact.id);
+    try {
+      await setWahubLiveTest(contact.id, false);
+      queryClient.setQueryData<WahubContact[]>(wahubKeys.liveTestContacts, (prev) =>
+        (prev ?? []).filter((row) => row.id !== contact.id),
+      );
+      void queryClient.invalidateQueries({ queryKey: wahubKeys.liveTestContacts });
+      onChanged();
+    } catch (error) {
+      toast.error(readableError(error, 'הבדיקה החיה לא כובתה'));
+    } finally {
+      setStoppingId(null);
+    }
+  }
+
+  return (
+    <SettingsCard
+      icon={<Radio className="h-[18px] w-[18px]" />}
+      title="בדיקה חיה"
+      sub="למי שמסומן כאן הבוט החדש עונה באמת, בוואטסאפ, והבוט הישן מושתק. לכל השאר שום דבר לא משתנה."
+    >
+      {contacts.isLoading ? (
+        <p className={cx(s.muted, 'm-0 flex items-center gap-2')}>
+          <Spinner /> טוען…
+        </p>
+      ) : contacts.isError ? (
+        <ErrorState title="לא הצלחנו לטעון את הרשימה" onRetry={() => void contacts.refetch()} tight />
+      ) : (
+        <LiveTestList
+          contacts={contacts.data ?? []}
+          total={liveTestCount(status) ?? 0}
+          stoppingId={stoppingId}
+          onOpenChat={onOpenChat}
+          onStop={(contact) => void stop(contact)}
+        />
+      )}
     </SettingsCard>
   );
 }
@@ -650,9 +782,11 @@ interface SettingsTabProps {
   statusLoading: boolean;
   statusError: boolean;
   onRetryStatus: () => void;
+  /** A conversation, from the live-test list: the chats tab opens on it. */
+  onOpenChat: (id: number) => void;
 }
 
-export default function SettingsTab({ status, statusLoading, statusError, onRetryStatus }: SettingsTabProps) {
+export default function SettingsTab({ status, statusLoading, statusError, onRetryStatus, onOpenChat }: SettingsTabProps) {
   return (
     <div className={cx(s.pg, 'mx-auto flex w-full max-w-3xl flex-col gap-3.5')}>
       {status ? (
@@ -663,6 +797,10 @@ export default function SettingsTab({ status, statusLoading, statusError, onRetr
         </div>
       ) : (
         statusLoading && <Skeleton className="h-64 !rounded-2xl" />
+      )}
+      {/* Only on a server that knows the live test (docs/WAHUB-CONTRACT-LIVE-TEST.md). */}
+      {status && liveTestCount(status) !== null && (
+        <LiveTestSection status={status} onChanged={onRetryStatus} onOpenChat={onOpenChat} />
       )}
       <QuickRepliesSection />
       <TagsSection />

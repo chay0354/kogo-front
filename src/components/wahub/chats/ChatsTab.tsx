@@ -1,29 +1,28 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { MessagesSquare } from 'lucide-react';
 import { useAuth } from '@/components/AuthProvider';
-import { toast } from 'sonner';
-import { readableError } from '@/lib/apiError';
 import { attachShadowReplies } from '@/lib/wahub/bot';
 import { matchesBox } from '@/lib/wahub/boxes';
-import { simulateInboundBody, type DemoSender } from '@/lib/wahub/demo';
+import { isDemoContact } from '@/lib/wahub/demo';
 import { israelToday } from '@/lib/wahub/format';
 import { mergeLiveContacts } from '@/lib/wahub/live';
 import { lastServerMessageId } from '@/lib/wahub/messages';
 import { chatLayout, chatPanes, PHONE_MEDIA_QUERY } from '@/lib/wahub/screens';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
-import { simulateWahubInbound } from '@/lib/wahubApi';
 import type { WahubBox, WahubBoxCounts, WahubContact, WahubStatus, WahubTag } from '@/types/wahub';
 import { useVerdict } from '../bot/shadow/useVerdict';
 import { useContactShadow } from '../hooks/useBotQueries';
 import { useContactMutations, type ContactStore } from '../hooks/useContactMutations';
 import { useContactThread, type ContactThread } from '../hooks/useContactThread';
+import { useDemoChat } from '../hooks/useDemoChat';
 import { useElementWidth } from '../hooks/useElementWidth';
 import { useNow } from '../hooks/useNow';
 import { usePagedContacts } from '../hooks/usePagedContacts';
 import type { WahubLiveHandle } from '../hooks/useWahubLive';
-import { useWahubTags } from '../hooks/useWahubQueries';
+import { useWahubTags, wahubKeys } from '../hooks/useWahubQueries';
 import { EmptyState } from '../shared/bits';
 import { cx } from '../shared/tones';
 import s from '../wahub.module.css';
@@ -73,6 +72,7 @@ export default function ChatsTab({
   onOpenKnowledgeItem,
 }: ChatsTabProps) {
   const { user } = useAuth();
+  const queryClient = useQueryClient();
   const now = useNow();
   const today = israelToday(now);
   const tags = useWahubTags();
@@ -221,30 +221,29 @@ export default function ChatsTab({
   );
   const { verdict: shadowVerdict, busyId: shadowBusyId } = useVerdict();
 
-  /** A demo conversation: "the customer sent" / "the old bot answered", typed by the owner. Nothing goes out. */
-  const simulate = useCallback(
-    async (text: string, sender: DemoSender): Promise<boolean> => {
-      const id = openIdRef.current;
-      const body = simulateInboundBody(text, sender);
-      if (id == null || !body) return false;
-      try {
-        const result = await simulateWahubInbound(id, body);
-        if (result.contact) applyContact(result.contact);
-        if (!result.stored) {
-          // The server keeps one copy of the same line within thirty seconds (the inbound rule); the text stays in the box.
-          toast.warning('לא נרשם: אותה הודעה נכנסה לפני פחות מ-30 שניות.');
-          return false;
-        }
-        // The message itself comes with the conversation's own read, like any other.
-        void threadRef.current?.refreshQuietly();
-        return true;
-      } catch (error) {
-        toast.error(readableError(error, 'ההודעה המדומה לא נרשמה'));
-        return false;
-      }
-    },
-    [applyContact],
-  );
+  // A demo conversation is typed by the owner — words, a recording, a picture, several in a row — and the
+  // new bot answers in it (docs/WAHUB-CONTRACT-REAL-DEMO.md, ג). Nothing goes out to WhatsApp.
+  const demoChat = useDemoChat({
+    contactId,
+    // Only once the conversation on screen is this contact's own — never by the one that was open a moment ago.
+    demo: contact != null && contact.id === contactId && isDemoContact(contact),
+    threadRef,
+    onContact: applyContact,
+  });
+
+  /**
+   * "בדיקה חיה" on or off (docs/WAHUB-CONTRACT-LIVE-TEST.md): the server tags the person in ManyChat and answers
+   * with the contact as it now stands. The list of settings and the status are due a fresh read afterwards.
+   */
+  function setLiveTest(id: number, on: boolean) {
+    return withBusy('liveTest', async () => {
+      const saved = await mutations.liveTest(id, on);
+      if (!saved) return;
+      void queryClient.invalidateQueries({ queryKey: wahubKeys.liveTestContacts });
+      void queryClient.invalidateQueries({ queryKey: wahubKeys.status });
+    });
+  }
+  const isManager = user?.role === 'manager';
   const allTags: WahubTag[] = tags.data ?? NO_TAGS;
 
   const panes = chatPanes(layout, contactId, detailsOpen);
@@ -322,7 +321,8 @@ export default function ChatsTab({
             shadowBusyId={shadowBusyId}
             onShadowVerdict={(reply, value, note) => void shadowVerdict(reply, value, note)}
             onOpenKnowledgeItem={onOpenKnowledgeItem}
-            onSimulate={simulate}
+            onSimulate={demoChat.send}
+            demoReply={demoChat.reply}
           />
         </section>
       )}
@@ -347,6 +347,16 @@ export default function ChatsTab({
             onRecheck={() => void withBusy('recheck', () => mutations.recheck(contact.id))}
             onAnalyze={() => void withBusy('analyze', () => mutations.analyze(contact.id))}
             shadow={shadowSummary}
+            liveTest={
+              // Not for an invented customer, and not before the server knows the live test at all.
+              contact.live_test === undefined || isDemoContact(contact) || !(isManager || contact.live_test)
+                ? undefined
+                : {
+                    canEdit: isManager,
+                    busy: Boolean(busy.liveTest),
+                    onToggle: (on) => void setLiveTest(contact.id, on),
+                  }
+            }
             // The details stand in for the conversation here, so its actions come along; a wide
             // screen has them in the conversation's own header, right beside.
             actions={

@@ -249,6 +249,34 @@ export function useContactThread({ contactId, active, seed, onContact, senderNam
     [poll, putContact, refresh],
   );
 
+  /**
+   * Messages that came back from a request of the screen's own (a demo message
+   * the owner typed, the new bot's answer): into the conversation now, not at
+   * the next poll. The poll brings the same ids later and they are drawn once.
+   */
+  const putMessages = useCallback(
+    (contactId: number, incoming: ReadonlyArray<WahubMessage>) => {
+      if (!incoming.length || ref.current.contactId !== contactId) return;
+      commit((prev) => ({ ...prev, messages: mergeMessages(prev.messages, incoming) }));
+    },
+    [commit],
+  );
+
+  /**
+   * The bubble the screen made up for a demo message gives way to the server's
+   * copy — or simply goes, when the server did not keep the message.
+   */
+  const settleMessage = useCallback(
+    (contactId: number, tempId: number, saved: WahubMessage | null) => {
+      if (ref.current.contactId !== contactId) return;
+      commit((prev) => ({
+        ...prev,
+        messages: saved ? settleOptimistic(prev.messages, tempId, saved) : dropOptimistic(prev.messages, tempId),
+      }));
+    },
+    [commit],
+  );
+
   const loadOlder = useCallback(async () => {
     const current = ref.current;
     if (current.contactId == null || current.loadingOlder || !current.hasOlder) return;
@@ -379,6 +407,8 @@ export function useContactThread({ contactId, active, seed, onContact, senderNam
     stateRef: ref,
     putContact,
     onLiveContact,
+    putMessages,
+    settleMessage,
     loadOlder,
     send,
     sendFlow,

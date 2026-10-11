@@ -10,6 +10,7 @@ import { EventsLog, FollowupMarks, KnownBox, KogoBox, NoteField, TagPicker } fro
 import { cx } from '../shared/tones';
 import s from '../wahub.module.css';
 import ContactStatusBlock from './ContactStatusBlock';
+import LiveTestBlock from './LiveTestBlock';
 import ServiceNoteBox from './ServiceNoteBox';
 
 interface ContactPanelProps {
@@ -35,6 +36,18 @@ interface ContactPanelProps {
    * screen keeps them in the conversation's header and passes nothing.
    */
   actions?: ContactPanelActions;
+  /**
+   * "בדיקה חיה" (docs/WAHUB-CONTRACT-LIVE-TEST.md): passed only for a real
+   * contact, on a server that knows the live test. A manager gets the switch;
+   * anyone else only sees that it is on.
+   */
+  liveTest?: ContactPanelLiveTest;
+}
+
+export interface ContactPanelLiveTest {
+  canEdit: boolean;
+  busy: boolean;
+  onToggle: (on: boolean) => void;
 }
 
 export interface ContactPanelActions {
@@ -135,6 +148,7 @@ export default function ContactPanel({
   onAnalyze,
   shadow = null,
   actions,
+  liveTest,
 }: ContactPanelProps) {
   const human = contact.chat.handled_by === 'human';
   const whatsapp = formatWhatsAppLink(contact.phone);
@@ -207,6 +221,14 @@ export default function ContactPanel({
       <div className={cx(s.sect, 'flex flex-col gap-2')}>
         <ContactStatusBlock contact={contact} now={now} shadow={shadow} />
         <ServiceNoteBox contactId={contact.id} />
+        {liveTest && (
+          <LiveTestBlock
+            contact={contact}
+            canEdit={liveTest.canEdit}
+            busy={liveTest.busy}
+            onToggle={liveTest.onToggle}
+          />
+        )}
       </div>
 
       <div className={s.sect}>

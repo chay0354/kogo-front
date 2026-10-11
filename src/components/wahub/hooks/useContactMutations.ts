@@ -10,6 +10,7 @@ import {
   recheckWahubContact,
   releaseWahubContact,
   renameWahubContact,
+  setWahubLiveTest,
   setWahubNeedsHuman,
   takeoverWahubContact,
 } from '@/lib/wahubApi';
@@ -135,6 +136,13 @@ export function useContactMutations(store: ContactStore, live: WahubLiveHandle, 
       },
       analyze(id: number) {
         return run(id, { request: () => analyzeWahubContact(id), failure: 'הסיכום נכשל' });
+      },
+      /** Live test on or off. It tags the person in ManyChat, so nothing is shown before the server has answered. */
+      liveTest(id: number, on: boolean) {
+        return run(id, {
+          request: () => setWahubLiveTest(id, on),
+          failure: on ? 'הבדיקה החיה לא הופעלה' : 'הבדיקה החיה לא כובתה',
+        });
       },
     }),
     [isPending, run],

@@ -7,7 +7,7 @@ import { isDemoContact } from '@/lib/wahub/demo';
 import { displayName, formatListTime, previewText, waitingLabel } from '@/lib/wahub/format';
 import type { WahubBox, WahubBoxCounts, WahubContact } from '@/types/wahub';
 import type { ListStatus } from '../hooks/usePagedContacts';
-import { ContactAvatar, DemoTag, EmptyState, ErrorState, Skeleton, Spinner } from '../shared/bits';
+import { ContactAvatar, DemoTag, EmptyState, ErrorState, LiveTestTag, Skeleton, Spinner } from '../shared/bits';
 import { cx } from '../shared/tones';
 import s from '../wahub.module.css';
 
@@ -61,6 +61,7 @@ const ChatRow = memo(function ChatRow({ contact, selected, arrived, now, onOpen 
                 A phone shows only "נציג עונה"; the bot answering is the ordinary state there. */}
             <span className={cx(s.rowTag, who.tone === 'human' ? s.pGold : cx(s.pMute, s.rowWhoBot))}>{who.label}</span>
             {isDemoContact(contact) && <DemoTag size="row" />}
+            {contact.live_test === true && <LiveTestTag size="row" />}
             {chat.needs_human && (
               <span className={cx(s.rowTag, s.pBad)}>
                 <i className={s.pillDot} aria-hidden="true" />

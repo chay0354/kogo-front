@@ -42,6 +42,7 @@ export function contactsParams(query: WahubContactsQuery): Record<string, string
   const params: Record<string, string> = { view: query.view };
   if (query.view === 'chats') {
     if (query.box && query.box !== 'all') params.box = query.box;
+    if (query.liveTest) params.live_test = '1';
   } else {
     if (query.queue && query.queue !== 'all') params.queue = query.queue;
     if (query.showHidden) params.show_hidden = '1';

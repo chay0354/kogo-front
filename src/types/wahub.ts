@@ -152,6 +152,12 @@ export interface WahubContact {
   tags: WahubTag[];
   /** Stage 2 (§ה): invented by the owner to watch the system; never receives a message. Absent on an older server. */
   is_demo?: boolean;
+  /**
+   * Live test (docs/WAHUB-CONTRACT-LIVE-TEST.md): the new bot answers this
+   * person for real, through ManyChat, with the old bot silenced. Absent on a
+   * server built before it — the switch is then not offered.
+   */
+  live_test?: boolean;
 }
 
 export interface WahubMessage {
@@ -162,7 +168,18 @@ export interface WahubMessage {
   sender_name: string | null;
   text: string;
   message_type: WahubMessageType;
+  /**
+   * For a recording or a picture kept by Kogo: the object's path in the private
+   * bucket, not an address. The screen asks GET messages/{id}/media/ for a
+   * short-lived one. A link ManyChat passed may also sit in `text`.
+   */
   media_url: string | null;
+  /** A file is kept for this message (docs/WAHUB-CONTRACT-REAL-DEMO.md, הבהרה 2). Absent on an older server. */
+  has_media?: boolean;
+  /** The recording's transcript, once made; '' when there is none. */
+  transcript?: string;
+  /** The new bot's own answer, written into the conversation (never the old bot's copy). */
+  new_bot?: boolean;
   status: WahubMessageStatus;
   error: string;
   sent_at: string;
@@ -264,6 +281,27 @@ export interface WahubStatus {
   contacts_total: number;
   messages_last_24h: number;
   inbound_url: string;
+  /**
+   * Live test: who the new bot answers for real — the contract names the field,
+   * not its shape, so a count and a short list are both read. Absent on a
+   * server built before it.
+   */
+  live_test_contacts?: number | WahubLiveTestContact[];
+}
+
+/** One line of `status.live_test_contacts`, when the server sends the people rather than a number. */
+export interface WahubLiveTestContact {
+  id: number;
+  name: string;
+  phone: string;
+  phone_display?: string;
+}
+
+/** GET messages/{id}/media/ — a short-lived address of a message's recording or picture. */
+export interface WahubMessageMedia {
+  url: string;
+  /** Seconds the address is good for; null for an address that is not ours to sign. */
+  expires_in: number | null;
 }
 
 export interface WahubQuickReply {
@@ -305,6 +343,8 @@ export interface WahubContactsQuery extends WahubSharedFilters {
   box?: WahubBox;
   queue?: WahubQueue;
   showHidden?: boolean;
+  /** Only the people in a live test (`live_test=1`). A server that does not know the filter ignores it; the screen filters again. */
+  liveTest?: boolean;
   page?: number;
   pageSize?: number;
 }

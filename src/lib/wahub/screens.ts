@@ -68,9 +68,12 @@ export function conversationOpen(url: Pick<WahubUrlState, 'tab' | 'contact'>): b
 export function phoneStatusLine(
   chat: Pick<WahubChatState, 'handled_by' | 'handled_by_label' | 'needs_human'>,
   demo = false,
+  liveTest = false,
 ): string {
   const parts: string[] = [];
   if (demo) parts.push('דמו');
+  // The sub line that carries the tag on a desktop is folded away on a phone, so the state line says it.
+  if (liveTest) parts.push('בדיקה חיה');
   parts.push(chat.handled_by === 'human' ? 'נציג עונה' : chat.handled_by_label || 'הבוט עונה');
   if (chat.needs_human) parts.push('מבקש נציג');
   return parts.join(' · ');

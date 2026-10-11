@@ -73,3 +73,145 @@ export function newContactBody(input: NewContactInput): { phone: string; name: s
   if (input.isDemo) body.is_demo = true;
   return body;
 }
+
+// ---------------------------------------------------------------------------
+// A real conversation with a demo contact (docs/WAHUB-CONTRACT-REAL-DEMO.md):
+// a recording, a picture, several messages in a row, and the new bot answering.
+// ---------------------------------------------------------------------------
+
+/** What the owner "sends" as the customer (or as the old bot) into a demo conversation. */
+export type DemoInput =
+  | { kind: 'text'; text: string; sender: DemoSender }
+  | { kind: 'voice'; file: Blob; mimeType: string; durationMs: number }
+  | { kind: 'image'; file: File; caption: string };
+
+/** The server's ceilings (הבהרה 1): a recording up to 10MB, a picture up to 5MB. */
+export const MEDIA_LIMITS = {
+  voice: { maxBytes: 10 * 1024 * 1024, label: '10MB' },
+  image: { maxBytes: 5 * 1024 * 1024, label: '5MB' },
+} as const;
+
+/** The pictures the server takes: jpg/jpeg/png/webp/heic. */
+export const IMAGE_ACCEPT = 'image/jpeg,image/png,image/webp,image/heic,image/heif,.jpg,.jpeg,.png,.webp,.heic';
+const IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif']);
+const IMAGE_EXTENSIONS = /\.(jpe?g|png|webp|heic)$/i;
+
+/** Why a chosen picture cannot be sent, in words; empty when it can. */
+export function imageFileProblem(file: { name: string; type: string; size: number }): string {
+  if (file.size <= 0) return 'הקובץ ריק.';
+  if (!IMAGE_TYPES.has(file.type) && !IMAGE_EXTENSIONS.test(file.name)) {
+    return 'אפשר לשלוח תמונה בלבד: jpg, png, webp או heic.';
+  }
+  if (file.size > MEDIA_LIMITS.image.maxBytes) return `התמונה גדולה מדי (עד ${MEDIA_LIMITS.image.label}).`;
+  return '';
+}
+
+/** Why a recording cannot be sent; empty when it can. */
+export function recordingProblem(blob: { size: number }): string {
+  if (blob.size <= 0) return 'ההקלטה ריקה.';
+  if (blob.size > MEDIA_LIMITS.voice.maxBytes) return `ההקלטה ארוכה מדי (עד ${MEDIA_LIMITS.voice.label}).`;
+  return '';
+}
+
+/** The formats to record in, best first. Chrome and Firefox take webm/ogg (opus); Safari takes mp4 only. */
+export const RECORDING_MIME_TYPES = [
+  'audio/webm;codecs=opus',
+  'audio/webm',
+  'audio/ogg;codecs=opus',
+  'audio/ogg',
+  'audio/mp4',
+];
+
+/** The first format the browser can record in; null when it can record in none of them (it then picks its own). */
+export function pickRecordingMimeType(isSupported: (type: string) => boolean): string | null {
+  return RECORDING_MIME_TYPES.find((type) => isSupported(type)) ?? null;
+}
+
+const RECORDING_EXTENSION: Record<string, string> = {
+  'audio/webm': 'webm',
+  'audio/ogg': 'ogg',
+  'audio/mp4': 'm4a',
+  'audio/x-m4a': 'm4a',
+  'audio/aac': 'aac',
+  'audio/mpeg': 'mp3',
+  'audio/mp3': 'mp3',
+};
+
+/**
+ * The name the recording is uploaded under. The server reads the extension off
+ * it (הבהרה 1): webm/ogg from Chrome and Firefox, m4a from Safari's mp4.
+ */
+export function recordingFileName(mimeType: string): string {
+  const base = (mimeType || '').split(';')[0].trim().toLowerCase();
+  return `recording.${RECORDING_EXTENSION[base] ?? 'webm'}`;
+}
+
+/** 0:07, 1:05 — the clock beside the red dot. */
+export function formatRecordingClock(ms: number): string {
+  const seconds = Math.max(0, Math.floor(ms / 1000));
+  return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
+}
+
+/** A recording stops by itself here — long before the server's 10MB. */
+export const MAX_RECORDING_MS = 5 * 60_000;
+
+/** The new bot answers this long after the customer's last message of a burst. */
+export const REPLY_DELAY_MS = 3000;
+
+/**
+ * What a key does in the customer's box, as in WhatsApp: Enter sends, Shift+Enter
+ * breaks the line, and a key pressed while an input method is composing is its own.
+ */
+export function composerKeyAction(key: { key: string; shiftKey: boolean; isComposing?: boolean }): 'send' | null {
+  return key.key === 'Enter' && !key.shiftKey && !key.isComposing ? 'send' : null;
+}
+
+/**
+ * The key handler of a box that sends on Enter: the line break is swallowed and
+ * `send` is called; Shift+Enter, and any other key, is left to the box. The
+ * box itself is never touched, so the cursor stays in it for the next line.
+ * True when it sent.
+ */
+export function sendOnEnter(
+  event: { key: string; shiftKey: boolean; nativeEvent?: { isComposing?: boolean }; preventDefault: () => void },
+  send: () => void,
+): boolean {
+  const action = composerKeyAction({ key: event.key, shiftKey: event.shiftKey, isComposing: event.nativeEvent?.isComposing });
+  if (action !== 'send') return false;
+  event.preventDefault();
+  send();
+  return true;
+}
+
+/** "320KB", "1.4MB" — the size beside a chosen picture. */
+export function formatFileSize(bytes: number): string {
+  if (bytes >= 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)}MB`;
+  return `${Math.max(1, Math.round(bytes / 1024))}KB`;
+}
+
+export type SimulateRequest = { json: { text: string; sender: DemoSender } } | { form: FormData };
+
+/**
+ * The request of POST contacts/{id}/simulate-inbound/: JSON for words,
+ * multipart for a recording or a picture (`message_type`, `file`, and the
+ * caption as `text`). Null when there is nothing to send. Media is always the
+ * customer's — the server refuses it from the bot.
+ */
+export function buildSimulateRequest(input: DemoInput): SimulateRequest | null {
+  if (input.kind === 'text') {
+    const json = simulateInboundBody(input.text, input.sender);
+    return json ? { json } : null;
+  }
+  if (input.file.size <= 0) return null;
+  const form = new FormData();
+  form.append('message_type', input.kind);
+  form.append('sender', 'customer');
+  if (input.kind === 'voice') {
+    form.append('file', input.file, recordingFileName(input.mimeType || input.file.type));
+  } else {
+    form.append('file', input.file, input.file.name || 'image.jpg');
+    const caption = input.caption.trim();
+    if (caption) form.append('text', caption.slice(0, 4096));
+  }
+  return { form };
+}

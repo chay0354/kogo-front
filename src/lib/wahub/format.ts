@@ -1,4 +1,5 @@
 import type { WahubContact, WahubLastMessage, WahubMessageType, WahubSender } from '@/types/wahub';
+import { externalMedia, MEDIA_WORDS } from './media';
 
 /** Every day and hour on these screens is Israel's, whatever clock the browser keeps. */
 export const WAHUB_TIME_ZONE = 'Asia/Jerusalem';
@@ -214,7 +215,9 @@ export function previewText(message: WahubLastMessage | null | undefined): strin
   if (!message) return '';
   const text = (message.text || '').replace(/\s+/g, ' ').trim();
   const prefix = message.direction === 'out' ? SENDER_PREFIX[message.sender] ?? '' : '';
-  return `${prefix}${text}`;
+  // A recording or a picture kept as ManyChat's bare address: said in a word, never printed as an address.
+  const media = externalMedia(text);
+  return `${prefix}${media ? MEDIA_WORDS[media.kind] : text}`;
 }
 
 const TYPE_LABEL: Record<WahubMessageType, string> = {

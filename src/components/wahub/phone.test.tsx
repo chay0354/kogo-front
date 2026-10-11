@@ -44,6 +44,8 @@ function thread(contact: WahubContactDetail | null): ContactThread {
     stateRef: { current: {} as never },
     putContact: noop,
     onLiveContact: noop,
+    putMessages: noop,
+    settleMessage: noop,
     loadOlder: async () => {},
     send: async () => true,
     sendFlow: async () => true,
@@ -257,17 +259,30 @@ describe('the writing box on a phone', () => {
   });
 });
 
-describe('the "הדמיה" bar of an invented customer on a phone', () => {
-  it('starts folded above the box, with the two ways to write behind one press', () => {
+describe('the demo box of an invented customer on a phone', () => {
+  const reply = { auto: true, armed: false, inFlight: false, setAuto: noop, replyNow: noop };
+
+  it('the customer\'s line is out — microphone, picture, the box, send — and the old bot\'s box is one press away', () => {
     const html = render(
-      <DemoComposer contact={makeContact(12, { name: 'רונית לב', is_demo: true })} busy={false} onSimulate={async () => true} />,
+      <DemoComposer contact={makeContact(12, { name: 'רונית לב', is_demo: true })} onSend={async () => true} reply={reply} />,
     );
+    // The title is in the page for a desktop; the phone's stylesheet folds it (the header already says "דמו").
     expect(html).toContain('הדמיה · רונית לב הוא לקוח דמו');
-    expect(html).toContain('aria-label="פתח את ההדמיה"');
-    expect(html).toContain('aria-expanded="false"');
-    expect(html).toContain(s.demoFolded);
+    expect(html).toContain(s.demoTitle);
+    // The customer's line, like a messaging app's: the tools, the box, send.
+    expect(html).toContain(s.demoLine);
+    expect(html).toContain('aria-label="הקלט הודעה קולית"');
+    expect(html).toContain('aria-label="צרף תמונה"');
+    expect(html).toContain('aria-label="כתוב כלקוח"');
+    expect(html).toContain('aria-label="הלקוח שלח"');
+    // The new bot's switch is on to begin with, and "ענה עכשיו" is at hand.
+    expect(html).toContain('הבוט החדש עונה בשיחה');
+    expect(html).toMatch(/role="switch" aria-checked="true"/);
+    expect(html).toContain('ענה עכשיו');
+    // "כתוב כבוט הישן": behind its arrow, folded.
     expect(html).toContain(s.demoToggle);
-    expect(html).toContain('כתוב כלקוח');
-    expect(html).toContain('כתוב כבוט הישן');
+    expect(html).toContain('aria-expanded="false"');
+    expect(html).toContain('aria-label="כתוב כבוט הישן"');
+    expect(html).toContain('הבוט הישן ענה');
   });
 });
