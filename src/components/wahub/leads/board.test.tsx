@@ -11,7 +11,7 @@ import type { WahubLiveHandle } from '../hooks/useWahubLive';
 import LeadActCard from '../today/LeadActCard';
 import s from '../wahub.module.css';
 import LeadBoardView, { NO_PEOPLE, type LeadBoardViewProps, type LeadPeopleState } from './LeadBoard';
-import LeadsTab from './LeadsTab';
+import LegacyLeadsTab from './LegacyLeadsTab';
 
 // Nothing here may reach a server: the board and its people are handed over, or put in the cache.
 vi.mock('@/lib/wahubApi', async (original) => ({
@@ -428,7 +428,7 @@ const LIVE = {
 function tab(client: QueryClient, stage: string | null = null): string {
   return renderToStaticMarkup(
     <QueryClientProvider client={client}>
-      <LeadsTab active live={LIVE} queue="all" stage={stage} status={undefined} onQueue={noop} onStage={noop} onOpenChat={noop} onOpenSettings={noop} />
+      <LegacyLeadsTab active live={LIVE} queue="all" stage={stage} status={undefined} onQueue={noop} onStage={noop} onOpenChat={noop} onOpenSettings={noop} />
     </QueryClientProvider>,
   );
 }

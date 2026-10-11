@@ -12,7 +12,7 @@ import { dayTick, displayName, israelToday, plainDayLabel, previewText, waitingL
 import { leadActOf } from '@/lib/wahub/leadStage';
 import { longestWaiting } from '@/lib/wahub/live';
 import { WAHUB_MAX_PAGE_SIZE } from '@/lib/wahub/params';
-import type { WahubBox, WahubContact, WahubQueue, WahubStatus, WahubTab } from '@/types/wahub';
+import type { WahubBox, WahubContact, WahubLeadsView, WahubQueue, WahubStatus, WahubTab } from '@/types/wahub';
 import { useNow } from './hooks/useNow';
 import { useWahubSummary } from './hooks/useWahubQueries';
 import { ContactAvatar, EmptyState, ErrorState, Skeleton } from './shared/bits';
@@ -20,6 +20,8 @@ import m from './motion.module.css';
 import { AreaError, RefreshNote, RowsSkeleton, TilesSkeleton } from './shared/loading';
 import { CountUp } from './shared/motion';
 import { NUMBER_TONE, cx } from './shared/tones';
+import TodayLeadsCard from './leads/v2/TodayLeadsCard';
+import { useLeadsGlance } from './leads/v2/useLeads';
 import LeadActCard, { LeadActSkeleton } from './today/LeadActCard';
 import UnregisteredCard from './today/UnregisteredCard';
 import s from './wahub.module.css';
@@ -133,7 +135,14 @@ function ListCard({
 
 interface TodayTabProps {
   status: WahubStatus | undefined;
-  onGo: (target: { tab: WahubTab; box?: WahubBox; queue?: WahubQueue; stage?: string }) => void;
+  onGo: (target: {
+    tab: WahubTab;
+    box?: WahubBox;
+    queue?: WahubQueue;
+    stage?: string | null;
+    owner?: WahubLeadsView;
+    lead?: number | null;
+  }) => void;
   onOpenChat: (id: number) => void;
 }
 
@@ -175,6 +184,15 @@ export default function TodayTab({ status, onGo, onOpenChat }: TodayTabProps) {
   const summaryFailed = summary.isError && !data;
   // On a server that knows the lead states, "דורש טיפול" stands where "שאלו ולא נרשמו" stood.
   const leadAct = leadActOf(data);
+  // And on one that has the leads of version 2, "מחכים לך" stands there instead — and leads to the new tab.
+  // Until its first answer the card's place is held by a grey shape, so one card never flips into another.
+  const glance = useLeadsGlance();
+  const waitingForYou = glance.data ?? null;
+  const dueTarget = waitingForYou
+    ? ({ tab: 'leads', owner: 'office', stage: 'callback_due', lead: null } as const)
+    : leadAct
+      ? ({ tab: 'leads', stage: 'callback_due' } as const)
+      : ({ tab: 'leads', queue: 'due' } as const);
 
   return (
     <div className={cx(s.pg, 'relative flex flex-col gap-3.5')}>
@@ -216,7 +234,7 @@ export default function TodayTab({ status, onGo, onOpenChat }: TodayTabProps) {
               value={data.due_followups}
               tone="primary"
               icon={<CalendarClock className="h-[18px] w-[18px]" />}
-              onClick={() => onGo(leadAct ? { tab: 'leads', stage: 'callback_due' } : { tab: 'leads', queue: 'due' })}
+              onClick={() => onGo(dueTarget)}
             />
             <Tile
               label="פניות חדשות היום"
@@ -227,7 +245,17 @@ export default function TodayTab({ status, onGo, onOpenChat }: TodayTabProps) {
             />
           </section>
 
-          {leadAct ? (
+          {waitingForYou ? (
+            <TodayLeadsCard
+              page={waitingForYou}
+              now={now}
+              sendingOn={status ? status.sending_enabled : null}
+              onOpenList={() => onGo({ tab: 'leads', owner: 'office', stage: null, lead: null })}
+              onOpenLead={(id) => onGo({ tab: 'leads', owner: 'office', stage: null, lead: id })}
+            />
+          ) : glance.isPending ? (
+            <LeadActSkeleton />
+          ) : leadAct ? (
             <LeadActCard counts={leadAct} onStage={(stage) => onGo({ tab: 'leads', stage })} />
           ) : (
             <UnregisteredCard
@@ -390,7 +418,7 @@ export default function TodayTab({ status, onGo, onOpenChat }: TodayTabProps) {
                 <div className="p-2 text-center" style={{ borderTop: '1px solid var(--line-2)' }}>
                   <button
                     type="button"
-                    onClick={() => onGo(leadAct ? { tab: 'leads', stage: 'callback_due' } : { tab: 'leads', queue: 'due' })}
+                    onClick={() => onGo(dueTarget)}
                     className={cx(s.btn, s.btnSm)}
                   >
                     לכל הרשימה

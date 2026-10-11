@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import type { WahubSummary } from '@/types/wahub';
 import { wahubKeys } from '../hooks/useWahubQueries';
+import { leadsKeys } from '../leads/v2/useLeads';
 import TodayTab from '../TodayTab';
 import s from '../wahub.module.css';
 
@@ -61,6 +62,9 @@ function today(client: QueryClient): string {
 function withSummary(summary: WahubSummary): QueryClient {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   client.setQueryData(wahubKeys.summary, summary);
+  // A server from before the leads of version 2: `leads/` answered 404. (What a server that has it shows
+  // in this card's place is tested beside the new screen, in leads/v2.)
+  client.setQueryData(leadsKeys.glance, null);
   return client;
 }
 

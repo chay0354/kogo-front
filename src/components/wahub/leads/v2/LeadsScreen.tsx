@@ -1,0 +1,189 @@
+'use client';
+
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useMediaQuery } from '@/hooks/useMediaQuery';
+import { readableError } from '@/lib/apiError';
+import { leadRows, leadsLayout, leadsPanes, stageOptions, stuckFirst, type LeadChange } from '@/lib/wahub/leadsV2';
+import { isLeadGone } from '@/lib/wahub/leadsV2Api';
+import { PHONE_MEDIA_QUERY } from '@/lib/wahub/screens';
+import type { WahubLeadRow, WahubLeadsView, WahubStatus } from '@/types/wahub';
+import { useElementWidth } from '../../hooks/useElementWidth';
+import { useNow } from '../../hooks/useNow';
+import type { WahubLiveHandle } from '../../hooks/useWahubLive';
+import { cx } from '../../shared/tones';
+import LeadDetails from './LeadDetails';
+import LeadsList from './LeadsList';
+import l from './leads.module.css';
+import { useLeadChanges, useLeadDetail, useLeadsList, useLeadsLiveRefresh } from './useLeads';
+
+const SEARCH_DELAY_MS = 300;
+
+/** What the address holds for this tab. A change names only what it changes. */
+export interface LeadsAddress {
+  owner?: WahubLeadsView;
+  stage?: string | null;
+  lead?: number | null;
+}
+
+export interface LeadsScreenProps {
+  /** The tab is the one on screen. Out of view it keeps what it has and reads nothing. */
+  active: boolean;
+  live: WahubLiveHandle;
+  /** Which of the three lists is in front. */
+  view: WahubLeadsView;
+  /** The state the list is narrowed to; null is all of them. */
+  stage: string | null;
+  /** The lead whose details are open; null is the list alone. */
+  leadId: number | null;
+  status: WahubStatus | undefined;
+  onAddress: (patch: LeadsAddress) => void;
+  onOpenChat: (id: number) => void;
+}
+
+/**
+ * The leads tab, version 2 (docs/WAHUB-CONTRACT-LEADS-V2.md, ה), with its
+ * reading: which list is in front, the state and the search it is narrowed
+ * by, its rows page by page — and the details of the lead that was pressed,
+ * beside the list on a desktop and in place of it on a phone
+ * (lib/wahub/screens.ts: one screen at a time, with a way back that the
+ * browser's own "back" follows, because the open lead is in the address).
+ *
+ * The list and the details each scroll by themselves; the page does not.
+ */
+export default function LeadsScreen({ active, live, view, stage, leadId, status, onAddress, onOpenChat }: LeadsScreenProps) {
+  const now = useNow(60_000);
+  const phone = useMediaQuery(PHONE_MEDIA_QUERY);
+  const { ref, width } = useElementWidth<HTMLDivElement>();
+  const layout = leadsLayout(width, phone);
+  const panes = leadsPanes(layout, leadId);
+
+  const [search, setSearch] = useState('');
+  const [q, setQ] = useState('');
+  useEffect(() => {
+    const timer = window.setTimeout(() => setQ(search.trim()), SEARCH_DELAY_MS);
+    return () => window.clearTimeout(timer);
+  }, [search]);
+
+  // The whole list of the tab in front: its numbers, the states it holds, and — with nothing chosen — its rows.
+  const base = useLeadsList(view, null, '', active);
+  const narrowed = Boolean(stage) || Boolean(q);
+  const narrow = useLeadsList(view, stage, q, active && narrowed);
+  const list = narrowed ? narrow : base;
+  useLeadsLiveRefresh(live, active);
+
+  // The order is the server's — but for "נתקע בהרשמה", which always stands at the head of "מחכים לך".
+  const rows = useMemo(() => {
+    const read = leadRows(list.data?.pages);
+    return view === 'office' ? stuckFirst(read) : read;
+  }, [list.data, view]);
+  const baseRows = useMemo(() => leadRows(base.data?.pages), [base.data]);
+  const basePage = base.data?.pages[0] ?? null;
+  const firstPage = list.data?.pages[0] ?? basePage;
+  const stages = useMemo(
+    () => stageOptions(basePage?.stages ?? firstPage?.stages, baseRows, Boolean(base.data) && !base.hasNextPage, stage),
+    [base.data, base.hasNextPage, basePage, baseRows, firstPage, stage],
+  );
+
+  // The lead that was pressed: its name and its next step come at once from the row; the rest waits for its read.
+  const detail = useLeadDetail(leadId, active);
+  const seed = useMemo(
+    () => (leadId == null ? null : rows.find((row) => row.contact_id === leadId) ?? baseRows.find((row) => row.contact_id === leadId) ?? null),
+    [baseRows, leadId, rows],
+  );
+  const lead: WahubLeadRow | null = leadId == null ? null : detail.data ?? seed;
+  const gone = detail.isError && isLeadGone(detail.error);
+
+  const { change, busy } = useLeadChanges();
+  const lastOpened = useRef<number | null>(null);
+  if (leadId != null) lastOpened.current = leadId;
+
+  const close = useCallback(() => onAddress({ lead: null }), [onAddress]);
+
+  const onChange = useCallback(
+    (target: WahubLeadRow, what: LeadChange) => {
+      // A lead that leaves the list takes its details with it — at once, like the row.
+      if (what.kind === 'close' || what.kind === 'reopen') onAddress({ lead: null });
+      return change(target, what);
+    },
+    [change, onAddress],
+  );
+
+  // The details close on Escape, like anything that lies beside or over the page.
+  const open = active && leadId != null;
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && !event.defaultPrevented) close();
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [close, open]);
+
+  // Back at the list, the keyboard is where it was: on the row that was opened.
+  const wasOpen = useRef(false);
+  const frame = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (wasOpen.current && leadId == null && lastOpened.current != null) {
+      frame.current?.querySelector<HTMLElement>(`[data-lead="${lastOpened.current}"]`)?.focus({ preventScroll: true });
+    }
+    wasOpen.current = leadId != null;
+  }, [leadId]);
+
+  const setFrame = useCallback(
+    (element: HTMLDivElement | null) => {
+      frame.current = element;
+      ref(element);
+    },
+    [ref],
+  );
+
+  return (
+    <div ref={setFrame} className={l.screen} data-active={active ? '' : undefined} data-layout={layout}>
+      {/* Out of view the list is hidden, not removed: its place in the scroll is still there on the way back. */}
+      <div className={cx(l.main, !panes.list && l.hidden)}>
+        <LeadsList
+          view={view}
+          counts={firstPage?.counts ?? null}
+          stage={stage}
+          stages={stages}
+          search={search}
+          status={list.data ? 'ready' : list.isError ? 'error' : 'loading'}
+          error={list.isError ? readableError(list.error, '') : ''}
+          rows={rows}
+          stale={Boolean(list.data) && list.isPlaceholderData}
+          hasMore={Boolean(list.hasNextPage)}
+          loadingMore={list.isFetchingNextPage}
+          refreshing={Boolean(list.data) && list.isFetching && !list.isFetchingNextPage && !list.isPlaceholderData}
+          selectedId={leadId}
+          now={now}
+          sendingOn={status ? status.sending_enabled : null}
+          onView={(next) => onAddress({ owner: next, stage: null, lead: null })}
+          onStage={(next) => onAddress({ stage: next })}
+          onSearch={setSearch}
+          onOpen={(id) => onAddress({ lead: id })}
+          onMore={() => void list.fetchNextPage()}
+          onRetry={() => void list.refetch()}
+        />
+      </div>
+
+      {panes.details && (
+        <LeadDetails
+          lead={lead}
+          details={detail.data?.details ?? null}
+          status={gone ? 'gone' : detail.data ? 'ready' : detail.isError ? 'error' : 'loading'}
+          error={detail.isError && !gone ? readableError(detail.error, '') : ''}
+          now={now}
+          sendingOn={status ? status.sending_enabled : null}
+          cover={panes.cover}
+          // Open from the closed list: closed, whatever its state is called.
+          closed={view === 'closed' && rows.some((row) => row.contact_id === leadId)}
+          busy={lead ? busy[lead.contact_id] ?? null : null}
+          onClose={close}
+          onRetry={() => void detail.refetch()}
+          onOpenChat={onOpenChat}
+          onChange={onChange}
+        />
+      )}
+    </div>
+  );
+}

@@ -10,7 +10,7 @@ import { tabDirection, type NavDirection } from '@/lib/wahub/motion';
 import { buildWahubUrl, parseWahubUrl, type WahubUrlState } from '@/lib/wahub/params';
 import { conversationOpen, PHONE_MEDIA_QUERY } from '@/lib/wahub/screens';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
-import type { WahubBotSub, WahubBox, WahubQueue, WahubTab } from '@/types/wahub';
+import type { WahubBotSub, WahubBox, WahubLeadsView, WahubQueue, WahubTab } from '@/types/wahub';
 import ChatsTab from './chats/ChatsTab';
 import { useWahubLive } from './hooks/useWahubLive';
 import { useWahubStatus, wahubKeys } from './hooks/useWahubQueries';
@@ -89,6 +89,8 @@ function WahubSection() {
     contact: url.contact,
     queue: url.queue,
     stage: url.stage ?? null,
+    owner: url.owner ?? 'office',
+    lead: url.lead ?? null,
     sub: url.sub,
     item: url.item,
   });
@@ -99,6 +101,8 @@ function WahubSection() {
   if (url.tab === 'leads') {
     kept.current.queue = url.queue;
     kept.current.stage = url.stage ?? null;
+    kept.current.owner = url.owner ?? 'office';
+    kept.current.lead = url.lead ?? null;
   }
   if (url.tab === 'bot') {
     kept.current.sub = url.sub;
@@ -108,6 +112,8 @@ function WahubSection() {
   const chatsContact = kept.current.contact;
   const leadsQueue = kept.current.queue;
   const leadsStage = kept.current.stage;
+  const leadsOwner = kept.current.owner;
+  const leadsLead = kept.current.lead;
   const botSub = kept.current.sub;
   const botItem = kept.current.item;
 
@@ -122,6 +128,8 @@ function WahubSection() {
         contact: kept.current.contact,
         queue: kept.current.queue,
         stage: kept.current.stage,
+        owner: kept.current.owner,
+        lead: kept.current.lead,
         sub: kept.current.sub,
         item: kept.current.item,
       }),
@@ -150,15 +158,18 @@ function WahubSection() {
     [go],
   );
   const goTo = useCallback(
-    (target: { tab: WahubTab; box?: WahubBox; queue?: WahubQueue; stage?: string }) =>
+    (target: { tab: WahubTab; box?: WahubBox; queue?: WahubQueue; stage?: string | null; owner?: WahubLeadsView; lead?: number | null }) =>
       go({
         tab: target.tab,
         box: target.box ?? kept.current.box,
         // A box chosen from the "היום" tab opens on its list, not on whatever conversation was open before.
         contact: target.box ? null : kept.current.contact,
         queue: target.queue ?? kept.current.queue,
-        // A lead state chosen from "היום" opens the leads tab on that state.
-        stage: target.stage ?? kept.current.stage,
+        // A lead state chosen from "היום" opens the leads tab on that state; null opens it on all of them.
+        stage: target.stage !== undefined ? target.stage : kept.current.stage,
+        // "מחכים לך" on the day's tab names its list, and a lead pressed there opens with its details.
+        owner: target.owner ?? kept.current.owner,
+        lead: target.lead !== undefined ? target.lead : kept.current.lead,
       }),
     [go],
   );
@@ -169,6 +180,15 @@ function WahubSection() {
       // From the board into a state is a step "back" can undo (a phone shows one of the two at a time).
       const current = parseWahubUrl(new URLSearchParams(window.location.search));
       go({ tab: 'leads', stage }, !current.stage && stage ? 'push' : 'replace');
+    },
+    [go],
+  );
+  const setLeads = useCallback(
+    (patch: { owner?: WahubLeadsView; stage?: string | null; lead?: number | null }) => {
+      // From the list into a lead's details is a step "back" can undo (a phone shows one of the two at a time);
+      // another list, another state, another lead, or closing one, is not worth a history entry each.
+      const current = parseWahubUrl(new URLSearchParams(window.location.search));
+      go({ tab: 'leads', ...patch }, current.lead == null && patch.lead != null ? 'push' : 'replace');
     },
     [go],
   );
@@ -296,9 +316,12 @@ function WahubSection() {
             live={live}
             queue={leadsQueue}
             stage={leadsStage}
+            owner={leadsOwner}
+            leadId={leadsLead}
             status={status.data}
             onQueue={setQueue}
             onStage={setStage}
+            onAddress={setLeads}
             onOpenChat={openChat}
             onOpenSettings={openSettings}
           />

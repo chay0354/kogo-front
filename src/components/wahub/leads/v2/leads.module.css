@@ -1,0 +1,1197 @@
+/*
+ * The leads tab, version 2 (docs/WAHUB-CONTRACT-LEADS-V2.md, ה).
+ *
+ * One list with two tabs above it — who waits for the office, who the bot is
+ * handling — and the details of one lead beside it (a desktop) or in place of
+ * it (a phone). Everything is drawn in the section's own language: the
+ * variables set on .wahub (wahub.module.css), its radii, its type.
+ *
+ * Hierarchy of a row, in the order the eye should take it: the name, the one
+ * sentence, then "the next step" on a tinted ground; the chips and the time
+ * are quiet. Three sizes of text in a row and no more: 15, 14, 12.
+ *
+ * Motion here is local and small — a fade, a short slide — until the section's
+ * shared layer is merged. All of it stops under "reduce motion".
+ */
+
+/* ---------- the tab fills the window ----------
+ *
+ * The other tabs scroll with the page. Here the list and the details each
+ * scroll by themselves, so the section is given the window's height while this
+ * screen is the one in front, and its panel becomes a column with no padding of
+ * its own. Said from here, through hooks the page already has (the section's
+ * root and the panel's id), so the page itself is not touched. A browser
+ * without :has() simply keeps the page's own scroll.
+ *
+ * The section's root is named by its own child — the panel — because the
+ * office shell wraps every page in a reveal root of its own, which must keep
+ * its height.
+ */
+
+:global([data-reveal-root]):has(> :global(#wahub-panel-leads) .screen[data-active]) {
+  height: 100dvh;
+}
+
+:global(#wahub-panel-leads):has(.screen[data-active]) {
+  display: flex;
+  flex: 1 1 0;
+  flex-direction: column;
+  width: 100%;
+  max-width: none;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+}
+
+/* Nothing of the screen reaches outside it: the details slide in from the edge, and in a right-to-left page
+   whatever pokes out on the left would otherwise make the page itself scroll sideways for a moment. */
+.screen {
+  position: relative;
+  display: flex;
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* The list's column: the bar stays, the rows scroll under it. */
+.main {
+  position: relative;
+  display: flex;
+  flex: 1 1 0;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  container: leadsmain / inline-size;
+}
+
+.hidden {
+  display: none;
+}
+
+/* ---------- the bar: two tabs, "נסגרו", one filter and the search ---------- */
+
+.bar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    'tabs closed'
+    'filters filters';
+  align-items: center;
+  gap: 10px 12px;
+  flex: none;
+  padding: 16px 24px 12px;
+}
+
+.tabs {
+  grid-area: tabs;
+  display: flex;
+  gap: 2px;
+  width: fit-content;
+  max-width: 100%;
+  padding: 3px;
+  border-radius: 11px;
+  background: var(--lav);
+}
+
+.tab {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  height: 36px;
+  min-width: 0;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  white-space: nowrap;
+  transition:
+    background 0.15s,
+    color 0.15s;
+}
+
+.tabOn {
+  background: var(--surface);
+  color: var(--navy-ink);
+  box-shadow: 0 1px 3px rgba(43, 48, 144, 0.14);
+}
+
+.tabCount {
+  min-width: 22px;
+  padding: 0 7px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.65);
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 20px;
+  text-align: center;
+}
+
+.tabOn .tabCount {
+  background: var(--lav-2);
+  color: var(--navy-ink);
+}
+
+/* Somebody waits for the office: amber — never red, which stays "מבקש נציג". */
+.tab .tabCountAct {
+  background: var(--warn-bg);
+  color: var(--warn);
+}
+
+/* "נסגרו" — a quiet link at the side, not a third tab. */
+.closedLink {
+  grid-area: closed;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 32px;
+  padding: 0 6px;
+  border: 0;
+  border-radius: 7px;
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.closedLink:hover {
+  color: var(--navy-ink);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.closedOn,
+.closedOn:hover {
+  color: var(--navy-ink);
+  font-weight: 800;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.filters {
+  grid-area: filters;
+  display: flex;
+  gap: 8px;
+  min-width: 0;
+}
+
+.filters .searchBox {
+  flex: 1 1 0;
+  height: 40px;
+  border-radius: 11px;
+}
+
+/* The one filter: the state. A plain select, so a phone opens its own picker. */
+.stage {
+  position: relative;
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 55%;
+}
+
+.stage select {
+  appearance: none;
+  width: 100%;
+  height: 40px;
+  padding-inline: 12px 32px;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  font-size: 13.5px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+
+.stage select:focus-visible {
+  outline: 2px solid var(--navy);
+  outline-offset: 0;
+  border-color: transparent;
+}
+
+.stage svg {
+  position: absolute;
+  top: 50%;
+  inset-inline-end: 10px;
+  width: 16px;
+  height: 16px;
+  transform: translateY(-50%);
+  color: var(--muted);
+  pointer-events: none;
+}
+
+/* A state is chosen: the control says so without a word. */
+.stageOn select {
+  border-color: var(--navy);
+  background: var(--lav-2);
+  color: var(--navy-ink);
+}
+
+/* Room for the whole bar in one row. */
+@container leadsmain (min-width: 820px) {
+  .bar {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    grid-template-areas: 'tabs filters closed';
+  }
+
+  .filters {
+    max-width: 540px;
+  }
+}
+
+/* ---------- the list ---------- */
+
+/* The rows scroll here and nowhere else. The foot keeps clear of the section's floating button. */
+.scroll {
+  flex: 1 1 0;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  padding: 0 24px 96px;
+}
+
+.rows {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  animation: leadFade 0.18s ease-out;
+}
+
+.rows > li + li {
+  border-top: 1px solid var(--line-2);
+}
+
+/* The rows on screen answer what was asked a moment ago: dimmed until theirs land. */
+.stale {
+  opacity: 0.6;
+  transition: opacity 0.15s;
+}
+
+/* Narrow: who and why, with how long ago in the corner; the next step under them, its arrow beside it. */
+.row {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 16px;
+  grid-template-areas:
+    'main main'
+    'next chev';
+  align-items: center;
+  gap: 8px 10px;
+  width: 100%;
+  min-height: 72px;
+  padding: 14px 18px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  transition: background 0.15s;
+}
+
+.row:hover {
+  background: var(--surface-2);
+}
+
+/* The lead whose details are open: a soft ground and a navy line at the start edge. */
+.rowOn,
+.rowOn:hover {
+  background: var(--lav-2);
+}
+
+.rowOn::before {
+  content: '';
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: 0;
+  width: 3px;
+  background: var(--navy);
+}
+
+/* The card around the rows cuts whatever reaches outside it, so the keyboard's ring is drawn inside the row. */
+.rows .row:focus-visible,
+.glanceRows .glanceRow:focus-visible,
+.glanceHead:focus-visible {
+  outline-offset: -2px;
+}
+
+.rowMain {
+  grid-area: main;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+/* The name's line keeps clear of the corner where "how long ago" stands. */
+.rowTop {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding-inline-end: 92px;
+}
+
+.name {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--ink);
+  font-size: 15px;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* How long ago: quiet, in the row's corner — over the end of the name's line, which leaves it room. */
+.since {
+  grid-area: 1 / 1 / 2 / -1;
+  align-self: start;
+  justify-self: end;
+  padding-top: 3px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+  text-align: end;
+  white-space: nowrap;
+}
+
+/* The one sentence: why this person is a lead. Two lines at the most. */
+.summary {
+  display: -webkit-box;
+  overflow: hidden;
+  color: var(--ink);
+  font-size: 14px;
+  line-height: 1.45;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.summaryNone {
+  color: var(--faint);
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 2px;
+}
+
+/* Quiet on purpose: what the bot understood, not something to press. */
+.chip {
+  max-width: 100%;
+  overflow: hidden;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: var(--lav-2);
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 20px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rowOn .chip {
+  background: var(--surface);
+}
+
+/* "הצעד הבא": who, what and when — the second thing the eye lands on. */
+.next {
+  grid-area: next;
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  min-width: 0;
+  padding: 7px 10px;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.next svg {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  margin-top: 2px;
+}
+
+.nextBot {
+  background: var(--lav-2);
+  color: var(--navy-ink);
+}
+
+.rowOn .nextBot {
+  background: var(--surface);
+}
+
+/* The office's own move: gold, the sketch's colour for what is worth noticing. */
+.nextOffice {
+  background: var(--gold-bg);
+  color: var(--gold-ink);
+}
+
+/* It would have gone out now and did not: amber. */
+.nextHeld {
+  background: var(--warn-bg);
+  color: var(--warn);
+}
+
+/* Nobody's step ("סניף חיצוני — ההרשמה מול העירייה", "נשמר: נודיע כשנפתח"): said plainly, in the same place
+   and on a ground of its own — never an empty cell — but without the weight of a step. */
+.nextQuiet {
+  background: var(--surface-2);
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.row:hover .nextQuiet,
+.rowOn .nextQuiet {
+  background: var(--surface);
+}
+
+.chev {
+  grid-area: chev;
+  justify-self: end;
+  width: 16px;
+  height: 16px;
+  color: var(--faint);
+}
+
+/* Room for columns, so the eye can run down each: who and why · the next step · how long ago. Not before the
+   sentence has a comfortable line of its own — with the details open beside it, the list goes back to rows. */
+@container leadsmain (min-width: 860px) {
+  .row {
+    grid-template-columns: minmax(0, 1fr) minmax(240px, 34%) 84px 16px;
+    grid-template-areas: 'main next since chev';
+    gap: 8px 16px;
+  }
+
+  .rowTop {
+    padding-inline-end: 0;
+  }
+
+  .since {
+    grid-area: since;
+    align-self: center;
+    padding-top: 0;
+  }
+}
+
+.more {
+  display: flex;
+  justify-content: center;
+  padding: 14px 0 0;
+}
+
+/* An empty list, a failure: in a card of its own where the rows would be. */
+.note {
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+
+/* The rows on their way, at a row's own height. */
+.skRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 9px;
+  min-height: 72px;
+  padding: 16px 18px;
+  pointer-events: none;
+}
+
+.skLine {
+  height: 14px;
+}
+
+.skLineSm {
+  height: 11px;
+}
+
+.skBox {
+  height: 34px;
+  border-radius: 10px;
+}
+
+@container leadsmain (min-width: 860px) {
+  .skRow {
+    grid-template-columns: minmax(0, 1fr) minmax(240px, 34%);
+    align-items: center;
+    gap: 18px;
+  }
+}
+
+.skLines {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  min-width: 0;
+}
+
+/* ---------- the details of one lead ---------- */
+
+/* Beside the list on a desktop: a column of its own, with its own scroll. */
+.details {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  width: clamp(380px, 36%, 460px);
+  min-width: 0;
+  min-height: 0;
+  border-inline-start: 1px solid var(--line);
+  background: var(--surface);
+  animation: leadPaneIn 0.22s var(--ease);
+  container: leadpane / inline-size;
+}
+
+/* No room beside the list: the details stand in its place, with a way back. */
+.detailsCover {
+  flex: 1 1 0;
+  width: auto;
+  border: 0;
+}
+
+.dHead {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+  min-height: 64px;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--line-2);
+}
+
+.dWho {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.dName {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  font-size: 18px;
+  font-weight: 900;
+}
+
+.dNameText {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dSub {
+  margin: 2px 0 0;
+  color: var(--muted);
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+/* What can be done: fixed under the name on a desktop, at the thumb on a phone — never scrolled away. */
+.actions {
+  flex: none;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--line-2);
+  background: var(--surface);
+}
+
+.actGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.actGrid .act {
+  width: 100%;
+  min-width: 0;
+  height: 40px;
+  padding: 0 8px;
+}
+
+/* "פתח שיחה" takes the first row to itself; the rest share the second. */
+.actGrid .actMain {
+  grid-column: 1 / -1;
+}
+
+/* A closed lead has one action, or two: alone in the row, or side by side. */
+.actGridOne {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.actGridTwo {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.actGridTwo .actMain {
+  grid-column: auto;
+}
+
+/* A pane wide enough for every action in one row. */
+@container leadpane (min-width: 430px) {
+  .actGrid:not(.actGridOne):not(.actGridTwo) {
+    grid-template-columns: 1.25fr repeat(3, minmax(0, 1fr));
+  }
+
+  .actGrid:not(.actGridOne):not(.actGridTwo) .actMain {
+    grid-column: auto;
+  }
+}
+
+.snooze {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 10px;
+}
+
+.snoozeTitle {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.snoozeFields {
+  display: grid;
+  grid-template-columns: minmax(0, 150px) minmax(0, 1fr);
+  gap: 8px;
+}
+
+.snoozeButtons {
+  display: flex;
+  gap: 8px;
+}
+
+.dScroll {
+  display: flex;
+  flex: 1 1 0;
+  flex-direction: column;
+  gap: 18px;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  /* The foot keeps clear of the section's floating button, which stands in this corner. */
+  padding: 16px 16px 84px;
+}
+
+.dSect {
+  min-width: 0;
+}
+
+.dLabel {
+  margin: 0 0 5px;
+  color: var(--faint);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+}
+
+.dText {
+  margin: 0;
+  color: var(--ink);
+  font-size: 14.5px;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+
+.dMuted {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+/* "הצעד הבא" at the head of the details, on the same grounds as in a row. */
+.dNext {
+  padding: 12px 14px;
+  border-radius: 14px;
+}
+
+.dNext .dLabel {
+  color: inherit;
+  opacity: 0.75;
+}
+
+.dNextText {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 0;
+  font-size: 15px;
+  font-weight: 800;
+  line-height: 1.45;
+}
+
+.dNextText svg {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  margin-top: 2px;
+}
+
+.dNextMore {
+  margin: 4px 0 0;
+  font-size: 13px;
+  font-weight: 600;
+  opacity: 0.85;
+}
+
+.dNextQuiet {
+  background: var(--surface-2);
+  color: var(--muted);
+}
+
+.facts {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 4px 14px;
+  margin: 0;
+  font-size: 14px;
+}
+
+.facts dt {
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.facts dd {
+  margin: 0;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+/* The times the bot comes back: a title each, the wording a press away. */
+.fuList {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.fu {
+  border: 1px solid var(--line-2);
+  border-radius: 12px;
+  background: var(--surface-2);
+}
+
+.fu > summary,
+.fuPlain {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 2px 8px;
+  padding: 9px 12px;
+  border-radius: 12px;
+  list-style: none;
+}
+
+.fu > summary {
+  cursor: pointer;
+}
+
+.fu > summary::-webkit-details-marker {
+  display: none;
+}
+
+.fu > summary:hover {
+  background: var(--lav-2);
+}
+
+.fuTitle {
+  min-width: 0;
+  font-size: 13.5px;
+  font-weight: 700;
+}
+
+.fuWhen {
+  grid-column: 1 / -1;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.fuStatus {
+  padding: 0 8px;
+  border-radius: 999px;
+  font-size: 11.5px;
+  font-weight: 700;
+  line-height: 20px;
+  white-space: nowrap;
+}
+
+.fuPlanned {
+  background: var(--lav-2);
+  color: var(--navy-ink);
+}
+
+.fuHeld {
+  background: var(--warn-bg);
+  color: var(--warn);
+}
+
+.fuSent {
+  background: var(--good-bg);
+  color: var(--good);
+}
+
+.fuOff {
+  background: var(--lav-2);
+  color: var(--muted);
+}
+
+/* A send that failed is a fault, not a person asking for someone: amber, like any other thing to look at. */
+.fuBad {
+  background: var(--warn-bg);
+  color: var(--warn);
+}
+
+.fuBody {
+  padding: 2px 12px 11px;
+}
+
+.fuText {
+  margin: 0;
+  padding-inline-start: 10px;
+  border-inline-start: 2px solid var(--lav);
+  font-size: 13.5px;
+  line-height: 1.55;
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+
+.fuNote {
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 12.5px;
+}
+
+.timeline {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  margin: 0;
+  padding: 0;
+  padding-inline-start: 12px;
+  border-inline-start: 2px solid var(--lav);
+  list-style: none;
+}
+
+.tlAt {
+  display: block;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.tlText {
+  font-size: 13.5px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.dLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.dLink svg {
+  width: 15px;
+  height: 15px;
+}
+
+.dSk {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  pointer-events: none;
+}
+
+/* ---------- "מחכים לך" on the day's tab ---------- */
+
+.glanceHead {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 52px;
+  padding: 10px 16px;
+  border: 0;
+  border-bottom: 1px solid var(--line-2);
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+}
+
+.glanceHead:hover {
+  background: var(--lav-2);
+}
+
+.glanceTitle {
+  font-size: 16px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.glanceCount {
+  flex: none;
+  min-width: 30px;
+  padding: 0 10px;
+  border-radius: 999px;
+  background: var(--lav-2);
+  color: var(--navy-ink);
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 24px;
+  text-align: center;
+}
+
+.glanceCountAct {
+  background: var(--warn-bg);
+  color: var(--warn);
+}
+
+.glanceHint {
+  flex: 1 1 0;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 12.5px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.glanceRows {
+  margin: 0;
+  padding: 6px;
+  list-style: none;
+}
+
+.glanceRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 48px;
+  padding: 6px 10px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+}
+
+.glanceRow:hover {
+  background: var(--lav-2);
+}
+
+/* Wide enough for most names, so what each one waits for starts on one line down the card. */
+.glanceName {
+  flex: 0 1 auto;
+  min-width: 120px;
+  max-width: 45%;
+  overflow: hidden;
+  font-size: 14.5px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.glanceNext {
+  flex: 1 1 0;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--gold-ink);
+  font-size: 13.5px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ---------- small motion, local to this screen ---------- */
+
+@keyframes leadFade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* The details come in from the edge they stand at (the left, in this right-to-left screen). */
+@keyframes leadPaneIn {
+  from {
+    opacity: 0;
+    transform: translateX(-14px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rows,
+  .details {
+    animation: none;
+  }
+
+  .row,
+  .tab,
+  .stale {
+    transition: none;
+  }
+}
+
+/* ---------- the phone: one screen at a time ---------- */
+
+@media (max-width: 767px) {
+  .bar {
+    gap: 8px 6px;
+    padding: 10px 12px 8px;
+  }
+
+  /* The two tabs share the row; "נסגרו" keeps its corner. A finger's height throughout. */
+  .tabs {
+    width: 100%;
+  }
+
+  .tab {
+    flex: 1 1 0;
+    height: 44px;
+    padding: 0 8px;
+  }
+
+  .closedLink {
+    min-height: 44px;
+    padding: 0 8px;
+    font-size: 13px;
+  }
+
+  .filters .searchBox,
+  .stage select {
+    height: 44px;
+  }
+
+  /* The search keeps the larger share of the row; the state's name is cut short rather than the box. */
+  .stage {
+    max-width: 46%;
+  }
+
+  /* Sixteen pixels, so the phone does not zoom the page when a box is pressed. */
+  .filters .searchBox input,
+  .stage select,
+  .snooze input {
+    font-size: 16px;
+  }
+
+  /* Edge to edge, like the conversations list. The foot keeps clear of the floating button above the bottom bar. */
+  .scroll {
+    padding: 0 0 76px;
+  }
+
+  .rows,
+  .note {
+    border-inline: 0;
+    border-radius: 0;
+    box-shadow: none;
+  }
+
+  .row {
+    min-height: 76px;
+    padding: 13px 14px;
+  }
+
+  .skRow {
+    padding: 15px 14px;
+  }
+
+  .more {
+    padding: 14px 12px 0;
+  }
+
+  /*
+   * The details are a screen of their own: over the title row, the bottom bar
+   * and the floating button (30, 40) — and under the CRM's menu button (50),
+   * which the head keeps clear of, as a conversation's does.
+   */
+  .detailsCover {
+    position: fixed;
+    inset: 0;
+    z-index: 45;
+    width: auto;
+  }
+
+  .detailsCover .dHead {
+    min-height: 56px;
+    padding: 6px 10px;
+    padding-inline-start: var(--menuGap, 56px);
+  }
+
+  .detailsCover .dHead :global(button) {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+  }
+
+  .detailsCover .dScroll {
+    padding: 14px 14px 20px;
+  }
+
+  /* The actions come down to the thumb, above the home indicator. */
+  .detailsCover .actions {
+    order: 3;
+    padding: 10px 12px calc(10px + env(safe-area-inset-bottom, 0px));
+    border-top: 1px solid var(--line);
+    border-bottom: 0;
+    box-shadow: 0 -4px 16px rgba(43, 48, 144, 0.06);
+  }
+
+  .detailsCover .actGrid .act {
+    height: 44px;
+  }
+
+  /* The two buttons of "are you sure" are the section's small ones; here they are a finger's height too. */
+  .detailsCover .actions :global(button) {
+    min-height: 44px;
+  }
+
+  .snoozeFields {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .snooze input {
+    height: 44px;
+  }
+
+  .snoozeButtons > * {
+    flex: 1 1 0;
+    height: 44px;
+  }
+}

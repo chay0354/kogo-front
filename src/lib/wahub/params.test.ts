@@ -116,6 +116,8 @@ describe('the address of the page', () => {
       sub: 'knowledge',
       item: null,
       stage: null,
+      owner: 'office',
+      lead: null,
     });
   });
 
@@ -128,6 +130,8 @@ describe('the address of the page', () => {
       sub: 'knowledge',
       item: null,
       stage: null,
+      owner: 'office',
+      lead: null,
     });
     expect(parseWahubUrl(null).tab).toBe('chats');
   });
@@ -142,7 +146,7 @@ describe('the address of the page', () => {
     expect(parseContactId('12')).toBe(12);
   });
 
-  const base = { contact: null, box: 'all', queue: 'all', sub: 'knowledge', item: null, stage: null } as const;
+  const base = { contact: null, box: 'all', queue: 'all', sub: 'knowledge', item: null, stage: null, owner: 'office', lead: null } as const;
 
   test('writes a link that opens the same conversation', () => {
     expect(buildWahubUrl({ ...base, tab: 'chats', contact: 12 })).toBe('/wahub?tab=chats&contact=12');
@@ -181,6 +185,19 @@ describe('the address of the page', () => {
     expect(buildWahubUrl({ ...base, tab: 'leads', stage: '<script>' })).toBe('/wahub?tab=leads');
   });
 
+  test('the leads tab writes which list is in front and the lead that is open, and no other tab does', () => {
+    expect(buildWahubUrl({ ...base, tab: 'leads', owner: 'bot' })).toBe('/wahub?tab=leads&owner=bot');
+    // "מחכים לך" is where the tab opens: it is not written.
+    expect(buildWahubUrl({ ...base, tab: 'leads', owner: 'office', lead: 12 })).toBe('/wahub?tab=leads&lead=12');
+    expect(buildWahubUrl({ ...base, tab: 'leads', owner: 'closed', stage: 'deleted', lead: 7 })).toBe(
+      '/wahub?tab=leads&owner=closed&stage=deleted&lead=7',
+    );
+    expect(buildWahubUrl({ ...base, tab: 'chats', owner: 'bot', lead: 12 })).toBe('/wahub?tab=chats');
+    expect(parseWahubUrl(new URLSearchParams('tab=leads&owner=bot&lead=12'))).toMatchObject({ owner: 'bot', lead: 12 });
+    // Anything it does not know opens the list that waits for the office, with no lead open.
+    expect(parseWahubUrl(new URLSearchParams('tab=leads&owner=everyone&lead=abc'))).toMatchObject({ owner: 'office', lead: null });
+  });
+
   test('a link written before the lead states (no stage at all) still builds', () => {
     expect(buildWahubUrl({ tab: 'chats', contact: 12, box: 'all', queue: 'all', sub: 'knowledge', item: null })).toBe(
       '/wahub?tab=chats&contact=12',
@@ -195,5 +212,7 @@ describe('the address of the page', () => {
     expect(parseWahubUrl(new URLSearchParams(buildWahubUrl(bot).split('?')[1]))).toEqual(bot);
     const leads = { ...base, tab: 'leads' as const, stage: 'answered_silent' };
     expect(parseWahubUrl(new URLSearchParams(buildWahubUrl(leads).split('?')[1]))).toEqual(leads);
+    const open = { ...base, tab: 'leads' as const, owner: 'bot' as const, stage: 'link_sent', lead: 31 };
+    expect(parseWahubUrl(new URLSearchParams(buildWahubUrl(open).split('?')[1]))).toEqual(open);
   });
 });
