@@ -7,7 +7,7 @@ import { makeContact, makeMessage } from '@/lib/wahub/testFixtures';
 import type { WahubContactDetail, WahubMessage, WahubStatus } from '@/types/wahub';
 import ChatList from './chats/ChatList';
 import ChatThread from './chats/ChatThread';
-import ContactPanel from './chats/ContactPanel';
+import ContactPanel, { type CardFold } from './chats/ContactPanel';
 import type { ContactThread } from './hooks/useContactThread';
 import LeadCard from './leads/LeadCard';
 import NewLeadForm from './leads/NewLeadForm';
@@ -172,7 +172,7 @@ describe('the conversations list', () => {
     const html = render(<ChatList {...listProps} items={[]} status="error" error="אין הרשאה" />);
     expect(html).toContain('לא הצלחנו לטעון את השיחות');
     expect(html).toContain('אין הרשאה');
-    expect(html).toContain('נסו שוב');
+    expect(html).toContain('נסה שוב');
   });
 
   it('offers more when the server has more', () => {
@@ -319,33 +319,43 @@ describe('the contact panel', () => {
     events: [{ id: 5, kind: 'followup_changed', kind_label: 'סימון מעקב', text: 'בזמן אחר', actor_name: 'דור', created_at: '2026-10-06T14:05:00+03:00' }],
   };
 
-  const html = render(
-    <ContactPanel
-      contact={contact}
-      now={NOW}
-      today={TODAY}
-      allTags={[{ id: 1, name: 'חם', color: '#dc2626' }, { id: 2, name: 'קפוארה', color: '#0d9488' }]}
-      analyzing={false}
-      rechecking={false}
-      showBack={false}
-      onBack={noop}
-      onFollowup={noop}
-      onTags={noop}
-      onRename={noop}
-      onRecheck={noop}
-      onAnalyze={noop}
-    />,
-  );
+  const panel = (defaultOpen?: CardFold[]) =>
+    render(
+      <ContactPanel
+        contact={contact}
+        now={NOW}
+        today={TODAY}
+        allTags={[{ id: 1, name: 'חם', color: '#dc2626' }, { id: 2, name: 'קפוארה', color: '#0d9488' }]}
+        analyzing={false}
+        rechecking={false}
+        showBack={false}
+        onBack={noop}
+        onFollowup={noop}
+        onTags={noop}
+        onRename={noop}
+        onRecheck={noop}
+        onAnalyze={noop}
+        defaultOpen={defaultOpen}
+      />,
+    );
+  // As it opens: every folded section shut.
+  const html = panel();
 
-  it('keeps what the system knows in a box of its own', () => {
+  it('says what is known in short at the top, and keeps the whole of it a press away', () => {
+    // On a server with no lead state yet, "מצב" is the summary and the day he asked to be called back.
     expect(html).toContain('מה ידוע');
     expect(html).toContain('שאלה על קפוארה לבן 5.');
-    expect(html).toContain('שיעור ניסיון');
-    expect(html).toContain('פסגות אפק · ראש העין');
-    expect(html).toContain('מתעניין');
-    expect(html).toContain('המחיר עצר אותו');
     expect(html).toContain('הגיע הזמן לחזור');
-    expect(html).toContain('סכם מחדש');
+    // The rest — the subject, the branch, the flags, "סכם מחדש" — is in the folded section.
+    expect(html).not.toContain('פסגות אפק · ראש העין');
+    expect(html).not.toContain('המחיר עצר אותו');
+    expect(html).not.toContain('סכם מחדש');
+    const open = panel(['known']);
+    expect(open).toContain('שיעור ניסיון');
+    expect(open).toContain('פסגות אפק · ראש העין');
+    expect(open).toContain('מתעניין');
+    expect(open).toContain('המחיר עצר אותו');
+    expect(open).toContain('סכם מחדש');
   });
 
   it('shows what was found in Kogo, with a link to each child and a re-check', () => {
@@ -366,14 +376,25 @@ describe('the contact panel', () => {
     expect(html).toContain('לחזור ב-24.10');
   });
 
-  it('has the note, the tags and the folded history', () => {
-    expect(html).toContain('מידע חדש');
+  it('has the note, the tags and the history as titles, each open on a press', () => {
+    // Folded: the title and a number, or the first words of the note — the content itself is a press away.
+    expect(html).toContain('הערות');
     expect(html).toContain('לחזור אחרי החגים');
-    expect(html).toContain('תגיות');
-    expect(html).toContain('קפוארה');
-    expect(html).toContain('היסטוריה');
-    // Folded: the title is there, the entries are a press away.
-    expect(html).toContain('aria-expanded="false"');
+    expect(html).not.toContain('<textarea');
+    expect(html).toMatch(/תגיות<span[^>]*>\(1\)<\/span>/);
+    expect(html).not.toContain('הוסף תגית');
+    expect(html).toMatch(/היסטוריה<span[^>]*>\(1\)<\/span>/);
+    expect(html).not.toContain('סימון מעקב</span>');
+    expect(html).not.toContain('aria-expanded="true"');
+
+    const open = panel(['notes', 'tags', 'history']);
+    expect(open).toContain('<textarea');
+    expect(open).toContain('מידע חדש');
+    expect(open).toContain('קפוארה');
+    expect(open).toContain('הוסף תגית');
+    // The log's own entry: what happened and who did it.
+    expect(open).toContain('דור · ');
+    expect(open.match(/aria-expanded="true"/g)).toHaveLength(3);
   });
 });
 

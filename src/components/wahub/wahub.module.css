@@ -2687,6 +2687,1098 @@ textarea.field {
   }
 }
 
+/* ---------- the desktop, the contact's card, loading, and the lead states (11.10.2026) ----------
+ *
+ * docs/WAHUB-CONTRACT-LAYOUT.md and docs/WAHUB-CONTRACT-LEAD-STAGES.md (ב).
+ *
+ * First the pieces that are the same at every width: how an area waits and
+ * reads again, the contact's card as sections, the lead's state, the board of
+ * the leads tab. Then, from 768px, the desktop itself: one title row, the
+ * conversations edge to edge and as tall as the window, everything in them a
+ * size up. The phone block that follows is untouched and still has the last word
+ * under 768px.
+ */
+
+/* --- waiting and reading again --- */
+
+/* "מתעדכן…": always in the page, so its row keeps its height; seen only when a read takes more than a moment. */
+.refreshNote {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 18px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--muted);
+  white-space: nowrap;
+  opacity: 0;
+  flex: none;
+}
+
+.refreshNote svg {
+  width: 12px;
+  height: 12px;
+  animation: spin 1s linear infinite;
+}
+
+.refreshOn {
+  animation: refreshIn 0.2s ease-out 0.45s forwards;
+}
+
+@keyframes refreshIn {
+  to {
+    opacity: 1;
+  }
+}
+
+/* Over a list, where there is no row to hold it: a small pill at the foot of the column. */
+.refreshFloat {
+  position: absolute;
+  bottom: 10px;
+  inset-inline: 0;
+  margin-inline: auto;
+  width: fit-content;
+  z-index: 2;
+  padding: 3px 12px;
+  border-radius: 999px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow);
+  pointer-events: none;
+}
+
+/* At the top corner of a tab that has no title row of its own. */
+.refreshCorner {
+  position: absolute;
+  top: -19px;
+  inset-inline-end: 2px;
+}
+
+.dimmed {
+  opacity: 0.6;
+  transition: opacity 0.15s;
+}
+
+/* The grey shapes, at the height of what they stand for. */
+.skList {
+  pointer-events: none;
+}
+
+.skRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 52px;
+  padding: 8px 12px;
+}
+
+/* A row of the conversations list: the mark and two lines. */
+.skRowChat {
+  min-height: 60px;
+  padding: 10px 12px;
+}
+
+.skRowTall {
+  align-items: flex-start;
+  min-height: 84px;
+}
+
+.skLines {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.skLine {
+  height: 14px;
+}
+
+.skLineSm {
+  height: 11px;
+}
+
+.skAvatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  flex: none;
+}
+
+.skAvatarLg {
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+  flex: none;
+}
+
+.skCount {
+  width: 36px;
+  height: 24px;
+  border-radius: 999px;
+  flex: none;
+}
+
+.skNumber {
+  width: 68px;
+  height: 34px;
+}
+
+.skTile {
+  min-height: 96px;
+  gap: 10px;
+}
+
+.skBar {
+  height: 42px;
+  border-radius: 11px;
+}
+
+/* The card's shape while the contact is on its way: the same sections, nothing to press. */
+.skCard {
+  pointer-events: none;
+}
+
+.sect.skFold {
+  padding-block: 18px;
+}
+
+/* --- grids that fill the row they are given --- */
+
+.tiles {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
+.tiles .kpi {
+  min-height: 96px;
+}
+
+.pairGrid {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr));
+  align-items: start;
+}
+
+.settingsGrid {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  width: 100%;
+}
+
+/* --- the contact's card: one order, one style for every section --- */
+
+.cardWho {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.cardName {
+  font-size: 18px;
+  font-weight: 900;
+}
+
+.cardPhone {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.cardTitle {
+  margin: 0 0 8px;
+}
+
+/* A section that opens on a press: the whole title row is the button. */
+.sect.fold {
+  padding-top: 0;
+  padding-bottom: 0;
+}
+
+.foldHead {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 46px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+}
+
+.foldTitle {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--ink);
+}
+
+.foldHead:hover .foldTitle {
+  color: var(--navy-ink);
+}
+
+.foldCount {
+  color: var(--muted);
+  font-weight: 700;
+}
+
+/* What a folded section holds, in a word or a short line. */
+.foldHint {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.foldChevron {
+  width: 18px;
+  height: 18px;
+  flex: none;
+  margin-inline-start: auto;
+  color: var(--muted);
+  transition: transform 0.2s var(--ease);
+}
+
+.foldOpen .foldChevron,
+.foldChevronOpen {
+  transform: rotate(180deg);
+}
+
+.foldBody {
+  padding-bottom: 14px;
+  animation: feedIn 0.22s var(--ease);
+}
+
+/* "מה ידוע" under a title that already says so: the content alone. */
+.knownBare .knownText:first-child {
+  margin-top: 0;
+}
+
+/* --- the lead's state: "הכיוון" --- */
+
+.stateBox {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.stateDays {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.stateCaption {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--navy-ink);
+}
+
+.stateWhy {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--ink);
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+
+.stateClamp {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  overflow: hidden;
+}
+
+/* "מה עושים" — the line the eye should land on. */
+.stateNext {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  border-radius: 12px;
+  padding: 10px 12px;
+  background: var(--lav-2);
+  border-inline-start: 3px solid var(--navy);
+}
+
+.stateNextAct {
+  background: var(--gold-bg);
+  border-inline-start-color: var(--gold);
+}
+
+.stateNextLabel {
+  font-size: 11.5px;
+  font-weight: 800;
+  letter-spacing: 0.3px;
+  color: var(--muted);
+}
+
+.stateNext strong {
+  font-size: 15.5px;
+  font-weight: 800;
+  line-height: 1.4;
+  color: var(--ink);
+}
+
+.stateIdle {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+/* The state's tag: always one line, and never cut short where a row can give it a line of its own. */
+.stageTag {
+  display: inline-block;
+  flex: none;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+/* A row's name with the state's tag beside it; when the two do not fit, the tag drops under the name. */
+.rowNameLine {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 3px 6px;
+  min-width: 0;
+  flex: 1;
+}
+
+.rowName {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 100%;
+}
+
+/* How warm the lead is. The word is in the title; amber, gold and grey — red stays "מבקש נציג". */
+.tempDot {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  flex: none;
+}
+
+.tempHot {
+  background: var(--warn);
+}
+
+.tempWarm {
+  background: var(--gold);
+}
+
+.tempCold {
+  background: var(--faint);
+}
+
+/* --- the card as a drawer, where there is no room for it beside the conversation --- */
+
+.drawerScrim {
+  position: absolute;
+  inset: 0;
+  z-index: 14;
+  border: 0;
+  padding: 0;
+  background: rgba(10, 12, 40, 0.28);
+  animation: fadeIn 0.2s;
+}
+
+.detailsDrawer {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 15;
+  width: min(400px, 92%);
+  background: var(--surface);
+  border-inline-start: 1px solid var(--line);
+  box-shadow: var(--float);
+  animation: slideFromLeft 0.3s var(--ease);
+}
+
+/* --- the leads board --- */
+
+.leadsScreen {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+/* In a title row the note keeps its own width whether it speaks or not, so the title beside it never moves. */
+.peopleHead .refreshNote {
+  min-width: 72px;
+  justify-content: flex-end;
+}
+
+.leadsBar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.leadsSearch {
+  flex: 1;
+  min-width: 220px;
+  height: 42px;
+  border-radius: 11px;
+  font-size: 14.5px;
+}
+
+.leadsNew {
+  height: 42px;
+}
+
+.leadsScan {
+  margin: -6px 4px 0;
+}
+
+.leadsGrid {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: start;
+}
+
+/* The states on the right, the people of one of them beside it. */
+.leadsTwo {
+  grid-template-columns: minmax(300px, 380px) minmax(0, 1fr);
+}
+
+.leadsStages {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+
+.leadsPeople {
+  min-width: 0;
+}
+
+.groupHead {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 52px;
+  padding: 10px 16px;
+  border: 0;
+  border-bottom: 1px solid var(--line-2);
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+}
+
+.groupHead:last-child {
+  border-bottom: 0;
+}
+
+.groupHeadBtn:hover {
+  background: var(--lav-2);
+}
+
+.groupTitle {
+  font-size: 16px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.groupTotal,
+.peopleCount {
+  flex: none;
+  min-width: 30px;
+  padding: 0 10px;
+  border-radius: 999px;
+  background: var(--lav-2);
+  color: var(--navy-ink);
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 24px;
+  text-align: center;
+}
+
+.groupTotalAct {
+  background: var(--warn-bg);
+  color: var(--warn);
+}
+
+.groupHint {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.stageRow {
+  min-height: 52px;
+  padding: 8px 12px;
+  gap: 10px;
+}
+
+.stageLabel {
+  font-size: 14.5px;
+}
+
+.stageCount {
+  flex: none;
+  min-width: 36px;
+  padding: 0 10px;
+  border-radius: 999px;
+  background: var(--lav-2);
+  color: var(--navy-ink);
+  font-size: 15px;
+  font-weight: 800;
+  line-height: 26px;
+  text-align: center;
+}
+
+.leadGroup[data-group='act'] .stageCount,
+.actCard .stageCount {
+  background: var(--warn-bg);
+  color: var(--warn);
+}
+
+/* A state with nobody in it stays on the list, quietly. */
+.stageEmpty .stageLabel {
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.leadGroup .stageEmpty .stageCount {
+  background: transparent;
+  color: var(--faint);
+}
+
+.listRow.on .stageCount,
+.leadGroup .listRow.on .stageCount {
+  background: rgba(255, 255, 255, 0.2);
+  color: #fff;
+}
+
+.rowChevron {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  color: var(--faint);
+}
+
+.listRow.on .rowChevron {
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.peopleHead {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 62px;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--line-2);
+}
+
+.peopleTitle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 17px;
+  font-weight: 800;
+}
+
+/* One person: the name, why, and — in bold — what to do. */
+.personRow {
+  align-items: flex-start;
+  min-height: 84px;
+  padding: 10px 12px;
+  gap: 12px;
+}
+
+.personName {
+  font-size: 15px;
+}
+
+.personWhy {
+  margin-top: 2px;
+  font-size: 13.5px;
+  color: var(--muted);
+}
+
+.personNext {
+  margin-top: 3px;
+  font-size: 14px;
+  font-weight: 800;
+  line-height: 1.4;
+  color: var(--ink);
+}
+
+.personDays,
+.personRow .rowChevron {
+  margin-top: 3px;
+}
+
+.peopleMore {
+  display: flex;
+  justify-content: center;
+  padding: 10px;
+  border-top: 1px solid var(--line-2);
+}
+
+/* "דורש טיפול" on the day's tab: the states side by side where the row has room. */
+.actCard {
+  min-height: 128px;
+}
+
+.actList {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 260px), 1fr));
+  gap: 2px 8px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .refreshNote svg,
+  .foldBody,
+  .drawerScrim,
+  .detailsDrawer {
+    animation: none;
+  }
+
+  .refreshOn {
+    animation: none;
+    opacity: 1;
+  }
+
+  .foldChevron {
+    transition: none;
+  }
+}
+
+/* --- the desktop: from 768px --- */
+
+@media (min-width: 768px) {
+  /* The parts pad themselves; the conversations run to the edges of the page area. */
+  .wahub.shell {
+    padding: 0;
+    gap: 0;
+  }
+
+  /* One compact row: the title, the five tabs, the two status chips. It stays at the top of a tab that scrolls. */
+  .wahub .head {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    gap: 6px 14px;
+    min-height: 56px;
+    padding: 8px 20px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--line);
+    container: wahubhead / inline-size;
+  }
+
+  .head .h1 {
+    font-size: 20px;
+  }
+
+  .wahub .offlineStrip {
+    margin: 10px 20px 0;
+  }
+
+  .wahub.tabChats .offlineStrip {
+    margin: 0;
+    border-radius: 0;
+    justify-content: center;
+  }
+
+  /* A tab that scrolls with the page: the full width, up to 1400, with room at the foot for the floating button. */
+  .wahub .panel {
+    width: 100%;
+    max-width: 1448px;
+    margin-inline: auto;
+    padding: 20px 24px 96px;
+  }
+
+  /* ---- the conversations: three columns, each with its own scroll, as tall as the window ---- */
+
+  .chatFrame {
+    position: relative;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+  }
+
+  /* The list, top to bottom, with the search and the boxes fixed at its head. */
+  .listPane .listHead {
+    padding: 12px 14px;
+  }
+
+  .listPane .search {
+    height: 40px;
+    border-radius: 11px;
+    font-size: 14.5px;
+  }
+
+  .listPane .chipbtn {
+    height: 32px;
+    font-size: 13px;
+  }
+
+  .chatRow {
+    min-height: 72px;
+    padding: 10px 12px;
+    gap: 12px;
+    border-radius: 12px;
+  }
+
+  .chatRow .av {
+    width: 44px;
+    height: 44px;
+    border-radius: 14px;
+    font-size: 15px;
+  }
+
+  .chatRow .t1 {
+    font-size: 15px;
+  }
+
+  .chatRow .t2 {
+    font-size: 13.5px;
+  }
+
+  .chatRow .rowTime {
+    font-size: 12px;
+  }
+
+  .chatRow .rowTag {
+    font-size: 11.5px;
+    line-height: 18px;
+  }
+
+  .chatRow .unread {
+    font-size: 12px;
+    line-height: 20px;
+    min-width: 22px;
+  }
+
+  .skRowChat {
+    min-height: 72px;
+  }
+
+  .skRowChat .skAvatar {
+    width: 44px;
+    height: 44px;
+    border-radius: 14px;
+  }
+
+  /* The conversation: large, and in type that reads from a chair's distance. */
+  .threadHead {
+    min-height: 64px;
+    padding: 10px 20px;
+  }
+
+  .threadHead .av {
+    width: 44px;
+    height: 44px;
+    border-radius: 14px;
+    font-size: 15px;
+  }
+
+  .threadName {
+    font-size: 17px;
+  }
+
+  .threadHead .threadSub {
+    font-size: 13px;
+  }
+
+  /* Short of room beside the open card: the phone and the way to WhatsApp are in the card, a glance away. */
+  .chatFrame[data-tight] .threadHead .threadSub {
+    display: none;
+  }
+
+  .chatFrame[data-tight] .threadHead {
+    padding-inline: 14px;
+  }
+
+  .needStrip {
+    padding: 10px 20px;
+    font-size: 14.5px;
+  }
+
+  .dayMark span {
+    font-size: 12.5px;
+    padding: 3px 14px;
+  }
+
+  .bubbleCol {
+    max-width: 70%;
+  }
+
+  .bubble {
+    border-radius: 16px;
+    padding: 10px 14px;
+  }
+
+  .bubbleText {
+    font-size: 15.5px;
+    line-height: 1.55;
+  }
+
+  .bubbleMeta {
+    font-size: 12px;
+  }
+
+  .bubbleTime {
+    font-size: 11.5px;
+  }
+
+  .transcript {
+    font-size: 13.5px;
+  }
+
+  .mediaImg {
+    width: 240px;
+    height: 240px;
+  }
+
+  .mediaAudio {
+    width: 300px;
+  }
+
+  /* The writing box, pinned to the foot of the column. */
+  .composer {
+    padding: 12px 20px 14px;
+  }
+
+  .composer textarea {
+    min-height: 46px;
+    border-radius: 14px;
+    padding: 11px 14px;
+    font-size: 15.5px;
+  }
+
+  .composerLine .btnP {
+    height: 46px !important;
+    padding: 0 18px;
+    border-radius: 12px;
+    font-size: 14.5px;
+  }
+
+  .demoField {
+    font-size: 15px;
+  }
+
+  /* ---- the contact's card: always open, a size up, clear of the floating button at its foot ---- */
+
+  .contactCard {
+    font-size: 15px;
+    padding-bottom: 84px;
+  }
+
+  .contactCard .sect {
+    padding: 16px 20px;
+  }
+
+  .contactCard .sect.fold {
+    padding-top: 0;
+    padding-bottom: 0;
+  }
+
+  .contactCard .foldHead {
+    min-height: 52px;
+  }
+
+  .contactCard .foldTitle {
+    font-size: 15px;
+  }
+
+  .contactCard .foldHint {
+    font-size: 13px;
+  }
+
+  .contactCard .cardTitle {
+    margin-bottom: 10px;
+    font-size: 12.5px;
+    letter-spacing: 0.4px;
+    color: var(--muted);
+  }
+
+  .contactCard .cardName {
+    font-size: 20px;
+  }
+
+  .contactCard .cardPhone {
+    font-size: 14px;
+  }
+
+  .contactCard .avBig {
+    width: 56px;
+    height: 56px;
+    border-radius: 16px;
+    font-size: 19px;
+  }
+
+  .contactCard .btnSm {
+    height: 34px;
+    padding: 0 12px;
+    font-size: 13.5px;
+  }
+
+  .contactCard .pill {
+    padding: 2px 10px;
+    font-size: 12.5px;
+    line-height: 20px;
+  }
+
+  .contactCard .t2 {
+    font-size: 12.5px !important;
+  }
+
+  .contactCard .field {
+    font-size: 15px;
+  }
+
+  .contactCard .stateWhy {
+    font-size: 15px;
+  }
+
+  .contactCard .stateNext strong {
+    font-size: 16.5px;
+  }
+
+  .contactCard .stRow,
+  .contactCard .stPrimary {
+    font-size: 13.5px;
+  }
+
+  /* The six marks, words only, the tick on the one that is set: three and three in a narrow card,
+     one row where the card is wide enough for all six (below). */
+  .contactCard {
+    container: wahubcard / inline-size;
+  }
+
+  .contactCard .marksRow {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 6px;
+  }
+
+  .contactCard .marksRow .btn {
+    min-width: 0;
+    padding: 0 6px;
+    font-size: 13px;
+  }
+
+  .contactCard .marksRow .btn svg {
+    display: none;
+  }
+
+  .contactCard .marksRow .btnOn svg {
+    display: block;
+    width: 13px;
+    height: 13px;
+  }
+
+  /* A tile's number stands under its label, clear of the icon in the far corner. (The number is written
+     left to right, so the sides are named physically: the page is always right to left.) */
+  .tiles .kpiValue {
+    text-align: right;
+    padding-right: 0;
+    padding-left: 52px;
+  }
+
+  /* ---- the leads board: the states stay in view while the people scroll ---- */
+
+  .leadsTwo .leadsStages {
+    position: sticky;
+    top: 76px;
+    max-height: calc(100dvh - 96px);
+    overflow-y: auto;
+    padding-bottom: 2px;
+  }
+}
+
+/* The title row is short of room (the menu beside the page is open, or the window is small): it draws itself in. */
+@container wahubhead (max-width: 1240px) {
+  .chipTitle {
+    display: none;
+  }
+}
+
+@container wahubhead (max-width: 1060px) {
+  .nav button {
+    padding: 0 11px;
+  }
+
+  .liveWord {
+    display: none;
+  }
+
+  .h1 {
+    font-size: 18px;
+  }
+}
+
+@container wahubhead (max-width: 880px) {
+  .nav button svg {
+    display: none;
+  }
+}
+
+/* A card wide enough for the six marks side by side. */
+@container wahubcard (min-width: 400px) {
+  .marksRow {
+    display: flex !important;
+    flex-wrap: nowrap;
+    gap: 4px !important;
+  }
+
+  .marksRow .btn {
+    flex: 1 1 auto;
+    padding: 0 5px !important;
+    font-size: 12.5px !important;
+  }
+}
+
+/* A tablet: the CRM's menu button sits fixed in the top start corner, and the title row keeps clear of it. */
+@media (min-width: 768px) and (max-width: 1023px) {
+  .wahub .head {
+    padding-inline-start: 64px;
+  }
+}
+
+/* The settings: two columns of cards where the page is wide enough for them. */
+@media (min-width: 1280px) {
+  .settingsGrid {
+    display: block;
+    columns: 2;
+    column-gap: 14px;
+  }
+
+  .settingsGrid > * {
+    break-inside: avoid;
+    margin-bottom: 14px;
+  }
+}
+
 /* ---------- the phone (10.10.2026 contract: docs/WAHUB-CONTRACT-MOBILE.md) ----------
  *
  * Under 768px the section is one screen at a time, like a messaging app: a
@@ -3322,6 +4414,33 @@ textarea.field {
 
   .detailsPane .sect:last-child {
     margin-bottom: 12px;
+  }
+
+  /* A folded section is a card whose title row is the whole of it until it is pressed. */
+  .detailsPane .sect.fold {
+    padding-top: 2px;
+    padding-bottom: 2px;
+  }
+
+  /* A list on its way, at the height of a phone's row. */
+  .skRowChat {
+    min-height: 68px;
+    padding: 10px 14px;
+  }
+
+  .skRowChat .skAvatar {
+    width: 46px;
+    height: 46px;
+    border-radius: 50%;
+  }
+
+  /* The leads board on a phone: "why" may run to a second line — one line of this width says too little. */
+  .personRow .personWhy {
+    white-space: normal;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    overflow: hidden;
   }
 
   /* A conversation on screen: the title row, the bar and the floating button step

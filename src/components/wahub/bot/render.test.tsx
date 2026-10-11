@@ -8,7 +8,7 @@ import { makeContact, makeKnowledgeItem, makeMessage, makeProposal, makeShadowRe
 import type { WahubContactDetail, WahubMessage, WahubShadowReply } from '@/types/wahub';
 import ChatThread from '../chats/ChatThread';
 import ContactPanel from '../chats/ContactPanel';
-import ContactStatusBlock from '../chats/ContactStatusBlock';
+import { ContactStatusList } from '../chats/ContactStatusBlock';
 import ShadowRow from '../chats/ShadowRow';
 import { botKeys } from '../hooks/useBotQueries';
 import type { ContactThread } from '../hooks/useContactThread';
@@ -320,11 +320,8 @@ describe('the statuses of a conversation', () => {
     kogo: { outcome: 'trial_only', outcome_label: 'עשה ניסיון ולא נרשם' },
   });
 
-  it('is a button first; open, it is the main state and three groups', () => {
-    const folded = render(<ContactStatusBlock contact={contact} now={NOW} />);
-    expect(folded).toContain('הצג סטטוסים');
-    expect(folded).not.toContain('מי עונה');
-    const open = render(<ContactStatusBlock contact={contact} now={NOW} shadow={{ count: 2, lastAt: '2026-10-08T11:50:00+03:00' }} defaultOpen />);
+  it('is the main state and three groups', () => {
+    const open = render(<ContactStatusList contact={contact} now={NOW} shadow={{ count: 2, lastAt: '2026-10-08T11:50:00+03:00' }} />);
     expect(open).toContain('מי עונה');
     expect(open).toContain('>בוט<');
     for (const title of ['הבוט', 'הנציג', 'השיחה']) expect(open).toContain(title);
@@ -334,7 +331,7 @@ describe('the statuses of a conversation', () => {
     expect(open).toContain('עשה ניסיון ולא נרשם');
   });
 
-  it('the contact panel offers the statuses and "הבוט טעה כאן", each a press away', () => {
+  it('the contact panel keeps the statuses a press away, and no longer carries "הבוט טעה כאן"', () => {
     const detail: WahubContactDetail = { ...contact, messages: [], has_older: false, events: [] };
     const html = render(
       <ContactPanel
@@ -354,11 +351,41 @@ describe('the statuses of a conversation', () => {
         shadow={{ count: 0, lastAt: null }}
       />,
     );
-    expect(html).toContain('הצג סטטוסים');
-    expect(html).toContain('הבוט טעה כאן');
-    // The note box opens on a press; the panel's own "מידע חדש" field is not it.
-    expect(html).not.toContain('מה הבוט עשה');
+    // A folded section of the card: its title is there, what is in it is not.
+    expect(html).toContain('סטטוסים');
     expect(html).not.toContain('מי עונה');
+    // "דיוק" in the conversation's title row took its place (docs/WAHUB-CONTRACT-REFINE.md).
+    expect(html).not.toContain('הבוט טעה כאן');
+    expect(html).not.toContain('מה הבוט עשה');
+  });
+
+  it('opened, the card\'s statuses are the same main state and three groups', () => {
+    const detail: WahubContactDetail = { ...contact, messages: [], has_older: false, events: [] };
+    const html = render(
+      <ContactPanel
+        contact={detail}
+        now={NOW}
+        today={TODAY}
+        allTags={[]}
+        analyzing={false}
+        rechecking={false}
+        showBack={false}
+        onBack={noop}
+        onFollowup={noop}
+        onTags={noop}
+        onRename={noop}
+        onRecheck={noop}
+        onAnalyze={noop}
+        shadow={{ count: 0, lastAt: null }}
+        defaultOpen={['statuses']}
+      />,
+    );
+    expect(html).toContain('מי עונה');
+    for (const title of ['הבוט', 'הנציג', 'השיחה']) expect(html).toContain(title);
+    expect(html).toContain('הלקוח מחכה 20 דק׳');
+    // Where the person came from and how much was written, under the statuses.
+    expect(html).toContain('וואטסאפ · פנה לראשונה');
+    expect(html).toContain('1 הודעות');
   });
 });
 

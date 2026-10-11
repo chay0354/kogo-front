@@ -67,6 +67,17 @@ describe('contactsParams', () => {
     });
   });
 
+  test('a lead state narrows the list: one state, or a whole group of them', () => {
+    expect(contactsParams({ view: 'chats', leadStage: 'needs_reply' })).toEqual({ view: 'chats', lead_stage: 'needs_reply' });
+    expect(contactsParams({ view: 'chats', leadGroup: 'act', search: 'דנה' })).toEqual({
+      view: 'chats',
+      lead_group: 'act',
+      search: 'דנה',
+    });
+    // Nothing is sent for a state that was not asked for.
+    expect(contactsParams({ view: 'chats', leadStage: '' })).toEqual({ view: 'chats' });
+  });
+
   test('the first page is the default; later ones are named', () => {
     expect(contactsParams({ view: 'chats', page: 1 })).toEqual({ view: 'chats' });
     expect(contactsParams({ view: 'chats', page: 3 })).toEqual({ view: 'chats', page: '3' });
@@ -104,6 +115,7 @@ describe('the address of the page', () => {
       queue: 'all',
       sub: 'knowledge',
       item: null,
+      stage: null,
     });
   });
 
@@ -115,6 +127,7 @@ describe('the address of the page', () => {
       queue: 'all',
       sub: 'knowledge',
       item: null,
+      stage: null,
     });
     expect(parseWahubUrl(null).tab).toBe('chats');
   });
@@ -129,7 +142,7 @@ describe('the address of the page', () => {
     expect(parseContactId('12')).toBe(12);
   });
 
-  const base = { contact: null, box: 'all', queue: 'all', sub: 'knowledge', item: null } as const;
+  const base = { contact: null, box: 'all', queue: 'all', sub: 'knowledge', item: null, stage: null } as const;
 
   test('writes a link that opens the same conversation', () => {
     expect(buildWahubUrl({ ...base, tab: 'chats', contact: 12 })).toBe('/wahub?tab=chats&contact=12');
@@ -158,11 +171,29 @@ describe('the address of the page', () => {
     expect(parseWahubUrl(new URLSearchParams('tab=bot&item=9')).item).toBe(9);
   });
 
+  test('the leads tab writes the lead state it is open on, and no other tab does', () => {
+    expect(buildWahubUrl({ ...base, tab: 'leads', stage: 'needs_reply' })).toBe('/wahub?tab=leads&stage=needs_reply');
+    expect(buildWahubUrl({ ...base, tab: 'leads' })).toBe('/wahub?tab=leads');
+    expect(buildWahubUrl({ ...base, tab: 'chats', stage: 'needs_reply' })).toBe('/wahub?tab=chats');
+    expect(parseWahubUrl(new URLSearchParams('tab=leads&stage=trial_done')).stage).toBe('trial_done');
+    // Anything that is not a plain key is dropped rather than sent on to the server.
+    expect(parseWahubUrl(new URLSearchParams('tab=leads&stage=Trial Done')).stage).toBeNull();
+    expect(buildWahubUrl({ ...base, tab: 'leads', stage: '<script>' })).toBe('/wahub?tab=leads');
+  });
+
+  test('a link written before the lead states (no stage at all) still builds', () => {
+    expect(buildWahubUrl({ tab: 'chats', contact: 12, box: 'all', queue: 'all', sub: 'knowledge', item: null })).toBe(
+      '/wahub?tab=chats&contact=12',
+    );
+  });
+
   test('what is written is what is read back', () => {
     const state = { ...base, tab: 'chats' as const, contact: 44, box: 'unread' as const };
     const url = buildWahubUrl(state);
     expect(parseWahubUrl(new URLSearchParams(url.split('?')[1]))).toEqual(state);
     const bot = { ...base, tab: 'bot' as const, sub: 'hours' as const };
     expect(parseWahubUrl(new URLSearchParams(buildWahubUrl(bot).split('?')[1]))).toEqual(bot);
+    const leads = { ...base, tab: 'leads' as const, stage: 'answered_silent' };
+    expect(parseWahubUrl(new URLSearchParams(buildWahubUrl(leads).split('?')[1]))).toEqual(leads);
   });
 });

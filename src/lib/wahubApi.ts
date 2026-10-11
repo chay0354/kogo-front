@@ -17,6 +17,7 @@ import type {
   WahubKnowledgeKind,
   WahubKnowledgeProposal,
   WahubKnowledgeWrite,
+  WahubLeadBoard,
   WahubMessage,
   WahubMessageMedia,
   WahubMessagesPage,
@@ -39,6 +40,7 @@ import type {
   WahubUnregisteredLeads,
   WahubUpdates,
 } from '@/types/wahub';
+import { readLeadBoard } from './wahub/leadStage';
 import { unregisteredParams } from './wahub/unregistered';
 
 /**
@@ -648,6 +650,27 @@ export async function fetchWahubForCustomer(family: string): Promise<WahubForCus
 export async function recheckWahubForCustomer(family: string): Promise<WahubForCustomer> {
   const res = await api.post(`${BASE}/for-customer/recheck/`, { family }, { timeout: 60_000 });
   return readForCustomer(res.data, family);
+}
+
+// ---------------------------------------------------------------------------
+// The lead's state (docs/WAHUB-CONTRACT-LEAD-STAGES.md). Read only: the state
+// is worked out on the server, from facts.
+// ---------------------------------------------------------------------------
+
+/**
+ * GET leads/board/ — the three groups with their states and counts. Null when
+ * the server has no such endpoint yet (404/405): the leads tab then shows the
+ * screen it showed before.
+ */
+export async function fetchWahubLeadBoard(): Promise<WahubLeadBoard | null> {
+  try {
+    const res = await api.get(`${BASE}/leads/board/`);
+    return readLeadBoard(res.data);
+  } catch (error) {
+    const status = failureStatus(error);
+    if (status === 404 || status === 405) return null;
+    throw error;
+  }
 }
 
 // ---------------------------------------------------------------------------

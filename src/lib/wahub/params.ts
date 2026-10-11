@@ -6,6 +6,7 @@ import type {
   WahubSharedFilters,
   WahubTab,
 } from '@/types/wahub';
+import { parseStage } from './leadStage';
 
 /** One page of a list. The server's own default; its ceiling is 100. */
 export const WAHUB_PAGE_SIZE = 40;
@@ -47,6 +48,9 @@ export function contactsParams(query: WahubContactsQuery): Record<string, string
     if (query.queue && query.queue !== 'all') params.queue = query.queue;
     if (query.showHidden) params.show_hidden = '1';
   }
+  // A lead state narrows either list (docs/WAHUB-CONTRACT-LEAD-STAGES.md): one state, or a whole group of them.
+  if (query.leadStage) params.lead_stage = query.leadStage;
+  if (query.leadGroup) params.lead_group = query.leadGroup;
   Object.assign(params, sharedFilterParams(query));
   if (query.page && query.page > 1) params.page = String(query.page);
   if (query.pageSize) {
@@ -115,6 +119,8 @@ export interface WahubUrlState {
   sub: WahubBotSub;
   /** A knowledge item to open, on the knowledge sub-tab. */
   item: number | null;
+  /** The lead state the leads tab is open on (the board). Null: the board alone. */
+  stage?: string | null;
 }
 
 interface ParamReader {
@@ -129,11 +135,12 @@ export function parseWahubUrl(params: ParamReader | null | undefined): WahubUrlS
     queue: parseQueue(params?.get('queue')),
     sub: parseBotSub(params?.get('sub')),
     item: parseContactId(params?.get('item')),
+    stage: parseStage(params?.get('stage')),
   };
 }
 
 /**
- * /wahub?tab=chats&contact=12 — /wahub?tab=bot&sub=hours — /wahub?tab=bot&item=7
+ * /wahub?tab=chats&contact=12 — /wahub?tab=bot&sub=hours — /wahub?tab=bot&item=7 — /wahub?tab=leads&stage=needs_reply
  *
  * The tab is always written, so a copied link says where it leads. An open
  * conversation belongs to the chats tab only; a sub-tab and an open knowledge
@@ -146,7 +153,11 @@ export function buildWahubUrl(state: WahubUrlState, pathname = '/wahub'): string
     if (state.box !== 'all') params.set('box', state.box);
     if (state.contact) params.set('contact', String(state.contact));
   }
-  if (state.tab === 'leads' && state.queue !== 'all') params.set('queue', state.queue);
+  if (state.tab === 'leads') {
+    if (state.queue !== 'all') params.set('queue', state.queue);
+    const stage = parseStage(state.stage);
+    if (stage) params.set('stage', stage);
+  }
   if (state.tab === 'bot') {
     if (state.sub !== 'knowledge') params.set('sub', state.sub);
     if (state.sub === 'knowledge' && state.item) params.set('item', String(state.item));

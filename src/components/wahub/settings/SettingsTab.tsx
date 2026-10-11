@@ -788,7 +788,8 @@ interface SettingsTabProps {
 
 export default function SettingsTab({ status, statusLoading, statusError, onRetryStatus, onOpenChat }: SettingsTabProps) {
   return (
-    <div className={cx(s.pg, 'mx-auto flex w-full max-w-3xl flex-col gap-3.5')}>
+    // One column on a phone; two columns of cards where the page is wide enough (the stylesheet decides).
+    <div className={cx(s.pg, s.settingsGrid)}>
       {status ? (
         <ConnectionSection status={status} onChanged={onRetryStatus} />
       ) : statusError ? (

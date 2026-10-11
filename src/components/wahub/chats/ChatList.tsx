@@ -5,9 +5,12 @@ import { Inbox, Plug, Search, X } from 'lucide-react';
 import { BOX_GROUPS, boxCount, boxesInGroup, handledByChip } from '@/lib/wahub/boxes';
 import { isDemoContact } from '@/lib/wahub/demo';
 import { displayName, formatListTime, previewText, waitingLabel } from '@/lib/wahub/format';
+import { leadOf, showsInList } from '@/lib/wahub/leadStage';
 import type { WahubBox, WahubBoxCounts, WahubContact } from '@/types/wahub';
 import type { ListStatus } from '../hooks/usePagedContacts';
-import { ContactAvatar, DemoTag, EmptyState, ErrorState, LiveTestTag, Skeleton, Spinner } from '../shared/bits';
+import { LeadStageTag } from '../leads/LeadBits';
+import { ContactAvatar, DemoTag, EmptyState, ErrorState, LiveTestTag, Spinner } from '../shared/bits';
+import { ListRowsSkeleton, RefreshNote } from '../shared/loading';
 import { cx } from '../shared/tones';
 import s from '../wahub.module.css';
 
@@ -20,13 +23,25 @@ interface RowProps {
   onOpen: (id: number) => void;
 }
 
-/** One conversation in the list. Drawn again only when its own contact changed. */
+/**
+ * One conversation in the list. Drawn again only when its own contact changed.
+ *
+ * With a lead state from the server, the row carries one tag — the state,
+ * beside the name, and only when it calls for action — in place of the row of
+ * small marks (docs/WAHUB-CONTRACT-LEAD-STAGES.md, ב). What says who this is
+ * stays: an invented contact, a live test, a person answering. On a server
+ * that has no lead state yet the row is as it was.
+ */
 const ChatRow = memo(function ChatRow({ contact, selected, arrived, now, onOpen }: RowProps) {
   const { chat } = contact;
   const unread = chat.unread_count > 0;
   const waiting = waitingLabel(chat.waiting_since, now);
   const who = handledByChip(contact);
   const preview = previewText(contact.last_message);
+  const lead = leadOf(contact);
+  const demo = isDemoContact(contact);
+  const liveTest = contact.live_test === true;
+  const marks = lead ? demo || liveTest || who.tone === 'human' : true;
 
   return (
     <li className={arrived ? s.feedin : undefined}>
@@ -34,13 +49,17 @@ const ChatRow = memo(function ChatRow({ contact, selected, arrived, now, onOpen 
         type="button"
         onClick={() => onOpen(contact.id)}
         aria-current={selected ? 'true' : undefined}
-        className={cx(s.listRow, selected && s.on, '!items-start')}
+        className={cx(s.listRow, selected && s.on, s.chatRow, '!items-start')}
       >
         <ContactAvatar contact={contact} />
         <span className="min-w-0 flex-1">
           <span className="flex items-baseline justify-between gap-2">
-            <span className={cx(s.t1, 'truncate', unread && '!font-extrabold')} dir="auto">
-              {displayName(contact)}
+            {/* The state's tag stands beside the name; in a column too narrow for both it drops under it, whole. */}
+            <span className={s.rowNameLine}>
+              <span className={cx(s.t1, s.rowName, 'truncate', unread && '!font-extrabold')} dir="auto">
+                {displayName(contact)}
+              </span>
+              {showsInList(lead) && <LeadStageTag lead={lead} needsHuman={chat.needs_human} size="row" />}
             </span>
             <span className={cx(s.rowTime, s.num)}>{formatListTime(contact.last_message_at, now)}</span>
           </span>
@@ -56,41 +75,31 @@ const ChatRow = memo(function ChatRow({ contact, selected, arrived, now, onOpen 
             )}
           </span>
 
-          <span className="mt-1.5 flex flex-wrap items-center gap-1.5">
-            {/* Who answers this conversation — on every row, so the state is never a guess (owner, 10.10).
-                A phone shows only "נציג עונה"; the bot answering is the ordinary state there. */}
-            <span className={cx(s.rowTag, who.tone === 'human' ? s.pGold : cx(s.pMute, s.rowWhoBot))}>{who.label}</span>
-            {isDemoContact(contact) && <DemoTag size="row" />}
-            {contact.live_test === true && <LiveTestTag size="row" />}
-            {chat.needs_human && (
-              <span className={cx(s.rowTag, s.pBad)}>
-                <i className={s.pillDot} aria-hidden="true" />
-                מבקש נציג
-              </span>
-            )}
-            {waiting && <span className={cx(s.rowTag, s.pWarn)}>{waiting}</span>}
-          </span>
+          {marks && (
+            <span className="mt-1.5 flex flex-wrap items-center gap-1.5">
+              {lead ? (
+                who.tone === 'human' && <span className={cx(s.rowTag, s.pGold)}>{who.label}</span>
+              ) : (
+                // Who answers this conversation — on every row, so the state is never a guess (owner, 10.10).
+                // A phone shows only "נציג עונה"; the bot answering is the ordinary state there.
+                <span className={cx(s.rowTag, who.tone === 'human' ? s.pGold : cx(s.pMute, s.rowWhoBot))}>{who.label}</span>
+              )}
+              {demo && <DemoTag size="row" />}
+              {liveTest && <LiveTestTag size="row" />}
+              {!lead && chat.needs_human && (
+                <span className={cx(s.rowTag, s.pBad)}>
+                  <i className={s.pillDot} aria-hidden="true" />
+                  מבקש נציג
+                </span>
+              )}
+              {!lead && waiting && <span className={cx(s.rowTag, s.pWarn)}>{waiting}</span>}
+            </span>
+          )}
         </span>
       </button>
     </li>
   );
 });
-
-function ListSkeletonRows() {
-  return (
-    <ul className={s.list} aria-busy="true" aria-label="טוען שיחות">
-      {Array.from({ length: 8 }).map((_, row) => (
-        <li key={row} className="flex items-start gap-2.5 px-2.5 py-2">
-          <Skeleton className="h-10 w-10 shrink-0 !rounded-xl" />
-          <span className="flex flex-1 flex-col gap-2 pt-1">
-            <Skeleton className="h-3.5 w-2/5" />
-            <Skeleton className="h-3 w-4/5" />
-          </span>
-        </li>
-      ))}
-    </ul>
-  );
-}
 
 interface ChatListProps {
   items: WahubContact[];
@@ -181,7 +190,7 @@ export default function ChatList({
   const filtered = Boolean(search.trim()) || box !== 'all';
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
+    <div className="relative flex min-h-0 flex-1 flex-col">
       <div className={cx(s.paneHead, s.listHead)}>
         <label className={cx(s.search, !searchShown && s.searchFolded)}>
           <Search aria-hidden="true" />
@@ -248,13 +257,15 @@ export default function ChatList({
         </div>
       </div>
 
+      {/* Another box or a search over a list already on screen: the rows stay, a quiet word says they are being read again. */}
+      <RefreshNote active={status === 'refreshing'} className={s.refreshFloat} />
       <div
         ref={scroller}
         className={cx('min-h-0 flex-1 overflow-y-auto overscroll-contain transition-opacity', status === 'refreshing' && 'opacity-60')}
         aria-busy={status === 'loading' || status === 'refreshing'}
       >
         {status === 'loading' ? (
-          <ListSkeletonRows />
+          <ListRowsSkeleton />
         ) : status === 'error' ? (
           <ErrorState title="לא הצלחנו לטעון את השיחות" text={error} onRetry={onRetry} />
         ) : items.length === 0 ? (
