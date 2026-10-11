@@ -1,6 +1,6 @@
 'use client';
 
-import { memo, useEffect, useRef } from 'react';
+import { memo, useEffect, useRef, useState } from 'react';
 import { Inbox, Plug, Search, X } from 'lucide-react';
 import { BOX_GROUPS, boxCount, boxesInGroup, handledByChip } from '@/lib/wahub/boxes';
 import { isDemoContact } from '@/lib/wahub/demo';
@@ -57,8 +57,9 @@ const ChatRow = memo(function ChatRow({ contact, selected, arrived, now, onOpen 
           </span>
 
           <span className="mt-1.5 flex flex-wrap items-center gap-1.5">
-            {/* Who answers this conversation — on every row, so the state is never a guess (owner, 10.10). */}
-            <span className={cx(s.rowTag, who.tone === 'human' ? s.pGold : s.pMute)}>{who.label}</span>
+            {/* Who answers this conversation — on every row, so the state is never a guess (owner, 10.10).
+                A phone shows only "נציג עונה"; the bot answering is the ordinary state there. */}
+            <span className={cx(s.rowTag, who.tone === 'human' ? s.pGold : cx(s.pMute, s.rowWhoBot))}>{who.label}</span>
             {isDemoContact(contact) && <DemoTag size="row" />}
             {chat.needs_human && (
               <span className={cx(s.rowTag, s.pBad)}>
@@ -139,6 +140,15 @@ export default function ChatList({
   const loadMoreRef = useRef(onLoadMore);
   loadMoreRef.current = onLoadMore;
 
+  // On a phone the search field is folded behind a magnifier until it is
+  // pressed, and stays out while something is typed. A desktop always shows it.
+  const [searchOpen, setSearchOpen] = useState(false);
+  const searchInput = useRef<HTMLInputElement | null>(null);
+  const searchShown = searchOpen || Boolean(search);
+  useEffect(() => {
+    if (searchOpen) searchInput.current?.focus();
+  }, [searchOpen]);
+
   // Which contacts the list already showed. One that was not there at the last
   // draw of a list already on screen is a newcomer, and gets the soft entrance;
   // a list that was just read (first load, another box, a search) gets none.
@@ -171,10 +181,11 @@ export default function ChatList({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className={s.paneHead}>
-        <label className={s.search}>
+      <div className={cx(s.paneHead, s.listHead)}>
+        <label className={cx(s.search, !searchShown && s.searchFolded)}>
           <Search aria-hidden="true" />
           <input
+            ref={searchInput}
             type="search"
             value={search}
             onChange={(event) => onSearch(event.target.value)}
@@ -189,7 +200,25 @@ export default function ChatList({
         </label>
 
         {/* Two worlds, kept apart on purpose: what a person must handle, and what the bot handles (owner, 11.10). */}
-        <div className="mt-2.5 flex flex-col gap-1.5" role="group" aria-label="תיבות">
+        <div className={s.boxRows} role="group" aria-label="תיבות">
+          {/* The magnifier of the phone: shown there only (see the stylesheet). */}
+          <button
+            type="button"
+            onClick={() => {
+              if (searchShown) {
+                onSearch('');
+                setSearchOpen(false);
+              } else {
+                setSearchOpen(true);
+              }
+            }}
+            aria-expanded={searchShown}
+            aria-label={searchShown ? 'סגור חיפוש' : 'חיפוש'}
+            title={searchShown ? 'סגור חיפוש' : 'חיפוש'}
+            className={cx(s.chipbtn, s.searchToggle, searchShown && s.on)}
+          >
+            {searchShown ? <X aria-hidden="true" /> : <Search aria-hidden="true" />}
+          </button>
           {BOX_GROUPS.map((group) => (
             <div key={group.key} className={cx(s.chips, 'items-center')}>
               {group.label && <span className={s.boxGroupLabel}>{group.label}</span>}

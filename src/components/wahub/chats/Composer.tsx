@@ -205,7 +205,11 @@ export default function Composer({ contact, sending, simulated, sendingOff, onSe
 
   return (
     <div className={s.composer}>
-      <div ref={menuRef} className="relative">
+      {/* On a phone the hint line is folded away, so the one warning that matters is said above the box. */}
+      {canType && simulated && (
+        <p className={cx(s.warnText, s.composerSim)}>הדמיה – ההודעה נרשמת ולא נשלחת</p>
+      )}
+      <div ref={menuRef} className={cx(s.composerBody, 'relative')}>
         {menu && (
           <div
             className={cx(s.pop, 'absolute bottom-full start-0 z-20 mb-2 w-80 max-w-full')}
@@ -239,7 +243,7 @@ export default function Composer({ contact, sending, simulated, sendingOff, onSe
 
         {canType ? (
           <>
-            <div className="flex items-end gap-2">
+            <div className={cx(s.composerLine, 'flex items-end gap-2')}>
               <textarea
                 ref={textarea}
                 value={text}
@@ -267,26 +271,30 @@ export default function Composer({ contact, sending, simulated, sendingOff, onSe
                 <span className="hidden sm:inline">שלח</span>
               </button>
             </div>
-            <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1">
+            <div className={cx(s.composerTools, 'mt-2 flex flex-wrap items-center gap-x-2 gap-y-1')}>
               <button
                 type="button"
                 onClick={() => setMenu(menu === 'replies' ? null : 'replies')}
                 aria-expanded={menu === 'replies'}
+                aria-label="תשובות מוכנות"
+                title="תשובות מוכנות"
                 className={cx(s.btn, s.btnSm, menu === 'replies' && s.btnOn)}
               >
                 <MessageSquareText aria-hidden="true" />
-                תשובות מוכנות
+                <span className={s.toolLabel}>תשובות מוכנות</span>
               </button>
               <button
                 type="button"
                 onClick={() => setMenu(menu === 'templates' ? null : 'templates')}
                 aria-expanded={menu === 'templates'}
+                aria-label="שלח תבנית"
+                title="שלח תבנית"
                 className={cx(s.btn, s.btnSm, menu === 'templates' && s.btnOn)}
               >
                 <LayoutTemplate aria-hidden="true" />
-                שלח תבנית
+                <span className={s.toolLabel}>שלח תבנית</span>
               </button>
-              <span className={cx(s.t2, 'ms-auto !text-[11px]')}>
+              <span className={cx(s.t2, s.composerHint, 'ms-auto !text-[11px]')}>
                 {simulated ? (
                   <strong className={cx(s.warnText, 'font-bold')}>הדמיה – ההודעה נרשמת ולא נשלחת</strong>
                 ) : (

@@ -34,7 +34,8 @@ export default function BotTab({ sub, status, openItemId, tryQuestion, onSub, on
   const openItem = (id: number) => onOpenItem(id);
   return (
     <div className={cx(s.pg, 'flex flex-col gap-3.5')}>
-      <div role="tablist" aria-label="חלקי הבוט" className={cx(s.seg, 'max-sm:!w-full')}>
+      {/* A phone turns these into a row of chips that scrolls sideways (see the stylesheet). */}
+      <div role="tablist" aria-label="חלקי הבוט" className={cx(s.seg, s.subTabs)}>
         {BOT_SUBS.map((def) => {
           const active = sub === def.key;
           return (
@@ -47,7 +48,7 @@ export default function BotTab({ sub, status, openItemId, tryQuestion, onSub, on
               aria-controls={`wahub-bot-panel-${def.key}`}
               title={def.hint}
               onClick={() => onSub(def.key)}
-              className={cx(active && s.on, 'max-sm:flex-1 max-sm:!px-2')}
+              className={cx(active && s.on)}
             >
               {def.label}
             </button>

@@ -11,6 +11,8 @@ import { simulateInboundBody, type DemoSender } from '@/lib/wahub/demo';
 import { israelToday } from '@/lib/wahub/format';
 import { mergeLiveContacts } from '@/lib/wahub/live';
 import { lastServerMessageId } from '@/lib/wahub/messages';
+import { chatLayout, chatPanes, PHONE_MEDIA_QUERY } from '@/lib/wahub/screens';
+import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { simulateWahubInbound } from '@/lib/wahubApi';
 import type { WahubBox, WahubBoxCounts, WahubContact, WahubStatus, WahubTag } from '@/types/wahub';
 import { useVerdict } from '../bot/shadow/useVerdict';
@@ -29,15 +31,9 @@ import ChatList from './ChatList';
 import ChatThread from './ChatThread';
 import ContactPanel from './ContactPanel';
 
-/** Room for all three columns side by side. */
-const WIDE_FROM = 1040;
-/** Room for the list beside the conversation. Below it: one pane at a time. */
-const MEDIUM_FROM = 680;
 const SEARCH_DELAY_MS = 300;
 /** A search hides contacts the screen cannot place by itself; it re-reads the list for them, this often at most. */
 const QUIET_REFRESH_GAP_MS = 5000;
-
-type Layout = 'wide' | 'medium' | 'narrow';
 
 const NO_TAGS: WahubTag[] = [];
 
@@ -81,7 +77,10 @@ export default function ChatsTab({
   const today = israelToday(now);
   const tags = useWahubTags();
   const { ref: frameRef, width } = useElementWidth<HTMLDivElement>();
-  const layout: Layout = width === null || width >= WIDE_FROM ? 'wide' : width >= MEDIUM_FROM ? 'medium' : 'narrow';
+  // A phone is one screen at a time whatever the frame measures — the same
+  // line the stylesheet draws the phone from, so the two never disagree.
+  const phone = useMediaQuery(PHONE_MEDIA_QUERY);
+  const layout = chatLayout(width, phone);
 
   const [search, setSearch] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
@@ -248,10 +247,11 @@ export default function ChatsTab({
   );
   const allTags: WahubTag[] = tags.data ?? NO_TAGS;
 
-  const showList = layout !== 'narrow' || contactId == null;
-  const showThread = contactId != null && (layout === 'wide' || !detailsOpen);
-  const showDetails = contactId != null && contact != null && (layout === 'wide' || detailsOpen);
-  const showPlaceholder = contactId == null && layout !== 'narrow';
+  const panes = chatPanes(layout, contactId, detailsOpen);
+  const showList = panes.list;
+  const showThread = panes.thread;
+  const showDetails = panes.details && contact != null;
+  const showPlaceholder = panes.placeholder;
 
   // A pane that is out of view is hidden, not removed: its scroll position and
   // whatever was typed in it are still there when it comes back.
@@ -330,7 +330,7 @@ export default function ChatsTab({
       {showDetails && contact && (
         <aside
           aria-label="פרטי איש הקשר"
-          className={cx(s.pane, layout === 'wide' ? cx(s.paneLineStart, 'w-[348px] shrink-0') : 'flex-1')}
+          className={cx(s.pane, s.detailsPane, layout === 'wide' ? cx(s.paneLineStart, 'w-[348px] shrink-0') : 'flex-1')}
         >
           <ContactPanel
             contact={contact}
@@ -347,6 +347,19 @@ export default function ChatsTab({
             onRecheck={() => void withBusy('recheck', () => mutations.recheck(contact.id))}
             onAnalyze={() => void withBusy('analyze', () => mutations.analyze(contact.id))}
             shadow={shadowSummary}
+            // The details stand in for the conversation here, so its actions come along; a wide
+            // screen has them in the conversation's own header, right beside.
+            actions={
+              layout === 'wide'
+                ? undefined
+                : {
+                    handoverBusy: Boolean(busy.handover),
+                    resolveBusy: Boolean(busy.resolve),
+                    onTakeover: () => void withBusy('handover', () => mutations.takeover(contact.id)),
+                    onRelease: () => void withBusy('handover', () => mutations.release(contact.id)),
+                    onResolveNeedsHuman: () => void withBusy('resolve', () => mutations.resolveNeedsHuman(contact.id)),
+                  }
+            }
           />
         </aside>
       )}

@@ -2269,3 +2269,600 @@ textarea.field {
     animation: none;
   }
 }
+
+/* ---------- the phone (10.10.2026 contract: docs/WAHUB-CONTRACT-MOBILE.md) ----------
+ *
+ * Under 768px the section is one screen at a time, like a messaging app: a
+ * bottom bar with the five tabs, the list edge to edge, a conversation that
+ * fills the window with its own title row and a writing box pinned above the
+ * keyboard, and the details as a column of cards. Everything above keeps the
+ * same colours and shapes; this block only rearranges them. A desktop (and a
+ * tablet from 768px) reads none of it.
+ *
+ * The classes below carry nothing on a desktop — they are hooks for this
+ * block — except where a rule says otherwise.
+ */
+
+/* The boxes under the search of the list (was Tailwind: mt-2.5 flex-col gap-1.5). */
+.boxRows {
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* The name at the top of a conversation: a press away from the details. */
+.threadName {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-size: 15px;
+  font-weight: 800;
+  text-align: start;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.threadName:hover {
+  color: var(--navy-ink);
+}
+
+/* The phone's own pieces: hidden until the phone block below shows them. */
+.threadStatus,
+.phoneIb,
+.searchToggle,
+.composerSim,
+.demoToggle {
+  display: none;
+}
+
+/* The one-icon "קח שיחה" / "החזר לבוט" of the phone, in the colours of the two pills. */
+.ibNavy {
+  background: var(--navy);
+  color: #fff;
+}
+
+.ibNavy:hover {
+  background: var(--navy-2);
+}
+
+.ibGold {
+  background: var(--gold-bg);
+  color: var(--gold-ink);
+}
+
+.ibGold:hover {
+  background: var(--gold-bg);
+  filter: brightness(0.96);
+}
+
+@media (max-width: 767px) {
+  /* The height of the bottom bar, and the room the screens keep clear of it. */
+  .wahub {
+    --navH: calc(58px + env(safe-area-inset-bottom, 0px));
+    /* The shell's menu button sits fixed in the top start corner (12px + 40px). */
+    --menuGap: 56px;
+  }
+
+  /* The section fills the phone edge to edge; the bar at the bottom is out of flow,
+     so the screens keep its height clear. */
+  .wahub.shell {
+    padding: 0 0 var(--navH);
+    gap: 0;
+  }
+
+  .wahub.tabChats {
+    min-height: 0;
+  }
+
+  /* ---- title row ---- */
+
+  .wahub .head {
+    padding: 10px 12px 8px;
+    padding-inline-start: var(--menuGap);
+    gap: 6px 8px;
+  }
+
+  .head .h1 {
+    font-size: 18px;
+  }
+
+  /* The two status chips: the icon and the word only, so they share the title's row. */
+  .head .chipbtn {
+    height: 28px;
+    padding: 0 8px;
+    font-size: 11.5px;
+    gap: 4px;
+  }
+
+  .head .chipTitle,
+  .head .chipbtn svg:last-child {
+    display: none;
+  }
+
+  /* The chip's bubble: across the screen, under the title row. */
+  .head .pop {
+    position: fixed;
+    inset-inline: 12px;
+    top: 56px;
+    width: auto;
+    max-width: none;
+  }
+
+  /* ---- the tabs, as a bar at the bottom ---- */
+
+  .wahub .nav {
+    position: fixed;
+    bottom: 0;
+    inset-inline: 0;
+    z-index: 30;
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 0;
+    width: auto;
+    max-width: none;
+    padding: 4px 4px calc(4px + env(safe-area-inset-bottom, 0px));
+    border-radius: 0;
+    background: var(--surface);
+    border-top: 1px solid var(--line);
+    box-shadow: 0 -4px 16px rgba(43, 48, 144, 0.06);
+  }
+
+  .nav button {
+    position: relative;
+    height: 50px;
+    min-width: 0;
+    padding: 4px 2px;
+    flex-direction: column;
+    justify-content: center;
+    gap: 3px;
+    border-radius: 10px;
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--muted);
+  }
+
+  .nav button svg {
+    width: 22px;
+    height: 22px;
+    padding: 2px 12px;
+    box-sizing: content-box;
+    border-radius: 999px;
+    transition: background 0.15s;
+  }
+
+  .nav button.on {
+    background: transparent;
+    box-shadow: none;
+    color: var(--navy-ink);
+  }
+
+  .nav button.on svg {
+    background: var(--lav);
+  }
+
+  /* On the icon's top corner, as in a messaging app: it overlaps the icon's edge, never its middle.
+     A physical side on purpose — the badge is a number (.num, left-to-right), so a logical side would flip. */
+  .nav .segBadge {
+    position: absolute;
+    top: 0;
+    right: calc(50% + 4px);
+    min-width: 18px;
+    line-height: 16px;
+    font-size: 10.5px;
+    border: 2px solid var(--surface);
+    box-sizing: content-box;
+  }
+
+  /* The floating button sits above the bar, never over it. */
+  .wahub .fab {
+    left: 12px;
+    bottom: calc(var(--navH) + 10px);
+    height: 40px;
+    padding: 0 14px 0 12px;
+    font-size: 13px;
+  }
+
+  .fabPanel {
+    width: 100vw;
+    border-inline-start: 0;
+  }
+
+  /* ---- the tabs that scroll with the page: one column, a small gutter ---- */
+
+  .wahub .panel {
+    padding: 10px 12px 0;
+  }
+
+  .form {
+    grid-template-columns: 1fr;
+  }
+
+  /* The bot's sub-tabs: a row of chips that scrolls sideways. */
+  .wahub .subTabs {
+    width: 100%;
+    max-width: 100%;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .subTabs::-webkit-scrollbar {
+    display: none;
+  }
+
+  .subTabs button {
+    flex: none;
+    height: 34px;
+    padding: 0 13px;
+    font-size: 13px;
+  }
+
+  /* ---- the conversations: edge to edge ---- */
+
+  .chatFrame {
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+  }
+
+  /* The list's top: the chips in one row that scrolls sideways; the search folds behind a magnifier. */
+  .listHead {
+    padding: 8px 0 0;
+  }
+
+  .listHead .search {
+    margin: 0 12px;
+    height: 38px;
+    border-radius: 999px;
+    background: var(--lav-2);
+    border-color: transparent;
+  }
+
+  .listHead .searchFolded {
+    display: none;
+  }
+
+  .listHead .boxRows {
+    margin-top: 8px;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: 6px;
+    overflow-x: auto;
+    padding: 0 12px 8px;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .listHead .boxRows::-webkit-scrollbar {
+    display: none;
+  }
+
+  .listHead .chips {
+    flex: none;
+    flex-wrap: nowrap;
+  }
+
+  .listHead .searchToggle {
+    display: inline-flex;
+    width: 34px;
+    height: 34px;
+    padding: 0;
+    justify-content: center;
+    border-radius: 50%;
+  }
+
+  .listHead .searchToggle svg {
+    width: 16px;
+    height: 16px;
+    opacity: 1;
+  }
+
+  .listHead .chipbtn {
+    height: 34px;
+    font-size: 13px;
+  }
+
+  .listHead .boxGroupLabel {
+    min-width: 0;
+    padding-inline-start: 4px;
+  }
+
+  /* A row as in a messaging app: a round mark, the name, one line of the last message, the hour at the edge. */
+  .list {
+    padding: 0;
+    gap: 0;
+  }
+
+  .list li + li .listRow {
+    border-top: 1px solid var(--line-2);
+  }
+
+  .listRow {
+    min-height: 68px;
+    padding: 10px 14px;
+    border-radius: 0;
+    gap: 12px;
+  }
+
+  .listRow .av {
+    width: 46px;
+    height: 46px;
+    border-radius: 50%;
+    font-size: 15px;
+  }
+
+  .listRow .avDot {
+    inset-inline-start: 0;
+    top: 0;
+  }
+
+  .listRow .t1 {
+    font-size: 15px;
+  }
+
+  .listRow .t2 {
+    font-size: 13px;
+  }
+
+  /* The bot answering is the ordinary state here; only a person answering is worth a mark. */
+  .listRow .rowWhoBot {
+    display: none;
+  }
+
+  /* ---- the conversation screen ---- */
+
+  .threadHead {
+    flex-wrap: nowrap;
+    gap: 8px;
+    padding: 6px 10px 6px 8px;
+    padding-inline-start: var(--menuGap);
+    min-height: 56px;
+    position: relative;
+    z-index: 1;
+    box-shadow: 0 1px 0 var(--line-2);
+  }
+
+  .threadHead .av {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    font-size: 14px;
+  }
+
+  /* The round buttons of the title row: 44px, a finger's width. */
+  .threadHead .ib {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+  }
+
+  .threadHead .ib svg {
+    width: 20px;
+    height: 20px;
+  }
+
+  .threadName {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1px;
+    white-space: normal;
+    font-size: 16px;
+  }
+
+  .threadName > span:first-child {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .threadStatus {
+    display: block;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+  }
+
+  /* The phone, the WhatsApp link and "כתב לפני": in the details, a press away. */
+  .threadSub {
+    display: none;
+  }
+
+  .deskOnly {
+    display: none;
+  }
+
+  .phoneIb {
+    display: inline-flex;
+  }
+
+  .needStrip {
+    padding: 6px 12px;
+    font-size: 12.5px;
+    gap: 6px 8px;
+  }
+
+  .dayMark span {
+    font-size: 11px;
+  }
+
+  .bubbleCol {
+    max-width: 86%;
+  }
+
+  /* The writing box, pinned to the bottom and clear of the home bar. */
+  .composer {
+    padding: 8px 8px calc(8px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .composerBody {
+    display: flex;
+    align-items: flex-end;
+    gap: 4px;
+  }
+
+  .composerLine {
+    flex: 1;
+    min-width: 0;
+    gap: 6px;
+  }
+
+  .composer textarea {
+    min-height: 40px;
+    border-radius: 20px;
+    padding: 9px 14px;
+    font-size: 15px;
+  }
+
+  /* "שלח" is a round navy button, a finger's width. */
+  .composerLine .btnP {
+    width: 44px;
+    height: 44px !important;
+    padding: 0;
+    border-radius: 50%;
+  }
+
+  /* The two tools, as icons at the start of the row. */
+  .composerTools {
+    order: -1;
+    margin: 0;
+    flex: none;
+    flex-wrap: nowrap;
+    gap: 0;
+  }
+
+  .composerTools .btn {
+    width: 44px;
+    height: 44px;
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    background: transparent;
+    color: var(--navy-ink);
+  }
+
+  .composerTools .btn svg {
+    width: 20px;
+    height: 20px;
+  }
+
+  .composerTools .btnOn {
+    background: var(--lav);
+  }
+
+  .toolLabel,
+  .composerHint {
+    display: none;
+  }
+
+  /* The one warning that matters on a phone, said above the box. */
+  .composerSim {
+    display: block;
+    margin: 0 4px 6px;
+    font-size: 12px;
+    font-weight: 700;
+  }
+
+  /* Locked: the same words, in one compact strip. */
+  .composer .lockBox {
+    flex: 1;
+    flex-wrap: nowrap;
+    padding: 8px 10px;
+    font-size: 12.5px;
+    gap: 8px;
+  }
+
+  .composer .lockBox p {
+    line-height: 1.4;
+  }
+
+  /* The "הדמיה" bar of a demo customer: above the box, folded until pressed.
+     Everything else in the column keeps order 0, so the two land last, bar then box. */
+  .pane > .demoBox {
+    order: 1;
+    padding: 8px 12px;
+    gap: 6px;
+  }
+
+  .pane > .composer {
+    order: 2;
+  }
+
+  .demoHint {
+    display: none;
+  }
+
+  .demoToggle {
+    display: inline-flex;
+    width: 36px;
+    height: 36px;
+  }
+
+  .demoFolded {
+    display: none;
+  }
+
+  /* ---- the details: a column of cards ---- */
+
+  .detailsPane {
+    background: var(--bg);
+  }
+
+  .detailsHead {
+    padding: 6px 10px;
+    padding-inline-start: var(--menuGap);
+    min-height: 56px;
+  }
+
+  .detailsHead .ib {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+  }
+
+  .detailsHead .ib svg {
+    width: 20px;
+    height: 20px;
+  }
+
+  .detailsPane .sect {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    box-shadow: var(--shadow);
+    margin: 10px 12px 0;
+    padding: 12px 14px;
+  }
+
+  .detailsPane .sect:last-child {
+    margin-bottom: 12px;
+  }
+
+  /* A conversation on screen: the title row, the bar and the floating button step
+     aside. Last in the block, and heavier than the rules above, so nothing of
+     theirs shows through. */
+  .wahub.shell[data-chat-open] {
+    padding-bottom: 0;
+  }
+
+  .wahub.shell[data-chat-open] .head,
+  .wahub.shell[data-chat-open] .nav,
+  .wahub.shell[data-chat-open] .fab {
+    display: none;
+  }
+}

@@ -193,7 +193,8 @@ export default function TodayTab({ status, onGo, onOpenChat }: TodayTabProps) {
 
   return (
     <div className={cx(s.pg, 'flex flex-col gap-3.5')}>
-      <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4" aria-label="מה מחכה עכשיו">
+      {/* A phone (under 768px) keeps the four in one column, whatever the width. */}
+      <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4 max-md:!grid-cols-1" aria-label="מה מחכה עכשיו">
         <Tile
           label="מחכים לתשובה"
           value={data ? data.waiting : null}
