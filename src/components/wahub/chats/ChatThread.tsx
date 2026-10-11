@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { AlertCircle, ArrowDown, ArrowRight, Bot, Check, Crosshair, Hand, Info, MessageCircle, Undo2, UserRound } from 'lucide-react';
+import { AlertCircle, ArrowDown, ArrowRight, Bot, Check, Crosshair, Hand, Info, MessageCircle, PanelLeftOpen, Undo2, UserRound } from 'lucide-react';
 import { formatWhatsAppLink } from '@/lib/customerUtils';
 import { isDemoContact, type DemoInput } from '@/lib/wahub/demo';
 import { agoText, displayName, hasName } from '@/lib/wahub/format';
@@ -71,6 +71,11 @@ interface ChatThreadProps {
   showBack: boolean;
   /** The details pane is not beside the conversation, so the header offers it. */
   showDetailsButton: boolean;
+  /**
+   * A desktop whose card was put away ("הסתר כרטיס"): the header offers it back
+   * ("הצג כרטיס") and carries "קח שיחה", which the card would otherwise hold.
+   */
+  onShowCard?: () => void;
   onBack: () => void;
   onDetails: () => void;
   onTakeover: () => void;
@@ -101,6 +106,7 @@ function ThreadHeader({
   handoverBusy,
   showBack,
   showDetailsButton,
+  onShowCard,
   onBack,
   onDetails,
   onTakeover,
@@ -116,13 +122,15 @@ function ThreadHeader({
   onRefine?: () => void;
 } & Pick<
   ChatThreadProps,
-  'handoverBusy' | 'showBack' | 'showDetailsButton' | 'onBack' | 'onDetails' | 'onTakeover' | 'onRelease'
+  'handoverBusy' | 'showBack' | 'showDetailsButton' | 'onShowCard' | 'onBack' | 'onDetails' | 'onTakeover' | 'onRelease'
 >) {
   const human = contact.chat.handled_by === 'human';
   const whatsapp = formatWhatsAppLink(contact.phone);
   const phone = contact.phone_display || contact.phone;
   const demo = isDemoContact(contact);
   const liveTest = contact.live_test === true;
+  // The card and its actions are not on screen: a press away (a tablet), or put away (a desktop).
+  const cardAway = showDetailsButton || Boolean(onShowCard);
 
   return (
     <header className={s.threadHead}>
@@ -162,14 +170,15 @@ function ThreadHeader({
       </div>
 
       <div className="flex shrink-0 flex-wrap items-center gap-2">
-        {/* "דיוק": mark what was not good in this conversation, and say why (docs/WAHUB-CONTRACT-REFINE.md). */}
+        {/* "דיוק": mark what was not good in this conversation, and say why (docs/WAHUB-CONTRACT-REFINE.md). The
+            only way into marking: a bubble has no shortcut of its own (docs/WAHUB-CONTRACT-POLISH-1.md, ב). */}
         {onRefine && (
           <>
             <button
               type="button"
               onClick={onRefine}
               aria-pressed={refining}
-              title="דיוק: סמנו הודעות שלא היו טובות וכתבו מה הבעיה"
+              title="דיוק: סמנו הודעות שלא היו טובות. המערכת מסכמת אותן ושואלת מה הבעיה"
               className={cx(s.btn, s.btnSm, s.deskOnly, refining && s.btnOn)}
             >
               <Crosshair aria-hidden="true" />
@@ -192,10 +201,11 @@ function ThreadHeader({
           {human ? 'בטיפול שלך' : contact.chat.handled_by_label || 'הבוט עונה'}
         </span>
         {/*
-          On a desktop the contact's card is always open beside the conversation and carries this action
-          ("פעולות"), so it is not said twice. Where the card is a press away — a tablet — it stays here.
+          On a desktop the contact's card is open beside the conversation and carries this action
+          ("פעולות"), so it is not said twice. Where the card is a press away — a tablet — or was put
+          away, it stays here.
         */}
-        {!showDetailsButton ? null : human ? (
+        {!cardAway ? null : human ? (
           <button type="button" onClick={onRelease} disabled={handoverBusy} className={cx(s.btn, s.btnSm, s.deskOnly)}>
             {handoverBusy ? <Spinner className="h-3.5 w-3.5" /> : <Undo2 aria-hidden="true" />}
             החזר לבוט
@@ -228,6 +238,13 @@ function ThreadHeader({
             <Info aria-hidden="true" />
           </button>
         )}
+        {/* The card was put away: one small button brings it back, at the width it had. */}
+        {onShowCard && (
+          <button type="button" onClick={onShowCard} title="הצג את כרטיס איש הקשר" className={cx(s.btn, s.btnSm, s.deskOnly)}>
+            <PanelLeftOpen aria-hidden="true" />
+            הצג כרטיס
+          </button>
+        )}
       </div>
     </header>
   );
@@ -247,6 +264,7 @@ export default function ChatThread({
   resolveBusy,
   showBack,
   showDetailsButton,
+  onShowCard,
   onBack,
   onDetails,
   onTakeover,
@@ -283,7 +301,8 @@ export default function ChatThread({
 
   const days = useMemo(() => groupMessagesByDay(messages, now), [messages, now]);
 
-  // "דיוק": marking messages here, and the small chat it opens (docs/WAHUB-CONTRACT-REFINE.md, ב).
+  // "דיוק": marking messages here, and the small chat it opens (docs/WAHUB-CONTRACT-REFINE.md, ב). The marks
+  // come up only from the button at the top of the conversation (docs/WAHUB-CONTRACT-POLISH-1.md, ב).
   const refine = useRefine();
   const { open: openRefineChat, target: refineTarget } = refine;
   const picking = useRefineSelection(thread.contactId, messages);
@@ -311,13 +330,15 @@ export default function ChatThread({
         heading: shadow ? SHADOW_HEADING : undefined,
         pool: shown.messages.filter((message) => !isOptimistic(message)).map(excerptLine),
         shadowId: shadow?.id ?? null,
+        // Marked messages: the system speaks first — a short summary of the piece, and "מה לא היה טוב כאן?".
+        // "לתקן" on an answer keeps to what it was: she says what was wrong with it.
+        summarize: !shadow,
         // Once she has said what was wrong with the answer, it is marked 👎 — without a note, so no second proposal is made of it.
         onSent: shadow && shadow.verdict !== 'bad' ? () => onScreen.current.onShadowVerdict?.(shadow, 'bad', '') : undefined,
       });
     },
     [openRefineChat],
   );
-  const refineOne = useCallback((id: number) => openRefine([id]), [openRefine]);
 
   // Messages that were not on screen at the last draw of this conversation come
   // in softly. A conversation that was just opened, or earlier messages loaded
@@ -426,6 +447,7 @@ export default function ChatThread({
         handoverBusy={handoverBusy}
         showBack={showBack}
         showDetailsButton={showDetailsButton}
+        onShowCard={onShowCard}
         onBack={onBack}
         onDetails={onDetails}
         onTakeover={onTakeover}
@@ -503,11 +525,7 @@ export default function ChatThread({
                             marked={marked.has(message.id)}
                             onPress={picking.press}
                           >
-                            <MessageBubble
-                              message={message}
-                              arrived={arrived.has(message.id)}
-                              onRefine={refine.available && !picking.active ? refineOne : undefined}
-                            />
+                            <MessageBubble message={message} arrived={arrived.has(message.id)} />
                             {shadow && (
                               <ShadowRow
                                 reply={shadow}

@@ -1,14 +1,11 @@
 'use client';
 
-import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { Check, Crosshair } from 'lucide-react';
+import type { ReactNode } from 'react';
+import { Check } from 'lucide-react';
 import { selectionLabel } from '@/lib/wahub/refine';
 import { cx } from '../shared/tones';
 import s from '../wahub.module.css';
 import r from './refine.module.css';
-
-/** How long a finger rests on a bubble before "דיוק" comes up. */
-const LONG_PRESS_MS = 450;
 
 interface RefineRowProps {
   id: number;
@@ -90,72 +87,4 @@ export function RefineSelectBar({
       </button>
     </div>
   );
-}
-
-/**
- * "דיוק" on one bubble: beside it when the mouse is over the message, and on a
- * phone after a long press. Hands the bubble what it needs — two class names,
- * the touch handlers and the button — and nothing at all when there is nowhere
- * to open it or the message is not the server's yet.
- */
-export function useBubbleRefine(id: number, mine: boolean, onRefine?: (id: number) => void) {
-  const [armed, setArmed] = useState(false);
-  const timer = useRef<number | null>(null);
-  const chip = useRef<HTMLButtonElement | null>(null);
-  const enabled = Boolean(onRefine) && id > 0;
-
-  const clear = () => {
-    if (timer.current !== null) window.clearTimeout(timer.current);
-    timer.current = null;
-  };
-
-  useEffect(() => clear, []);
-
-  useEffect(() => {
-    if (!enabled) setArmed(false);
-  }, [enabled]);
-
-  // Up after a long press: a touch anywhere else puts it away.
-  useEffect(() => {
-    if (!armed) return;
-    const away = (event: PointerEvent) => {
-      if (!chip.current?.contains(event.target as Node)) setArmed(false);
-    };
-    document.addEventListener('pointerdown', away);
-    return () => document.removeEventListener('pointerdown', away);
-  }, [armed]);
-
-  if (!enabled || !onRefine) return { rowClass: undefined, colClass: undefined, rowProps: undefined, button: null };
-
-  return {
-    rowClass: r.hoverRow,
-    colClass: r.chipHost,
-    rowProps: {
-      onTouchStart: () => {
-        clear();
-        timer.current = window.setTimeout(() => setArmed(true), LONG_PRESS_MS);
-      },
-      onTouchEnd: clear,
-      onTouchMove: clear,
-      onTouchCancel: clear,
-    },
-    button: (
-      <button
-        ref={chip}
-        type="button"
-        // A shortcut for the mouse and the finger; the keyboard has the button at the top of the conversation.
-        tabIndex={-1}
-        onClick={() => {
-          setArmed(false);
-          onRefine(id);
-        }}
-        aria-label="דיוק על ההודעה הזו"
-        title="דיוק: מה לא היה טוב בהודעה הזו?"
-        className={cx(r.chip, mine ? r.chipOut : r.chipIn, armed && r.chipArmed)}
-      >
-        <Crosshair aria-hidden="true" />
-        <span>דיוק</span>
-      </button>
-    ),
-  };
 }

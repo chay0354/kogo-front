@@ -16,8 +16,7 @@ import { RefineHost, RefineProvider } from './refine/RefineContext';
 import { PanelSkeleton } from './shared/loading';
 import { cx } from './shared/tones';
 import s from './wahub.module.css';
-import WahubNav from './WahubNav';
-import WahubStatusChips from './WahubStatusChips';
+import WahubHead from './WahubHead';
 
 /** A tab's code is on its way: the shape of a tab — a row of tiles and a card — holds its place. */
 function TabLoading() {
@@ -209,21 +208,8 @@ function WahubSection() {
         onChats ? 'h-[100dvh] min-h-[560px]' : 'min-h-[100dvh]',
       )}
     >
-      {/* One compact row on a desktop: the title, the five tabs, the two status chips.
-          On a phone the tabs are the bar at the bottom of the screen (the stylesheet moves them). */}
-      <header className={cx(s.head, 'flex shrink-0 flex-wrap items-center')}>
-        <h1 className={s.h1}>וואטסאפ ולידים</h1>
-        {/* The pulsing dot of the sketch: shown once a poll has answered, and while they keep answering. */}
-        {boxes !== null && !offline && (
-          <span className={s.subT} title="המסך מתעדכן לבד">
-            <span className={s.dot} aria-hidden="true" />
-            <span className={s.liveWord}>חי</span>
-          </span>
-        )}
-        <WahubNav active={url.tab} needsHuman={menuBadgeCount(boxes)} onSelect={openTab} />
-        <span className="flex-1" />
-        <WahubStatusChips status={status.data} failed={status.isError} onOpenSettings={openSettings} />
-      </header>
+      {/* The title, "חי" and the five tabs. The state of the connection is in the settings ("מצב המערכת"). */}
+      <WahubHead active={url.tab} live={boxes !== null && !offline} needsHuman={menuBadgeCount(boxes)} onSelect={openTab} />
 
       {offline && (
         <p role="status" className={cx(s.strip, s.offlineStrip, 'shrink-0')}>

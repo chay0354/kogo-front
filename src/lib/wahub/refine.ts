@@ -2,6 +2,7 @@ import type { WahubKnowledgeProposal, WahubMessage, WahubShadowReply } from '@/t
 import type {
   WahubRefineAction,
   WahubRefineChange,
+  WahubRefineSummary,
   WahubRefineThread,
   WahubRefineTurn,
 } from '@/types/wahubRefine';
@@ -236,12 +237,34 @@ function readChanges(raw: unknown): WahubRefineChange[] {
   return Array.isArray(raw) ? raw.map(readRefineChange).filter((change): change is WahubRefineChange => change !== null) : [];
 }
 
+/**
+ * "סיכום חכם" as the server sends it: three short texts. Read leniently — a
+ * line that is missing is empty, and a summary with no line at all is no
+ * summary (the screen then shows the answer's own words).
+ */
+export function readRefineSummary(raw: unknown): WahubRefineSummary | null {
+  const data = asRecord(raw);
+  if (!data) return null;
+  const happened = asText(data.what_happened).trim();
+  const answered = asText(data.what_was_answered).trim();
+  const issue = asText(data.suspected_issue).trim();
+  if (!happened && !answered && !issue) return null;
+  return { what_happened: happened, what_was_answered: answered, suspected_issue: issue || null };
+}
+
 export function readRefineTurn(raw: unknown): WahubRefineTurn | null {
   const data = asRecord(raw);
   if (!data) return null;
   const role = data.role === 'system' ? 'system' : data.role === 'operator' ? 'operator' : null;
   if (!role) return null;
-  return { role, text: asText(data.text), changes: readChanges(data.changes), created_at: asText(data.created_at) || null };
+  return {
+    role,
+    text: asText(data.text),
+    changes: readChanges(data.changes),
+    created_at: asText(data.created_at) || null,
+    // Only the system summarises.
+    summary: role === 'system' ? readRefineSummary(data.summary) : null,
+  };
 }
 
 /**
@@ -278,6 +301,7 @@ export function readRefineThread(raw: unknown): WahubRefineThread | null {
     turns,
     created_at: asText(data.created_at) || turns[0]?.created_at || null,
     created_by_name: asText(data.created_by_name),
+    summary: readRefineSummary(data.summary),
   };
 }
 
@@ -291,9 +315,30 @@ export function readRefineThreads(raw: unknown): WahubRefineThread[] {
     .sort((a, b) => (b.created_at ?? '').localeCompare(a.created_at ?? '') || b.id - a.id);
 }
 
-/** A previous thread as one line: what the operator first wrote. */
+/**
+ * The threads worth listing under "דיוקים קודמים": the ones in which she said
+ * something. A thread that was opened by "המשך" and left at the system's
+ * summary is not a refinement — nothing was said and nothing changed. A row
+ * that carries no turns at all (a server that lists threads without them) stays.
+ */
+export function spokenThreads<T extends Pick<WahubRefineThread, 'turns'>>(threads: ReadonlyArray<T>): T[] {
+  return threads.filter(
+    (thread) => thread.turns.length === 0 || thread.turns.some((turn) => turn.role === 'operator' && turn.text.trim() !== ''),
+  );
+}
+
+/**
+ * A previous thread as one line: what the operator first wrote. In a thread the
+ * system opened with a summary her words may be no more than "כן, בדיוק" — so
+ * what the summary took to be wrong (or, failing that, what happened) follows
+ * them, and the line still says what the thread was about.
+ */
 export function threadTitle(thread: Pick<WahubRefineThread, 'turns' | 'reply'>, limit = 80): string {
-  const first = thread.turns.find((turn) => turn.role === 'operator')?.text ?? thread.reply;
+  // A thread that was started without words may carry an empty line of hers: the first one with words is the title.
+  const hers = thread.turns.find((turn) => turn.role === 'operator' && turn.text.trim())?.text ?? '';
+  const opened = thread.turns[0]?.role === 'system' ? thread.turns[0].summary : null;
+  const about = opened ? opened.suspected_issue || opened.what_happened : '';
+  const first = hers ? [hers, about].filter(Boolean).join(' — ') : thread.reply;
   const text = first.replace(/\s+/g, ' ').trim();
   if (!text) return 'דיוק';
   return text.length > limit ? `${text.slice(0, limit - 1)}…` : text;
@@ -359,6 +404,8 @@ export interface RefineBubble {
   text: string;
   /** Typed here and not yet answered by the server. */
   pending: boolean;
+  /** "סיכום חכם": the system's opening words, as three short lines rather than a paragraph. */
+  summary?: WahubRefineSummary | null;
 }
 
 export type RefinePhase =
@@ -366,6 +413,8 @@ export type RefinePhase =
   | 'idle'
   /** "המערכת חושבת…" */
   | 'thinking'
+  /** "המערכת מסכמת…" — the thread was just opened on the marked messages, and the system speaks first. */
+  | 'summarizing'
   /** A previous thread is being read. */
   | 'loading'
   /** The server has no refine/ yet (404). */
@@ -400,6 +449,10 @@ export const REFINE_START: RefineChatState = {
 
 export type RefineAction =
   | { type: 'sending'; text: string }
+  /** "המשך" was pressed: the server is asked for the smart summary, with no words of hers. */
+  | { type: 'summarizing' }
+  /** No summary is coming (an older server wants her words first): the box waits for her, as it always did. */
+  | { type: 'summarySkipped'; note?: string }
   | { type: 'answered'; thread: WahubRefineThread }
   | { type: 'failed'; error: string }
   | { type: 'unavailable' }
@@ -411,20 +464,36 @@ export type RefineAction =
   | { type: 'undone'; keys: string[] | 'all'; thread: WahubRefineThread | null }
   | { type: 'undoFailed'; error: string };
 
+const isOperator = (bubble: Pick<RefineBubble, 'role'>) => bubble.role === 'operator';
+
 function bubblesOf(thread: WahubRefineThread, typed: ReadonlyArray<RefineBubble>): RefineBubble[] {
-  const fromServer: RefineBubble[] = thread.turns.map((turn, index) => ({
-    key: `t${index}`,
-    role: turn.role,
-    text: turn.text,
-    pending: false,
-  }));
-  // A server that hands back no turns (or none of the operator's) must not wipe what she wrote.
-  const base = fromServer.some((bubble) => bubble.role === 'operator')
-    ? fromServer
-    : typed.map((bubble, index) => ({ ...bubble, key: `l${index}`, pending: false }));
+  const fromServer: RefineBubble[] = thread.turns
+    // A thread started without words may keep an empty line of hers: it is not something she said.
+    .filter((turn) => turn.role === 'system' || turn.text.trim() !== '')
+    .map((turn, index) => ({
+      key: `t${index}`,
+      role: turn.role,
+      text: turn.text,
+      pending: false,
+      summary: turn.summary,
+    }));
+  // A server that hands back no turns (or none of the operator's) must not wipe what she wrote. When she has
+  // written nothing yet — the system spoke first — the server's turns are all there is.
+  const base =
+    fromServer.some(isOperator) || (fromServer.length > 0 && !typed.some(isOperator))
+      ? fromServer
+      : typed.map((bubble, index) => ({ ...bubble, key: `l${index}`, pending: false }));
+  // The summary is of the thread's opening: it belongs to the system's first words, before any of hers.
+  const opening = !base.some(isOperator);
   const last = base[base.length - 1];
   if (thread.reply && (!last || last.role !== 'system')) {
-    return [...base, { key: `r${base.length}`, role: 'system', text: thread.reply, pending: false }];
+    return [
+      ...base,
+      { key: `r${base.length}`, role: 'system', text: thread.reply, pending: false, summary: opening ? thread.summary : null },
+    ];
+  }
+  if (opening && thread.summary && last && !last.summary) {
+    return [...base.slice(0, -1), { ...last, summary: thread.summary }];
   }
   return base;
 }
@@ -461,6 +530,10 @@ export function refineReducer(state: RefineChatState, action: RefineAction): Ref
         error: '',
         bubbles: [...state.bubbles, { key: `p${state.bubbles.length}`, role: 'operator', text: action.text, pending: true }],
       };
+    case 'summarizing':
+      return { ...state, phase: 'summarizing', error: '' };
+    case 'summarySkipped':
+      return state.phase === 'summarizing' ? { ...state, phase: 'idle', error: action.note ?? '' } : state;
     case 'answered':
       return fromThread(state, action.thread, state.bubbles);
     case 'failed':
@@ -514,16 +587,63 @@ export const REFINE_TEXT = {
   undoFailed: 'הביטול לא נשמר',
   openFailed: 'לא הצלחנו לפתוח את הדיוק הקודם',
   thinking: 'המערכת חושבת…',
+  summarizing: 'המערכת מסכמת…',
+  summaryFailed: 'הסיכום לא הוכן. אפשר לכתוב כאן מה לא היה טוב, והמערכת תמשיך מכאן.',
 } as const;
+
+/** "סיכום חכם": the small titles of its three lines, and the question under them. */
+export const SUMMARY_TEXT = {
+  mark: 'סיכום חכם',
+  happened: 'מה קרה',
+  answered: 'מה נענה',
+  issue: 'מה נראה לא טוב',
+  ask: 'מה לא היה טוב כאן?',
+  askProposal: 'מה לשנות בהצעה?',
+} as const;
+
+export interface SummaryRow {
+  key: 'happened' | 'answered' | 'issue';
+  title: string;
+  text: string;
+}
+
+/**
+ * The summary as its lines, always in the same order: what happened, what was
+ * answered, and what looks wrong. A line with nothing to say is left out — the
+ * system names a problem only when it saw one, and a summary made by the rules
+ * (no model) sees none: nothing is said in its name.
+ */
+export function summaryRows(summary: WahubRefineSummary): SummaryRow[] {
+  const rows: SummaryRow[] = [
+    { key: 'happened', title: SUMMARY_TEXT.happened, text: summary.what_happened },
+    { key: 'answered', title: SUMMARY_TEXT.answered, text: summary.what_was_answered },
+    { key: 'issue', title: SUMMARY_TEXT.issue, text: summary.suspected_issue ?? '' },
+  ];
+  return rows.filter((row) => row.text.trim() !== '');
+}
+
+/**
+ * The system has spoken first and she has not written yet: its question is
+ * "מה לא היה טוב כאן?", and the box asks the same.
+ */
+export function awaitsFirstWords(state: Pick<RefineChatState, 'needsAnswer' | 'threadId' | 'bubbles'>): boolean {
+  return state.threadId != null && state.bubbles.length > 0 && !state.bubbles.some(isOperator);
+}
 
 /**
  * The box's placeholder: the first line asks what was wrong (on a proposal:
  * what to change in it); after a question it asks for the answer.
  */
-export function refinePlaceholder(state: Pick<RefineChatState, 'needsAnswer' | 'threadId'>, onProposal = false): string {
+export function refinePlaceholder(
+  state: Pick<RefineChatState, 'needsAnswer' | 'threadId'> & Partial<Pick<RefineChatState, 'bubbles'>>,
+  onProposal = false,
+): string {
+  const first = onProposal ? SUMMARY_TEXT.askProposal : SUMMARY_TEXT.ask;
+  // After the smart summary the question is still the first one: what was wrong here.
+  if (state.bubbles && awaitsFirstWords({ ...state, bubbles: state.bubbles })) return first;
   if (state.needsAnswer) return 'התשובה שלך…';
   if (state.threadId != null) return 'רוצים לדייק עוד? כתבו כאן…';
-  return onProposal ? 'מה לשנות בהצעה?' : 'מה לא היה טוב כאן?';
+  return first;
 }
 
 /** "דיוק" on a proposal: what the small chat quotes at its top — what the bot would do, and the change itself. */

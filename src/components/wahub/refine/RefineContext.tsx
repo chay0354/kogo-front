@@ -23,6 +23,11 @@ export interface RefineTarget {
   shadowId?: number | null;
   /** "דיוק" was pressed on this proposal: the chat asks "מה לשנות בהצעה?" and the server is sent the proposal alone. */
   proposalId?: number | null;
+  /**
+   * Opened by "המשך" on marked messages: the system speaks first — a smart
+   * summary of the piece — and then asks what was wrong (docs/WAHUB-CONTRACT-POLISH-1.md, ב).
+   */
+  summarize?: boolean;
   /** Once, after the server answered the first line typed. */
   onSent?: () => void;
 }
@@ -55,8 +60,8 @@ export const RefineContext = createContext<RefineValue>(NOWHERE);
 
 /**
  * Holds what "דיוק" is open on, for the whole section: the button at the top
- * of a conversation, a bubble's own shortcut and "לתקן" under a shadow reply
- * all open the same small chat. Outside the provider nothing opens, and the
+ * of a conversation, "לתקן" under a shadow reply and "דיוק" on a proposal all
+ * open the same small chat. Outside the provider nothing opens, and the
  * screens that would offer "דיוק" do not.
  */
 export function RefineProvider({ children }: { children: ReactNode }) {

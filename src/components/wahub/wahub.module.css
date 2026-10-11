@@ -578,32 +578,6 @@ button.kpi:active {
   color: #fff;
 }
 
-/* The two status chips beside the title: the state is in the dot and in a word. */
-.chipOk {
-  border-color: transparent;
-  background: var(--good-bg);
-  color: var(--good);
-}
-
-.chipWarn {
-  border-color: transparent;
-  background: var(--warn-bg);
-  color: var(--warn);
-}
-
-.chipBad {
-  border-color: transparent;
-  background: var(--bad-bg);
-  color: var(--bad);
-}
-
-.chipOk:hover,
-.chipWarn:hover,
-.chipBad:hover {
-  color: inherit;
-  filter: brightness(0.97);
-}
-
 /* ---------- segmented tabs ---------- */
 
 .seg {
@@ -3381,7 +3355,7 @@ textarea.field {
     gap: 0;
   }
 
-  /* One compact row: the title, the five tabs, the two status chips. It stays at the top of a tab that scrolls. */
+  /* One compact row: the title, "חי", the five tabs. It stays at the top of a tab that scrolls. */
   .wahub .head {
     position: sticky;
     top: 0;
@@ -3717,12 +3691,6 @@ textarea.field {
 }
 
 /* The title row is short of room (the menu beside the page is open, or the window is small): it draws itself in. */
-@container wahubhead (max-width: 1240px) {
-  .chipTitle {
-    display: none;
-  }
-}
-
 @container wahubhead (max-width: 1060px) {
   .nav button {
     padding: 0 11px;
@@ -3880,28 +3848,6 @@ textarea.field {
 
   .head .h1 {
     font-size: 18px;
-  }
-
-  /* The two status chips: the icon and the word only, so they share the title's row. */
-  .head .chipbtn {
-    height: 28px;
-    padding: 0 8px;
-    font-size: 11.5px;
-    gap: 4px;
-  }
-
-  .head .chipTitle,
-  .head .chipbtn svg:last-child {
-    display: none;
-  }
-
-  /* The chip's bubble: across the screen, under the title row. */
-  .head .pop {
-    position: fixed;
-    inset-inline: 12px;
-    top: 56px;
-    width: auto;
-    max-width: none;
   }
 
   /* ---- the tabs, as a bar at the bottom ---- */
@@ -4454,5 +4400,194 @@ textarea.field {
   .wahub.shell[data-chat-open] .nav,
   .wahub.shell[data-chat-open] .fab {
     display: none;
+  }
+}
+
+/* ---------- "דקויות עיצוב 1" (11.10.2026, docs/WAHUB-CONTRACT-POLISH-1.md) ----------
+ *
+ * The contact's card on a desktop can be put away and pulled wider or narrower
+ * (א); and the state of the system is a card of the settings rather than two
+ * chips beside the title (ג). The pieces of "דיוק" (ב) are in refine.module.css.
+ */
+
+/* --- the handle on the line between the conversation and the card --- */
+
+/* It lies on the card's own hairline and takes no room: nothing moves by a pixel because it is there. A finger
+   wide to take. Over the small chat of "דיוק" when it lies on the card (42), under the proposals panel (44). */
+.cardGrip {
+  position: relative;
+  z-index: 43;
+  flex: none;
+  width: 0;
+  cursor: col-resize;
+  touch-action: none;
+}
+
+.cardGrip::before {
+  content: '';
+  position: absolute;
+  inset-block: 0;
+  inset-inline: -5px;
+}
+
+/* Under the pointer, under the keyboard, and while it is pulled: the line shows itself, over the hairline. */
+.cardGrip::after {
+  content: '';
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: -1px;
+  inset-inline-end: -2px;
+  border-radius: 2px;
+  background: var(--navy);
+  opacity: 0;
+  transition: opacity 0.12s;
+}
+
+.cardGrip:hover::after {
+  opacity: 0.45;
+}
+
+/* The section's ring around a line this thin would be a bar; the line itself says where the keyboard is. */
+.wahub .cardGrip:focus-visible {
+  outline: none;
+}
+
+.cardGrip:focus-visible::after,
+.cardGripOn::after,
+.cardGripOn:hover::after {
+  opacity: 1;
+}
+
+/* --- "הסתר כרטיס", at the head of the card --- */
+
+/* In the card's top corner, on the line of the name — which keeps clear of it, so the phone under it has the
+   whole width. */
+.cardWhoHide {
+  position: relative;
+}
+
+.cardWhoHide .cardNameRow {
+  padding-inline-end: 30px;
+}
+
+.cardHide {
+  position: absolute;
+  top: 14px;
+  inset-inline-end: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 30px;
+  padding: 0 7px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.cardHide:hover {
+  background: var(--navy-soft);
+  color: var(--navy-ink);
+}
+
+.cardHide svg {
+  width: 17px;
+  height: 17px;
+  flex: none;
+}
+
+/* The words show where the card has room for them; the mark alone (with its name for a pointer and a reader) elsewhere. */
+.cardHide span {
+  display: none;
+}
+
+@container wahubcard (min-width: 376px) {
+  .cardHide span {
+    display: inline;
+  }
+
+  .cardWhoHide .cardNameRow {
+    padding-inline-end: 96px;
+  }
+}
+
+/*
+ * With the card beside the conversation, the floating "יש הצעות לעדכון הבוט" rests on the card's foot, which
+ * keeps clear of it. With the card put away it would lie on the writing box — so the foot of the conversation
+ * leaves it its corner (the button stands on the left of the screen, in a place of its own). Only while the
+ * button is on screen, and only on a desktop: nothing else puts the card away.
+ */
+@media (min-width: 1024px) {
+  .wahub:has(.fab) .chatFrame[data-card='hidden'] .pane > .composer:last-child,
+  .wahub:has(.fab) .chatFrame[data-card='hidden'] .pane > .demoBox:last-child,
+  .wahub:has(.fab) .chatFrame[data-card='hidden'] .pane > [role='toolbar'] {
+    padding-left: 272px;
+  }
+}
+
+/* A card pulled wide leaves the conversation as narrow as a phone's, and so does the corner kept for the
+   floating button: the last line of the demo box wraps there, instead of running on under the card. */
+@container demo (max-width: 470px) {
+  .demoBotLine {
+    flex-wrap: wrap;
+  }
+}
+
+/* --- "מצב המערכת": a title and a word a row; the details are a press away --- */
+
+.statusHead {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 46px;
+  padding: 6px 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+}
+
+.statusTitle {
+  flex: 1;
+  min-width: 0;
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--ink);
+}
+
+.statusHead:hover .statusTitle {
+  color: var(--navy-ink);
+}
+
+.statusValue {
+  flex: none;
+  max-width: 60%;
+  font-size: 12.5px;
+  line-height: 20px;
+  padding: 2px 10px;
+}
+
+.statusHead .foldChevron {
+  margin-inline-start: 0;
+}
+
+.statusBody {
+  padding: 0 0 12px;
+  animation: feedIn 0.22s var(--ease);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cardGrip::after {
+    transition: none;
+  }
+
+  .statusBody {
+    animation: none;
   }
 }

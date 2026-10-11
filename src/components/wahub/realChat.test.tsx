@@ -332,7 +332,7 @@ describe('a recording or a picture in a conversation', () => {
   it('a recording that was not transcribed says so', () => {
     const voice = makeMessage(51, { message_type: 'voice', text: '', media_url: 'demo/12/b.webm', has_media: true, transcript: '' });
     const html = bubble(voice, withMedia(51, SIGNED));
-    expect(html).toContain('הקלטה — לא תומללה');
+    expect(html).toContain('הקלטה — עוד לא תומללה');
     expect(html).not.toContain('תמלול:');
   });
 
@@ -375,7 +375,7 @@ describe('a recording or a picture in a conversation', () => {
     expect(html).toMatch(/<audio[^>]*controls=""/);
     expect(html).toContain(`src="${ogg}"`);
     expect(html).not.toContain(`>${ogg}<`);
-    expect(html).toContain('הקלטה — לא תומללה');
+    expect(html).toContain('הקלטה — עוד לא תומללה');
 
     const jpg = 'https://manybot-files.s3.eu-central-1.amazonaws.com/1234/wa/photo_2.jpg';
     const picture = bubble(makeMessage(57, { message_type: 'text', text: jpg }));
