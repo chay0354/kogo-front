@@ -18,6 +18,7 @@ import { formatWhatsAppLink } from '@/lib/customerUtils';
 import { isDemoContact, type DemoSender } from '@/lib/wahub/demo';
 import { agoText, displayName, formatClock, hasName, messageTypeLabel } from '@/lib/wahub/format';
 import { groupMessagesByDay, isOptimistic } from '@/lib/wahub/messages';
+import { phoneStatusLine } from '@/lib/wahub/screens';
 import type { WahubContactDetail, WahubMessage, WahubShadowReply } from '@/types/wahub';
 import type { ContactThread } from '../hooks/useContactThread';
 import { ContactAvatar, DemoTag, ErrorState, Skeleton, Spinner } from '../shared/bits';
@@ -180,6 +181,7 @@ function ThreadHeader({
   const human = contact.chat.handled_by === 'human';
   const whatsapp = formatWhatsAppLink(contact.phone);
   const phone = contact.phone_display || contact.phone;
+  const demo = isDemoContact(contact);
 
   return (
     <header className={s.threadHead}>
@@ -190,11 +192,13 @@ function ThreadHeader({
       )}
       <ContactAvatar contact={contact} />
       <div className="min-w-0 flex-1">
-        <p className="m-0 truncate text-[15px] font-extrabold" dir="auto">
-          {displayName(contact)}
-        </p>
-        <p className={cx(s.t2, 'm-0 flex flex-wrap items-center gap-x-2')}>
-          {isDemoContact(contact) && <DemoTag />}
+        {/* The name is a press away from the details; on a phone a short state line sits under it, as in a messaging app. */}
+        <button type="button" onClick={onDetails} title="פרטי איש הקשר" className={s.threadName}>
+          <span dir="auto">{displayName(contact)}</span>
+          <span className={s.threadStatus}>{phoneStatusLine(contact.chat, demo)}</span>
+        </button>
+        <p className={cx(s.t2, s.threadSub, 'm-0 flex flex-wrap items-center gap-x-2')}>
+          {demo && <DemoTag />}
           {hasName(contact) && (
             <span dir="ltr" className={cx(s.num, 'select-all')}>
               {phone}
@@ -216,28 +220,39 @@ function ThreadHeader({
       </div>
 
       <div className="flex shrink-0 flex-wrap items-center gap-2">
-        <span className={cx(s.pill, human ? s.handHuman : s.handBot)}>
+        <span className={cx(s.pill, s.deskOnly, human ? s.handHuman : s.handBot)}>
           {human ? <UserRound aria-hidden="true" /> : <Bot aria-hidden="true" />}
           {human ? 'בטיפול שלך' : contact.chat.handled_by_label || 'הבוט עונה'}
         </span>
         {human ? (
-          <button type="button" onClick={onRelease} disabled={handoverBusy} className={cx(s.btn, s.btnSm)}>
+          <button type="button" onClick={onRelease} disabled={handoverBusy} className={cx(s.btn, s.btnSm, s.deskOnly)}>
             {handoverBusy ? <Spinner className="h-3.5 w-3.5" /> : <Undo2 aria-hidden="true" />}
             החזר לבוט
           </button>
         ) : (
-          <button type="button" onClick={onTakeover} disabled={handoverBusy} className={cx(s.btn, s.btnSm, s.btnP)}>
+          <button type="button" onClick={onTakeover} disabled={handoverBusy} className={cx(s.btn, s.btnSm, s.btnP, s.deskOnly)}>
             {handoverBusy ? <Spinner className="h-3.5 w-3.5" /> : <Hand aria-hidden="true" />}
             קח שיחה
           </button>
         )}
+        {/* The phone keeps the same action as one icon at the end of the title row. */}
+        <button
+          type="button"
+          onClick={human ? onRelease : onTakeover}
+          disabled={handoverBusy}
+          aria-label={human ? 'החזר לבוט' : 'קח שיחה'}
+          title={human ? 'החזר לבוט' : 'קח שיחה'}
+          className={cx(s.ib, s.phoneIb, human ? s.ibGold : s.ibNavy)}
+        >
+          {handoverBusy ? <Spinner /> : human ? <Undo2 aria-hidden="true" /> : <Hand aria-hidden="true" />}
+        </button>
         {showDetailsButton && (
           <button
             type="button"
             onClick={onDetails}
             aria-label="פרטי איש הקשר"
             title="פרטי איש הקשר"
-            className={s.ib}
+            className={cx(s.ib, s.deskOnly)}
           >
             <Info aria-hidden="true" />
           </button>
@@ -366,6 +381,14 @@ export default function ChatThread({
   if (!contact) {
     return (
       <div className={cx(s.pane, 'flex-1')}>
+        {/* A screen that stands alone keeps its way back even before the conversation is here. */}
+        {showBack && (
+          <header className={s.threadHead}>
+            <button type="button" onClick={onBack} aria-label="חזרה לרשימת השיחות" className={s.ib}>
+              <ArrowRight aria-hidden="true" />
+            </button>
+          </header>
+        )}
         {status === 'error' ? (
           <ErrorState title="לא הצלחנו לטעון את השיחה" text={thread.error} onRetry={thread.retry} className="flex-1" />
         ) : (

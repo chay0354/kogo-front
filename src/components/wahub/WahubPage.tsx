@@ -4,15 +4,17 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import dynamic from 'next/dynamic';
 import { useSearchParams } from 'next/navigation';
 import { useQueryClient } from '@tanstack/react-query';
-import { Bot, CalendarDays, MessagesSquare, Settings, Users, WifiOff } from 'lucide-react';
-import { badgeText } from '@/lib/wahub/boxes';
+import { WifiOff } from 'lucide-react';
+import { menuBadgeCount } from '@/lib/wahub/boxes';
 import { buildWahubUrl, parseWahubUrl, type WahubUrlState } from '@/lib/wahub/params';
+import { conversationOpen } from '@/lib/wahub/screens';
 import type { WahubBotSub, WahubBox, WahubQueue, WahubTab } from '@/types/wahub';
 import ChatsTab from './chats/ChatsTab';
 import { useWahubLive } from './hooks/useWahubLive';
 import { useWahubStatus, wahubKeys } from './hooks/useWahubQueries';
 import { cx } from './shared/tones';
 import s from './wahub.module.css';
+import WahubNav from './WahubNav';
 import WahubStatusChips from './WahubStatusChips';
 
 function TabLoading() {
@@ -27,14 +29,6 @@ const SettingsTab = dynamic(() => import('./settings/SettingsTab'), { ssr: false
 const BotTab = dynamic(() => import('./bot/BotTab'), { ssr: false, loading: TabLoading });
 // The floating "יש הצעות לעדכון הבוט" button: part of the whole section, not of a tab.
 const ProposalsFab = dynamic(() => import('./bot/review/ProposalsFab'), { ssr: false });
-
-const TABS: Array<{ key: WahubTab; label: string; icon: typeof Users }> = [
-  { key: 'chats', label: 'שיחות', icon: MessagesSquare },
-  { key: 'today', label: 'היום', icon: CalendarDays },
-  { key: 'leads', label: 'לידים', icon: Users },
-  { key: 'bot', label: 'הבוט', icon: Bot },
-  { key: 'settings', label: 'הגדרות', icon: Settings },
-];
 
 /**
  * The "וואטסאפ ולידים" section.
@@ -154,8 +148,10 @@ export default function WahubPage() {
     if (boxes) void queryClient.invalidateQueries({ queryKey: wahubKeys.summary });
   }, [boxes, queryClient]);
 
-  const waitingForPerson = boxes ? (boxes.waiting ?? 0) + (boxes.needs_human ?? 0) : 0;
   const onChats = url.tab === 'chats';
+  // On a phone an open conversation takes the whole screen: the title row, the
+  // bottom bar and the floating button step aside (the stylesheet reads this mark).
+  const chatOpen = conversationOpen(url);
 
   // The section paints its own ground, edge to edge of the page area: the
   // negative margins undo the shell's padding and the padding puts it back, so
@@ -166,14 +162,17 @@ export default function WahubPage() {
     // The conversations tab fills the window like a messaging app; the other tabs scroll with the page.
     <div
       data-reveal-root
+      data-chat-open={chatOpen ? '' : undefined}
       className={cx(
         s.wahub,
+        s.shell,
+        onChats && s.tabChats,
         bleed,
         'flex flex-col gap-3',
         onChats ? 'h-[100dvh] min-h-[560px]' : 'min-h-[100dvh]',
       )}
     >
-      <header className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-2 max-lg:ps-12">
+      <header className={cx(s.head, 'flex shrink-0 flex-wrap items-center gap-x-3 gap-y-2 max-lg:ps-12')}>
         <h1 className={s.h1}>וואטסאפ ולידים</h1>
         {/* The pulsing dot of the sketch: shown once a poll has answered, and while they keep answering. */}
         {boxes !== null && !offline && (
@@ -193,33 +192,7 @@ export default function WahubPage() {
         </p>
       )}
 
-      <div role="tablist" aria-label="לשוניות" className={cx(s.seg, s.segLg, 'shrink-0 max-sm:!w-full')}>
-        {TABS.map((tab) => {
-          const active = url.tab === tab.key;
-          const Icon = tab.icon;
-          const badge = tab.key === 'chats' ? badgeText(waitingForPerson) : '';
-          return (
-            <button
-              key={tab.key}
-              type="button"
-              role="tab"
-              id={`wahub-tab-${tab.key}`}
-              aria-selected={active}
-              aria-controls={`wahub-panel-${tab.key}`}
-              onClick={() => openTab(tab.key)}
-              className={cx(active && s.on, 'max-sm:flex-1 max-sm:!px-2')}
-            >
-              <Icon aria-hidden="true" />
-              {tab.label}
-              {badge && (
-                <span className={cx(s.segBadge, s.num)} aria-label={`${waitingForPerson} מחכים לתשובה או מבקשים נציג`}>
-                  {badge}
-                </span>
-              )}
-            </button>
-          );
-        })}
-      </div>
+      <WahubNav active={url.tab} needsHuman={menuBadgeCount(boxes)} onSelect={openTab} />
 
       {(visited.has('chats') || onChats) && (
         <div
@@ -244,7 +217,7 @@ export default function WahubPage() {
       )}
 
       {url.tab === 'today' && (
-        <div role="tabpanel" id="wahub-panel-today" aria-labelledby="wahub-tab-today">
+        <div role="tabpanel" id="wahub-panel-today" aria-labelledby="wahub-tab-today" className={s.panel}>
           <TodayTab status={status.data} onGo={goTo} onOpenChat={openChat} />
         </div>
       )}
@@ -254,7 +227,7 @@ export default function WahubPage() {
           role="tabpanel"
           id="wahub-panel-bot"
           aria-labelledby="wahub-tab-bot"
-          className={url.tab === 'bot' ? '' : 'hidden'}
+          className={url.tab === 'bot' ? s.panel : 'hidden'}
         >
           <BotTab
             sub={botSub}
@@ -275,7 +248,7 @@ export default function WahubPage() {
           role="tabpanel"
           id="wahub-panel-leads"
           aria-labelledby="wahub-tab-leads"
-          className={url.tab === 'leads' ? '' : 'hidden'}
+          className={url.tab === 'leads' ? s.panel : 'hidden'}
         >
           <LeadsTab
             live={live}
@@ -289,7 +262,7 @@ export default function WahubPage() {
       )}
 
       {url.tab === 'settings' && (
-        <div role="tabpanel" id="wahub-panel-settings" aria-labelledby="wahub-tab-settings">
+        <div role="tabpanel" id="wahub-panel-settings" aria-labelledby="wahub-tab-settings" className={s.panel}>
           <SettingsTab
             status={status.data}
             statusLoading={status.isLoading}

@@ -168,8 +168,14 @@ export default function WahubStatusChips({
               className={cx(s.chipbtn, LEVEL_CHIP[chip.level])}
             >
               <Icon aria-hidden="true" />
-              <span>{chip.title}</span>
-              {chip.word && <span className="font-extrabold">· {chip.word}</span>}
+              {/* A phone keeps the icon and the word only (see the stylesheet). */}
+              <span className={s.chipTitle}>{chip.title}</span>
+              {chip.word && (
+                <span className="font-extrabold">
+                  <span className={s.chipTitle}>· </span>
+                  {chip.word}
+                </span>
+              )}
               <ChevronDown className={cx('transition-transform', isOpen && 'rotate-180')} aria-hidden="true" />
             </button>
           );

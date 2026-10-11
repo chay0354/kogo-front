@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Bot, FlaskConical, UserRound } from 'lucide-react';
+import { Bot, ChevronDown, FlaskConical, UserRound } from 'lucide-react';
 import { DEMO_SENDERS, type DemoSender } from '@/lib/wahub/demo';
 import type { WahubContact } from '@/types/wahub';
 import { Spinner } from '../shared/bits';
@@ -24,6 +24,8 @@ interface DemoComposerProps {
 export default function DemoComposer({ contact, busy, onSimulate }: DemoComposerProps) {
   const [texts, setTexts] = useState<Record<DemoSender, string>>({ customer: '', bot: '' });
   const [sending, setSending] = useState<DemoSender | null>(null);
+  // A phone folds the two boxes behind the "הדמיה" bar, so the messages keep their room; a desktop shows them always.
+  const [open, setOpen] = useState(false);
   const name = contact.name || contact.phone_display || contact.phone;
 
   async function send(sender: DemoSender) {
@@ -40,12 +42,23 @@ export default function DemoComposer({ contact, busy, onSimulate }: DemoComposer
 
   return (
     <section className={s.demoBox} aria-label="הדמיה: כתוב כלקוח או כבוט הישן">
-      <p className={cx(s.t1, 'm-0 flex items-center gap-1.5')}>
-        <FlaskConical className="h-4 w-4" aria-hidden="true" />
-        הדמיה · {name} הוא לקוח דמו
-        <span className={cx(s.t2, 'font-medium')}>— מה שנכתב כאן נכנס לשיחה הזו בלבד; שום דבר לא נשלח בוואטסאפ.</span>
-      </p>
-      <div className={s.pair}>
+      <div className="flex items-center gap-1.5">
+        <p className={cx(s.t1, 'm-0 flex min-w-0 flex-1 flex-wrap items-center gap-1.5')}>
+          <FlaskConical className="h-4 w-4 shrink-0" aria-hidden="true" />
+          <span className="truncate">הדמיה · {name} הוא לקוח דמו</span>
+          <span className={cx(s.t2, s.demoHint, 'font-medium')}>— מה שנכתב כאן נכנס לשיחה הזו בלבד; שום דבר לא נשלח בוואטסאפ.</span>
+        </p>
+        <button
+          type="button"
+          onClick={() => setOpen((value) => !value)}
+          aria-expanded={open}
+          aria-label={open ? 'קפל את ההדמיה' : 'פתח את ההדמיה'}
+          className={cx(s.ib, s.ibSm, s.demoToggle)}
+        >
+          <ChevronDown className={cx('transition-transform', open && 'rotate-180')} aria-hidden="true" />
+        </button>
+      </div>
+      <div className={cx(s.pair, !open && s.demoFolded)}>
         {DEMO_SENDERS.map((def) => {
           const Icon = def.key === 'customer' ? UserRound : Bot;
           const value = texts[def.key];

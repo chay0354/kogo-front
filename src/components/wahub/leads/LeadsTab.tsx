@@ -239,7 +239,8 @@ export default function LeadsTab({ live, queue, status, onQueue, onOpenChat, onO
 
   return (
     <div className={cx(s.pg, 'flex flex-col gap-3.5')}>
-      <section className="grid grid-cols-2 gap-3 sm:grid-cols-4 2xl:grid-cols-8" aria-label="תורי עבודה">
+      {/* A phone (under 768px) keeps the eight in two columns: one column would push the leads a screen down. */}
+      <section className="grid grid-cols-2 gap-3 sm:grid-cols-4 2xl:grid-cols-8 max-md:!grid-cols-2" aria-label="תורי עבודה">
         {LEAD_QUEUES.map((def) => {
           const active = queue === def.key;
           const count = queueCount(queueCounts, def.key);
@@ -288,7 +289,7 @@ export default function LeadsTab({ live, queue, status, onQueue, onOpenChat, onO
             ליד חדש
           </button>
         </div>
-        <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-5">
+        <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-5 max-md:!grid-cols-1">
           <FilterSelect
             label="כל הנושאים"
             value={filters.topic}
