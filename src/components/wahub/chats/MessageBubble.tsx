@@ -8,7 +8,9 @@ import { MEDIA_WORDS, type ExternalMediaKind } from '@/lib/wahub/media';
 import { bubbleMedia, bubbleText, isNewBotMessage, MEDIA_PLACEHOLDER } from '@/lib/wahub/messages';
 import type { WahubMessage } from '@/types/wahub';
 import { useMessageMedia } from '../hooks/useWahubQueries';
+import m from '../motion.module.css';
 import { Skeleton, Spinner } from '../shared/bits';
+import { ThinkingDots } from '../shared/motion';
 import { cx } from '../shared/tones';
 import s from '../wahub.module.css';
 
@@ -202,7 +204,8 @@ const MessageBubble = memo(function MessageBubble({ message, arrived }: { messag
   const simulated = message.status === 'simulated' && !newBot;
 
   return (
-    <div className={cx(s.bubbleRow, mine && s.bubbleRowOut, arrived && s.feedinUp)}>
+    // A message that just arrived pops from its own side: the customer's from the right, an answer from the left.
+    <div className={cx(s.bubbleRow, mine && s.bubbleRowOut, arrived && (mine ? m.messageOut : m.messageIn))}>
       <div className={s.bubbleCol}>
         <div className={cx(s.bubble, bubbleTone(message), sending && s.bSending)}>
           {(who || typeLabel || simulated) && (
@@ -263,17 +266,16 @@ export default MessageBubble;
 /** "הבוט כותב…" — three dots in the new bot's own bubble, at the end of the conversation while its answer is on its way. */
 export function TypingBubble() {
   return (
-    <div className={cx(s.bubbleRow, s.bubbleRowOut)} role="status" aria-label="הבוט החדש כותב">
+    <div className={cx(s.bubbleRow, s.bubbleRowOut, m.messageOut)} role="status" aria-label="הבוט החדש כותב">
       <div className={s.bubbleCol}>
         <div className={cx(s.bubble, s.bNewBot)}>
           <p className={s.bubbleMeta}>
             <span className={s.newBotMark}>בוט חדש</span>
             <span>· כותב…</span>
           </p>
+          {/* The same three dots wherever the section waits for the bot (shared/motion.tsx). */}
           <p className={s.typing} aria-hidden="true">
-            <i />
-            <i />
-            <i />
+            <ThinkingDots className={s.newBotMark} />
           </p>
         </div>
       </div>

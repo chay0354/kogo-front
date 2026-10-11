@@ -4,6 +4,8 @@ import type { ReactNode } from 'react';
 import { ChevronDown, Plus } from 'lucide-react';
 import type { KnowledgeGroup } from '@/lib/wahub/bot';
 import type { WahubKnowledgeItem, WahubKnowledgeKind } from '@/types/wahub';
+import m from '../../motion.module.css';
+import { Fold } from '../../shared/motion';
 import { cx } from '../../shared/tones';
 import s from '../../wahub.module.css';
 import { ItemPills } from './KnowledgeCard';
@@ -68,7 +70,7 @@ function ItemRow({
  */
 export default function KnowledgeList({ groups, openId, today, now, onOpen, onAdd, renderOpen }: KnowledgeListProps) {
   return (
-    <div className="flex flex-col gap-3.5">
+    <div className={cx(m.stagger, 'flex flex-col gap-3.5')}>
       {groups.map((group) => (
         <section key={group.kind} className={cx(s.card, s.cardFlush)} aria-label={group.label}>
           <div className={s.kindHead}>
@@ -92,7 +94,10 @@ export default function KnowledgeList({ groups, openId, today, now, onOpen, onAd
                 return (
                   <li key={item.id}>
                     <ItemRow item={item} open={open} today={today} now={now} onToggle={() => onOpen(open ? null : item.id)} />
-                    {open && <div id={`wahub-knowledge-body-${item.id}`}>{renderOpen(item)}</div>}
+                    {/* The item opens by growing, and closes the same way. */}
+                    <Fold open={open} id={`wahub-knowledge-body-${item.id}`}>
+                      {renderOpen(item)}
+                    </Fold>
                   </li>
                 );
               })}

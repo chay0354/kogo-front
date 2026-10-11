@@ -13,6 +13,7 @@ import {
 } from '@/lib/wahub/systemStatus';
 import type { WahubStatus } from '@/types/wahub';
 import { useNow } from '../hooks/useNow';
+import { Fold } from '../shared/motion';
 import { cx } from '../shared/tones';
 import s from '../wahub.module.css';
 
@@ -212,11 +213,9 @@ function StatusRow({
         </span>
         <ChevronDown className={s.foldChevron} aria-hidden="true" />
       </button>
-      {open && (
-        <div id={panelId} className={s.statusBody}>
-          <ul className="m-0 flex list-none flex-col gap-1.5 p-0">{children}</ul>
-        </div>
-      )}
+      <Fold open={open} id={panelId} innerClassName={s.statusBody}>
+        <ul className="m-0 flex list-none flex-col gap-1.5 p-0">{children}</ul>
+      </Fold>
     </li>
   );
 }

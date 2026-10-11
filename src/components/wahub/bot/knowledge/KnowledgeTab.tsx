@@ -257,7 +257,7 @@ export default function KnowledgeTab({ openItemId, onOpenItem, onTryQuestion }: 
       )}
 
       {adding && (
-        <section className={s.card} aria-label="רשומה חדשה">
+        <section className={cx(s.card, s.feedin)} aria-label="רשומה חדשה">
           <h3 className="mb-3 text-[15px] font-extrabold">רשומה חדשה: {kindDef(adding.kind).label}</h3>
           <KnowledgeEditor kind={adding.kind} preset={adding.preset} saving={saving} onSave={(body) => void save(body, null)} onCancel={() => setAdding(null)} />
         </section>

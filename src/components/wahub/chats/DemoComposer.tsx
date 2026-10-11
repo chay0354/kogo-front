@@ -15,6 +15,7 @@ import {
 import type { WahubContact } from '@/types/wahub';
 import { useVoiceRecorder, type Recording } from '../hooks/useVoiceRecorder';
 import { Spinner } from '../shared/bits';
+import { ThinkingDots } from '../shared/motion';
 import { cx } from '../shared/tones';
 import s from '../wahub.module.css';
 
@@ -209,6 +210,8 @@ export function BotLine({
       </button>
       {/* On a phone the "כותב…" bubble in the conversation says it; here there is room for the words too. */}
       <span role="status" className={cx(s.demoBotState, s.deskOnly)}>
+        {/* The bot is seen thinking here too, beside the words. */}
+        {reply.inFlight && <ThinkingDots />}
         {state}
       </span>
       <span className="flex-1" />

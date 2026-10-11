@@ -11,6 +11,7 @@ import { useNow } from '../../hooks/useNow';
 import { useRefine } from '../../refine/RefineContext';
 import { EmptyState, ErrorState, Skeleton, Spinner } from '../../shared/bits';
 import { NUMBER_TONE, cx } from '../../shared/tones';
+import m from '../../motion.module.css';
 import s from '../../wahub.module.css';
 import ShadowReplyCard from './ShadowReplyCard';
 import { useVerdict } from './useVerdict';
@@ -135,7 +136,7 @@ export default function ShadowTab({ status, onOpenChat, onOpenItem }: ShadowTabP
           />
         </div>
       ) : (
-        <section className="flex flex-col gap-3.5" aria-label="הצעות">
+        <section className={cx(m.stagger, 'flex flex-col gap-3.5')} aria-label="הצעות">
           {replies.map((reply) => (
             <ShadowReplyCard
               key={reply.id}

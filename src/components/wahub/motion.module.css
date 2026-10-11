@@ -1,0 +1,386 @@
+/*
+ * The motion of the "וואטסאפ ולידים" section — one layer for all of it.
+ *
+ * The owner asked for a section that feels alive: a press answers at once, the
+ * bot is seen thinking, what arrives comes in rather than appearing, a screen
+ * opens by sliding, a copy turns into a tick, a new message pops from its side.
+ * And he asked for it to be the same everywhere.
+ *
+ * So the timing is written once, here: four lengths and four curves, set on the
+ * section's wrapper (.motion) and read by every rule of the section — the ones
+ * below, and the ones in wahub.module.css and refine.module.css, which only
+ * name these variables. The helper classes below are the moves themselves; a
+ * component takes one by name.
+ *
+ * The rules:
+ *   - only `transform` and `opacity` move (the one exception is a section that
+ *     opens: its row grows, by the grid trick, so nothing under it jumps);
+ *   - 120–280ms, never longer, and never in the way of a press or of typing —
+ *     an entrance fills backwards only, so it leaves nothing on the element;
+ *   - nothing loops except "thinking" and a shape that waits for data;
+ *   - "reduce motion" on the device turns all of it off (the last block).
+ */
+
+.motion {
+  /* A press. */
+  --m-press: 120ms;
+  /* Something small: a tick, a chip, a bubble. */
+  --m-fast: 160ms;
+  /* Content coming in; a section opening. */
+  --m-base: 220ms;
+  /* A whole screen, a drawer. */
+  --m-slow: 280ms;
+
+  /* Arriving: quick, then settling. */
+  --m-out: cubic-bezier(0.22, 1, 0.36, 1);
+  /* Leaving: gathering speed. */
+  --m-in: cubic-bezier(0.4, 0, 1, 1);
+  /* Sliding across: a drawer, a screen (the sketch's own curve). */
+  --m-move: cubic-bezier(0.32, 0.72, 0, 1);
+  /* A small overshoot: a tick, a message. */
+  --m-spring: cubic-bezier(0.34, 1.45, 0.64, 1);
+
+  /* How far content rises as it comes in, and how far a screen slides. */
+  --m-rise: 8px;
+  --m-slide: 18px;
+  /* The gap between one row of a list and the next. */
+  --m-step: 35ms;
+  /* The page reads right to left: going "forward" brings the next screen in from the left. */
+  --m-forward: -1;
+}
+
+/* ---------- a press answers at once ---------- */
+
+.press {
+  transition: transform var(--m-press) var(--m-out);
+}
+
+.press:active {
+  transform: scale(0.97);
+}
+
+.press:disabled:active,
+.press[aria-disabled='true']:active {
+  transform: none;
+}
+
+/* ---------- content comes in: a fade and a small rise ---------- */
+
+@keyframes mRise {
+  from {
+    opacity: 0;
+    transform: translateY(var(--m-rise));
+  }
+}
+
+@keyframes mDrop {
+  from {
+    opacity: 0;
+    transform: translateY(calc(var(--m-rise) * -1));
+  }
+}
+
+@keyframes mFade {
+  from {
+    opacity: 0;
+  }
+}
+
+.rise {
+  animation: mRise var(--m-base) var(--m-out) backwards;
+}
+
+/* From above: a row that just arrived at the head of a list. */
+.drop {
+  animation: mDrop var(--m-slow) var(--m-out) backwards;
+}
+
+.fade {
+  animation: mFade var(--m-base) ease-out backwards;
+}
+
+/*
+ * A list comes in a row at a time — the first eight, a step apart; the rest
+ * are below the fold and simply there. Written with :where, so a row with a
+ * move of its own (one that just arrived) keeps it.
+ */
+:where(.stagger) > * {
+  animation: mRise var(--m-base) var(--m-out) backwards;
+}
+
+:where(.stagger) > :nth-child(2) {
+  animation-delay: calc(var(--m-step) * 1);
+}
+
+:where(.stagger) > :nth-child(3) {
+  animation-delay: calc(var(--m-step) * 2);
+}
+
+:where(.stagger) > :nth-child(4) {
+  animation-delay: calc(var(--m-step) * 3);
+}
+
+:where(.stagger) > :nth-child(5) {
+  animation-delay: calc(var(--m-step) * 4);
+}
+
+:where(.stagger) > :nth-child(6) {
+  animation-delay: calc(var(--m-step) * 5);
+}
+
+:where(.stagger) > :nth-child(7) {
+  animation-delay: calc(var(--m-step) * 6);
+}
+
+:where(.stagger) > :nth-child(8) {
+  animation-delay: calc(var(--m-step) * 7);
+}
+
+:where(.stagger) > :nth-child(n + 9) {
+  animation: none;
+}
+
+/* ---------- a screen: it slides in from the side it comes from ---------- */
+
+@keyframes mForward {
+  from {
+    opacity: 0;
+    transform: translateX(calc(var(--m-slide) * var(--m-forward)));
+  }
+}
+
+@keyframes mBack {
+  from {
+    opacity: 0;
+    transform: translateX(calc(var(--m-slide) * var(--m-forward) * -1));
+  }
+}
+
+/*
+ * A tab of the section. The wrapper says which way the move went (a later tab
+ * is "forward"); a tab that was kept in the page plays again each time it is
+ * shown, because showing it is what starts an animation.
+ */
+.motion[data-tab-nav='forward'] .screen {
+  animation: mForward var(--m-base) var(--m-out) backwards;
+}
+
+.motion[data-tab-nav='back'] .screen {
+  animation: mBack var(--m-base) var(--m-out) backwards;
+}
+
+/* The same two moves by name, for a part of a tab that changes — the bot's sub-tabs. */
+.forward {
+  animation: mForward var(--m-base) var(--m-out) backwards;
+}
+
+.back {
+  animation: mBack var(--m-base) var(--m-out) backwards;
+}
+
+/* The conversations fill the window, column beside column: they come in without a slide. */
+.screenFade {
+  animation: mFade var(--m-base) ease-out backwards;
+}
+
+/* A phone shows one of the three at a time — the list, the conversation, the details — and goes between them like pages. */
+@media (max-width: 767px) {
+  [data-nav='forward'] > .page {
+    animation: mForward var(--m-slow) var(--m-out) backwards;
+  }
+
+  [data-nav='back'] > .page {
+    animation: mBack var(--m-slow) var(--m-out) backwards;
+  }
+}
+
+/* A desktop's card, brought back beside the conversation: from its own side — the left. */
+@media (min-width: 1024px) {
+  .cardIn {
+    animation: mForward var(--m-base) var(--m-out) backwards;
+  }
+}
+
+/* ---------- a section that opens and closes: its height grows, nothing jumps ---------- */
+
+.fold {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows var(--m-base) var(--m-out);
+}
+
+.fold[data-open] {
+  grid-template-rows: 1fr;
+}
+
+/* What is inside: out of the way of the keyboard and of a reader until it is open. */
+.foldInner {
+  min-height: 0;
+  overflow: hidden;
+  opacity: 0;
+  visibility: hidden;
+  transition:
+    opacity var(--m-fast) ease-out,
+    visibility 0s linear var(--m-base);
+}
+
+.fold[data-open] > .foldInner {
+  opacity: 1;
+  visibility: visible;
+  transition:
+    opacity var(--m-base) ease-out,
+    visibility 0s;
+}
+
+/* Fully open, the content is itself again: a menu inside it may reach past the edge. */
+.fold[data-open][data-settled] > .foldInner {
+  overflow: visible;
+}
+
+/* ---------- a bubble, a menu: it grows out of where it was pressed ---------- */
+
+@keyframes mPop {
+  from {
+    opacity: 0;
+    transform: scale(0.94);
+  }
+}
+
+.pop {
+  animation: mPop var(--m-fast) var(--m-out) backwards;
+}
+
+/* ---------- a new message pops from its own side ---------- */
+
+@keyframes mMessage {
+  from {
+    opacity: 0;
+    transform: scale(0.84) translateY(8px);
+  }
+}
+
+/* The customer writes from the right of the screen… */
+.messageIn {
+  transform-origin: 100% 100%;
+  animation: mMessage var(--m-slow) var(--m-spring) backwards;
+}
+
+/* …and the bot and the office answer from the left. */
+.messageOut {
+  transform-origin: 0 100%;
+  animation: mMessage var(--m-slow) var(--m-spring) backwards;
+}
+
+/* ---------- "thinking": three dots, as in WhatsApp ---------- */
+
+.thinking {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 1px;
+  vertical-align: middle;
+}
+
+.thinking i {
+  display: block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0.35;
+  animation: mThinking 1.2s infinite ease-in-out;
+}
+
+.thinking i:nth-child(2) {
+  animation-delay: 0.14s;
+}
+
+.thinking i:nth-child(3) {
+  animation-delay: 0.28s;
+}
+
+@keyframes mThinking {
+  0%,
+  60%,
+  100% {
+    opacity: 0.35;
+    transform: translateY(0);
+  }
+  30% {
+    opacity: 1;
+    transform: translateY(-4px);
+  }
+}
+
+/* The bubble the dots sit in while an answer is on its way: it comes in like a message, from the answering side. */
+.thinkingBubble {
+  transform-origin: 0 100%;
+  animation: mMessage var(--m-base) var(--m-spring) backwards;
+}
+
+/* ---------- a tick: a copy that worked, something saved ---------- */
+
+@keyframes mTick {
+  from {
+    opacity: 0;
+    transform: scale(0.4) rotate(-20deg);
+  }
+}
+
+.tick {
+  animation: mTick var(--m-base) var(--m-spring) backwards;
+}
+
+/* A small word of success beside what was done: it comes in, and leaves by itself. */
+@keyframes mSaved {
+  0% {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  12%,
+  80% {
+    opacity: 1;
+    transform: none;
+  }
+  100% {
+    opacity: 0;
+    transform: none;
+  }
+}
+
+.saved {
+  animation: mSaved 1.8s var(--m-out) both;
+}
+
+/* ---------- something leaving: a panel that was closed ---------- */
+
+@keyframes mFadeOut {
+  to {
+    opacity: 0;
+  }
+}
+
+.fadeOut {
+  animation: mFadeOut var(--m-fast) var(--m-in) forwards;
+  pointer-events: none;
+}
+
+/* ---------- "reduce motion": all of it off ---------- */
+
+@media (prefers-reduced-motion: reduce) {
+  .motion,
+  .motion *,
+  .motion *::before,
+  .motion *::after {
+    animation-duration: 0.01ms !important;
+    animation-delay: 0s !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    transition-delay: 0s !important;
+    scroll-behavior: auto !important;
+  }
+
+  .press:active {
+    transform: none;
+  }
+}

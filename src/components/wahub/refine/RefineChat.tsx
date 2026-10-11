@@ -22,6 +22,7 @@ import type { WahubRefineSummary, WahubRefineThread } from '@/types/wahubRefine'
 import { useNow } from '../hooks/useNow';
 import { Spinner } from '../shared/bits';
 import { RowsSkeleton } from '../shared/loading';
+import { ThinkingDots } from '../shared/motion';
 import { cx } from '../shared/tones';
 import s from '../wahub.module.css';
 import ChangeCard from './ChangeCard';
@@ -333,11 +334,7 @@ export function RefineChatView({
             {waiting && (
               <div className={cx(r.turn, r.turnSys)} role="status">
                 <p className="flex items-center gap-2">
-                  <span className={r.dots} aria-hidden="true">
-                    <i />
-                    <i />
-                    <i />
-                  </span>
+                  <ThinkingDots className={s.navyInk} />
                   {state.phase === 'summarizing' ? REFINE_TEXT.summarizing : REFINE_TEXT.thinking}
                 </p>
               </div>

@@ -16,7 +16,9 @@ import type { WahubBox, WahubContact, WahubQueue, WahubStatus, WahubTab } from '
 import { useNow } from './hooks/useNow';
 import { useWahubSummary } from './hooks/useWahubQueries';
 import { ContactAvatar, EmptyState, ErrorState, Skeleton } from './shared/bits';
+import m from './motion.module.css';
 import { AreaError, RefreshNote, RowsSkeleton, TilesSkeleton } from './shared/loading';
+import { CountUp } from './shared/motion';
 import { NUMBER_TONE, cx } from './shared/tones';
 import LeadActCard, { LeadActSkeleton } from './today/LeadActCard';
 import UnregisteredCard from './today/UnregisteredCard';
@@ -67,9 +69,8 @@ function Tile({
   return (
     <button type="button" onClick={onClick} className={cx(s.card, s.kpi)}>
       <span className={s.kpiLabel}>{label}</span>
-      <span className={cx(s.kpiValue, s.num, value ? NUMBER_TONE[tone] : '')}>
-        {value === null ? '–' : value.toLocaleString('he-IL')}
-      </span>
+      {/* The figure counts up to itself the first time the day is shown. */}
+      <span className={cx(s.kpiValue, s.num, value ? NUMBER_TONE[tone] : '')}>{value === null ? '–' : <CountUp value={value} once={`today:${label}`} />}</span>
       {note && <span className={cx(s.kpiNote, s.warnText)}>{note}</span>}
       <span aria-hidden="true" className={s.kpiIcon}>
         {icon}
@@ -194,7 +195,7 @@ export default function TodayTab({ status, onGo, onOpenChat }: TodayTabProps) {
         </>
       ) : (
         <>
-          <section className={s.tiles} aria-label="מה מחכה עכשיו">
+          <section className={cx(s.tiles, m.stagger)} aria-label="מה מחכה עכשיו">
             <Tile
               label="מחכים לתשובה"
               value={data.waiting}

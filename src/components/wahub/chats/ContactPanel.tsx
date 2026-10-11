@@ -11,6 +11,7 @@ import type { WahubContactDetail, WahubFollowupPatch, WahubTag } from '@/types/w
 import { LeadStateBlock } from '../leads/LeadBits';
 import { ContactAvatar, DemoTag, LiveTestTag, Pill, Spinner } from '../shared/bits';
 import { EventsList, FollowupMarks, KnownBox, KogoBox, NoteField, TagPicker } from '../shared/ContactParts';
+import { Fold } from '../shared/motion';
 import { cx } from '../shared/tones';
 import s from '../wahub.module.css';
 import { ContactStatusList } from './ContactStatusBlock';
@@ -193,11 +194,10 @@ function CardFoldSection({
           <ChevronDown className={s.foldChevron} aria-hidden="true" />
         </button>
       </h4>
-      {open && (
-        <div id={panelId} className={s.foldBody}>
-          {children}
-        </div>
-      )}
+      {/* It opens by growing, and closes the same way: what is under it slides, it does not jump. */}
+      <Fold open={open} id={panelId} innerClassName={s.foldBody}>
+        {children}
+      </Fold>
     </section>
   );
 }

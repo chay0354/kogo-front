@@ -10,6 +10,7 @@ import { useNow } from '../../hooks/useNow';
 import AutoAppliedSection, { useProposalRefine, useProposalUndo } from '../../refine/AutoApplied';
 import { EmptyState, ErrorState, Skeleton } from '../../shared/bits';
 import { NUMBER_TONE, cx } from '../../shared/tones';
+import m from '../../motion.module.css';
 import s from '../../wahub.module.css';
 import ProposalCard from './ProposalCard';
 import { useProposalDecision } from './useProposalDecision';
@@ -130,7 +131,7 @@ export default function ReviewTab({ onOpenChat, onOpenItem }: ReviewTabProps) {
           />
         </div>
       ) : (
-        <section className="flex flex-col gap-3.5" aria-label="הצעות">
+        <section className={cx(m.stagger, 'flex flex-col gap-3.5')} aria-label="הצעות">
           {list.map((proposal) => (
             <ProposalCard
               key={proposal.id}

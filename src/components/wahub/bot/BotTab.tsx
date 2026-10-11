@@ -2,6 +2,7 @@
 
 import { BOT_SUBS } from '@/lib/wahub/bot';
 import type { WahubBotSub, WahubStatus } from '@/types/wahub';
+import { useSlideClass } from '../shared/motion';
 import { cx } from '../shared/tones';
 import s from '../wahub.module.css';
 import DemoTab from './demo/DemoTab';
@@ -32,6 +33,8 @@ interface BotTabProps {
  */
 export default function BotTab({ sub, status, openItemId, tryQuestion, onSub, onOpenItem, onTryQuestion, onOpenChat, onDemoChanged }: BotTabProps) {
   const openItem = (id: number) => onOpenItem(id);
+  // A sub-tab comes in from the side it lies on: a later one from the left, an earlier one from the right.
+  const slide = useSlideClass(BOT_SUBS.findIndex((def) => def.key === sub));
   return (
     <div className={cx(s.pg, 'flex flex-col gap-3.5')}>
       {/* A phone turns these into a row of chips that scrolls sideways (see the stylesheet). */}
@@ -56,7 +59,7 @@ export default function BotTab({ sub, status, openItemId, tryQuestion, onSub, on
         })}
       </div>
 
-      <div role="tabpanel" id={`wahub-bot-panel-${sub}`} aria-labelledby={`wahub-bot-tab-${sub}`}>
+      <div key={sub} role="tabpanel" id={`wahub-bot-panel-${sub}`} aria-labelledby={`wahub-bot-tab-${sub}`} className={slide}>
         {sub === 'knowledge' && <KnowledgeTab openItemId={openItemId} onOpenItem={onOpenItem} onTryQuestion={onTryQuestion} />}
         {sub === 'hours' && <HoursTab />}
         {sub === 'try' && <TryTab status={status} initialQuestion={tryQuestion} onOpenItem={openItem} />}

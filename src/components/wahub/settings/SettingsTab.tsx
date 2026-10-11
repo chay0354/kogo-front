@@ -2,7 +2,7 @@
 
 import { useState, type ReactNode } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Check, Copy, KeyRound, MessageSquareText, Pencil, Plug, Plus, Radio, Tags, Trash2 } from 'lucide-react';
+import { Copy, KeyRound, MessageSquareText, Pencil, Plug, Plus, Radio, Tags, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { readableError } from '@/lib/apiError';
 import {
@@ -23,6 +23,7 @@ import { useLiveTestContacts, useWahubQuickReplies, useWahubTags, wahubKeys } fr
 import AutoApplySection from '../refine/AutoApplySwitch';
 import { EmptyState, ErrorState, InlineConfirm, LiveTestTag, Skeleton, Spinner, TagChip } from '../shared/bits';
 import { ColorDots, TAG_COLORS } from '../shared/ContactParts';
+import { Tick } from '../shared/motion';
 import { cx } from '../shared/tones';
 import s from '../wahub.module.css';
 import SystemStatusCard from './SystemStatusCard';
@@ -71,14 +72,15 @@ function CopyButton({ text, label }: { text: string; label: string }) {
       onClick={async () => {
         if (await copyText(text)) {
           setCopied(true);
-          window.setTimeout(() => setCopied(false), 2000);
+          // The mark turns into a tick for a moment, and back.
+          window.setTimeout(() => setCopied(false), 1400);
         } else {
           toast.error('ההעתקה לא הצליחה. סמנו את הטקסט והעתיקו ביד.');
         }
       }}
       className={s.btn}
     >
-      {copied ? <Check className={s.goodText} aria-hidden="true" /> : <Copy aria-hidden="true" />}
+      {copied ? <Tick className={s.goodText} /> : <Copy aria-hidden="true" />}
       {copied ? 'הועתק' : label}
     </button>
   );

@@ -21,7 +21,17 @@
   user-select: none;
   -webkit-user-select: none;
   -webkit-tap-highlight-color: transparent;
-  transition: background 0.12s;
+  transition:
+    background-color var(--m-press),
+    transform var(--m-press) var(--m-out);
+}
+
+.pick:active {
+  transform: scale(0.99);
+}
+
+.pickOff:active {
+  transform: none;
 }
 
 .pick:hover {
@@ -61,13 +71,25 @@
   justify-content: center;
   flex: none;
   transition:
-    background 0.12s,
-    border-color 0.12s;
+    background-color var(--m-press),
+    border-color var(--m-press),
+    transform var(--m-fast) var(--m-spring);
 }
 
 .check svg {
   width: 14px;
   height: 14px;
+}
+
+/* The mark that was just made pops. */
+.checkOn {
+  animation: checkPop var(--m-base) var(--m-spring) backwards;
+}
+
+@keyframes checkPop {
+  from {
+    transform: scale(0.6);
+  }
 }
 
 .checkOn {
@@ -95,7 +117,7 @@
   padding: 10px 14px;
   border-top: 1px solid var(--line-2);
   background: var(--surface);
-  animation: refineUp 0.25s var(--ease);
+  animation: refineUp var(--m-base) var(--m-out) backwards;
 }
 
 /* The writing boxes step aside while marking. Hidden, not removed: what was typed in them is still there afterwards. */
@@ -122,10 +144,6 @@
     opacity: 0;
     transform: translateY(8px);
   }
-  to {
-    opacity: 1;
-    transform: none;
-  }
 }
 
 /* ---------- the small chat: a drawer at the side of a desktop, the whole screen of a phone ---------- */
@@ -144,15 +162,12 @@
   display: flex;
   flex-direction: column;
   direction: rtl;
-  animation: refineIn 0.3s var(--ease);
+  animation: refineIn var(--m-slow) var(--m-move) backwards;
 }
 
 @keyframes refineIn {
   from {
     transform: translateX(-100%);
-  }
-  to {
-    transform: none;
   }
 }
 
@@ -183,15 +198,14 @@
   border: 0;
   box-shadow: none;
   pointer-events: auto;
-  animation: refineFade 0.2s var(--ease);
+  /* Over the card: it comes in from the card's own side, the left. */
+  animation: refineDock var(--m-base) var(--m-out) backwards;
 }
 
-@keyframes refineFade {
+@keyframes refineDock {
   from {
     opacity: 0;
-  }
-  to {
-    opacity: 1;
+    transform: translateX(-14px);
   }
 }
 
@@ -283,7 +297,13 @@
 
 /* The arrow at the end turns when the piece is open. */
 .fold > summary > svg:last-child {
-  transition: transform 0.2s var(--ease);
+  transition: transform var(--m-base) var(--m-out);
+}
+
+/* What it holds comes in as it opens. */
+.fold[open] > .foldBody,
+.more[open] > .moreBody {
+  animation: refineUp var(--m-base) var(--m-out) backwards;
 }
 
 .fold[open] > summary > svg:last-child {
@@ -371,6 +391,13 @@
   color: var(--ink);
   font: inherit;
   text-align: start;
+  transition:
+    background-color var(--m-press),
+    transform var(--m-press) var(--m-out);
+}
+
+.threadRow:active {
+  transform: scale(0.985);
 }
 
 .threadRow:hover {
@@ -412,6 +439,18 @@
   overflow-wrap: anywhere;
 }
 
+/* A turn of the chat pops from the side of whoever said it — as a message does in a conversation. */
+.turn {
+  animation: turnIn var(--m-base) var(--m-spring) backwards;
+}
+
+@keyframes turnIn {
+  from {
+    opacity: 0;
+    transform: scale(0.9) translateY(6px);
+  }
+}
+
 .turn p {
   margin: 0;
 }
@@ -421,6 +460,7 @@
   background: var(--navy);
   color: #fff;
   border-end-end-radius: 4px;
+  transform-origin: 0 100%;
 }
 
 .turnPending {
@@ -432,6 +472,7 @@
   background: var(--surface);
   border: 1px solid var(--line);
   border-end-start-radius: 4px;
+  transform-origin: 100% 100%;
 }
 
 .turnMeta {
@@ -535,43 +576,6 @@
   color: var(--navy-ink);
 }
 
-/* "המערכת חושבת…", "המערכת מסכמת…" */
-.dots {
-  display: inline-flex;
-  gap: 4px;
-  padding: 0 2px;
-}
-
-.dots i {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--navy);
-  opacity: 0.35;
-  animation: refineDot 1.2s infinite var(--ease);
-}
-
-.dots i:nth-child(2) {
-  animation-delay: 0.2s;
-}
-
-.dots i:nth-child(3) {
-  animation-delay: 0.4s;
-}
-
-@keyframes refineDot {
-  0%,
-  60%,
-  100% {
-    opacity: 0.35;
-    transform: translateY(0);
-  }
-  30% {
-    opacity: 1;
-    transform: translateY(-3px);
-  }
-}
-
 /* The changes a refinement made, under the system's answer. */
 .changes {
   align-self: stretch;
@@ -580,8 +584,9 @@
   gap: 8px;
 }
 
-/* A change card inside the small chat: the same readable card, on the drawer's ground. */
+/* A change card inside the small chat: the same readable card, on the drawer's ground. It rises in under the answer. */
 .change {
+  animation: refineUp var(--m-base) var(--m-out) backwards;
   background: var(--surface);
   border: 1px solid var(--line);
   border-inline-start: 3px solid var(--good);
@@ -768,7 +773,7 @@
 .more > summary svg {
   width: 14px;
   height: 14px;
-  transition: transform 0.2s var(--ease);
+  transition: transform var(--m-base) var(--m-out);
 }
 
 .more[open] > summary svg {
@@ -975,7 +980,13 @@
     height: 100dvh;
     border: 0;
     box-shadow: none;
-    animation: refineUp 0.25s var(--ease);
+    /* A phone: the small chat is a page of its own, and comes in as one — from the left. */
+    animation: refineIn var(--m-slow) var(--m-move) backwards;
+  }
+
+  /* A keyboard is open over a conversation (wahub.module.css): the chat keeps to the room that is left. */
+  [data-keyboard] .drawer {
+    height: var(--kbd-height);
   }
 
   /* The shell's menu button sits fixed in the top start corner, as on the section's other phone screens. */
@@ -1020,11 +1031,18 @@
 
 @media (prefers-reduced-motion: reduce) {
   .drawer,
-  .selectBar {
+  .drawerDocked,
+  .selectBar,
+  .checkOn,
+  .turn,
+  .change,
+  .fold[open] > .foldBody,
+  .more[open] > .moreBody {
     animation: none;
   }
 
-  .dots i {
-    animation: none;
+  .pick,
+  .check {
+    transition: none;
   }
 }

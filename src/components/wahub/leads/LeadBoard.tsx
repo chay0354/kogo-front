@@ -8,6 +8,7 @@ import { LEAD_GROUP_HINTS, findStage, leadDaysText, leadOf, oldestText } from '@
 import type { WahubContact, WahubLeadBoard, WahubLeadBoardGroup } from '@/types/wahub';
 import { ContactAvatar, DemoTag, EmptyState, Spinner } from '../shared/bits';
 import { AreaError, RefreshNote, RowsSkeleton } from '../shared/loading';
+import m from '../motion.module.css';
 import { cx } from '../shared/tones';
 import s from '../wahub.module.css';
 import { LeadStageTag, TemperatureDot } from './LeadBits';
@@ -53,6 +54,8 @@ export interface LeadBoardViewProps {
   /** "סגור" is unfolded. It starts folded, and opens by itself when the state on show is one of its own. */
   closedOpen: boolean;
   people: LeadPeopleState;
+  /** The class that brings the people in a row at a time, while their list is new on screen (the tab holds it). */
+  peopleEntrance?: string;
   creating: boolean;
   /** "ליד חדש" as a card, when it is open. */
   newLeadForm?: ReactNode;
@@ -126,6 +129,35 @@ function GroupCard({
   onStage: (key: string) => void;
 }) {
   const open = folded !== true;
+  const body =
+    group.stages.length === 0 ? (
+      <p className={cx(s.t2, 'm-0 px-4 py-3')}>אין מצבים בקבוצה הזו.</p>
+    ) : (
+      <ul className={s.list}>
+        {group.stages.map((stage) => {
+          const on = stage.key === selectedKey;
+          const oldest = stage.count > 0 ? oldestText(stage.oldest_days) : '';
+          return (
+            <li key={stage.key}>
+              <button
+                type="button"
+                aria-pressed={on}
+                onClick={() => onStage(stage.key)}
+                title={stage.hint || undefined}
+                className={cx(s.listRow, s.stageRow, on && s.on, stage.count === 0 && s.stageEmpty)}
+              >
+                <span className="min-w-0 flex-1">
+                  <span className={cx(s.t1, s.stageLabel, 'block truncate')}>{stage.label}</span>
+                  {oldest && <span className={cx(s.t2, 'block truncate')}>{oldest}</span>}
+                </span>
+                <span className={cx(s.stageCount, s.num)}>{stage.count.toLocaleString('he-IL')}</span>
+                <ChevronLeft className={s.rowChevron} aria-hidden="true" />
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+    );
   const title = (
     <>
       <h3 className={s.groupTitle}>{group.label}</h3>
@@ -145,35 +177,9 @@ function GroupCard({
           <ChevronDown className={cx(s.foldChevron, open && s.foldChevronOpen)} aria-hidden="true" />
         </button>
       )}
-      {open &&
-        (group.stages.length === 0 ? (
-          <p className={cx(s.t2, 'm-0 px-4 py-3')}>אין מצבים בקבוצה הזו.</p>
-        ) : (
-          <ul className={s.list}>
-            {group.stages.map((stage) => {
-              const on = stage.key === selectedKey;
-              const oldest = stage.count > 0 ? oldestText(stage.oldest_days) : '';
-              return (
-                <li key={stage.key}>
-                  <button
-                    type="button"
-                    aria-pressed={on}
-                    onClick={() => onStage(stage.key)}
-                    title={stage.hint || undefined}
-                    className={cx(s.listRow, s.stageRow, on && s.on, stage.count === 0 && s.stageEmpty)}
-                  >
-                    <span className="min-w-0 flex-1">
-                      <span className={cx(s.t1, s.stageLabel, 'block truncate')}>{stage.label}</span>
-                      {oldest && <span className={cx(s.t2, 'block truncate')}>{oldest}</span>}
-                    </span>
-                    <span className={cx(s.stageCount, s.num)}>{stage.count.toLocaleString('he-IL')}</span>
-                    <ChevronLeft className={s.rowChevron} aria-hidden="true" />
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
-        ))}
+      {/* "סגור" comes in softly when it is opened; the two groups that are always open are simply there. (No
+          state is kept in this view — it is drawn from what it is given — so the move is a class and no more.) */}
+      {folded === null ? body : open && <div className={m.rise}>{body}</div>}
     </section>
   );
 }
@@ -197,6 +203,7 @@ export default function LeadBoardView({
   selectedKey,
   closedOpen,
   people,
+  peopleEntrance,
   creating,
   newLeadForm,
   onSearch,
@@ -297,7 +304,7 @@ export default function LeadBoardView({
               />
             ) : (
               <>
-                <ul className={cx(s.list, people.stale && s.dimmed)}>
+                <ul className={cx(s.list, peopleEntrance, people.stale && s.dimmed)}>
                   {people.rows.map((contact) => (
                     <PersonRow key={contact.id} contact={contact} now={now} showStage={searching} onOpen={onOpenChat} />
                   ))}
