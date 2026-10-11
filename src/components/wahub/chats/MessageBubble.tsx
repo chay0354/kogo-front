@@ -8,7 +8,6 @@ import { MEDIA_WORDS, type ExternalMediaKind } from '@/lib/wahub/media';
 import { bubbleMedia, bubbleText, isNewBotMessage, MEDIA_PLACEHOLDER } from '@/lib/wahub/messages';
 import type { WahubMessage } from '@/types/wahub';
 import { useMessageMedia } from '../hooks/useWahubQueries';
-import { useBubbleRefine } from '../refine/RefineRow';
 import { Skeleton, Spinner } from '../shared/bits';
 import { cx } from '../shared/tones';
 import s from '../wahub.module.css';
@@ -148,7 +147,7 @@ export function MediaView({
               <strong>תמלול:</strong> {transcript}
             </>
           ) : (
-            'הקלטה — לא תומללה'
+            'הקלטה — עוד לא תומללה'
           )}
         </p>
       )}
@@ -177,16 +176,7 @@ function StoredMedia({ message, kind }: { message: WahubMessage; kind: 'voice' |
  * A recording plays inside it, a picture opens large; a file is named or
  * played, never printed as an address.
  */
-const MessageBubble = memo(function MessageBubble({
-  message,
-  arrived,
-  onRefine,
-}: {
-  message: WahubMessage;
-  arrived: boolean;
-  /** "דיוק" on this bubble alone: beside it on hover, and after a long press on a phone. */
-  onRefine?: (id: number) => void;
-}) {
+const MessageBubble = memo(function MessageBubble({ message, arrived }: { message: WahubMessage; arrived: boolean }) {
   const mine = message.direction === 'out';
   const failed = message.status === 'failed';
   const sending = message.local_state === 'sending';
@@ -197,11 +187,10 @@ const MessageBubble = memo(function MessageBubble({
   const typeLabel = media ? '' : messageTypeLabel(message.message_type);
   const newBot = isNewBotMessage(message);
   const simulated = message.status === 'simulated' && !newBot;
-  const refine = useBubbleRefine(message.id, mine, onRefine);
 
   return (
-    <div className={cx(s.bubbleRow, mine && s.bubbleRowOut, arrived && s.feedinUp, refine.rowClass)} {...refine.rowProps}>
-      <div className={cx(s.bubbleCol, refine.colClass)}>
+    <div className={cx(s.bubbleRow, mine && s.bubbleRowOut, arrived && s.feedinUp)}>
+      <div className={s.bubbleCol}>
         <div className={cx(s.bubble, bubbleTone(message), sending && s.bSending)}>
           {(who || typeLabel || simulated) && (
             <p className={s.bubbleMeta}>
@@ -245,7 +234,6 @@ const MessageBubble = memo(function MessageBubble({
             לא נשלח{message.error ? ` – ${message.error}` : ''}
           </p>
         )}
-        {refine.button}
       </div>
     </div>
   );

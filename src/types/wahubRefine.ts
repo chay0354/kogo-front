@@ -38,11 +38,27 @@ export interface WahubRefineChange {
 
 export type WahubRefineRole = 'operator' | 'system';
 
+/**
+ * "סיכום חכם" (docs/WAHUB-CONTRACT-POLISH-1.md, ב): what the system says first,
+ * before the operator has written a word — the marked piece of the
+ * conversation in three short lines.
+ */
+export interface WahubRefineSummary {
+  /** What the customer asked for. */
+  what_happened: string;
+  /** What he was answered. */
+  what_was_answered: string;
+  /** What looks wrong to the system; null when nothing does. */
+  suspected_issue: string | null;
+}
+
 export interface WahubRefineTurn {
   role: WahubRefineRole;
   text: string;
   changes: WahubRefineChange[];
   created_at: string | null;
+  /** On the system's opening turn of a thread that was started without words; null on every other turn. */
+  summary: WahubRefineSummary | null;
 }
 
 export type WahubRefineStatus = 'open' | 'done';
@@ -62,6 +78,8 @@ export interface WahubRefineThread {
   turns: WahubRefineTurn[];
   created_at: string | null;
   created_by_name: string;
+  /** The smart summary, on the answer to a thread started without words; null on a server that does not make one. */
+  summary: WahubRefineSummary | null;
 }
 
 /** GET settings/review/ and PATCH settings/review/. */

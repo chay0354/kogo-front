@@ -42,11 +42,25 @@ describe('which screen of the conversations is on show', () => {
     }
   });
 
-  it('wide: all three at once — the card is always open — or the list with "בחרו שיחה"', () => {
+  it('wide: all three at once — the card is open beside the conversation — or the list with "בחרו שיחה"', () => {
     expect(chatPanes('wide', null, false)).toEqual({ list: true, thread: false, details: false, drawer: false, placeholder: true });
     expect(chatPanes('wide', 12, false)).toEqual({ list: true, thread: true, details: true, drawer: false, placeholder: false });
     // Asking for the details changes nothing: they are already beside the conversation.
     expect(chatPanes('wide', 12, true)).toEqual({ list: true, thread: true, details: true, drawer: false, placeholder: false });
+  });
+
+  it('wide, with the card put away ("הסתר כרטיס"): the list and the conversation, which has the card\'s room', () => {
+    expect(chatPanes('wide', 12, false, true)).toEqual({ list: true, thread: true, details: false, drawer: false, placeholder: false });
+    // Nothing on a desktop is a drawer: asking for the details does not bring one.
+    expect(chatPanes('wide', 12, true, true)).toEqual({ list: true, thread: true, details: false, drawer: false, placeholder: false });
+    expect(chatPanes('wide', null, false, true)).toEqual({ list: true, thread: false, details: false, drawer: false, placeholder: true });
+  });
+
+  it('putting the card away is a desktop\'s choice: a tablet and a phone do not read it', () => {
+    for (const detailsOpen of [false, true]) {
+      expect(chatPanes('medium', 12, detailsOpen, true)).toEqual(chatPanes('medium', 12, detailsOpen));
+      expect(chatPanes('narrow', 12, detailsOpen, true)).toEqual(chatPanes('narrow', 12, detailsOpen));
+    }
   });
 
   it('medium: the list beside the conversation, and the card as a drawer over it when asked for', () => {

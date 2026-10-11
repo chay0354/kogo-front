@@ -128,68 +128,6 @@
   }
 }
 
-/* ---------- "דיוק" on one bubble: hover on a desktop, a long press on a phone ---------- */
-
-.chipHost {
-  position: relative;
-}
-
-.chip {
-  position: absolute;
-  top: 50%;
-  z-index: 1;
-  transform: translateY(-50%);
-  height: 28px;
-  padding: 0 10px;
-  border-radius: 999px;
-  border: 1px solid var(--line);
-  background: var(--surface);
-  color: var(--navy-ink);
-  box-shadow: var(--shadow);
-  font: inherit;
-  font-size: 12px;
-  font-weight: 700;
-  white-space: nowrap;
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 0.12s;
-}
-
-.chip:hover {
-  background: var(--lav-2);
-}
-
-.chip svg {
-  width: 14px;
-  height: 14px;
-  flex: none;
-}
-
-/* Beside the bubble, on the side the conversation leaves free. */
-.chipIn {
-  inset-inline-start: calc(100% + 6px);
-}
-
-.chipOut {
-  inset-inline-end: calc(100% + 6px);
-}
-
-@media (hover: hover) {
-  .hoverRow:hover .chip {
-    opacity: 1;
-    pointer-events: auto;
-  }
-}
-
-/* A long press on a phone brought it up. */
-.chipArmed {
-  opacity: 1;
-  pointer-events: auto;
-}
-
 /* ---------- the small chat: a drawer at the side of a desktop, the whole screen of a phone ---------- */
 
 .drawer {
@@ -521,7 +459,83 @@
   font-size: 10.5px;
 }
 
-/* "המערכת חושבת…" */
+/*
+ * "סיכום חכם" (docs/WAHUB-CONTRACT-POLISH-1.md, ב): the system's first words on
+ * the marked piece — three short lines, each under a small title, and the
+ * question the box below answers.
+ */
+.turnSummary {
+  max-width: 100%;
+  align-self: stretch;
+  padding: 10px 12px 12px;
+  white-space: normal;
+}
+
+.summaryMark {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: var(--lav);
+  color: var(--navy-ink);
+  border-radius: 999px;
+  padding: 0 8px;
+  line-height: 18px;
+  font-size: 10.5px;
+}
+
+.summaryMark svg {
+  width: 11px;
+  height: 11px;
+  flex: none;
+}
+
+.summary {
+  margin: 8px 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.summaryRow {
+  margin: 0;
+  padding-inline-start: 10px;
+  border-inline-start: 2px solid var(--line);
+}
+
+.summaryRow dt {
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--muted);
+}
+
+.summaryRow dd {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--ink);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* What looked wrong is the line she is asked about. Amber, as a question is: red is kept for "מבקש נציג" alone. */
+.summaryIssue {
+  border-inline-start-color: var(--warn);
+}
+
+.summaryIssue dt {
+  color: var(--warn);
+}
+
+.turn .summaryAsk {
+  margin-top: 10px;
+  padding-top: 9px;
+  border-top: 1px solid var(--line-2);
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--navy-ink);
+}
+
+/* "המערכת חושבת…", "המערכת מסכמת…" */
 .dots {
   display: inline-flex;
   gap: 4px;
@@ -953,31 +967,6 @@
 
   .selectCount {
     flex: 1;
-  }
-
-  /* Beside a bubble that already fills most of the row there is room for the mark alone. */
-  .chip {
-    width: 34px;
-    height: 34px;
-    padding: 0;
-    justify-content: center;
-  }
-
-  .chip span {
-    display: none;
-  }
-
-  .chip svg {
-    width: 16px;
-    height: 16px;
-  }
-
-  .chipIn {
-    inset-inline-start: calc(100% + 4px);
-  }
-
-  .chipOut {
-    inset-inline-end: calc(100% + 4px);
   }
 
   .drawer {

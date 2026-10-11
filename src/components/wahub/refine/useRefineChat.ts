@@ -2,11 +2,12 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { REFINE_START, refineReducer, type RefineAction, type RefineChatState } from '@/lib/wahub/refine';
+import { REFINE_START, refineReducer, spokenThreads, type RefineAction, type RefineChatState } from '@/lib/wahub/refine';
 import { fetchWahubRefineThreads, isNotBuiltYet } from '@/lib/wahub/refineApi';
 import {
   openRefineThread,
   sendRefine,
+  startRefineSummary,
   undoRefineChange,
   type RefineFlowContext,
   type RefineSendResult,
@@ -30,7 +31,7 @@ export function useRefineChat(target: RefineTarget) {
   const queryClient = useQueryClient();
   const proposals = useProposalsCache();
   const knowledge = useKnowledgeCache();
-  const { contactId, messageIds, shadowId, proposalId, onSent } = target;
+  const { contactId, messageIds, shadowId, proposalId, onSent, summarize } = target;
   // The earlier threads are a conversation's. A thread on a proposal has none to list.
   const listed = contactId != null && proposalId == null;
 
@@ -71,6 +72,15 @@ export function useRefineChat(target: RefineTarget) {
     [contactId, dispatch, knowledge, proposals, queryClient],
   );
 
+  // Opened by "המשך": the system speaks first. Asked once for each opening of the chat — a second draw of the
+  // same opening (or "דיוק חדש על מה שסימנתי") does not ask again.
+  const summaryAsked = useRef(false);
+  useEffect(() => {
+    if (!summarize || summaryAsked.current) return;
+    summaryAsked.current = true;
+    void startRefineSummary(ctx, { contactId, messageIds, shadowId, proposalId });
+  }, [contactId, ctx, messageIds, proposalId, shadowId, summarize]);
+
   const sentOnce = useRef(false);
   const onSentRef = useRef(onSent);
   onSentRef.current = onSent;
@@ -93,9 +103,12 @@ export function useRefineChat(target: RefineTarget) {
   const newThread = useCallback(() => dispatch({ type: 'reset' }), [dispatch]);
   const retry = useCallback(() => void threads.refetch(), [threads]);
 
+  // A thread left at the system's summary, with no word of hers, is not listed among the earlier refinements.
+  const listedThreads = useMemo(() => spokenThreads(threads.data ?? []), [threads.data]);
+
   return {
     state,
-    threads: threads.data ?? [],
+    threads: listedThreads,
     checking: threads.isFetching,
     send,
     undo,

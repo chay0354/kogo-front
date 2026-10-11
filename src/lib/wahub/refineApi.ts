@@ -19,6 +19,11 @@ const THINKING_TIMEOUT_MS = 90_000;
 export interface RefineMessagesBody {
   contact: number;
   message_ids: number[];
+  /**
+   * What she wrote. Empty ("") when the thread is opened by "המשך" alone: the
+   * server then speaks first, with a smart summary of the marked messages, and
+   * changes nothing (docs/WAHUB-CONTRACT-POLISH-1.md, ב).
+   */
   text: string;
   /**
    * Not in the contract's text; the server reads it: the shadow replies "לתקן"
@@ -132,4 +137,13 @@ export function isNotBuiltYet(error: unknown): boolean {
 /** No answer at all: a dropped line or a timeout. Whether the server did the work is then unknown. */
 export function isUnanswered(error: unknown): boolean {
   return !(error as ApiFailure)?.response;
+}
+
+/**
+ * 400 on a thread opened without words: the server was built before the smart
+ * summary and wants her words first. The small chat then waits for them, as it
+ * always did (docs/WAHUB-CONTRACT-POLISH-1.md, ב).
+ */
+export function wantsWordsFirst(error: unknown): boolean {
+  return (error as ApiFailure)?.response?.status === 400;
 }

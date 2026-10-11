@@ -73,18 +73,20 @@ export interface ChatPanes {
 
 /**
  * Wide: the list, the conversation and the details all at once — the details
- * are always open. Medium: the list beside the conversation, and the details
- * as a drawer over it when asked for. Narrow (a phone): one of the three — the
- * list until a conversation is opened, then the conversation, then the details
- * when asked for.
+ * are open unless the card was put away ("הסתר כרטיס"), and then the
+ * conversation has their room. Medium: the list beside the conversation, and
+ * the details as a drawer over it when asked for. Narrow (a phone): one of the
+ * three — the list until a conversation is opened, then the conversation, then
+ * the details when asked for. Putting the card away is a desktop's choice: a
+ * tablet and a phone do not read it.
  */
-export function chatPanes(layout: ChatLayout, contactId: number | null, detailsOpen: boolean): ChatPanes {
+export function chatPanes(layout: ChatLayout, contactId: number | null, detailsOpen: boolean, cardHidden = false): ChatPanes {
   const open = contactId != null;
   const drawer = open && layout === 'medium' && detailsOpen;
   return {
     list: layout !== 'narrow' || !open,
     thread: open && (layout !== 'narrow' || !detailsOpen),
-    details: open && (layout === 'wide' || detailsOpen),
+    details: open && (layout === 'wide' ? !cardHidden : detailsOpen),
     drawer,
     placeholder: !open && layout !== 'narrow',
   };

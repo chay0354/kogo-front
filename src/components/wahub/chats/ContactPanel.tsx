@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useId, useState, type ReactNode } from 'react';
-import { ArrowRight, CalendarClock, Check, ChevronDown, Hand, MessageCircle, Pencil, Undo2, X } from 'lucide-react';
+import { ArrowRight, CalendarClock, Check, ChevronDown, Hand, MessageCircle, PanelLeftClose, Pencil, Undo2, X } from 'lucide-react';
 import { formatWhatsAppLink } from '@/lib/customerUtils';
 import { isDemoContact } from '@/lib/wahub/demo';
 import { callbackLine } from '@/lib/wahub/followup';
@@ -32,6 +32,11 @@ interface ContactPanelProps {
   /** The card stands alone on screen (a phone) or lies over the conversation (a drawer) and needs a way back. */
   showBack: boolean;
   onBack: () => void;
+  /**
+   * "הסתר כרטיס": the card stands beside the conversation on a desktop and can be put away, so the
+   * conversation has its room (docs/WAHUB-CONTRACT-POLISH-1.md, א). Absent on a tablet and a phone.
+   */
+  onHide?: () => void;
   onFollowup: (patch: WahubFollowupPatch) => void;
   onTags: (tags: WahubTag[]) => void;
   onRename: (name: string) => void;
@@ -85,7 +90,7 @@ function NameLine({ contact, onRename }: { contact: WahubContactDetail; onRename
 
   if (editing) {
     return (
-      <div className="flex items-center gap-1.5">
+      <div className={cx(s.cardNameRow, 'flex items-center gap-1.5')}>
         <input
           type="text"
           value={value}
@@ -121,7 +126,7 @@ function NameLine({ contact, onRename }: { contact: WahubContactDetail; onRename
   }
 
   return (
-    <div className="flex items-center gap-1">
+    <div className={cx(s.cardNameRow, 'flex items-center gap-1')}>
       <h3 className={cx(s.cardName, 'min-w-0 truncate')} dir="auto">
         {hasName(contact) ? displayName(contact) : 'ללא שם'}
       </h3>
@@ -237,6 +242,7 @@ export default function ContactPanel({
   rechecking,
   showBack,
   onBack,
+  onHide,
   onFollowup,
   onTags,
   onRename,
@@ -285,7 +291,7 @@ export default function ContactPanel({
       )}
 
       {/* 1. Who. */}
-      <section className={cx(s.sect, s.cardWho)} aria-label="מי">
+      <section className={cx(s.sect, s.cardWho, onHide && s.cardWhoHide)} aria-label="מי">
         <ContactAvatar contact={contact} size="lg" />
         <div className="min-w-0 flex-1">
           <NameLine contact={contact} onRename={onRename} />
@@ -307,6 +313,14 @@ export default function ContactPanel({
             </div>
           )}
         </div>
+        {/* At the head of the card, in its corner: one small button puts it away. Its words show where the card has
+            room for them; the name's line keeps clear of it. */}
+        {onHide && (
+          <button type="button" onClick={onHide} aria-label="הסתר כרטיס" title="הסתר את הכרטיס" className={s.cardHide}>
+            <PanelLeftClose aria-hidden="true" />
+            <span>הסתר כרטיס</span>
+          </button>
+        )}
       </section>
 
       {/* 2. The state — "הכיוון": where this person stands, why, and what to do. */}

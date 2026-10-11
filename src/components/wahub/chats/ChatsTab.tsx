@@ -6,6 +6,7 @@ import { MessagesSquare } from 'lucide-react';
 import { useAuth } from '@/components/AuthProvider';
 import { attachShadowReplies } from '@/lib/wahub/bot';
 import { matchesBox } from '@/lib/wahub/boxes';
+import { cardMaxWidth, cardWidth } from '@/lib/wahub/cardPane';
 import { isDemoContact } from '@/lib/wahub/demo';
 import { israelToday } from '@/lib/wahub/format';
 import { mergeLiveContacts } from '@/lib/wahub/live';
@@ -15,6 +16,7 @@ import { useMediaQuery } from '@/hooks/useMediaQuery';
 import type { WahubBox, WahubBoxCounts, WahubContact, WahubContactDetail, WahubStatus, WahubTag } from '@/types/wahub';
 import { useVerdict } from '../bot/shadow/useVerdict';
 import { useContactShadow } from '../hooks/useBotQueries';
+import { useCardPane } from '../hooks/useCardPane';
 import { useContactMutations, type ContactStore } from '../hooks/useContactMutations';
 import { useContactThread, type ContactThread } from '../hooks/useContactThread';
 import { useDemoChat } from '../hooks/useDemoChat';
@@ -23,11 +25,12 @@ import { useNow } from '../hooks/useNow';
 import { usePagedContacts } from '../hooks/usePagedContacts';
 import type { WahubLiveHandle } from '../hooks/useWahubLive';
 import { useWahubTags, wahubKeys } from '../hooks/useWahubQueries';
-import { RefineDock } from '../refine/RefineContext';
+import { RefineDock, useRefine } from '../refine/RefineContext';
 import { EmptyState } from '../shared/bits';
 import { CardSkeleton } from '../shared/loading';
 import { cx } from '../shared/tones';
 import s from '../wahub.module.css';
+import CardGrip from './CardGrip';
 import ChatList from './ChatList';
 import ChatThread from './ChatThread';
 import ContactPanel from './ContactPanel';
@@ -61,9 +64,10 @@ interface ChatsTabProps {
 /**
  * The conversations screen: the list on the right, top to bottom; the
  * conversation in the middle, with all the room that is left; the person's
- * card on the left, always open (docs/WAHUB-CONTRACT-LAYOUT.md, א). Each column
- * scrolls by itself and the page does not. Where there is no room for three,
- * the card is a drawer over the conversation; on a phone, one of them at a time.
+ * card on the left (docs/WAHUB-CONTRACT-LAYOUT.md, א) — open, unless it was put
+ * away, and as wide as it was pulled (docs/WAHUB-CONTRACT-POLISH-1.md, א). Each
+ * column scrolls by itself and the page does not. Where there is no room for
+ * three, the card is a drawer over the conversation; on a phone, one of them at a time.
  *
  * It is live: every three seconds the contacts that changed are merged into
  * the list by id and the list is put back in order — nothing is fetched again
@@ -93,6 +97,10 @@ export default function ChatsTab({
   const belowDesktop = useMediaQuery(BELOW_DESKTOP_MEDIA_QUERY);
   const layout = chatLayout(width, phone, belowDesktop);
   const columns = chatColumns(width);
+  // The card beside the conversation: put away or not, and how wide — a desktop's own choice, kept in the browser.
+  const cardPane = useCardPane();
+  const cardRef = useRef<HTMLElement | null>(null);
+  const refine = useRefine();
 
   const [search, setSearch] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
@@ -276,16 +284,26 @@ export default function ChatsTab({
   const isManager = user?.role === 'manager';
   const allTags: WahubTag[] = tags.data ?? NO_TAGS;
 
-  const panes = chatPanes(layout, contactId, detailsOpen);
+  const wide = layout === 'wide';
+  const cardHidden = wide && cardPane.hidden;
+  const panes = chatPanes(layout, contactId, detailsOpen, cardHidden);
   const showList = panes.list;
   const showThread = panes.thread;
   const showDetails = panes.details;
   const showPlaceholder = panes.placeholder;
   const listWidth = layout === 'narrow' ? undefined : layout === 'medium' ? MEDIUM_LIST_WIDTH : columns.list;
-  // Beside the always-open card — which carries the phone and the way to WhatsApp — a conversation short of
+  // The card's column on a desktop: the width it was pulled to, or the screen's own — never so wide that the
+  // conversation is squeezed.
+  const cardMax = cardMaxWidth(width, columns.list);
+  const cardColumn = cardWidth(cardPane, columns.details, cardMax);
+  // "דיוק" opens over the card. With the card put away its column comes back for the small chat alone, so the
+  // conversation it is about still stands whole beside it — and goes again when the chat is closed.
+  const dockOnly = cardHidden && active && contactId != null && refine.target !== null;
+  const showColumn = showDetails || dockOnly;
+  // Beside the open card — which carries the phone and the way to WhatsApp — a conversation short of
   // room keeps its own title row to the name and the action (the stylesheet reads this mark).
-  const threadWidth = width !== null && layout === 'wide' ? width - columns.list - columns.details : null;
-  const tightThread = threadWidth !== null && threadWidth < TIGHT_THREAD_UNDER;
+  const threadWidth = width !== null && wide ? width - columns.list - (showColumn ? cardColumn : 0) : null;
+  const tightThread = threadWidth !== null && showColumn && threadWidth < TIGHT_THREAD_UNDER;
 
   // The drawer closes on Escape, like anything that lies over the page.
   const drawerOpen = panes.drawer;
@@ -301,7 +319,14 @@ export default function ChatsTab({
   // A pane that is out of view is hidden, not removed: its scroll position and
   // whatever was typed in it are still there when it comes back.
   return (
-    <div ref={frameRef} className={s.chatFrame} data-layout={layout} data-tight={tightThread ? '' : undefined}>
+    <div
+      ref={frameRef}
+      className={s.chatFrame}
+      data-layout={layout}
+      data-tight={tightThread ? '' : undefined}
+      // The conversation reaches the edge of the screen: the stylesheet keeps its foot clear of the floating button.
+      data-card={cardHidden && !showColumn ? 'hidden' : undefined}
+    >
       <aside
         aria-label="רשימת השיחות"
         className={showList ? cx(s.pane, s.listPane, 'shrink-0', layout === 'narrow' ? 'w-full' : s.paneLineEnd) : 'hidden'}
@@ -349,9 +374,12 @@ export default function ChatsTab({
             handoverBusy={Boolean(busy.handover)}
             resolveBusy={Boolean(busy.resolve)}
             showBack={layout === 'narrow'}
-            showDetailsButton={layout !== 'wide'}
+            showDetailsButton={!wide}
+            // The card was put away: the title row offers it back, and carries the action the card would. Not while
+            // "דיוק" has the column — the conversation is as narrow as beside the card then, and its title row as short.
+            onShowCard={cardHidden && !dockOnly ? cardPane.show : undefined}
             onBack={() => onOpenContact(null)}
-            onDetails={() => setDetailsOpen(true)}
+            onDetails={() => (cardHidden ? cardPane.show() : setDetailsOpen(true))}
             onTakeover={() => void withBusy('handover', () => mutations.takeover(contactId))}
             onRelease={() => void withBusy('handover', () => mutations.release(contactId))}
             onResolveNeedsHuman={() => void withBusy('resolve', () => mutations.resolveNeedsHuman(contactId))}
@@ -371,19 +399,21 @@ export default function ChatsTab({
         <button type="button" aria-label="סגור את פרטי איש הקשר" onClick={() => setDetailsOpen(false)} className={s.drawerScrim} />
       )}
 
-      {showDetails && (
+      {/* The handle on the line between the conversation and the card: pulled, it changes the card's width. */}
+      {showColumn && wide && (
+        <CardGrip target={cardRef} width={cardColumn} max={cardMax} onResize={cardPane.resize} onReset={cardPane.reset} />
+      )}
+
+      {showColumn && (
         <aside
-          aria-label="פרטי איש הקשר"
-          className={cx(
-            s.pane,
-            s.detailsPane,
-            layout === 'wide' ? cx(s.paneLineStart, 'relative shrink-0') : panes.drawer ? s.detailsDrawer : 'flex-1',
-          )}
-          style={layout === 'wide' ? { width: columns.details } : undefined}
+          ref={cardRef}
+          aria-label={showDetails ? 'פרטי איש הקשר' : 'דיוק'}
+          className={cx(s.pane, s.detailsPane, wide ? cx(s.paneLineStart, 'relative shrink-0') : panes.drawer ? s.detailsDrawer : 'flex-1')}
+          style={wide ? { width: cardColumn } : undefined}
         >
-          {/* "דיוק" opens over the always-open card, so the conversation it is about stays whole beside it. */}
-          {layout === 'wide' && active && <RefineDock />}
-          {contact ? (
+          {/* "דיוק" opens over the card, so the conversation it is about stays whole beside it. */}
+          {wide && active && <RefineDock />}
+          {!showDetails ? null : contact ? (
             <ContactPanel
               contact={contact}
               now={now}
@@ -391,8 +421,9 @@ export default function ChatsTab({
               allTags={allTags}
               analyzing={Boolean(busy.analyze)}
               rechecking={Boolean(busy.recheck)}
-              showBack={layout !== 'wide'}
+              showBack={!wide}
               onBack={() => setDetailsOpen(false)}
+              onHide={wide ? cardPane.hide : undefined}
               onFollowup={(patch) => void mutations.followup(contact.id, patch)}
               onTags={(next) => void mutations.tags(contact.id, next)}
               onRename={(name) => void mutations.rename(contact.id, name)}

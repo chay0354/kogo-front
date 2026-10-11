@@ -1,21 +1,24 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState, type RefObject } from 'react';
-import { AlertCircle, ArrowRight, ChevronDown, Clock, Crosshair, History, Send, X } from 'lucide-react';
+import { AlertCircle, ArrowRight, ChevronDown, Clock, Crosshair, History, Send, Sparkles, X } from 'lucide-react';
 import { sendOnEnter } from '@/lib/wahub/demo';
 import { formatDateTime } from '@/lib/wahub/format';
 import {
   REFINE_TEXT,
+  SUMMARY_TEXT,
+  awaitsFirstWords,
   changeKey,
   excerptPreview,
   excerptTitle,
   refinePlaceholder,
+  summaryRows,
   threadTitle,
   type RefineChatState,
   type RefineExcerptLine,
   type RefineWho,
 } from '@/lib/wahub/refine';
-import type { WahubRefineThread } from '@/types/wahubRefine';
+import type { WahubRefineSummary, WahubRefineThread } from '@/types/wahubRefine';
 import { useNow } from '../hooks/useNow';
 import { Spinner } from '../shared/bits';
 import { RowsSkeleton } from '../shared/loading';
@@ -132,6 +135,34 @@ function EarlierThreads({
   );
 }
 
+/**
+ * "סיכום חכם" — the system's first words on the marked piece: three short
+ * lines, each under its own small title (the third only when something looked
+ * wrong), and then the question the box under it answers.
+ */
+function SummaryBubble({ summary, ask }: { summary: WahubRefineSummary; ask: string | null }) {
+  return (
+    <div className={cx(r.turn, r.turnSys, r.turnSummary)}>
+      <p className={r.turnMeta}>
+        המערכת
+        <span className={r.summaryMark}>
+          <Sparkles aria-hidden="true" />
+          {SUMMARY_TEXT.mark}
+        </span>
+      </p>
+      <dl className={r.summary}>
+        {summaryRows(summary).map((row) => (
+          <div key={row.key} className={cx(r.summaryRow, row.key === 'issue' && r.summaryIssue)}>
+            <dt>{row.title}</dt>
+            <dd dir="auto">{row.text}</dd>
+          </div>
+        ))}
+      </dl>
+      {ask && <p className={r.summaryAsk}>{ask}</p>}
+    </div>
+  );
+}
+
 export interface RefineChatViewProps {
   contactName: string;
   /** The marked piece of the conversation, and how many messages it holds. */
@@ -191,7 +222,11 @@ export function RefineChatView({
   onClose,
 }: RefineChatViewProps) {
   const unavailable = state.phase === 'unavailable';
-  const busy = state.phase === 'thinking' || state.phase === 'loading';
+  const waiting = state.phase === 'thinking' || state.phase === 'summarizing';
+  const busy = waiting || state.phase === 'loading';
+  // The system spoke first (the smart summary) and she has not written yet: the question is still the first one.
+  const firstWords = awaitsFirstWords(state);
+  const firstQuestion = onProposal ? SUMMARY_TEXT.askProposal : SUMMARY_TEXT.ask;
   // An earlier thread was opened from the list. The thread being written now is not "earlier" and is not listed.
   const reading = state.openedMessageIds !== null;
   const earlier = reading ? threads : threads.filter((thread) => thread.id !== state.threadId);
@@ -277,20 +312,25 @@ export function RefineChatView({
               const asking = state.needsAnswer && index === lastSystem;
               return (
                 <div key={bubble.key} className="contents">
-                  <div className={cx(r.turn, r.turnSys, asking && r.turnAsk)}>
-                    <p className={r.turnMeta}>
-                      המערכת
-                      {asking && <span className={r.askMark}>שאלה</span>}
-                    </p>
-                    <p dir="auto">{bubble.text}</p>
-                  </div>
+                  {bubble.summary ? (
+                    // The question stands under the summary only while it is the one being asked.
+                    <SummaryBubble summary={bubble.summary} ask={index === lastSystem && firstWords ? firstQuestion : null} />
+                  ) : (
+                    <div className={cx(r.turn, r.turnSys, asking && r.turnAsk)}>
+                      <p className={r.turnMeta}>
+                        המערכת
+                        {asking && <span className={r.askMark}>שאלה</span>}
+                      </p>
+                      <p dir="auto">{bubble.text}</p>
+                    </div>
+                  )}
                   {index === lastSystem && cards}
                 </div>
               );
             })}
             {/* No answer in words yet, and still there are changes to show (an earlier thread, read back). */}
             {lastSystem === -1 && cards}
-            {state.phase === 'thinking' && (
+            {waiting && (
               <div className={cx(r.turn, r.turnSys)} role="status">
                 <p className="flex items-center gap-2">
                   <span className={r.dots} aria-hidden="true">
@@ -298,7 +338,7 @@ export function RefineChatView({
                     <i />
                     <i />
                   </span>
-                  {REFINE_TEXT.thinking}
+                  {state.phase === 'summarizing' ? REFINE_TEXT.summarizing : REFINE_TEXT.thinking}
                 </p>
               </div>
             )}
@@ -325,7 +365,7 @@ export function RefineChatView({
             enterKeyHint="send"
             disabled={unavailable}
             placeholder={refinePlaceholder(state, onProposal)}
-            aria-label={state.needsAnswer ? 'התשובה שלך לשאלת המערכת' : onProposal ? 'מה לשנות בהצעה?' : 'מה לא היה טוב כאן?'}
+            aria-label={state.needsAnswer && !firstWords ? 'התשובה שלך לשאלת המערכת' : firstQuestion}
             className={r.write}
           />
           <button
@@ -336,7 +376,7 @@ export function RefineChatView({
             title="שלח (Enter)"
             className={cx(s.btn, s.btnP, '!h-[40px]')}
           >
-            {state.phase === 'thinking' ? <Spinner /> : <Send className="-scale-x-100" aria-hidden="true" />}
+            {waiting ? <Spinner /> : <Send className="-scale-x-100" aria-hidden="true" />}
             <span className="hidden sm:inline">שלח</span>
           </button>
         </div>
@@ -346,9 +386,10 @@ export function RefineChatView({
 }
 
 /**
- * "דיוק": the operator says, in her own words, what was wrong with the marked
- * messages; the server works out the change to the bot's knowledge, makes it,
- * and says so. A drawer at the side of a desktop; the whole screen of a phone.
+ * "דיוק": the system sums up the marked messages and asks what was wrong; the
+ * operator says it in her own words; the server works out the change to the
+ * bot's knowledge, makes it, and says so. A drawer at the side of a desktop;
+ * the whole screen of a phone.
  */
 export default function RefineChat({ target, docked = false, onClose }: { target: RefineTarget; docked?: boolean; onClose: () => void }) {
   const now = useNow(60_000);

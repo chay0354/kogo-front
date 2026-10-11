@@ -2,7 +2,7 @@
 
 import { useState, type ReactNode } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Check, Copy, KeyRound, MessageSquareText, Pencil, Plug, Plus, Radio, Sparkles, Tags, Trash2 } from 'lucide-react';
+import { Check, Copy, KeyRound, MessageSquareText, Pencil, Plug, Plus, Radio, Tags, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { readableError } from '@/lib/apiError';
 import {
@@ -15,16 +15,17 @@ import {
   updateWahubQuickReply,
   updateWahubTag,
 } from '@/lib/wahubApi';
-import { agoText, displayName, formatDateTime, hasName } from '@/lib/wahub/format';
+import { displayName, formatDateTime, hasName } from '@/lib/wahub/format';
 import { liveTestCount } from '@/lib/wahub/liveTest';
 import type { WahubContact, WahubQuickReply, WahubStatus, WahubTag } from '@/types/wahub';
 import { useNow } from '../hooks/useNow';
 import { useLiveTestContacts, useWahubQuickReplies, useWahubTags, wahubKeys } from '../hooks/useWahubQueries';
 import AutoApplySection from '../refine/AutoApplySwitch';
-import { EmptyState, ErrorState, InlineConfirm, LiveTestTag, Pill, Skeleton, Spinner, TagChip } from '../shared/bits';
+import { EmptyState, ErrorState, InlineConfirm, LiveTestTag, Skeleton, Spinner, TagChip } from '../shared/bits';
 import { ColorDots, TAG_COLORS } from '../shared/ContactParts';
 import { cx } from '../shared/tones';
 import s from '../wahub.module.css';
+import SystemStatusCard from './SystemStatusCard';
 
 function SettingsCard({
   icon,
@@ -80,18 +81,6 @@ function CopyButton({ text, label }: { text: string; label: string }) {
       {copied ? <Check className={s.goodText} aria-hidden="true" /> : <Copy aria-hidden="true" />}
       {copied ? 'הועתק' : label}
     </button>
-  );
-}
-
-function StateRow({ ok, title, text }: { ok: boolean | null; title: string; text: ReactNode }) {
-  return (
-    <li className="flex items-start gap-2.5 py-2">
-      <span className={cx(s.pill, ok === null ? s.pMute : ok ? s.pGood : s.pWarn, 'mt-0.5 shrink-0')}>
-        <i className={s.pillDot} aria-hidden="true" />
-        {title}
-      </span>
-      <p className="m-0 min-w-0 text-[13.5px] leading-relaxed">{text}</p>
-    </li>
   );
 }
 
@@ -181,62 +170,6 @@ function ConnectionSection({ status, onChanged }: { status: WahubStatus; onChang
           </span>
         </div>
       )}
-
-      <h4 className={cx(s.sectTitle, 'mb-1 mt-4')}>מצב</h4>
-      <ul className={cx(s.rows, 'm-0 list-none p-0')}>
-        <StateRow
-          ok={status.last_inbound_at ? true : status.inbound_configured ? false : null}
-          title="הודעות נכנסות"
-          text={
-            status.last_inbound_at ? (
-              <>
-                האחרונה התקבלה <B>{agoText(status.last_inbound_at, now)}</B> ({formatDateTime(status.last_inbound_at, now)})
-              </>
-            ) : status.inbound_configured ? (
-              'יש מפתח, אבל עוד לא התקבלה הודעה. בדקו שההעתק מחובר ב-ManyChat.'
-            ) : (
-              'עוד לא מחובר.'
-            )
-          }
-        />
-        <StateRow
-          ok={status.bot_replies_seen}
-          title="תשובות הבוט"
-          text={
-            status.bot_replies_seen ? (
-              'מתקבלות.'
-            ) : (
-              <>
-                לא התקבלו בשבוע האחרון. <B>בלי זה “מחכים לתשובה” אינו מדויק</B> – גם מי שהבוט כבר ענה לו נספר כמחכה.
-              </>
-            )
-          }
-        />
-        <StateRow
-          ok={status.simulate_send || !status.sending_enabled ? false : status.send_configured}
-          title="שליחה"
-          text={
-            status.simulate_send ? (
-              <>
-                <B>מצב הדמיה</B> – הודעות נרשמות ולא נשלחות.
-              </>
-            ) : !status.sending_enabled ? (
-              <>
-                <B>כבויה</B> – שום הודעה לא יוצאת ללקוחות, ו"קח שיחה" לא נוגע בבוט. מפעילים בהגדרות המערכת (WAHUB_SENDING_ENABLED) כשמוכנים.
-              </>
-            ) : status.send_configured ? (
-              'פעילה, דרך ManyChat.'
-            ) : (
-              'לא מוגדרת – חסר מפתח ManyChat, ולכן אי אפשר לשלוח מכאן.'
-            )
-          }
-        />
-        <StateRow
-          ok={null}
-          title="בסך הכול"
-          text={`${status.contacts_total.toLocaleString('he-IL')} אנשי קשר · ${status.messages_last_24h.toLocaleString('he-IL')} הודעות ב-24 השעות האחרונות`}
-        />
-      </ul>
     </SettingsCard>
   );
 }
@@ -758,26 +691,6 @@ function TagsSection() {
   );
 }
 
-// ---------------------------------------------------------------------------
-// סיכום אוטומטי
-// ---------------------------------------------------------------------------
-
-function SummarySection({ status }: { status: WahubStatus }) {
-  const on = status.ai_configured;
-  return (
-    <SettingsCard icon={<Sparkles className="h-[18px] w-[18px]" />} title="סיכום אוטומטי">
-      <Pill tone={on ? 'success' : 'muted'} dot>
-        {on ? 'פעיל' : 'כבוי'}
-      </Pill>
-      <p className={cx(s.muted, 'm-0 mt-2 text-[13.5px] leading-relaxed')}>
-        {on
-          ? 'כמה דקות אחרי שהשיחה נרגעת, המערכת מסכמת אותה וממלאת את “מה ידוע”: נושא, סניף, גיל ורמת עניין. את סימוני המעקב היא לא ממלאת – הם שלך בלבד.'
-          : 'חסר מפתח לשירות הסיכום. בינתיים “מה ידוע” מתמלא לפי מילים בשיחה בלבד, בלי סיכום כתוב. המפתח מוגדר בהגדרות המערכת.'}
-      </p>
-    </SettingsCard>
-  );
-}
-
 interface SettingsTabProps {
   status: WahubStatus | undefined;
   statusLoading: boolean;
@@ -791,6 +704,8 @@ export default function SettingsTab({ status, statusLoading, statusError, onRetr
   return (
     // One column on a phone; two columns of cards where the page is wide enough (the stylesheet decides).
     <div className={cx(s.pg, s.settingsGrid)}>
+      {/* How things stand, first: a title and a word a row; the details are a press away (docs/WAHUB-CONTRACT-POLISH-1.md, ג). */}
+      {status && <SystemStatusCard status={status} />}
       {status ? (
         <ConnectionSection status={status} onChanged={onRetryStatus} />
       ) : statusError ? (
@@ -808,7 +723,6 @@ export default function SettingsTab({ status, statusLoading, statusError, onRetr
       <AutoApplySection />
       <QuickRepliesSection />
       <TagsSection />
-      {status && <SummarySection status={status} />}
     </div>
   );
 }

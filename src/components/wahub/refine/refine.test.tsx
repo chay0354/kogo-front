@@ -20,6 +20,7 @@ import ReviewTab from '../bot/review/ReviewTab';
 import ShadowReplyCard from '../bot/shadow/ShadowReplyCard';
 import ShadowTab from '../bot/shadow/ShadowTab';
 import ChatThread from '../chats/ChatThread';
+import ShadowRow from '../chats/ShadowRow';
 import { botKeys } from '../hooks/useBotQueries';
 import type { ContactThread } from '../hooks/useContactThread';
 import s from '../wahub.module.css';
@@ -302,35 +303,40 @@ describe('the bar at the bottom while marking', () => {
 // The shortcuts
 // ---------------------------------------------------------------------------
 
-describe('"דיוק" on one bubble', () => {
-  it('every message the server knows carries the shortcut; pressing it opens the small chat on that bubble', () => {
-    const value = standIn();
-    const made = drawn(within(value, <ChatThread thread={thread(detail({ name: 'נועה לוי' }), MESSAGES)} {...threadProps} />));
-    const chips = made.filter((element) => element.type === 'button' && element.props['aria-label'] === 'דיוק על ההודעה הזו');
-    expect(chips).toHaveLength(3);
+// docs/WAHUB-CONTRACT-POLISH-1.md (ב): the marks come up only from the button at the top of the conversation.
+describe('a bubble has no "דיוק" of its own', () => {
+  const conversation = (messages = MESSAGES) => within(standIn(), <ChatThread thread={thread(detail({ name: 'נועה לוי' }), messages)} {...threadProps} />);
 
-    (chips[1].props.onClick as () => void)();
-
-    expect(value.open).toHaveBeenCalledTimes(1);
-    const target = (value.open as ReturnType<typeof vi.fn>).mock.calls[0][0] as RefineTarget;
-    expect(target.contactId).toBe(12);
-    expect(target.contactName).toBe('נועה לוי');
-    expect(target.messageIds).toEqual([102]);
-    expect(target.excerpt).toEqual([{ id: 102, who: 'bot', label: 'הבוט', text: 'החוג עולה 250 ₪ לחודש.' }]);
-    // The rest of the conversation comes along, so an earlier thread's messages can be quoted too.
-    expect(target.pool?.map((line) => line.id)).toEqual([101, 102, 103]);
+  it('no shortcut beside a bubble — not on hover, not after a long press', () => {
+    const made = drawn(conversation());
+    expect(made.filter((element) => element.props['aria-label'] === 'דיוק על ההודעה הזו')).toHaveLength(0);
+    // Nothing listens for a finger resting on a bubble.
+    for (const handler of ['onTouchStart', 'onTouchEnd', 'onTouchMove', 'onTouchCancel', 'onContextMenu']) {
+      expect(made.filter((element) => typeof element.props[handler] === 'function')).toHaveLength(0);
+    }
   });
 
-  it('a bubble still on its way has none', () => {
-    const typing = [...MESSAGES, makeMessage(-4, { direction: 'out', sender: 'office', text: 'רגע', local_state: 'sending' })];
-    const made = drawn(within(standIn(), <ChatThread thread={thread(detail(), typing)} {...threadProps} />));
-    expect(made.filter((element) => element.props['aria-label'] === 'דיוק על ההודעה הזו')).toHaveLength(3);
+  it('the only "דיוק" on screen is the button of the title row (a word on a desktop, an icon on a phone)', () => {
+    const html = render(conversation());
+    expect((html.match(/>דיוק<\/button>/g) ?? []).length).toBe(1);
+    expect((html.match(/aria-label="דיוק"/g) ?? []).length).toBe(1);
+    expect(html).not.toContain('דיוק על ההודעה');
+    expect(html).not.toContain('מה לא היה טוב בהודעה הזו');
   });
 
-  it('sits on the side the conversation leaves free', () => {
-    const html = render(within(standIn(), <ChatThread thread={thread(detail(), MESSAGES)} {...threadProps} />));
-    expect((html.match(new RegExp(r.chipIn, 'g')) ?? []).length).toBe(2);
-    expect((html.match(new RegExp(r.chipOut, 'g')) ?? []).length).toBe(1);
+  it('until it is pressed no bubble is a mark to set, and there is no bar', () => {
+    const html = render(conversation());
+    expect(html).not.toContain('role="checkbox"');
+    expect(html).not.toContain(r.pick);
+    expect(html).not.toContain(r.check);
+    expect(html).not.toContain('role="toolbar"');
+  });
+
+  it('a bubble is drawn the same with "דיוק" on offer and without it', () => {
+    const offered = render(conversation());
+    const plain = render(<ChatThread thread={thread(detail({ name: 'נועה לוי' }), MESSAGES)} {...threadProps} />);
+    const bubbles = (html: string) => html.slice(html.indexOf('aria-label="הודעות השיחה"'), html.indexOf('placeholder='));
+    expect(bubbles(offered)).toBe(bubbles(plain));
   });
 });
 
@@ -374,6 +380,23 @@ describe('"לתקן" under a shadow reply', () => {
     expect(target.excerpt[1].text).toBe('החוג עולה 250 ₪.');
     // Once she has written, the answer is marked 👎 — the list "לתקן" keeps its meaning.
     expect(typeof target.onSent).toBe('function');
+    // She says what was wrong with the answer: no summary is asked for first.
+    expect(target.summarize).toBeFalsy();
+  });
+
+  it('inside a conversation it opens on the answer too, and she speaks first — the summary is for marked messages', () => {
+    const value = standIn();
+    const made = drawn(
+      within(
+        value,
+        <ChatThread thread={thread(detail({ name: 'נועה לוי' }), MESSAGES)} {...threadProps} shadowByMessage={new Map([[101, reply]])} onShadowVerdict={noop} />,
+      ),
+    );
+    // The row under the customer's message is folded until it is pressed; "לתקן" inside it is what it was handed.
+    (made.find((element) => element.type === ShadowRow)!.props.onFix as () => void)();
+    const target = (value.open as ReturnType<typeof vi.fn>).mock.calls[0][0] as RefineTarget;
+    expect(target).toMatchObject({ contactId: 12, messageIds: [101], shadowId: 31, heading: 'התשובה שמתקנים' });
+    expect(target.summarize).toBe(false);
   });
 
   it('an answer already marked 👎 is not marked again', () => {
@@ -486,6 +509,138 @@ describe('the small chat of "דיוק"', () => {
     expect(html).toContain(REFINE_TEXT.thinking);
     expect(html).toContain('המערכת חושבת…');
     expect(find(view, (props) => props['aria-label'] === 'שלח').props.disabled).toBe(true);
+  });
+
+  // docs/WAHUB-CONTRACT-POLISH-1.md (ב): after "המשך" the system speaks first.
+  describe('the smart summary', () => {
+    const SUMMARY = {
+      what_happened: 'הלקוחה שאלה כמה עולה חוג קפוארה.',
+      what_was_answered: 'הבוט ענה 250 ₪ לחודש.',
+      suspected_issue: 'המחיר שהבוט אמר אולי לא מעודכן.',
+    };
+    const REPLY = 'סיכום: הלקוחה שאלה על מחיר והבוט ענה 250 ₪. מה לא היה טוב כאן?';
+    const summarized = (over: Record<string, unknown> = {}): RefineChatState =>
+      refineReducer(REFINE_START, {
+        type: 'answered',
+        thread: readRefineThread({
+          thread: 9,
+          status: 'open',
+          reply: REPLY,
+          needs_answer: true,
+          summary: SUMMARY,
+          changes: [],
+          turns: [{ role: 'system', text: REPLY, summary: SUMMARY, changes: [] }],
+          ...over,
+        })!,
+      });
+
+    it('while the server sums up: "המערכת מסכמת…", no intro, and nothing can be sent yet', () => {
+      const state = refineReducer(REFINE_START, { type: 'summarizing' });
+      const view = chatView({ state, draft: 'המחיר לא נכון' });
+      const html = render(view);
+      expect(html).toContain('המערכת מסכמת…');
+      expect(html).toContain('role="status"');
+      expect(html).not.toContain('המערכת חושבת…');
+      expect(html).not.toContain('מה לא היה טוב ולמה');
+      // She may write meanwhile; sending waits for the summary.
+      expect(find(view, isBox).props.disabled).toBeFalsy();
+      expect(find(view, (props) => props['aria-label'] === 'שלח').props.disabled).toBe(true);
+    });
+
+    it('then one bubble of the system: three short lines, each under its small title, and the question', () => {
+      const html = render(chatView({ state: summarized() }));
+      expect(html).toContain('סיכום חכם');
+      expect(html).toContain(r.turnSummary);
+      const titles = [...html.matchAll(/<dt>([^<]+)<\/dt>/g)].map((match) => match[1]);
+      expect(titles).toEqual(['מה קרה', 'מה נענה', 'מה נראה לא טוב']);
+      const lines = [...html.matchAll(/<dd[^>]*>([^<]+)<\/dd>/g)].map((match) => match[1]);
+      expect(lines).toEqual([SUMMARY.what_happened, SUMMARY.what_was_answered, SUMMARY.suspected_issue]);
+      expect(html).toContain(`<p class="${r.summaryAsk}">מה לא היה טוב כאן?</p>`);
+      // The three lines say it; the same words as a paragraph are not shown beside them.
+      expect(html).not.toContain(REPLY);
+      // Nothing was changed, so there is no card — and no intro, the summary took its place.
+      expect(html).not.toContain('>עודכן<');
+      expect(html).not.toContain('מה לא היה טוב ולמה');
+    });
+
+    it('under it the box asks the same — "מה לא היה טוב כאן?" — not "התשובה שלך"', () => {
+      const view = chatView({ state: summarized() });
+      const box = find(view, isBox);
+      expect(box.props.placeholder).toBe('מה לא היה טוב כאן?');
+      expect(box.props['aria-label']).toBe('מה לא היה טוב כאן?');
+      expect(box.props.disabled).toBeFalsy();
+      const html = render(view);
+      expect(html.indexOf(r.turnSummary)).toBeLessThan(html.indexOf('<textarea'));
+    });
+
+    it('what looked wrong stands out; when nothing did, there are two lines and nothing is made up', () => {
+      const withIssue = render(chatView({ state: summarized() }));
+      expect(withIssue).toContain(r.summaryIssue);
+      const none = { ...SUMMARY, suspected_issue: null };
+      const html = render(chatView({ state: summarized({ summary: none, turns: [{ role: 'system', text: REPLY, summary: none, changes: [] }] }) }));
+      expect([...html.matchAll(/<dt>([^<]+)<\/dt>/g)].map((match) => match[1])).toEqual(['מה קרה', 'מה נענה']);
+      expect(html).not.toContain('מה נראה לא טוב');
+      expect(html).not.toContain(r.summaryIssue);
+      // The question is asked all the same.
+      expect(html).toContain(`<p class="${r.summaryAsk}">מה לא היה טוב כאן?</p>`);
+    });
+
+    it('a server that sends no summary: its own words are shown, as a question', () => {
+      const html = render(chatView({ state: summarized({ summary: undefined, turns: [{ role: 'system', text: REPLY, changes: [] }] }) }));
+      expect(html).toContain(REPLY);
+      expect(html).toContain('>שאלה<');
+      expect(html).not.toContain('סיכום חכם');
+      expect(html).not.toContain('<dt>');
+      expect(html).toContain('placeholder="מה לא היה טוב כאן?"');
+    });
+
+    it('once she has answered, the summary stays above and the question under it is gone', () => {
+      const said = 'הבנתי: המחיר לא מעודכן. שיניתי: מחיר חוג הקפוארה הוא 280 ₪ לחודש.';
+      const state = refineReducer(summarized(), {
+        type: 'answered',
+        thread: readRefineThread({
+          thread: 9,
+          status: 'open',
+          reply: said,
+          needs_answer: false,
+          changes: [CHANGE],
+          turns: [
+            { role: 'system', text: REPLY, summary: SUMMARY, changes: [] },
+            { role: 'operator', text: 'כן, בדיוק – המחיר הוא 280', changes: [] },
+            { role: 'system', text: said, changes: [CHANGE] },
+          ],
+        })!,
+      });
+      const html = render(chatView({ state }));
+      expect(html).toContain('סיכום חכם');
+      expect(html).toContain(SUMMARY.what_happened);
+      expect(html).not.toContain(r.summaryAsk);
+      expect(html).toContain('כן, בדיוק – המחיר הוא 280');
+      expect(html).toContain(said);
+      expect(html.indexOf(SUMMARY.what_happened)).toBeLessThan(html.indexOf('כן, בדיוק'));
+      expect(html.indexOf('כן, בדיוק')).toBeLessThan(html.indexOf(said));
+      expect(html).toContain('>עודכן<');
+      expect(html).toContain('placeholder="רוצים לדייק עוד? כתבו כאן…"');
+    });
+
+    it('an older server (the summary was skipped): the chat is what it always was — the intro and an empty box', () => {
+      const state = refineReducer(refineReducer(REFINE_START, { type: 'summarizing' }), { type: 'summarySkipped' });
+      const view = chatView({ state });
+      const html = render(view);
+      expect(html).toContain('מה לא היה טוב ולמה');
+      expect(html).toContain('placeholder="מה לא היה טוב כאן?"');
+      expect(html).not.toContain('המערכת מסכמת…');
+      expect(html).not.toContain('role="alert"');
+      expect(find(chatView({ state, draft: 'המחיר לא נכון' }), (props) => props['aria-label'] === 'שלח').props.disabled).toBe(false);
+    });
+
+    it('a summary that did not come is said in a line, and the box is hers', () => {
+      const state = refineReducer(refineReducer(REFINE_START, { type: 'summarizing' }), { type: 'summarySkipped', note: REFINE_TEXT.summaryFailed });
+      const html = render(chatView({ state }));
+      expect(html).toContain('role="alert"');
+      expect(html).toContain('הסיכום לא הוכן');
+      expect(find(chatView({ state, draft: 'המחיר לא נכון' }), (props) => props['aria-label'] === 'שלח').props.disabled).toBe(false);
+    });
   });
 
   it('the answer is a bubble — "הבנתי: … שיניתי: …" — with a card for the change', () => {

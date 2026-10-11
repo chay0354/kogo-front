@@ -14,6 +14,7 @@ import {
   startWahubRefine,
   undoWahubProposal,
   undoWahubRefine,
+  wantsWordsFirst,
 } from './refineApi';
 
 /**
@@ -85,6 +86,58 @@ export async function sendRefine(ctx: RefineFlowContext, target: RefineSendTarge
       return 'unknown';
     }
     ctx.dispatch({ type: 'failed', error: readableError(error, REFINE_TEXT.failed) });
+    return 'failed';
+  }
+}
+
+/**
+ * `summarized`: the system spoke first. `skipped`: an older server wants her
+ * words first — the box waits, as it always did. `unavailable`: no refine/ at
+ * all. `failed`: no summary came, and the box says so and waits.
+ */
+export type RefineSummaryResult = 'summarized' | 'skipped' | 'unavailable' | 'failed';
+
+/**
+ * "המשך" on marked messages: the thread is opened with no words of hers
+ * (POST refine/ with `text: ""`) and the system speaks first — a smart summary
+ * of the piece and "מה לא היה טוב כאן?". Nothing is changed at this step; what
+ * she writes next goes to the same thread (POST refine/{id}/say/).
+ *
+ * Whatever goes wrong, the chat is left ready to write in: a summary is a
+ * help, never a gate.
+ */
+export async function startRefineSummary(ctx: RefineFlowContext, target: RefineSendTarget): Promise<RefineSummaryResult> {
+  const state = ctx.getState();
+  if (state.phase !== 'idle' || state.threadId != null) return 'failed';
+  // The summary is of marked messages of a conversation.
+  if (target.contactId == null || target.proposalId != null || !target.messageIds.length) return 'failed';
+  ctx.dispatch({ type: 'summarizing' });
+  try {
+    const thread = await startWahubRefine({
+      contact: target.contactId,
+      message_ids: target.messageIds.slice(),
+      text: '',
+      shadow_ids: target.shadowId != null ? [target.shadowId] : undefined,
+    });
+    ctx.dispatch({ type: 'answered', thread });
+    // The conversation has one more thread to list.
+    ctx.onChanged?.();
+    return 'summarized';
+  } catch (error) {
+    if (isNotBuiltYet(error)) {
+      ctx.dispatch({ type: 'unavailable' });
+      return 'unavailable';
+    }
+    if (wantsWordsFirst(error)) {
+      ctx.dispatch({ type: 'summarySkipped' });
+      return 'skipped';
+    }
+    // No answer, or a refusal: said plainly, and the box is hers. A thread the server may have opened holds
+    // only a summary — nothing in the bot's knowledge moved.
+    ctx.dispatch({
+      type: 'summarySkipped',
+      note: isUnanswered(error) ? REFINE_TEXT.summaryFailed : readableError(error, REFINE_TEXT.summaryFailed),
+    });
     return 'failed';
   }
 }
