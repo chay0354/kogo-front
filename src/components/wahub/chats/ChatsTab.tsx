@@ -10,6 +10,7 @@ import { cardMaxWidth, cardWidth } from '@/lib/wahub/cardPane';
 import { isDemoContact } from '@/lib/wahub/demo';
 import { israelToday } from '@/lib/wahub/format';
 import { mergeLiveContacts } from '@/lib/wahub/live';
+import { paneDepth, paneDirection, type NavDirection } from '@/lib/wahub/motion';
 import { lastServerMessageId } from '@/lib/wahub/messages';
 import { BELOW_DESKTOP_MEDIA_QUERY, chatColumns, chatLayout, chatPanes, PHONE_MEDIA_QUERY } from '@/lib/wahub/screens';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
@@ -27,6 +28,7 @@ import type { WahubLiveHandle } from '../hooks/useWahubLive';
 import { useWahubTags, wahubKeys } from '../hooks/useWahubQueries';
 import { RefineDock, useRefine } from '../refine/RefineContext';
 import { EmptyState } from '../shared/bits';
+import m from '../motion.module.css';
 import { CardSkeleton } from '../shared/loading';
 import { cx } from '../shared/tones';
 import s from '../wahub.module.css';
@@ -305,6 +307,12 @@ export default function ChatsTab({
   const threadWidth = width !== null && wide ? width - columns.list - (showColumn ? cardColumn : 0) : null;
   const tightThread = threadWidth !== null && showColumn && threadWidth < TIGHT_THREAD_UNDER;
 
+  // A phone shows the list, the conversation or the details — one at a time, like pages. Going deeper brings
+  // the next one in "forward", coming back "back" (motion.module.css reads the mark; a desktop does not).
+  const depth = paneDepth(contactId, detailsOpen);
+  const [paneNav, setPaneNav] = useState<{ depth: number; direction: NavDirection }>({ depth, direction: 'forward' });
+  if (paneNav.depth !== depth) setPaneNav({ depth, direction: paneDirection(paneNav.depth, depth, paneNav.direction) });
+
   // The drawer closes on Escape, like anything that lies over the page.
   const drawerOpen = panes.drawer;
   useEffect(() => {
@@ -323,13 +331,14 @@ export default function ChatsTab({
       ref={frameRef}
       className={s.chatFrame}
       data-layout={layout}
+      data-nav={paneNav.direction}
       data-tight={tightThread ? '' : undefined}
       // The conversation reaches the edge of the screen: the stylesheet keeps its foot clear of the floating button.
       data-card={cardHidden && !showColumn ? 'hidden' : undefined}
     >
       <aside
         aria-label="רשימת השיחות"
-        className={showList ? cx(s.pane, s.listPane, 'shrink-0', layout === 'narrow' ? 'w-full' : s.paneLineEnd) : 'hidden'}
+        className={showList ? cx(s.pane, s.listPane, m.page, 'shrink-0', layout === 'narrow' ? 'w-full' : s.paneLineEnd) : 'hidden'}
         style={listWidth ? { width: listWidth } : undefined}
       >
         <ChatList
@@ -364,7 +373,7 @@ export default function ChatsTab({
       )}
 
       {contactId != null && (
-        <section aria-label="השיחה" className={showThread ? cx(s.pane, 'flex-1') : 'hidden'}>
+        <section aria-label="השיחה" className={showThread ? cx(s.pane, m.page, 'flex-1') : 'hidden'}>
           <ChatThread
             thread={shownThread}
             now={now}
@@ -408,7 +417,11 @@ export default function ChatsTab({
         <aside
           ref={cardRef}
           aria-label={showDetails ? 'פרטי איש הקשר' : 'דיוק'}
-          className={cx(s.pane, s.detailsPane, wide ? cx(s.paneLineStart, 'relative shrink-0') : panes.drawer ? s.detailsDrawer : 'flex-1')}
+          className={cx(
+            s.pane,
+            s.detailsPane,
+            wide ? cx(s.paneLineStart, m.cardIn, 'relative shrink-0') : panes.drawer ? s.detailsDrawer : cx(m.page, 'flex-1'),
+          )}
           style={wide ? { width: cardColumn } : undefined}
         >
           {/* "דיוק" opens over the card, so the conversation it is about stays whole beside it. */}

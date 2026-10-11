@@ -35,7 +35,7 @@ function QuickRepliesMenu({
   onManage: () => void;
 }) {
   return (
-    <div className="max-h-72 overflow-y-auto">
+    <div className={s.popList}>
       {loading ? (
         <p className={cx(s.muted, 'm-0 flex items-center gap-2 p-3')}>
           <Spinner /> טוען…
@@ -107,7 +107,7 @@ function TemplatesMenu({
   }
 
   return (
-    <div className="max-h-72 overflow-y-auto">
+    <div className={s.popList}>
       {loading ? (
         <p className={cx(s.muted, 'm-0 flex items-center gap-2 p-3')}>
           <Spinner /> טוען את התבניות…

@@ -42,6 +42,8 @@
   --shadow: 0 1px 3px rgba(43, 48, 144, 0.04), 0 6px 20px rgba(43, 48, 144, 0.06);
   --float: 0 14px 34px rgba(43, 48, 144, 0.22);
   --ease: cubic-bezier(0.32, 0.72, 0, 1);
+  /* How long things move, and on what curve, is written once — in motion.module.css (.motion, on this
+     same wrapper): --m-press / --m-fast / --m-base / --m-slow and --m-out / --m-in / --m-move / --m-spring. */
 
   background: var(--bg);
   color: var(--ink);
@@ -207,8 +209,8 @@
   font: inherit;
   color: inherit;
   transition:
-    border-color 0.15s,
-    transform 0.15s var(--ease);
+    border-color var(--m-fast),
+    transform var(--m-press) var(--m-out);
 }
 
 button.kpi:hover {
@@ -216,7 +218,7 @@ button.kpi:hover {
 }
 
 button.kpi:active {
-  transform: scale(0.99);
+  transform: scale(0.98);
 }
 
 .kpiOn {
@@ -294,8 +296,8 @@ button.kpi:active {
   flex: none;
   text-decoration: none;
   transition:
-    background 0.15s,
-    transform 0.15s;
+    background-color var(--m-fast),
+    transform var(--m-press) var(--m-out);
 }
 
 .btn:hover {
@@ -303,7 +305,7 @@ button.kpi:active {
 }
 
 .btn:active {
-  transform: scale(0.98);
+  transform: scale(0.96);
 }
 
 .btn:disabled {
@@ -374,10 +376,21 @@ button.kpi:active {
   align-items: center;
   justify-content: center;
   flex: none;
+  transition:
+    background-color var(--m-fast),
+    transform var(--m-press) var(--m-out);
 }
 
 .ib:hover {
   background: var(--navy-soft);
+}
+
+.ib:active {
+  transform: scale(0.9);
+}
+
+.ib:disabled:active {
+  transform: none;
 }
 
 .ib svg {
@@ -534,11 +547,20 @@ button.kpi:active {
   align-items: center;
   gap: 5px;
   white-space: nowrap;
+  transition:
+    background-color var(--m-fast),
+    border-color var(--m-fast),
+    color var(--m-fast),
+    transform var(--m-press) var(--m-out);
 }
 
 .chipbtn:hover {
   border-color: var(--navy);
   color: var(--navy-ink);
+}
+
+.chipbtn:active {
+  transform: scale(0.95);
 }
 
 .chipbtn svg {
@@ -605,8 +627,14 @@ button.kpi:active {
   justify-content: center;
   gap: 6px;
   transition:
-    background 0.15s,
-    color 0.15s;
+    background-color var(--m-fast),
+    color var(--m-fast),
+    box-shadow var(--m-fast),
+    transform var(--m-press) var(--m-out);
+}
+
+.seg button:active {
+  transform: scale(0.95);
 }
 
 .seg button svg {
@@ -663,10 +691,18 @@ button.kpi:active {
   color: inherit;
   width: 100%;
   font: inherit;
+  transition:
+    background-color var(--m-press),
+    transform var(--m-press) var(--m-out);
 }
 
 .listRow:hover {
   background: var(--lav-2);
+}
+
+/* A row is wide: it gives a little, where a button gives more. */
+button.listRow:active {
+  transform: scale(0.985);
 }
 
 .listRow.on,
@@ -979,7 +1015,7 @@ textarea.field {
   background: var(--faint);
   border: 0;
   flex: none;
-  transition: background 0.2s;
+  transition: background-color var(--m-base);
   padding: 0;
   display: block;
 }
@@ -993,7 +1029,7 @@ textarea.field {
   height: 20px;
   border-radius: 50%;
   background: #fff;
-  transition: transform 0.25s var(--ease);
+  transition: transform var(--m-base) var(--m-spring);
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
 }
 
@@ -1015,27 +1051,38 @@ textarea.field {
   border-radius: 50%;
   background: var(--good);
   display: inline-block;
-  box-shadow: 0 0 0 0 rgba(22, 163, 74, 0.5);
-  animation: pulse 1.8s infinite;
+  position: relative;
   vertical-align: middle;
   flex: none;
 }
 
+/* The ring of the sketch's live dot. It opens three times when the screen goes live, and then rests:
+   nothing in the section moves for ever but "thinking" and a shape that waits for data. */
+.dot::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: var(--good);
+  opacity: 0;
+  animation: pulse 1.8s var(--m-out) 3;
+}
+
 @keyframes pulse {
   0% {
-    box-shadow: 0 0 0 0 rgba(22, 163, 74, 0.45);
+    opacity: 0.45;
+    transform: scale(1);
   }
-  70% {
-    box-shadow: 0 0 0 8px rgba(22, 163, 74, 0);
-  }
+  70%,
   100% {
-    box-shadow: 0 0 0 0 rgba(22, 163, 74, 0);
+    opacity: 0;
+    transform: scale(3);
   }
 }
 
-/* A row or a message that just arrived comes in softly. */
+/* A row that just arrived comes in softly, from above. */
 .feedin {
-  animation: feedIn 0.5s var(--ease);
+  animation: feedIn var(--m-slow) var(--m-out) backwards;
 }
 
 @keyframes feedIn {
@@ -1043,15 +1090,11 @@ textarea.field {
     opacity: 0;
     transform: translateY(-8px);
   }
-  to {
-    opacity: 1;
-    transform: none;
-  }
 }
 
-/* A message comes up from the writing box, so it rises rather than falls. */
+/* What comes up from below — a pill, a bar — rises rather than falls. */
 .feedinUp {
-  animation: feedInUp 0.4s var(--ease);
+  animation: feedInUp var(--m-base) var(--m-out) backwards;
 }
 
 @keyframes feedInUp {
@@ -1059,43 +1102,38 @@ textarea.field {
     opacity: 0;
     transform: translateY(8px);
   }
-  to {
-    opacity: 1;
-    transform: none;
-  }
 }
 
+/* The root of a tab. Its entrance is the tab's own (motion.module.css, .screen) — it slides in from the side
+   it came from — so this is only the hook the screens already carry. */
 .pg {
-  animation: pgIn 0.32s var(--ease);
-}
-
-@keyframes pgIn {
-  from {
-    opacity: 0;
-    transform: translateY(8px);
-  }
-  to {
-    opacity: 1;
-    transform: none;
-  }
+  min-width: 0;
 }
 
 /* ---------- loading shape ---------- */
 
 .skeleton {
   display: block;
+  position: relative;
+  overflow: hidden;
   border-radius: 9px;
-  background: linear-gradient(90deg, var(--lav-2) 25%, var(--surface-2) 37%, var(--lav-2) 63%);
-  background-size: 400% 100%;
-  animation: shimmer 1.4s ease-in-out infinite;
+  background: var(--lav-2);
+}
+
+/* The shimmer: a band of light that crosses the shape, right to left as the page reads. Moved by transform,
+   so a screen full of shapes costs the browser nothing to draw. */
+.skeleton::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.75) 50%, transparent 100%);
+  transform: translateX(100%);
+  animation: shimmer 1.3s ease-in-out infinite;
 }
 
 @keyframes shimmer {
-  from {
-    background-position: 100% 50%;
-  }
   to {
-    background-position: 0 50%;
+    transform: translateX(-100%);
   }
 }
 
@@ -1271,11 +1309,21 @@ textarea.field {
   border-radius: 14px;
   box-shadow: var(--float);
   overflow: hidden;
-  animation: feedInUp 0.22s var(--ease);
+  /* It grows out of the corner it hangs from: above a button it rises… */
+  transform-origin: 100% 100%;
+  animation: popIn var(--m-fast) var(--m-out) backwards;
 }
 
+/* …and under a field it drops. */
 .popDown {
-  animation-name: feedIn;
+  transform-origin: 100% 0;
+}
+
+@keyframes popIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
 }
 
 .popTitle {
@@ -1286,6 +1334,14 @@ textarea.field {
   font-weight: 800;
   color: var(--muted);
   margin: 0;
+}
+
+/* The list inside a menu that opens above the writing box. It scrolls by itself, and in a short window it is
+   only as tall as the room above the box — a menu that ran past the top of the screen could not be reached. */
+.popList {
+  max-height: min(18rem, 38dvh);
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .menuItem {
@@ -1606,41 +1662,10 @@ textarea.field {
   flex: none;
 }
 
-/* "כותב…" — three dots that breathe. */
+/* "כותב…" — the line the three dots stand on. The dots themselves are the section's own (motion.module.css, .thinking). */
 .typing {
   display: flex;
-  gap: 4px;
-  padding: 4px 0 2px;
-}
-
-.typing i {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--good);
-  opacity: 0.4;
-  animation: typingDot 1.2s infinite var(--ease);
-}
-
-.typing i:nth-child(2) {
-  animation-delay: 0.2s;
-}
-
-.typing i:nth-child(3) {
-  animation-delay: 0.4s;
-}
-
-@keyframes typingDot {
-  0%,
-  60%,
-  100% {
-    opacity: 0.35;
-    transform: translateY(0);
-  }
-  30% {
-    opacity: 1;
-    transform: translateY(-3px);
-  }
+  padding: 2px 0 0;
 }
 
 /* The picture, large. Rendered on the body, outside the section: plain colours, no variables. */
@@ -1654,7 +1679,25 @@ textarea.field {
   padding: 24px;
   background: rgba(31, 35, 64, 0.86);
   cursor: zoom-out;
-  animation: feedIn 0.18s ease-out;
+  /* On the body, outside the section's wrapper: the timing is written here in full. */
+  animation: lightboxIn 180ms ease-out backwards;
+}
+
+@keyframes lightboxIn {
+  from {
+    opacity: 0;
+  }
+}
+
+.lightbox img {
+  animation: lightboxImg 220ms cubic-bezier(0.22, 1, 0.36, 1) backwards;
+}
+
+@keyframes lightboxImg {
+  from {
+    opacity: 0;
+    transform: scale(0.94);
+  }
 }
 
 .lightbox img {
@@ -1725,7 +1768,12 @@ textarea.field {
   align-items: center;
   gap: 6px;
   box-shadow: var(--float);
-  animation: feedInUp 0.3s var(--ease);
+  animation: feedInUp var(--m-base) var(--m-spring) backwards;
+  transition: transform var(--m-press) var(--m-out);
+}
+
+.newPill:active {
+  transform: scale(0.95);
 }
 
 .newPill svg {
@@ -1812,13 +1860,18 @@ textarea.field {
   .pop,
   .newPill,
   .skeleton,
-  .typing i,
   .recDot,
-  .lightbox {
+  .lightbox,
+  .lightbox img,
+  .dot::after,
+  .skeleton::after {
     animation: none;
   }
 
   .btn,
+  .ib,
+  .chipbtn,
+  .listRow,
   .kpi,
   .switch::after {
     transition: none;
@@ -1863,10 +1916,17 @@ textarea.field {
   text-align: start;
   color: inherit;
   font: inherit;
+  transition:
+    background-color var(--m-press),
+    transform var(--m-press) var(--m-out);
 }
 
 .kRow:hover {
   background: var(--lav-2);
+}
+
+.kRow:active {
+  transform: scale(0.99);
 }
 
 .kRow[aria-expanded='true'] {
@@ -1939,7 +1999,14 @@ textarea.field {
   color: var(--ink);
   font: inherit;
   width: 100%;
-  transition: border-color 0.15s, background 0.15s;
+  transition:
+    border-color var(--m-fast),
+    background-color var(--m-fast),
+    transform var(--m-press) var(--m-out);
+}
+
+.optCard:active {
+  transform: scale(0.98);
 }
 
 .optCard:hover {
@@ -2050,10 +2117,17 @@ textarea.field {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  transition:
+    background-color var(--m-fast),
+    transform var(--m-press) var(--m-out);
 }
 
 .shadowToggle:hover {
   background: var(--lav-2);
+}
+
+.shadowToggle:active {
+  transform: scale(0.97);
 }
 
 .shadowToggle svg {
@@ -2078,7 +2152,8 @@ textarea.field {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  animation: feedIn 0.22s var(--ease);
+  transform-origin: 0 0;
+  animation: popIn var(--m-base) var(--m-out) backwards;
 }
 
 /* The shadow's own bubble: lavender like the bot, dashed because it was never sent. */
@@ -2113,10 +2188,30 @@ textarea.field {
   display: inline-flex;
   align-items: center;
   gap: 6px;
+  transition:
+    background-color var(--m-fast),
+    border-color var(--m-fast),
+    color var(--m-fast),
+    transform var(--m-press) var(--m-out);
 }
 
 .thumb:hover {
   background: var(--lav-2);
+}
+
+.thumb:active {
+  transform: scale(0.94);
+}
+
+/* The verdict that was just given: its mark pops. */
+.thumb[aria-pressed='true'] svg {
+  animation: thumbPop var(--m-base) var(--m-spring) backwards;
+}
+
+@keyframes thumbPop {
+  from {
+    transform: scale(0.5) rotate(-12deg);
+  }
 }
 
 .thumb svg {
@@ -2265,11 +2360,18 @@ textarea.field {
   align-items: center;
   gap: 8px;
   box-shadow: var(--float);
-  animation: feedInUp 0.3s var(--ease);
+  animation: feedInUp var(--m-slow) var(--m-spring) backwards;
+  transition:
+    background-color var(--m-fast),
+    transform var(--m-press) var(--m-out);
 }
 
 .fab:hover {
   background: var(--navy-2);
+}
+
+.fab:active {
+  transform: scale(0.96);
 }
 
 .fab svg {
@@ -2292,15 +2394,28 @@ textarea.field {
   inset: 0;
   z-index: 44;
   background: rgba(10, 12, 40, 0.28);
-  animation: fadeIn 0.2s;
+  animation: fadeIn var(--m-base) ease-out backwards;
+  /* A wheel or a finger on the dimmed ground stays here: the page behind the panel does not move. (The ground
+     scrolls by one invisible pixel of its own, which is what lets it keep the scroll to itself.) */
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: none;
+  touch-action: none;
+}
+
+.fabScrim::-webkit-scrollbar {
+  display: none;
+}
+
+.fabScrim::after {
+  content: '';
+  display: block;
+  height: calc(100% + 1px);
 }
 
 @keyframes fadeIn {
   from {
     opacity: 0;
-  }
-  to {
-    opacity: 1;
   }
 }
 
@@ -2317,7 +2432,7 @@ textarea.field {
   box-shadow: var(--float);
   display: flex;
   flex-direction: column;
-  animation: slideFromLeft 0.3s var(--ease);
+  animation: slideFromLeft var(--m-slow) var(--m-move) backwards;
   direction: rtl;
 }
 
@@ -2325,8 +2440,28 @@ textarea.field {
   from {
     transform: translateX(-100%);
   }
+}
+
+/* Closed: it goes back the way it came, and the ground clears. */
+.fabPanelOut {
+  animation: slideToLeft var(--m-base) var(--m-in) forwards;
+  pointer-events: none;
+}
+
+@keyframes slideToLeft {
   to {
-    transform: none;
+    transform: translateX(-100%);
+  }
+}
+
+.fabScrimOut {
+  animation: fadeOut var(--m-base) var(--m-in) forwards;
+  pointer-events: none;
+}
+
+@keyframes fadeOut {
+  to {
+    opacity: 0;
   }
 }
 
@@ -2350,11 +2485,18 @@ textarea.field {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
+  /* At the end of the panel the scroll stops: the page behind it is not dragged along. */
+  overscroll-behavior: contain;
   padding: 12px 14px 24px;
   display: flex;
   flex-direction: column;
   gap: 12px;
   background: var(--bg);
+}
+
+/* A card of the panel is never squeezed to fit: the panel scrolls. */
+.fabPanelBody > * {
+  flex: none;
 }
 
 /* The demo box under the writing box of an invented contact: gold, dashed, unmistakable. */
@@ -2547,6 +2689,9 @@ textarea.field {
 }
 
 .demoBotState {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   color: var(--good);
   font-weight: 700;
   white-space: nowrap;
@@ -2656,7 +2801,10 @@ textarea.field {
   .fab,
   .fabScrim,
   .fabPanel,
-  .shadowCard {
+  .fabPanelOut,
+  .fabScrimOut,
+  .shadowCard,
+  .thumb[aria-pressed='true'] svg {
     animation: none;
   }
 }
@@ -2696,7 +2844,7 @@ textarea.field {
 }
 
 .refreshOn {
-  animation: refreshIn 0.2s ease-out 0.45s forwards;
+  animation: refreshIn var(--m-base) ease-out 0.45s forwards;
 }
 
 @keyframes refreshIn {
@@ -2730,7 +2878,7 @@ textarea.field {
 
 .dimmed {
   opacity: 0.6;
-  transition: opacity 0.15s;
+  transition: opacity var(--m-fast);
 }
 
 /* The grey shapes, at the height of what they stand for. */
@@ -2885,6 +3033,11 @@ textarea.field {
   color: inherit;
   font: inherit;
   text-align: start;
+  transition: transform var(--m-press) var(--m-out);
+}
+
+.foldHead:active {
+  transform: scale(0.99);
 }
 
 .foldTitle {
@@ -2924,7 +3077,7 @@ textarea.field {
   flex: none;
   margin-inline-start: auto;
   color: var(--muted);
-  transition: transform 0.2s var(--ease);
+  transition: transform var(--m-base) var(--m-out);
 }
 
 .foldOpen .foldChevron,
@@ -2932,9 +3085,9 @@ textarea.field {
   transform: rotate(180deg);
 }
 
+/* It opens by growing (shared/motion.tsx, Fold): nothing here moves it. */
 .foldBody {
   padding-bottom: 14px;
-  animation: feedIn 0.22s var(--ease);
 }
 
 /* "מה ידוע" under a title that already says so: the content alone. */
@@ -3074,7 +3227,7 @@ textarea.field {
   border: 0;
   padding: 0;
   background: rgba(10, 12, 40, 0.28);
-  animation: fadeIn 0.2s;
+  animation: fadeIn var(--m-base) ease-out backwards;
 }
 
 .detailsDrawer {
@@ -3087,7 +3240,7 @@ textarea.field {
   background: var(--surface);
   border-inline-start: 1px solid var(--line);
   box-shadow: var(--float);
-  animation: slideFromLeft 0.3s var(--ease);
+  animation: slideFromLeft var(--m-slow) var(--m-move) backwards;
 }
 
 /* --- the leads board --- */
@@ -3147,6 +3300,16 @@ textarea.field {
   min-width: 0;
 }
 
+/*
+ * A group of states keeps its own height. Left to shrink (the column is as tall as the window at most, and a
+ * card clips what does not fit), the groups were squeezed into the window and their last rows cut off, with
+ * nothing to scroll: on a laptop "דורש טיפול" lost its last states, and "סגור" could not be reached at all.
+ * Now the column itself scrolls when the three do not fit.
+ */
+.leadsStages > * {
+  flex: none;
+}
+
 .leadsPeople {
   min-width: 0;
 }
@@ -3168,6 +3331,10 @@ textarea.field {
 
 .groupHead:last-child {
   border-bottom: 0;
+}
+
+.groupHeadBtn {
+  transition: background-color var(--m-press);
 }
 
 .groupHeadBtn:hover {
@@ -3822,7 +3989,8 @@ textarea.field {
 @media (max-width: 767px) {
   /* The height of the bottom bar, and the room the screens keep clear of it. */
   .wahub {
-    --navH: calc(58px + env(safe-area-inset-bottom, 0px));
+    /* The bar is 50px of buttons, 4px above and under them, and its 1px line. */
+    --navH: calc(59px + env(safe-area-inset-bottom, 0px));
     /* The shell's menu button sits fixed in the top start corner (12px + 40px). */
     --menuGap: 56px;
   }
@@ -3889,7 +4057,7 @@ textarea.field {
     padding: 2px 12px;
     box-sizing: content-box;
     border-radius: 999px;
-    transition: background 0.15s;
+    transition: background-color var(--m-fast);
   }
 
   .nav button.on {
@@ -3932,7 +4100,7 @@ textarea.field {
   /* ---- the tabs that scroll with the page: one column, a small gutter ---- */
 
   .wahub .panel {
-    padding: 10px 12px 0;
+    padding: 10px 12px 12px;
   }
 
   .form {
@@ -4440,7 +4608,7 @@ textarea.field {
   border-radius: 2px;
   background: var(--navy);
   opacity: 0;
-  transition: opacity 0.12s;
+  transition: opacity var(--m-press);
 }
 
 .cardGrip:hover::after {
@@ -4487,6 +4655,13 @@ textarea.field {
   font-size: 12px;
   font-weight: 700;
   white-space: nowrap;
+  transition:
+    background-color var(--m-fast),
+    transform var(--m-press) var(--m-out);
+}
+
+.cardHide:active {
+  transform: scale(0.94);
 }
 
 .cardHide:hover {
@@ -4551,6 +4726,11 @@ textarea.field {
   color: inherit;
   font: inherit;
   text-align: start;
+  transition: transform var(--m-press) var(--m-out);
+}
+
+.statusHead:active {
+  transform: scale(0.99);
 }
 
 .statusTitle {
@@ -4577,9 +4757,9 @@ textarea.field {
   margin-inline-start: 0;
 }
 
+/* It opens by growing (shared/motion.tsx, Fold). */
 .statusBody {
   padding: 0 0 12px;
-  animation: feedIn 0.22s var(--ease);
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -4588,6 +4768,119 @@ textarea.field {
   }
 
   .statusBody {
+    animation: none;
+  }
+}
+
+/* ---------- scrolling, 12.10.2026 (docs/CHANGE-IMPACT-2026-10-12-WAHUB-MOTION-AND-SCROLL.md) ----------
+ *
+ * The owner: "זה לא נותן לגלול בחלק מהמקומות". What was found is fixed where it was found (the squeezed groups
+ * of the leads board, above; the proposals panel that dragged the page behind it, above). Here: the end of a
+ * list on a phone, which lay under the floating button; and a conversation on a phone while its keyboard is open.
+ */
+
+@media (max-width: 767px) {
+  /*
+   * The floating "יש הצעות לעדכון הבוט" lies over the foot of the screen. The end of a tab, and the end of
+   * the conversations list, keep clear of it — the last card's buttons and the last row can be scrolled up
+   * into view, instead of staying under the button with nowhere further to scroll.
+   */
+  .wahub:has(.fab) .panel {
+    padding-bottom: 66px;
+  }
+
+  .wahub:has(.fab) .listScroll {
+    padding-bottom: 58px;
+  }
+
+  /*
+   * A keyboard is open (shared/motion.tsx, useKeyboardRoom): the conversation is drawn into the room that is
+   * left above it, so the writing box stands on the keyboard and the title row — with the way back — stays.
+   */
+  .wahub.shell[data-chat-open][data-keyboard] {
+    height: var(--kbd-height);
+    min-height: 0;
+    transform: translateY(var(--kbd-top, 0px));
+  }
+}
+
+/* ---------- motion, 12.10.2026: what the shared layer (motion.module.css) does not reach by a class ---------- */
+
+.menuItem {
+  transition: background-color var(--m-press);
+}
+
+.threadName,
+.link,
+.tagX,
+.mediaThumb,
+.switchRow {
+  transition:
+    color var(--m-fast),
+    transform var(--m-press) var(--m-out);
+}
+
+.mediaThumb:active,
+.switchRow:active {
+  transform: scale(0.97);
+}
+
+/* A count that changed — the floating button's, a box's — pops once. */
+.fabN {
+  display: inline-block;
+}
+
+/* The number on a tab or a box, when it moves. */
+.bump {
+  display: inline-block;
+  animation: bump var(--m-base) var(--m-spring) backwards;
+}
+
+@keyframes bump {
+  from {
+    transform: scale(0.6);
+  }
+}
+
+/* A box that confirms something was done comes in with a small pop. */
+.noteGood {
+  transform-origin: 100% 0;
+  animation: popIn var(--m-base) var(--m-out) backwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bump,
+  .noteGood {
+    animation: none;
+  }
+}
+
+/* What opens where it was pressed — a question, a box under a button, a strip above the messages — comes in
+   with a small move of its own rather than appearing. */
+.confirm {
+  transform-origin: 100% 0;
+  animation: popIn var(--m-fast) var(--m-out) backwards;
+}
+
+.demoOld {
+  animation: feedInUp var(--m-base) var(--m-out) backwards;
+}
+
+.needStrip,
+.offlineStrip {
+  animation: feedIn var(--m-base) var(--m-out) backwards;
+}
+
+.emptyState {
+  animation: fadeIn var(--m-base) ease-out backwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .confirm,
+  .demoOld,
+  .needStrip,
+  .offlineStrip,
+  .emptyState {
     animation: none;
   }
 }

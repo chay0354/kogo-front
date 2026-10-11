@@ -7,7 +7,9 @@ import { readableError } from '@/lib/apiError';
 import { displayName } from '@/lib/wahub/format';
 import { fetchWahubContacts, tryWahubShadow, type WahubShadowTryBody } from '@/lib/wahubApi';
 import type { WahubContact, WahubShadowTry, WahubStatus } from '@/types/wahub';
+import m from '../../motion.module.css';
 import { ContactAvatar, Spinner, useDismiss } from '../../shared/bits';
+import { ThinkingDots } from '../../shared/motion';
 import { cx } from '../../shared/tones';
 import s from '../../wahub.module.css';
 import { ShadowBubble, ShadowWhy } from '../shared';
@@ -128,7 +130,7 @@ function ContactPicker({ value, onChange }: { value: WahubContact | null; onChan
 /** One question and its answer, newest at the top of the list. */
 function AskedCard({ asked, onSave, onOpenItem, onAskAgain }: { asked: Asked; onSave: () => void; onOpenItem: (id: number) => void; onAskAgain: () => void }) {
   return (
-    <article className={cx(s.card, 'flex flex-col gap-3')} aria-label={`שאלה: ${asked.body.question}`}>
+    <article className={cx(s.card, m.rise, 'flex flex-col gap-3')} aria-label={`שאלה: ${asked.body.question}`}>
       <div className={s.bubbleRow}>
         <div className={s.bubbleCol}>
           <div className={cx(s.bubble, s.bCustomer)}>
@@ -308,6 +310,16 @@ export default function TryTab({ status, initialQuestion, onOpenItem }: TryTabPr
           )}
         </div>
       </form>
+
+      {/* The answer is on its way: the bot's own bubble, with the three dots, where the answer will stand. */}
+      {asking && (
+        <div className={cx(s.card, s.bubbleRow, s.bubbleRowOut)} role="status" aria-label="הבוט חושב">
+          <div className={cx(s.bubble, s.bShadow, m.thinkingBubble, 'inline-flex items-center gap-2.5')}>
+            <span className={cx(s.bubbleMeta, '!mb-0')}>הבוט החדש חושב</span>
+            <ThinkingDots className={s.navyInk} />
+          </div>
+        </div>
+      )}
 
       {asked.map((entry) => (
         <AskedCard

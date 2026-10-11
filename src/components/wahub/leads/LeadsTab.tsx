@@ -13,6 +13,7 @@ import type { WahubLiveHandle } from '../hooks/useWahubLive';
 import { wahubKeys } from '../hooks/useWahubQueries';
 import { ErrorState } from '../shared/bits';
 import { RowsSkeleton } from '../shared/loading';
+import { useStagger } from '../shared/motion';
 import { cx } from '../shared/tones';
 import s from '../wahub.module.css';
 import LeadBoardView, { NO_PEOPLE, type LeadPeopleState } from './LeadBoard';
@@ -115,6 +116,10 @@ function LeadBoardScreen({
           error: query.isError ? readableError(query.error, '') : '',
         };
 
+  // The people of a state come in a row at a time when their own list is first drawn — not while the list of
+  // the state before it is still on show.
+  const peopleEntrance = useStagger(people.status === 'ready' && !people.stale);
+
   return (
     <div ref={ref}>
       <LeadBoardView
@@ -127,6 +132,7 @@ function LeadBoardScreen({
         selectedKey={selectedKey}
         closedOpen={closedOpen}
         people={people}
+        peopleEntrance={peopleEntrance}
         creating={creating}
         newLeadForm={
           creating ? (

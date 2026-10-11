@@ -76,7 +76,7 @@ export default function AddWizard({ onPick, onClose, onShowFromKogo }: AddWizard
   }
 
   return (
-    <section className={cx(s.card, 'flex flex-col gap-4')} aria-label="איפה זה שייך">
+    <section className={cx(s.card, s.feedin, 'flex flex-col gap-4')} aria-label="איפה זה שייך">
       <div className="flex items-start gap-3">
         <span aria-hidden="true" className={s.iconBox}>
           <Lightbulb className="h-[18px] w-[18px]" />

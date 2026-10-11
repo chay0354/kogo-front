@@ -10,10 +10,12 @@ import { SHADOW_HEADING, excerptLine, excerptOf, shadowExcerpt } from '@/lib/wah
 import { phoneStatusLine } from '@/lib/wahub/screens';
 import type { WahubContactDetail, WahubSender, WahubShadowReply } from '@/types/wahub';
 import type { ContactThread } from '../hooks/useContactThread';
+import m from '../motion.module.css';
 import { useRefine } from '../refine/RefineContext';
 import { RefineRow, RefineSelectBar } from '../refine/RefineRow';
 import { useRefineSelection } from '../refine/useRefineSelection';
 import { ContactAvatar, DemoTag, ErrorState, LiveTestTag, Skeleton, Spinner } from '../shared/bits';
+import { useStayAtEnd } from '../shared/motion';
 import { cx } from '../shared/tones';
 import s from '../wahub.module.css';
 import Composer from './Composer';
@@ -419,6 +421,10 @@ export default function ChatThread({
     if (visible && atBottom.current) scrollToEnd();
   }, [visible, scrollToEnd]);
 
+  // The room the messages have changes without a message arriving — the writing box grew, the bar of "דיוק"
+  // came up, a phone's keyboard opened. A reader on the newest message stays on it.
+  useStayAtEnd(scroller, atBottom, Boolean(contact));
+
   if (!contact) {
     return (
       <div className={cx(s.pane, 'flex-1')}>
@@ -489,7 +495,8 @@ export default function ChatThread({
           ) : status === 'loading' && messages.length === 0 ? (
             <ThreadSkeleton />
           ) : (
-            <>
+            // Another conversation, or its messages just read: they come in softly, as one.
+            <div key={thread.contactId ?? 'none'} className={m.fade}>
               {thread.hasOlder && (
                 <div className="mb-3 flex justify-center">
                   <button
@@ -547,7 +554,7 @@ export default function ChatThread({
                   <TypingBubble />
                 </div>
               )}
-            </>
+            </div>
           )}
         </div>
 

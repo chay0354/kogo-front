@@ -17,6 +17,7 @@ import type { WahubUnregisteredCounts, WahubUnregisteredLead } from '@/types/wah
 import { useUnregisteredLeads } from '../hooks/useWahubQueries';
 import { DemoTag, EmptyState, ErrorState, Pill, Skeleton } from '../shared/bits';
 import { outcomeTone } from '../shared/ContactParts';
+import { CountUp, Fold } from '../shared/motion';
 import { NUMBER_TONE, cx } from '../shared/tones';
 import s from '../wahub.module.css';
 
@@ -115,12 +116,12 @@ export default function UnregisteredCard({ counts, open, onToggle, onOpenChat }:
           שאלו ולא נרשמו
           <ChevronDown
             aria-hidden="true"
-            className="h-3.5 w-3.5 transition-transform"
+            className={cx(s.foldChevron, '!h-3.5 !w-3.5 !ms-0')}
             style={open ? { transform: 'rotate(180deg)' } : undefined}
           />
         </span>
         <span className={cx(s.kpiValue, s.num, total ? NUMBER_TONE.warning : '')}>
-          {total === null ? '–' : total.toLocaleString('he-IL')}
+          {total === null ? '–' : <CountUp value={total} once="today:unregistered" />}
         </span>
         {notes.length > 0 && (
           <span className={cx(s.kpiNote, 'flex flex-wrap gap-x-2')}>
@@ -136,8 +137,8 @@ export default function UnregisteredCard({ counts, open, onToggle, onOpenChat }:
         </span>
       </button>
 
-      {open && (
-        <div id={panelId} style={{ borderTop: '1px solid var(--line-2)' }}>
+      <Fold open={open} id={panelId}>
+        <div style={{ borderTop: '1px solid var(--line-2)' }}>
           <div className="flex flex-wrap items-center gap-2 px-4 py-2.5" style={{ borderBottom: '1px solid var(--line-2)' }}>
             <button
               type="button"
@@ -191,7 +192,7 @@ export default function UnregisteredCard({ counts, open, onToggle, onOpenChat }:
             </ul>
           )}
         </div>
-      )}
+      </Fold>
     </section>
   );
 }

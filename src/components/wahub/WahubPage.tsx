@@ -6,14 +6,18 @@ import { useSearchParams } from 'next/navigation';
 import { useQueryClient } from '@tanstack/react-query';
 import { WifiOff } from 'lucide-react';
 import { menuBadgeCount } from '@/lib/wahub/boxes';
+import { tabDirection, type NavDirection } from '@/lib/wahub/motion';
 import { buildWahubUrl, parseWahubUrl, type WahubUrlState } from '@/lib/wahub/params';
-import { conversationOpen } from '@/lib/wahub/screens';
+import { conversationOpen, PHONE_MEDIA_QUERY } from '@/lib/wahub/screens';
+import { useMediaQuery } from '@/hooks/useMediaQuery';
 import type { WahubBotSub, WahubBox, WahubQueue, WahubTab } from '@/types/wahub';
 import ChatsTab from './chats/ChatsTab';
 import { useWahubLive } from './hooks/useWahubLive';
 import { useWahubStatus, wahubKeys } from './hooks/useWahubQueries';
+import m from './motion.module.css';
 import { RefineHost, RefineProvider } from './refine/RefineContext';
 import { PanelSkeleton } from './shared/loading';
+import { useKeyboardRoom } from './shared/motion';
 import { cx } from './shared/tones';
 import s from './wahub.module.css';
 import WahubHead from './WahubHead';
@@ -188,6 +192,16 @@ function WahubSection() {
   // bottom bar and the floating button step aside (the stylesheet reads this mark).
   const chatOpen = conversationOpen(url);
 
+  // Which way the tab on screen came in: a later tab slides in "forward", an earlier one "back"
+  // (motion.module.css). Worked out in the same draw the tab changes in, so the move and the tab agree.
+  const [tabNav, setTabNav] = useState<{ tab: WahubTab; direction: NavDirection }>({ tab: url.tab, direction: 'forward' });
+  if (tabNav.tab !== url.tab) setTabNav({ tab: url.tab, direction: tabDirection(tabNav.tab, url.tab) });
+
+  // A phone's keyboard, while a conversation is open: the conversation is drawn into the room left above it.
+  const shell = useRef<HTMLDivElement | null>(null);
+  const phone = useMediaQuery(PHONE_MEDIA_QUERY);
+  useKeyboardRoom(shell, phone && chatOpen);
+
   // The section paints its own ground, edge to edge of the page area: the
   // negative margins undo the shell's padding, and the stylesheet gives each
   // part its own (the title row, a tab that scrolls). The conversations run to
@@ -197,10 +211,13 @@ function WahubSection() {
   return (
     // The conversations tab fills the window like a messaging app; the other tabs scroll with the page.
     <div
+      ref={shell}
       data-reveal-root
       data-chat-open={chatOpen ? '' : undefined}
+      data-tab-nav={tabNav.direction}
       className={cx(
         s.wahub,
+        m.motion,
         s.shell,
         onChats && s.tabChats,
         bleed,
@@ -223,7 +240,7 @@ function WahubSection() {
           role="tabpanel"
           id="wahub-panel-chats"
           aria-labelledby="wahub-tab-chats"
-          className={onChats ? 'flex min-h-0 flex-1 flex-col' : 'hidden'}
+          className={onChats ? cx(m.screenFade, 'flex min-h-0 flex-1 flex-col') : 'hidden'}
         >
           <ChatsTab
             active={onChats}
@@ -241,7 +258,7 @@ function WahubSection() {
       )}
 
       {url.tab === 'today' && (
-        <div role="tabpanel" id="wahub-panel-today" aria-labelledby="wahub-tab-today" className={s.panel}>
+        <div role="tabpanel" id="wahub-panel-today" aria-labelledby="wahub-tab-today" className={cx(s.panel, m.screen)}>
           <TodayTab status={status.data} onGo={goTo} onOpenChat={openChat} />
         </div>
       )}
@@ -251,7 +268,7 @@ function WahubSection() {
           role="tabpanel"
           id="wahub-panel-bot"
           aria-labelledby="wahub-tab-bot"
-          className={url.tab === 'bot' ? s.panel : 'hidden'}
+          className={url.tab === 'bot' ? cx(s.panel, m.screen) : 'hidden'}
         >
           <BotTab
             sub={botSub}
@@ -272,7 +289,7 @@ function WahubSection() {
           role="tabpanel"
           id="wahub-panel-leads"
           aria-labelledby="wahub-tab-leads"
-          className={url.tab === 'leads' ? s.panel : 'hidden'}
+          className={url.tab === 'leads' ? cx(s.panel, m.screen) : 'hidden'}
         >
           <LeadsTab
             active={url.tab === 'leads'}
@@ -289,7 +306,7 @@ function WahubSection() {
       )}
 
       {url.tab === 'settings' && (
-        <div role="tabpanel" id="wahub-panel-settings" aria-labelledby="wahub-tab-settings" className={s.panel}>
+        <div role="tabpanel" id="wahub-panel-settings" aria-labelledby="wahub-tab-settings" className={cx(s.panel, m.screen)}>
           <SettingsTab
             status={status.data}
             statusLoading={status.isLoading}

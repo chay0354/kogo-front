@@ -7,6 +7,7 @@ import { useProposals, useReviewSummary } from '../../hooks/useBotQueries';
 import { useNow } from '../../hooks/useNow';
 import { useProposalRefine } from '../../refine/AutoApplied';
 import { EmptyState, Spinner } from '../../shared/bits';
+import { useLeaving, useScrollThrough } from '../../shared/motion';
 import { cx } from '../../shared/tones';
 import s from '../../wahub.module.css';
 import ProposalCard from './ProposalCard';
@@ -48,22 +49,36 @@ export default function ProposalsFab({ onOpenChat, onOpenItem, onOpenReview }: P
     if (open && count === 0 && !pending.isLoading) setOpen(false);
   }, [open, count, pending.isLoading]);
 
-  if (count === 0 && !open) return null;
+  // The button floats over the foot of a list: a wheel or a finger that lands on it still scrolls the list under it.
+  const fab = useScrollThrough<HTMLButtonElement>();
+  // Closed, the panel stays for the moment it takes to slide back out.
+  const panel = useLeaving(open, 220);
+
+  if (count === 0 && !panel.mounted) return null;
 
   return (
     <>
-      {!open && (
-        <button type="button" onClick={() => setOpen(true)} className={s.fab} aria-haspopup="dialog" aria-expanded={false}>
+      {!open && count > 0 && (
+        <button ref={fab} type="button" onClick={() => setOpen(true)} className={s.fab} aria-haspopup="dialog" aria-expanded={false}>
           <Lightbulb aria-hidden="true" />
           יש הצעות לעדכון הבוט
-          <span className={cx(s.fabN, s.num)}>{count}</span>
+          {/* The number pops when it changes. */}
+          <span key={count} className={cx(s.fabN, s.num, s.bump)}>
+            {count}
+          </span>
         </button>
       )}
 
-      {open && (
+      {panel.mounted && (
         <>
-          <div className={s.fabScrim} onClick={() => setOpen(false)} aria-hidden="true" />
-          <aside role="dialog" aria-modal="true" aria-label="הצעות לעדכון הבוט" className={s.fabPanel}>
+          <div className={cx(s.fabScrim, panel.closing && s.fabScrimOut)} onClick={() => setOpen(false)} aria-hidden="true" />
+          <aside
+            role="dialog"
+            aria-modal="true"
+            aria-label="הצעות לעדכון הבוט"
+            aria-hidden={panel.closing || undefined}
+            className={cx(s.fabPanel, panel.closing && s.fabPanelOut)}
+          >
             <header className={s.fabPanelHead}>
               <Lightbulb className="h-5 w-5 shrink-0 text-[var(--navy-ink)]" aria-hidden="true" />
               <h2>

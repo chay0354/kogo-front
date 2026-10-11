@@ -10,7 +10,9 @@ import type { WahubBox, WahubBoxCounts, WahubContact } from '@/types/wahub';
 import type { ListStatus } from '../hooks/usePagedContacts';
 import { LeadStageTag } from '../leads/LeadBits';
 import { ContactAvatar, DemoTag, EmptyState, ErrorState, LiveTestTag, Spinner } from '../shared/bits';
+import m from '../motion.module.css';
 import { ListRowsSkeleton, RefreshNote } from '../shared/loading';
+import { useStagger } from '../shared/motion';
 import { cx } from '../shared/tones';
 import s from '../wahub.module.css';
 
@@ -44,7 +46,7 @@ const ChatRow = memo(function ChatRow({ contact, selected, arrived, now, onOpen 
   const marks = lead ? demo || liveTest || who.tone === 'human' : true;
 
   return (
-    <li className={arrived ? s.feedin : undefined}>
+    <li className={arrived ? m.drop : undefined}>
       <button
         type="button"
         onClick={() => onOpen(contact.id)}
@@ -188,6 +190,8 @@ export default function ChatList({
   }, [hasMore, items.length]);
 
   const filtered = Boolean(search.trim()) || box !== 'all';
+  // A list that was just read comes in a row at a time; once it is on screen its rows only move with the live update.
+  const stagger = useStagger(status === 'ready');
 
   return (
     <div className="relative flex min-h-0 flex-1 flex-col">
@@ -261,7 +265,7 @@ export default function ChatList({
       <RefreshNote active={status === 'refreshing'} className={s.refreshFloat} />
       <div
         ref={scroller}
-        className={cx('min-h-0 flex-1 overflow-y-auto overscroll-contain transition-opacity', status === 'refreshing' && 'opacity-60')}
+        className={cx(s.listScroll, 'min-h-0 flex-1 overflow-y-auto overscroll-contain transition-opacity', status === 'refreshing' && 'opacity-60')}
         aria-busy={status === 'loading' || status === 'refreshing'}
       >
         {status === 'loading' ? (
@@ -286,7 +290,7 @@ export default function ChatList({
           )
         ) : (
           <>
-            <ul className={s.list} aria-label="שיחות">
+            <ul className={cx(s.list, stagger)} aria-label="שיחות">
               {items.map((contact) => (
                 <ChatRow
                   key={contact.id}
