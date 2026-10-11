@@ -5,6 +5,7 @@ import { Lightbulb, X } from 'lucide-react';
 import { pendingCount, pendingProposals } from '@/lib/wahub/bot';
 import { useProposals, useReviewSummary } from '../../hooks/useBotQueries';
 import { useNow } from '../../hooks/useNow';
+import { useProposalRefine } from '../../refine/AutoApplied';
 import { EmptyState, Spinner } from '../../shared/bits';
 import { cx } from '../../shared/tones';
 import s from '../../wahub.module.css';
@@ -28,6 +29,7 @@ export default function ProposalsFab({ onOpenChat, onOpenItem, onOpenReview }: P
   const summary = useReviewSummary(true);
   const pending = useProposals('pending', open || (summary.data?.pending ?? 0) > 0);
   const { approve, reject, busyId } = useProposalDecision();
+  const refine = useProposalRefine();
   const count = pendingCount(summary.data, pending.data);
   const list = pendingProposals(pending.data ?? []);
 
@@ -83,8 +85,9 @@ export default function ProposalsFab({ onOpenChat, onOpenItem, onOpenReview }: P
             </header>
             <div className={s.fabPanelBody}>
               <p className={cx(s.t2, 'm-0 !text-[12.5px]')}>
-                כל הצעה: למה, מה משתנה (לפני ← אחרי) והראיות מהשיחה. <strong className="font-extrabold">אשר</strong> מחיל על הידע;{' '}
-                <strong className="font-extrabold">דחה</strong> שומר את הסיבה. שום דבר לא נשלח ללקוח.
+                כל הצעה: מה הבוט יעשה מעכשיו, למה, ומה ישתנה. <strong className="font-extrabold">אשר</strong> מחיל על הידע;{' '}
+                <strong className="font-extrabold">דחה</strong> שומר את הסיבה; <strong className="font-extrabold">דיוק</strong> – כותבים מה
+                לשנות בהצעה. שום דבר לא נשלח ללקוח.
               </p>
               {pending.isLoading && list.length === 0 ? (
                 <p className={cx(s.muted, 'm-0 flex items-center gap-2')}>
@@ -101,6 +104,15 @@ export default function ProposalsFab({ onOpenChat, onOpenItem, onOpenReview }: P
                     busy={busyId === proposal.id}
                     onApprove={(note) => void approve(proposal, note)}
                     onReject={(note) => void reject(proposal, note)}
+                    onRefine={
+                      refine
+                        ? () => {
+                            // The small chat opens where this panel stands: the panel steps aside for it.
+                            setOpen(false);
+                            refine(proposal);
+                          }
+                        : undefined
+                    }
                     onOpenChat={(contactId) => {
                       setOpen(false);
                       onOpenChat(contactId);

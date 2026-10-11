@@ -12,6 +12,7 @@ import type { WahubBotSub, WahubBox, WahubQueue, WahubTab } from '@/types/wahub'
 import ChatsTab from './chats/ChatsTab';
 import { useWahubLive } from './hooks/useWahubLive';
 import { useWahubStatus, wahubKeys } from './hooks/useWahubQueries';
+import { RefineHost, RefineProvider } from './refine/RefineContext';
 import { PanelSkeleton } from './shared/loading';
 import { cx } from './shared/tones';
 import s from './wahub.module.css';
@@ -38,8 +39,19 @@ const ProposalsFab = dynamic(() => import('./bot/review/ProposalsFab'), { ssr: f
  * One page, five tabs. The tab and the open conversation live in the address
  * (/wahub?tab=chats&contact=12), so a link opens exactly what was on screen.
  * The live update runs here, above the tabs, for as long as the page is open.
+ *
+ * "דיוק" — the small chat that fixes the bot — is held above the tabs as well:
+ * a conversation and the bot tab both open the same one.
  */
 export default function WahubPage() {
+  return (
+    <RefineProvider>
+      <WahubSection />
+    </RefineProvider>
+  );
+}
+
+function WahubSection() {
   const searchParams = useSearchParams();
   const url = useMemo(() => parseWahubUrl(searchParams), [searchParams]);
   const { handle: live, boxes, offline } = useWahubLive();
@@ -303,6 +315,8 @@ export default function WahubPage() {
       )}
 
       <ProposalsFab onOpenChat={openChat} onOpenItem={(id) => openKnowledgeItem(id)} onOpenReview={openReview} />
+      {/* Inside the wrapper, where the section's colours are set. */}
+      <RefineHost />
     </div>
   );
 }

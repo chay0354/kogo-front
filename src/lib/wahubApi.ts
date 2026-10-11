@@ -599,6 +599,9 @@ export async function fetchWahubReviewSummary(): Promise<WahubReviewSummary> {
     rejected_7d: Number(data.rejected_7d ?? 0),
     auto_mode: Boolean(data.auto_mode),
     notes_7d: data.notes_7d == null ? undefined : Number(data.notes_7d),
+    // docs/WAHUB-CONTRACT-REFINE.md: left out when the server does not send them, so the screen can tell "0" from "not known".
+    auto_applied_7d: data.auto_applied_7d == null ? undefined : Number(data.auto_applied_7d),
+    auto_apply: data.auto_apply == null ? undefined : Boolean(data.auto_apply),
   };
 }
 

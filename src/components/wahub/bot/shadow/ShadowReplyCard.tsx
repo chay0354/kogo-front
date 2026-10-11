@@ -16,6 +16,8 @@ interface ShadowReplyCardProps {
   onVerdict: (verdict: 'good' | 'bad', note: string) => void;
   onOpenItem?: (id: number) => void;
   onOpenChat?: (contactId: number) => void;
+  /** "לתקן" opens "דיוק" on this answer (docs/WAHUB-CONTRACT-REFINE.md, ב). */
+  onFix?: () => void;
 }
 
 /**
@@ -23,7 +25,7 @@ interface ShadowReplyCardProps {
  * gave it, what the old bot answered, what the new one would have answered,
  * "why" folded, and 👍/👎.
  */
-export default function ShadowReplyCard({ reply, now, busy, showContact = false, onVerdict, onOpenItem, onOpenChat }: ShadowReplyCardProps) {
+export default function ShadowReplyCard({ reply, now, busy, showContact = false, onVerdict, onOpenItem, onOpenChat, onFix }: ShadowReplyCardProps) {
   const contactName = reply.contact_name || (reply.contact_id ? `שיחה ${reply.contact_id}` : '');
   const contactId = reply.contact_id ?? null;
   return (
@@ -79,7 +81,7 @@ export default function ShadowReplyCard({ reply, now, busy, showContact = false,
 
       <ShadowWhy reasoning={reply.reasoning} tools={reply.tools_used} knowledge={reply.knowledge_used} onOpenItem={onOpenItem} />
 
-      <VerdictButtons verdict={reply.verdict} note={reply.verdict_note} busy={busy} onVerdict={onVerdict} />
+      <VerdictButtons verdict={reply.verdict} note={reply.verdict_note} busy={busy} onVerdict={onVerdict} onFix={onFix} />
     </article>
   );
 }

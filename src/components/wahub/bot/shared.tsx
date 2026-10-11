@@ -185,19 +185,23 @@ export function ShadowWhy({
 }
 
 /**
- * 👍 / 👎 with a note. The mark shows at once; "bad" opens a line for the
- * note, because a 👎 with a note becomes a proposal to fix the bot.
+ * 👍 / 👎. The mark shows at once. "לתקן" opens the small chat of "דיוק" on
+ * this answer when the caller has one to open (`onFix`); without it, the older
+ * way: a line for a note, because a 👎 with a note becomes a proposal to fix the bot.
  */
 export function VerdictButtons({
   verdict,
   note,
   busy = false,
   onVerdict,
+  onFix,
 }: {
   verdict: WahubShadowVerdict;
   note: string;
   busy?: boolean;
   onVerdict: (verdict: 'good' | 'bad', note: string) => void;
+  /** "לתקן" opens "דיוק" on this answer, in place of the note box. */
+  onFix?: () => void;
 }) {
   const [draft, setDraft] = useState<string | null>(null);
   const noting = draft !== null;
@@ -222,7 +226,7 @@ export function VerdictButtons({
           type="button"
           aria-pressed={verdict === 'bad'}
           disabled={busy}
-          onClick={() => setDraft(noting ? null : note || '')}
+          onClick={() => (onFix ? onFix() : setDraft(noting ? null : note || ''))}
           className={cx(s.thumb, s.thumbBad)}
         >
           <ThumbsDown aria-hidden="true" />

@@ -20,6 +20,7 @@ import { liveTestCount } from '@/lib/wahub/liveTest';
 import type { WahubContact, WahubQuickReply, WahubStatus, WahubTag } from '@/types/wahub';
 import { useNow } from '../hooks/useNow';
 import { useLiveTestContacts, useWahubQuickReplies, useWahubTags, wahubKeys } from '../hooks/useWahubQueries';
+import AutoApplySection from '../refine/AutoApplySwitch';
 import { EmptyState, ErrorState, InlineConfirm, LiveTestTag, Pill, Skeleton, Spinner, TagChip } from '../shared/bits';
 import { ColorDots, TAG_COLORS } from '../shared/ContactParts';
 import { cx } from '../shared/tones';
@@ -803,6 +804,8 @@ export default function SettingsTab({ status, statusLoading, statusError, onRetr
       {status && liveTestCount(status) !== null && (
         <LiveTestSection status={status} onChanged={onRetryStatus} onOpenChat={onOpenChat} />
       )}
+      {/* "דיוק" and the reviewer fix the bot; this decides whether a clear fix waits for a press (docs/WAHUB-CONTRACT-REFINE.md). */}
+      <AutoApplySection />
       <QuickRepliesSection />
       <TagsSection />
       {status && <SummarySection status={status} />}
