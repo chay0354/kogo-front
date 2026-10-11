@@ -116,6 +116,34 @@ function Details({ row, status, now }: { row: SystemStatusKey; status: WahubStat
     );
   }
 
+  if (row === 'transcribe') {
+    const transcribe = status.transcribe;
+    if (!transcribe?.configured) {
+      return (
+        <Line>
+          <B>חסר מפתח לתמלול.</B> עד שיוגדר, הבוט מבקש מהלקוח לכתוב במקום להקליט.
+        </Line>
+      );
+    }
+    if (transcribe.ok === false) {
+      return (
+        <>
+          <Line>
+            <B>ההקלטה האחרונה לא תומללה:</B> {transcribe.reason || 'השירות לא ענה'}
+          </Line>
+          <Line>
+            בינתיים הבוט <B>עונה על מה שנכתב</B> ומבקש לכתוב את מה שהוקלט. כשהתמלול יחזור לעבוד, ההקלטות האחרונות יתומללו לבד.
+          </Line>
+        </>
+      );
+    }
+    return (
+      <Line>
+        {transcribe.ok ? <B>פעיל.</B> : <B>עוד לא נוסה.</B>} הקלטה של לקוח הופכת לטקסט, והבוט עונה על מה שנאמר בה.
+      </Line>
+    );
+  }
+
   if (row === 'sending') {
     const sending = sendingState(status);
     if (sending === 'simulated') {

@@ -59,7 +59,20 @@ export function connectionMissing(status: WahubStatus): string[] {
   return missing;
 }
 
-export type SystemStatusKey = 'connection' | 'summary' | 'shadow' | 'sending' | 'liveTest';
+/**
+ * Recordings in a word: working, never tried yet, no key — or why the last one
+ * was refused. The usual reason is an account with no credit left, said short.
+ */
+export function transcribeLevel(transcribe: NonNullable<WahubStatus['transcribe']>): { level: StatusLevel; value: string } {
+  if (!transcribe.configured) return { level: 'off', value: 'אין מפתח' };
+  if (transcribe.ok === false) {
+    const reason = (transcribe.reason ?? '').trim();
+    return { level: 'warn', value: reason.includes('אין יתרה') ? 'אין יתרה בחשבון' : 'לא עובד' };
+  }
+  return transcribe.ok ? { level: 'ok', value: 'פעיל' } : { level: 'unknown', value: 'עוד לא נוסה' };
+}
+
+export type SystemStatusKey = 'connection' | 'summary' | 'shadow' | 'transcribe' | 'sending' | 'liveTest';
 
 export interface SystemStatusRow {
   key: SystemStatusKey;
@@ -99,6 +112,10 @@ export function systemStatusRows(status: WahubStatus): SystemStatusRow[] {
       value: real ? model || 'פעיל' : 'דמה',
       ltr: real && Boolean(model),
     });
+  }
+
+  if (status.transcribe !== undefined) {
+    rows.push({ key: 'transcribe', title: 'תמלול הקלטות', ...transcribeLevel(status.transcribe) });
   }
 
   const sending = sendingState(status);

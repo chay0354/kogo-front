@@ -391,6 +391,20 @@ describe('a recording or a picture in a conversation', () => {
     expect(html).not.toContain('<audio');
   });
 
+  it('a recording that was not transcribed says why, in the server\'s words — and only on a customer\'s message', () => {
+    const why = 'אין יתרה בחשבון OpenAI — התמלול לא עובד עד שמטעינים';
+    const html = render(<MediaView kind="voice" url="https://files.test/a.ogg" state="ready" transcript="" problem={why} />);
+    expect(html).toContain('לא תומללה:');
+    expect(html).toContain(why);
+    expect(html).not.toContain('עוד לא תומללה');
+    // With a transcript the reason is history.
+    const heard = render(<MediaView kind="voice" url="https://files.test/a.ogg" state="ready" transcript="היי" problem={why} />);
+    expect(heard).toContain('תמלול:');
+    expect(heard).not.toContain('לא תומללה');
+    // No reason: still waiting.
+    expect(render(<MediaView kind="voice" url="https://files.test/a.ogg" state="ready" transcript="" />)).toContain('הקלטה — עוד לא תומללה');
+  });
+
   it('a file that could not be loaded says so, with a way to try again', () => {
     const onRetry = vi.fn();
     const view = <MediaView kind="voice" url={null} state="error" transcript="" onRetry={onRetry} />;
