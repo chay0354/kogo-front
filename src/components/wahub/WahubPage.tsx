@@ -12,13 +12,15 @@ import type { WahubBotSub, WahubBox, WahubQueue, WahubTab } from '@/types/wahub'
 import ChatsTab from './chats/ChatsTab';
 import { useWahubLive } from './hooks/useWahubLive';
 import { useWahubStatus, wahubKeys } from './hooks/useWahubQueries';
+import { PanelSkeleton } from './shared/loading';
 import { cx } from './shared/tones';
 import s from './wahub.module.css';
 import WahubNav from './WahubNav';
 import WahubStatusChips from './WahubStatusChips';
 
+/** A tab's code is on its way: the shape of a tab — a row of tiles and a card — holds its place. */
 function TabLoading() {
-  return <span className={cx(s.skeleton, 'h-72 !rounded-2xl')} aria-busy="true" aria-label="טוען" />;
+  return <PanelSkeleton />;
 }
 
 // The page opens on the conversations. The other tabs — the chart library with
@@ -67,12 +69,22 @@ export default function WahubPage() {
   // the tab it is on. Each tab's own are remembered here while another tab is in
   // front, so coming back finds the same conversation and the same queue — and a
   // tab that is out of view is not told its view changed.
-  const kept = useRef({ box: url.box, contact: url.contact, queue: url.queue, sub: url.sub, item: url.item });
+  const kept = useRef({
+    box: url.box,
+    contact: url.contact,
+    queue: url.queue,
+    stage: url.stage ?? null,
+    sub: url.sub,
+    item: url.item,
+  });
   if (url.tab === 'chats') {
     kept.current.box = url.box;
     kept.current.contact = url.contact;
   }
-  if (url.tab === 'leads') kept.current.queue = url.queue;
+  if (url.tab === 'leads') {
+    kept.current.queue = url.queue;
+    kept.current.stage = url.stage ?? null;
+  }
   if (url.tab === 'bot') {
     kept.current.sub = url.sub;
     kept.current.item = url.item;
@@ -80,6 +92,7 @@ export default function WahubPage() {
   const chatsBox = kept.current.box;
   const chatsContact = kept.current.contact;
   const leadsQueue = kept.current.queue;
+  const leadsStage = kept.current.stage;
   const botSub = kept.current.sub;
   const botItem = kept.current.item;
 
@@ -93,6 +106,7 @@ export default function WahubPage() {
         box: kept.current.box,
         contact: kept.current.contact,
         queue: kept.current.queue,
+        stage: kept.current.stage,
         sub: kept.current.sub,
         item: kept.current.item,
       }),
@@ -121,18 +135,28 @@ export default function WahubPage() {
     [go],
   );
   const goTo = useCallback(
-    (target: { tab: WahubTab; box?: WahubBox; queue?: WahubQueue }) =>
+    (target: { tab: WahubTab; box?: WahubBox; queue?: WahubQueue; stage?: string }) =>
       go({
         tab: target.tab,
         box: target.box ?? kept.current.box,
         // A box chosen from the "היום" tab opens on its list, not on whatever conversation was open before.
         contact: target.box ? null : kept.current.contact,
         queue: target.queue ?? kept.current.queue,
+        // A lead state chosen from "היום" opens the leads tab on that state.
+        stage: target.stage ?? kept.current.stage,
       }),
     [go],
   );
   const setBox = useCallback((box: WahubBox) => go({ box }, 'replace'), [go]);
   const setQueue = useCallback((queue: WahubQueue) => go({ queue }, 'replace'), [go]);
+  const setStage = useCallback(
+    (stage: string | null) => {
+      // From the board into a state is a step "back" can undo (a phone shows one of the two at a time).
+      const current = parseWahubUrl(new URLSearchParams(window.location.search));
+      go({ tab: 'leads', stage }, !current.stage && stage ? 'push' : 'replace');
+    },
+    [go],
+  );
   const openContact = useCallback(
     (id: number | null) => {
       // From the list into a conversation is a step "back" can undo; moving
@@ -154,9 +178,10 @@ export default function WahubPage() {
   const chatOpen = conversationOpen(url);
 
   // The section paints its own ground, edge to edge of the page area: the
-  // negative margins undo the shell's padding and the padding puts it back, so
-  // the lavender ground of the sketch reaches the menu and the window's edges.
-  const bleed = '-mx-4 -my-4 px-4 py-4 sm:-mx-6 sm:-my-8 sm:px-6 sm:py-6';
+  // negative margins undo the shell's padding, and the stylesheet gives each
+  // part its own (the title row, a tab that scrolls). The conversations run to
+  // the edges, so the lavender ground of the sketch reaches the menu and the window.
+  const bleed = '-mx-4 -my-4 sm:-mx-6 sm:-my-8';
 
   return (
     // The conversations tab fills the window like a messaging app; the other tabs scroll with the page.
@@ -168,31 +193,32 @@ export default function WahubPage() {
         s.shell,
         onChats && s.tabChats,
         bleed,
-        'flex flex-col gap-3',
+        'flex flex-col',
         onChats ? 'h-[100dvh] min-h-[560px]' : 'min-h-[100dvh]',
       )}
     >
-      <header className={cx(s.head, 'flex shrink-0 flex-wrap items-center gap-x-3 gap-y-2 max-lg:ps-12')}>
+      {/* One compact row on a desktop: the title, the five tabs, the two status chips.
+          On a phone the tabs are the bar at the bottom of the screen (the stylesheet moves them). */}
+      <header className={cx(s.head, 'flex shrink-0 flex-wrap items-center')}>
         <h1 className={s.h1}>וואטסאפ ולידים</h1>
         {/* The pulsing dot of the sketch: shown once a poll has answered, and while they keep answering. */}
         {boxes !== null && !offline && (
           <span className={s.subT} title="המסך מתעדכן לבד">
             <span className={s.dot} aria-hidden="true" />
-            חי
+            <span className={s.liveWord}>חי</span>
           </span>
         )}
+        <WahubNav active={url.tab} needsHuman={menuBadgeCount(boxes)} onSelect={openTab} />
         <span className="flex-1" />
         <WahubStatusChips status={status.data} failed={status.isError} onOpenSettings={openSettings} />
       </header>
 
       {offline && (
-        <p role="status" className={cx(s.strip, 'shrink-0')}>
+        <p role="status" className={cx(s.strip, s.offlineStrip, 'shrink-0')}>
           <WifiOff aria-hidden="true" />
           אין חיבור, מנסה שוב
         </p>
       )}
-
-      <WahubNav active={url.tab} needsHuman={menuBadgeCount(boxes)} onSelect={openTab} />
 
       {(visited.has('chats') || onChats) && (
         <div
@@ -251,10 +277,13 @@ export default function WahubPage() {
           className={url.tab === 'leads' ? s.panel : 'hidden'}
         >
           <LeadsTab
+            active={url.tab === 'leads'}
             live={live}
             queue={leadsQueue}
+            stage={leadsStage}
             status={status.data}
             onQueue={setQueue}
+            onStage={setStage}
             onOpenChat={openChat}
             onOpenSettings={openSettings}
           />

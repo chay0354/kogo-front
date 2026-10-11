@@ -6,9 +6,7 @@ import {
   Ban,
   CalendarClock,
   Check,
-  ChevronDown,
   ExternalLink,
-  History,
   MessageCircleReply,
   PhoneCall,
   PhoneMissed,
@@ -60,6 +58,7 @@ export function KnownBox({
   now,
   onAnalyze,
   analyzing = false,
+  bare = false,
 }: {
   contact: WahubContact;
   today: string;
@@ -67,6 +66,8 @@ export function KnownBox({
   /** Offered where there is room for it (the contact panel); a lead card leaves it out. */
   onAnalyze?: () => void;
   analyzing?: boolean;
+  /** Under a title that already says "מה ידוע" (the card's folded section): no title and no box of its own. */
+  bare?: boolean;
 }) {
   const { known } = contact;
   const callback = callbackLine(known.callback_on, today, now);
@@ -84,17 +85,21 @@ export function KnownBox({
   const flagLabels = known.flag_labels ?? [];
   const empty = !known.summary && rows.length === 0 && flagLabels.length === 0 && !callback;
 
+  const analyzeButton = onAnalyze && (
+    <button type="button" onClick={onAnalyze} disabled={analyzing} className={cx(s.btn, s.btnSm)}>
+      {analyzing ? <Spinner className="h-3.5 w-3.5" /> : <Sparkles aria-hidden="true" />}
+      סכם מחדש
+    </button>
+  );
+
   return (
-    <div className={s.known}>
-      <div className="flex items-center justify-between gap-2">
-        <p className={s.knownTitle}>מה ידוע</p>
-        {onAnalyze && (
-          <button type="button" onClick={onAnalyze} disabled={analyzing} className={cx(s.btn, s.btnSm)}>
-            {analyzing ? <Spinner className="h-3.5 w-3.5" /> : <Sparkles aria-hidden="true" />}
-            סכם מחדש
-          </button>
-        )}
-      </div>
+    <div className={bare ? s.knownBare : s.known}>
+      {!bare && (
+        <div className="flex items-center justify-between gap-2">
+          <p className={s.knownTitle}>מה ידוע</p>
+          {analyzeButton}
+        </div>
+      )}
 
       {empty ? (
         <p className={cx(s.knownText, s.muted)}>עוד אין מידע על הפנייה הזו.</p>
@@ -136,6 +141,7 @@ export function KnownBox({
           {known.analysis_source === 'ai' ? 'סיכום אוטומטי' : 'לפי מילים בשיחה'} · {agoText(known.analyzed_at, now)}
         </p>
       )}
+      {bare && analyzeButton && <div className="mt-2.5">{analyzeButton}</div>}
     </div>
   );
 }
@@ -263,6 +269,7 @@ export function FollowupMarks({
   now,
   onChange,
   showBy = false,
+  compact = false,
 }: {
   contact: WahubContact;
   today: string;
@@ -270,6 +277,8 @@ export function FollowupMarks({
   onChange: (patch: WahubFollowupPatch) => void;
   /** Who set the mark and when — shown where there is room. */
   showBy?: boolean;
+  /** The six in one row where the column allows it (the contact's card on a desktop): words only, the tick on the one that is set. */
+  compact?: boolean;
 }) {
   const { followup } = contact;
   const dateId = useId();
@@ -277,7 +286,7 @@ export function FollowupMarks({
 
   return (
     <div>
-      <div className="flex flex-wrap gap-1.5" role="group" aria-label="סימון מעקב">
+      <div className={cx('flex flex-wrap gap-1.5', compact && s.marksRow)} role="group" aria-label="סימון מעקב">
         {FOLLOWUP_MARKS.map((mark) => {
           const active = followup.status === mark.status;
           const Icon = active ? Check : MARK_ICON[mark.status];
@@ -533,51 +542,24 @@ export function TagPicker({
 // היסטוריה — who did what, and when
 // ---------------------------------------------------------------------------
 
-/** Folded by default: a title, and the log under it on a press. Newest first. */
-export function EventsLog({ events, now }: { events: WahubEvent[]; now: Date }) {
-  const [open, setOpen] = useState(false);
-  const panelId = useId();
-
+/** The log itself, newest first: what happened, who did it, and when. */
+export function EventsList({ events, now }: { events: WahubEvent[]; now: Date }) {
+  if (events.length === 0) return <p className={s.t2}>עוד לא נרשם כלום.</p>;
   return (
-    <div>
-      <button
-        type="button"
-        aria-expanded={open}
-        aria-controls={panelId}
-        onClick={() => setOpen((value) => !value)}
-        className={cx(s.sectTitle, 'flex w-full items-center justify-between gap-2 border-0 bg-transparent p-0 text-start')}
-      >
-        <span className="inline-flex items-center gap-1.5">
-          <History className="h-3.5 w-3.5" aria-hidden="true" />
-          היסטוריה
-          {events.length > 0 && <span className={s.num}>({events.length})</span>}
-        </span>
-        <ChevronDown className={cx('h-4 w-4 transition-transform', open && 'rotate-180')} aria-hidden="true" />
-      </button>
-
-      {open && (
-        <div id={panelId} className="mt-2.5">
-          {events.length === 0 ? (
-            <p className={s.t2}>עוד לא נרשם כלום.</p>
-          ) : (
-            <ol className="m-0 flex list-none flex-col gap-2.5 p-0">
-              {events.map((event) => (
-                <li key={event.id} className={s.logItem}>
-                  <p className="m-0 text-[13px] leading-snug">
-                    <Pill tone="neutral" className="me-1.5">
-                      {event.kind_label}
-                    </Pill>
-                    {event.text}
-                  </p>
-                  <p className={cx(s.t2, 'm-0 mt-0.5 !text-[11px]')}>
-                    {event.actor_name || 'אוטומטי'} · {formatDateTime(event.created_at, now)}
-                  </p>
-                </li>
-              ))}
-            </ol>
-          )}
-        </div>
-      )}
-    </div>
+    <ol className="m-0 flex list-none flex-col gap-2.5 p-0">
+      {events.map((event) => (
+        <li key={event.id} className={s.logItem}>
+          <p className="m-0 text-[13px] leading-snug">
+            <Pill tone="neutral" className="me-1.5">
+              {event.kind_label}
+            </Pill>
+            {event.text}
+          </p>
+          <p className={cx(s.t2, 'm-0 mt-0.5 !text-[11px]')}>
+            {event.actor_name || 'אוטומטי'} · {formatDateTime(event.created_at, now)}
+          </p>
+        </li>
+      ))}
+    </ol>
   );
 }

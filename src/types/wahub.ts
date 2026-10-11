@@ -158,6 +158,11 @@ export interface WahubContact {
    * server built before it — the switch is then not offered.
    */
   live_test?: boolean;
+  /**
+   * The lead's one state, with why and what to do (docs/WAHUB-CONTRACT-LEAD-STAGES.md).
+   * Absent on a server built before it — the screens then show what they showed before.
+   */
+  lead?: WahubLead | null;
 }
 
 export interface WahubMessage {
@@ -262,6 +267,8 @@ export interface WahubSummary {
   by_day: WahubDayStat[];
   /** Stage 3: who asked in the last 30 days and did not register. Absent on a server built before it. */
   unregistered_leads?: WahubUnregisteredCounts;
+  /** Lead stages: who needs handling now, by state (only states with someone in them). Absent on an older server. */
+  lead_act?: WahubLeadActSummary;
 }
 
 export interface WahubStatus {
@@ -345,6 +352,9 @@ export interface WahubContactsQuery extends WahubSharedFilters {
   showHidden?: boolean;
   /** Only the people in a live test (`live_test=1`). A server that does not know the filter ignores it; the screen filters again. */
   liveTest?: boolean;
+  /** One lead state (`lead_stage=<key>`), or a whole group of them (`lead_group=act|wait|closed`). */
+  leadStage?: string;
+  leadGroup?: WahubLeadGroup;
   page?: number;
   pageSize?: number;
 }
@@ -843,4 +853,80 @@ export interface WahubForCustomer {
   phones: string[];
   contacts: WahubForCustomerContact[];
   checked_at: string | null;
+}
+
+// ---------------------------------------------------------------------------
+// The lead's state (docs/WAHUB-CONTRACT-LEAD-STAGES.md). The server decides the
+// state from facts, by rules; the screen only shows it. Field for field.
+// ---------------------------------------------------------------------------
+
+/** The three groups of the board, in the order they are shown. */
+export type WahubLeadGroup = 'act' | 'wait' | 'closed';
+
+/** The states the contract names. A key the screen does not know is still shown, by the label the server sent. */
+export type WahubLeadStage =
+  | 'needs_reply'
+  | 'signup_failed'
+  | 'signup_started'
+  | 'trial_no_show'
+  | 'trial_done'
+  | 'callback_due'
+  | 'answered_silent'
+  | 'trial_booked'
+  | 'waiting_date'
+  | 'in_conversation'
+  | 'registered'
+  | 'customer'
+  | 'not_relevant'
+  | 'cold';
+
+export type WahubLeadTemperature = 'hot' | 'warm' | 'cold' | '';
+
+/** `lead` on a contact: one state, one sentence why, one sentence what to do. */
+export interface WahubLead {
+  stage: WahubLeadStage | string;
+  stage_label: string;
+  group: WahubLeadGroup;
+  /** Since when the contact is in this state. */
+  since: string | null;
+  /** Whole days in this state. */
+  days: number | null;
+  /** "למה" — a sentence built from facts. */
+  reason: string;
+  /** "מה עושים". Empty where there is nothing to do now. */
+  next_step: string;
+  /** A person from the office wrote to them at some point. */
+  human_touched: boolean;
+  temperature: WahubLeadTemperature;
+}
+
+/** One state on the board: how many are in it, and how long the oldest has been there. */
+export interface WahubLeadBoardStage {
+  key: WahubLeadStage | string;
+  label: string;
+  hint: string;
+  next_step: string;
+  count: number;
+  oldest_days: number | null;
+}
+
+export interface WahubLeadBoardGroup {
+  key: WahubLeadGroup;
+  label: string;
+  total: number;
+  stages: WahubLeadBoardStage[];
+}
+
+/** GET leads/board/ — the three groups in the order act / wait / closed; a state with nobody in it stays on the list. */
+export interface WahubLeadBoard {
+  groups: WahubLeadBoardGroup[];
+  checked_at: string | null;
+  /** Contacts the scan has not reached yet. */
+  pending_scan: number;
+}
+
+/** `lead_act` on GET summary/. */
+export interface WahubLeadActSummary {
+  total: number;
+  stages: Array<{ key: WahubLeadStage | string; label: string; count: number }>;
 }

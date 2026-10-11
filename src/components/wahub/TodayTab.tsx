@@ -9,13 +9,16 @@ import { fetchWahubContacts } from '@/lib/wahubApi';
 import type { Tone } from '@/lib/wahub/boxes';
 import { callbackLine, followupDueLine } from '@/lib/wahub/followup';
 import { dayTick, displayName, israelToday, plainDayLabel, previewText, waitingLabel } from '@/lib/wahub/format';
+import { leadActOf } from '@/lib/wahub/leadStage';
 import { longestWaiting } from '@/lib/wahub/live';
 import { WAHUB_MAX_PAGE_SIZE } from '@/lib/wahub/params';
 import type { WahubBox, WahubContact, WahubQueue, WahubStatus, WahubTab } from '@/types/wahub';
 import { useNow } from './hooks/useNow';
 import { useWahubSummary } from './hooks/useWahubQueries';
 import { ContactAvatar, EmptyState, ErrorState, Skeleton } from './shared/bits';
+import { AreaError, RefreshNote, RowsSkeleton, TilesSkeleton } from './shared/loading';
 import { NUMBER_TONE, cx } from './shared/tones';
+import LeadActCard, { LeadActSkeleton } from './today/LeadActCard';
 import UnregisteredCard from './today/UnregisteredCard';
 import s from './wahub.module.css';
 
@@ -127,22 +130,9 @@ function ListCard({
   );
 }
 
-function RowsSkeleton() {
-  return (
-    <ul className={s.list} aria-busy="true" aria-label="טוען">
-      {Array.from({ length: 4 }).map((_, row) => (
-        <li key={row} className="flex items-center gap-2.5 px-2.5 py-2">
-          <Skeleton className="h-[30px] w-[30px] shrink-0" />
-          <Skeleton className="h-3.5 flex-1" />
-        </li>
-      ))}
-    </ul>
-  );
-}
-
 interface TodayTabProps {
   status: WahubStatus | undefined;
-  onGo: (target: { tab: WahubTab; box?: WahubBox; queue?: WahubQueue }) => void;
+  onGo: (target: { tab: WahubTab; box?: WahubBox; queue?: WahubQueue; stage?: string }) => void;
   onOpenChat: (id: number) => void;
 }
 
@@ -179,153 +169,171 @@ export default function TodayTab({ status, onGo, onOpenChat }: TodayTabProps) {
   }));
   const chartEmpty = chart.every((day) => !day.inbound && !day.new_contacts);
 
-  if (summary.isError && !data) {
-    return (
-      <div className={s.card}>
-        <ErrorState
-          title="לא הצלחנו לטעון את נתוני היום"
-          text={readableError(summary.error, '')}
-          onRetry={() => void summary.refetch()}
-        />
-      </div>
-    );
-  }
+  // The summary feeds the tiles, the leads card and the chart; the two lists under them read for themselves.
+  // When it fails, only its own area says so — the lists stay.
+  const summaryFailed = summary.isError && !data;
+  // On a server that knows the lead states, "דורש טיפול" stands where "שאלו ולא נרשמו" stood.
+  const leadAct = leadActOf(data);
 
   return (
-    <div className={cx(s.pg, 'flex flex-col gap-3.5')}>
-      {/* A phone (under 768px) keeps the four in one column, whatever the width. */}
-      <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4 max-md:!grid-cols-1" aria-label="מה מחכה עכשיו">
-        <Tile
-          label="מחכים לתשובה"
-          value={data ? data.waiting : null}
-          note={waitingUnreliable ? 'לא מדויק – תשובות הבוט לא מתקבלות' : undefined}
-          tone="warning"
-          icon={<Hourglass className="h-[18px] w-[18px]" />}
-          onClick={() => onGo({ tab: 'chats', box: 'waiting' })}
-        />
-        <Tile
-          label="מבקשים נציג"
-          value={data ? data.needs_human : null}
-          tone="danger"
-          icon={<BellRing className="h-[18px] w-[18px]" />}
-          onClick={() => onGo({ tab: 'chats', box: 'needs_human' })}
-        />
-        <Tile
-          label="לחזור אליהם היום"
-          value={data ? data.due_followups : null}
-          tone="primary"
-          icon={<CalendarClock className="h-[18px] w-[18px]" />}
-          onClick={() => onGo({ tab: 'leads', queue: 'due' })}
-        />
-        <Tile
-          label="פניות חדשות היום"
-          value={data ? data.new_contacts_today : null}
-          tone="primary"
-          icon={<UserPlus className="h-[18px] w-[18px]" />}
-          onClick={() => onGo({ tab: 'leads', queue: 'all' })}
-        />
-      </section>
+    <div className={cx(s.pg, 'relative flex flex-col gap-3.5')}>
+      <RefreshNote active={Boolean(data) && summary.isFetching} className={s.refreshCorner} />
 
-      <UnregisteredCard
-        counts={data?.unregistered_leads}
-        open={unregisteredOpen}
-        onToggle={() => setUnregisteredOpen((value) => !value)}
-        onOpenChat={onOpenChat}
-      />
-
-      <section className={s.card}>
-        <div className={cx(s.ct, 'flex-wrap')}>
-          <h3>7 הימים האחרונים</h3>
-          {data && (
-            <p>
-              היום: <strong className={s.navyInk}>{data.inbound_today.toLocaleString('he-IL')}</strong> נכנסות ·{' '}
-              <strong className={s.navyInk}>{data.outbound_today.toLocaleString('he-IL')}</strong> יוצאות · בשבוע:{' '}
-              <strong className={s.navyInk}>{data.new_contacts_7d.toLocaleString('he-IL')}</strong> פניות חדשות
-            </p>
-          )}
+      {summaryFailed ? (
+        <div className={s.card}>
+          <ErrorState
+            title="לא הצלחנו לטעון את נתוני היום"
+            text={readableError(summary.error, '')}
+            onRetry={() => void summary.refetch()}
+          />
         </div>
-        <div className="h-64">
-          {!data ? (
-            <Skeleton className="h-full !rounded-xl" />
-          ) : chartEmpty ? (
-            <EmptyState
-              icon={<Hourglass />}
-              title="עוד אין תנועה בשבוע האחרון"
-              text="הודעות נכנסות ופניות חדשות יופיעו כאן לפי יום."
-              tight
-              className="h-full"
+      ) : !data ? (
+        <>
+          <TilesSkeleton count={4} />
+          <LeadActSkeleton />
+        </>
+      ) : (
+        <>
+          <section className={s.tiles} aria-label="מה מחכה עכשיו">
+            <Tile
+              label="מחכים לתשובה"
+              value={data.waiting}
+              note={waitingUnreliable ? 'לא מדויק – תשובות הבוט לא מתקבלות' : undefined}
+              tone="warning"
+              icon={<Hourglass className="h-[18px] w-[18px]" />}
+              onClick={() => onGo({ tab: 'chats', box: 'waiting' })}
             />
-          ) : (
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={chart} margin={{ top: 8, right: 8, left: 0, bottom: 0 }} barGap={2}>
-                <CartesianGrid strokeDasharray="3 3" stroke="var(--line)" vertical={false} />
-                <XAxis dataKey="tick" tick={{ fontSize: 12, fill: 'var(--muted)' }} tickLine={false} axisLine={false} />
-                <YAxis
-                  tick={{ fontSize: 12, fill: 'var(--muted)' }}
-                  width={36}
-                  allowDecimals={false}
-                  tickLine={false}
-                  axisLine={false}
-                />
-                <Tooltip
-                  cursor={{ fill: 'var(--lav-2)' }}
-                  contentStyle={{
-                    background: 'var(--surface)',
-                    border: '1px solid var(--line)',
-                    borderRadius: 12,
-                    boxShadow: 'var(--float)',
-                    color: 'var(--ink)',
-                    direction: 'rtl',
-                  }}
-                  labelStyle={{ fontWeight: 800 }}
-                  labelFormatter={(_label, payload) => {
-                    const date = payload?.[0]?.payload?.date as string | undefined;
-                    return date ? plainDayLabel(date) : '';
-                  }}
-                />
-                <Legend />
-                {/* The sketch's own two: navy, and gold for what is worth noticing. Gold is pale
-                    on white, so it carries a darker edge; the legend, the hover and the table
-                    below say the rest. */}
-                <Bar dataKey="inbound" name="הודעות נכנסות" fill="var(--navy)" radius={[4, 4, 0, 0]} maxBarSize={36} />
-                <Bar
-                  dataKey="new_contacts"
-                  name="פניות חדשות"
-                  fill="var(--gold)"
-                  stroke="var(--gold-ink)"
-                  strokeWidth={1}
-                  radius={[4, 4, 0, 0]}
-                  maxBarSize={36}
-                />
-              </BarChart>
-            </ResponsiveContainer>
-          )}
-        </div>
-        {/* The same numbers as a table, for a reader who cannot use the picture. */}
-        {data && !chartEmpty && (
-          <table className="sr-only">
-            <caption>הודעות נכנסות ופניות חדשות לפי יום</caption>
-            <thead>
-              <tr>
-                <th scope="col">יום</th>
-                <th scope="col">הודעות נכנסות</th>
-                <th scope="col">פניות חדשות</th>
-              </tr>
-            </thead>
-            <tbody>
-              {chart.map((day) => (
-                <tr key={day.date}>
-                  <th scope="row">{plainDayLabel(day.date)}</th>
-                  <td>{day.inbound}</td>
-                  <td>{day.new_contacts}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </section>
+            <Tile
+              label="מבקשים נציג"
+              value={data.needs_human}
+              tone="danger"
+              icon={<BellRing className="h-[18px] w-[18px]" />}
+              onClick={() => onGo({ tab: 'chats', box: 'needs_human' })}
+            />
+            <Tile
+              label="לחזור אליהם היום"
+              value={data.due_followups}
+              tone="primary"
+              icon={<CalendarClock className="h-[18px] w-[18px]" />}
+              onClick={() => onGo(leadAct ? { tab: 'leads', stage: 'callback_due' } : { tab: 'leads', queue: 'due' })}
+            />
+            <Tile
+              label="פניות חדשות היום"
+              value={data.new_contacts_today}
+              tone="primary"
+              icon={<UserPlus className="h-[18px] w-[18px]" />}
+              onClick={() => onGo({ tab: 'leads', queue: 'all' })}
+            />
+          </section>
 
-      <div className="grid grid-cols-1 gap-3.5 lg:grid-cols-2">
+          {leadAct ? (
+            <LeadActCard counts={leadAct} onStage={(stage) => onGo({ tab: 'leads', stage })} />
+          ) : (
+            <UnregisteredCard
+              counts={data.unregistered_leads}
+              open={unregisteredOpen}
+              onToggle={() => setUnregisteredOpen((value) => !value)}
+              onOpenChat={onOpenChat}
+            />
+          )}
+        </>
+      )}
+
+      {!summaryFailed && (
+        <section className={s.card}>
+          <div className={cx(s.ct, 'flex-wrap')}>
+            <h3>7 הימים האחרונים</h3>
+            {data && (
+              <p>
+                היום: <strong className={s.navyInk}>{data.inbound_today.toLocaleString('he-IL')}</strong> נכנסות ·{' '}
+                <strong className={s.navyInk}>{data.outbound_today.toLocaleString('he-IL')}</strong> יוצאות · בשבוע:{' '}
+                <strong className={s.navyInk}>{data.new_contacts_7d.toLocaleString('he-IL')}</strong> פניות חדשות
+              </p>
+            )}
+          </div>
+          <div className="h-64">
+            {!data ? (
+              <Skeleton className="h-full !rounded-xl" />
+            ) : chartEmpty ? (
+              <EmptyState
+                icon={<Hourglass />}
+                title="עוד אין תנועה בשבוע האחרון"
+                text="הודעות נכנסות ופניות חדשות יופיעו כאן לפי יום."
+                tight
+                className="h-full"
+              />
+            ) : (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={chart} margin={{ top: 8, right: 8, left: 0, bottom: 0 }} barGap={2}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--line)" vertical={false} />
+                  <XAxis dataKey="tick" tick={{ fontSize: 12, fill: 'var(--muted)' }} tickLine={false} axisLine={false} />
+                  <YAxis
+                    tick={{ fontSize: 12, fill: 'var(--muted)' }}
+                    width={36}
+                    allowDecimals={false}
+                    tickLine={false}
+                    axisLine={false}
+                  />
+                  <Tooltip
+                    cursor={{ fill: 'var(--lav-2)' }}
+                    contentStyle={{
+                      background: 'var(--surface)',
+                      border: '1px solid var(--line)',
+                      borderRadius: 12,
+                      boxShadow: 'var(--float)',
+                      color: 'var(--ink)',
+                      direction: 'rtl',
+                    }}
+                    labelStyle={{ fontWeight: 800 }}
+                    labelFormatter={(_label, payload) => {
+                      const date = payload?.[0]?.payload?.date as string | undefined;
+                      return date ? plainDayLabel(date) : '';
+                    }}
+                  />
+                  <Legend />
+                  {/* The sketch's own two: navy, and gold for what is worth noticing. Gold is pale
+                      on white, so it carries a darker edge; the legend, the hover and the table
+                      below say the rest. */}
+                  <Bar dataKey="inbound" name="הודעות נכנסות" fill="var(--navy)" radius={[4, 4, 0, 0]} maxBarSize={36} />
+                  <Bar
+                    dataKey="new_contacts"
+                    name="פניות חדשות"
+                    fill="var(--gold)"
+                    stroke="var(--gold-ink)"
+                    strokeWidth={1}
+                    radius={[4, 4, 0, 0]}
+                    maxBarSize={36}
+                  />
+                </BarChart>
+              </ResponsiveContainer>
+            )}
+          </div>
+          {/* The same numbers as a table, for a reader who cannot use the picture. */}
+          {data && !chartEmpty && (
+            <table className="sr-only">
+              <caption>הודעות נכנסות ופניות חדשות לפי יום</caption>
+              <thead>
+                <tr>
+                  <th scope="col">יום</th>
+                  <th scope="col">הודעות נכנסות</th>
+                  <th scope="col">פניות חדשות</th>
+                </tr>
+              </thead>
+              <tbody>
+                {chart.map((day) => (
+                  <tr key={day.date}>
+                    <th scope="row">{plainDayLabel(day.date)}</th>
+                    <td>{day.inbound}</td>
+                    <td>{day.new_contacts}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </section>
+      )}
+
+      <div className={s.pairGrid}>
         <ListCard
           title="מחכים הכי הרבה זמן"
           sub={waiting.data && !waiting.data.exact ? 'ייתכן שהרשימה חלקית – יש הרבה ממתינים' : undefined}
@@ -333,7 +341,7 @@ export default function TodayTab({ status, onGo, onOpenChat }: TodayTabProps) {
           {waiting.isLoading ? (
             <RowsSkeleton />
           ) : waiting.isError ? (
-            <ErrorState title="לא הצלחנו לטעון" onRetry={() => void waiting.refetch()} tight />
+            <AreaError title="לא הצלחנו לטעון את הרשימה" onRetry={() => void waiting.refetch()} />
           ) : !waiting.data?.rows.length ? (
             <EmptyState icon={<Hourglass />} title="אף אחד לא מחכה לתשובה" tight />
           ) : (
@@ -362,7 +370,7 @@ export default function TodayTab({ status, onGo, onOpenChat }: TodayTabProps) {
           {due.isLoading ? (
             <RowsSkeleton />
           ) : due.isError ? (
-            <ErrorState title="לא הצלחנו לטעון" onRetry={() => void due.refetch()} tight />
+            <AreaError title="לא הצלחנו לטעון את הרשימה" onRetry={() => void due.refetch()} />
           ) : !due.data?.rows.length ? (
             <EmptyState icon={<CalendarClock />} title="אין למי לחזור היום" tight />
           ) : (
@@ -379,7 +387,11 @@ export default function TodayTab({ status, onGo, onOpenChat }: TodayTabProps) {
               </ul>
               {due.data.total > due.data.rows.length && (
                 <div className="p-2 text-center" style={{ borderTop: '1px solid var(--line-2)' }}>
-                  <button type="button" onClick={() => onGo({ tab: 'leads', queue: 'due' })} className={cx(s.btn, s.btnSm)}>
+                  <button
+                    type="button"
+                    onClick={() => onGo(leadAct ? { tab: 'leads', stage: 'callback_due' } : { tab: 'leads', queue: 'due' })}
+                    className={cx(s.btn, s.btnSm)}
+                  >
                     לכל הרשימה
                   </button>
                 </div>

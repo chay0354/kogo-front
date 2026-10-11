@@ -164,11 +164,19 @@ describe('the details standing in for the conversation', () => {
     expect(html).not.toContain('טופל');
   });
 
-  it('beside the conversation (a wide screen): no actions of its own, as before', () => {
+  it('beside the conversation (a wide screen): the same card, with no way back to offer', () => {
+    // The actions are a row of the card at every width (docs/WAHUB-CONTRACT-LAYOUT.md, ב.3); so is the way to WhatsApp.
+    const html = render(<ContactPanel {...props} showBack={false} actions={actions} />);
+    expect(html).toContain('קח שיחה');
+    expect(html).toContain('טופל');
+    expect(html).toContain('https://wa.me/972500000012');
+    expect(html).not.toContain('חזרה לשיחה');
+  });
+
+  it('a card that is given no actions draws no row for them', () => {
     const html = render(<ContactPanel {...props} showBack={false} />);
     expect(html).not.toContain('קח שיחה');
-    expect(html).not.toContain('חזרה לשיחה');
-    expect(html).not.toContain('wa.me');
+    expect(html).not.toContain('פעולות');
   });
 });
 

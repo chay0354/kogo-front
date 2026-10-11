@@ -484,13 +484,35 @@ describe('the live-test switch in the contact\'s details', () => {
   const liveTest = { canEdit: true, busy: false, onToggle: noop };
 
   it('the details carry it when the tab passes it — on a phone\'s details screen as beside the conversation', () => {
-    const alone = render(<ContactPanel {...panelProps} contact={detail({ name: 'דור סער', live_test: false })} liveTest={liveTest} />);
+    // A folded section of the card: the title, and the switch a press away.
+    const folded = render(<ContactPanel {...panelProps} contact={detail({ name: 'דור סער', live_test: false })} liveTest={liveTest} />);
+    expect(folded).toContain('בדיקה חיה');
+    expect(folded).not.toContain(LIVE_TEST_LABEL);
+    const alone = render(
+      <ContactPanel {...panelProps} contact={detail({ name: 'דור סער', live_test: false })} liveTest={liveTest} defaultOpen={['liveTest']} />,
+    );
     expect(alone).toContain(LIVE_TEST_LABEL);
     expect(alone).toContain(LIVE_TEST_WARNING);
     const beside = render(
-      <ContactPanel {...panelProps} showBack={false} contact={detail({ name: 'דור סער', live_test: true })} liveTest={liveTest} />,
+      <ContactPanel
+        {...panelProps}
+        showBack={false}
+        contact={detail({ name: 'דור סער', live_test: true })}
+        liveTest={liveTest}
+        defaultOpen={['liveTest']}
+      />,
     );
     expect(beside).toMatch(/role="switch" aria-checked="true"/);
+  });
+
+  it('while it is on, the folded title says so and the card carries the tag beside the name', () => {
+    const html = render(
+      <ContactPanel {...panelProps} showBack={false} contact={detail({ name: 'דור סער', live_test: true })} liveTest={liveTest} />,
+    );
+    expect(html).toContain('פעילה');
+    // The tag in "מי": real messages go out to this person.
+    expect(html).toContain('title="בדיקה חיה – הבוט החדש עונה לו באמת בוואטסאפ"');
+    expect(html).not.toContain(LIVE_TEST_WARNING);
   });
 
   it('and do not when it is not passed: a demo contact, a server that does not know the live test', () => {

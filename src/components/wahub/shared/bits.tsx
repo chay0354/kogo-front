@@ -147,7 +147,7 @@ export function ErrorState({
       {text && <p>{text}</p>}
       {onRetry && (
         <button type="button" onClick={onRetry} className={cx(s.btn, s.btnP, 'mt-1')}>
-          נסו שוב
+          נסה שוב
         </button>
       )}
     </div>
@@ -218,27 +218,6 @@ export function InlineConfirm({
         </button>
       </div>
     </div>
-  );
-}
-
-/** A panel section with a small heading, as the contact panel uses. */
-export function PanelSection({
-  title,
-  action,
-  children,
-}: {
-  title: string;
-  action?: ReactNode;
-  children: ReactNode;
-}) {
-  return (
-    <section className={s.sect}>
-      <div className="mb-2 flex items-center justify-between gap-2">
-        <h4 className={s.sectTitle}>{title}</h4>
-        {action}
-      </div>
-      {children}
-    </section>
   );
 }
 

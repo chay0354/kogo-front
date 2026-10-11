@@ -10,9 +10,9 @@ import { isDemoContact } from '@/lib/wahub/demo';
 import { israelToday } from '@/lib/wahub/format';
 import { mergeLiveContacts } from '@/lib/wahub/live';
 import { lastServerMessageId } from '@/lib/wahub/messages';
-import { chatLayout, chatPanes, PHONE_MEDIA_QUERY } from '@/lib/wahub/screens';
+import { BELOW_DESKTOP_MEDIA_QUERY, chatColumns, chatLayout, chatPanes, PHONE_MEDIA_QUERY } from '@/lib/wahub/screens';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
-import type { WahubBox, WahubBoxCounts, WahubContact, WahubStatus, WahubTag } from '@/types/wahub';
+import type { WahubBox, WahubBoxCounts, WahubContact, WahubContactDetail, WahubStatus, WahubTag } from '@/types/wahub';
 import { useVerdict } from '../bot/shadow/useVerdict';
 import { useContactShadow } from '../hooks/useBotQueries';
 import { useContactMutations, type ContactStore } from '../hooks/useContactMutations';
@@ -24,6 +24,7 @@ import { usePagedContacts } from '../hooks/usePagedContacts';
 import type { WahubLiveHandle } from '../hooks/useWahubLive';
 import { useWahubTags, wahubKeys } from '../hooks/useWahubQueries';
 import { EmptyState } from '../shared/bits';
+import { CardSkeleton } from '../shared/loading';
 import { cx } from '../shared/tones';
 import s from '../wahub.module.css';
 import ChatList from './ChatList';
@@ -35,6 +36,11 @@ const SEARCH_DELAY_MS = 300;
 const QUIET_REFRESH_GAP_MS = 5000;
 
 const NO_TAGS: WahubTag[] = [];
+
+/** The list beside the conversation where there is no room for the card as well (a tablet, a narrow frame). */
+const MEDIUM_LIST_WIDTH = 300;
+/** A conversation narrower than this, with the card open beside it, drops the second line of its title row. */
+const TIGHT_THREAD_UNDER = 480;
 
 interface ChatsTabProps {
   /** The tab is the one on screen. Off screen it keeps its list but stops polling the open conversation. */
@@ -52,8 +58,11 @@ interface ChatsTabProps {
 }
 
 /**
- * The conversations screen: the list on the right, the conversation in the
- * middle, the person's details on the left. On a phone, one of them at a time.
+ * The conversations screen: the list on the right, top to bottom; the
+ * conversation in the middle, with all the room that is left; the person's
+ * card on the left, always open (docs/WAHUB-CONTRACT-LAYOUT.md, א). Each column
+ * scrolls by itself and the page does not. Where there is no room for three,
+ * the card is a drawer over the conversation; on a phone, one of them at a time.
  *
  * It is live: every three seconds the contacts that changed are merged into
  * the list by id and the list is put back in order — nothing is fetched again
@@ -80,7 +89,9 @@ export default function ChatsTab({
   // A phone is one screen at a time whatever the frame measures — the same
   // line the stylesheet draws the phone from, so the two never disagree.
   const phone = useMediaQuery(PHONE_MEDIA_QUERY);
-  const layout = chatLayout(width, phone);
+  const belowDesktop = useMediaQuery(BELOW_DESKTOP_MEDIA_QUERY);
+  const layout = chatLayout(width, phone, belowDesktop);
+  const columns = chatColumns(width);
 
   const [search, setSearch] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
@@ -203,7 +214,25 @@ export default function ChatsTab({
   }
 
   const openContact = useCallback((id: number) => onOpenContact(id), [onOpenContact]);
-  const contact = thread.contact;
+
+  // Moving to another conversation: the title row and the card change at once,
+  // from what the list already holds, and the messages come in under a loading
+  // shape. Until the conversation's own state has caught up with the address,
+  // the one that was open a moment ago is not shown under the new name. And a
+  // conversation that has no contact of its own yet — opened from a link before
+  // the list was read, or one whose read failed — borrows the list's, so only
+  // the messages wait or say what went wrong.
+  const seed = contactId != null ? findInList(contactId) : undefined;
+  const caughtUp = thread.contactId === contactId;
+  const shownThread = useMemo<ContactThread>(() => {
+    const seeded: WahubContactDetail | null = seed ? { ...seed, messages: [], events: [], has_older: false } : null;
+    if (!caughtUp) {
+      return { ...thread, contactId, contact: seeded, messages: [], hasOlder: false, status: 'loading', error: '' };
+    }
+    if (!thread.contact && seeded) return { ...thread, contact: seeded };
+    return thread;
+  }, [caughtUp, contactId, seed, thread]);
+  const contact = shownThread.contact;
 
   // The shadow bot's proposals for the open conversation (stage 2). Asked for
   // again whenever a newer message is in hand, because a proposal follows a
@@ -249,24 +278,33 @@ export default function ChatsTab({
   const panes = chatPanes(layout, contactId, detailsOpen);
   const showList = panes.list;
   const showThread = panes.thread;
-  const showDetails = panes.details && contact != null;
+  const showDetails = panes.details;
   const showPlaceholder = panes.placeholder;
+  const listWidth = layout === 'narrow' ? undefined : layout === 'medium' ? MEDIUM_LIST_WIDTH : columns.list;
+  // Beside the always-open card — which carries the phone and the way to WhatsApp — a conversation short of
+  // room keeps its own title row to the name and the action (the stylesheet reads this mark).
+  const threadWidth = width !== null && layout === 'wide' ? width - columns.list - columns.details : null;
+  const tightThread = threadWidth !== null && threadWidth < TIGHT_THREAD_UNDER;
+
+  // The drawer closes on Escape, like anything that lies over the page.
+  const drawerOpen = panes.drawer;
+  useEffect(() => {
+    if (!drawerOpen) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setDetailsOpen(false);
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [drawerOpen]);
 
   // A pane that is out of view is hidden, not removed: its scroll position and
   // whatever was typed in it are still there when it comes back.
   return (
-    <div ref={frameRef} className={s.chatFrame}>
+    <div ref={frameRef} className={s.chatFrame} data-layout={layout} data-tight={tightThread ? '' : undefined}>
       <aside
         aria-label="רשימת השיחות"
-        className={
-          showList
-            ? cx(
-                s.pane,
-                'shrink-0',
-                layout === 'narrow' ? 'w-full' : cx(s.paneLineEnd, layout === 'medium' ? 'w-[300px]' : 'w-[336px]'),
-              )
-            : 'hidden'
-        }
+        className={showList ? cx(s.pane, s.listPane, 'shrink-0', layout === 'narrow' ? 'w-full' : s.paneLineEnd) : 'hidden'}
+        style={listWidth ? { width: listWidth } : undefined}
       >
         <ChatList
           items={list.items}
@@ -302,7 +340,7 @@ export default function ChatsTab({
       {contactId != null && (
         <section aria-label="השיחה" className={showThread ? cx(s.pane, 'flex-1') : 'hidden'}>
           <ChatThread
-            thread={thread}
+            thread={shownThread}
             now={now}
             visible={active && showThread}
             simulated={Boolean(status?.simulate_send)}
@@ -327,50 +365,62 @@ export default function ChatsTab({
         </section>
       )}
 
-      {showDetails && contact && (
+      {/* The drawer's ground: a press beside the card closes it. */}
+      {showDetails && panes.drawer && (
+        <button type="button" aria-label="סגור את פרטי איש הקשר" onClick={() => setDetailsOpen(false)} className={s.drawerScrim} />
+      )}
+
+      {showDetails && (
         <aside
           aria-label="פרטי איש הקשר"
-          className={cx(s.pane, s.detailsPane, layout === 'wide' ? cx(s.paneLineStart, 'w-[348px] shrink-0') : 'flex-1')}
+          className={cx(
+            s.pane,
+            s.detailsPane,
+            layout === 'wide' ? cx(s.paneLineStart, 'shrink-0') : panes.drawer ? s.detailsDrawer : 'flex-1',
+          )}
+          style={layout === 'wide' ? { width: columns.details } : undefined}
         >
-          <ContactPanel
-            contact={contact}
-            now={now}
-            today={today}
-            allTags={allTags}
-            analyzing={Boolean(busy.analyze)}
-            rechecking={Boolean(busy.recheck)}
-            showBack={layout !== 'wide'}
-            onBack={() => setDetailsOpen(false)}
-            onFollowup={(patch) => void mutations.followup(contact.id, patch)}
-            onTags={(next) => void mutations.tags(contact.id, next)}
-            onRename={(name) => void mutations.rename(contact.id, name)}
-            onRecheck={() => void withBusy('recheck', () => mutations.recheck(contact.id))}
-            onAnalyze={() => void withBusy('analyze', () => mutations.analyze(contact.id))}
-            shadow={shadowSummary}
-            liveTest={
-              // Not for an invented customer, and not before the server knows the live test at all.
-              contact.live_test === undefined || isDemoContact(contact) || !(isManager || contact.live_test)
-                ? undefined
-                : {
-                    canEdit: isManager,
-                    busy: Boolean(busy.liveTest),
-                    onToggle: (on) => void setLiveTest(contact.id, on),
-                  }
-            }
-            // The details stand in for the conversation here, so its actions come along; a wide
-            // screen has them in the conversation's own header, right beside.
-            actions={
-              layout === 'wide'
-                ? undefined
-                : {
-                    handoverBusy: Boolean(busy.handover),
-                    resolveBusy: Boolean(busy.resolve),
-                    onTakeover: () => void withBusy('handover', () => mutations.takeover(contact.id)),
-                    onRelease: () => void withBusy('handover', () => mutations.release(contact.id)),
-                    onResolveNeedsHuman: () => void withBusy('resolve', () => mutations.resolveNeedsHuman(contact.id)),
-                  }
-            }
-          />
+          {contact ? (
+            <ContactPanel
+              contact={contact}
+              now={now}
+              today={today}
+              allTags={allTags}
+              analyzing={Boolean(busy.analyze)}
+              rechecking={Boolean(busy.recheck)}
+              showBack={layout !== 'wide'}
+              onBack={() => setDetailsOpen(false)}
+              onFollowup={(patch) => void mutations.followup(contact.id, patch)}
+              onTags={(next) => void mutations.tags(contact.id, next)}
+              onRename={(name) => void mutations.rename(contact.id, name)}
+              onRecheck={() => void withBusy('recheck', () => mutations.recheck(contact.id))}
+              onAnalyze={() => void withBusy('analyze', () => mutations.analyze(contact.id))}
+              shadow={shadowSummary}
+              liveTest={
+                // Not for an invented customer, and not before the server knows the live test at all.
+                contact.live_test === undefined || isDemoContact(contact) || !(isManager || contact.live_test)
+                  ? undefined
+                  : {
+                      canEdit: isManager,
+                      busy: Boolean(busy.liveTest),
+                      onToggle: (on) => void setLiveTest(contact.id, on),
+                    }
+              }
+              // One row of the card at every width (docs/WAHUB-CONTRACT-LAYOUT.md, ב.3).
+              actions={{
+                handoverBusy: Boolean(busy.handover),
+                resolveBusy: Boolean(busy.resolve),
+                onTakeover: () => void withBusy('handover', () => mutations.takeover(contact.id)),
+                onRelease: () => void withBusy('handover', () => mutations.release(contact.id)),
+                onResolveNeedsHuman: () => void withBusy('resolve', () => mutations.resolveNeedsHuman(contact.id)),
+              }}
+            />
+          ) : shownThread.status === 'error' ? (
+            // The conversation itself says what failed and offers to try again; the card only waits for it.
+            <p className={cx(s.muted, 'm-0 p-5 text-center')}>הפרטים יופיעו כשהשיחה תיטען.</p>
+          ) : (
+            <CardSkeleton />
+          )}
         </aside>
       )}
     </div>
