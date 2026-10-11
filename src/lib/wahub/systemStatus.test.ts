@@ -131,6 +131,22 @@ describe('the rows of "מצב המערכת"', () => {
     expect(row({ ...STATUS, live_test_contacts: [{ id: 1, name: 'דור', phone: '972500000001' }] }, 'liveTest')?.value).toBe('איש קשר אחד');
   });
 
+  it('recordings: working, not tried yet, no key, or why the last one was refused', () => {
+    const row = (transcribe: NonNullable<typeof STATUS.transcribe>) =>
+      systemStatusRows({ ...STATUS, transcribe }).find((entry) => entry.key === 'transcribe');
+    expect(row({ configured: true, ok: true, reason: '', at: null })).toMatchObject({ title: 'תמלול הקלטות', level: 'ok', value: 'פעיל' });
+    expect(row({ configured: true, ok: null, reason: '', at: null })).toMatchObject({ level: 'unknown', value: 'עוד לא נוסה' });
+    expect(row({ configured: false, ok: false, reason: 'אין תמלול: חסר מפתח OPENAI_API_KEY', at: null })).toMatchObject({ level: 'off', value: 'אין מפתח' });
+    expect(
+      row({ configured: true, ok: false, reason: 'אין יתרה בחשבון OpenAI — התמלול לא עובד עד שמטעינים', at: '2026-10-11T15:52:32Z' }),
+    ).toMatchObject({ level: 'warn', value: 'אין יתרה בחשבון' });
+    expect(row({ configured: true, ok: false, reason: 'התמלול נכשל (500)', at: null })).toMatchObject({ level: 'warn', value: 'לא עובד' });
+    // It sits after the bot and before the sending switch.
+    expect(systemStatusRows({ ...STATUS, transcribe: { configured: true, ok: true, reason: '', at: null } }).map((entry) => entry.key)).toEqual([
+      'connection', 'summary', 'shadow', 'transcribe', 'sending', 'liveTest',
+    ]);
+  });
+
   it('a server that knows nothing of the shadow bot or of the live test: those rows are left out, not guessed', () => {
     const { shadow_configured: _a, shadow_model: _b, live_test_contacts: _c, ...older } = STATUS;
     expect(systemStatusRows(older).map((entry) => entry.key)).toEqual(['connection', 'summary', 'sending']);

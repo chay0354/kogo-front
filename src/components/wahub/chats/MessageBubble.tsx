@@ -102,12 +102,15 @@ export function MediaView({
   url,
   state,
   transcript,
+  problem = '',
   onRetry,
 }: {
   kind: ExternalMediaKind;
   url: string | null;
   state: MediaState;
   transcript: string;
+  /** Why a recording has no transcript (the server's words): no credit in the account, no key, a timeout. */
+  problem?: string;
   onRetry?: () => void;
 }) {
   let body: ReactNode;
@@ -146,6 +149,10 @@ export function MediaView({
             <>
               <strong>תמלול:</strong> {transcript}
             </>
+          ) : problem ? (
+            <>
+              <strong>לא תומללה:</strong> {problem}
+            </>
           ) : (
             'הקלטה — עוד לא תומללה'
           )}
@@ -153,6 +160,11 @@ export function MediaView({
       )}
     </div>
   );
+}
+
+/** On a customer's message `error` is why his recording was not transcribed; on ours it is why the send failed. */
+function recordingProblem(message: WahubMessage): string {
+  return message.direction === 'in' ? (message.error ?? '').trim() : '';
 }
 
 /** The file Kogo keeps for this message, by its short-lived address. */
@@ -165,6 +177,7 @@ function StoredMedia({ message, kind }: { message: WahubMessage; kind: 'voice' |
       url={media.data?.url ?? null}
       state={state}
       transcript={message.transcript ?? ''}
+      problem={recordingProblem(message)}
       onRetry={() => void media.refetch()}
     />
   );
@@ -206,7 +219,13 @@ const MessageBubble = memo(function MessageBubble({ message, arrived }: { messag
           )}
           {media?.source === 'stored' && <StoredMedia message={message} kind={media.kind} />}
           {media?.source === 'link' && (
-            <MediaView kind={media.kind} url={media.url} state="ready" transcript={message.transcript ?? ''} />
+            <MediaView
+              kind={media.kind}
+              url={media.url}
+              state="ready"
+              transcript={message.transcript ?? ''}
+              problem={recordingProblem(message)}
+            />
           )}
           {media?.source === 'none' && <p className={s.bubbleText}>{MEDIA_PLACEHOLDER[media.kind]}</p>}
           {text && (

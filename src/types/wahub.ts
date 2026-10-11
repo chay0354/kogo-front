@@ -284,6 +284,8 @@ export interface WahubStatus {
   shadow_configured?: boolean;
   /** The model the shadow bot drafts with; "stub" without a key. */
   shadow_model?: string;
+  /** Recordings: is there a key, and did the transcription take the last one (`ok` is null until one was tried). */
+  transcribe?: { configured: boolean; ok: boolean | null; reason: string; at: string | null };
   last_inbound_at: string | null;
   contacts_total: number;
   messages_last_24h: number;
