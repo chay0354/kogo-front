@@ -191,7 +191,11 @@ function GroupCard({
  * long, and what to do; a press on a person opens the conversation. One search
  * box and nothing else to filter by.
  *
- * Drawn from what it is given; the reading is the tab's (LeadsTab).
+ * Drawn from what it is given; the reading is the tab's (LegacyLeadsTab).
+ *
+ * Since version 2 of the leads (docs/WAHUB-CONTRACT-LEADS-V2.md) this board is
+ * what a server without `leads/` still gets; a server that has it shows the
+ * list in leads/v2.
  */
 export default function LeadBoardView({
   board,

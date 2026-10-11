@@ -960,3 +960,157 @@ export interface WahubLeadActSummary {
   total: number;
   stages: Array<{ key: WahubLeadStage | string; label: string; count: number }>;
 }
+
+// ---------------------------------------------------------------------------
+// Leads, version 2 (docs/WAHUB-CONTRACT-LEADS-V2.md, ד). The bot reads each
+// lead by itself — branch, class, child, what stops them, when to come back —
+// and every lead has someone who makes the next move: the bot or the office.
+// Field for field; what the contract names without spelling out its shape
+// (`followups`, `timeline`, `in_system`) is read tolerantly in lib/wahub/leadsV2.ts.
+// ---------------------------------------------------------------------------
+
+/** Who makes the next move on a lead. Empty: nobody (no step now, or the lead is closed). */
+export type WahubLeadOwner = 'office' | 'bot' | '';
+
+/** The three lists of GET leads/ (`owner=`): waiting for the office, handled by the bot, closed. */
+export type WahubLeadsView = 'office' | 'bot' | 'closed';
+
+export type WahubLeadNextWho = 'bot' | 'office' | 'none';
+
+/** `due`: the bot would have sent it now — sending is off, or there is no approved template. */
+export type WahubLeadNextState = 'planned' | 'due' | 'none';
+
+/** "הצעד הבא": who, what, and when. */
+export interface WahubLeadNext {
+  who: WahubLeadNextWho;
+  what: string;
+  /** A moment, or a plain YYYY-MM-DD; null when there is no time to it. */
+  when: string | null;
+  state: WahubLeadNextState;
+}
+
+/** What the bot understood, as short words for a row. Each may be empty. */
+export interface WahubLeadChips {
+  branch: string;
+  course_type: string;
+  child: string;
+  /**
+   * An existing customer who wants to add a class, a sibling or another group
+   * (ח.1, ח.12): `chips.existing: true`, or `intent: "add_class"` on the row —
+   * either is read. A lead like any other; the row only says so, quietly.
+   */
+  existing?: boolean;
+}
+
+/** One row of GET leads/. */
+export interface WahubLeadRow {
+  contact_id: number;
+  name: string;
+  phone: string;
+  is_demo: boolean;
+  stage: string;
+  stage_label: string;
+  owner: WahubLeadOwner;
+  /** One sentence: why this person is a lead. */
+  summary: string;
+  chips: WahubLeadChips;
+  /** Since when the lead is in this state. */
+  since: string | null;
+  next: WahubLeadNext;
+  last_message_at: string | null;
+}
+
+export type WahubLeadCounts = Record<WahubLeadsView, number>;
+
+/** A state of the list asked for, with how many are in it — for the one filter above the list. */
+export interface WahubLeadStageCount {
+  key: string;
+  label: string;
+  /** Null when the number is not known (worked out from a list that is only partly read). */
+  count: number | null;
+}
+
+/** GET leads/?owner=&stage=&branch=&q=&cursor= */
+export interface WahubLeadsPage {
+  counts: WahubLeadCounts;
+  results: WahubLeadRow[];
+  next_cursor: string | null;
+  /**
+   * Not in the contract: the states of the list asked for, with a number each.
+   * Read when the server sends it; without it the filter is built from the rows read so far.
+   */
+  stages?: WahubLeadStageCount[];
+}
+
+export interface WahubLeadsQuery {
+  owner: WahubLeadsView;
+  stage?: string | null;
+  q?: string;
+  cursor?: string | null;
+}
+
+/** What was said about the child. Any part may be missing. */
+export interface WahubLeadChild {
+  name: string;
+  age_years: number | null;
+  age_months: number | null;
+  grade: string;
+  birth_date: string | null;
+}
+
+export interface WahubLeadTrial {
+  course: string;
+  branch: string;
+  date: string | null;
+  instructor: string;
+  /** Null: not known yet (the lesson is still ahead, or nobody marked it). */
+  attended: boolean | null;
+}
+
+export type WahubLeadFollowUpStatus = 'planned' | 'due' | 'sent' | 'skipped' | 'failed';
+
+/** One time the bot comes back to the lead (`LeadFollowUp`, ג): when, the wording, and what became of it. */
+export interface WahubLeadFollowUp {
+  id: number | null;
+  kind: string;
+  kind_label: string;
+  /** 1–3. */
+  step: number | null;
+  due_at: string | null;
+  status: WahubLeadFollowUpStatus | string;
+  status_label: string;
+  text: string;
+  why: string;
+  acted_at: string | null;
+  outcome_note: string;
+}
+
+/** One line of the short timeline, in plain words. */
+export interface WahubLeadTimelineEvent {
+  at: string | null;
+  text: string;
+}
+
+/** `details` of GET leads/{contact_id}/. */
+export interface WahubLeadDetails {
+  /** Why they are a lead — with the customer's own words when it was closed as "לא מעוניין". */
+  reason: string;
+  /** What stops them from registering, in a sentence. */
+  blocker_text: string;
+  child: WahubLeadChild | null;
+  come_back_on: string | null;
+  come_back_why: string;
+  trial: WahubLeadTrial | null;
+  followups: WahubLeadFollowUp[];
+  /** Up to ten. */
+  timeline: WahubLeadTimelineEvent[];
+  /** The customer's card in Kogo, as a path inside the CRM; null when there is none. */
+  in_system: string | null;
+}
+
+/** GET leads/{contact_id}/ — the row, and everything a press opens. */
+export interface WahubLeadDetail extends WahubLeadRow {
+  details: WahubLeadDetails;
+}
+
+export type WahubLeadCloseReason = 'deleted' | 'not_interested';

@@ -2,11 +2,13 @@ import type {
   WahubBotSub,
   WahubBox,
   WahubContactsQuery,
+  WahubLeadsView,
   WahubQueue,
   WahubSharedFilters,
   WahubTab,
 } from '@/types/wahub';
 import { parseStage } from './leadStage';
+import { parseLeadsView } from './leadsV2';
 
 /** One page of a list. The server's own default; its ceiling is 100. */
 export const WAHUB_PAGE_SIZE = 40;
@@ -119,8 +121,12 @@ export interface WahubUrlState {
   sub: WahubBotSub;
   /** A knowledge item to open, on the knowledge sub-tab. */
   item: number | null;
-  /** The lead state the leads tab is open on (the board). Null: the board alone. */
+  /** The lead state the leads tab is open on (the board), or filtered by (the list). Null: none. */
   stage?: string | null;
+  /** Which list of the leads tab is in front: waiting for the office (the default), the bot's, or the closed ones. */
+  owner?: WahubLeadsView;
+  /** The lead whose details are open, on the leads tab. */
+  lead?: number | null;
 }
 
 interface ParamReader {
@@ -136,15 +142,19 @@ export function parseWahubUrl(params: ParamReader | null | undefined): WahubUrlS
     sub: parseBotSub(params?.get('sub')),
     item: parseContactId(params?.get('item')),
     stage: parseStage(params?.get('stage')),
+    owner: parseLeadsView(params?.get('owner')),
+    lead: parseContactId(params?.get('lead')),
   };
 }
 
 /**
  * /wahub?tab=chats&contact=12 — /wahub?tab=bot&sub=hours — /wahub?tab=bot&item=7 — /wahub?tab=leads&stage=needs_reply
+ * — /wahub?tab=leads&owner=bot&lead=12
  *
  * The tab is always written, so a copied link says where it leads. An open
  * conversation belongs to the chats tab only; a sub-tab and an open knowledge
- * item belong to the bot tab only.
+ * item belong to the bot tab only; a list of leads and an open lead belong to
+ * the leads tab only.
  */
 export function buildWahubUrl(state: WahubUrlState, pathname = '/wahub'): string {
   const params = new URLSearchParams();
@@ -155,8 +165,11 @@ export function buildWahubUrl(state: WahubUrlState, pathname = '/wahub'): string
   }
   if (state.tab === 'leads') {
     if (state.queue !== 'all') params.set('queue', state.queue);
+    const owner = parseLeadsView(state.owner);
+    if (owner !== 'office') params.set('owner', owner);
     const stage = parseStage(state.stage);
     if (stage) params.set('stage', stage);
+    if (state.lead) params.set('lead', String(state.lead));
   }
   if (state.tab === 'bot') {
     if (state.sub !== 'knowledge') params.set('sub', state.sub);

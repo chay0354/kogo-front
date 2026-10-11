@@ -1,0 +1,232 @@
+'use client';
+
+import { AlertCircle, Bot, CheckCircle2, ChevronDown, Inbox, Search, X } from 'lucide-react';
+import { LEADS_VIEW_LABELS, emptyWords, stageOptionText } from '@/lib/wahub/leadsV2';
+import type { WahubLeadCounts, WahubLeadRow, WahubLeadStageCount, WahubLeadsView } from '@/types/wahub';
+import { EmptyState, Skeleton, Spinner } from '../../shared/bits';
+import { RefreshNote } from '../../shared/loading';
+import { cx } from '../../shared/tones';
+import s from '../../wahub.module.css';
+import LeadRow from './LeadRow';
+import l from './leads.module.css';
+
+export interface LeadsListProps {
+  /** Which of the three lists is in front. */
+  view: WahubLeadsView;
+  /** The three numbers; null until the server has answered once. */
+  counts: WahubLeadCounts | null;
+  /** The state the list is narrowed to; null is all of them. */
+  stage: string | null;
+  /** The states that have someone in them — the one filter's choices. */
+  stages: WahubLeadStageCount[];
+  search: string;
+  status: 'loading' | 'ready' | 'error';
+  error: string;
+  rows: WahubLeadRow[];
+  /** The rows on screen answer what was asked a moment ago, not what is asked now. */
+  stale: boolean;
+  hasMore: boolean;
+  loadingMore: boolean;
+  /** Rows are on screen and are being read again. */
+  refreshing: boolean;
+  /** The lead whose details are open. */
+  selectedId: number | null;
+  now: Date;
+  sendingOn: boolean | null;
+  onView: (view: WahubLeadsView) => void;
+  onStage: (stage: string | null) => void;
+  onSearch: (value: string) => void;
+  onOpen: (id: number) => void;
+  onMore: () => void;
+  onRetry: () => void;
+}
+
+/** The rows on their way, each at a row's own height, so nothing moves when they land. */
+export function LeadRowsSkeleton({ rows = 6 }: { rows?: number }) {
+  return (
+    <ul className={l.rows} aria-busy="true" aria-label="טוען את הלידים">
+      {Array.from({ length: rows }).map((_, row) => (
+        <li key={row} className={l.skRow}>
+          <span className={l.skLines}>
+            <Skeleton className={l.skLine} style={{ width: `${26 + ((row * 11) % 18)}%` }} />
+            <Skeleton className={cx(l.skLine, l.skLineSm)} style={{ width: `${68 + ((row * 7) % 24)}%` }} />
+            <Skeleton className={cx(l.skLine, l.skLineSm)} style={{ width: `${30 + ((row * 9) % 16)}%` }} />
+          </span>
+          <Skeleton className={l.skBox} />
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function TabCount({ value, loud }: { value: number | undefined; loud?: boolean }) {
+  if (value === undefined) return null;
+  return <span className={cx(l.tabCount, s.num, loud && value > 0 && l.tabCountAct)}>{value.toLocaleString('he-IL')}</span>;
+}
+
+/**
+ * The leads tab as one list (docs/WAHUB-CONTRACT-LEADS-V2.md, ה): two tabs —
+ * who waits for the office, who the bot is handling — "נסגרו" as a quiet link
+ * beside them, and one filter: the state (only states with someone in them)
+ * and a search. No board of columns, no switches.
+ *
+ * Drawn from what it is given; the reading is the screen's (LeadsScreen).
+ */
+export default function LeadsList({
+  view,
+  counts,
+  stage,
+  stages,
+  search,
+  status,
+  error,
+  rows,
+  stale,
+  hasMore,
+  loadingMore,
+  refreshing,
+  selectedId,
+  now,
+  sendingOn,
+  onView,
+  onStage,
+  onSearch,
+  onOpen,
+  onMore,
+  onRetry,
+}: LeadsListProps) {
+  const filtered = Boolean(stage) || Boolean(search.trim());
+  const total = counts ? counts[view] : null;
+  const empty = emptyWords(view, counts, filtered);
+
+  return (
+    <>
+      <header className={l.bar}>
+        <div role="tablist" aria-label="הלידים" className={l.tabs}>
+          {(['office', 'bot'] as const).map((key) => (
+            <button
+              key={key}
+              type="button"
+              role="tab"
+              aria-selected={view === key}
+              onClick={() => onView(key)}
+              className={cx(l.tab, view === key && l.tabOn)}
+            >
+              {LEADS_VIEW_LABELS[key]}
+              <TabCount value={counts?.[key]} loud={key === 'office'} />
+            </button>
+          ))}
+        </div>
+
+        <button
+          type="button"
+          aria-pressed={view === 'closed'}
+          onClick={() => onView('closed')}
+          className={cx(l.closedLink, view === 'closed' && l.closedOn)}
+        >
+          {LEADS_VIEW_LABELS.closed}
+          {counts && <span className={s.num}>({counts.closed.toLocaleString('he-IL')})</span>}
+        </button>
+
+        <div className={l.filters}>
+          <label className={cx(s.search, l.searchBox)}>
+            <Search aria-hidden="true" />
+            <input
+              type="search"
+              value={search}
+              onChange={(event) => onSearch(event.target.value)}
+              placeholder="שם או טלפון"
+              aria-label="חיפוש בלידים"
+              enterKeyHint="search"
+            />
+            {search && (
+              <button type="button" onClick={() => onSearch('')} aria-label="נקה חיפוש">
+                <X aria-hidden="true" />
+              </button>
+            )}
+          </label>
+          {/* Only states that have someone in them; with none to choose between, the filter is not drawn at all. */}
+          {(stages.length > 1 || stage) && (
+            <label className={cx(l.stage, stage && l.stageOn)}>
+              <select value={stage ?? ''} onChange={(event) => onStage(event.target.value || null)} aria-label="סינון לפי מצב">
+                <option value="">{total != null ? `כל המצבים (${total.toLocaleString('he-IL')})` : 'כל המצבים'}</option>
+                {stages.map((option) => (
+                  <option key={option.key} value={option.key}>
+                    {stageOptionText(option)}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown aria-hidden="true" />
+            </label>
+          )}
+        </div>
+      </header>
+
+      {/* The lists are read again every half minute; a read that drags says so, quietly, at the foot. */}
+      <RefreshNote active={refreshing} className={s.refreshFloat} />
+
+      <div className={l.scroll} role="tabpanel" aria-label={LEADS_VIEW_LABELS[view]} aria-busy={status === 'loading' || refreshing}>
+        {status === 'error' ? (
+          <div role="alert" className={cx(l.note, s.emptyState, s.emptyTight)}>
+            <div aria-hidden="true" className={cx(s.emptyIc, s.emptyIcBad)}>
+              <AlertCircle />
+            </div>
+            <h3>לא הצלחנו לטעון את הלידים</h3>
+            <p>{error || 'בדקו את החיבור ונסו שוב.'}</p>
+            <button type="button" onClick={onRetry} className={cx(s.btn, s.btnP, 'mt-1')}>
+              נסו שוב
+            </button>
+          </div>
+        ) : status === 'loading' ? (
+          <LeadRowsSkeleton />
+        ) : rows.length === 0 ? (
+          <div className={l.note}>
+            <EmptyState
+              icon={filtered ? <Search /> : view === 'office' ? <CheckCircle2 /> : view === 'bot' ? <Bot /> : <Inbox />}
+              title={empty.title}
+              text={empty.text || undefined}
+              tight
+            >
+              {filtered && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    onSearch('');
+                    onStage(null);
+                  }}
+                  className={cx(s.btn, s.btnSm)}
+                >
+                  נקה סינון
+                </button>
+              )}
+            </EmptyState>
+          </div>
+        ) : (
+          <>
+            <ul className={cx(l.rows, stale && l.stale)}>
+              {rows.map((lead) => (
+                <LeadRow
+                  key={lead.contact_id}
+                  lead={lead}
+                  now={now}
+                  sendingOn={sendingOn}
+                  selected={lead.contact_id === selectedId}
+                  closed={view === 'closed'}
+                  onOpen={onOpen}
+                />
+              ))}
+            </ul>
+            {hasMore && (
+              <div className={l.more}>
+                <button type="button" onClick={onMore} disabled={loadingMore} className={s.btn}>
+                  {loadingMore && <Spinner className="h-3.5 w-3.5" />}
+                  הצג עוד
+                </button>
+              </div>
+            )}
+          </>
+        )}
+      </div>
+    </>
+  );
+}

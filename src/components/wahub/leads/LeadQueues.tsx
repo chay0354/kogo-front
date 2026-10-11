@@ -107,7 +107,7 @@ export interface LeadQueuesProps {
  * The leads tab as it was before the lead states: work queues with their
  * counts, filters, and a card per lead. Shown only on a server that has no
  * `leads/board/` yet (docs/WAHUB-CONTRACT-LEAD-STAGES.md) — the board in
- * LeadsTab takes its place the moment the server has one.
+ * LegacyLeadsTab takes its place the moment the server has one.
  *
  * Two rules shape it. The order is the server's and a mark never moves a card:
  * a card marked while a queue is chosen stays where it is until the view is
