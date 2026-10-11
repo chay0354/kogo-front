@@ -1,0 +1,1041 @@
+/*
+ * "דיוק" — fixing the bot in free text (docs/WAHUB-CONTRACT-REFINE.md, ב).
+ *
+ * Its own file, so it can be built beside the work on the section's layout.
+ * Every colour is one of the section's variables, which are set on .wahub
+ * (wahub.module.css): these pieces are only ever drawn inside that wrapper.
+ */
+
+/* ---------- marking messages in a conversation ---------- */
+
+/* A message while marking: a round mark, then the bubble. The whole row is the button. */
+.pick {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  padding: 3px 6px;
+  margin: 0 -6px;
+  border-radius: 12px;
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  transition: background 0.12s;
+}
+
+.pick:hover {
+  background: var(--navy-soft);
+}
+
+.pickOn,
+.pickOn:hover {
+  background: var(--lav);
+}
+
+/* A bubble that is still on its way has no id to send: it cannot be marked. */
+.pickOff {
+  cursor: default;
+  opacity: 0.5;
+}
+
+.pickOff:hover {
+  background: none;
+}
+
+/* What is inside acts as a picture while marking: a press goes to the row, not to a player or a link. */
+.pickBody {
+  min-width: 0;
+  pointer-events: none;
+}
+
+.check {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 2px solid var(--faint);
+  background: var(--surface);
+  color: transparent;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  transition:
+    background 0.12s,
+    border-color 0.12s;
+}
+
+.check svg {
+  width: 14px;
+  height: 14px;
+}
+
+.checkOn {
+  background: var(--navy);
+  border-color: var(--navy);
+  color: #fff;
+}
+
+/* The small chat is open on these messages: they stay marked in the conversation behind it. */
+.marked {
+  padding: 3px 6px;
+  margin: 0 -6px;
+  border-radius: 12px;
+  background: var(--gold-bg);
+  box-shadow: inset 0 0 0 1.5px var(--gold);
+}
+
+/* The bar at the bottom while marking: "נבחרו N · המשך · ביטול". */
+.selectBar {
+  flex: none;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 10px;
+  padding: 10px 14px;
+  border-top: 1px solid var(--line-2);
+  background: var(--surface);
+  animation: refineUp 0.25s var(--ease);
+}
+
+/* The writing boxes step aside while marking. Hidden, not removed: what was typed in them is still there afterwards. */
+.selectBar ~ * {
+  display: none !important;
+}
+
+.selectCount {
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--navy-ink);
+  white-space: nowrap;
+}
+
+.selectHint {
+  flex: 1;
+  min-width: 0;
+  font-size: 12.5px;
+  color: var(--muted);
+}
+
+@keyframes refineUp {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* ---------- "דיוק" on one bubble: hover on a desktop, a long press on a phone ---------- */
+
+.chipHost {
+  position: relative;
+}
+
+.chip {
+  position: absolute;
+  top: 50%;
+  z-index: 1;
+  transform: translateY(-50%);
+  height: 28px;
+  padding: 0 10px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--navy-ink);
+  box-shadow: var(--shadow);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.12s;
+}
+
+.chip:hover {
+  background: var(--lav-2);
+}
+
+.chip svg {
+  width: 14px;
+  height: 14px;
+  flex: none;
+}
+
+/* Beside the bubble, on the side the conversation leaves free. */
+.chipIn {
+  inset-inline-start: calc(100% + 6px);
+}
+
+.chipOut {
+  inset-inline-end: calc(100% + 6px);
+}
+
+@media (hover: hover) {
+  .hoverRow:hover .chip {
+    opacity: 1;
+    pointer-events: auto;
+  }
+}
+
+/* A long press on a phone brought it up. */
+.chipArmed {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* ---------- the small chat: a drawer at the side of a desktop, the whole screen of a phone ---------- */
+
+.drawer {
+  position: fixed;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 46;
+  width: min(440px, 100vw);
+  background: var(--bg);
+  color: var(--ink);
+  border-inline-start: 1px solid var(--line);
+  box-shadow: var(--float);
+  display: flex;
+  flex-direction: column;
+  direction: rtl;
+  animation: refineIn 0.3s var(--ease);
+}
+
+@keyframes refineIn {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: none;
+  }
+}
+
+/* The node the chat lives in: it only carries the chat from one place to the other, and takes no room itself. */
+.node {
+  display: contents;
+}
+
+/*
+ * A place a screen makes for the chat — the conversations screen of a desktop
+ * puts it over the contact's card. Empty, it lets every press through to the
+ * card. Above the floating "יש הצעות לעדכון הבוט" (40), which rests on the same
+ * corner as the chat's writing box; under its panel (44, 45).
+ */
+.dock {
+  position: absolute;
+  inset: 0;
+  z-index: 42;
+  pointer-events: none;
+}
+
+/* In the dock the chat is exactly the size of what it lies over: nothing of the conversation is hidden. */
+.drawerDocked {
+  position: absolute;
+  inset: 0;
+  width: auto;
+  z-index: auto;
+  border: 0;
+  box-shadow: none;
+  pointer-events: auto;
+  animation: refineFade 0.2s var(--ease);
+}
+
+@keyframes refineFade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.drawerHead {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 56px;
+  padding: 8px 14px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--line-2);
+}
+
+.drawerHead > svg {
+  width: 20px;
+  height: 20px;
+  flex: none;
+  color: var(--navy-ink);
+}
+
+.drawerTitle {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.drawerTitle h2 {
+  font-size: 16px;
+  font-weight: 800;
+}
+
+.drawerTitle span {
+  font-size: 12px;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Only a phone goes "back"; a desktop closes the drawer. */
+.backBtn {
+  display: none;
+}
+
+.drawerBody {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 12px 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* A folded piece: the title always, the rest on a press. */
+.fold {
+  flex: none;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.fold > summary {
+  list-style: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 12px;
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--ink);
+}
+
+.fold > summary::-webkit-details-marker {
+  display: none;
+}
+
+.fold > summary > svg {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  color: var(--muted);
+}
+
+/* The arrow at the end turns when the piece is open. */
+.fold > summary > svg:last-child {
+  transition: transform 0.2s var(--ease);
+}
+
+.fold[open] > summary > svg:last-child {
+  transform: rotate(180deg);
+}
+
+.foldTitle {
+  flex: none;
+  white-space: nowrap;
+}
+
+.foldPreview {
+  flex: 1;
+  min-width: 0;
+  font-weight: 500;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fold[open] .foldPreview {
+  visibility: hidden;
+}
+
+.foldBody {
+  padding: 6px 12px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* One marked message, as a line: who, and what was said. */
+.line {
+  border-inline-start: 3px solid var(--lav);
+  padding-inline-start: 9px;
+}
+
+.lineWho {
+  display: block;
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--muted);
+}
+
+.lineText {
+  margin: 0;
+  font-size: 13.5px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.lineCustomer {
+  border-color: var(--faint);
+}
+
+.lineOffice {
+  border-color: var(--navy);
+}
+
+.lineNewBot,
+.lineShadow {
+  border-color: var(--good);
+}
+
+.lineShadow {
+  border-inline-start-style: dashed;
+}
+
+.lineSystem {
+  border-color: var(--gold);
+}
+
+/* An earlier thread of the same conversation: a row to press. */
+.threadRow {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  width: 100%;
+  padding: 7px 9px;
+  border: 0;
+  border-radius: 9px;
+  background: var(--surface-2);
+  color: var(--ink);
+  font: inherit;
+  text-align: start;
+}
+
+.threadRow:hover {
+  background: var(--lav-2);
+}
+
+.threadRow strong {
+  font-size: 13px;
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.threadRow span {
+  font-size: 11.5px;
+  color: var(--muted);
+}
+
+.threadRowOn,
+.threadRowOn:hover {
+  background: var(--lav);
+}
+
+/* The chat itself. The operator writes from the office's side, in the office's navy; the system answers across. */
+.turns {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.turn {
+  max-width: 88%;
+  border-radius: 14px;
+  padding: 8px 12px;
+  font-size: 14px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.turn p {
+  margin: 0;
+}
+
+.turnOp {
+  align-self: flex-end;
+  background: var(--navy);
+  color: #fff;
+  border-end-end-radius: 4px;
+}
+
+.turnPending {
+  opacity: 0.7;
+}
+
+.turnSys {
+  align-self: flex-start;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-end-start-radius: 4px;
+}
+
+.turnMeta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 2px;
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--muted);
+}
+
+/* The system asked instead of changing anything. Amber: red is kept for "מבקש נציג" alone. */
+.turnAsk {
+  background: var(--warn-bg);
+  border-color: transparent;
+}
+
+.askMark {
+  background: var(--warn);
+  color: #fff;
+  border-radius: 999px;
+  padding: 0 7px;
+  line-height: 16px;
+  font-size: 10.5px;
+}
+
+/* "המערכת חושבת…" */
+.dots {
+  display: inline-flex;
+  gap: 4px;
+  padding: 0 2px;
+}
+
+.dots i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--navy);
+  opacity: 0.35;
+  animation: refineDot 1.2s infinite var(--ease);
+}
+
+.dots i:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.dots i:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+@keyframes refineDot {
+  0%,
+  60%,
+  100% {
+    opacity: 0.35;
+    transform: translateY(0);
+  }
+  30% {
+    opacity: 1;
+    transform: translateY(-3px);
+  }
+}
+
+/* The changes a refinement made, under the system's answer. */
+.changes {
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* A change card inside the small chat: the same readable card, on the drawer's ground. */
+.change {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-inline-start: 3px solid var(--good);
+  border-radius: 12px;
+  padding: 10px 12px;
+}
+
+.changeWaiting {
+  border-inline-start-color: var(--warn);
+}
+
+.changeUndone {
+  border-inline-start-color: var(--faint);
+}
+
+.changeNote {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+/*
+ * ---------- the readable card of a change to the bot's knowledge ----------
+ * One card for the floating panel, the review tab and the small chat
+ * (docs/WAHUB-CONTRACT-REFINE.md, ג): what the bot will do from now on, why,
+ * what changes in a paragraph, and the examples and the code names folded.
+ */
+.plain {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+
+.plainTop {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 8px 10px;
+}
+
+.plainHeadline {
+  flex: 1;
+  min-width: min(100%, 220px);
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+}
+
+.plainTitle {
+  font-size: 15px;
+  font-weight: 800;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.plainUndone .plainTitle {
+  color: var(--muted);
+  text-decoration: line-through;
+}
+
+.plainPills {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 6px;
+  font-size: 11.5px;
+  color: var(--muted);
+}
+
+.plainActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+}
+
+.plainWhy {
+  margin: 0;
+  font-size: 13.5px;
+  line-height: 1.55;
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+
+.plainWhy strong {
+  font-weight: 800;
+}
+
+.plainLabel {
+  margin: 0 0 4px;
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--muted);
+}
+
+/* What changes, in one paragraph. A new item has no "before", and nothing here is red. */
+.plainRule {
+  margin: 0;
+  border-radius: 10px;
+  background: var(--lav-2);
+  padding: 9px 12px;
+  font-size: 14px;
+  line-height: 1.6;
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+
+/* An update: "היה" above "יהיה", for what really changed. */
+.swap {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.swap + .swap {
+  margin-top: 8px;
+}
+
+.swapField {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+.was,
+.willBe {
+  margin: 0;
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr);
+  gap: 8px;
+  border-radius: 10px;
+  padding: 7px 10px;
+  font-size: 14px;
+  line-height: 1.55;
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+
+.was > span:first-child,
+.willBe > span:first-child {
+  font-size: 11.5px;
+  font-weight: 800;
+  line-height: 22px;
+  white-space: nowrap;
+}
+
+.was {
+  background: var(--surface-2);
+  color: var(--muted);
+}
+
+.willBe {
+  background: var(--good-bg);
+  color: var(--ink);
+}
+
+.willBe > span:first-child {
+  color: var(--good);
+}
+
+/* "דוגמאות", "פרטים טכניים": a title; the rest on a press. */
+.more > summary {
+  list-style: none;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--navy-ink);
+}
+
+.more > summary::-webkit-details-marker {
+  display: none;
+}
+
+.more > summary svg {
+  width: 14px;
+  height: 14px;
+  transition: transform 0.2s var(--ease);
+}
+
+.more[open] > summary svg {
+  transform: rotate(180deg);
+}
+
+.moreBody {
+  margin-top: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.example {
+  margin: 0;
+  border-inline-start: 3px solid var(--faint);
+  padding-inline-start: 9px;
+  font-size: 13.5px;
+  line-height: 1.5;
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+
+.example > span:first-child {
+  display: block;
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--muted);
+}
+
+.exampleGood {
+  border-color: var(--good);
+}
+
+.exampleBad {
+  border-color: var(--warn);
+}
+
+.tech {
+  margin: 0;
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 3px 12px;
+  font-size: 12.5px;
+}
+
+.tech dt {
+  font-weight: 700;
+  color: var(--muted);
+}
+
+.tech dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+/* A code name: only here, and set apart so it is not read as a word. */
+.code {
+  direction: ltr;
+  unicode-bidi: isolate;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11.5px;
+  color: var(--muted);
+  background: var(--surface-2);
+  border-radius: 5px;
+  padding: 0 5px;
+}
+
+/* "עוד לא זמין", and any other thing said in the middle of the drawer. */
+.notice {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 18px 16px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.notice > svg {
+  width: 26px;
+  height: 26px;
+  color: var(--navy-ink);
+}
+
+.notice h3 {
+  font-size: 15.5px;
+  font-weight: 800;
+}
+
+.notice p {
+  margin: 0;
+  font-size: 13.5px;
+  color: var(--muted);
+  max-width: 40ch;
+}
+
+.failLine {
+  margin: 0;
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--bad);
+}
+
+.failLine svg {
+  width: 15px;
+  height: 15px;
+  flex: none;
+  margin-top: 1px;
+}
+
+/* The writing box of the small chat. */
+.drawerFoot {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+  background: var(--surface);
+  border-top: 1px solid var(--line-2);
+}
+
+.writeLine {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.write {
+  flex: 1;
+  min-width: 0;
+  min-height: 64px;
+  max-height: 200px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+  padding: 9px 12px;
+  font: inherit;
+  font-size: 14.5px;
+  line-height: 1.5;
+  color: var(--ink);
+  resize: none;
+}
+
+.write:focus {
+  outline: 2px solid var(--navy);
+  outline-offset: 0;
+  border-color: transparent;
+}
+
+.write::placeholder {
+  color: var(--faint);
+}
+
+.write:disabled {
+  opacity: 0.6;
+}
+
+/* ---------- "עודכן לבד" in the review tab: a heading over its cards ---------- */
+
+.autoHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  padding: 0 2px;
+}
+
+.autoHead h3 {
+  font-size: 15px;
+  font-weight: 800;
+}
+
+.autoHead p {
+  flex-basis: 100%;
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--muted);
+}
+
+/* ---------- a phone: the small chat is the whole screen ---------- */
+
+@media (max-width: 767px) {
+  .selectBar {
+    padding: 8px 10px calc(8px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .selectHint {
+    display: none;
+  }
+
+  .selectCount {
+    flex: 1;
+  }
+
+  /* Beside a bubble that already fills most of the row there is room for the mark alone. */
+  .chip {
+    width: 34px;
+    height: 34px;
+    padding: 0;
+    justify-content: center;
+  }
+
+  .chip span {
+    display: none;
+  }
+
+  .chip svg {
+    width: 16px;
+    height: 16px;
+  }
+
+  .chipIn {
+    inset-inline-start: calc(100% + 4px);
+  }
+
+  .chipOut {
+    inset-inline-end: calc(100% + 4px);
+  }
+
+  .drawer {
+    inset: 0;
+    width: 100vw;
+    height: 100dvh;
+    border: 0;
+    box-shadow: none;
+    animation: refineUp 0.25s var(--ease);
+  }
+
+  /* The shell's menu button sits fixed in the top start corner, as on the section's other phone screens. */
+  .drawerHead {
+    padding: 6px 10px;
+    padding-inline-start: var(--menuGap, 56px);
+  }
+
+  .drawerHead > svg {
+    display: none;
+  }
+
+  .backBtn {
+    display: inline-flex;
+  }
+
+  .closeBtn {
+    display: none;
+  }
+
+  .drawerBody {
+    padding: 10px 12px 14px;
+  }
+
+  .drawerFoot {
+    padding: 8px 8px calc(8px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .write {
+    min-height: 44px;
+    border-radius: 20px;
+    padding: 10px 14px;
+    font-size: 15px;
+  }
+
+  .was,
+  .willBe {
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .drawer,
+  .selectBar {
+    animation: none;
+  }
+
+  .dots i {
+    animation: none;
+  }
+}

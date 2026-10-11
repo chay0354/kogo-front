@@ -1,14 +1,18 @@
 'use client';
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { AlertCircle, ArrowDown, ArrowRight, Bot, Check, Hand, Info, MessageCircle, Undo2, UserRound } from 'lucide-react';
+import { AlertCircle, ArrowDown, ArrowRight, Bot, Check, Crosshair, Hand, Info, MessageCircle, Undo2, UserRound } from 'lucide-react';
 import { formatWhatsAppLink } from '@/lib/customerUtils';
 import { isDemoContact, type DemoInput } from '@/lib/wahub/demo';
 import { agoText, displayName, hasName } from '@/lib/wahub/format';
 import { groupMessagesByDay, isOptimistic } from '@/lib/wahub/messages';
+import { SHADOW_HEADING, excerptLine, excerptOf, shadowExcerpt } from '@/lib/wahub/refine';
 import { phoneStatusLine } from '@/lib/wahub/screens';
 import type { WahubContactDetail, WahubSender, WahubShadowReply } from '@/types/wahub';
 import type { ContactThread } from '../hooks/useContactThread';
+import { useRefine } from '../refine/RefineContext';
+import { RefineRow, RefineSelectBar } from '../refine/RefineRow';
+import { useRefineSelection } from '../refine/useRefineSelection';
 import { ContactAvatar, DemoTag, ErrorState, LiveTestTag, Skeleton, Spinner } from '../shared/bits';
 import { cx } from '../shared/tones';
 import s from '../wahub.module.css';
@@ -101,9 +105,15 @@ function ThreadHeader({
   onDetails,
   onTakeover,
   onRelease,
+  refining,
+  onRefine,
 }: {
   contact: WahubContactDetail;
   now: Date;
+  /** Messages are being marked for "דיוק". */
+  refining: boolean;
+  /** "דיוק": start marking messages, or stop. Absent where there is no small chat to open. */
+  onRefine?: () => void;
 } & Pick<
   ChatThreadProps,
   'handoverBusy' | 'showBack' | 'showDetailsButton' | 'onBack' | 'onDetails' | 'onTakeover' | 'onRelease'
@@ -152,11 +162,40 @@ function ThreadHeader({
       </div>
 
       <div className="flex shrink-0 flex-wrap items-center gap-2">
+        {/* "דיוק": mark what was not good in this conversation, and say why (docs/WAHUB-CONTRACT-REFINE.md). */}
+        {onRefine && (
+          <>
+            <button
+              type="button"
+              onClick={onRefine}
+              aria-pressed={refining}
+              title="דיוק: סמנו הודעות שלא היו טובות וכתבו מה הבעיה"
+              className={cx(s.btn, s.btnSm, s.deskOnly, refining && s.btnOn)}
+            >
+              <Crosshair aria-hidden="true" />
+              דיוק
+            </button>
+            <button
+              type="button"
+              onClick={onRefine}
+              aria-pressed={refining}
+              aria-label="דיוק"
+              title="דיוק"
+              className={cx(s.ib, s.phoneIb, refining && s.ibNavy)}
+            >
+              <Crosshair aria-hidden="true" />
+            </button>
+          </>
+        )}
         <span className={cx(s.pill, s.deskOnly, human ? s.handHuman : s.handBot)}>
           {human ? <UserRound aria-hidden="true" /> : <Bot aria-hidden="true" />}
           {human ? 'בטיפול שלך' : contact.chat.handled_by_label || 'הבוט עונה'}
         </span>
-        {human ? (
+        {/*
+          On a desktop the contact's card is always open beside the conversation and carries this action
+          ("פעולות"), so it is not said twice. Where the card is a press away — a tablet — it stays here.
+        */}
+        {!showDetailsButton ? null : human ? (
           <button type="button" onClick={onRelease} disabled={handoverBusy} className={cx(s.btn, s.btnSm, s.deskOnly)}>
             {handoverBusy ? <Spinner className="h-3.5 w-3.5" /> : <Undo2 aria-hidden="true" />}
             החזר לבוט
@@ -243,6 +282,42 @@ export default function ChatThread({
   });
 
   const days = useMemo(() => groupMessagesByDay(messages, now), [messages, now]);
+
+  // "דיוק": marking messages here, and the small chat it opens (docs/WAHUB-CONTRACT-REFINE.md, ב).
+  const refine = useRefine();
+  const { open: openRefineChat, target: refineTarget } = refine;
+  const picking = useRefineSelection(thread.contactId, messages);
+  // The messages the small chat is open on stay marked in the conversation behind it.
+  const marked = useMemo(
+    () => (refineTarget && refineTarget.contactId === thread.contactId ? new Set(refineTarget.messageIds) : NO_IDS),
+    [refineTarget, thread.contactId],
+  );
+  const onScreen = useRef({ contact, messages, onShadowVerdict });
+  onScreen.current = { contact, messages, onShadowVerdict };
+  /** Open the small chat on these messages; with a shadow reply, on the answer itself ("לתקן"). */
+  const openRefine = useCallback(
+    (ids: ReadonlyArray<number>, shadow?: WahubShadowReply) => {
+      const shown = onScreen.current;
+      if (!shown.contact) return;
+      const quoted = shadow
+        ? shadowExcerpt(shadow, shown.messages)
+        : { messageIds: ids.slice(), lines: excerptOf(shown.messages, ids) };
+      if (!shadow && !quoted.messageIds.length) return;
+      openRefineChat({
+        contactId: shown.contact.id,
+        contactName: displayName(shown.contact),
+        messageIds: quoted.messageIds,
+        excerpt: quoted.lines,
+        heading: shadow ? SHADOW_HEADING : undefined,
+        pool: shown.messages.filter((message) => !isOptimistic(message)).map(excerptLine),
+        shadowId: shadow?.id ?? null,
+        // Once she has said what was wrong with the answer, it is marked 👎 — without a note, so no second proposal is made of it.
+        onSent: shadow && shadow.verdict !== 'bad' ? () => onScreen.current.onShadowVerdict?.(shadow, 'bad', '') : undefined,
+      });
+    },
+    [openRefineChat],
+  );
+  const refineOne = useCallback((id: number) => openRefine([id]), [openRefine]);
 
   // Messages that were not on screen at the last draw of this conversation come
   // in softly. A conversation that was just opened, or earlier messages loaded
@@ -355,6 +430,8 @@ export default function ChatThread({
         onDetails={onDetails}
         onTakeover={onTakeover}
         onRelease={onRelease}
+        refining={picking.active}
+        onRefine={refine.available ? () => (picking.active ? picking.cancel() : picking.start()) : undefined}
       />
 
       {contact.chat.needs_human && (
@@ -417,17 +494,30 @@ export default function ChatThread({
                       {day.messages.map((message) => {
                         const shadow = message.direction === 'in' ? shadowByMessage?.get(message.id) : undefined;
                         return (
-                          <div key={message.id} className="flex flex-col gap-1">
-                            <MessageBubble message={message} arrived={arrived.has(message.id)} />
+                          <RefineRow
+                            key={message.id}
+                            id={message.id}
+                            selecting={picking.active}
+                            selected={picking.ids.has(message.id)}
+                            selectable={!isOptimistic(message)}
+                            marked={marked.has(message.id)}
+                            onPress={picking.press}
+                          >
+                            <MessageBubble
+                              message={message}
+                              arrived={arrived.has(message.id)}
+                              onRefine={refine.available && !picking.active ? refineOne : undefined}
+                            />
                             {shadow && (
                               <ShadowRow
                                 reply={shadow}
                                 busy={shadowBusyId === shadow.id}
                                 onVerdict={(value, note) => onShadowVerdict?.(shadow, value, note)}
                                 onOpenItem={(id) => onOpenKnowledgeItem?.(id)}
+                                onFix={refine.available ? () => openRefine([], shadow) : undefined}
                               />
                             )}
-                          </div>
+                          </RefineRow>
                         );
                       })}
                     </div>
@@ -450,6 +540,18 @@ export default function ChatThread({
           </button>
         )}
       </div>
+
+      {/* While marking, the bar stands where the writing boxes do; they stay in the page, out of view. */}
+      {picking.active && (
+        <RefineSelectBar
+          count={picking.picked.length}
+          onContinue={() => {
+            openRefine(picking.picked);
+            picking.cancel();
+          }}
+          onCancel={picking.cancel}
+        />
+      )}
 
       <Composer
         contact={contact}

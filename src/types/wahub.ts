@@ -692,12 +692,13 @@ export interface WahubShadowSummary {
 
 // ---------- review ----------
 
-export type WahubProposalStatus = 'pending' | 'approved' | 'rejected' | 'applied';
+/** `undone`: an applied change that was taken back with "בטל" (docs/WAHUB-CONTRACT-REFINE.md). */
+export type WahubProposalStatus = 'pending' | 'approved' | 'rejected' | 'applied' | 'undone';
 
-export type WahubProposalSource = 'human_override' | 'bad_verdict' | 'service_note' | 'reviewer';
+export type WahubProposalSource = 'human_override' | 'bad_verdict' | 'service_note' | 'reviewer' | 'refine';
 
 export interface WahubProposalChange {
-  action: 'create' | 'update';
+  action: 'create' | 'update' | 'deactivate';
   item_id: number | null;
   kind: WahubKnowledgeKind;
   before: Record<string, unknown> | null;
@@ -709,6 +710,24 @@ export interface WahubProposalEvidence {
   who: 'customer' | 'bot' | 'office' | 'shadow' | 'system';
   text: string;
   sent_at?: string | null;
+}
+
+/**
+ * A proposal in words a person reads (docs/WAHUB-CONTRACT-REFINE.md, ג): one
+ * sentence that says what the bot will do from now on, the rule itself, why,
+ * the examples, and the kind and "when to say" in Hebrew. Absent on a server
+ * built before it — the screen then words the card from the change itself.
+ */
+export interface WahubProposalPlain {
+  headline: string;
+  rule: string;
+  why: string;
+  example_bad: string;
+  example_good: string;
+  kind_label: string;
+  when_label: string;
+  /** A new item: there is no "before". */
+  is_new: boolean;
 }
 
 export interface WahubKnowledgeProposal {
@@ -735,15 +754,24 @@ export interface WahubKnowledgeProposal {
   decision_note: string;
   /** The knowledge item an approval made or changed. */
   applied_item_id?: number | null;
+  /** Applied by the system itself, without a press (auto-apply). Read when the server says it; see `isAutoApplied`. */
+  auto_applied?: boolean;
+  /** False when the change is in the knowledge but cannot be taken back from here; absent on an older server. */
+  can_undo?: boolean;
+  plain?: Partial<WahubProposalPlain> | null;
 }
 
 export interface WahubReviewSummary {
   pending: number;
   applied_7d: number;
   rejected_7d: number;
-  /** Always false at this stage: nothing changes the knowledge without a press. */
+  /** The server's older word for the same switch; `auto_apply` is the one the screens read. */
   auto_mode: boolean;
   notes_7d?: number;
+  /** Changes the system applied by itself in the last week. Absent on a server built before auto-apply. */
+  auto_applied_7d?: number;
+  /** "אישור אוטומטי של תיקונים" as it stands. Absent on a server built before it. */
+  auto_apply?: boolean;
 }
 
 export interface WahubReviewNoteResult {

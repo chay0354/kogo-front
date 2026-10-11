@@ -405,20 +405,26 @@ const proposal = makeProposal(7, {
 });
 
 describe('a proposal to change the bot', () => {
-  it('pending: the title, why, before/after of what changed only, folded evidence, approve and reject', () => {
+  it('pending: what it is, why, "היה" above "יהיה" for what changed only, the rest folded, approve and reject', () => {
     const html = render(<ProposalCard proposal={proposal} now={NOW} busy={false} onApprove={noop} onReject={noop} onOpenChat={noop} onOpenItem={noop} />);
     expect(html).toContain('להוסיף נוסח: אין קבוצת וואטסאפ לגיל הרך');
     expect(html).toContain('נציג ענה מעל הבוט');
     expect(html).toContain('ממתין לאישור');
+    expect(html).toContain('<strong>למה:</strong>');
     expect(html).toContain('ההבדל: הקבוצות הן של המדריכה בלבד');
-    expect(html).toContain('עדכון רשומה #4 · נוסחים');
-    expect(html).toContain('יש קבוצה לכל חוג');
-    expect(html).toContain('הקבוצה אצל המדריכה; נעביר לנציג');
-    // The title did not change, so it is not a row.
+    expect(html).toContain('מה ישתנה');
+    expect(html).toMatch(/<span>היה<\/span><span>יש קבוצה לכל חוג<\/span>/);
+    expect(html).toMatch(/<span>יהיה<\/span><span>הקבוצה אצל המדריכה; נעביר לנציג<\/span>/);
+    // The title did not change, so it is not a row; and no table of field names is drawn.
     expect(html).not.toContain('>כותרת<');
-    expect(html).toContain('הראיות');
+    expect(html).not.toContain('עדכון רשומה #4');
+    // The kind and the item are technical details, folded; so are the lines of the conversation.
+    expect(html).toContain('פרטים טכניים');
+    expect(html).toContain('נוסחים');
+    expect(html).toContain('#4 · קבוצת וואטסאפ');
+    expect(html).toContain('מה נאמר בשיחה');
     expect(html).toContain('(3)');
-    expect(html).not.toContain('אין קבוצה להורים, המדריכה פותחת');
+    expect(html).not.toContain('<details open');
     expect(html).toContain('>אשר<');
     expect(html).toContain('>דחה<');
     expect(html).toContain('לשיחה');

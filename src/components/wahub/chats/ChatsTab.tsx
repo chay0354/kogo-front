@@ -23,6 +23,7 @@ import { useNow } from '../hooks/useNow';
 import { usePagedContacts } from '../hooks/usePagedContacts';
 import type { WahubLiveHandle } from '../hooks/useWahubLive';
 import { useWahubTags, wahubKeys } from '../hooks/useWahubQueries';
+import { RefineDock } from '../refine/RefineContext';
 import { EmptyState } from '../shared/bits';
 import { CardSkeleton } from '../shared/loading';
 import { cx } from '../shared/tones';
@@ -376,10 +377,12 @@ export default function ChatsTab({
           className={cx(
             s.pane,
             s.detailsPane,
-            layout === 'wide' ? cx(s.paneLineStart, 'shrink-0') : panes.drawer ? s.detailsDrawer : 'flex-1',
+            layout === 'wide' ? cx(s.paneLineStart, 'relative shrink-0') : panes.drawer ? s.detailsDrawer : 'flex-1',
           )}
           style={layout === 'wide' ? { width: columns.details } : undefined}
         >
+          {/* "דיוק" opens over the always-open card, so the conversation it is about stays whole beside it. */}
+          {layout === 'wide' && active && <RefineDock />}
           {contact ? (
             <ContactPanel
               contact={contact}

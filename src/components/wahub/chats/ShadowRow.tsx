@@ -12,6 +12,8 @@ interface ShadowRowProps {
   busy: boolean;
   onVerdict: (verdict: 'good' | 'bad', note: string) => void;
   onOpenItem: (id: number) => void;
+  /** "לתקן" opens "דיוק" on this answer (docs/WAHUB-CONTRACT-REFINE.md, ב). */
+  onFix?: () => void;
 }
 
 /**
@@ -20,7 +22,7 @@ interface ShadowRowProps {
  * knowledge and 👍/👎. It sits on the bot's side of the conversation, dashed,
  * because it was never sent.
  */
-export default function ShadowRow({ reply, busy, onVerdict, onOpenItem }: ShadowRowProps) {
+export default function ShadowRow({ reply, busy, onVerdict, onOpenItem, onFix }: ShadowRowProps) {
   const [open, setOpen] = useState(false);
   const preview = reply.text.replace(/\s+/g, ' ').trim();
   return (
@@ -43,7 +45,7 @@ export default function ShadowRow({ reply, busy, onVerdict, onOpenItem }: Shadow
             </p>
           )}
           <ShadowWhy reasoning={reply.reasoning} tools={reply.tools_used} knowledge={reply.knowledge_used} onOpenItem={onOpenItem} />
-          <VerdictButtons verdict={reply.verdict} note={reply.verdict_note} busy={busy} onVerdict={onVerdict} />
+          <VerdictButtons verdict={reply.verdict} note={reply.verdict_note} busy={busy} onVerdict={onVerdict} onFix={onFix} />
         </div>
       ) : (
         <button type="button" onClick={() => setOpen(true)} aria-expanded={false} className={s.shadowToggle} title="לחיצה פותחת את התשובה, למה, ואת הסימון">

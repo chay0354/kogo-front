@@ -4,9 +4,11 @@ import { useMemo, useState } from 'react';
 import { Bot, RefreshCw } from 'lucide-react';
 import { readableError } from '@/lib/apiError';
 import { SHADOW_FILTERS, filterShadowReplies, mergeShadowReplies, type ShadowFilter } from '@/lib/wahub/bot';
-import type { WahubStatus } from '@/types/wahub';
+import { SHADOW_HEADING, shadowExcerpt } from '@/lib/wahub/refine';
+import type { WahubShadowReply, WahubStatus } from '@/types/wahub';
 import { useShadowBad, useShadowRecent, useShadowSummary } from '../../hooks/useBotQueries';
 import { useNow } from '../../hooks/useNow';
+import { useRefine } from '../../refine/RefineContext';
 import { EmptyState, ErrorState, Skeleton, Spinner } from '../../shared/bits';
 import { NUMBER_TONE, cx } from '../../shared/tones';
 import s from '../../wahub.module.css';
@@ -40,6 +42,22 @@ export default function ShadowTab({ status, onOpenChat, onOpenItem }: ShadowTabP
   const recent = useShadowRecent(true);
   const bad = useShadowBad(filter === 'bad');
   const { verdict, busyId } = useVerdict();
+  const refine = useRefine();
+
+  /** "לתקן": the small chat of "דיוק" opens on the answer. Once she has written, the answer is marked 👎. */
+  function fix(reply: WahubShadowReply) {
+    if (reply.contact_id == null) return;
+    const { messageIds, lines } = shadowExcerpt(reply);
+    refine.open({
+      contactId: reply.contact_id,
+      contactName: reply.contact_name || '',
+      messageIds,
+      excerpt: lines,
+      heading: SHADOW_HEADING,
+      shadowId: reply.id,
+      onSent: reply.verdict === 'bad' ? undefined : () => void verdict(reply, 'bad', ''),
+    });
+  }
 
   const replies = useMemo(() => {
     const merged = mergeShadowReplies([recent.data ?? [], filter === 'bad' ? bad.data ?? [] : []]);
@@ -128,6 +146,7 @@ export default function ShadowTab({ status, onOpenChat, onOpenItem }: ShadowTabP
               onVerdict={(value, note) => void verdict(reply, value, note)}
               onOpenItem={onOpenItem}
               onOpenChat={onOpenChat}
+              onFix={refine.available && reply.contact_id != null ? () => fix(reply) : undefined}
             />
           ))}
         </section>
