@@ -14,12 +14,14 @@ import {
 } from '@/lib/wahubApi';
 import { logMoved, mergeContactIntoDetail, messagesMoved } from '@/lib/wahub/live';
 import {
+  changedMessages,
   dropOptimistic,
   firstServerMessageId,
   lastServerMessageId,
   makeOptimisticMessage,
   mergeMessages,
   newMessages,
+  oldestWaitingRecordingId,
   settleOptimistic,
 } from '@/lib/wahub/messages';
 import type { WahubContact, WahubContactDetail, WahubMessage } from '@/types/wahub';
@@ -190,11 +192,17 @@ export function useContactThread({ contactId, active, seed, onContact, senderNam
         await refresh('quiet');
         return;
       }
-      const page = await fetchWahubMessages(id, { after });
+      // A recording still waiting for its transcript is read again with the new messages:
+      // the server writes the words on it later, and its id is behind "the last one I have".
+      const waiting = oldestWaitingRecordingId(current.messages, Date.now());
+      const from = waiting != null && waiting - 1 < after ? waiting - 1 : after;
+      const page = await fetchWahubMessages(id, { after: from });
       if (mine !== generation.current) return;
       const fresh = newMessages(ref.current.messages, page.messages);
+      const moved = changedMessages(ref.current.messages, page.messages);
+      if (!moved.length) return;
+      commit((prev) => ({ ...prev, messages: mergeMessages(prev.messages, moved) }));
       if (!fresh.length) return;
-      commit((prev) => ({ ...prev, messages: mergeMessages(prev.messages, fresh) }));
       const gotInbound = fresh.some((message) => message.direction === 'in');
       if (gotInbound && activeRef.current && document.visibilityState === 'visible') void markRead(id);
     } catch {

@@ -1,6 +1,8 @@
 import { describe, expect, test } from 'vitest';
 
 import {
+  MEDIA_WAIT_MS,
+  changedMessages,
   dropOptimistic,
   firstServerMessageId,
   groupMessagesByDay,
@@ -9,6 +11,7 @@ import {
   makeOptimisticMessage,
   mergeMessages,
   newMessages,
+  oldestWaitingRecordingId,
   settleOptimistic,
 } from './messages';
 import { makeMessage } from './testFixtures';
@@ -171,3 +174,33 @@ describe('groupMessagesByDay', () => {
     expect(groupMessagesByDay([], now)).toEqual([]);
   });
 });
+
+describe('a recording that waits for its transcript', () => {
+  const now = Date.parse(at('11', '18:10'));
+  const voice = (id: number, time: string, transcript = '') =>
+    makeMessage(id, { direction: 'in', message_type: 'voice', text: '', transcript, sent_at: at('11', time) });
+
+  test('the poll asks from just before the oldest young recording with no transcript', () => {
+    const messages = [makeMessage(1, { sent_at: at('11', '18:00') }), voice(2, '18:05'), makeMessage(3, { sent_at: at('11', '18:06') }), voice(4, '18:07')];
+    expect(oldestWaitingRecordingId(messages, now)).toBe(2);
+  });
+
+  test('a transcribed recording, an old one, and one the office sent are not waited for', () => {
+    expect(oldestWaitingRecordingId([voice(2, '18:05', 'יש חוג קפוארה?')], now)).toBeNull();
+    expect(oldestWaitingRecordingId([voice(2, '18:05')], now + MEDIA_WAIT_MS)).toBeNull();
+    const sent = makeMessage(6, { direction: 'out', sender: 'office', message_type: 'voice', sent_at: at('11', '18:05') });
+    expect(oldestWaitingRecordingId([sent], now)).toBeNull();
+  });
+
+  test('only what is new or what the server changed is merged again', () => {
+    const existing = [makeMessage(1, { sent_at: at('11', '18:00') }), voice(2, '18:05')];
+    const same = [voice(2, '18:05')];
+    expect(changedMessages(existing, same)).toEqual([]);
+    const transcribed = [voice(2, '18:05', 'יש חוג קפוארה?'), makeMessage(3, { sent_at: at('11', '18:06') })];
+    expect(ids(changedMessages(existing, transcribed))).toEqual([2, 3]);
+    const merged = mergeMessages(existing, changedMessages(existing, transcribed));
+    expect(merged.find((message) => message.id === 2)?.transcript).toBe('יש חוג קפוארה?');
+    expect(ids(merged)).toEqual([1, 2, 3]);
+  });
+});
+
