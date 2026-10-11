@@ -5,11 +5,12 @@ import { toast } from 'sonner';
 import { readableError } from '@/lib/apiError';
 import { setWahubShadowVerdict } from '@/lib/wahubApi';
 import type { WahubShadowReply } from '@/types/wahub';
-import { useShadowCache } from '../../hooks/useBotQueries';
+import { useProposalsCache, useShadowCache } from '../../hooks/useBotQueries';
 
 /** Save a verdict: shown at once, taken back if the server refuses. Shared with the conversation's rows. */
 export function useVerdict() {
   const cache = useShadowCache();
+  const proposals = useProposalsCache();
   const [busyId, setBusyId] = useState<number | null>(null);
 
   async function verdict(reply: WahubShadowReply, value: 'good' | 'bad', note: string) {
@@ -20,8 +21,11 @@ export function useVerdict() {
       // The answer comes without the contact's name and text; the copy on screen keeps them.
       if (saved) cache.patch(reply.id, (prev) => ({ ...prev, ...saved, contact_id: prev.contact_id, contact_name: prev.contact_name, customer_text: prev.customer_text }));
       cache.invalidateSummary();
-      if (saved?.proposal_id) toast.success('נרשם לתיקון. נוצרה הצעת עדכון – ראו את הכפתור הצף.');
-      else if (value === 'bad' && note.trim()) toast.success('נרשם לתיקון.');
+      if (saved?.proposal_id) {
+        // The floating button reads its figures every half minute; a proposal the owner just caused should show at once.
+        proposals.invalidate();
+        toast.success('נרשם לתיקון. נוצרה הצעת עדכון – ראו את הכפתור הצף.');
+      } else if (value === 'bad' && note.trim()) toast.success('נרשם לתיקון. לא נוצרה הצעה (ההערה קצרה מדי או כבר קיימת הצעה דומה היום).');
     } catch (error) {
       cache.patch(reply.id, () => reply);
       toast.error(readableError(error, 'הסימון לא נשמר'));
