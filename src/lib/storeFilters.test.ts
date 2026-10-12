@@ -1,11 +1,14 @@
 import { describe, it, expect } from 'vitest';
 import {
+  firstRowIndexInLocation,
   productIsDelivery,
   productIsLowStockInLocation,
   productMatchesBranch,
   productMatchesCity,
   productStockInLocation,
+  startingLocationFor,
 } from './storeFilters';
+import { getProductStockLocationLabels } from './storeProductDisplay';
 import type { StoreProduct, ProductSizeStock } from '@/types/store';
 import type { Branch } from '@/types/branch';
 
@@ -179,5 +182,81 @@ describe('productIsLowStockInLocation', () => {
 
   it('counts a product with no stock in the location as low', () => {
     expect(productIsLowStockInLocation(deliveryOnly, 'all', NORTH, branches)).toBe(true);
+  });
+});
+
+// Owner, 12.10.2026: "אני מסנן לפי ראש העין, וזה מראה לי לפי סניפים אחרים."
+describe('the location shown under a filter', () => {
+  it('with no filter lists every branch that holds stock', () => {
+    expect(getProductStockLocationLabels(splitAcrossBranches, branches)).toEqual(['סניף צפון', 'סניף דרום']);
+  });
+
+  it('under a branch filter names that branch only', () => {
+    expect(
+      getProductStockLocationLabels(splitAcrossBranches, branches, { branchFilter: NORTH }),
+    ).toEqual(['סניף צפון']);
+  });
+
+  it('names the filtered branch even when it has run out there', () => {
+    const outInNorth = product({
+      branch: NORTH,
+      stock_quantity: 7,
+      size_stocks: [
+        { size: 'S', stock_quantity: 0, branch: NORTH },
+        { size: 'M', stock_quantity: 7, branch: SOUTH },
+      ],
+    });
+    // It used to answer "סניף דרום" — the one place that had stock.
+    expect(getProductStockLocationLabels(outInNorth, branches, { branchFilter: NORTH })).toEqual(['סניף צפון']);
+  });
+
+  it('under a city filter lists that city\'s branches only', () => {
+    expect(
+      getProductStockLocationLabels(splitAcrossBranches, branches, { cityId: TEL_AVIV }),
+    ).toEqual(['סניף דרום']);
+  });
+
+  it('under the delivery filter says delivery', () => {
+    expect(getProductStockLocationLabels(mixed, branches, { branchFilter: 'delivery' })).toEqual(['משלוח']);
+  });
+
+  it('a product with one number and no rows is named by its own branch', () => {
+    const flat = product({ branch: NORTH, branch_name: 'סניף צפון', stock_quantity: 3 });
+    expect(getProductStockLocationLabels(flat, branches, { branchFilter: NORTH })).toEqual(['סניף צפון']);
+  });
+});
+
+describe('where a product\'s dialog opens under the page filter', () => {
+  it('opens on the filtered branch when the product is held there', () => {
+    expect(startingLocationFor(splitAcrossBranches, NORTH)).toBe(NORTH);
+    expect(startingLocationFor(mixed, 'delivery')).toBe('delivery');
+  });
+
+  it('opens on everything when there is no filter, or nothing of it there', () => {
+    expect(startingLocationFor(splitAcrossBranches, 'all')).toBe('all');
+    expect(startingLocationFor(splitAcrossBranches, undefined)).toBe('all');
+    expect(startingLocationFor(syncedFromWebsite, NORTH)).toBe('all');
+    expect(startingLocationFor(deliveryOnly, NORTH)).toBe('all');
+  });
+
+  it('starts on the first row of the branch that has stock', () => {
+    const rows = [
+      { size: 'S', stock_quantity: 4, branch: SOUTH },
+      { size: 'S', stock_quantity: 0, branch: NORTH },
+      { size: 'M', stock_quantity: 2, branch: NORTH },
+    ];
+    expect(firstRowIndexInLocation(rows, NORTH)).toBe(2);
+    expect(firstRowIndexInLocation(rows, SOUTH)).toBe(0);
+    expect(firstRowIndexInLocation(rows, 'all')).toBe(0);
+  });
+
+  it('falls back to the branch\'s first row, then to the first row of all', () => {
+    const rows = [
+      { size: 'S', stock_quantity: 4, branch: SOUTH },
+      { size: 'S', stock_quantity: 0, branch: NORTH },
+    ];
+    expect(firstRowIndexInLocation(rows, NORTH)).toBe(1);
+    expect(firstRowIndexInLocation(rows, 'somewhere-else')).toBe(0);
+    expect(firstRowIndexInLocation([], NORTH)).toBe(0);
   });
 });

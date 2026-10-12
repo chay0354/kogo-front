@@ -1,13 +1,15 @@
 'use client';
 
 import { useState, useEffect, useMemo, type ChangeEvent } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent } from '@/components/ui/dialog';
+import StoreDialogHead from './StoreDialogHead';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { toast } from 'sonner';
 import { adjustStock } from '@/lib/storeApi';
 import type { StoreProduct, ProductSizeStock, AdjustmentReason } from '@/types/store';
+import { firstRowIndexInLocation } from '@/lib/storeFilters';
 import dlg from './storeDialog.module.css';
 import { describeApiError } from '@/lib/apiErrors';
 
@@ -16,6 +18,8 @@ interface AdjustStockDialogProps {
   onClose: () => void;
   product: StoreProduct | null;
   onSuccess: () => void;
+  /** The branch the store page is filtered to — the row selected first. */
+  startBranch?: string;
 }
 
 type Direction = 'add' | 'subtract';
@@ -39,7 +43,7 @@ function rowLocationLabel(row: ProductSizeStock): string {
   return row.branch ? String(row.branch) : 'משלוח';
 }
 
-export default function AdjustStockDialog({ isOpen, onClose, product, onSuccess }: AdjustStockDialogProps) {
+export default function AdjustStockDialog({ isOpen, onClose, product, onSuccess, startBranch }: AdjustStockDialogProps) {
   const [direction, setDirection] = useState<Direction>('add');
   const [reason, setReason] = useState<AdjustmentReason>('receipt');
   const [quantity, setQuantity] = useState(0);
@@ -68,8 +72,9 @@ export default function AdjustStockDialog({ isOpen, onClose, product, onSuccess 
     setReason('receipt');
     setQuantity(0);
     setNote('');
-    setSelectedIndex(0);
-  }, [isOpen, product?.id]);
+    // Start on the branch the store page is filtered to.
+    setSelectedIndex(firstRowIndexInLocation(product?.size_stocks ?? [], startBranch));
+  }, [isOpen, product?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Keep reason valid when direction changes
   useEffect(() => {
@@ -130,9 +135,7 @@ export default function AdjustStockDialog({ isOpen, onClose, product, onSuccess 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className={`${dlg.dlg} max-w-lg p-8`}>
-        <DialogHeader>
-          <DialogTitle className="text-2xl">עדכון מלאי — {product.name}<span style={{ fontSize: '10px', color: 'white', userSelect: 'none' }}> #32</span></DialogTitle>
-        </DialogHeader>
+        <StoreDialogHead>עדכון מלאי — {product.name}<span style={{ fontSize: '10px', color: 'white', userSelect: 'none' }}> #32</span></StoreDialogHead>
 
         <div className="space-y-5 px-2 mt-5">
           {/* Direction */}
@@ -233,7 +236,7 @@ export default function AdjustStockDialog({ isOpen, onClose, product, onSuccess 
             )}
           </div>
 
-          <div className="flex gap-3 justify-end pt-4 border-t">
+          <div className={`${dlg.actions} flex gap-3 justify-end pt-4 border-t`}>
             <Button variant="outline" onClick={onClose}>ביטול</Button>
             <Button onClick={handleSubmit} disabled={isLoading || quantity <= 0}>
               {isLoading ? 'מעדכן...' : 'עדכן מלאי'}

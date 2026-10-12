@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useEffect, type ChangeEvent } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent } from '@/components/ui/dialog';
+import StoreDialogHead from './StoreDialogHead';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
@@ -19,6 +20,7 @@ import type { StoreProduct } from '@/types/store';
 import type { Branch } from '@/types/branch';
 import { DEFAULT_CATEGORY, describeApiError } from '@/lib/apiErrors';
 import dlg from './storeDialog.module.css';
+import { startingLocationFor } from '@/lib/storeFilters';
 import {
   cleanRows,
   listedSizesWithoutRows,
@@ -33,9 +35,11 @@ interface EditProductDialogProps {
   onClose: () => void;
   product: StoreProduct | null;
   onSuccess: () => void;
+  /** The branch the store page is filtered to — the rows shown first. */
+  startBranch?: string;
 }
 
-export default function EditProductDialog({ isOpen, onClose, product, onSuccess }: EditProductDialogProps) {
+export default function EditProductDialog({ isOpen, onClose, product, onSuccess, startBranch }: EditProductDialogProps) {
   const [formData, setFormData] = useState<any>({});
   const [sizeRows, setSizeRows] = useState<StockRowDraft[]>([]);
   // The rows as the form opened, sent with the save so the server changes
@@ -53,7 +57,7 @@ export default function EditProductDialog({ isOpen, onClose, product, onSuccess 
 
   useEffect(() => {
     if (product && isOpen) {
-      setFilterBranch('all');
+      setFilterBranch(startingLocationFor(product, startBranch));
       setFormData({
         name: product.name,
         category: product.category,
@@ -238,9 +242,7 @@ export default function EditProductDialog({ isOpen, onClose, product, onSuccess 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className={`${dlg.dlg} max-w-2xl max-h-[90vh] overflow-y-auto p-8`}>
-        <DialogHeader>
-          <DialogTitle className="text-2xl">ערוך מוצר<span style={{ fontSize: '10px', color: 'white', userSelect: 'none' }}> #33</span></DialogTitle>
-        </DialogHeader>
+        <StoreDialogHead>ערוך מוצר<span style={{ fontSize: '10px', color: 'white', userSelect: 'none' }}> #33</span></StoreDialogHead>
 
         <div className="space-y-6 px-2 mt-6">
           {linkedToWebsite && (
@@ -420,9 +422,9 @@ export default function EditProductDialog({ isOpen, onClose, product, onSuccess 
                   return (
                   <div
                     key={row.uid}
-                    className="grid grid-cols-1 sm:grid-cols-12 gap-2 items-end sm:items-center border-b border-gray-200 pb-3 last:border-0 last:pb-0"
+                    className="grid grid-cols-6 sm:grid-cols-12 gap-2 items-end sm:items-center border-b border-gray-200 pb-3 last:border-0 last:pb-0"
                   >
-                    <div className="sm:col-span-3">
+                    <div className="col-span-3 sm:col-span-3">
                       <label className="block text-xs text-gray-600 mb-1 sm:sr-only">מידה</label>
                       <Input
                         value={row.size}
@@ -432,7 +434,7 @@ export default function EditProductDialog({ isOpen, onClose, product, onSuccess 
                         maxLength={20}
                       />
                     </div>
-                    <div className="sm:col-span-2">
+                    <div className="col-span-3 sm:col-span-2">
                       <label className="block text-xs text-gray-600 mb-1 sm:sr-only">כמות במלאי</label>
                       <Input
                         type="number"
@@ -446,7 +448,7 @@ export default function EditProductDialog({ isOpen, onClose, product, onSuccess 
                         placeholder="כמות במלאי"
                       />
                     </div>
-                    <div className="sm:col-span-5">
+                    <div className="col-span-5 sm:col-span-5">
                       <Select
                         aria-label="מיקום"
                         value={storeBranchSelectValue(row.branch)}
@@ -464,11 +466,12 @@ export default function EditProductDialog({ isOpen, onClose, product, onSuccess 
                           ))}
                       </Select>
                     </div>
-                    <div className="sm:col-span-2 flex justify-end">
+                    <div className="col-span-1 sm:col-span-2 flex justify-end">
                       <Button
                         type="button"
                         size="sm"
                         variant="outline"
+                        aria-label="מחק שורה"
                         onClick={() => removeSizeRow(index)}
                         className="text-red-600"
                       >
@@ -508,7 +511,7 @@ export default function EditProductDialog({ isOpen, onClose, product, onSuccess 
             />
           </div>
 
-          <div className="flex gap-3 justify-end mt-8 pt-4 border-t">
+          <div className={`${dlg.actions} flex gap-3 justify-end mt-8 pt-4 border-t`}>
             <Button variant="outline" onClick={onClose}>ביטול</Button>
             <Button onClick={handleSubmit} disabled={isLoading}>
               {isLoading ? 'מעדכן...' : 'עדכן'}

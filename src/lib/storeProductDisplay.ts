@@ -11,11 +11,29 @@ const DELIVERY = 'משלוח';
 export function getProductStockLocationLabels(
   product: StoreProduct,
   branches?: Branch[] | null,
+  where?: { cityId?: string; branchFilter?: string },
 ): string[] {
   const idToName =
     branches && branches.length > 0 ? new Map(branches.map((b) => [b.id, b.name])) : null;
 
-  const rows = product.size_stocks;
+  // Under a location filter the list answers "where, within what I am looking
+  // at". A branch filter that showed every other branch the product sits in
+  // read as a filter that did not work.
+  const branchFilter = where?.branchFilter ?? 'all';
+  const cityId = where?.cityId ?? 'all';
+  if (branchFilter === 'delivery') return [DELIVERY];
+  if (branchFilter !== 'all') {
+    const fromRow = product.size_stocks?.find((row) => row.branch === branchFilter)?.branch_name?.trim();
+    return [fromRow || idToName?.get(branchFilter) || product.branch_name || branchFilter];
+  }
+  const inCity =
+    cityId !== 'all' && branches
+      ? new Set(branches.filter((b) => b.city === cityId).map((b) => b.id))
+      : null;
+
+  const rows = inCity
+    ? product.size_stocks?.filter((row) => row.branch && inCity.has(row.branch))
+    : product.size_stocks;
   if (Array.isArray(rows) && rows.length > 0) {
     const collect = (onlyWithStock: boolean): string[] => {
       const seen = new Set<string>();

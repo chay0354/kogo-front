@@ -255,6 +255,9 @@ export default function StorePage() {
     productStockInLocation(product, selectedCity, selectedBranch, branches);
   const lowStockOf = (product: StoreProduct) =>
     productIsLowStockInLocation(product, selectedCity, selectedBranch, branches);
+  // …and name the location looked at, not every branch the product sits in.
+  const locationsOf = (product: StoreProduct) =>
+    getProductStockLocationLabels(product, branches, { cityId: selectedCity, branchFilter: selectedBranch });
 
   // Filter and sort products
   const filteredAndSortedProducts = products
@@ -634,7 +637,7 @@ export default function StorePage() {
                         </td>
                         <td>
                           <div className={styles.locList}>
-                            {getProductStockLocationLabels(product, branches).map((label, i) => (
+                            {locationsOf(product).map((label, i) => (
                               <span key={`${product.id}-loc-${i}`}>{label}</span>
                             ))}
                           </div>
@@ -662,7 +665,7 @@ export default function StorePage() {
             {/* narrow: a card per product — seven columns do not fit a phone */}
             <div className={`${styles.cards} ${theme.mt} ${styles.onlyNarrow}`}>
               {filteredAndSortedProducts.map((product) => {
-                const locations = getProductStockLocationLabels(product, branches);
+                const locations = locationsOf(product);
                 return (
                   <article key={product.id} className={styles.pcard}>
                     <div className={styles.pcardTop}>
@@ -734,6 +737,7 @@ export default function StorePage() {
           }}
           product={selectedProduct}
           onSuccess={loadData}
+          startBranch={selectedBranch}
         />
         <AdjustStockDialog
           isOpen={isAdjustDialogOpen}
@@ -743,6 +747,7 @@ export default function StorePage() {
           }}
           product={selectedProduct}
           onSuccess={loadData}
+          startBranch={selectedBranch}
         />
         <TransferStockDialog
           isOpen={isTransferDialogOpen}
@@ -752,6 +757,7 @@ export default function StorePage() {
           }}
           product={selectedProduct}
           onSuccess={loadData}
+          startBranch={selectedBranch}
         />
         {selectedProduct && (
           <AddToCartDialog
@@ -762,6 +768,7 @@ export default function StorePage() {
             }}
             product={selectedProduct}
             onAdd={addToCart}
+            startBranch={selectedBranch}
           />
         )}
         <CartCheckoutDialog

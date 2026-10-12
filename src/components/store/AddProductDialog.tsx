@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useEffect, type ChangeEvent } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent } from '@/components/ui/dialog';
+import StoreDialogHead from './StoreDialogHead';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
@@ -211,9 +212,7 @@ export default function AddProductDialog({ isOpen, onClose, onSuccess }: AddProd
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className={`${dlg.dlg} max-w-2xl max-h-[90vh] overflow-y-auto p-8`}>
-        <DialogHeader>
-          <DialogTitle className="text-2xl">הוסף מוצר חדש<span style={{ fontSize: '10px', color: 'white', userSelect: 'none' }}> #31</span></DialogTitle>
-        </DialogHeader>
+        <StoreDialogHead>הוסף מוצר חדש<span style={{ fontSize: '10px', color: 'white', userSelect: 'none' }}> #31</span></StoreDialogHead>
 
         <div className="space-y-6 px-2 mt-6">
           {/* Name */}
@@ -288,9 +287,9 @@ export default function AddProductDialog({ isOpen, onClose, onSuccess }: AddProd
                 {sizeRows.map((row, index) => (
                   <div
                     key={row.uid}
-                    className="grid grid-cols-1 sm:grid-cols-12 gap-2 items-end sm:items-center border-b border-gray-200 pb-3 last:border-0 last:pb-0"
+                    className="grid grid-cols-6 sm:grid-cols-12 gap-2 items-end sm:items-center border-b border-gray-200 pb-3 last:border-0 last:pb-0"
                   >
-                    <div className="sm:col-span-3">
+                    <div className="col-span-3 sm:col-span-3">
                       <label className="block text-xs text-gray-600 mb-1 sm:sr-only">מידה</label>
                       <Input
                         value={row.size}
@@ -298,7 +297,7 @@ export default function AddProductDialog({ isOpen, onClose, onSuccess }: AddProd
                         placeholder="מידה (S, M, L, 42, ...)"
                       />
                     </div>
-                    <div className="sm:col-span-2">
+                    <div className="col-span-3 sm:col-span-2">
                       <label className="block text-xs text-gray-600 mb-1 sm:sr-only">כמות במלאי</label>
                       <Input
                         type="number"
@@ -312,7 +311,7 @@ export default function AddProductDialog({ isOpen, onClose, onSuccess }: AddProd
                         placeholder="כמות במלאי"
                       />
                     </div>
-                    <div className="sm:col-span-5">
+                    <div className="col-span-5 sm:col-span-5">
                       <Select
                         aria-label="מיקום"
                         value={storeBranchSelectValue(row.branch)}
@@ -330,7 +329,7 @@ export default function AddProductDialog({ isOpen, onClose, onSuccess }: AddProd
                           ))}
                       </Select>
                     </div>
-                    <div className="sm:col-span-2 flex justify-end">
+                    <div className="col-span-1 sm:col-span-2 flex justify-end">
                       <Button
                         type="button"
                         size="sm"
@@ -420,7 +419,7 @@ export default function AddProductDialog({ isOpen, onClose, onSuccess }: AddProd
           </div>
 
           {/* Actions */}
-          <div className="flex gap-3 justify-end mt-8 pt-4 border-t">
+          <div className={`${dlg.actions} flex gap-3 justify-end mt-8 pt-4 border-t`}>
             <Button variant="outline" onClick={onClose}>ביטול</Button>
             <Button onClick={handleSubmit} disabled={isLoading}>
               {isLoading ? 'מוסיף...' : 'הוסף מוצר'}

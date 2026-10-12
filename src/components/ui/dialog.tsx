@@ -137,7 +137,7 @@ export function DialogTrigger({
   );
 }
 
-export function DialogCloseButton() {
+export function DialogCloseButton({ label = 'Close' }: { label?: string } = {}) {
   const ctx = React.useContext(DialogContext);
   if (!ctx) return null;
   return (
@@ -145,7 +145,7 @@ export function DialogCloseButton() {
       type="button"
       onClick={() => ctx.requestClose()}
       className="p-2 rounded-lg hover:bg-muted/40 transition-colors"
-      aria-label="Close"
+      aria-label={label}
     >
       <X className="h-5 w-5" />
     </button>
