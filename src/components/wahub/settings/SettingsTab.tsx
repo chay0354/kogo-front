@@ -26,6 +26,7 @@ import { ColorDots, TAG_COLORS } from '../shared/ContactParts';
 import { Tick } from '../shared/motion';
 import { cx } from '../shared/tones';
 import s from '../wahub.module.css';
+import LeadsAutomationCard from './LeadsAutomationCard';
 import SystemStatusCard from './SystemStatusCard';
 
 function SettingsCard({
@@ -700,14 +701,19 @@ interface SettingsTabProps {
   onRetryStatus: () => void;
   /** A conversation, from the live-test list: the chats tab opens on it. */
   onOpenChat: (id: number) => void;
+  /** A card that was asked for by name (the strip on the leads tab): the page is brought to it. */
+  focus?: 'automation' | null;
 }
 
-export default function SettingsTab({ status, statusLoading, statusError, onRetryStatus, onOpenChat }: SettingsTabProps) {
+export default function SettingsTab({ status, statusLoading, statusError, onRetryStatus, onOpenChat, focus = null }: SettingsTabProps) {
   return (
     // One column on a phone; two columns of cards where the page is wide enough (the stylesheet decides).
     <div className={cx(s.pg, s.settingsGrid)}>
       {/* How things stand, first: a title and a word a row; the details are a press away (docs/WAHUB-CONTRACT-POLISH-1.md, ג). */}
       {status && <SystemStatusCard status={status} />}
+      {/* "הכול אוטומטי": is the bot coming back to the leads by itself, and what is missing (docs/WAHUB-CONTRACT-LEADS-V2.md, י).
+          Reads for itself; on a server that does not have it yet, it is not there. */}
+      <LeadsAutomationCard focus={focus === 'automation'} />
       {status ? (
         <ConnectionSection status={status} onChanged={onRetryStatus} />
       ) : statusError ? (

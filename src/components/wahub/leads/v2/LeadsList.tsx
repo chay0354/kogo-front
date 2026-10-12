@@ -1,11 +1,12 @@
 'use client';
 
-import { AlertCircle, Bot, CheckCircle2, ChevronDown, Inbox, Search, X } from 'lucide-react';
+import { AlertCircle, Bot, CheckCircle2, ChevronDown, ChevronLeft, Inbox, PauseCircle, Search, X } from 'lucide-react';
 import { LEADS_VIEW_LABELS, emptyWords, stageOptionText } from '@/lib/wahub/leadsV2';
 import type { WahubLeadCounts, WahubLeadRow, WahubLeadStageCount, WahubLeadsView } from '@/types/wahub';
 import { EmptyState, Skeleton, Spinner } from '../../shared/bits';
 import { RefreshNote } from '../../shared/loading';
 import { cx } from '../../shared/tones';
+import m from '../../motion.module.css';
 import s from '../../wahub.module.css';
 import LeadRow from './LeadRow';
 import l from './leads.module.css';
@@ -33,6 +34,13 @@ export interface LeadsListProps {
   selectedId: number | null;
   now: Date;
   sendingOn: boolean | null;
+  /**
+   * Messages whose time has come and did not go out, in a sentence ("3 הודעות היו יוצאות עכשיו — השליחה
+   * כבויה") — for the head of "הבוט מטפל". Empty: there are none, and there is no strip.
+   */
+  held?: string;
+  /** The strip was pressed: to the card in the settings that says what is missing. */
+  onHeld?: () => void;
   onView: (view: WahubLeadsView) => void;
   onStage: (stage: string | null) => void;
   onSearch: (value: string) => void;
@@ -88,6 +96,8 @@ export default function LeadsList({
   selectedId,
   now,
   sendingOn,
+  held = '',
+  onHeld,
   onView,
   onStage,
   onSearch,
@@ -166,6 +176,17 @@ export default function LeadsList({
       <RefreshNote active={refreshing} className={s.refreshFloat} />
 
       <div className={l.scroll} role="tabpanel" aria-label={LEADS_VIEW_LABELS[view]} aria-busy={status === 'loading' || refreshing}>
+        {/* The bot planned, and nothing went out: said once, quietly, above its list — and it leads to what is missing. */}
+        {view === 'bot' && held && (
+          <button type="button" onClick={onHeld} className={cx(l.held, m.rise)}>
+            <PauseCircle aria-hidden="true" />
+            <span className={l.heldText}>{held}</span>
+            <span className={l.heldGo}>
+              מה חסר
+              <ChevronLeft aria-hidden="true" />
+            </span>
+          </button>
+        )}
         {status === 'error' ? (
           <div role="alert" className={cx(l.note, s.emptyState, s.emptyTight)}>
             <div aria-hidden="true" className={cx(s.emptyIc, s.emptyIcBad)}>

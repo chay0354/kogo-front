@@ -1,5 +1,14 @@
 import api from '../api';
-import type { WahubLeadCloseReason, WahubLeadDetail, WahubLeadsPage, WahubLeadsQuery } from '@/types/wahub';
+import type {
+  WahubLeadCloseReason,
+  WahubLeadDetail,
+  WahubLeadTemplate,
+  WahubLeadTemplateOptions,
+  WahubLeadsAutomation,
+  WahubLeadsPage,
+  WahubLeadsQuery,
+} from '@/types/wahub';
+import { readAutomation, readTemplateOptionsAnswer, readTemplateRow, readTemplates } from './leadsAutomation';
 import { readLeadDetail, readLeadsPage } from './leadsV2';
 
 /**
@@ -83,4 +92,66 @@ export async function setWahubLeadOwner(id: number, owner: 'office' | 'bot'): Pr
 /** GET leads/{id}/ answered 404: the lead is gone (merged, or never was), rather than a server that is behind. */
 export function isLeadGone(error: unknown): boolean {
   return statusOf(error) === 404;
+}
+
+// ---------------------------------------------------------------------------
+// "הכול אוטומטי" (docs/WAHUB-CONTRACT-LEADS-V2.md, י): how the bot's coming
+// back stands, and the WhatsApp templates that let it go out after 24 hours.
+// ---------------------------------------------------------------------------
+
+/**
+ * GET leads/automation/ — the four lines, the day's numbers and what the bot
+ * plans to send. Null when the server has no such endpoint yet (404 / 405): the
+ * card in the settings and the strip on the leads tab are then simply not
+ * there. An answer that is not the automation at all is a failure, never an
+ * empty card.
+ */
+export async function fetchWahubLeadsAutomation(): Promise<WahubLeadsAutomation | null> {
+  let data: unknown;
+  try {
+    data = (await api.get(`${BASE}/leads/automation/`)).data;
+  } catch (error) {
+    const status = statusOf(error);
+    if (status === 404 || status === 405) return null;
+    throw error;
+  }
+  const automation = readAutomation(data);
+  if (!automation) throw new Error('the answer is not the automation');
+  return automation;
+}
+
+/** GET leads/templates/ — every wording the bot comes back with, and what is connected to it. */
+export async function fetchWahubLeadTemplates(): Promise<WahubLeadTemplate[]> {
+  const res = await api.get(`${BASE}/leads/templates/`);
+  return readTemplates(res.data);
+}
+
+/**
+ * GET leads/templates/options/ — the templates that exist in the ManyChat
+ * account. `options: null` when the account cannot be listed right now (with
+ * the server's reason, when it gives one), and on a server that has no such
+ * endpoint: the screen then takes a name that is typed in.
+ */
+export async function fetchWahubLeadTemplateOptions(): Promise<WahubLeadTemplateOptions> {
+  try {
+    const res = await api.get(`${BASE}/leads/templates/options/`);
+    return readTemplateOptionsAnswer(res.data);
+  } catch (error) {
+    const status = statusOf(error);
+    if (status === 404 || status === 405) return { options: null, reason: '' };
+    throw error;
+  }
+}
+
+/**
+ * PUT leads/templates/{template_key}/ — connects a template to a wording
+ * (`target`: its identifier from the list, or its name as ManyChat spells it);
+ * `null` cuts it off. Answers with the wording as the server now has it, or
+ * null when the server answers with something else — the list is read again
+ * either way.
+ */
+export async function setWahubLeadTemplateTarget(templateKey: string, target: string | null): Promise<WahubLeadTemplate | null> {
+  const res = await api.put(`${BASE}/leads/templates/${encodeURIComponent(templateKey)}/`, { target });
+  const row = readTemplateRow(res.data);
+  return row && row.template_key === templateKey ? row : null;
 }

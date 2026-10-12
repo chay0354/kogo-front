@@ -1,0 +1,692 @@
+/*
+ * "חזרה אוטומטית ללידים" — the card under "מצב המערכת" in the settings
+ * (docs/WAHUB-CONTRACT-LEADS-V2.md, י).
+ *
+ * One question is answered here, in the order the eye should take it: is the
+ * bot coming back to the leads by itself (one large sentence) — what stands and
+ * what is missing (four lines) — what it plans to send (a short list) — and the
+ * templates, folded, for whoever came to connect them.
+ *
+ * Drawn in the section's own language: the variables set on .wahub
+ * (wahub.module.css) and the timing set on .motion (motion.module.css). Green
+ * is quiet and amber says "missing". Nothing of the card's own is red — that
+ * stays "מבקש נציג"; a read that failed wears the section's usual failure mark.
+ * Three sizes of text and no more: 17 for the sentence, 14 for a title, 13 for
+ * what is under it.
+ */
+
+/* Reached from the strip on the leads tab: it stops clear of the section's title row. */
+.card {
+  scroll-margin-top: 84px;
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.head h3 {
+  flex: 1 1 0;
+  min-width: 0;
+  font-size: 15px;
+  font-weight: 800;
+}
+
+/* ---------- the one large sentence ---------- */
+
+.headline {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: 14px;
+}
+
+.headline > svg {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  margin-top: 1px;
+}
+
+.headGood {
+  background: var(--good-bg);
+}
+
+.headGood > svg {
+  color: var(--good);
+}
+
+.headWarn {
+  background: var(--warn-bg);
+}
+
+.headWarn > svg {
+  color: var(--warn);
+}
+
+.headText {
+  margin: 0;
+  color: var(--ink);
+  font-size: 17px;
+  font-weight: 800;
+  line-height: 1.35;
+  text-wrap: balance;
+}
+
+.headSub {
+  margin: 3px 0 0;
+  color: var(--muted);
+  font-size: 12.5px;
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+/* ---------- the four lines ---------- */
+
+.lines {
+  margin: 6px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.line {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 0;
+}
+
+.lineBody {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+/* The mark is never the colour alone: a tick or a cross, and a word for a reader. */
+.mark {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+}
+
+.mark svg {
+  width: 13px;
+  height: 13px;
+  stroke-width: 3;
+}
+
+.markOk {
+  background: var(--good-bg);
+  color: var(--good);
+}
+
+.markOff {
+  background: var(--warn-bg);
+  color: var(--warn);
+}
+
+.lineTitle {
+  margin: 0;
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 800;
+  line-height: 22px;
+}
+
+.lineDetail {
+  margin: 1px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+/* "איך מתקנים" — only under a line that is not ok. */
+.how {
+  margin: 7px 0 0;
+  padding: 7px 10px;
+  border-radius: 10px;
+  background: var(--warn-bg);
+  color: var(--ink);
+  font-size: 13px;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+
+.how b {
+  color: var(--warn);
+  font-weight: 800;
+}
+
+/* The name of a setting, as the server wrote it: small, left to right, apart from the sentence. */
+.setting {
+  display: inline-block;
+  direction: ltr;
+  unicode-bidi: isolate;
+  margin-inline-start: 6px;
+  padding: 0 6px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.7);
+  color: var(--muted);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 18px;
+  vertical-align: 1px;
+  overflow-wrap: anywhere;
+}
+
+/* ---------- a part of the card under the lines ---------- */
+
+.block {
+  margin-top: 6px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line-2);
+}
+
+.blockFold {
+  margin-top: 14px;
+  padding-top: 2px;
+}
+
+.empty {
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 13.5px;
+}
+
+/* ---------- "מה הבוט מתכנן לשלוח" ---------- */
+
+.upList {
+  margin: 4px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.upList > li + li {
+  border-top: 1px solid var(--line-2);
+}
+
+/* Who and when on the first line; what on the second, with the mark — when there is one — at its end. */
+.upHead {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto 18px;
+  grid-template-areas:
+    'name when chev'
+    'second second chev';
+  align-items: center;
+  gap: 3px 10px;
+  width: 100%;
+  min-height: 46px;
+  padding: 9px 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+}
+
+button.upHead {
+  transition: transform var(--m-press) var(--m-out);
+}
+
+button.upHead:active {
+  transform: scale(0.99);
+}
+
+.upWho {
+  grid-area: name;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.upName {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+button.upHead:hover .upName {
+  color: var(--navy-ink);
+}
+
+.upWhen {
+  grid-area: when;
+  color: var(--navy-ink);
+  font-size: 12.5px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+/* Its time has come and it did not go out: amber, and the words say so. */
+.upWhenHeld {
+  color: var(--warn);
+}
+
+.upSecond {
+  grid-area: second;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.upWhat {
+  flex: 1 1 0;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.5;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.upKind {
+  color: var(--ink);
+  font-weight: 700;
+}
+
+.upTag {
+  flex: none;
+}
+
+.upChev {
+  grid-area: chev;
+}
+
+.upBody {
+  padding: 0 0 12px;
+}
+
+/* What stops this very one, under its wording. */
+.upNote {
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+.upNote:first-child {
+  margin-top: 0;
+}
+
+/* A wording, quoted. */
+.quote {
+  margin: 0;
+  padding-inline-start: 10px;
+  border-inline-start: 2px solid var(--lav);
+  color: var(--ink);
+  font-size: 13.5px;
+  line-height: 1.6;
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+
+.more {
+  margin-top: 8px;
+  font-size: 13px;
+}
+
+/* ---------- the templates ---------- */
+
+.tplBody {
+  padding-bottom: 4px;
+}
+
+.tplHint {
+  margin: 0 0 12px;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.stageHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 8px;
+  margin: 0 0 8px;
+}
+
+.stageTitle {
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.stageCount {
+  color: var(--muted);
+  font-size: 12.5px;
+  font-weight: 700;
+}
+
+.stageTwo {
+  margin-top: 12px;
+  border-top: 1px solid var(--line-2);
+}
+
+.stageTwoBody {
+  padding-bottom: 6px;
+}
+
+.tplList {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tpl {
+  padding: 12px;
+  border: 1px solid var(--line-2);
+  border-radius: 14px;
+  background: var(--surface-2);
+}
+
+/* A wording that is switched off is still listed, quietly. */
+.tplOff {
+  opacity: 0.75;
+}
+
+.tplHead {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.tplTitle {
+  margin: 0;
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.tplWhen {
+  margin: 1px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.tplPill {
+  flex: none;
+}
+
+/* The name the template is given in ManyChat: small, and written as it is typed there. */
+.tplName {
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 12.5px;
+  font-weight: 600;
+  line-height: 20px;
+}
+
+.tplNameValue {
+  display: inline-block;
+  direction: ltr;
+  unicode-bidi: isolate;
+  padding: 0 7px;
+  border-radius: 6px;
+  background: var(--lav-2);
+  color: var(--ink);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+  font-weight: 600;
+  user-select: all;
+  overflow-wrap: anywhere;
+}
+
+/* Why the account's templates cannot be listed — said once, above the wordings, with a way to ask again. */
+.tplReason {
+  margin: 0 0 12px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: var(--warn-bg);
+  color: var(--ink);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.tplReason button {
+  font-size: 13px;
+}
+
+/* The wording itself, whole, on white — it is what gets copied into ManyChat. */
+.wording {
+  margin-top: 9px;
+  padding: 10px 12px;
+  border: 1px solid var(--line-2);
+  border-radius: 11px;
+  background: var(--surface);
+}
+
+.wordingText {
+  margin: 0;
+  color: var(--ink);
+  font-size: 14px;
+  line-height: 1.6;
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+
+.wordingFoot {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 8px;
+}
+
+/* Which template is connected: the picker (or the box a name is pasted into), and beside it what was done. */
+.connect {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  min-height: 38px;
+  margin-top: 10px;
+}
+
+/* A plain select, so a phone opens its own picker. */
+.pick {
+  position: relative;
+  flex: 1 1 220px;
+  min-width: 0;
+  max-width: 380px;
+}
+
+.pick select {
+  appearance: none;
+  width: 100%;
+  height: 38px;
+  padding-inline: 12px 32px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  font-size: 13.5px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+
+.pick select:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.pick select:focus-visible,
+.paste input:focus-visible {
+  outline: 2px solid var(--navy);
+  outline-offset: 0;
+  border-color: transparent;
+}
+
+.pick svg {
+  position: absolute;
+  top: 50%;
+  inset-inline-end: 10px;
+  width: 16px;
+  height: 16px;
+  transform: translateY(-50%);
+  color: var(--muted);
+  pointer-events: none;
+}
+
+.paste {
+  display: flex;
+  flex: 1 1 240px;
+  gap: 8px;
+  min-width: 0;
+  max-width: 440px;
+}
+
+.paste input {
+  flex: 1 1 0;
+  min-width: 0;
+  height: 38px;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  font-size: 13.5px;
+}
+
+.paste input::placeholder {
+  color: var(--faint);
+}
+
+.paste button {
+  height: 38px;
+}
+
+/* The name of what is connected, when it was pasted: as it is written in ManyChat. */
+.connected {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  direction: ltr;
+  unicode-bidi: isolate;
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cut {
+  flex: none;
+  font-size: 13px;
+}
+
+/* "נשמר" — beside what was just done, for a moment. */
+.savedNote {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex: none;
+  color: var(--good);
+  font-size: 12.5px;
+  font-weight: 700;
+}
+
+.savedNote svg {
+  width: 14px;
+  height: 14px;
+}
+
+/* A save that was refused: why, in a sentence. A fault to look at, not a person asking for someone — amber. */
+.tplError {
+  margin: 8px 0 0;
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: var(--warn-bg);
+  color: var(--warn);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+.tplNote {
+  margin: 8px 0 0;
+  color: var(--muted);
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+/* ---------- waiting, failing ---------- */
+
+.sk {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  pointer-events: none;
+}
+
+.skLine {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 42px;
+}
+
+.failed {
+  padding-block: 8px;
+}
+
+/* ---------- the phone ---------- */
+
+@media (max-width: 767px) {
+  .headText {
+    font-size: 16px;
+  }
+
+  /* A finger's height, and sixteen pixels so the phone does not zoom the page when a box is pressed. */
+  .pick,
+  .paste {
+    flex-basis: 100%;
+    max-width: none;
+  }
+
+  .pick select,
+  .paste input {
+    height: 44px;
+    font-size: 16px;
+  }
+
+  .paste button,
+  .wordingFoot :global(button) {
+    height: 44px;
+  }
+
+  .cut {
+    min-height: 44px;
+    padding-inline: 4px;
+  }
+
+  .upHead {
+    min-height: 52px;
+  }
+
+  .more {
+    min-height: 44px;
+  }
+}

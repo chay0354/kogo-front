@@ -3,11 +3,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { readableError } from '@/lib/apiError';
+import { heldStripText } from '@/lib/wahub/leadsAutomation';
 import { leadRows, leadsLayout, leadsPanes, stageOptions, stuckFirst, type LeadChange } from '@/lib/wahub/leadsV2';
 import { isLeadGone } from '@/lib/wahub/leadsV2Api';
 import { PHONE_MEDIA_QUERY } from '@/lib/wahub/screens';
 import type { WahubLeadRow, WahubLeadsView, WahubStatus } from '@/types/wahub';
 import { useElementWidth } from '../../hooks/useElementWidth';
+import { useLeadsAutomation } from '../../hooks/useLeadsAutomation';
 import { useNow } from '../../hooks/useNow';
 import type { WahubLiveHandle } from '../../hooks/useWahubLive';
 import { cx } from '../../shared/tones';
@@ -38,6 +40,8 @@ export interface LeadsScreenProps {
   status: WahubStatus | undefined;
   onAddress: (patch: LeadsAddress) => void;
   onOpenChat: (id: number) => void;
+  /** To the card "חזרה אוטומטית ללידים" in the settings. */
+  onOpenAutomation?: () => void;
 }
 
 /**
@@ -50,7 +54,7 @@ export interface LeadsScreenProps {
  *
  * The list and the details each scroll by themselves; the page does not.
  */
-export default function LeadsScreen({ active, live, view, stage, leadId, status, onAddress, onOpenChat }: LeadsScreenProps) {
+export default function LeadsScreen({ active, live, view, stage, leadId, status, onAddress, onOpenChat, onOpenAutomation }: LeadsScreenProps) {
   const now = useNow(60_000);
   const phone = useMediaQuery(PHONE_MEDIA_QUERY);
   const { ref, width } = useElementWidth<HTMLDivElement>();
@@ -70,6 +74,11 @@ export default function LeadsScreen({ active, live, view, stage, leadId, status,
   const narrow = useLeadsList(view, stage, q, active && narrowed);
   const list = narrowed ? narrow : base;
   useLeadsLiveRefresh(live, active);
+
+  // Comings back whose time has come and did not go out (docs/WAHUB-CONTRACT-LEADS-V2.md, י): one quiet strip at
+  // the head of the bot's list. Read only while that list is in front; a server without it has no strip.
+  const automation = useLeadsAutomation(active && view === 'bot');
+  const held = view === 'bot' ? heldStripText(automation.data) : '';
 
   // The order is the server's — but for "נתקע בהרשמה", which always stands at the head of "מחכים לך".
   const rows = useMemo(() => {
@@ -157,6 +166,8 @@ export default function LeadsScreen({ active, live, view, stage, leadId, status,
           selectedId={leadId}
           now={now}
           sendingOn={status ? status.sending_enabled : null}
+          held={held}
+          onHeld={onOpenAutomation}
           onView={(next) => onAddress({ owner: next, stage: null, lead: null })}
           onStage={(next) => onAddress({ stage: next })}
           onSearch={setSearch}

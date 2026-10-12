@@ -1114,3 +1114,117 @@ export interface WahubLeadDetail extends WahubLeadRow {
 }
 
 export type WahubLeadCloseReason = 'deleted' | 'not_interested';
+
+// ---------------------------------------------------------------------------
+// "הכול אוטומטי" — the bot comes back to the leads by itself
+// (docs/WAHUB-CONTRACT-LEADS-V2.md, י): how the automation stands, what it
+// plans to send, and the WhatsApp templates that let a send go out after 24
+// hours. Read tolerantly in lib/wahub/leadsAutomation.ts.
+// ---------------------------------------------------------------------------
+
+/** One of the four things that have to stand for a message to go out by itself. */
+export interface WahubAutomationLine {
+  /** `classify` / `schedule` / `sending` / `templates` — or one the server adds later. */
+  key: string;
+  ok: boolean;
+  title: string;
+  /** One sentence, ready to show. */
+  detail: string;
+  /** How it is put right — only on a line that is not ok. May name a setting in Latin letters. */
+  how: string;
+}
+
+/**
+ * The comings back in numbers: `planned` and `due` are everything open now;
+ * `sent`, `skipped` and `failed` are what was closed today.
+ */
+export interface WahubAutomationToday {
+  planned: number;
+  due: number;
+  sent: number;
+  skipped: number;
+  /** Not in the contract's first shape: 0 on a server that does not send it. */
+  failed: number;
+}
+
+/** One coming back the bot has planned. */
+export interface WahubAutomationUpcoming {
+  contact_id: number | null;
+  name: string;
+  kind_label: string;
+  /** The wording that would be sent. */
+  text: string;
+  when: string | null;
+  /** `due`: its time has come and it did not go out. */
+  state: 'planned' | 'due';
+  /** It goes out after the 24 hours, so only as an approved template. */
+  needs_template: boolean;
+  template_mapped: boolean;
+  /** An invented customer: listed, marked, and never sent to anyone. */
+  is_demo: boolean;
+  /** What stops this very one from going out, in words ("השליחה כבויה", "חסרה תבנית"); empty when nothing does. */
+  note: string;
+}
+
+/** The strip at the head of "הבוט מטפל", as the server words it. */
+export interface WahubAutomationBanner {
+  count: number;
+  text: string;
+}
+
+/** GET leads/automation/ */
+export interface WahubLeadsAutomation {
+  /** Every line is ok: the bot comes back by itself. */
+  ready: boolean;
+  lines: WahubAutomationLine[];
+  today: WahubAutomationToday;
+  /** Up to 15, the soonest first. */
+  upcoming: WahubAutomationUpcoming[];
+  /**
+   * The strip, ready to show; null when there is nothing to show. Absent on a
+   * server that leaves the wording to the screen (it is then worked out from
+   * `today.due` and the lines).
+   */
+  banner?: WahubAutomationBanner | null;
+}
+
+/** One wording the bot comes back with, and the WhatsApp template connected to it (GET leads/templates/). */
+export interface WahubLeadTemplate {
+  template_key: string;
+  kind_label: string;
+  /** When it is sent, in words. */
+  when_label: string;
+  text: string;
+  /** 1: the five to start with. 2: the ones that follow. */
+  stage: 1 | 2;
+  /** Which of a round's approaches this wording is (1–3), when the server says; null when it does not. */
+  step: number | null;
+  mapped: boolean;
+  /** What is connected — the template's identifier in ManyChat; null when nothing is. */
+  target: string | null;
+  /** Its name, when the server sends one beside the identifier. */
+  target_name: string;
+  /** False: this wording is switched off, and is not sent whatever is connected. */
+  active: boolean;
+  /** False: it goes out without a template (inside the 24 hours), or is switched off — it is not counted as missing. */
+  required: boolean;
+  /** The name the owner's document proposes for this template in ManyChat; empty when there is none. */
+  suggested_name: string;
+  /** Who connected it, and when — as the server recorded it. */
+  connected_by: string;
+  connected_at: string | null;
+}
+
+/** A template that exists in the ManyChat account and can be chosen. */
+export interface WahubLeadTemplateOption {
+  id: string;
+  name: string;
+}
+
+/** GET leads/templates/options/ */
+export interface WahubLeadTemplateOptions {
+  /** Null: the account cannot be listed right now — the screen takes a name that is typed in. */
+  options: WahubLeadTemplateOption[] | null;
+  /** Why it cannot be listed, in Hebrew, when the server says. */
+  reason: string;
+}

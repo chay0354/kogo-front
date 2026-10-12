@@ -19,6 +19,8 @@ interface LeadsTabProps {
   status: WahubStatus | undefined;
   onAddress: (patch: LeadsAddress) => void;
   onOpenChat: (id: number) => void;
+  /** To the card "חזרה אוטומטית ללידים" in the settings (the strip at the head of "הבוט מטפל"). */
+  onOpenAutomation?: () => void;
   // --- only the screens from before read these ---
   queue: WahubQueue;
   onQueue: (queue: WahubQueue) => void;
@@ -42,6 +44,7 @@ export default function LeadsTab({
   status,
   onAddress,
   onOpenChat,
+  onOpenAutomation,
   queue,
   onQueue,
   onStage,
@@ -76,6 +79,7 @@ export default function LeadsTab({
       status={status}
       onAddress={onAddress}
       onOpenChat={onOpenChat}
+      onOpenAutomation={onOpenAutomation}
     />
   );
 }
