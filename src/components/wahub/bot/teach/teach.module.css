@@ -40,7 +40,7 @@
 .intro p {
   margin: 8px auto 0;
   max-width: 54ch;
-  font-size: 14px;
+  font-size: var(--t-body);
   line-height: 1.65;
   color: var(--muted);
   text-wrap: pretty;
@@ -71,7 +71,7 @@
 }
 
 .composerLabel {
-  font-size: 12px;
+  font-size: var(--t-meta);
   font-weight: 800;
   color: var(--muted);
 }
@@ -115,12 +115,12 @@
 .keys {
   flex: 1;
   min-width: 0;
-  font-size: 12px;
-  color: var(--faint);
+  font-size: var(--t-meta);
+  color: var(--muted);
 }
 
 .left {
-  font-size: 12px;
+  font-size: var(--t-meta);
   font-weight: 700;
   color: var(--warn);
 }
@@ -131,7 +131,7 @@
   height: 40px;
   padding: 0 20px;
   border-radius: 11px;
-  font-size: 14px;
+  font-size: var(--t-body);
   font-weight: 700;
 }
 
@@ -149,7 +149,7 @@
   background: var(--bad-bg);
   color: var(--bad);
   padding: 9px 12px;
-  font-size: 14px;
+  font-size: var(--t-body);
   font-weight: 600;
   line-height: 1.5;
   animation: teachRise 0.22s var(--ease) backwards;
@@ -246,7 +246,7 @@
   align-items: baseline;
   gap: 8px;
   min-width: 0;
-  font-size: 12px;
+  font-size: var(--t-meta);
   color: var(--muted);
 }
 
@@ -287,7 +287,7 @@
   margin: 6px 0 0;
   border-inline-start: 3px solid var(--lav);
   padding-inline-start: 10px;
-  font-size: 14px;
+  font-size: var(--t-body);
   line-height: 1.6;
   color: var(--muted);
   white-space: pre-wrap;
@@ -297,7 +297,7 @@
 /* The name of a part. */
 .label {
   margin: 0 0 5px;
-  font-size: 12px;
+  font-size: var(--t-meta);
   font-weight: 800;
   color: var(--muted);
 }
@@ -315,7 +315,7 @@
 /* What is read. */
 .text {
   margin: 0;
-  font-size: 14px;
+  font-size: var(--t-body);
   line-height: 1.6;
   white-space: pre-line;
   overflow-wrap: anywhere;
@@ -349,7 +349,7 @@
 
 /* The readable card names its folded parts a hair larger than this screen's small size: brought into line. */
 .change summary {
-  font-size: 12px;
+  font-size: var(--t-meta);
 }
 
 /* ---------- the example: a short conversation, as in WhatsApp ---------- */
@@ -382,7 +382,7 @@
 }
 
 .exWho {
-  font-size: 12px;
+  font-size: var(--t-meta);
   font-weight: 700;
   color: var(--muted);
 }
@@ -393,7 +393,7 @@
   border: 1px solid transparent;
   border-radius: 14px;
   padding: 8px 12px;
-  font-size: 14px;
+  font-size: var(--t-body);
   line-height: 1.5;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
@@ -508,7 +508,7 @@
 .thinkingNote {
   margin: 0;
   min-height: 21px;
-  font-size: 14px;
+  font-size: var(--t-body);
   color: var(--muted);
 }
 
@@ -531,7 +531,7 @@
   background: var(--warn-bg);
   color: var(--warn);
   padding: 10px 12px;
-  font-size: 14px;
+  font-size: var(--t-body);
   line-height: 1.55;
 }
 
@@ -569,7 +569,7 @@
   display: flex;
   flex-direction: column;
   gap: 4px;
-  font-size: 14px;
+  font-size: var(--t-body);
   line-height: 1.55;
   color: var(--muted);
 }
@@ -600,7 +600,7 @@
 
 .footNote {
   margin: 0;
-  font-size: 12px;
+  font-size: var(--t-meta);
   color: var(--muted);
 }
 
@@ -640,7 +640,7 @@
   display: flex;
   align-items: flex-start;
   gap: 8px;
-  font-size: 14px;
+  font-size: var(--t-body);
   font-weight: 600;
   line-height: 1.5;
   color: var(--bad);
@@ -707,7 +707,7 @@
 }
 
 .savedSub {
-  font-size: 14px;
+  font-size: var(--t-body);
   color: var(--muted);
 }
 
@@ -718,7 +718,7 @@
   gap: 9px;
   border-radius: 12px;
   padding: 10px 12px;
-  font-size: 14px;
+  font-size: var(--t-body);
   font-weight: 600;
   line-height: 1.55;
   animation: teachRise 0.24s var(--ease) backwards;
@@ -765,7 +765,7 @@
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  font-size: 12px;
+  font-size: var(--t-meta);
   font-weight: 700;
   color: var(--navy-ink);
 }
@@ -797,7 +797,7 @@
   display: grid;
   grid-template-columns: max-content minmax(0, 1fr);
   gap: 3px 12px;
-  font-size: 12px;
+  font-size: var(--t-meta);
 }
 
 .tech dt {
@@ -814,7 +814,7 @@
   direction: ltr;
   unicode-bidi: isolate;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 12px;
+  font-size: var(--t-meta);
   color: var(--muted);
 }
 
@@ -831,10 +831,11 @@
   display: flex;
   align-items: baseline;
   gap: 8px;
-  font-size: 12px;
-  font-weight: 800;
-  color: var(--faint);
-  letter-spacing: 0.3px;
+  margin: 0;
+  color: var(--ink);
+  font-family: var(--font-display, inherit);
+  font-size: var(--t-title);
+  font-weight: 600;
 }
 
 .rows {
@@ -896,7 +897,7 @@
 .rowDate {
   flex: none;
   min-width: 34px;
-  font-size: 12px;
+  font-size: var(--t-meta);
   color: var(--muted);
 }
 
@@ -906,7 +907,7 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 14px;
+  font-size: var(--t-body);
 }
 
 .rowGone .rowText {
@@ -921,7 +922,7 @@
   background: transparent;
   padding: 0 8px;
   font: inherit;
-  font-size: 12px;
+  font-size: var(--t-meta);
   font-weight: 700;
   color: var(--muted);
   transition:
@@ -942,7 +943,7 @@
 .rowNote {
   margin: 0;
   padding: 0 18px 10px;
-  font-size: 12px;
+  font-size: var(--t-meta);
   font-weight: 600;
   color: var(--bad);
 }
@@ -953,7 +954,7 @@
   border-radius: 14px;
   padding: 16px;
   text-align: center;
-  font-size: 14px;
+  font-size: var(--t-body);
   color: var(--muted);
 }
 
@@ -1016,7 +1017,7 @@
 .notYet p {
   margin: 0;
   max-width: 46ch;
-  font-size: 14px;
+  font-size: var(--t-body);
   line-height: 1.6;
   color: var(--muted);
 }

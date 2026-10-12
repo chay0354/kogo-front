@@ -8,7 +8,9 @@ import {
   changedLead,
   childAgeText,
   childFacts,
+  currentFollowUp,
   emptyWords,
+  factsBeyond,
   followUpLine,
   fullWhen,
   isValidSnooze,
@@ -25,12 +27,14 @@ import {
   readLeadDetail,
   readLeadRow,
   readLeadsPage,
+  saysMore,
   sinceText,
   snoozeDates,
   sortFollowUps,
   stageOptionText,
   stageOptions,
   stuckFirst,
+  timelineWords,
   trialFacts,
   whenWords,
 } from './leadsV2';
@@ -564,6 +568,95 @@ describe('the times the bot comes back', () => {
     expect(sortFollowUps(list).map((item) => item.id)).toEqual([3, 2, 1]);
     // The list handed in is left as it was.
     expect(list.map((item) => item.id)).toEqual([1, 2, 3]);
+  });
+
+  // docs/CHANGE-IMPACT-2026-10-12-CRM-ROUND-FONT-AND-CLARITY.md: which message belongs to "מה קורה עכשיו".
+  test('the message of "now": the one still ahead — planned, or due and held back', () => {
+    const sent = followUp({ id: 1, status: 'sent', acted_at: '2026-10-08T07:30:00Z' });
+    const planned = followUp({ id: 2, status: 'planned' });
+    const due = followUp({ id: 3, status: 'due', due_at: '2026-10-12T07:30:00Z' });
+    expect(currentFollowUp([sent, planned], row())?.id).toBe(2);
+    expect(currentFollowUp([sent, due], row())?.id).toBe(3);
+  });
+
+  test('with none ahead: the last one that went out, while it is the bot the lead waits on — never once the step is the office\'s', () => {
+    const older = followUp({ id: 1, status: 'sent', acted_at: '2026-10-08T07:30:00Z' });
+    const newer = followUp({ id: 2, status: 'sent', acted_at: '2026-10-11T07:30:00Z' });
+    const waiting = row({ next: { who: 'none', what: 'הבוט חזר אליו — מחכים לתשובה', when: null, state: 'none' } });
+    expect(currentFollowUp([older, newer], waiting)?.id).toBe(2);
+    const office = row({ owner: 'office', next: { who: 'office', what: 'להתקשר', when: null, state: 'none' } });
+    expect(currentFollowUp([older, newer], office)).toBeNull();
+  });
+
+  test('a message that was cancelled or failed is history, and so is no message at all', () => {
+    expect(currentFollowUp([followUp({ status: 'skipped', acted_at: '2026-10-11T07:30:00Z' })], row())).toBeNull();
+    expect(currentFollowUp([followUp({ status: 'failed', acted_at: '2026-10-11T07:30:00Z' })], row())).toBeNull();
+    expect(currentFollowUp([], row())).toBeNull();
+  });
+});
+
+// docs/CHANGE-IMPACT-2026-10-12-CRM-ROUND-FONT-AND-CLARITY.md, "כל מידע פעם אחת". The sentences are the shape of
+// the ones on the owner's screen of 12.10 (the same sentence three times); the people in them are invented.
+describe('each thing once', () => {
+  const WHY = 'שאל על קפוארה בסניף הדגמה (גיל 6) אתמול. אמר שיבדוק ויחזור: "אני אבדוק".';
+
+  test('"מה עוצר" that only repeats the end of the sentence above it says nothing more', () => {
+    expect(saysMore('אמר שיבדוק ויחזור: "אני אבדוק"', WHY)).toBe(false);
+    // The same words in other marks — a full stop, a Hebrew quote mark — are still the same words.
+    expect(saysMore('אמר שיבדוק ויחזור - ״אני אבדוק״.', WHY)).toBe(false);
+    expect(saysMore(WHY, WHY)).toBe(false);
+  });
+
+  test('a sentence with something of its own stays', () => {
+    expect(saysMore('אמרה שתבדוק עם הבת שלה ותחזור', 'קיבלה את כל הפרטים וקישור להרשמה לפני יומיים, ומאז לא כתבה')).toBe(true);
+    // One new word in a short sentence is news: with whom she will check.
+    expect(saysMore('אמרה שתבדוק עם בעלה', 'אמרה שתבדוק עם הבת שלה')).toBe(true);
+    expect(saysMore('המחיר עצר אותה', WHY)).toBe(true);
+  });
+
+  test('nothing, and nothing but marks, says nothing', () => {
+    expect(saysMore('', WHY)).toBe(false);
+    expect(saysMore(null, WHY)).toBe(false);
+    expect(saysMore('  — . ', WHY)).toBe(false);
+    // With nothing said before it, any sentence is news.
+    expect(saysMore('אמר שיבדוק', '', null, undefined)).toBe(true);
+    expect(saysMore('אמר שיבדוק')).toBe(true);
+  });
+
+  test('the same sentence written on another day — "אתמול" where today\'s says "לפני יומיים" — is the same sentence', () => {
+    const later = 'שאל על קפוארה בסניף הדגמה (גיל 6) לפני יומיים. אמר שיבדוק ויחזור: "אני אבדוק".';
+    expect(saysMore(WHY, later)).toBe(false);
+    expect(saysMore(later, WHY)).toBe(false);
+  });
+
+  test('it is compared with each earlier sentence on its own, and one that holds it is enough', () => {
+    expect(saysMore('השליחה כבויה', 'היה נשלח עכשיו — השליחה כבויה', '')).toBe(false);
+    expect(saysMore('היה נשלח עכשיו', 'הבוט ישאל אם יש חדש', 'היה נשלח עכשיו — השליחה כבויה')).toBe(false);
+    expect(saysMore('מתוכנן', 'הבוט ישאל אם משהו נתקע באתר מחר ב-10:30')).toBe(true);
+  });
+
+  test('the timeline: the bracket that repeats why this is a lead is left out — also when the reason holds brackets of its own', () => {
+    expect(timelineWords(`בשיחה ← אמר שיבדוק ויחזור (${WHY})`, WHY)).toBe('בשיחה ← אמר שיבדוק ויחזור');
+    // A bracket that says something else stays, and so does a line with no bracket at its end.
+    expect(timelineWords('אמר שיבדוק ויחזור ← מחכה למועד (ביקשה שנחזור אחרי החגים)', WHY)).toBe(
+      'אמר שיבדוק ויחזור ← מחכה למועד (ביקשה שנחזור אחרי החגים)',
+    );
+    expect(timelineWords('  נוצר מהודעת וואטסאפ ', WHY)).toBe('נוצר מהודעת וואטסאפ');
+    expect(timelineWords('קפוארה צעירים (הדגמה) — נרשם לניסיון', WHY)).toBe('קפוארה צעירים (הדגמה) — נרשם לניסיון');
+    // Nothing but a bracket is left as it is: there would be no line without it.
+    expect(timelineWords(`(${WHY})`, WHY)).toBe(`(${WHY})`);
+    // A bracket that never closes properly is not guessed at.
+    expect(timelineWords('שורה עם סוגר) בסוף', WHY)).toBe('שורה עם סוגר) בסוף');
+  });
+
+  test('the child\'s facts are drawn only when they say more than the chip — and then all of them', () => {
+    const age = childFacts({ name: '', age_years: 6, age_months: null, grade: '', birth_date: null });
+    expect(factsBeyond(age, 'גיל 6')).toEqual([]);
+    const named = childFacts({ name: 'נועם', age_years: 5, age_months: null, grade: 'גן חובה', birth_date: null });
+    expect(factsBeyond(named, 'בת 5').map((fact) => fact.label)).toEqual(['שם', 'גיל', 'כיתה']);
+    // No chip at all: whatever is known is news.
+    expect(factsBeyond(age, '', undefined)).toEqual(age);
+    expect(factsBeyond([], 'גיל 6')).toEqual([]);
   });
 });
 

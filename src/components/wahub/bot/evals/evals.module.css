@@ -70,14 +70,14 @@
 
 .rest {
   margin: 0;
-  font-size: 14px;
+  font-size: var(--t-body);
   color: var(--muted);
 }
 
 .when {
   margin: 0;
-  font-size: 12px;
-  color: var(--faint);
+  font-size: var(--t-meta);
+  color: var(--muted);
 }
 
 /* How the conversations divide, at a glance: passed, failed, and what nobody can say. */
@@ -115,7 +115,7 @@
   height: 42px;
   padding: 0 22px;
   border-radius: 11px;
-  font-size: 14px;
+  font-size: var(--t-body);
   font-weight: 700;
 }
 
@@ -125,7 +125,7 @@
 
 .hint {
   margin: 0;
-  font-size: 12px;
+  font-size: var(--t-meta);
   line-height: 1.6;
   color: var(--muted);
 }
@@ -140,7 +140,7 @@
   background: var(--warn-bg);
   color: var(--warn);
   padding: 9px 12px;
-  font-size: 14px;
+  font-size: var(--t-body);
   font-weight: 600;
   line-height: 1.5;
 }
@@ -225,7 +225,7 @@
 
 .runLine {
   margin: 0;
-  font-size: 14px;
+  font-size: var(--t-body);
   font-weight: 700;
   color: var(--navy-ink);
   overflow: hidden;
@@ -236,7 +236,7 @@
 .runTurn {
   margin: 2px 0 0;
   min-height: 19px;
-  font-size: 12px;
+  font-size: var(--t-meta);
   color: var(--muted);
 }
 
@@ -249,7 +249,7 @@
   background: var(--lav-2);
   color: var(--navy-ink);
   padding: 10px 12px;
-  font-size: 14px;
+  font-size: var(--t-body);
   font-weight: 600;
   line-height: 1.5;
   animation: evalsRise 0.24s var(--ease) backwards;
@@ -282,7 +282,7 @@
   align-items: center;
   gap: 6px;
   font: inherit;
-  font-size: 12px;
+  font-size: var(--t-meta);
   font-weight: 700;
   color: var(--muted);
   white-space: nowrap;
@@ -328,10 +328,11 @@
   display: flex;
   align-items: baseline;
   gap: 8px;
-  font-size: 12px;
-  font-weight: 800;
-  letter-spacing: 0.3px;
-  color: var(--faint);
+  margin: 0;
+  color: var(--ink);
+  font-family: var(--font-display, inherit);
+  font-size: var(--t-title);
+  font-weight: 600;
 }
 
 .sectionFailed {
@@ -441,7 +442,7 @@
 }
 
 .rowTitle {
-  font-size: 14px;
+  font-size: var(--t-body);
   font-weight: 700;
   line-height: 1.45;
   overflow-wrap: anywhere;
@@ -449,7 +450,7 @@
 
 /* Why it did not pass, in a line or two; all of it on a press. */
 .rowWhy {
-  font-size: 14px;
+  font-size: var(--t-body);
   line-height: 1.5;
   color: var(--muted);
   display: -webkit-box;
@@ -468,8 +469,8 @@
   align-items: center;
   gap: 8px;
   margin-top: 2px;
-  font-size: 12px;
-  color: var(--faint);
+  font-size: var(--t-meta);
+  color: var(--muted);
 }
 
 .rowSide svg {
@@ -493,7 +494,7 @@
   border-radius: 14px;
   background: var(--surface);
   padding: 12px 14px;
-  font-size: 14px;
+  font-size: var(--t-body);
   font-weight: 700;
   transition: background 0.15s;
 }
@@ -513,7 +514,7 @@
 
 .fold > summary > em {
   font-style: normal;
-  font-size: 12px;
+  font-size: var(--t-meta);
   font-weight: 700;
   color: var(--navy-ink);
 }
@@ -550,7 +551,7 @@
   background: var(--good-bg);
   color: #116c35;
   padding: 12px 14px;
-  font-size: 14px;
+  font-size: var(--t-body);
   font-weight: 700;
 }
 
@@ -575,14 +576,14 @@
 
 .label {
   margin: 0 0 4px;
-  font-size: 12px;
+  font-size: var(--t-meta);
   font-weight: 800;
   color: var(--muted);
 }
 
 .text {
   margin: 0;
-  font-size: 14px;
+  font-size: var(--t-body);
   line-height: 1.6;
   overflow-wrap: anywhere;
 }
@@ -615,7 +616,7 @@
   border-radius: 12px;
   background: var(--bad-bg);
   padding: 9px 12px;
-  font-size: 14px;
+  font-size: var(--t-body);
   line-height: 1.55;
   overflow-wrap: anywhere;
 }
@@ -634,14 +635,14 @@
 
 .fail > small {
   display: block;
-  font-size: 12px;
+  font-size: var(--t-meta);
   font-weight: 800;
   color: var(--muted);
 }
 
 .asked {
   align-self: flex-end;
-  font-size: 12px;
+  font-size: var(--t-meta);
   font-weight: 700;
   color: var(--warn);
 }
@@ -656,7 +657,7 @@
   height: 40px;
   padding: 0 18px;
   border-radius: 11px;
-  font-size: 14px;
+  font-size: var(--t-body);
   font-weight: 700;
 }
 
@@ -666,7 +667,7 @@
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  font-size: 12px;
+  font-size: var(--t-meta);
   font-weight: 700;
   color: var(--navy-ink);
 }
@@ -690,7 +691,7 @@
   display: flex;
   flex-direction: column;
   gap: 12px;
-  font-size: 12px;
+  font-size: var(--t-meta);
   line-height: 1.6;
   animation: evalsRise 0.22s var(--ease) backwards;
 }

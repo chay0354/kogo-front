@@ -592,21 +592,75 @@ describe('the details: everything a press opens', () => {
     expect(head).toContain('לפני יומיים');
   });
 
-  it('the next step stands first, on the ground of whose move it is', () => {
-    const next = section(html, 'הצעד הבא');
-    expect(next).toContain(l.nextBot);
-    expect(next).toContain('הבוט ישאל אם משהו נתקע באתר מחר ב-10:30');
-    const held = section(renderToStaticMarkup(details({ lead: HELD })), 'הצעד הבא');
+  // 12.10.2026 (docs/CHANGE-IMPACT-2026-10-12-CRM-ROUND-FONT-AND-CLARITY.md): the block is now called
+  // "מה קורה עכשיו" and carries the bot's message with it — it is the one thing the screen is about.
+  it('"מה קורה עכשיו" stands first, on the ground of whose move it is', () => {
+    const now = section(html, 'מה קורה עכשיו');
+    expect(now).toContain(l.nextBot);
+    expect(now).toContain('הבוט ישאל אם משהו נתקע באתר מחר ב-10:30');
+    expect(html.indexOf('aria-label="מה קורה עכשיו"')).toBeLessThan(html.indexOf('aria-label="למה זה ליד"'));
+    const held = section(renderToStaticMarkup(details({ lead: HELD })), 'מה קורה עכשיו');
     expect(held).toContain('היה נשלח עכשיו — השליחה כבויה');
     // What the bot meant to do is said under it.
     expect(held).toContain('הבוט ישאל אם יש חדש');
   });
 
-  it('the sections, in one order: why, what stops them, when, the child, the trial, the bot\'s plan, what happened, in Kogo', () => {
-    const titles = ['הצעד הבא', 'למה זה ליד', 'מה עוצר את ההרשמה', 'מתי חוזרים', 'הילד', 'שיעור הניסיון', 'מה הבוט תכנן ומה כבר נשלח', 'מה קרה עד עכשיו', 'במערכת'];
+  it('the bot\'s message that is still ahead is inside "מה קורה עכשיו": its wording, and one word for where it stands', () => {
+    const now = section(html, 'מה קורה עכשיו');
+    expect(now).toContain('היי, רוצים שאשריין מקום לשיעור ניסיון ביום רביעי?');
+    expect(now).toContain(l.bubbleAhead);
+    expect(now.match(new RegExp(l.fuStatus, 'g'))).toHaveLength(1);
+    expect(now).toContain('>מתוכנן<');
+    expect(now).toContain('פנייה 2');
+    // Why the bot planned it says something the screen does not say elsewhere: it stays.
+    expect(now).toContain('למה: לא ענתה לפנייה הראשונה');
+    // The hour is the block's own line; it is not said again under the wording.
+    expect(now.split('מחר ב-10:30')).toHaveLength(2);
+  });
+
+  it('a message that was due and did not go out: the block says so once — no tag and no note repeat it', () => {
+    const due = renderToStaticMarkup(
+      details({
+        lead: HELD,
+        details: {
+          ...NO_DETAILS,
+          followups: [followUp({ id: 9, kind: 'will_check', step: 1, status: 'due', due_at: '2026-10-12T07:30:00Z', text: 'היי, יש חדש?' })],
+        },
+      }),
+    );
+    const now = section(due, 'מה קורה עכשיו');
+    expect(now).toContain('היי, יש חדש?');
+    expect(now.split('היה נשלח עכשיו')).toHaveLength(2);
+    expect(now.split('השליחה כבויה')).toHaveLength(2);
+    expect(now).not.toContain(l.fuStatus);
+    expect(now).toContain('פנייה 1');
+  });
+
+  it('a message that went out, while it is the bot the lead waits on: its wording, marked "נשלח" — and history once the step is the office\'s', () => {
+    const sent = followUp({ id: 7, step: 1, status: 'sent', due_at: '2026-10-11T07:30:00Z', acted_at: '2026-10-11T07:31:00Z', text: 'היי, משהו נתקע באתר?' });
+    const waiting = lead(41, { next: { who: 'none', what: 'הבוט חזר אליו — מחכים לתשובה', when: null, state: 'none' } });
+    const bot = renderToStaticMarkup(details({ lead: waiting, details: { ...NO_DETAILS, followups: [sent] } }));
+    const now = section(bot, 'מה קורה עכשיו');
+    expect(now).toContain('היי, משהו נתקע באתר?');
+    expect(now).toContain(l.bubbleSent);
+    expect(now).toContain('>נשלח<');
+    expect(now).toContain('11.10 10:31');
+    expect(bot).not.toContain('aria-label="פניות קודמות של הבוט"');
+    const office = renderToStaticMarkup(details({ lead: ASKED, details: { ...NO_DETAILS, followups: [sent] } }));
+    expect(section(office, 'מה קורה עכשיו')).not.toContain('היי, משהו נתקע באתר?');
+    expect(section(office, 'פניות קודמות של הבוט')).toContain('היי, משהו נתקע באתר?');
+  });
+
+  it('the sections, in one order: now, why, what stops them, when, the trial, the child — then, folded, the bot\'s earlier messages and what happened — and Kogo', () => {
+    const titles = ['מה קורה עכשיו', 'למה זה ליד', 'מה עוצר את ההרשמה', 'מתי חוזרים', 'שיעור הניסיון', 'הילד', 'פניות קודמות של הבוט', 'מה קרה עד עכשיו', 'במערכת'];
     const order = titles.map((title) => html.indexOf(`aria-label="${title}"`));
     expect(order.every((at) => at > 0)).toBe(true);
     expect([...order].sort((a, b) => a - b)).toEqual(order);
+  });
+
+  it('a section\'s title is a title — and nothing on the screen is in the faint label of before', () => {
+    expect(section(html, 'למה זה ליד')).toContain(`<h3 class="${l.dTitle}">למה זה ליד</h3>`);
+    expect(html).not.toContain('dLabel');
   });
 
   it('why, what stops them, and when to come back — each in a sentence', () => {
@@ -631,27 +685,56 @@ describe('the details: everything a press opens', () => {
     expect(trial).toMatch(/<dt>הגעה<\/dt><dd[^>]*>הגיעו<\/dd>/);
   });
 
-  it('what the bot planned and what it sent: each one says when, what became of it, and its wording', () => {
-    const plan = section(html, 'מה הבוט תכנן ומה כבר נשלח');
-    const items = plan.split('<li').slice(1);
-    expect(items).toHaveLength(2);
-    // The one still ahead comes first, open: what the bot is about to say is what matters now.
-    expect(items[0]).toContain('תזכורת לקישור ההרשמה · פנייה 2');
-    expect(items[0]).toContain('>מתוכנן<');
-    expect(items[0]).toContain('מחר ב-10:30');
-    expect(items[0]).toMatch(/<details[^>]* open=""/);
-    expect(items[0]).toContain('היי, רוצים שאשריין מקום לשיעור ניסיון ביום רביעי?');
-    expect(items[0]).toContain('למה: לא ענתה לפנייה הראשונה');
-    // What is behind us is a title; its wording is a press away.
-    expect(items[1]).toContain('פנייה 1');
-    expect(items[1]).toContain('>נשלח<');
-    expect(items[1]).toContain('11.10 10:31');
-    expect(items[1]).not.toMatch(/<details[^>]* open/);
-    expect(items[1]).toContain('היי, ראיתי שעוד לא נרשמתם — משהו נתקע באתר?');
+  it('each thing once: what stops them is drawn only when it adds to the sentence above it', () => {
+    // The owner's own screen (12.10): the same sentence stood under "למה זה ליד", under "מה עוצר את ההרשמה",
+    // on the "למה:" line of the bot's message, and again in the timeline.
+    const why = 'שאל על קפוארה בסניף הדגמה (גיל 6) אתמול. אמר שיבדוק ויחזור: "אני אבדוק".';
+    const once = renderToStaticMarkup(
+      details({
+        lead: lead(42, { stage: 'will_check', stage_label: 'אמר שיבדוק ויחזור', summary: why, chips: { branch: 'סניף הדגמה', course_type: 'קפוארה', child: 'גיל 6' } }),
+        details: {
+          ...NO_DETAILS,
+          reason: why,
+          blocker_text: 'אמר שיבדוק ויחזור: "אני אבדוק"',
+          child: { name: '', age_years: 6, age_months: null, grade: '', birth_date: null },
+          followups: [followUp({ id: 3, kind: 'will_check', step: 1, status: 'planned', due_at: '2026-10-13T07:30:00Z', text: 'היי, הספקתם לחשוב?', why })],
+          timeline: [
+            { at: '2026-10-12T04:15:00Z', text: `בשיחה ← אמר שיבדוק ויחזור (${why})` },
+            { at: '2026-10-11T14:45:00Z', text: 'נוצר מהודעת וואטסאפ' },
+          ],
+        },
+      }),
+    );
+    expect(once.split('אני אבדוק')).toHaveLength(2);
+    expect(once).not.toContain('aria-label="מה עוצר את ההרשמה"');
+    expect(once).not.toContain('למה:');
+    // The chip already says the age: the child's own section would say it a second time.
+    expect(once).not.toContain('aria-label="הילד"');
+    // The timeline's line is the short thing it should be.
+    expect(section(once, 'מה קרה עד עכשיו')).toContain('>בשיחה ← אמר שיבדוק ויחזור<');
   });
 
-  it('a short timeline, and the way to the customer\'s card when there is one', () => {
+  it('what is behind us is folded: a title and how many — the bot\'s earlier messages, and what happened', () => {
+    const earlier = section(html, 'פניות קודמות של הבוט');
+    expect(earlier).toMatch(/<details class="[^"]*"><summary/);
+    expect(earlier).not.toMatch(/<details[^>]* open/);
+    expect(earlier).toMatch(/פניות קודמות של הבוט <span[^>]*>\(1\)<\/span>/);
+    const items = earlier.split('<li').slice(1);
+    expect(items).toHaveLength(1);
+    // One that is behind us is a title — what, when, what became of it; its wording is a press away.
+    expect(items[0]).toContain('תזכורת לקישור ההרשמה · פנייה 1');
+    expect(items[0]).toContain('>נשלח<');
+    expect(items[0]).toContain('11.10 10:31');
+    expect(items[0]).toContain('היי, ראיתי שעוד לא נרשמתם — משהו נתקע באתר?');
+    // The one still ahead is not here: it stands in "מה קורה עכשיו".
+    expect(earlier).not.toContain('היי, רוצים שאשריין מקום');
+  });
+
+  it('a short timeline behind its title, and the way to the customer\'s card when there is one', () => {
     const timeline = section(html, 'מה קרה עד עכשיו');
+    expect(timeline).toMatch(/<details class="[^"]*"><summary/);
+    expect(timeline).not.toMatch(/<details[^>]* open/);
+    expect(timeline).toMatch(/מה קרה עד עכשיו <span[^>]*>\(2\)<\/span>/);
     expect(timeline).toContain('10.10 12:00');
     expect(timeline).toContain('כתבה לראשונה, ממודעה');
     expect(timeline).toContain('קיבלה ימים, מחיר וקישור להרשמה');
@@ -660,12 +743,15 @@ describe('the details: everything a press opens', () => {
 
   it('what is not known is not drawn — no title over nothing', () => {
     const bare = renderToStaticMarkup(details({ details: NO_DETAILS }));
-    for (const title of ['מה עוצר את ההרשמה', 'מתי חוזרים', 'הילד', 'שיעור הניסיון', 'מה קרה עד עכשיו', 'במערכת']) {
+    // 12.10.2026: "הבוט לא תכנן פנייה לליד הזה." is gone with its section — "מה קורה עכשיו" already says what
+    // happens next, and a title over a sentence that says "nothing" was one more thing to read.
+    for (const title of ['מה עוצר את ההרשמה', 'מתי חוזרים', 'הילד', 'שיעור הניסיון', 'פניות קודמות של הבוט', 'מה קרה עד עכשיו', 'במערכת']) {
       expect(bare).not.toContain(`aria-label="${title}"`);
     }
-    // Why they are a lead falls back on the row's own sentence; the bot's plan says there is none.
+    expect(bare).not.toContain('הבוט לא תכנן פנייה');
+    // Why they are a lead falls back on the row's own sentence.
     expect(section(bare, 'למה זה ליד')).toContain(LINK.summary);
-    expect(section(bare, 'מה הבוט תכנן ומה כבר נשלח')).toContain('הבוט לא תכנן פנייה לליד הזה.');
+    expect(section(bare, 'מה קורה עכשיו')).not.toContain(l.bubble);
   });
 
   it('a desktop: a column beside the list, with a mark that closes it', () => {
@@ -701,7 +787,7 @@ describe('the details: everything a press opens', () => {
     const waiting = renderToStaticMarkup(details({ lead: null, details: null, status: 'loading' }));
     expect(waiting).toContain('aria-label="טוען את פרטי הליד"');
     expect(waiting).not.toContain('פתח שיחה');
-    expect(waiting).not.toContain('aria-label="הצעד הבא"');
+    expect(waiting).not.toContain('aria-label="מה קורה עכשיו"');
   });
 
   it('the rest failed: one sentence and "נסו שוב" under what the row already told', () => {
@@ -724,9 +810,11 @@ describe('the details: everything a press opens', () => {
     expect(gone).not.toContain('לא רלוונטי');
   });
 
-  it('a closed lead has no next step: the same place says how it ended', () => {
-    const closed = renderToStaticMarkup(details({ lead: REGISTERED, details: NO_DETAILS }));
-    expect(closed).not.toContain('aria-label="הצעד הבא"');
+  it('a closed lead has no next step: the same place says how it ended — and no message of the bot\'s belongs to "now"', () => {
+    const closed = renderToStaticMarkup(details({ lead: REGISTERED, details: { ...NO_DETAILS, followups: DETAILS.followups } }));
+    expect(closed).not.toContain('aria-label="מה קורה עכשיו"');
+    expect(section(closed, 'הליד סגור')).not.toContain(l.bubble);
+    expect(section(closed, 'פניות קודמות של הבוט')).toMatch(/\(2\)/);
     expect(section(closed, 'הליד סגור')).toContain('>נרשם<');
     // Read from the closed list in a state this screen does not know: closed all the same.
     const odd = lead(40, { owner: '', stage: 'moved_away', stage_label: 'עברו דירה', next: { who: 'none', what: '', when: null, state: 'none' } });

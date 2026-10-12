@@ -1,10 +1,12 @@
 'use client';
 
 import Link from 'next/link';
-import { AlertCircle, ArrowRight, ExternalLink, X } from 'lucide-react';
+import { AlertCircle, ArrowRight, ChevronDown, ExternalLink, X } from 'lucide-react';
 import { formatDateTime } from '@/lib/wahub/format';
 import {
   childFacts,
+  currentFollowUp,
+  factsBeyond,
   followUpLine,
   fullWhen,
   isClosedLead,
@@ -13,8 +15,10 @@ import {
   leadStageText,
   leadTitle,
   nextStepLine,
+  saysMore,
   sinceText,
   sortFollowUps,
+  timelineWords,
   trialFacts,
   type Fact,
   type FollowUpTone,
@@ -69,17 +73,39 @@ const FOLLOW_UP_CLASS: Record<FollowUpTone, string> = {
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <section className={l.dSect} aria-label={title}>
-      <h3 className={l.dLabel}>{title}</h3>
+      <h3 className={l.dTitle}>{title}</h3>
       {children}
     </section>
   );
 }
 
+/**
+ * What is secondary stays behind its title ("משני = מקופל"): the title and how
+ * many, and the rest a press away. The browser's own fold, so the details keep
+ * no state of their own and it works before any script has run.
+ */
+function FoldSection({ title, count, children }: { title: string; count: number; children: React.ReactNode }) {
+  return (
+    <section className={l.dSect} aria-label={title}>
+      <details className={l.dFold}>
+        <summary className={l.dFoldHead}>
+          <h3 className={l.dTitle}>
+            {title} <span className={cx(s.num, l.dFoldCount)}>({count})</span>
+          </h3>
+          <ChevronDown className={l.dFoldChevron} aria-hidden="true" />
+        </summary>
+        <div className={l.dFoldBody}>{children}</div>
+      </details>
+    </section>
+  );
+}
+
+/** A small label and, under it, the value that matters — one short row a fact. */
 function Facts({ facts }: { facts: Fact[] }) {
   return (
     <dl className={l.facts}>
       {facts.map((fact) => (
-        <div key={fact.label} className="contents">
+        <div key={fact.label} className={l.fact}>
           <dt>{fact.label}</dt>
           <dd dir="auto">{fact.value}</dd>
         </div>
@@ -88,17 +114,72 @@ function Facts({ facts }: { facts: Fact[] }) {
   );
 }
 
-/** One time the bot comes back: a title — what, when, what became of it — and the wording a press away. */
-function FollowUp({ followUp, now, sendingOn }: { followUp: WahubLeadFollowUp; now: Date; sendingOn: boolean | null }) {
+/** "פנייה 2 · 11.10 10:31" — which of the round, and when it happened; the hour of one still ahead is the block's own line. */
+function followUpMeta(followUp: WahubLeadFollowUp, when: string): string {
+  const ahead = followUp.status === 'planned';
+  return [followUp.step ? `פנייה ${followUp.step}` : '', ahead ? '' : when].filter(Boolean).join(' · ');
+}
+
+/**
+ * The bot's message inside "מה קורה עכשיו": its wording as the customer will
+ * see it, and one word for where it stands — "מתוכנן", "היה נשלח עכשיו",
+ * "נשלח". What the block's own line already says is not said again under it.
+ */
+function NowMessage({
+  followUp,
+  now,
+  sendingOn,
+  line: blockLine,
+  said,
+}: {
+  followUp: WahubLeadFollowUp;
+  now: Date;
+  sendingOn: boolean | null;
+  /** The block's own words, right above the message: its state and its hour are not said again under it. */
+  line: string[];
+  /** Everything the screen already says, above and below — the block's words, and why this is a lead. */
+  said: string[];
+}) {
   const line = followUpLine(followUp, now, sendingOn);
-  // What is still ahead is what the bot is about to say: its wording is open to begin with.
-  const ahead = followUp.status === 'planned' || followUp.status === 'due';
-  const body = Boolean(followUp.text || line.note || followUp.why);
+  const meta = followUpMeta(followUp, line.when);
+  const sent = followUp.status === 'sent';
+  return (
+    <div className={l.nowMsg}>
+      {followUp.text && (
+        <blockquote className={cx(l.bubble, sent ? l.bubbleSent : l.bubbleAhead)} dir="auto">
+          {followUp.text}
+        </blockquote>
+      )}
+      <p className={l.nowMeta}>
+        {saysMore(line.status, ...blockLine) && <span className={cx(l.fuStatus, FOLLOW_UP_CLASS[line.tone])}>{line.status}</span>}
+        {meta && <span className={s.num}>{meta}</span>}
+      </p>
+      {saysMore(line.note, ...blockLine) && <p className={l.fuNote}>{line.note}</p>}
+      {saysMore(followUp.why, ...said) && <p className={l.fuNote}>למה: {followUp.why}</p>}
+    </div>
+  );
+}
+
+/** One time the bot came back, among those behind us: a title — what, when, what became of it — and the wording a press away. */
+function FollowUp({
+  followUp,
+  now,
+  sendingOn,
+  said,
+}: {
+  followUp: WahubLeadFollowUp;
+  now: Date;
+  sendingOn: boolean | null;
+  said: string[];
+}) {
+  const line = followUpLine(followUp, now, sendingOn);
+  const why = saysMore(followUp.why, ...said) ? followUp.why : '';
+  const body = Boolean(followUp.text || line.note || why);
   const head = (
     <>
       <span className={l.fuTitle}>{line.title}</span>
       <span className={cx(l.fuStatus, FOLLOW_UP_CLASS[line.tone])}>{line.status}</span>
-      {line.when && <span className={l.fuWhen}>{line.when}</span>}
+      {line.when && <span className={cx(s.num, l.fuWhen)}>{line.when}</span>}
     </>
   );
   if (!body) {
@@ -110,7 +191,7 @@ function FollowUp({ followUp, now, sendingOn }: { followUp: WahubLeadFollowUp; n
   }
   return (
     <li>
-      <details className={l.fu} open={ahead}>
+      <details className={l.fu}>
         <summary>{head}</summary>
         <div className={l.fuBody}>
           {followUp.text && (
@@ -118,7 +199,7 @@ function FollowUp({ followUp, now, sendingOn }: { followUp: WahubLeadFollowUp; n
               {followUp.text}
             </blockquote>
           )}
-          {followUp.why && <p className={l.fuNote}>למה: {followUp.why}</p>}
+          {why && <p className={l.fuNote}>למה: {why}</p>}
           {line.note && <p className={l.fuNote}>{line.note}</p>}
         </div>
       </details>
@@ -126,11 +207,10 @@ function FollowUp({ followUp, now, sendingOn }: { followUp: WahubLeadFollowUp; n
   );
 }
 
-/** The details on their way: the next step, and the sections under it, where they will stand. */
+/** The details on their way: the sections under "מה קורה עכשיו", where they will stand. */
 function DetailsSkeleton() {
   return (
-    <div aria-busy="true" aria-label="טוען את פרטי הליד" className="flex flex-col gap-[18px]">
-      <Skeleton className="!rounded-[14px]" style={{ height: 68 }} />
+    <div aria-busy="true" aria-label="טוען את פרטי הליד" className={l.dSkList}>
       {[78, 54, 62].map((width, index) => (
         <div key={index} className={l.dSk}>
           <Skeleton className={l.skLineSm} style={{ width: 64 }} />
@@ -144,13 +224,25 @@ function DetailsSkeleton() {
 
 /**
  * Everything about one lead, a press away from its row
- * (docs/WAHUB-CONTRACT-LEADS-V2.md, ה, ח): why they are a lead, what stops them,
- * the child, the trial, what the bot planned and what it already sent, a short
- * timeline — and the few things that can be done. A column beside the list on a
- * desktop; a screen of its own, with a way back, on a phone.
+ * (docs/WAHUB-CONTRACT-LEADS-V2.md, ה, ח), in the order the eye should take it
+ * (docs/CHANGE-IMPACT-2026-10-12-CRM-ROUND-FONT-AND-CLARITY.md):
  *
- * Drawn from what it is given. The name and the next step come at once from
- * the row that was pressed; only what is under them waits for its read.
+ *   who — the name, large, and one quiet line under it;
+ *   "מה קורה עכשיו" — who is handling it and what comes next, the largest
+ *     thing on the screen, with the message the bot will send (or sent) as the
+ *     customer sees it;
+ *   why they are a lead — one sentence and the chips; what stops them only
+ *     when it adds to that sentence;
+ *   the trial, the child, the day to come back — a small label and a value;
+ *   and, folded, what is behind us: the bot's earlier messages, the timeline.
+ *
+ * Nothing is said twice: a line that repeats one already on the screen is left
+ * out (lib/wahub/leadsV2.ts, saysMore). A column beside the list on a desktop;
+ * a screen of its own, with a way back, on a phone.
+ *
+ * Drawn from what it is given, and keeps no state: the name and the next step
+ * come at once from the row that was pressed; only what is under them waits
+ * for its read.
  */
 export default function LeadDetails({
   lead,
@@ -168,17 +260,25 @@ export default function LeadDetails({
   onOpenChat,
   onChange,
 }: LeadDetailsProps) {
+  const isClosed = Boolean(lead && (closed || isClosedLead(lead)));
   const next = lead ? nextStepLine(lead, now, sendingOn, closed || undefined) : null;
   const chips = lead ? leadChips(lead.chips) : [];
   const phone = lead ? leadPhoneText(lead.phone) : '';
   const since = lead ? sinceText(lead.since, now) : '';
-  const child = childFacts(details?.child);
+  const why = details?.reason || lead?.summary || '';
+  // What the screen has said by the time the eye reaches the rest: nothing under it repeats these.
+  const nowWords = [next?.text ?? '', next?.detail ?? ''];
+  const said = [...nowWords, why];
+  const blocker = saysMore(details?.blocker_text, ...said) ? details?.blocker_text ?? '' : '';
+  const child = factsBeyond(childFacts(details?.child), lead?.chips.child, why);
   const trial = trialFacts(details?.trial, now);
   const followUps = sortFollowUps(details?.followups ?? []);
+  // A closed lead has no next step, and so no message of the bot's that belongs to "now".
+  const current = isClosed ? null : currentFollowUp(followUps, lead);
+  const earlier = followUps.filter((followUp) => followUp !== current);
   const timeline = details?.timeline ?? [];
-  const why = details?.reason || lead?.summary || '';
   // A closed lead has no next step: the same place says how it ended.
-  const nextTitle = lead && (closed || isClosedLead(lead)) ? 'הליד סגור' : 'הצעד הבא';
+  const nowTitle = isClosed ? 'הליד סגור' : 'מה קורה עכשיו';
 
   return (
     <aside className={cx(l.details, cover && l.detailsCover)} aria-label="פרטי הליד">
@@ -197,8 +297,25 @@ export default function LeadDetails({
                 </span>
                 {lead.is_demo && <DemoTag />}
               </h2>
+              {/* One quiet line: the phone, the state in plain words, how long. Each stays whole when the line breaks. */}
               <p className={l.dSub}>
-                {[lead.name && phone ? <span key="phone" className={s.num}>{phone}</span> : null, leadStageText(lead) || null, since || null]
+                {[
+                  lead.name && phone ? (
+                    <span key="phone" className={cx(s.num, l.dSubPart)}>
+                      {phone}
+                    </span>
+                  ) : null,
+                  leadStageText(lead) ? (
+                    <span key="stage" className={l.dSubPart}>
+                      {leadStageText(lead)}
+                    </span>
+                  ) : null,
+                  since ? (
+                    <span key="since" className={l.dSubPart}>
+                      {since}
+                    </span>
+                  ) : null,
+                ]
                   .filter(Boolean)
                   .flatMap((part, index) => (index ? [' · ', part] : [part]))}
               </p>
@@ -245,17 +362,18 @@ export default function LeadDetails({
         ) : (
           <>
             {lead && next && (
-              <section className={cx(l.dNext, NEXT_BOX[next.tone])} aria-label={nextTitle}>
-                <h3 className={l.dLabel}>{nextTitle}</h3>
-                <p className={l.dNextText}>
+              <section className={cx(l.now, NEXT_BOX[next.tone])} aria-label={nowTitle}>
+                <h3 className={l.nowLabel}>{nowTitle}</h3>
+                <p className={l.nowText}>
                   <NextIcon line={next} />
                   <span dir="auto">{next.text}</span>
                 </p>
                 {next.detail && (
-                  <p className={l.dNextMore} dir="auto">
+                  <p className={l.nowMore} dir="auto">
                     {next.detail}
                   </p>
                 )}
+                {current && <NowMessage followUp={current} now={now} sendingOn={sendingOn} line={nowWords} said={said} />}
               </section>
             )}
 
@@ -265,7 +383,7 @@ export default function LeadDetails({
                   {why}
                 </p>
                 {chips.length > 0 && (
-                  <div className={cx(l.chips, 'mt-2')}>
+                  <div className={cx(l.chips, l.dChips)}>
                     {chips.map((chip) => (
                       <span key={chip.key} className={l.chip} dir="auto">
                         {chip.text}
@@ -291,10 +409,10 @@ export default function LeadDetails({
               <DetailsSkeleton />
             ) : (
               <>
-                {details.blocker_text && (
+                {blocker && (
                   <Section title="מה עוצר את ההרשמה">
                     <p className={l.dText} dir="auto">
-                      {details.blocker_text}
+                      {blocker}
                     </p>
                   </Section>
                 )}
@@ -303,14 +421,8 @@ export default function LeadDetails({
                   <Section title="מתי חוזרים">
                     <p className={l.dText}>
                       {fullWhen(details.come_back_on)}
-                      {details.come_back_why && <span dir="auto"> — {details.come_back_why}</span>}
+                      {saysMore(details.come_back_why, ...said) && <span dir="auto"> — {details.come_back_why}</span>}
                     </p>
-                  </Section>
-                )}
-
-                {child.length > 0 && (
-                  <Section title="הילד">
-                    <Facts facts={child} />
                   </Section>
                 )}
 
@@ -320,31 +432,35 @@ export default function LeadDetails({
                   </Section>
                 )}
 
-                <Section title="מה הבוט תכנן ומה כבר נשלח">
-                  {followUps.length === 0 ? (
-                    <p className={l.dMuted}>הבוט לא תכנן פנייה לליד הזה.</p>
-                  ) : (
+                {child.length > 0 && (
+                  <Section title="הילד">
+                    <Facts facts={child} />
+                  </Section>
+                )}
+
+                {earlier.length > 0 && (
+                  <FoldSection title="פניות קודמות של הבוט" count={earlier.length}>
                     <ul className={l.fuList}>
-                      {followUps.map((followUp, index) => (
-                        <FollowUp key={followUp.id ?? `at-${index}`} followUp={followUp} now={now} sendingOn={sendingOn} />
+                      {earlier.map((followUp, index) => (
+                        <FollowUp key={followUp.id ?? `at-${index}`} followUp={followUp} now={now} sendingOn={sendingOn} said={said} />
                       ))}
                     </ul>
-                  )}
-                </Section>
+                  </FoldSection>
+                )}
 
                 {timeline.length > 0 && (
-                  <Section title="מה קרה עד עכשיו">
+                  <FoldSection title="מה קרה עד עכשיו" count={timeline.length}>
                     <ol className={l.timeline}>
                       {timeline.map((event, index) => (
                         <li key={index}>
-                          {event.at && <span className={l.tlAt}>{formatDateTime(event.at, now)}</span>}
+                          {event.at && <span className={cx(s.num, l.tlAt)}>{formatDateTime(event.at, now)}</span>}
                           <span className={l.tlText} dir="auto">
-                            {event.text}
+                            {timelineWords(event.text, ...said)}
                           </span>
                         </li>
                       ))}
                     </ol>
-                  </Section>
+                  </FoldSection>
                 )}
 
                 {details.in_system && (

@@ -643,8 +643,9 @@
 }
 
 .plainTitle {
-  font-size: 15px;
-  font-weight: 800;
+  font-family: var(--font-display, inherit);
+  font-size: var(--t-title);
+  font-weight: 700;
   line-height: 1.4;
   overflow-wrap: anywhere;
 }
@@ -672,7 +673,7 @@
 
 .plainWhy {
   margin: 0;
-  font-size: 13.5px;
+  font-size: var(--t-body);
   line-height: 1.55;
   white-space: pre-line;
   overflow-wrap: anywhere;
@@ -683,10 +684,11 @@
 }
 
 .plainLabel {
-  margin: 0 0 4px;
-  font-size: 12px;
-  font-weight: 800;
-  color: var(--muted);
+  margin: 0 0 5px;
+  font-family: inherit;
+  font-size: var(--t-meta);
+  font-weight: 600;
+  color: var(--ink);
 }
 
 /* What changes, in one paragraph. A new item has no "before", and nothing here is red. */
@@ -694,8 +696,8 @@
   margin: 0;
   border-radius: 10px;
   background: var(--lav-2);
-  padding: 9px 12px;
-  font-size: 14px;
+  padding: 10px 14px;
+  font-size: var(--t-body);
   line-height: 1.6;
   white-space: pre-line;
   overflow-wrap: anywhere;
