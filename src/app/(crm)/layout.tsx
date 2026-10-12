@@ -22,18 +22,25 @@ import RevealChildren from '@/components/RevealChildren';
  *
  * A WhatsApp broadcast is held here as well, so it keeps going — minimised to
  * the corner — while the office moves between screens.
+ *
+ * The admin's type is named here too: the mark on the wrapper is what turns the
+ * round pair on (globals.css, "the admin's type") — for these screens and for
+ * whatever they open over the page — and leaves every customer page in Heebo.
+ * The wrapper takes no box of its own, so the shell is laid out as before.
  */
 export default function CrmLayout({ children }: { children: React.ReactNode }) {
   return (
-    <AppLayout>
-      <BroadcastRunProvider>
-        {/* The daily brief runs check by check; held here it survives leaving the screen. */}
-        <BriefRunProvider>
-          <PageTransition>
-            <RevealChildren depths={[1, 2]}>{children}</RevealChildren>
-          </PageTransition>
-        </BriefRunProvider>
-      </BroadcastRunProvider>
-    </AppLayout>
+    <div data-app-font="round" className="contents">
+      <AppLayout>
+        <BroadcastRunProvider>
+          {/* The daily brief runs check by check; held here it survives leaving the screen. */}
+          <BriefRunProvider>
+            <PageTransition>
+              <RevealChildren depths={[1, 2]}>{children}</RevealChildren>
+            </PageTransition>
+          </BriefRunProvider>
+        </BroadcastRunProvider>
+      </AppLayout>
+    </div>
   );
 }
