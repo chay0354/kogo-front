@@ -369,8 +369,8 @@ export interface WahubFollowupPatch {
 
 export type WahubTab = 'chats' | 'today' | 'leads' | 'bot' | 'settings';
 
-/** The sub-tabs of "הבוט" (stage 2). */
-export type WahubBotSub = 'knowledge' | 'hours' | 'try' | 'shadow' | 'review' | 'demo';
+/** The sub-tabs of "הבוט" (stage 2; "ללמד" and "בדיקות" since 12.10.2026). */
+export type WahubBotSub = 'teach' | 'knowledge' | 'hours' | 'try' | 'evals' | 'shadow' | 'review' | 'demo';
 
 // ---------------------------------------------------------------------------
 // Stage 2 — the bot's knowledge, the shadow bot and the review

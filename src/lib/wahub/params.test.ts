@@ -172,6 +172,10 @@ describe('the address of the page', () => {
     expect(parseBotSub('review')).toBe('review');
     expect(parseBotSub('demo')).toBe('demo');
     expect(parseWahubUrl(new URLSearchParams('tab=bot&sub=try')).sub).toBe('try');
+    // "ללמד" and "בדיקות" (12.10.2026) open from a link like the others; "הבוט" alone still opens on the knowledge.
+    expect(parseBotSub('teach')).toBe('teach');
+    expect(parseBotSub('evals')).toBe('evals');
+    expect(parseBotSub(null)).toBe('knowledge');
     expect(parseWahubUrl(new URLSearchParams('tab=bot&item=9')).item).toBe(9);
   });
 

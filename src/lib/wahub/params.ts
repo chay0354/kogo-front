@@ -74,7 +74,7 @@ export function countsParams(
 export const WAHUB_TABS: WahubTab[] = ['chats', 'today', 'leads', 'bot', 'settings'];
 
 /** The sub-tabs of "הבוט", in the order they are shown. It opens on the knowledge. */
-export const WAHUB_BOT_SUBS: WahubBotSub[] = ['knowledge', 'hours', 'try', 'shadow', 'review', 'demo'];
+export const WAHUB_BOT_SUBS: WahubBotSub[] = ['teach', 'knowledge', 'hours', 'try', 'evals', 'shadow', 'review', 'demo'];
 
 export const WAHUB_BOXES: WahubBox[] = ['all', 'waiting', 'needs_human', 'unread', 'human', 'bot'];
 

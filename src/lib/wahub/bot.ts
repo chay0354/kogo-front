@@ -31,9 +31,11 @@ import { agoText, dayKey, durationText, formatClock, formatShortDate, israelToda
 // ---------------------------------------------------------------------------
 
 export const BOT_SUBS: Array<{ key: WahubBotSub; label: string; hint: string }> = [
+  { key: 'teach', label: 'ללמד', hint: 'להסביר לבוט במילים שלך; הוא מבקש רק אישור' },
   { key: 'knowledge', label: 'ידע', hint: 'מה הבוט יודע, לפי סוג' },
   { key: 'hours', label: 'שעות ומועדים', hint: 'שעות המשרד וימים מיוחדים' },
   { key: 'try', label: 'נסה שאלה', hint: 'מה הבוט החדש היה עונה עכשיו' },
+  { key: 'evals', label: 'בדיקות', hint: 'כמה שיחות בדיקה הבוט עובר, ומה נכשל' },
   { key: 'shadow', label: 'תשובות בצל', hint: 'הישן ענה / החדש היה עונה' },
   { key: 'review', label: 'ביקורת', hint: 'הצעות לעדכון הבוט: מה אושר ומה נדחה' },
   { key: 'demo', label: 'דמו', hint: 'לקוחות מומצאים, כדי לראות איך המערכת חיה' },
