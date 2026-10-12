@@ -648,6 +648,102 @@ export function sortFollowUps(followUps: WahubLeadFollowUp[]): WahubLeadFollowUp
 }
 
 // ---------------------------------------------------------------------------
+// Each thing once
+// ---------------------------------------------------------------------------
+
+/** The words of a sentence, without its marks: a quote mark or a full stop does not make two sentences differ. */
+function wordsOf(text: string | null | undefined): string[] {
+  return (text ?? '')
+    .normalize('NFKC')
+    .replace(/[֑-ׇ]/g, '')
+    .toLowerCase()
+    .split(/[^\p{L}\p{N}]+/u)
+    .filter(Boolean);
+}
+
+/** A sentence long enough for "nearly the same" to mean something. */
+const NEARLY_FROM_WORDS = 8;
+/** At most this share of its words may be new for it to count as the same sentence said again. */
+const NEARLY_NEW_SHARE = 0.25;
+
+/**
+ * "כל מידע פעם אחת" (docs/CHANGE-IMPACT-2026-10-12-CRM-ROUND-FONT-AND-CLARITY.md):
+ * whether a sentence tells the reader anything the ones already on the screen
+ * did not. It does not when it is empty, when all of it already stands in one
+ * of them, or when it is one of them said again with a word or two changed —
+ * the same sentence written on another day reads "אתמול" where today's reads
+ * "לפני יומיים".
+ */
+export function saysMore(text: string | null | undefined, ...said: Array<string | null | undefined>): boolean {
+  const words = wordsOf(text);
+  if (!words.length) return false;
+  for (const other of said) {
+    const have = new Set(wordsOf(other));
+    if (!have.size) continue;
+    const fresh = words.filter((word) => !have.has(word)).length;
+    if (fresh === 0) return false;
+    if (words.length >= NEARLY_FROM_WORDS && fresh / words.length <= NEARLY_NEW_SHARE) return false;
+  }
+  return true;
+}
+
+/**
+ * A line of the timeline as the screen shows it. The server ends a change of
+ * state with its reason in brackets — "בשיחה ← אמר שיבדוק ויחזור (…)" — and that
+ * reason is the sentence the screen already opens with: the brackets are then
+ * left out, and the line is the short thing it should be. A bracket that says
+ * something else stays.
+ */
+export function timelineWords(text: string, ...said: Array<string | null | undefined>): string {
+  const line = text.trim();
+  if (!line.endsWith(')')) return line;
+  // The bracket that closes the line, found from its end: a reason may hold brackets of its own ("(גיל 6)").
+  let depth = 0;
+  let open = -1;
+  for (let at = line.length - 1; at >= 0; at -= 1) {
+    if (line[at] === ')') depth += 1;
+    else if (line[at] === '(') {
+      depth -= 1;
+      if (depth === 0) {
+        open = at;
+        break;
+      }
+    }
+  }
+  const head = open > 0 ? line.slice(0, open).trim() : '';
+  if (!head) return line;
+  return saysMore(line.slice(open + 1, -1), ...said) ? line : head;
+}
+
+/**
+ * The child's facts, when they say more than the chip beside the sentence
+ * already does ("גיל 6" under "למה זה ליד", and again "גיל: 6" two lines down,
+ * is the same thing twice). One fact that is new brings the others with it —
+ * a name alone, torn from its age, reads worse than the pair.
+ */
+export function factsBeyond(facts: Fact[], ...said: Array<string | null | undefined>): Fact[] {
+  return facts.some((fact) => saysMore(fact.value, ...said)) ? facts : [];
+}
+
+/**
+ * The bot's message that belongs to "מה קורה עכשיו": the one still ahead —
+ * planned, or due and held back. With none ahead, the last one that went out,
+ * while it is the bot the lead is waiting on ("הבוט חזר אליו — מחכים לתשובה");
+ * once the step is the office's, what the bot sent is history.
+ */
+export function currentFollowUp(
+  followUps: WahubLeadFollowUp[],
+  lead: Pick<WahubLeadRow, 'next'> | null | undefined,
+): WahubLeadFollowUp | null {
+  const sorted = sortFollowUps(followUps);
+  const first = sorted[0];
+  if (!first) return null;
+  if (first.status === 'planned' || first.status === 'due') return first;
+  if (first.status === 'sent' && lead?.next?.who !== 'office') return first;
+  return null;
+}
+
+// ---------------------------------------------------------------------------
 // The one filter: the states that have someone in them
 // ---------------------------------------------------------------------------
 

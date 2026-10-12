@@ -56,7 +56,12 @@ const config: Config = {
         sm: "calc(var(--radius) - 4px)",
       },
       fontFamily: {
-        sans: ["Heebo", "sans-serif"],
+        // The family is a variable so one part of the app can have its own type: unset (the customer
+        // pages) it is Heebo, as it always was; the admin shell sets it (globals.css, "the admin's type").
+        sans: ['var(--font-app, "Heebo")', "sans-serif"],
+        // What is meant to be seen first — headings, large numbers, the main button. Without a display
+        // face of its own it is the text face.
+        display: ['var(--font-display, var(--font-app, "Heebo"))', "sans-serif"],
       },
     },
   },

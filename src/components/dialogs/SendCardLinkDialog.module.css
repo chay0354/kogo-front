@@ -40,7 +40,8 @@
   flex-direction: column;
   flex: 1 1 auto;
   min-height: 0;
-  font-family: Heebo, system-ui, sans-serif;
+  /* The admin's own type where it is set (globals.css, "the admin's type"); Heebo otherwise, as before. */
+  font-family: var(--font-app, Heebo), system-ui, sans-serif;
   color: var(--cl-ink);
   background: var(--cl-ground-soft);
 }

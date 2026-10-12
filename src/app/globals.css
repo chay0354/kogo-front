@@ -1,4 +1,6 @@
-@import url('https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;600;700;800&display=swap');
+/* Heebo: the customer pages (widget, pay, card links, signing). Fredoka: the admin's round type — in force
+   only where the admin shell is on the page (see "the admin's type" below). One request, as before. */
+@import url('https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;600;700;800&family=Fredoka:wght@300..700&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -49,6 +51,47 @@
     @apply bg-background text-foreground font-sans;
     font-feature-settings: "rlig" 1, "calt" 1;
   }
+
+  /*
+   * The admin's type (docs/CHANGE-IMPACT-2026-10-12-CRM-ROUND-FONT-AND-CLARITY.md).
+   *
+   * `font-sans` reads --font-app and `font-display` reads --font-display
+   * (tailwind.config.ts); with neither set, both are Heebo — which is how every
+   * customer page stays exactly as it was. The admin shell marks itself with
+   * [data-app-font="round"] (src/app/(crm)/layout.tsx), and the two variables
+   * are then set on the document itself, so whatever is drawn outside the
+   * shell's own tree while it is up — a dialog, a menu, a toast — is in the
+   * same type as the page under it.
+   *
+   * Fredoka is round through and through, reads well in a dense table, and its
+   * letters and figures are about as wide as Heebo's — so nothing had to move
+   * to make room for it. It stops at bold: a rule that asks for 800 or 900 gets
+   * 700. Heebo stays behind it for the few marks Fredoka does not draw.
+   *
+   * Text and display are two variables on purpose, so a face of its own for
+   * headings and large numbers is a one-line change here.
+   */
+  html:has([data-app-font='round']),
+  [data-app-font='round'] {
+    --font-app: 'Fredoka', 'Heebo';
+    --font-display: 'Fredoka', 'Heebo';
+  }
+
+  /* A browser without :has() still gets the type inside the shell itself. */
+  [data-app-font='round'] {
+    font-family: var(--font-app), sans-serif;
+  }
+
+  /* Headings, at no specificity: any class that names a family of its own still wins. */
+  :where(html:has([data-app-font='round'])) :where(h1, h2, h3),
+  :where([data-app-font='round']) :where(h1, h2, h3) {
+    font-family: var(--font-display), sans-serif;
+  }
+
+  /* Figures that stand in a column keep one width, so the eye can run down them. */
+  :where(html:has([data-app-font='round'])) :where(table) {
+    font-variant-numeric: tabular-nums;
+  }
 }
 
 @layer components {
@@ -64,6 +107,8 @@
   
   .btn-primary {
     @apply btn bg-primary text-primary-foreground hover:opacity-90;
+    /* The main button is in the display face where one is set (the admin); elsewhere it inherits, as before. */
+    font-family: var(--font-display, inherit);
   }
   
   .btn-secondary {

@@ -45,6 +45,24 @@
   /* How long things move, and on what curve, is written once — in motion.module.css (.motion, on this
      same wrapper): --m-press / --m-fast / --m-base / --m-slow and --m-out / --m-in / --m-move / --m-spring. */
 
+  /*
+   * Type — one scale for the whole section, four sizes and no more
+   * (docs/CHANGE-IMPACT-2026-10-12-CRM-ROUND-FONT-AND-CLARITY.md, "העקרונות").
+   * A screen written from now on takes its sizes from here:
+   *   --t-lead    the one thing a screen is about, and a screen's own title — large, heavy, first;
+   *   --t-title   a section's title — dark, of some weight, never a pale label;
+   *   --t-body    text; never under 15px, and 16px on a phone;
+   *   --t-meta    a time, a tag, a small label.
+   * A number that matters is --t-figure. Between two sections: --sect-gap; a title and what is under it: --title-gap.
+   */
+  --t-lead: 20px;
+  --t-title: 16px;
+  --t-body: 15px;
+  --t-meta: 13px;
+  --t-figure: 30px;
+  --sect-gap: 24px;
+  --title-gap: 6px;
+
   background: var(--bg);
   color: var(--ink);
   font-size: 14px;
@@ -81,7 +99,7 @@
 
 .h1 {
   font-size: 21px;
-  font-weight: 800;
+  font-weight: 700;
   white-space: nowrap;
 }
 
@@ -102,13 +120,13 @@
 }
 
 .t1 {
-  font-weight: 700;
-  font-size: 13.5px;
+  font-weight: 600;
+  font-size: var(--t-body);
   color: var(--ink);
 }
 
 .t2 {
-  font-size: 12px;
+  font-size: var(--t-meta);
   color: var(--muted);
 }
 
@@ -132,12 +150,48 @@
   color: var(--good);
 }
 
-/* A small heading inside a panel (the sketch's .sect h4). */
+/* A heading inside a panel. It reads as a heading — dark, of some weight — and not as a pale label over the
+   thing it names (the sketch's .sect h4 was 12px in the faintest ink, and the eye slid past it). */
 .sectTitle {
-  font-size: 12px;
+  font-family: var(--font-display, inherit);
+  font-size: var(--t-title);
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--ink);
+}
+
+/* The scale as classes, for a screen that is drawn with utility classes rather than a rule of its own. */
+.tLead {
+  font-family: var(--font-display, inherit);
+  font-size: var(--t-lead);
   font-weight: 700;
-  color: var(--faint);
-  letter-spacing: 0.3px;
+  line-height: 1.3;
+}
+
+.tTitle {
+  font-family: var(--font-display, inherit);
+  font-size: var(--t-title);
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.tBody {
+  font-size: var(--t-body);
+  line-height: 1.55;
+}
+
+.tMeta {
+  font-size: var(--t-meta);
+  font-weight: 500;
+  line-height: 1.4;
+  color: var(--muted);
+}
+
+.tFigure {
+  font-family: var(--font-display, inherit);
+  font-size: var(--t-figure);
+  font-weight: 700;
+  line-height: 1.05;
 }
 
 .link {
@@ -229,24 +283,27 @@ button.kpi:active {
 }
 
 .kpiLabel {
-  font-size: 12.5px;
+  font-size: var(--t-body);
   color: var(--muted);
-  font-weight: 600;
+  font-weight: 500;
+  line-height: 1.3;
 }
 
+/* A number that matters is large (--t-figure), in the display face. */
 .kpiValue {
-  font-size: 28px;
-  font-weight: 900;
+  font-family: var(--font-display, inherit);
+  font-size: var(--t-figure);
+  font-weight: 700;
   color: var(--navy-ink);
-  /* Heebo 900 at 28px overflows a 1.1 line box upward and the card clips it;
+  /* A line box with room above the figures, so the card never clips them;
      the icon sits on the start edge, so the number keeps clear of it too. */
-  line-height: 1.3;
+  line-height: 1.2;
   padding-inline-end: 52px;
 }
 
 .kpiNote {
-  font-size: 12px;
-  font-weight: 600;
+  font-size: var(--t-meta);
+  font-weight: 500;
   color: var(--muted);
 }
 
@@ -527,10 +584,9 @@ button.kpi:active {
 
 /* "נציג" / "בוט" before each row of boxes */
 .boxGroupLabel {
-  font-size: 11px;
-  font-weight: 800;
-  letter-spacing: 0.3px;
-  color: var(--faint);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
   min-width: 30px;
 }
 
@@ -1491,7 +1547,7 @@ textarea.field {
 }
 
 .bubbleTime {
-  font-size: 10.5px;
+  font-size: 12px;
   font-weight: 600;
   display: flex;
   align-items: center;
@@ -2476,8 +2532,8 @@ textarea.field {
 }
 
 .fabPanelHead h2 {
-  font-size: 15px;
-  font-weight: 800;
+  font-size: var(--t-title);
+  font-weight: 700;
   flex: 1;
 }
 
@@ -2769,10 +2825,9 @@ textarea.field {
 
 .stGroup h5 {
   margin: 0 0 3px;
-  font-size: 11.5px;
-  font-weight: 800;
-  color: var(--faint);
-  letter-spacing: 0.3px;
+  font-size: var(--t-meta);
+  font-weight: 600;
+  color: var(--muted);
 }
 
 .stRow {
@@ -2978,6 +3033,12 @@ textarea.field {
   min-height: 96px;
 }
 
+/* On the day's tiles the number is read first and its name under it; the markup keeps the name first, as it is
+   said aloud ("מחכים לתשובה: 12"). */
+.tiles .kpiValue {
+  order: -1;
+}
+
 .pairGrid {
   display: grid;
   gap: 14px;
@@ -3001,13 +3062,15 @@ textarea.field {
 }
 
 .cardName {
-  font-size: 18px;
-  font-weight: 900;
+  font-family: var(--font-display, inherit);
+  font-size: var(--t-lead);
+  font-weight: 700;
+  line-height: 1.25;
 }
 
 .cardPhone {
-  font-size: 13px;
-  font-weight: 600;
+  font-size: var(--t-meta);
+  font-weight: 500;
   color: var(--muted);
 }
 
@@ -3045,8 +3108,9 @@ textarea.field {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  font-size: 14px;
-  font-weight: 800;
+  font-family: var(--font-display, inherit);
+  font-size: var(--t-title);
+  font-weight: 600;
   color: var(--ink);
 }
 
@@ -3056,7 +3120,7 @@ textarea.field {
 
 .foldCount {
   color: var(--muted);
-  font-weight: 700;
+  font-weight: 500;
 }
 
 /* What a folded section holds, in a word or a short line. */
@@ -3066,8 +3130,8 @@ textarea.field {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 12.5px;
-  font-weight: 600;
+  font-size: var(--t-meta);
+  font-weight: 500;
   color: var(--muted);
 }
 
@@ -3104,8 +3168,8 @@ textarea.field {
 }
 
 .stateDays {
-  font-size: 12.5px;
-  font-weight: 600;
+  font-size: var(--t-meta);
+  font-weight: 500;
   color: var(--muted);
 }
 
@@ -3118,7 +3182,7 @@ textarea.field {
 
 .stateWhy {
   margin: 0;
-  font-size: 14px;
+  font-size: var(--t-body);
   line-height: 1.55;
   color: var(--ink);
   white-space: pre-line;
@@ -3132,14 +3196,14 @@ textarea.field {
   overflow: hidden;
 }
 
-/* "מה עושים" — the line the eye should land on. */
+/* "מה עושים" — the line the eye should land on: first in the card's state, and the largest thing in it. */
 .stateNext {
-  margin: 0;
+  margin: 0 0 4px;
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  border-radius: 12px;
-  padding: 10px 12px;
+  gap: 3px;
+  border-radius: 16px;
+  padding: 14px 16px;
   background: var(--lav-2);
   border-inline-start: 3px solid var(--navy);
 }
@@ -3150,23 +3214,29 @@ textarea.field {
 }
 
 .stateNextLabel {
-  font-size: 11.5px;
-  font-weight: 800;
-  letter-spacing: 0.3px;
-  color: var(--muted);
+  font-size: var(--t-meta);
+  font-weight: 600;
+  color: var(--navy-ink);
+  opacity: 0.8;
+}
+
+.stateNextAct .stateNextLabel {
+  color: var(--gold-ink);
 }
 
 .stateNext strong {
-  font-size: 15.5px;
-  font-weight: 800;
-  line-height: 1.4;
+  font-family: var(--font-display, inherit);
+  font-size: var(--t-lead);
+  font-weight: 700;
+  line-height: 1.3;
   color: var(--ink);
+  text-wrap: balance;
 }
 
 .stateIdle {
   margin: 0;
-  font-size: 13px;
-  font-weight: 600;
+  font-size: var(--t-meta);
+  font-weight: 500;
   color: var(--muted);
 }
 
@@ -3688,7 +3758,7 @@ textarea.field {
   }
 
   .bubbleTime {
-    font-size: 11.5px;
+    font-size: 12px;
   }
 
   .transcript {
@@ -3747,27 +3817,8 @@ textarea.field {
     min-height: 52px;
   }
 
-  .contactCard .foldTitle {
-    font-size: 15px;
-  }
-
-  .contactCard .foldHint {
-    font-size: 13px;
-  }
-
   .contactCard .cardTitle {
     margin-bottom: 10px;
-    font-size: 12.5px;
-    letter-spacing: 0.4px;
-    color: var(--muted);
-  }
-
-  .contactCard .cardName {
-    font-size: 20px;
-  }
-
-  .contactCard .cardPhone {
-    font-size: 14px;
   }
 
   .contactCard .avBig {
@@ -3795,14 +3846,6 @@ textarea.field {
 
   .contactCard .field {
     font-size: 15px;
-  }
-
-  .contactCard .stateWhy {
-    font-size: 15px;
-  }
-
-  .contactCard .stateNext strong {
-    font-size: 16.5px;
   }
 
   .contactCard .stRow,
@@ -3993,6 +4036,9 @@ textarea.field {
     --navH: calc(59px + env(safe-area-inset-bottom, 0px));
     /* The shell's menu button sits fixed in the top start corner (12px + 40px). */
     --menuGap: 56px;
+    /* On a phone, text is sixteen pixels: read at arm's length, and no zoom when a box is pressed. */
+    --t-body: 16px;
+    --sect-gap: 22px;
   }
 
   /* The section fills the phone edge to edge; the bar at the bottom is out of flow,
@@ -4095,6 +4141,35 @@ textarea.field {
   .fabPanel {
     width: 100vw;
     border-inline-start: 0;
+  }
+
+  /* The panel covers the phone: its head keeps clear of the shell's menu button, as every other head does
+     (the title's first letters used to stand under it). */
+  .fabPanelHead {
+    padding-inline-start: var(--menuGap);
+  }
+
+  /* ---- the day's tiles: two by two, the number first and nothing beside it ---- */
+
+  .tiles {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .tiles .kpi {
+    min-height: 0;
+    gap: 2px;
+    padding: 14px 14px 12px;
+  }
+
+  /* The number is written left to right; on this right-to-left page it still starts at the right, over its name. */
+  .tiles .kpiValue {
+    padding: 0;
+    text-align: right;
+  }
+
+  .tiles .kpiIcon {
+    display: none;
   }
 
   /* ---- the tabs that scroll with the page: one column, a small gutter ---- */
@@ -4736,9 +4811,22 @@ textarea.field {
 .statusTitle {
   flex: 1;
   min-width: 0;
-  font-size: 14px;
-  font-weight: 800;
+  font-size: var(--t-body);
+  font-weight: 600;
   color: var(--ink);
+}
+
+/* In a settings card the card's own title leads; what stands over a box inside it is a label — small, but in
+   full ink, never the faint one. */
+.settingsGrid .card h3 {
+  font-size: var(--t-title);
+  font-weight: 700;
+}
+
+.settingsGrid .sectTitle {
+  font-family: inherit;
+  font-size: var(--t-meta);
+  font-weight: 600;
 }
 
 .statusHead:hover .statusTitle {

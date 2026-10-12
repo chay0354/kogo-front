@@ -42,13 +42,20 @@ export function TemperatureDot({ temperature }: { temperature: WahubLeadTemperat
 }
 
 /**
- * "הכיוון": the state, one sentence why, and — the line the eye should land on —
- * what to do. Used at the top of the contact's card.
+ * "הכיוון": what to do — the line the eye should land on, and so the first and
+ * the largest — then the state, and one sentence why. Used at the top of the
+ * contact's card. With nothing to do, the state leads and a quiet line says so.
  */
 export function LeadStateBlock({ lead, needsHuman, now }: { lead: WahubLead; needsHuman: boolean; now: Date }) {
   const days = leadDaysText(lead, now);
   return (
     <div className={s.stateBox}>
+      {lead.next_step && (
+        <p className={cx(s.stateNext, lead.group === 'act' && s.stateNextAct)}>
+          <span className={s.stateNextLabel}>מה עושים</span>
+          <strong dir="auto">{lead.next_step}</strong>
+        </p>
+      )}
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
         <LeadStageTag lead={lead} needsHuman={needsHuman} />
         {days && <span className={s.stateDays}>{days}</span>}
@@ -59,14 +66,7 @@ export function LeadStateBlock({ lead, needsHuman, now }: { lead: WahubLead; nee
           {lead.reason}
         </p>
       )}
-      {lead.next_step ? (
-        <p className={cx(s.stateNext, lead.group === 'act' && s.stateNextAct)}>
-          <span className={s.stateNextLabel}>מה עושים</span>
-          <strong dir="auto">{lead.next_step}</strong>
-        </p>
-      ) : (
-        lead.group === 'wait' && <p className={s.stateIdle}>אין מה לעשות עכשיו.</p>
-      )}
+      {!lead.next_step && lead.group === 'wait' && <p className={s.stateIdle}>אין מה לעשות עכשיו.</p>}
     </div>
   );
 }

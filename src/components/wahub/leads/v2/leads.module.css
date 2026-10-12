@@ -8,7 +8,8 @@
  *
  * Hierarchy of a row, in the order the eye should take it: the name, the one
  * sentence, then "the next step" on a tinted ground; the chips and the time
- * are quiet. Three sizes of text in a row and no more: 15, 14, 12.
+ * are quiet. Its sizes are the section's scale (wahub.module.css, --t-*):
+ * the name is a title, the sentence and the step are text, the rest is meta.
  *
  * Motion here is local and small — a fade, a short slide — until the section's
  * shared layer is merged. All of it stops under "reduce motion".
@@ -107,8 +108,8 @@
   background: transparent;
   color: var(--muted);
   font: inherit;
-  font-size: 14px;
-  font-weight: 700;
+  font-size: var(--t-body);
+  font-weight: 600;
   white-space: nowrap;
   transition:
     background 0.15s,
@@ -122,13 +123,13 @@
 }
 
 .tabCount {
-  min-width: 22px;
+  min-width: 24px;
   padding: 0 7px;
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.65);
   color: var(--muted);
-  font-size: 12px;
-  font-weight: 800;
+  font-size: var(--t-meta);
+  font-weight: 600;
   line-height: 20px;
   text-align: center;
 }
@@ -157,8 +158,8 @@
   background: none;
   color: var(--muted);
   font: inherit;
-  font-size: 12.5px;
-  font-weight: 600;
+  font-size: var(--t-meta);
+  font-weight: 500;
   white-space: nowrap;
 }
 
@@ -171,7 +172,7 @@
 .closedOn,
 .closedOn:hover {
   color: var(--navy-ink);
-  font-weight: 800;
+  font-weight: 700;
   text-decoration: underline;
   text-underline-offset: 3px;
 }
@@ -207,8 +208,8 @@
   background: var(--surface);
   color: var(--ink);
   font: inherit;
-  font-size: 13.5px;
-  font-weight: 600;
+  font-size: var(--t-body);
+  font-weight: 500;
   text-overflow: ellipsis;
   cursor: pointer;
 }
@@ -391,7 +392,7 @@
   grid-area: main;
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: 4px;
   min-width: 0;
 }
 
@@ -408,8 +409,8 @@
   min-width: 0;
   overflow: hidden;
   color: var(--ink);
-  font-size: 15px;
-  font-weight: 800;
+  font-size: var(--t-title);
+  font-weight: 700;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -419,10 +420,10 @@
   grid-area: 1 / 1 / 2 / -1;
   align-self: start;
   justify-self: end;
-  padding-top: 3px;
+  padding-top: 2px;
   color: var(--muted);
-  font-size: 12px;
-  font-weight: 600;
+  font-size: var(--t-meta);
+  font-weight: 500;
   text-align: end;
   white-space: nowrap;
 }
@@ -432,34 +433,34 @@
   display: -webkit-box;
   overflow: hidden;
   color: var(--ink);
-  font-size: 14px;
-  line-height: 1.45;
+  font-size: var(--t-body);
+  line-height: 1.5;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
 }
 
 .summaryNone {
-  color: var(--faint);
+  color: var(--muted);
 }
 
 .chips {
   display: flex;
   flex-wrap: wrap;
   gap: 5px;
-  margin-top: 2px;
+  margin-top: 3px;
 }
 
 /* Quiet on purpose: what the bot understood, not something to press. */
 .chip {
   max-width: 100%;
   overflow: hidden;
-  padding: 0 8px;
+  padding: 0 9px;
   border-radius: 999px;
   background: var(--lav-2);
-  color: var(--muted);
-  font-size: 12px;
-  font-weight: 600;
-  line-height: 20px;
+  color: var(--navy-ink);
+  font-size: var(--t-meta);
+  font-weight: 500;
+  line-height: 22px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -473,20 +474,26 @@
   grid-area: next;
   display: flex;
   align-items: flex-start;
-  gap: 7px;
+  gap: 8px;
   min-width: 0;
-  padding: 7px 10px;
-  border-radius: 10px;
-  font-size: 14px;
-  font-weight: 700;
+  padding: 8px 12px;
+  border-radius: 12px;
+  font-size: var(--t-body);
+  font-weight: 600;
   line-height: 1.4;
 }
 
 .next svg {
   flex: none;
-  width: 16px;
-  height: 16px;
-  margin-top: 2px;
+  width: 18px;
+  height: 18px;
+  margin-top: 1px;
+}
+
+/* A step that takes two lines is broken evenly, not left with one word under it. */
+.next > span {
+  min-width: 0;
+  text-wrap: balance;
 }
 
 .nextBot {
@@ -515,7 +522,7 @@
 .nextQuiet {
   background: var(--surface-2);
   color: var(--muted);
-  font-weight: 600;
+  font-weight: 500;
 }
 
 .row:hover .nextQuiet,
@@ -631,8 +638,8 @@
   align-items: center;
   gap: 8px;
   flex: none;
-  min-height: 64px;
-  padding: 10px 16px;
+  min-height: 68px;
+  padding: 12px 16px;
   border-bottom: 1px solid var(--line-2);
 }
 
@@ -641,13 +648,15 @@
   min-width: 0;
 }
 
+/* Who this is: the largest words in the head, and one quiet line under them. */
 .dName {
   display: flex;
   align-items: center;
   gap: 8px;
   min-width: 0;
-  font-size: 18px;
-  font-weight: 900;
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1.2;
 }
 
 .dNameText {
@@ -658,10 +667,16 @@
 }
 
 .dSub {
-  margin: 2px 0 0;
+  margin: 3px 0 0;
   color: var(--muted);
-  font-size: 12.5px;
-  font-weight: 600;
+  font-size: var(--t-meta);
+  font-weight: 500;
+  line-height: 1.45;
+}
+
+/* The line may break between its parts, never inside one ("לפני 32 דק׳" is not left with a word alone). */
+.dSubPart {
+  white-space: nowrap;
 }
 
 /* What can be done: fixed under the name on a desktop, at the thumb on a phone — never scrolled away. */
@@ -722,8 +737,8 @@
 
 .snoozeTitle {
   margin: 0;
-  font-size: 14px;
-  font-weight: 800;
+  font-size: var(--t-title);
+  font-weight: 600;
 }
 
 .snoozeFields {
@@ -741,74 +756,94 @@
   display: flex;
   flex: 1 1 0;
   flex-direction: column;
-  gap: 18px;
+  gap: var(--sect-gap);
   min-height: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
   /* The foot keeps clear of the section's floating button, which stands in this corner. */
-  padding: 16px 16px 84px;
+  padding: 16px 18px 84px;
 }
 
 .dSect {
   min-width: 0;
 }
 
-.dLabel {
-  margin: 0 0 5px;
-  color: var(--faint);
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.3px;
+/* A section's title reads as a title: dark, of some weight, with air above it (the gap of .dScroll). */
+.dTitle {
+  margin: 0 0 var(--title-gap);
+  color: var(--ink);
+  font-size: var(--t-title);
+  font-weight: 600;
+  line-height: 1.35;
 }
 
 .dText {
   margin: 0;
   color: var(--ink);
-  font-size: 14.5px;
-  line-height: 1.55;
+  font-size: var(--t-body);
+  line-height: 1.6;
   overflow-wrap: anywhere;
 }
 
-.dMuted {
-  margin: 4px 0 0;
-  color: var(--muted);
-  font-size: 13px;
+.dChips {
+  margin-top: 10px;
+  gap: 6px;
 }
 
-/* "הצעד הבא" at the head of the details, on the same grounds as in a row. */
-.dNext {
-  padding: 12px 14px;
-  border-radius: 14px;
+/* In the details the chips are read, not skimmed: a size up, and dark enough on their ground. */
+.dChips .chip {
+  padding: 0 11px;
+  color: var(--navy-ink);
+  font-size: var(--t-meta);
+  font-weight: 500;
+  line-height: 26px;
 }
 
-.dNext .dLabel {
+/*
+ * "מה קורה עכשיו" — the one thing this screen is about, and so the first and
+ * the largest: who is handling the lead and what comes next, on the ground of
+ * whose move it is (the same grounds as in a row), with the bot's message
+ * under it as the customer sees it.
+ */
+.now {
+  padding: 16px 18px 18px;
+  border-radius: 18px;
+}
+
+.nowLabel {
+  margin: 0 0 6px;
   color: inherit;
-  opacity: 0.75;
+  font-size: var(--t-meta);
+  font-weight: 600;
+  line-height: 1.4;
+  opacity: 0.8;
 }
 
-.dNextText {
+.nowText {
   display: flex;
   align-items: flex-start;
-  gap: 8px;
+  gap: 10px;
   margin: 0;
-  font-size: 15px;
-  font-weight: 800;
-  line-height: 1.45;
+  font-family: var(--font-display, inherit);
+  font-size: var(--t-lead);
+  font-weight: 700;
+  line-height: 1.3;
+  text-wrap: balance;
 }
 
-.dNextText svg {
+.nowText svg {
   flex: none;
-  width: 18px;
-  height: 18px;
+  width: 22px;
+  height: 22px;
   margin-top: 2px;
 }
 
-.dNextMore {
-  margin: 4px 0 0;
-  font-size: 13px;
-  font-weight: 600;
-  opacity: 0.85;
+.nowMore {
+  margin: 6px 0 0;
+  font-size: var(--t-body);
+  font-weight: 500;
+  line-height: 1.45;
 }
 
 .dNextQuiet {
@@ -816,26 +851,154 @@
   color: var(--muted);
 }
 
+/* With nobody's step the words are still the largest thing here — only without a step's weight. */
+.dNextQuiet .nowText {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.nowMsg {
+  display: grid;
+  justify-items: start;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+/* The wording, in a bubble like the one it will arrive in. */
+.bubble {
+  max-width: 100%;
+  margin: 0;
+  padding: 10px 14px;
+  border-radius: 16px;
+  border-start-start-radius: 5px;
+  background: var(--surface);
+  color: var(--ink);
+  font-size: var(--t-body);
+  line-height: 1.5;
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+
+/* Still ahead: a dashed edge — nothing has gone out. */
+.bubbleAhead {
+  border: 1.5px dashed rgba(22, 163, 74, 0.5);
+}
+
+/* Went out: the green of a message the bot sent, as in the conversation. */
+.bubbleSent {
+  border: 1px solid rgba(22, 163, 74, 0.28);
+  background: var(--good-bg);
+}
+
+/* One word for where the message stands, and which of the round it is. */
+.nowMeta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+  margin: 0;
+  font-size: var(--t-meta);
+  font-weight: 500;
+  opacity: 0.9;
+}
+
+.now .fuStatus {
+  background: var(--surface);
+}
+
+.now .fuNote {
+  margin: 0;
+  color: inherit;
+  opacity: 0.9;
+}
+
+/* A fact: a small label, and beside it the value that matters. */
 .facts {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  gap: 4px 14px;
+  grid-template-columns: minmax(64px, auto) minmax(0, 1fr);
+  gap: 8px 16px;
   margin: 0;
-  font-size: 14px;
+}
+
+.fact {
+  display: contents;
 }
 
 .facts dt {
+  padding-top: 2px;
   color: var(--muted);
-  font-weight: 600;
+  font-size: var(--t-meta);
+  font-weight: 500;
 }
 
 .facts dd {
   margin: 0;
+  color: var(--ink);
+  font-size: var(--t-body);
   font-weight: 600;
+  line-height: 1.45;
   overflow-wrap: anywhere;
 }
 
-/* The times the bot comes back: a title each, the wording a press away. */
+/* What is behind us waits behind its title: the title and how many, the rest a press away. */
+.dFold {
+  border: 1px solid var(--line-2);
+  border-radius: 14px;
+  background: var(--surface-2);
+}
+
+.dFoldHead {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 50px;
+  padding: 0 14px;
+  border-radius: 14px;
+  list-style: none;
+  cursor: pointer;
+}
+
+.dFoldHead::-webkit-details-marker {
+  display: none;
+}
+
+.dFoldHead:hover {
+  background: var(--lav-2);
+}
+
+.dFoldHead:focus-visible {
+  outline-offset: -2px;
+}
+
+.dFoldHead .dTitle {
+  flex: 1 1 0;
+  min-width: 0;
+  margin: 0;
+}
+
+.dFoldCount {
+  color: var(--muted);
+  font-weight: 500;
+}
+
+.dFoldChevron {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  color: var(--muted);
+  transition: transform 0.2s var(--ease);
+}
+
+.dFold[open] .dFoldChevron {
+  transform: rotate(180deg);
+}
+
+.dFoldBody {
+  padding: 2px 14px 14px;
+  animation: leadFoldIn 0.2s var(--ease);
+}
+
+/* The bot's earlier messages: a title each, the wording a press away. */
 .fuList {
   display: flex;
   flex-direction: column;
@@ -848,7 +1011,7 @@
 .fu {
   border: 1px solid var(--line-2);
   border-radius: 12px;
-  background: var(--surface-2);
+  background: var(--surface);
 }
 
 .fu > summary,
@@ -857,7 +1020,7 @@
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   gap: 2px 8px;
-  padding: 9px 12px;
+  padding: 10px 12px;
   border-radius: 12px;
   list-style: none;
 }
@@ -876,23 +1039,23 @@
 
 .fuTitle {
   min-width: 0;
-  font-size: 13.5px;
-  font-weight: 700;
+  font-size: var(--t-body);
+  font-weight: 600;
 }
 
 .fuWhen {
   grid-column: 1 / -1;
   color: var(--muted);
-  font-size: 12px;
-  font-weight: 600;
+  font-size: var(--t-meta);
+  font-weight: 500;
 }
 
 .fuStatus {
-  padding: 0 8px;
+  padding: 0 10px;
   border-radius: 999px;
-  font-size: 11.5px;
-  font-weight: 700;
-  line-height: 20px;
+  font-size: var(--t-meta);
+  font-weight: 600;
+  line-height: 24px;
   white-space: nowrap;
 }
 
@@ -908,12 +1071,13 @@
 
 .fuSent {
   background: var(--good-bg);
-  color: var(--good);
+  color: #116b34;
 }
 
+/* Cancelled: quiet by its ground, but its word is still in full ink — the muted ink is too pale on lavender. */
 .fuOff {
   background: var(--lav-2);
-  color: var(--muted);
+  color: var(--ink);
 }
 
 /* A send that failed is a fault, not a person asking for someone: amber, like any other thing to look at. */
@@ -923,14 +1087,14 @@
 }
 
 .fuBody {
-  padding: 2px 12px 11px;
+  padding: 2px 12px 12px;
 }
 
 .fuText {
   margin: 0;
   padding-inline-start: 10px;
   border-inline-start: 2px solid var(--lav);
-  font-size: 13.5px;
+  font-size: var(--t-body);
   line-height: 1.55;
   white-space: pre-line;
   overflow-wrap: anywhere;
@@ -939,13 +1103,14 @@
 .fuNote {
   margin: 6px 0 0;
   color: var(--muted);
-  font-size: 12.5px;
+  font-size: var(--t-meta);
+  line-height: 1.45;
 }
 
 .timeline {
   display: flex;
   flex-direction: column;
-  gap: 9px;
+  gap: 12px;
   margin: 0;
   padding: 0;
   padding-inline-start: 12px;
@@ -956,12 +1121,15 @@
 .tlAt {
   display: block;
   color: var(--muted);
-  font-size: 12px;
-  font-weight: 600;
+  font-size: var(--t-meta);
+  font-weight: 500;
+  /* A date and an hour read left to right inside the Hebrew line, and line up down the list. */
+  width: fit-content;
 }
 
 .tlText {
-  font-size: 13.5px;
+  display: block;
+  font-size: var(--t-body);
   line-height: 1.5;
   overflow-wrap: anywhere;
 }
@@ -970,13 +1138,14 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  font-size: 14px;
-  font-weight: 700;
+  min-height: 32px;
+  font-size: var(--t-body);
+  font-weight: 600;
 }
 
 .dLink svg {
-  width: 15px;
-  height: 15px;
+  width: 16px;
+  height: 16px;
 }
 
 .dSk {
@@ -984,6 +1153,12 @@
   flex-direction: column;
   gap: 9px;
   pointer-events: none;
+}
+
+.dSkList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sect-gap);
 }
 
 /* ---------- "מחכים לך" on the day's tab ---------- */
@@ -1008,8 +1183,8 @@
 }
 
 .glanceTitle {
-  font-size: 16px;
-  font-weight: 800;
+  font-size: var(--t-title);
+  font-weight: 700;
   white-space: nowrap;
 }
 
@@ -1020,8 +1195,8 @@
   border-radius: 999px;
   background: var(--lav-2);
   color: var(--navy-ink);
-  font-size: 13px;
-  font-weight: 800;
+  font-size: var(--t-meta);
+  font-weight: 700;
   line-height: 24px;
   text-align: center;
 }
@@ -1036,8 +1211,8 @@
   min-width: 0;
   overflow: hidden;
   color: var(--muted);
-  font-size: 12.5px;
-  font-weight: 600;
+  font-size: var(--t-meta);
+  font-weight: 500;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -1073,8 +1248,8 @@
   min-width: 120px;
   max-width: 45%;
   overflow: hidden;
-  font-size: 14.5px;
-  font-weight: 700;
+  font-size: var(--t-body);
+  font-weight: 600;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -1084,8 +1259,8 @@
   min-width: 0;
   overflow: hidden;
   color: var(--gold-ink);
-  font-size: 13.5px;
-  font-weight: 700;
+  font-size: var(--t-body);
+  font-weight: 500;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -1113,10 +1288,27 @@
   }
 }
 
+/* A folded part opens: its content settles in from just above. */
+@keyframes leadFoldIn {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .rows,
-  .details {
+  .details,
+  .dFoldBody {
     animation: none;
+  }
+
+  .dFoldChevron {
+    transition: none;
   }
 
   .row,
@@ -1149,7 +1341,6 @@
   .closedLink {
     min-height: 44px;
     padding: 0 8px;
-    font-size: 13px;
   }
 
   .filters .searchBox,
@@ -1226,7 +1417,12 @@
   }
 
   .detailsCover .dScroll {
-    padding: 14px 14px 20px;
+    padding: 16px 16px 24px;
+  }
+
+  /* A finger's height for what opens on a press. */
+  .dFoldHead {
+    min-height: 52px;
   }
 
   /* The actions come down to the thumb, above the home indicator. */
