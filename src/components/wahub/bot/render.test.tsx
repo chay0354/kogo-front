@@ -470,11 +470,14 @@ describe('the floating button', () => {
 });
 
 describe('the bot tab', () => {
-  it('has the six sub-tabs, the chosen one selected', () => {
+  it('has the eight sub-tabs — "ללמד" first — the chosen one selected', () => {
     const html = render(
       <BotTab sub="hours" status={undefined} openItemId={null} tryQuestion="" onSub={noop} onOpenItem={noop} onTryQuestion={noop} onOpenChat={noop} onDemoChanged={noop} />,
     );
-    for (const label of ['ידע', 'שעות ומועדים', 'נסה שאלה', 'תשובות בצל', 'ביקורת', 'דמו']) expect(html).toContain(label);
+    const labels = ['ללמד', 'ידע', 'שעות ומועדים', 'נסה שאלה', 'בדיקות', 'תשובות בצל', 'ביקורת', 'דמו'];
+    for (const label of labels) expect(html).toContain(`>${label}</button>`);
+    expect(html.match(/role="tab"/g)).toHaveLength(labels.length);
+    expect(html.indexOf('>ללמד</button>')).toBeLessThan(html.indexOf('>ידע</button>'));
     expect(html.match(/aria-selected="true"/g)).toHaveLength(1);
     expect(html).toContain('id="wahub-bot-tab-hours" aria-selected="true"');
   });

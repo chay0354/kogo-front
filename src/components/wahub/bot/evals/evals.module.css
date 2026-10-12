@@ -1,0 +1,889 @@
+/*
+ * "בדיקות" — the sub-tab of "הבוט" where the owner sees for himself how many
+ * written test conversations the bot passes, and runs them again
+ * (docs/WAHUB-CONTRACT-TEACH-AND-TESTS.md, ג; docs/WAHUB-CONTRACT-BOT-EVALS.md).
+ *
+ * It stands on the section's own variables (set on .wahub in wahub.module.css),
+ * so it looks like the rest of the section and nothing outside this folder
+ * changes. Red here is the quiet red of a check that did not pass, inside the
+ * page; the red mark of the menu stays for "מבקש נציג" alone.
+ *
+ * Motion is local: opacity and transform only, 120–280ms, and off where the
+ * device asks for less of it (the block at the end).
+ */
+
+.evals {
+  width: 100%;
+  max-width: 860px;
+  margin-inline: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+
+/* ---------- the big sentence ---------- */
+
+.hero {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  box-shadow: var(--shadow);
+  padding: 24px 24px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+}
+
+.sentence {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1.35;
+  text-wrap: balance;
+}
+
+.figure {
+  display: inline-block;
+  font-size: 40px;
+  font-weight: 800;
+  letter-spacing: -0.5px;
+  line-height: 1;
+  color: var(--navy-ink);
+  font-variant-numeric: tabular-nums;
+  /* A figure that just changed lands softly. */
+  animation: evalsPop 0.26s var(--ease) backwards;
+}
+
+@keyframes evalsPop {
+  from {
+    opacity: 0.4;
+    transform: translateY(4px) scale(0.92);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.rest {
+  margin: 0;
+  font-size: 14px;
+  color: var(--muted);
+}
+
+.when {
+  margin: 0;
+  font-size: 12px;
+  color: var(--faint);
+}
+
+/* How the conversations divide, at a glance: passed, failed, and what nobody can say. */
+.ratio {
+  display: flex;
+  height: 6px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: var(--lav-2);
+}
+
+.ratio > i {
+  display: block;
+  height: 100%;
+  min-width: 0;
+}
+
+.ratioPassed {
+  background: var(--good);
+}
+
+.ratioFailed {
+  background: var(--bad);
+  opacity: 0.75;
+}
+
+.heroActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.heroActions .big {
+  height: 42px;
+  padding: 0 22px;
+  border-radius: 11px;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.heroActions .big:active {
+  transform: scale(0.97);
+}
+
+.hint {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--muted);
+}
+
+/* The stand-in bot answers (no key): said once, above the list. */
+.stub {
+  margin: 0;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  border-radius: 12px;
+  background: var(--warn-bg);
+  color: var(--warn);
+  padding: 9px 12px;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+.stub svg {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  margin-top: 3px;
+}
+
+/* ---------- a run under way ---------- */
+
+.running {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  border-radius: 14px;
+  background: var(--lav-2);
+  padding: 14px 16px;
+  animation: evalsRise 0.24s var(--ease) backwards;
+}
+
+@keyframes evalsRise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.bar {
+  position: relative;
+  height: 8px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: var(--surface);
+}
+
+/* Drawn full, and scaled to how far the run got: only a transform moves. It fills from the start side. */
+.barFill {
+  position: absolute;
+  inset: 0;
+  border-radius: 999px;
+  background: var(--navy);
+  transform-origin: right center;
+  transition: transform 0.28s var(--ease);
+}
+
+.barFill::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.35), transparent);
+  animation: evalsSheen 1.6s linear infinite;
+}
+
+@keyframes evalsSheen {
+  from {
+    transform: translateX(100%);
+  }
+
+  to {
+    transform: translateX(-100%);
+  }
+}
+
+.runRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.runText {
+  flex: 1;
+  min-width: 0;
+}
+
+.runLine {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--navy-ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.runTurn {
+  margin: 2px 0 0;
+  min-height: 19px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.ended {
+  margin: 0;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  border-radius: 12px;
+  background: var(--lav-2);
+  color: var(--navy-ink);
+  padding: 10px 12px;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.5;
+  animation: evalsRise 0.24s var(--ease) backwards;
+}
+
+.ended svg {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  margin-top: 3px;
+}
+
+/* ---------- the groups: a quiet row of chips ---------- */
+
+.groups {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.chip {
+  /* What only a screen reader reads inside a chip is placed against the chip, so it stays inside the row that scrolls. */
+  position: relative;
+  height: 30px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+  padding: 0 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--muted);
+  white-space: nowrap;
+  transition:
+    background 0.15s,
+    color 0.15s,
+    border-color 0.15s;
+}
+
+.chip:hover {
+  background: var(--lav-2);
+}
+
+.chipOn,
+.chipOn:hover {
+  background: var(--navy-soft);
+  border-color: var(--navy);
+  color: var(--navy-ink);
+}
+
+.chipCount {
+  font-weight: 600;
+  opacity: 0.8;
+}
+
+.chipDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--bad);
+  opacity: 0.8;
+}
+
+/* ---------- the list: what failed first ---------- */
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.sectionTitle {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.3px;
+  color: var(--faint);
+}
+
+.sectionFailed {
+  color: var(--bad);
+}
+
+.rows {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface);
+}
+
+.rowsFailed {
+  border-color: rgba(200, 30, 30, 0.22);
+}
+
+.rows > li + li {
+  border-top: 1px solid var(--line-2);
+}
+
+.row {
+  width: 100%;
+  min-height: 48px;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  border: 0;
+  background: none;
+  padding: 12px 14px;
+  font: inherit;
+  color: inherit;
+  text-align: start;
+  border-radius: 13px;
+  transition: background 0.15s;
+}
+
+.row:hover {
+  background: var(--surface-2);
+}
+
+.rowOpen,
+.rowOpen:hover {
+  background: var(--lav-2);
+  border-end-start-radius: 0;
+  border-end-end-radius: 0;
+}
+
+.mark {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  margin-top: 1px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  /* A result that just arrived lands softly. */
+  animation: evalsMark 0.24s var(--ease) backwards;
+}
+
+.mark svg {
+  width: 13px;
+  height: 13px;
+  stroke-width: 3;
+}
+
+@keyframes evalsMark {
+  from {
+    opacity: 0;
+    transform: scale(0.5);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.markPassed {
+  background: var(--good-bg);
+  color: var(--good);
+}
+
+.markFailed {
+  background: var(--bad-bg);
+  color: var(--bad);
+}
+
+.markNone {
+  background: var(--lav-2);
+  color: var(--faint);
+}
+
+.markNow {
+  background: var(--navy-soft);
+  color: var(--navy-ink);
+}
+
+.rowMain {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.rowTitle {
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+/* Why it did not pass, in a line or two; all of it on a press. */
+.rowWhy {
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--muted);
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+}
+
+.rowOpen .rowWhy {
+  display: none;
+}
+
+.rowSide {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 2px;
+  font-size: 12px;
+  color: var(--faint);
+}
+
+.rowSide svg {
+  width: 16px;
+  height: 16px;
+  transition: transform 0.2s var(--ease);
+}
+
+.rowOpen .rowSide svg {
+  transform: rotate(180deg);
+}
+
+/* Folded: "84 עברו — הצג". */
+.fold > summary {
+  list-style: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface);
+  padding: 12px 14px;
+  font-size: 14px;
+  font-weight: 700;
+  transition: background 0.15s;
+}
+
+.fold > summary:hover {
+  background: var(--surface-2);
+}
+
+.fold > summary::-webkit-details-marker {
+  display: none;
+}
+
+.fold > summary > span {
+  flex: 1;
+  min-width: 0;
+}
+
+.fold > summary > em {
+  font-style: normal;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--navy-ink);
+}
+
+.fold > summary svg {
+  width: 16px;
+  height: 16px;
+  color: var(--faint);
+  transition: transform 0.2s var(--ease);
+}
+
+.fold[open] > summary svg {
+  transform: rotate(180deg);
+}
+
+.fold[open] > summary > em {
+  display: none;
+}
+
+.fold[open] > summary {
+  margin-bottom: 8px;
+}
+
+.fold[open] > .rows {
+  animation: evalsRise 0.22s var(--ease) backwards;
+}
+
+.allGood {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border-radius: 14px;
+  background: var(--good-bg);
+  color: #116c35;
+  padding: 12px 14px;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.allGood svg {
+  width: 17px;
+  height: 17px;
+  flex: none;
+}
+
+/* ---------- an open row ---------- */
+
+.detail {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 4px 14px 16px;
+  background: var(--lav-2);
+  border-end-start-radius: 13px;
+  border-end-end-radius: 13px;
+  animation: evalsRise 0.22s var(--ease) backwards;
+}
+
+.label {
+  margin: 0 0 4px;
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--muted);
+}
+
+.text {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+
+.quiet {
+  color: var(--muted);
+}
+
+.talk {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  border-radius: 14px;
+  background: var(--bg);
+  padding: 12px 12px 14px;
+}
+
+/* What was expected of an answer that did not pass, and why it did not: under the answer, on its side. */
+.fails {
+  margin: 2px 0 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-self: stretch;
+}
+
+.fail {
+  border-radius: 12px;
+  background: var(--bad-bg);
+  padding: 9px 12px;
+  font-size: 14px;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+
+.fail > b {
+  display: block;
+  font-weight: 800;
+  color: var(--bad);
+}
+
+.fail > span {
+  display: block;
+  margin-top: 2px;
+  color: var(--ink);
+}
+
+.fail > small {
+  display: block;
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--muted);
+}
+
+.asked {
+  align-self: flex-end;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--warn);
+}
+
+.detailActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.detailActions .big {
+  height: 40px;
+  padding: 0 18px;
+  border-radius: 11px;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.more > summary {
+  list-style: none;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--navy-ink);
+}
+
+.more > summary::-webkit-details-marker {
+  display: none;
+}
+
+.more > summary svg {
+  width: 14px;
+  height: 14px;
+  transition: transform 0.2s var(--ease);
+}
+
+.more[open] > summary svg {
+  transform: rotate(180deg);
+}
+
+.moreBody {
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  font-size: 12px;
+  line-height: 1.6;
+  animation: evalsRise 0.22s var(--ease) backwards;
+}
+
+.tech {
+  margin: 0;
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 3px 12px;
+}
+
+.tech dt {
+  font-weight: 700;
+  color: var(--muted);
+}
+
+.tech dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.code {
+  direction: ltr;
+  unicode-bidi: isolate;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  color: var(--muted);
+}
+
+.checks {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.checks li {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+}
+
+.checks li > i {
+  flex: none;
+  width: 14px;
+  font-style: normal;
+  font-weight: 800;
+  text-align: center;
+}
+
+.checkPassed > i {
+  color: var(--good);
+}
+
+.checkFailed > i {
+  color: var(--bad);
+}
+
+.checkNone > i {
+  color: var(--faint);
+}
+
+.turnHead {
+  margin: 0;
+  font-weight: 800;
+  color: var(--muted);
+}
+
+/* ---------- waiting for the first read ---------- */
+
+.skHero {
+  height: 208px;
+  border-radius: 18px;
+}
+
+.skRows {
+  height: 196px;
+  border-radius: 14px;
+}
+
+.skDetail {
+  height: 120px;
+  border-radius: 12px;
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ---------- a phone ---------- */
+
+@media (max-width: 767px) {
+  .evals {
+    gap: 12px;
+    /* Room for the floating "יש הצעות" button over the last row. */
+    padding-bottom: 64px;
+  }
+
+  .hero {
+    padding: 18px 16px 16px;
+    gap: 12px;
+  }
+
+  .sentence {
+    font-size: 19px;
+  }
+
+  .figure {
+    font-size: 34px;
+  }
+
+  .heroActions .big {
+    flex: 1 1 100%;
+  }
+
+  /* The chips in one row that scrolls sideways, as the sub-tabs above them do. */
+  .groups {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+    margin-inline: -12px;
+    padding-inline: 12px;
+  }
+
+  .groups::-webkit-scrollbar {
+    display: none;
+  }
+
+  .chip {
+    flex: none;
+    height: 34px;
+  }
+
+  .row {
+    padding: 12px;
+    gap: 10px;
+  }
+
+  .rowGroup {
+    display: none;
+  }
+
+  .detail {
+    padding: 4px 10px 14px;
+  }
+
+  .runRow {
+    flex-wrap: wrap;
+  }
+
+  .runLine {
+    white-space: normal;
+  }
+
+  .detailActions .big {
+    flex: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .figure,
+  .running,
+  .ended,
+  .mark,
+  .detail,
+  .moreBody,
+  .fold[open] > .rows,
+  .barFill::after {
+    animation: none;
+  }
+
+  .barFill,
+  .chip,
+  .row,
+  .rowSide svg,
+  .fold > summary,
+  .fold > summary svg,
+  .more > summary svg {
+    transition: none;
+  }
+
+  .heroActions .big:active {
+    transform: none;
+  }
+}

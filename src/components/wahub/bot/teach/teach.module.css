@@ -1,0 +1,1214 @@
+/*
+ * "ללמד" — the sub-tab of "הבוט" where the owner explains something in his own
+ * words, and the bot asks only for an approval
+ * (docs/WAHUB-CONTRACT-TEACH-AND-TESTS.md, ב).
+ *
+ * Everything here stands on the section's own variables (set on .wahub in
+ * wahub.module.css — colours, radii, shadow, easing), so the screen looks like
+ * the rest of the section and nothing outside this folder changes.
+ *
+ * Inside a card there are three sizes of text and no more: 15 (what is said),
+ * 14 (what is read), 12 (what names a part).
+ *
+ * Motion is local: opacity and transform only, 120–280ms, and off where the
+ * device asks for less of it (the block at the end).
+ */
+
+.teach {
+  width: 100%;
+  max-width: 760px;
+  margin-inline: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  min-width: 0;
+}
+
+/* ---------- the opening words ---------- */
+
+.intro {
+  text-align: center;
+  padding: 22px 8px 2px;
+}
+
+.intro h2 {
+  font-size: 23px;
+  font-weight: 800;
+  letter-spacing: -0.2px;
+}
+
+.intro p {
+  margin: 8px auto 0;
+  max-width: 54ch;
+  font-size: 14px;
+  line-height: 1.65;
+  color: var(--muted);
+  text-wrap: pretty;
+}
+
+/* ---------- the one big box ---------- */
+
+.composer {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  box-shadow: var(--shadow);
+  padding: 14px 16px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  transition:
+    border-color 0.18s var(--ease),
+    box-shadow 0.18s var(--ease);
+}
+
+.composer:focus-within {
+  border-color: var(--navy);
+  box-shadow:
+    0 0 0 3px var(--navy-soft),
+    var(--shadow);
+}
+
+.composerLabel {
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--muted);
+}
+
+/* The box itself: no frame of its own — the card around it is the frame, and shows the focus. */
+.composer .box,
+.field .box {
+  display: block;
+  width: 100%;
+  min-height: 132px;
+  max-height: 46vh;
+  border: 0;
+  outline: none;
+  background: transparent;
+  resize: none;
+  padding: 2px 0;
+  font-family: inherit;
+  /* 16px: a phone does not zoom into a field this size. */
+  font-size: 16px;
+  line-height: 1.6;
+  color: var(--ink);
+  overflow-y: auto;
+}
+
+.composer .box:focus-visible,
+.field .box:focus-visible {
+  outline: none;
+}
+
+.box::placeholder {
+  color: var(--faint);
+}
+
+.composerFoot {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 38px;
+}
+
+.keys {
+  flex: 1;
+  min-width: 0;
+  font-size: 12px;
+  color: var(--faint);
+}
+
+.left {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--warn);
+}
+
+/* The send button, and "מאשר": a size up from the section's own button — these are the presses the screen is for. */
+.composerFoot .big,
+.actions .big {
+  height: 40px;
+  padding: 0 20px;
+  border-radius: 11px;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.actions .big:active,
+.composerFoot .big:active {
+  transform: scale(0.97);
+}
+
+.sendError {
+  margin: 0;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  border-radius: 12px;
+  background: var(--bad-bg);
+  color: var(--bad);
+  padding: 9px 12px;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.5;
+  animation: teachRise 0.22s var(--ease) backwards;
+}
+
+.sendError svg {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  margin-top: 2px;
+}
+
+/* ---------- the card ---------- */
+
+.card {
+  position: relative;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  box-shadow: var(--shadow);
+  padding: 18px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+  animation: teachRise 0.26s var(--ease) backwards;
+}
+
+/* Each part of the answer comes in after the one above it. */
+.rise {
+  animation: teachRise 0.26s var(--ease) backwards;
+  animation-delay: calc(var(--i, 0) * 90ms);
+}
+
+@keyframes teachRise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.cardTop {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.cardTopMain {
+  flex: 1;
+  min-width: 0;
+}
+
+.close {
+  flex: none;
+  width: 30px;
+  height: 30px;
+  margin: -4px -6px 0 0;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--faint);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition:
+    background 0.15s,
+    color 0.15s;
+}
+
+.close:hover {
+  background: var(--navy-soft);
+  color: var(--navy-ink);
+}
+
+.close svg {
+  width: 17px;
+  height: 17px;
+}
+
+/* "כתבת": his own words, folded to a line. */
+.wrote {
+  min-width: 0;
+}
+
+.wrote > summary {
+  list-style: none;
+  cursor: pointer;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.wrote > summary::-webkit-details-marker {
+  display: none;
+}
+
+.wrote > summary > b {
+  flex: none;
+  font-weight: 800;
+}
+
+.wrote > summary > span {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wrote > summary svg {
+  flex: none;
+  align-self: center;
+  width: 14px;
+  height: 14px;
+  transition: transform 0.2s var(--ease);
+}
+
+.wrote[open] > summary svg {
+  transform: rotate(180deg);
+}
+
+.wrote[open] > summary > span {
+  display: none;
+}
+
+.wroteText {
+  margin: 6px 0 0;
+  border-inline-start: 3px solid var(--lav);
+  padding-inline-start: 10px;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--muted);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* The name of a part. */
+.label {
+  margin: 0 0 5px;
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--muted);
+}
+
+/* What is said: what the bot understood, its question, "נשמר". */
+.lead {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.65;
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+
+/* What is read. */
+.text {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.6;
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+
+.quiet {
+  color: var(--muted);
+}
+
+/* A change: the section's readable card, set on a soft ground with a line of the colour of where it stands. */
+.changes {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.change {
+  background: var(--surface-2);
+  border-radius: 14px;
+  border-inline-start: 3px solid var(--warn);
+  padding: 12px 14px;
+}
+
+.changeKept {
+  border-inline-start-color: var(--good);
+}
+
+.changeGone {
+  border-inline-start-color: var(--faint);
+}
+
+/* The readable card names its folded parts a hair larger than this screen's small size: brought into line. */
+.change summary {
+  font-size: 12px;
+}
+
+/* ---------- the example: a short conversation, as in WhatsApp ---------- */
+
+.example {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  border-radius: 14px;
+  background: var(--bg);
+  padding: 12px 12px 14px;
+}
+
+.exRow {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  max-width: min(88%, 520px);
+  animation: teachRise 0.24s var(--ease) backwards;
+}
+
+/* The customer stands at the start; the bot answers across. */
+.exIn {
+  align-self: flex-start;
+}
+
+.exOut {
+  align-self: flex-end;
+  align-items: flex-end;
+}
+
+.exWho {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+.bubble {
+  margin: 0;
+  min-width: 0;
+  border: 1px solid transparent;
+  border-radius: 14px;
+  padding: 8px 12px;
+  font-size: 14px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.bCustomer {
+  background: var(--surface);
+  border-color: var(--line);
+  border-end-start-radius: 4px;
+}
+
+.bToday {
+  background: var(--lav);
+  border-end-end-radius: 4px;
+}
+
+/* After the change: the new bot's own soft green. */
+.bAfter {
+  background: var(--good-bg);
+  border-color: rgba(22, 163, 74, 0.35);
+  border-end-end-radius: 4px;
+}
+
+/* The system's own message before a turn (a reminder, a broadcast). */
+.bSystem {
+  background: var(--gold-bg);
+  color: var(--gold-ink);
+  border-end-end-radius: 4px;
+}
+
+/* A check that did not pass stands on the answer it is about. */
+.bFailed {
+  border-color: var(--bad);
+  box-shadow: 0 0 0 2px var(--bad-bg);
+}
+
+.bubbleComing {
+  display: inline-flex;
+  align-items: center;
+  min-height: 36px;
+  color: var(--muted);
+}
+
+.bubbleIn {
+  animation: teachFade 0.28s var(--ease) backwards;
+}
+
+@keyframes teachFade {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+/* ---------- "הבוט חושב" ---------- */
+
+.dots {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.dots i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0.35;
+  animation: teachDot 1.2s infinite var(--ease);
+}
+
+.dots i:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.dots i:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+@keyframes teachDot {
+  0%,
+  60%,
+  100% {
+    opacity: 0.35;
+    transform: translateY(0);
+  }
+
+  30% {
+    opacity: 1;
+    transform: translateY(-3px);
+  }
+}
+
+.thinking {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.thinkingLine {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--navy-ink);
+}
+
+.thinkingNote {
+  margin: 0;
+  min-height: 21px;
+  font-size: 14px;
+  color: var(--muted);
+}
+
+.thinkingNote > span {
+  display: inline-block;
+  animation: teachFade 0.28s var(--ease) backwards;
+}
+
+/* The card while the bot reads a correction: what is there steps back. */
+.dim {
+  opacity: 0.5;
+  pointer-events: none;
+  transition: opacity 0.2s var(--ease);
+}
+
+/* ---------- "שים לב", and what is said under the card ---------- */
+
+.heed {
+  border-radius: 12px;
+  background: var(--warn-bg);
+  color: var(--warn);
+  padding: 10px 12px;
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+.heed > p {
+  margin: 0;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-weight: 800;
+}
+
+.heed svg {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  margin-top: 3px;
+}
+
+.heed ul {
+  margin: 4px 0 0;
+  padding: 0;
+  padding-inline-start: 24px;
+  list-style: none;
+  color: var(--ink);
+}
+
+.heed li + li {
+  margin-top: 2px;
+}
+
+.notes {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--muted);
+}
+
+.notes li {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.notes svg {
+  width: 15px;
+  height: 15px;
+  flex: none;
+  margin-top: 3px;
+  color: var(--faint);
+}
+
+/* ---------- the foot of the card: the two buttons, or the short field ---------- */
+
+.foot {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  border-top: 1px solid var(--line-2);
+  padding-top: 14px;
+}
+
+.footNote {
+  margin: 0;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+/* "מה לתקן?", "התשובה שלך": a short field with its own frame. */
+.field {
+  position: relative;
+  display: block;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface-2);
+  padding: 8px 12px;
+  transition:
+    border-color 0.18s var(--ease),
+    box-shadow 0.18s var(--ease);
+  animation: teachRise 0.22s var(--ease) backwards;
+}
+
+.field:focus-within {
+  border-color: var(--navy);
+  box-shadow: 0 0 0 3px var(--navy-soft);
+}
+
+.field .box {
+  min-height: 52px;
+  max-height: 30vh;
+}
+
+.cardError {
+  margin: 0;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.5;
+  color: var(--bad);
+  animation: teachRise 0.22s var(--ease) backwards;
+}
+
+.cardError svg {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  margin-top: 2px;
+}
+
+/* ---------- "נשמר ✓" ---------- */
+
+.savedHead {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.tick {
+  flex: none;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: var(--good);
+  color: #fff;
+  display: grid;
+  place-items: center;
+  animation: teachPop 0.28s var(--ease) backwards;
+}
+
+.tick svg {
+  width: 17px;
+  height: 17px;
+  stroke-width: 3;
+}
+
+.tickGone {
+  background: var(--lav);
+  color: var(--muted);
+}
+
+@keyframes teachPop {
+  from {
+    opacity: 0;
+    transform: scale(0.6);
+  }
+
+  60% {
+    transform: scale(1.1);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.savedTitle {
+  font-size: 15px;
+  font-weight: 800;
+}
+
+.savedSub {
+  font-size: 14px;
+  color: var(--muted);
+}
+
+/* The line of the check. */
+.check {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  border-radius: 12px;
+  padding: 10px 12px;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.55;
+  animation: teachRise 0.24s var(--ease) backwards;
+}
+
+.check > svg {
+  width: 17px;
+  height: 17px;
+  flex: none;
+  margin-top: 2px;
+}
+
+.check > span {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.checkGood {
+  background: var(--good-bg);
+  color: #116c35;
+}
+
+.checkBad {
+  background: var(--bad-bg);
+  color: var(--bad);
+}
+
+.checkWait {
+  background: var(--lav-2);
+  color: var(--navy-ink);
+}
+
+.checkQuiet {
+  background: var(--surface-2);
+  color: var(--muted);
+  font-weight: 500;
+}
+
+/* A part folded to its name: "מה נבדק", "מה השתנה", "פרטים טכניים". */
+.more > summary {
+  list-style: none;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--navy-ink);
+}
+
+.more > summary::-webkit-details-marker {
+  display: none;
+}
+
+.more > summary svg {
+  width: 14px;
+  height: 14px;
+  transition: transform 0.2s var(--ease);
+}
+
+.more[open] > summary svg {
+  transform: rotate(180deg);
+}
+
+.moreBody {
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  animation: teachRise 0.22s var(--ease) backwards;
+}
+
+.tech {
+  margin: 0;
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 3px 12px;
+  font-size: 12px;
+}
+
+.tech dt {
+  font-weight: 700;
+  color: var(--muted);
+}
+
+.tech dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.code {
+  direction: ltr;
+  unicode-bidi: isolate;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+/* ---------- "מה לימדת עד היום": a quiet list ---------- */
+
+.history {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.historyTitle {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--faint);
+  letter-spacing: 0.3px;
+}
+
+.rows {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface);
+}
+
+.rows > li + li {
+  border-top: 1px solid var(--line-2);
+}
+
+.rows > li:first-child .row {
+  border-start-start-radius: 13px;
+  border-start-end-radius: 13px;
+}
+
+.rows > li:last-child .row:last-child {
+  border-end-start-radius: 13px;
+  border-end-end-radius: 13px;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 4px 10px;
+  padding: 0 6px 0 12px;
+  transition: background 0.15s;
+}
+
+.row:hover {
+  background: var(--surface-2);
+}
+
+.rowOpen,
+.rowOpen:hover {
+  background: var(--lav-2);
+}
+
+.rowMain {
+  flex: 1;
+  min-width: 0;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: 0;
+  background: none;
+  padding: 8px 6px;
+  font: inherit;
+  color: inherit;
+  text-align: start;
+  border-radius: 10px;
+}
+
+.rowDate {
+  flex: none;
+  min-width: 34px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.rowText {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 14px;
+}
+
+.rowGone .rowText {
+  color: var(--muted);
+}
+
+.rowUndo {
+  flex: none;
+  height: 30px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  padding: 0 8px;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--muted);
+  transition:
+    background 0.15s,
+    color 0.15s;
+}
+
+.rowUndo:hover {
+  background: var(--navy-soft);
+  color: var(--navy-ink);
+}
+
+.rowAsk {
+  padding: 4px 12px 12px;
+  animation: teachRise 0.22s var(--ease) backwards;
+}
+
+.rowNote {
+  margin: 0;
+  padding: 0 18px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--bad);
+}
+
+.historyEmpty {
+  margin: 0;
+  border: 1px dashed var(--line);
+  border-radius: 14px;
+  padding: 16px;
+  text-align: center;
+  font-size: 14px;
+  color: var(--muted);
+}
+
+.moreRows {
+  align-self: center;
+}
+
+/* ---------- waiting for the first read, and a server that has no "ללמד" yet ---------- */
+
+.skBox {
+  height: 196px;
+  border-radius: 18px;
+}
+
+.skRows {
+  height: 136px;
+  border-radius: 14px;
+}
+
+.skLine {
+  height: 14px;
+  border-radius: 7px;
+}
+
+.notYet {
+  margin-top: 8px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  padding: 44px 24px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  animation: teachRise 0.26s var(--ease) backwards;
+}
+
+.notYetIcon {
+  width: 56px;
+  height: 56px;
+  border-radius: 16px;
+  background: var(--lav-2);
+  color: var(--navy-ink);
+  display: grid;
+  place-items: center;
+}
+
+.notYetIcon svg {
+  width: 26px;
+  height: 26px;
+}
+
+.notYet h3 {
+  font-size: 17px;
+  font-weight: 800;
+}
+
+.notYet p {
+  margin: 0;
+  max-width: 46ch;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--muted);
+}
+
+/* Read by a screen reader, not seen. */
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ---------- a phone: the box stands on the bottom bar, and the card above it ---------- */
+
+@media (max-width: 767px) {
+  .teach {
+    gap: 14px;
+    /* As tall as the room between the sub-tabs and the bottom bar, so the box is at the bottom
+       even when there is little above it. --teachTop is measured by the screen; the number is its fallback. */
+    min-height: calc(100dvh - var(--navH, 58px) - var(--teachTop, 112px) - 10px);
+  }
+
+  .intro {
+    padding: 10px 4px 0;
+  }
+
+  .intro h2 {
+    font-size: 20px;
+  }
+
+  .history {
+    order: 5;
+    margin-top: 4px;
+  }
+
+  /* How far above the bottom bar the box stands. The floating "יש הצעות" button stands in the same corner
+     (40px tall, 10px above the bar): while it is up, the box stands above it and never under it. */
+  .teach {
+    --dockGap: 8px;
+    /* The same room at the end of the page, so the last row of the list can be brought clear of the button too. */
+    padding-bottom: var(--dockGap);
+  }
+
+  .teach[data-fab] {
+    --dockGap: 58px;
+  }
+
+  .composer {
+    order: 9;
+    position: sticky;
+    bottom: calc(var(--navH, 58px) + var(--dockGap));
+    z-index: 5;
+    margin-top: auto;
+    padding: 10px 12px 8px;
+    border-radius: 16px;
+    box-shadow:
+      0 -10px 24px -14px rgba(43, 48, 144, 0.28),
+      var(--shadow);
+  }
+
+  /* The ground between the box and the bottom bar is the page's own: the list does not show through under the box. */
+  .composer::after {
+    content: '';
+    position: absolute;
+    inset-inline: -12px;
+    top: 100%;
+    height: calc(var(--dockGap) + 1px);
+    background: var(--bg);
+  }
+
+  .composer .box {
+    min-height: 52px;
+    max-height: 30vh;
+  }
+
+  /* A phone has no Shift+Enter to speak of. */
+  .keys {
+    visibility: hidden;
+  }
+
+  .card {
+    padding: 14px 14px 0;
+    gap: 14px;
+  }
+
+  /* The two buttons (or the short field) stay in reach while the card is read. */
+  .foot {
+    position: sticky;
+    bottom: calc(var(--navH, 58px) + var(--dockGap));
+    z-index: 5;
+    margin: 0 -14px;
+    padding: 12px 14px;
+    border-radius: 0 0 17px 17px;
+    background: var(--surface);
+    box-shadow: 0 -10px 20px -14px rgba(43, 48, 144, 0.3);
+  }
+
+  /* As under the big box: the ground between the foot and the bottom bar is the page's own. The card keeps
+     that much room under it, so at the card's end the ground covers nothing. */
+  .foot::after {
+    content: '';
+    position: absolute;
+    inset-inline: -1px;
+    top: 100%;
+    height: calc(var(--dockGap) + 1px);
+    background: var(--bg);
+  }
+
+  .cardFooted {
+    margin-bottom: var(--dockGap);
+  }
+
+  .card > :last-child:not(.foot) {
+    margin-bottom: 14px;
+  }
+
+  .actions .big {
+    flex: 1;
+  }
+
+  .exRow {
+    max-width: 92%;
+  }
+
+  /* A row has two lines here: the date and where it stands, then what was understood — in full, up to two lines. */
+  .rowMain {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    grid-template-areas:
+      'date state'
+      'text text';
+    align-items: center;
+    gap: 3px 8px;
+    padding: 10px 6px;
+  }
+
+  .rowDate {
+    grid-area: date;
+    min-width: 0;
+  }
+
+  .rowState {
+    grid-area: state;
+    justify-self: start;
+  }
+
+  .rowText {
+    grid-area: text;
+    white-space: normal;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-height: 1.45;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card,
+  .rise,
+  .exRow,
+  .bubbleIn,
+  .dots i,
+  .tick,
+  .check,
+  .field,
+  .moreBody,
+  .rowAsk,
+  .sendError,
+  .cardError,
+  .notYet,
+  .thinkingNote > span {
+    animation: none;
+  }
+
+  .composer,
+  .field,
+  .close,
+  .row,
+  .rowUndo,
+  .dim,
+  .wrote > summary svg,
+  .more > summary svg {
+    transition: none;
+  }
+
+  .actions .big:active,
+  .composerFoot .big:active {
+    transform: none;
+  }
+}
