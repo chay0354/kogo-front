@@ -1,13 +1,15 @@
 'use client';
 
 import { useState, useEffect, useMemo, type ChangeEvent } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent } from '@/components/ui/dialog';
+import StoreDialogHead from './StoreDialogHead';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { toast } from 'sonner';
 import { transferStock } from '@/lib/storeApi';
 import type { StoreProduct, ProductSizeStock } from '@/types/store';
+import { firstRowIndexInLocation } from '@/lib/storeFilters';
 import dlg from './storeDialog.module.css';
 import { describeApiError } from '@/lib/apiErrors';
 
@@ -16,6 +18,8 @@ interface TransferStockDialogProps {
   onClose: () => void;
   product: StoreProduct | null;
   onSuccess: () => void;
+  /** The branch the store page is filtered to — the source selected first. */
+  startBranch?: string;
 }
 
 function rowLabel(row: ProductSizeStock): string {
@@ -26,7 +30,7 @@ function rowLabel(row: ProductSizeStock): string {
     : `${branch} (מלאי: ${row.stock_quantity})`;
 }
 
-export default function TransferStockDialog({ isOpen, onClose, product, onSuccess }: TransferStockDialogProps) {
+export default function TransferStockDialog({ isOpen, onClose, product, onSuccess, startBranch }: TransferStockDialogProps) {
   const [fromIndex, setFromIndex] = useState(0);
   const [toIndex, setToIndex] = useState(1);
   const [quantity, setQuantity] = useState(1);
@@ -39,10 +43,12 @@ export default function TransferStockDialog({ isOpen, onClose, product, onSucces
 
   useEffect(() => {
     if (!isOpen) return;
-    setFromIndex(0);
-    setToIndex(sizeStocks.length > 1 ? 1 : 0);
+    // Start from the branch the store page is filtered to.
+    const from = firstRowIndexInLocation(sizeStocks, startBranch);
+    setFromIndex(from);
+    setToIndex(sizeStocks.length > 1 ? (from === 0 ? 1 : 0) : 0);
     setQuantity(1);
-  }, [isOpen, product?.id, sizeStocks.length]);
+  }, [isOpen, product?.id, sizeStocks.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const fromRow = sizeStocks[Math.min(fromIndex, sizeStocks.length - 1)] ?? null;
   const toRow = sizeStocks[Math.min(toIndex, sizeStocks.length - 1)] ?? null;
@@ -90,9 +96,7 @@ export default function TransferStockDialog({ isOpen, onClose, product, onSucces
     return (
       <Dialog open={isOpen} onOpenChange={onClose}>
         <DialogContent className={`${dlg.dlg} max-w-md p-8`}>
-          <DialogHeader>
-            <DialogTitle>העברת מלאי — {product.name}<span style={{ fontSize: '10px', color: 'white', userSelect: 'none' }}> #35</span></DialogTitle>
-          </DialogHeader>
+          <StoreDialogHead>העברת מלאי — {product.name}<span style={{ fontSize: '10px', color: 'white', userSelect: 'none' }}> #35</span></StoreDialogHead>
           <p className="text-gray-500 mt-4">
             העברת מלאי מחייבת לפחות שתי שורות מלאי (מידה/מיקום). הגדר מידות ומיקומים נוספים בעריכת המוצר.
           </p>
@@ -107,9 +111,7 @@ export default function TransferStockDialog({ isOpen, onClose, product, onSucces
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className={`${dlg.dlg} max-w-lg p-8`}>
-        <DialogHeader>
-          <DialogTitle className="text-2xl">העברת מלאי — {product.name}</DialogTitle>
-        </DialogHeader>
+        <StoreDialogHead>העברת מלאי — {product.name}</StoreDialogHead>
 
         <div className="space-y-5 px-2 mt-5">
           {/* From */}
@@ -190,7 +192,7 @@ export default function TransferStockDialog({ isOpen, onClose, product, onSucces
             </div>
           )}
 
-          <div className="flex gap-3 justify-end pt-4 border-t">
+          <div className={`${dlg.actions} flex gap-3 justify-end pt-4 border-t`}>
             <Button variant="outline" onClick={onClose}>ביטול</Button>
             <Button onClick={handleSubmit} disabled={isLoading || !canTransfer}>
               {isLoading ? 'מעביר...' : 'העבר מלאי'}

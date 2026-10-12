@@ -2,7 +2,8 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent } from '@/components/ui/dialog';
+import StoreDialogHead from './StoreDialogHead';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
@@ -337,9 +338,7 @@ export default function CartCheckoutDialog({
     <>
       <Dialog open={isOpen && !showTranzilaModal} onOpenChange={handleClose}>
         <DialogContent className={`${dlg.dlg} max-w-2xl max-h-[90vh] overflow-y-auto p-8 space-y-5`}>
-          <DialogHeader className="px-0 pt-0">
-            <DialogTitle className="text-2xl">סל קניות — תשלום</DialogTitle>
-          </DialogHeader>
+          <StoreDialogHead>סל קניות — תשלום</StoreDialogHead>
 
           {/* Cart lines */}
           <div className="border rounded-lg divide-y">
@@ -606,7 +605,7 @@ export default function CartCheckoutDialog({
           )}
 
           {/* Actions */}
-          <div className="flex gap-3 justify-end pt-4 border-t">
+          <div className={`${dlg.actions} flex gap-3 justify-end pt-4 border-t`}>
             <Button variant="outline" onClick={handleClose}>
               סגור
             </Button>

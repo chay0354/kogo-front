@@ -121,3 +121,38 @@ export function productIsLowStockInLocation(
     (Number(product.min_stock_alert) || 0)
   );
 }
+
+/**
+ * The location a product's dialog should open on, given the page's branch
+ * filter: that branch when the product holds a row there, otherwise all of
+ * them. Someone looking at ראש העין who opens a shirt wants ראש העין's rows,
+ * not every size in every branch.
+ */
+export function startingLocationFor(
+  product: Pick<StoreProduct, 'size_stocks'> | null | undefined,
+  branchFilter: string | undefined,
+): string {
+  if (!branchFilter || branchFilter === 'all') return 'all';
+  const rows = product?.size_stocks ?? [];
+  const held = rows.some((row) =>
+    branchFilter === DELIVERY_BRANCH ? (row.branch ?? null) == null : row.branch === branchFilter,
+  );
+  return held ? branchFilter : 'all';
+}
+
+/**
+ * The stock row a dialog should start on under the page's branch filter: the
+ * first row of that branch that has stock, else its first row, else row 0.
+ */
+export function firstRowIndexInLocation(
+  rows: Array<{ branch?: string | null; stock_quantity?: number | null }>,
+  branchFilter: string | undefined,
+): number {
+  if (!branchFilter || branchFilter === 'all') return 0;
+  const inLocation = (row: { branch?: string | null }) =>
+    branchFilter === DELIVERY_BRANCH ? (row.branch ?? null) == null : row.branch === branchFilter;
+  const withStock = rows.findIndex((row) => inLocation(row) && (Number(row.stock_quantity) || 0) > 0);
+  if (withStock >= 0) return withStock;
+  const any = rows.findIndex(inLocation);
+  return any >= 0 ? any : 0;
+}

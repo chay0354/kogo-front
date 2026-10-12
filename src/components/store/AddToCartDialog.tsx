@@ -1,12 +1,14 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent } from '@/components/ui/dialog';
+import StoreDialogHead from './StoreDialogHead';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { ShoppingCart } from 'lucide-react';
 import type { StoreProduct, StoreCartLine } from '@/types/store';
+import { startingLocationFor } from '@/lib/storeFilters';
 import dlg from './storeDialog.module.css';
 
 interface AddToCartDialogProps {
@@ -14,6 +16,8 @@ interface AddToCartDialogProps {
   onClose: () => void;
   product: StoreProduct;
   onAdd: (line: StoreCartLine) => void;
+  /** The branch the store page is filtered to — the stock offered first. */
+  startBranch?: string;
 }
 
 type StockLineOption = {
@@ -26,7 +30,7 @@ type StockLineOption = {
   label: string;
 };
 
-export default function AddToCartDialog({ isOpen, onClose, product, onAdd }: AddToCartDialogProps) {
+export default function AddToCartDialog({ isOpen, onClose, product, onAdd, startBranch }: AddToCartDialogProps) {
   const [quantity, setQuantity] = useState(1);
   const [selectedLineKey, setSelectedLineKey] = useState('');
   const [filterBranch, setFilterBranch] = useState<string>('all');
@@ -90,14 +94,20 @@ export default function AddToCartDialog({ isOpen, onClose, product, onAdd }: Add
   useEffect(() => {
     if (!isOpen) return;
     setQuantity(1);
-    setFilterBranch('all');
+    // Open on the branch the store page is filtered to, when the product is held there.
+    const start = hasPerSizeStock ? startingLocationFor(product, startBranch) : 'all';
+    setFilterBranch(start);
     if (lineOptions.length === 0) {
       setSelectedLineKey('');
       return;
     }
-    const firstAvailable = lineOptions.find((o) => !hasPerSizeStock || o.stock > 0) ?? lineOptions[0];
+    const pool =
+      start === 'all'
+        ? lineOptions
+        : lineOptions.filter((o) => (start === 'delivery' ? !o.branch : o.branch === start));
+    const firstAvailable = pool.find((o) => !hasPerSizeStock || o.stock > 0) ?? pool[0] ?? lineOptions[0];
     setSelectedLineKey(firstAvailable.key);
-  }, [isOpen, product.id, lineOptions, hasPerSizeStock]);
+  }, [isOpen, product.id, lineOptions, hasPerSizeStock]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (filteredLineOptions.length > 0 && !filteredLineOptions.some((o) => o.key === selectedLineKey)) {
@@ -129,9 +139,7 @@ export default function AddToCartDialog({ isOpen, onClose, product, onAdd }: Add
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <DialogContent className={`${dlg.dlg} max-w-md mx-4 p-6 space-y-4`}>
-        <DialogHeader className="px-0 pt-0">
-          <DialogTitle className="text-xl">הוספה לסל</DialogTitle>
-        </DialogHeader>
+        <StoreDialogHead>הוספה לסל</StoreDialogHead>
 
         <div className="bg-gray-50 p-3 rounded-lg">
           <div className="font-semibold">{product.name}</div>
@@ -205,7 +213,7 @@ export default function AddToCartDialog({ isOpen, onClose, product, onAdd }: Add
           </span>
         </div>
 
-        <div className="flex gap-2 justify-end pt-2">
+        <div className={`${dlg.actions} flex gap-2 justify-end pt-2`}>
           <Button variant="outline" onClick={onClose}>
             ביטול
           </Button>

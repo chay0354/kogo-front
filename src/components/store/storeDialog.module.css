@@ -18,6 +18,10 @@
   --sd-muted: #8b88b6;
   --sd-line: #eae7f8;
   --sd-focus: #5b54d6;
+  /* The padding the dialogs give themselves (p-8). The pinned head and buttons
+     reach across it, so nothing scrolls past in the strip beside them. */
+  --sd-pad-top: 32px;
+  --sd-pad-bottom: 32px;
 
   color: var(--sd-ink);
   font-variant-numeric: tabular-nums;
@@ -105,6 +109,35 @@
   border-color: var(--sd-line);
 }
 
+/* ---- always in reach: the title with the way out, and the buttons ---- */
+.head {
+  position: sticky;
+  top: calc(-1 * var(--sd-pad-top));
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: calc(-1 * var(--sd-pad-top));
+  padding-block: calc(var(--sd-pad-top) + 6px) 10px;
+  background: #fff;
+  border-bottom: 1px solid var(--sd-line);
+}
+
+.head button {
+  flex: none;
+  color: var(--sd-ink2);
+}
+
+.actions {
+  position: sticky;
+  bottom: calc(-1 * var(--sd-pad-bottom));
+  z-index: 3;
+  background: #fff;
+  margin-bottom: calc(-1 * var(--sd-pad-bottom));
+  padding-bottom: max(16px, var(--sd-pad-bottom) - 8px);
+}
+
 /*
  * Phone: the dialog is a sheet off the bottom edge, so the form needs breathing
  * room rather than the desktop's generous padding, and the fields need to be
@@ -112,7 +145,24 @@
  */
 @media (max-width: 640px) {
   .dlg {
-    padding: 18px 16px 22px !important;
+    --sd-pad-top: 8px;
+    --sd-pad-bottom: 0px;
+    padding: 8px 16px 0 !important;
+    /* vh counts the space under the browser's bars; dvh is what is on screen. */
+    max-height: 92vh !important;
+    max-height: 92dvh !important;
+  }
+  .actions {
+    padding-bottom: max(14px, env(safe-area-inset-bottom));
+    margin-bottom: 0;
+  }
+  .actions > button {
+    flex: 1;
+    min-height: 46px;
+  }
+  .head button {
+    min-width: 44px;
+    min-height: 44px;
   }
   .dlg input:not([type='checkbox']):not([type='radio']),
   .dlg select,
