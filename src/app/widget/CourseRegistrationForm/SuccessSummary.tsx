@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { prefersReducedMotion } from '../widgetMotion';
+import Confetti from './Confetti';
 import styles from './newLook.module.css';
 import { formatShekelShort, paymentSummaryModel } from './paymentSummaryModel';
 import type { PaymentResponse } from './types';
@@ -42,6 +43,7 @@ export default function SuccessSummary({ payment, text, children }: Props) {
 
   return (
     <div className={styles.done} dir="rtl">
+      <Confetti level="regular" />
       <div className={styles.doneTick} aria-hidden="true">
         <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="#16a34a" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
           <path d="M5 12.5 10 17.5 19 7" />

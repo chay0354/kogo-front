@@ -1,5 +1,7 @@
 'use client';
 
+import Confetti from './Confetti';
+import type { ConfettiLevel } from './confettiPieces';
 import look from './newLook.module.css';
 
 interface Props {
@@ -11,6 +13,8 @@ interface Props {
   /** The lines under the title, and anything else the screen shows. */
   children?: React.ReactNode;
   actions?: React.ReactNode;
+  /** A registration that went through: confetti falls behind the screen. */
+  confetti?: ConfettiLevel;
 }
 
 /**
@@ -18,9 +22,10 @@ interface Props {
  * lines, and the buttons. The same frame as the last screen of a paid
  * registration, so every ending looks like it belongs to the same form.
  */
-export default function ResultScreen({ tone, title, busy = false, children, actions }: Props) {
+export default function ResultScreen({ tone, title, busy = false, children, actions, confetti }: Props) {
   return (
     <div className={look.done} dir="rtl">
+      {confetti && tone === 'done' ? <Confetti level={confetti} /> : null}
       {busy ? (
         <div className={look.resultBusy} aria-hidden="true"><span /></div>
       ) : (

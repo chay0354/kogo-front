@@ -719,8 +719,20 @@
 
 /* ---- the last screen ---- */
 .done {
+  /* Its own layer, so the confetti can sit under the content and over nothing. */
+  position: relative;
+  isolation: isolate;
   text-align: center;
   padding: 34px 10px 20px;
+}
+/* Behind the figures and the buttons: it cannot cover one or take a tap. */
+.confetti {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
 }
 .doneTick {
   width: 68px;
