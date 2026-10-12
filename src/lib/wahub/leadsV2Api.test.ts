@@ -10,6 +10,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const api = vi.hoisted(() => ({
   get: vi.fn(),
   post: vi.fn(),
+  put: vi.fn(),
 }));
 
 vi.mock('../api', () => ({ default: api }));
@@ -17,17 +18,22 @@ vi.mock('../api', () => ({ default: api }));
 import {
   closeWahubLead,
   fetchWahubLead,
+  fetchWahubLeadTemplateOptions,
+  fetchWahubLeadTemplates,
   fetchWahubLeads,
+  fetchWahubLeadsAutomation,
   isLeadGone,
   leadsParams,
   reopenWahubLead,
   setWahubLeadOwner,
+  setWahubLeadTemplateTarget,
   snoozeWahubLead,
 } from './leadsV2Api';
 
 beforeEach(() => {
   api.get.mockReset();
   api.post.mockReset();
+  api.put.mockReset();
 });
 
 const ROW = {
@@ -164,5 +170,124 @@ describe('the four changes', () => {
   it('a refusal is thrown to the caller, which takes the change back', async () => {
     api.post.mockRejectedValue(refusal(400));
     await expect(setWahubLeadOwner(12, 'office')).rejects.toThrow();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// "הכול אוטומטי" (the contract, י)
+// ---------------------------------------------------------------------------
+
+describe('GET leads/automation/', () => {
+  const ANSWER = {
+    ready: false,
+    lines: [
+      { key: 'classify', ok: true, title: 'זיהוי וסיווג הלידים', detail: '53 לידים פתוחים' },
+      { key: 'sending', ok: false, title: 'שליחה ללקוחות', detail: 'כבויה', how: 'מדליקים בהגדרות המערכת (WAHUB_SENDING_ENABLED)' },
+    ],
+    today: { planned: 12, due: 3, sent: 0, skipped: 4 },
+    upcoming: [],
+  };
+
+  it('asks the automation door, and reads the answer', async () => {
+    api.get.mockResolvedValue({ data: ANSWER });
+
+    const automation = await fetchWahubLeadsAutomation();
+
+    expect(api.get).toHaveBeenCalledWith('/wahub/leads/automation/');
+    expect(automation?.ready).toBe(false);
+    expect(automation?.lines).toHaveLength(2);
+    expect(automation?.today.due).toBe(3);
+  });
+
+  it('a server that has no such door yet (404 / 405) answers null — the card and the strip are simply not there', async () => {
+    api.get.mockRejectedValueOnce(refusal(404));
+    expect(await fetchWahubLeadsAutomation()).toBeNull();
+    api.get.mockRejectedValueOnce(refusal(405));
+    expect(await fetchWahubLeadsAutomation()).toBeNull();
+  });
+
+  it('any other failure is a failure — never "the server is behind"', async () => {
+    api.get.mockRejectedValueOnce(refusal(500));
+    await expect(fetchWahubLeadsAutomation()).rejects.toThrow();
+    api.get.mockRejectedValueOnce(refusal(403));
+    await expect(fetchWahubLeadsAutomation()).rejects.toThrow();
+    api.get.mockRejectedValueOnce(new Error('Network Error'));
+    await expect(fetchWahubLeadsAutomation()).rejects.toThrow('Network Error');
+  });
+
+  it('an answer that is not the automation at all is a failure, never an empty card', async () => {
+    api.get.mockResolvedValueOnce({ data: '<!doctype html><html></html>' });
+    await expect(fetchWahubLeadsAutomation()).rejects.toThrow();
+    api.get.mockResolvedValueOnce({ data: null });
+    await expect(fetchWahubLeadsAutomation()).rejects.toThrow();
+  });
+});
+
+describe('the templates', () => {
+  it('GET leads/templates/ reads every wording with what is connected to it', async () => {
+    api.get.mockResolvedValue({
+      data: [{ template_key: 'link_reminder_1', kind_label: 'תזכורת קישור', when_label: 'יום אחרי', text: 'היי', stage: 1, mapped: true, target: 'content1' }],
+    });
+
+    const templates = await fetchWahubLeadTemplates();
+
+    expect(api.get).toHaveBeenCalledWith('/wahub/leads/templates/');
+    expect(templates).toHaveLength(1);
+    expect(templates[0]).toMatchObject({ template_key: 'link_reminder_1', stage: 1, mapped: true, target: 'content1' });
+  });
+
+  it('GET leads/templates/options/ reads the account\'s templates', async () => {
+    api.get.mockResolvedValue({ data: { options: [{ id: 'content1', name: 'kogo_lead_link_1' }] } });
+
+    expect(await fetchWahubLeadTemplateOptions()).toEqual({ options: [{ id: 'content1', name: 'kogo_lead_link_1' }], reason: '' });
+    expect(api.get).toHaveBeenCalledWith('/wahub/leads/templates/options/');
+  });
+
+  it('an account that cannot be listed (with why), and a server without that door: no list — a name is typed in instead', async () => {
+    api.get.mockResolvedValueOnce({ data: { options: null, reason: 'ManyChat לא ענה' } });
+    expect(await fetchWahubLeadTemplateOptions()).toEqual({ options: null, reason: 'ManyChat לא ענה' });
+    api.get.mockRejectedValueOnce(refusal(404));
+    expect(await fetchWahubLeadTemplateOptions()).toEqual({ options: null, reason: '' });
+    api.get.mockRejectedValueOnce(refusal(405));
+    expect(await fetchWahubLeadTemplateOptions()).toEqual({ options: null, reason: '' });
+  });
+
+  it('a list that failed to arrive is a failure of its own', async () => {
+    api.get.mockRejectedValueOnce(refusal(502));
+    await expect(fetchWahubLeadTemplateOptions()).rejects.toThrow();
+  });
+
+  it('PUT leads/templates/{key}/ connects with `{target}`, and cuts off with `{target: null}`', async () => {
+    api.put.mockResolvedValue({ data: {} });
+
+    expect(await setWahubLeadTemplateTarget('link_reminder_1', 'content1')).toBeNull();
+    expect(api.put).toHaveBeenLastCalledWith('/wahub/leads/templates/link_reminder_1/', { target: 'content1' });
+
+    await setWahubLeadTemplateTarget('date_arrived_age_2', null);
+    expect(api.put).toHaveBeenLastCalledWith('/wahub/leads/templates/date_arrived_age_2/', { target: null });
+  });
+
+  it('the answer is the wording as the server now has it — a typed name comes back as the template it was matched to', async () => {
+    api.put.mockResolvedValue({
+      data: { template_key: 'link_reminder_1', kind_label: 'קיבל קישור ועוד לא נרשם', stage: 1, mapped: true, target: 'content1', target_name: 'kogo_lead_link_1' },
+    });
+    const row = await setWahubLeadTemplateTarget('link_reminder_1', 'KOGO_lead_link_1');
+    expect(row).toMatchObject({ template_key: 'link_reminder_1', mapped: true, target: 'content1', target_name: 'kogo_lead_link_1' });
+  });
+
+  it('an answer about another wording is not taken for this one', async () => {
+    api.put.mockResolvedValue({ data: { template_key: 'will_check_1', mapped: true, target: 'content2' } });
+    expect(await setWahubLeadTemplateTarget('link_reminder_1', 'content1')).toBeNull();
+  });
+
+  it('a key is written into the address safely', async () => {
+    api.put.mockResolvedValue({ data: {} });
+    await setWahubLeadTemplateTarget('a/b c', 'x');
+    expect(api.put).toHaveBeenLastCalledWith('/wahub/leads/templates/a%2Fb%20c/', { target: 'x' });
+  });
+
+  it('a refusal is thrown to the caller, which takes the change back', async () => {
+    api.put.mockRejectedValue(refusal(400));
+    await expect(setWahubLeadTemplateTarget('link_reminder_1', 'content1')).rejects.toThrow();
   });
 });

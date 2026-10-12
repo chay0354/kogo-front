@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { describe, expect, it, vi } from 'vitest';
 
 import { readLeadBoard } from '@/lib/wahub/leadStage';
+import { readAutomation } from '@/lib/wahub/leadsAutomation';
 import { NO_DETAILS } from '@/lib/wahub/leadsV2';
 import type {
   WahubLeadCounts,
@@ -17,6 +18,7 @@ import type {
   WahubSummary,
 } from '@/types/wahub';
 import { leadKeys } from '../../hooks/useLeadQueries';
+import { automationKeys } from '../../hooks/useLeadsAutomation';
 import type { WahubLiveHandle } from '../../hooks/useWahubLive';
 import { wahubKeys } from '../../hooks/useWahubQueries';
 import TodayTab from '../../TodayTab';
@@ -40,6 +42,7 @@ vi.mock('@/lib/wahub/leadsV2Api', async (original) => ({
   reopenWahubLead: refuse(),
   snoozeWahubLead: refuse(),
   setWahubLeadOwner: refuse(),
+  fetchWahubLeadsAutomation: refuse(),
 }));
 vi.mock('@/lib/wahubApi', async (original) => ({
   ...(await original<typeof import('@/lib/wahubApi')>()),
@@ -1062,6 +1065,100 @@ describe('the leads tab: which screen, from what the server answered', () => {
     const html = tab(seed(newClient(), 'office', page([STUCK])), { active: false });
     expect(html).toContain(l.screen);
     expect(html).not.toContain('data-active');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// "הכול אוטומטי": the strip at the head of "הבוט מטפל" (docs/WAHUB-CONTRACT-LEADS-V2.md, י)
+// ---------------------------------------------------------------------------
+
+const HELD_TEXT = '3 הודעות היו יוצאות עכשיו — השליחה כבויה';
+
+function automation(due: number, sending = false, templates = false) {
+  return readAutomation({
+    ready: sending && templates,
+    lines: [
+      { key: 'classify', ok: true, title: 'זיהוי וסיווג הלידים', detail: '' },
+      { key: 'schedule', ok: true, title: 'תזמון החזרות', detail: '' },
+      { key: 'sending', ok: sending, title: 'שליחה ללקוחות', detail: '', how: 'מדליקים בהגדרות המערכת' },
+      { key: 'templates', ok: templates, title: 'תבניות וואטסאפ', detail: '', how: 'יוצרים ב-ManyChat' },
+    ],
+    today: { planned: 12, due, sent: 0, skipped: 0 },
+    upcoming: [],
+  });
+}
+
+describe('messages that were due and did not go out: one quiet strip at the head of "הבוט מטפל"', () => {
+  it('above the rows: how many, and why — the whole strip is one button that leads to what is missing', () => {
+    const html = renderToStaticMarkup(list({ view: 'bot', rows: [LINK, HELD], held: HELD_TEXT }));
+    expect(html).toContain(HELD_TEXT);
+    expect(html).toContain('מה חסר');
+    expect(html.indexOf(HELD_TEXT)).toBeLessThan(html.indexOf('תמר אוחיון'));
+    expect((html.match(new RegExp(`class="${l.held} `, 'g')) ?? []).length).toBe(1);
+    // Amber, like a row that was held back — never red.
+    expect(html).not.toContain(s.pBad);
+  });
+
+  it('a press leads to the card in the settings', () => {
+    const onHeld = vi.fn();
+    buttonWith(list({ view: 'bot', rows: [LINK], held: HELD_TEXT, onHeld }), 'מה חסר').props.onClick();
+    expect(onHeld).toHaveBeenCalledTimes(1);
+  });
+
+  it('nothing held: no strip', () => {
+    expect(renderToStaticMarkup(list({ view: 'bot', rows: [LINK] }))).not.toContain(l.held);
+    expect(renderToStaticMarkup(list({ view: 'bot', rows: [LINK], held: '' }))).not.toContain('מה חסר');
+  });
+
+  it('only on the bot\'s list — never over "מחכים לך" or "נסגרו"', () => {
+    expect(renderToStaticMarkup(list({ view: 'office', held: HELD_TEXT }))).not.toContain(HELD_TEXT);
+    expect(renderToStaticMarkup(list({ view: 'closed', rows: [REGISTERED], held: HELD_TEXT }))).not.toContain(HELD_TEXT);
+  });
+
+  it('it stands over an empty list and over one still on its way too', () => {
+    expect(renderToStaticMarkup(list({ view: 'bot', rows: [], held: HELD_TEXT }))).toContain(HELD_TEXT);
+    expect(renderToStaticMarkup(list({ view: 'bot', rows: [], status: 'loading', held: HELD_TEXT }))).toContain(HELD_TEXT);
+  });
+
+  it('the tab reads it from the server: sending off, or a template missing', () => {
+    const off = seed(newClient(), 'bot', page([LINK, HELD]));
+    off.setQueryData(automationKeys.status, automation(3));
+    expect(tab(off, { owner: 'bot' })).toContain(HELD_TEXT);
+
+    const noTemplate = seed(newClient(), 'bot', page([LINK, HELD]));
+    noTemplate.setQueryData(automationKeys.status, automation(1, true, false));
+    expect(tab(noTemplate, { owner: 'bot' })).toContain('הודעה אחת הייתה יוצאת עכשיו — חסרה תבנית');
+  });
+
+  it('a server that words the strip itself is shown as it said it — and with `banner: null`, nothing', () => {
+    const worded = seed(newClient(), 'bot', page([LINK, HELD]));
+    worded.setQueryData(automationKeys.status, { ...automation(3, true, true), banner: { count: 2, text: '2 הודעות היו יוצאות עכשיו — השרת לא מחובר ל-ManyChat' } });
+    expect(tab(worded, { owner: 'bot' })).toContain('2 הודעות היו יוצאות עכשיו — השרת לא מחובר ל-ManyChat');
+
+    const nothing = seed(newClient(), 'bot', page([LINK, HELD]));
+    nothing.setQueryData(automationKeys.status, { ...automation(3), banner: null });
+    expect(tab(nothing, { owner: 'bot' })).not.toContain(l.held);
+  });
+
+  it('nothing due: no strip; and none on the list that waits for the office', () => {
+    const none = seed(newClient(), 'bot', page([LINK]));
+    none.setQueryData(automationKeys.status, automation(0));
+    expect(tab(none, { owner: 'bot' })).not.toContain(l.held);
+
+    const office = seed(newClient(), 'office', page([STUCK]));
+    office.setQueryData(automationKeys.status, automation(3));
+    expect(tab(office)).not.toContain(l.held);
+  });
+
+  it('a server that has no `leads/automation/` yet (404): no strip, and the list is as it was', () => {
+    const client = seed(newClient(), 'bot', page([LINK, HELD]));
+    client.setQueryData(automationKeys.status, null);
+    const html = tab(client, { owner: 'bot' });
+    expect(html).not.toContain(l.held);
+    expect(html).not.toContain('מה חסר');
+    expect(html).toContain('תמר אוחיון');
+    // Before it has answered at all, the same.
+    expect(tab(seed(newClient(), 'bot', page([LINK])), { owner: 'bot' })).not.toContain(l.held);
   });
 });
 

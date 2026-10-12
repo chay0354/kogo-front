@@ -153,6 +153,16 @@ function WahubSection() {
   );
   const openReview = useCallback(() => go({ tab: 'bot', sub: 'review', item: null }), [go]);
   const openSettings = useCallback(() => go({ tab: 'settings' }), [go]);
+  // The settings, on one card by name: the strip at the head of "הבוט מטפל" leads to "חזרה אוטומטית ללידים".
+  // Held only for that visit — the settings opened any other way start from their top.
+  const [settingsFocus, setSettingsFocus] = useState<'automation' | null>(null);
+  useEffect(() => {
+    if (url.tab !== 'settings') setSettingsFocus(null);
+  }, [url.tab]);
+  const openAutomation = useCallback(() => {
+    setSettingsFocus('automation');
+    go({ tab: 'settings' });
+  }, [go]);
   const openChat = useCallback(
     (id: number) => go({ tab: 'chats', contact: id, box: kept.current.box }),
     [go],
@@ -324,6 +334,7 @@ function WahubSection() {
             onAddress={setLeads}
             onOpenChat={openChat}
             onOpenSettings={openSettings}
+            onOpenAutomation={openAutomation}
           />
         </div>
       )}
@@ -336,6 +347,7 @@ function WahubSection() {
             statusError={status.isError}
             onRetryStatus={() => void status.refetch()}
             onOpenChat={openChat}
+            focus={settingsFocus}
           />
         </div>
       )}

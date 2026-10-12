@@ -261,6 +261,63 @@
   padding: 0 24px 96px;
 }
 
+/*
+ * Messages whose time has come and did not go out ("3 הודעות היו יוצאות עכשיו — השליחה כבויה"): one quiet
+ * strip at the head of the bot's list, on the same amber as a row that was held back. The whole strip is the
+ * way to the card in the settings that says what is missing; it scrolls away with the rows.
+ */
+.held {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 40px;
+  margin: 0 0 10px;
+  padding: 8px 12px;
+  border: 0;
+  border-radius: 12px;
+  background: var(--warn-bg);
+  color: var(--warn);
+  font: inherit;
+  font-size: 13.5px;
+  font-weight: 700;
+  line-height: 1.4;
+  text-align: start;
+  transition: transform var(--m-press) var(--m-out);
+}
+
+.held:active {
+  transform: scale(0.99);
+}
+
+.held > svg {
+  flex: none;
+  width: 16px;
+  height: 16px;
+}
+
+.heldText {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.heldGo {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  flex: none;
+  font-size: 12.5px;
+  font-weight: 800;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  white-space: nowrap;
+}
+
+.heldGo svg {
+  width: 14px;
+  height: 14px;
+}
+
 .rows {
   margin: 0;
   padding: 0;
@@ -1064,7 +1121,8 @@
 
   .row,
   .tab,
-  .stale {
+  .stale,
+  .held {
     transition: none;
   }
 }
@@ -1121,6 +1179,13 @@
     border-inline: 0;
     border-radius: 0;
     box-shadow: none;
+  }
+
+  /* The rows run edge to edge here; the strip keeps the bar's own gutter, at a finger's height. */
+  .held {
+    width: calc(100% - 24px);
+    min-height: 44px;
+    margin: 0 12px 8px;
   }
 
   .row {
