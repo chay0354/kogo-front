@@ -3149,7 +3149,7 @@ export default function CourseRegistrationForm({
 
   if (step === 'trial_success') {
     return (
-      <ResultScreen tone="done" title="נרשמתם לשיעור ניסיון" actions={successActions}>
+      <ResultScreen tone="done" title="נרשמתם לשיעור ניסיון" actions={successActions} confetti="gentle">
         <p className={look.doneText}>אישור ותזכורת יישלחו בוואטסאפ.</p>
         {bookedTrialRef.current ? (
           <div className={look.resultCard}>
@@ -3181,7 +3181,7 @@ export default function CourseRegistrationForm({
 
   if (step === 'payment_success') {
     return (
-      <ResultScreen tone="done" title="ההרשמה הושלמה" actions={successActions}>
+      <ResultScreen tone="done" title="ההרשמה הושלמה" actions={successActions} confetti="regular">
         <p className={look.doneText}>
           {registeredChildCount > 1
             ? `${registeredChildCount} ילדים נרשמו בהצלחה.`
