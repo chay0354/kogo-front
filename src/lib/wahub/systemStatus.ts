@@ -1,5 +1,7 @@
 import type { WahubStatus } from '@/types/wahub';
+import type { WahubBotMode } from '@/types/wahubBotMode';
 import { isStubModel } from './bot';
+import { whoAnswersWord } from './botMode';
 import { liveTestCount } from './liveTest';
 
 /**
@@ -72,7 +74,7 @@ export function transcribeLevel(transcribe: NonNullable<WahubStatus['transcribe'
   return transcribe.ok ? { level: 'ok', value: 'פעיל' } : { level: 'unknown', value: 'עוד לא נוסה' };
 }
 
-export type SystemStatusKey = 'connection' | 'summary' | 'shadow' | 'transcribe' | 'sending' | 'liveTest';
+export type SystemStatusKey = 'connection' | 'summary' | 'shadow' | 'transcribe' | 'sending' | 'whoAnswers' | 'liveTest';
 
 export interface SystemStatusRow {
   key: SystemStatusKey;
@@ -82,14 +84,17 @@ export interface SystemStatusRow {
   value: string;
   /** The value is a code name (a model's): written left to right. */
   ltr?: boolean;
+  /** The row leads to a card of its own, instead of opening lines under it: what it stands for is said there, once. */
+  link?: boolean;
 }
 
 /**
  * The rows of the card, in their fixed order. A row the server knows nothing
- * of (the shadow bot before stage 2, the live test before it was built) is
- * left out rather than guessed.
+ * of (the shadow bot before stage 2, the live test before it was built, who
+ * answers the customers before docs/WAHUB-CONTRACT-GO-LIVE.md) is left out
+ * rather than guessed.
  */
-export function systemStatusRows(status: WahubStatus): SystemStatusRow[] {
+export function systemStatusRows(status: WahubStatus, botMode?: WahubBotMode | null): SystemStatusRow[] {
   const rows: SystemStatusRow[] = [];
 
   const connection = connectionLevel(status);
@@ -120,6 +125,9 @@ export function systemStatusRows(status: WahubStatus): SystemStatusRow[] {
 
   const sending = sendingState(status);
   rows.push({ key: 'sending', title: 'שליחה ללקוחות', level: sending === 'on' ? 'ok' : 'warn', value: SENDING_WORD[sending] });
+
+  // Whom the new bot answers: a word here, and the card "מי עונה ללקוחות" for everything else.
+  if (botMode) rows.push({ key: 'whoAnswers', title: 'מי עונה', ...whoAnswersWord(botMode), link: true });
 
   const live = liveTestCount(status);
   if (live !== null) {

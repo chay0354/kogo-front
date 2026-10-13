@@ -20,6 +20,14 @@ const OUTCOMES = ['upcoming', 'no_show', 'unmarked', 'attended', 'registered'] a
 
 type Outcome = (typeof OUTCOMES)[number];
 
+/**
+ * "כל הילדים שהיו בניסיון ולא נרשמו" (owner, 13.10.2026): had their trial —
+ * came, did not come, or nobody marked it — and did not register. One chip for
+ * all three, because that is the list an instructor rings.
+ */
+const NOT_REGISTERED = 'not_registered' as const;
+const NOT_REGISTERED_OUTCOMES: ReadonlySet<string> = new Set(['attended', 'no_show', 'unmarked']);
+
 const INITIAL_VISIBLE = 6;
 
 function formatTrialDate(iso: string | null): string {
@@ -49,7 +57,7 @@ export default function InstructorTrials({ branchId, asUser }: Props) {
   const [labels, setLabels] = useState<Record<string, string>>({});
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
-  const [filter, setFilter] = useState<Outcome | 'all'>('all');
+  const [filter, setFilter] = useState<Outcome | 'all' | typeof NOT_REGISTERED>('all');
   const [expanded, setExpanded] = useState(false);
   const [contact, setContact] = useState<{ name: string; phone: string } | null>(null);
 
@@ -85,9 +93,15 @@ export default function InstructorTrials({ branchId, asUser }: Props) {
   }, [branchId, asUser]);
 
   const total = trials?.length ?? 0;
-  const shown = useMemo(
-    () => (filter === 'all' ? trials ?? [] : (trials ?? []).filter((t) => t.outcome === filter)),
-    [trials, filter],
+  const shown = useMemo(() => {
+    const rows = trials ?? [];
+    if (filter === 'all') return rows;
+    if (filter === NOT_REGISTERED) return rows.filter((t) => NOT_REGISTERED_OUTCOMES.has(t.outcome));
+    return rows.filter((t) => t.outcome === filter);
+  }, [trials, filter]);
+  const notRegistered = useMemo(
+    () => (trials ?? []).filter((t) => NOT_REGISTERED_OUTCOMES.has(t.outcome)).length,
+    [trials],
   );
   const visible = expanded ? shown : shown.slice(0, INITIAL_VISIBLE);
 
@@ -115,6 +129,17 @@ export default function InstructorTrials({ branchId, asUser }: Props) {
         >
           <b>{total}</b> הכל
         </button>
+        {notRegistered > 0 && (
+          <button
+            type="button"
+            role="tab"
+            aria-selected={filter === NOT_REGISTERED}
+            className={`${styles.chip} ${styles.no_show} ${filter === NOT_REGISTERED ? styles.chipOn : ''}`}
+            onClick={() => setFilter(filter === NOT_REGISTERED ? 'all' : NOT_REGISTERED)}
+          >
+            <b>{notRegistered}</b> לא נרשמו
+          </button>
+        )}
         {/* Only the states that actually happened. A zero chip is a control
             that leads to an empty list, which is worse than not being there. */}
         {OUTCOMES.filter((key) => (counts[key] ?? 0) > 0).map((key) => (
@@ -138,7 +163,8 @@ export default function InstructorTrials({ branchId, asUser }: Props) {
             // A hard space: bidi wrapping would otherwise leave "יום" at the
             // end of one line and its day letter stranded at the start of the next.
             `יום\u00a0${DAY_LETTERS[t.day_of_week] ?? '—'} ${t.start_time}`,
-            formatTrialDate(t.trial_date),
+            // A sign-up from before trials carried a date: say so, rather than nothing.
+            t.trial_date ? formatTrialDate(t.trial_date) : 'בלי תאריך',
           ]
             .filter(Boolean)
             .join(' · ');

@@ -61,9 +61,13 @@ export default function TrialCalendarButton({ lessonId, date }: Props) {
         </>
       ) : (
         <button type="button" className={look.calButton} onClick={() => setOpen(true)} aria-expanded={open}>
-          <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-            <rect x="3.5" y="5" width="17" height="15.5" rx="3" />
-            <path d="M3.5 10h17M8 3v4M16 3v4M12 13v4.5M9.75 15.25h4.5" />
+          {/* Drawn a line at a time (newLook.module.css, .calDraw) — pathLength lets one rule time every stroke. */}
+          <svg className={look.calDraw} width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <rect pathLength={1} x="3.5" y="5" width="17" height="15.5" rx="3" />
+            <path className={look.calRule} pathLength={1} d="M3.5 10h17" />
+            <path className={look.calRingOne} pathLength={1} d="M8 3v4" />
+            <path className={look.calRingTwo} pathLength={1} d="M16 3v4" />
+            <path className={look.calPlus} d="M12 13v4.5M9.75 15.25h4.5" />
           </svg>
           הוסיפו ליומן
         </button>

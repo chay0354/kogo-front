@@ -3,6 +3,7 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import { AlertCircle, Check, CheckCircle2, ChevronDown, PauseCircle, Repeat2, X } from 'lucide-react';
 import { readableError } from '@/lib/apiError';
+import { FOLLOWUPS_LINE_KEY, FOLLOWUPS_TEXT, followupsLeftBehind, withFollowupsLine } from '@/lib/wahub/botMode';
 import {
   AUTOMATION_TEXT,
   UPCOMING_FIRST,
@@ -24,8 +25,9 @@ import {
   useTemplateConnect,
   type TemplateSaving,
 } from '../hooks/useLeadsAutomation';
+import { useBotMode, useBotModeChanges } from '../hooks/useBotMode';
 import { useNow } from '../hooks/useNow';
-import { DemoTag, Skeleton } from '../shared/bits';
+import { DemoTag, InlineConfirm, Skeleton, Spinner } from '../shared/bits';
 import { RefreshNote } from '../shared/loading';
 import { Fold, prefersReducedMotion } from '../shared/motion';
 import { cx } from '../shared/tones';
@@ -50,6 +52,28 @@ export interface LeadsAutomationTemplates {
   errors: Record<string, string>;
 }
 
+/**
+ * The owner's own switch for the bot's comings back (docs/WAHUB-CONTRACT-GO-LIVE.md, ב.6) — apart from "מי עונה
+ * ללקוחות". It stands on the line "חזרות אוטומטיות"; turning it on asks first, turning it off does not.
+ */
+export interface LeadsAutomationFollowups {
+  on: boolean;
+  /** Where the switch stands, in the server's sentence: "כבויות — …", "דלוקות — יוצאות רק חזרות שמועדן אחרי …". */
+  text: string;
+  /** How many comings back wait right now: these are the ones that turning it on leaves behind. */
+  dueNow: number;
+  /** The press is on its way to the server. */
+  busy: boolean;
+  /** Turning on was pressed, and waits for its yes. */
+  confirming: boolean;
+  /** Why the last press was refused. */
+  error: string;
+  /** The switch was pressed: `true` asks first, `false` turns it off at once. */
+  onToggle: (on: boolean) => void;
+  onConfirm: () => void;
+  onCancel: () => void;
+}
+
 export interface LeadsAutomationViewProps {
   status: 'loading' | 'ready' | 'error';
   error: string;
@@ -57,6 +81,8 @@ export interface LeadsAutomationViewProps {
   automation: WahubLeadsAutomation | null;
   /** What is on screen is being read again. */
   refreshing?: boolean;
+  /** The switch of the comings back. Absent on a server that does not have it: the card is then as it was. */
+  followups?: LeadsAutomationFollowups;
   templates: LeadsAutomationTemplates;
   now: Date;
   /** The templates are unfolded. */
@@ -73,17 +99,45 @@ export interface LeadsAutomationViewProps {
   onDisconnect: (templateKey: string) => void;
 }
 
-/** One of the four: a tick or a cross, the title, the sentence — and, where it is not ok, how it is put right. */
-function Line({ line }: { line: WahubAutomationLine }) {
+/**
+ * One of the lines: a tick or a cross, the title, the sentence — and, where it is not ok, how it is put right.
+ * The line of "חזרות אוטומטיות" carries its switch at its end (`followups`), and under its words the question
+ * that turning it on asks.
+ */
+export function AutomationLineView({ line, followups }: { line: WahubAutomationLine; followups?: LeadsAutomationFollowups }) {
+  // The question belongs to a switch that is off: a state that changed under it puts it away.
+  const asking = Boolean(followups?.confirming && !followups.on);
+  const left = followups ? followupsLeftBehind(followups.dueNow) : '';
   return (
-    <li className={a.line} data-ok={line.ok ? 'yes' : 'no'}>
+    <li className={a.line} data-ok={line.ok ? 'yes' : 'no'} data-line={line.key || undefined}>
       <span className={cx(a.mark, line.ok ? a.markOk : a.markOff)} role="img" aria-label={line.ok ? 'תקין' : 'חסר'}>
         {line.ok ? <Check aria-hidden="true" /> : <X aria-hidden="true" />}
       </span>
       <div className={a.lineBody}>
         <h4 className={a.lineTitle}>{line.title}</h4>
         {line.detail && <p className={a.lineDetail}>{line.detail}</p>}
-        {!line.ok && line.how && (
+        {asking && followups && (
+          <div className={a.lineConfirm}>
+            <InlineConfirm
+              text={
+                <>
+                  <b>{FOLLOWUPS_TEXT.question}</b> {FOLLOWUPS_TEXT.line}
+                  {left && <> {left}</>}
+                </>
+              }
+              confirmLabel={FOLLOWUPS_TEXT.confirm}
+              busy={followups.busy}
+              onConfirm={followups.onConfirm}
+              onCancel={followups.onCancel}
+            />
+          </div>
+        )}
+        {followups?.error && (
+          <p role="alert" className={a.tplError}>
+            {followups.error}
+          </p>
+        )}
+        {!line.ok && line.how && !asking && (
           <p className={a.how}>
             <b>איך מתקנים:</b>{' '}
             {howParts(line.how).map((part, index) =>
@@ -101,6 +155,19 @@ function Line({ line }: { line: WahubAutomationLine }) {
           </p>
         )}
       </div>
+      {followups && (
+        <button
+          type="button"
+          role="switch"
+          aria-checked={followups.on}
+          aria-label={FOLLOWUPS_TEXT.switchLabel}
+          disabled={followups.busy}
+          onClick={() => followups.onToggle(!followups.on)}
+          className={cx(s.switchRow, a.lineSwitch)}
+        >
+          {followups.busy ? <Spinner /> : <span className={s.switch} aria-hidden="true" />}
+        </button>
+      )}
     </li>
   );
 }
@@ -203,6 +270,7 @@ export function LeadsAutomationView({
   error,
   automation,
   refreshing,
+  followups,
   templates,
   now,
   templatesOpen,
@@ -249,7 +317,10 @@ export function LeadsAutomationView({
     );
   }
 
-  const headline = automationHeadline(automation);
+  // With the switch, its line is always among the lines — in the server's words where it sent one — and the
+  // sentence above counts it with the rest.
+  const lines = followups ? withFollowupsLine(automation.lines, followups) : automation.lines;
+  const headline = automationHeadline({ ready: automation.ready && lines.every((line) => line.ok), lines });
   const today = todayWords(automation.today);
   const upcoming = showAll ? automation.upcoming : automation.upcoming.slice(0, UPCOMING_FIRST);
   const hidden = automation.upcoming.length - upcoming.length;
@@ -268,11 +339,11 @@ export function LeadsAutomationView({
         </div>
       </div>
 
-      {/* 2 — the four lines. */}
-      {automation.lines.length > 0 && (
+      {/* 2 — the lines: the four, and "חזרות אוטומטיות" with its switch. */}
+      {lines.length > 0 && (
         <ul className={cx(s.rows, a.lines)} aria-label="מה עובד ומה חסר">
-          {automation.lines.map((line, index) => (
-            <Line key={line.key || index} line={line} />
+          {lines.map((line, index) => (
+            <AutomationLineView key={line.key || index} line={line} followups={line.key === FOLLOWUPS_LINE_KEY ? followups : undefined} />
           ))}
         </ul>
       )}
@@ -358,6 +429,20 @@ export default function LeadsAutomationCard({ focus = false }: { focus?: boolean
     void read().finally(() => setRetrying((now) => ({ ...now, [part]: false })));
   };
 
+  // The owner's own switch for the comings back: read with "מי עונה ללקוחות" (one request, shared), changed here.
+  const botMode = useBotMode(available);
+  const changes = useBotModeChanges();
+  const [confirmingFollowups, setConfirmingFollowups] = useState(false);
+  const [followupsError, setFollowupsError] = useState('');
+  const followupsState = botMode.data?.followups;
+
+  async function setFollowups(on: boolean) {
+    setFollowupsError('');
+    const outcome = await changes.setFollowups(on);
+    setConfirmingFollowups(false);
+    if (!outcome.ok) setFollowupsError(outcome.message);
+  }
+
   const brought = useRef(false);
   useEffect(() => {
     if (!focus) {
@@ -380,6 +465,26 @@ export default function LeadsAutomationCard({ focus = false }: { focus?: boolean
       error={automation.isError ? hebrewOr(readableError(automation.error, ''), '') : ''}
       automation={automation.data ?? null}
       refreshing={Boolean(automation.data) && automation.isFetching}
+      followups={
+        followupsState
+          ? {
+              on: followupsState.on,
+              text: followupsState.text,
+              dueNow: followupsState.due_now,
+              busy: changes.busy === 'followups',
+              confirming: confirmingFollowups,
+              error: followupsError,
+              onToggle: (on) => {
+                setFollowupsError('');
+                // Turning on asks first; turning off is the safe way, and is done at once.
+                if (on) setConfirmingFollowups(true);
+                else void setFollowups(false);
+              },
+              onConfirm: () => void setFollowups(true),
+              onCancel: () => setConfirmingFollowups(false),
+            }
+          : undefined
+      }
       templates={{
         status: templates.data ? 'ready' : templates.isError && !retrying.templates ? 'error' : 'loading',
         error: templates.isError ? hebrewOr(readableError(templates.error, ''), '') : '',
