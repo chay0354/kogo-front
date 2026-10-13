@@ -469,7 +469,7 @@ export default function LessonDetailsDialog({
                   />
                   <MetaCard
                     icon={<Users className="h-4 w-4 text-teal-600" />}
-                    label="תלמידים"
+                    label="רשומים"
                     value={`${headcount.students} / ${lesson.room_capacity || 20}`}
                   />
                 </div>
@@ -626,10 +626,10 @@ export default function LessonDetailsDialog({
                   {/* Why the list is longer than the number of students, when it is. */}
                   {headcount.trials > 0 || headcount.others > 0 ? (
                     <p className="text-xs text-gray-600">
-                      <b>{headcount.students} תלמידים</b>
+                      <b>{headcount.students} רשומים</b>
                       {headcount.trials > 0 ? ` · ${headcount.trials} ניסיון` : ''}
                       {headcount.others > 0
-                        ? ` · ${headcount.others} ברשימה שאינם תלמידים פעילים (לא שילמו עדיין, עזבו, או מזדמנים)`
+                        ? ` · ${headcount.others} ברשימה שאינם רשומים (עזבו, ניסיון ישן שנשאר, או מזדמנים)`
                         : ''}
                     </p>
                   ) : null}
@@ -772,7 +772,9 @@ export default function LessonDetailsDialog({
                                               : (enrollment.trial_number ?? 1) > 1
                                                 ? trialWord(enrollment.trial_number)
                                                 : 'בניסיון')
-                                        : 'רשום'}
+                                        : enrollment.leaving
+                                          ? 'ביטל · מגיע עד סוף החודש'
+                                          : 'רשום'}
                                   </Badge>
                                   {currentStatus === 'present' ? (
                                     <span className="text-xs text-emerald-700 flex items-center gap-1">

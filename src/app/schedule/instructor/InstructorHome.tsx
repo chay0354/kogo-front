@@ -778,8 +778,8 @@ export default function InstructorHome() {
                     >
                       <div className={styles.slotTime}>{formatTime(lesson.start_time)}</div>
                       <div className={styles.slotGroup}>{shortGroupLabel(lesson)}</div>
-                      <div className={styles.slotCounts} aria-label={`${activeStudentCount} פעילים, ${trialStudentCount} תלמידי ניסיון`}>
-                        <span title="תלמידים פעילים">
+                      <div className={styles.slotCounts} aria-label={`${activeStudentCount} רשומים, ${trialStudentCount} תלמידי ניסיון`}>
+                        <span title="רשומים">
                           <Users size={13} aria-hidden="true" />
                           {activeStudentCount}
                         </span>
@@ -857,10 +857,10 @@ export default function InstructorHome() {
                           <Clock size={14} />
                           <span>{lessonTimeRange(lesson)}</span>
                         </div>
-                        <div className={styles.cardCounts} aria-label={`${activeStudentCount} פעילים, ${trialStudentCount} תלמידי ניסיון`}>
-                          <span title="תלמידים פעילים">
+                        <div className={styles.cardCounts} aria-label={`${activeStudentCount} רשומים, ${trialStudentCount} תלמידי ניסיון`}>
+                          <span title="רשומים">
                             <Users size={15} aria-hidden="true" />
-                            {activeStudentCount} פעילים
+                            {activeStudentCount} רשומים
                           </span>
                           <span className={trialStudentCount > 0 ? styles.trialCount : styles.trialCountEmpty} title="תלמידי ניסיון">
                             <FlaskConical size={14} aria-hidden="true" />

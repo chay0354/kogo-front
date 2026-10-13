@@ -8,9 +8,11 @@
  *
  * The server now says what each row on a register is (`register_kind`:
  * student / trial / other — kogo-back enrollment_counts.register_kind) and
- * counts the schedule by it. A student is a child who is פעיל or בעיית תשלום on
- * a regular place, or one of the municipality's children. These helpers are the
- * only readers, so no screen picks a field of its own.
+ * counts the schedule by it. `student` is who is registered, in the owner's
+ * words of the same day: a regular place, "גם כאלה שהתשלום שלהם לא עבר" (פעיל,
+ * בעיה באשראי, בתהליך רישום), a child who cancelled and still comes to the end
+ * of the month they paid for, and the municipality's children. These helpers
+ * are the only readers, so no screen picks a field of its own.
  */
 
 type CountedLesson = {
@@ -21,7 +23,7 @@ type CountedLesson = {
   other_student_count?: number;
 };
 
-/** The students of the lesson on that date. Falls back for a server that does not send it yet. */
+/** The registered of the lesson on that date. Falls back for a server that does not send it yet. */
 export function lessonStudents(lesson: CountedLesson): number {
   return lesson.active_student_count ?? lesson.enrollment_count;
 }
@@ -30,7 +32,7 @@ export function lessonTrials(lesson: CountedLesson): number {
   return lesson.trial_student_count ?? 0;
 }
 
-/** On the register that day but not students: not paid yet, left without the place being closed, a walk-in. */
+/** On the register that day but not registered: left without the place being closed, an old trial, a walk-in. */
 export function lessonOthers(lesson: CountedLesson): number {
   return lesson.other_student_count ?? 0;
 }
@@ -47,7 +49,7 @@ export function lessonCountDetail(lesson: CountedLesson, capacity: number | null
   const trials = lessonTrials(lesson);
   const others = lessonOthers(lesson);
   if (trials > 0) parts.push(`${trials} ניסיון`);
-  if (others > 0) parts.push(`${others} ברשימה שאינם תלמידים פעילים`);
+  if (others > 0) parts.push(`${others} ברשימה שאינם רשומים`);
   return parts.join(' · ');
 }
 
@@ -57,7 +59,7 @@ type RegisterRow = {
   child_status?: string;
 };
 
-const STUDENT_STATUSES = new Set(['active', 'payment_problem', 'external']);
+const STUDENT_STATUSES = new Set(['active', 'payment_problem', 'pending', 'external']);
 
 /**
  * The same split from a register's own rows — what the lesson window shows, so
