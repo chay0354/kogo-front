@@ -1,8 +1,11 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { AlertCircle, ArrowRight, BellRing, ChevronDown, Hourglass } from 'lucide-react';
+import { customerCardFor } from '@/lib/wahub/customerCard';
 import type { WaitingAction } from '@/lib/wahub/futureLeadsApi';
+import { WAITING_LIST_TITLE } from '@/lib/wahub/leadsV2';
+import { summaryOfEntry, waitingActText } from '@/lib/wahub/waitingSummary';
 import {
   entriesOfLesson,
   entryMoreFacts,
@@ -10,6 +13,7 @@ import {
   lessonFreed,
   lessonHead,
   placeText,
+  waitersText,
   waitingStripText,
   type EntryTone,
 } from '@/lib/wahub/waitingList';
@@ -23,6 +27,8 @@ import s from '../../wahub.module.css';
 import { LeadRowsSkeleton } from './LeadsList';
 import l from './leads.module.css';
 import { ToldLines, WaitingActions, type NotifyControls, type WaitingBusy } from './WaitingBits';
+import WantedBlock from './WantedBlock';
+import { useLeadDetail } from './useLeads';
 
 /**
  * The full waiting list (docs/WAHUB-CONTRACT-FUTURE-LEADS.md, ז.1), by lesson:
@@ -55,10 +61,15 @@ interface PersonProps {
   onToggle: (id: number, open: boolean) => void;
   onAct: (entryId: number, action: WaitingAction) => void;
   onOpenChat: (contactId: number) => void;
+  /**
+   * What stands in a person's opened row above the actions: the number to call, and what could be offered in
+   * place of the lesson that is full (docs/WAHUB-CONTRACT-FUTURE-LEADS.md, ח.3.2). Absent: nothing is added.
+   */
+  renderSummary?: (entry: WahubWaitingEntry) => ReactNode;
 }
 
 /** One person of a lesson's line: the place, the name, what is known of the child, and one word for where they stand. */
-function Person({ entry, fallbackPlace, lesson, open, now, busy, notify, onToggle, onAct, onOpenChat }: PersonProps) {
+function Person({ entry, fallbackPlace, lesson, open, now, busy, notify, onToggle, onAct, onOpenChat, renderSummary }: PersonProps) {
   const standing = entryStanding(entry, now);
   const place = entry.position ?? fallbackPlace;
   const name = entry.name || entry.phone_display || 'ללא שם';
@@ -88,6 +99,8 @@ function Person({ entry, fallbackPlace, lesson, open, now, busy, notify, onToggl
       <Fold open={open} id={panelId} innerClassName={w.personBody}>
         {facts.length > 0 && <p className={w.facts}>{facts.join(' · ')}</p>}
         <ToldLines entry={entry} now={now} />
+        {/* "אולי פשוט אפשר להתקשר ולהגיד לו שיש יום אחר": the number, and the lessons that have room now. */}
+        {renderSummary?.(entry)}
         <WaitingActions
           entryId={entry.id}
           name={name}
@@ -98,6 +111,8 @@ function Person({ entry, fallbackPlace, lesson, open, now, busy, notify, onToggl
           notify={notify}
           entry={entry}
           onOpenChat={contactId ? () => onOpenChat(contactId) : undefined}
+          // Somebody Kogo knows: one press to the card of the child the entry is about.
+          customerCard={customerCardFor(entry)}
           now={now}
         />
       </Fold>
@@ -116,7 +131,7 @@ interface LessonProps extends Omit<PersonProps, 'entry' | 'fallbackPlace' | 'les
 }
 
 /** One lesson: its title row, and — once it is opened — its line. */
-function Lesson({ lesson, entries, open, toggledEntries, now, busy, notify, onToggle, onToggleEntry, onAct, onOpenChat }: LessonProps) {
+function Lesson({ lesson, entries, open, toggledEntries, now, busy, notify, onToggle, onToggleEntry, onAct, onOpenChat, renderSummary }: LessonProps) {
   const freed = lessonFreed(lesson, entries);
   const head = lessonHead(lesson, entries.length);
   const panelId = `waiting-lesson-${lesson.id}`;
@@ -163,6 +178,7 @@ function Lesson({ lesson, entries, open, toggledEntries, now, busy, notify, onTo
                 onToggle={onToggleEntry}
                 onAct={onAct}
                 onOpenChat={onOpenChat}
+                renderSummary={renderSummary}
               />
             );
           })}
@@ -176,6 +192,12 @@ export interface WaitingListViewProps {
   status: 'loading' | 'ready' | 'error';
   error: string;
   page: WahubWaitingListPage | null;
+  /**
+   * How many people wait, and how many of them call on the office now; null on a server that does not say — the
+   * entries, and the freed places, are then what is counted.
+   */
+  people?: number | null;
+  act?: number | null;
   now: Date;
   /** The list is being read again while it is on screen. */
   refreshing: boolean;
@@ -190,6 +212,8 @@ export interface WaitingListViewProps {
   onAct: (entryId: number, action: WaitingAction) => void;
   onOpenChat: (contactId: number) => void;
   onRetry: () => void;
+  /** What stands in a person's opened row above the actions (the number to call, what could be offered instead). */
+  renderSummary?: (entry: WahubWaitingEntry) => ReactNode;
 }
 
 /** The screen itself, drawn from what it is given; what was opened by a press is kept by WaitingListScreen. */
@@ -197,6 +221,8 @@ export function WaitingListView({
   status,
   error,
   page,
+  people = null,
+  act = null,
   now,
   refreshing,
   toggledLessons,
@@ -209,8 +235,10 @@ export function WaitingListView({
   onAct,
   onOpenChat,
   onRetry,
+  renderSummary,
 }: WaitingListViewProps) {
   const words = page ? waitingStripText(page.counts) : null;
+  const news = words ? (act !== null ? waitingActText(act) : words.freed) : '';
   const lessons = (page?.lessons ?? [])
     .map((lesson) => ({ lesson, entries: entriesOfLesson(lesson, page?.results ?? []) }))
     // A lesson none of whose entries is on screen has nothing to open.
@@ -223,14 +251,14 @@ export function WaitingListView({
           <ArrowRight aria-hidden="true" />
         </button>
         <div className={w.wlWho}>
-          <h2 className={w.wlTitle}>רשימת המתנה</h2>
+          <h2 className={w.wlTitle}>{WAITING_LIST_TITLE}</h2>
           {words && (
             <p className={w.wlSub}>
-              {words.total}
-              {words.freed && (
+              {people !== null ? waitersText(people) : words.total}
+              {news && (
                 <>
                   {' · '}
-                  <strong>{words.freed}</strong>
+                  <strong>{news}</strong>
                 </>
               )}
             </p>
@@ -280,6 +308,7 @@ export function WaitingListView({
                 onToggleEntry={onToggleEntry}
                 onAct={onAct}
                 onOpenChat={onOpenChat}
+                renderSummary={renderSummary}
               />
             );
           })
@@ -289,7 +318,21 @@ export function WaitingListView({
   );
 }
 
-export type WaitingListScreenProps = Omit<WaitingListViewProps, 'toggledLessons' | 'toggledEntries' | 'onToggleLesson' | 'onToggleEntry'>;
+export type WaitingListScreenProps = Omit<WaitingListViewProps, 'toggledLessons' | 'toggledEntries' | 'onToggleLesson' | 'onToggleEntry' | 'renderSummary'>;
+
+/**
+ * What a person's opened row adds from the summary of what they asked for (ח.3.2): the number to call and the
+ * lessons that have room right now. The lesson itself, its numbers and the place in the line already stand in
+ * the rows above, so they are not said again. Read only once the row is opened — and not at all on a server that
+ * does not sum it up (it says nothing of the customer on an entry either).
+ */
+function PersonSummary({ entry }: { entry: WahubWaitingEntry }) {
+  const knows = entry.customer !== undefined && entry.contact_id != null;
+  const detail = useLeadDetail(knows ? (entry.contact_id as number) : null, knows);
+  const summary = summaryOfEntry(detail.data?.details.waiting_summary, entry.id);
+  if (!summary) return null;
+  return <WantedBlock summary={summary} compact bare />;
+}
 
 /** The screen with what it keeps: which lessons and which people were opened, or closed, by a press. */
 export default function WaitingListScreen(props: WaitingListScreenProps) {
@@ -298,6 +341,7 @@ export default function WaitingListScreen(props: WaitingListScreenProps) {
   return (
     <WaitingListView
       {...props}
+      renderSummary={(entry) => <PersonSummary entry={entry} />}
       toggledLessons={lessons}
       toggledEntries={people}
       onToggleLesson={(id, open) => setLessons((prev) => ({ ...prev, [id]: open }))}

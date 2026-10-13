@@ -142,6 +142,8 @@ interface TodayTabProps {
     stage?: string | null;
     owner?: WahubLeadsView;
     lead?: number | null;
+    /** The leads tab opens on "מחכים שיתפנה מקום". */
+    waiting?: boolean;
   }) => void;
   onOpenChat: (id: number) => void;
 }
@@ -252,6 +254,7 @@ export default function TodayTab({ status, onGo, onOpenChat }: TodayTabProps) {
               sendingOn={status ? status.sending_enabled : null}
               onOpenList={() => onGo({ tab: 'leads', owner: 'office', stage: null, lead: null })}
               onOpenLead={(id) => onGo({ tab: 'leads', owner: 'office', stage: null, lead: id })}
+              onOpenWaiting={() => onGo({ tab: 'leads', owner: 'office', stage: null, lead: null, waiting: true })}
             />
           ) : glance.isPending ? (
             <LeadActSkeleton />

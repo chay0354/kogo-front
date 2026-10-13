@@ -651,8 +651,8 @@ describe('the details: everything a press opens', () => {
     expect(section(office, 'פניות קודמות של הבוט')).toContain('היי, משהו נתקע באתר?');
   });
 
-  it('the sections, in one order: now, why, what stops them, when, the trial, the child — then, folded, the bot\'s earlier messages and what happened — and Kogo', () => {
-    const titles = ['מה קורה עכשיו', 'למה זה ליד', 'מה עוצר את ההרשמה', 'מתי חוזרים', 'שיעור הניסיון', 'הילד', 'פניות קודמות של הבוט', 'מה קרה עד עכשיו', 'במערכת'];
+  it('the sections, in one order: now, why, what stops them, when, the trial, the child — then, folded, the bot\'s earlier messages and what happened', () => {
+    const titles = ['מה קורה עכשיו', 'למה זה ליד', 'מה עוצר את ההרשמה', 'מתי חוזרים', 'שיעור הניסיון', 'הילד', 'פניות קודמות של הבוט', 'מה קרה עד עכשיו'];
     const order = titles.map((title) => html.indexOf(`aria-label="${title}"`));
     expect(order.every((at) => at > 0)).toBe(true);
     expect([...order].sort((a, b) => a - b)).toEqual(order);
@@ -730,7 +730,7 @@ describe('the details: everything a press opens', () => {
     expect(earlier).not.toContain('היי, רוצים שאשריין מקום');
   });
 
-  it('a short timeline behind its title, and the way to the customer\'s card when there is one', () => {
+  it('a short timeline behind its title', () => {
     const timeline = section(html, 'מה קרה עד עכשיו');
     expect(timeline).toMatch(/<details class="[^"]*"><summary/);
     expect(timeline).not.toMatch(/<details[^>]* open/);
@@ -738,7 +738,39 @@ describe('the details: everything a press opens', () => {
     expect(timeline).toContain('10.10 12:00');
     expect(timeline).toContain('כתבה לראשונה, ממודעה');
     expect(timeline).toContain('קיבלה ימים, מחיר וקישור להרשמה');
-    expect(section(html, 'במערכת')).toContain('href="/customers?child=77"');
+  });
+
+  // Owner, 13.10.2026: "בלחיצת כפתור אני יכול לעבור לכרטיס הלקוח".
+  it('"לכרטיס הלקוח": one clear button among the actions, beside "פתח שיחה" — and no link at the foot of the details', () => {
+    const actions = html.slice(html.indexOf(`class="${l.actions}"`), html.indexOf(l.dScroll));
+    expect((html.match(/לכרטיס הלקוח/g) ?? []).length).toBe(1);
+    expect(actions).toMatch(/<a [^>]*href="\/customers\?child=77"[^>]*>.*לכרטיס הלקוח<\/a>/);
+    expect(actions.indexOf('פתח שיחה')).toBeLessThan(actions.indexOf('לכרטיס הלקוח'));
+    // The two ways out share the first row; what changes the lead shares the second.
+    expect(actions).toContain(l.actGridCard);
+    expect(actions).toContain(l.actCard);
+    expect(html).not.toContain('aria-label="במערכת"');
+    expect(html).not.toContain('כרטיס הלקוח ב-Kogo');
+  });
+
+  it('nobody Kogo knows — or a family with no card to open — and there is no button at all (not a locked one)', () => {
+    for (const in_system of [null, '/customers']) {
+      const unknown = renderToStaticMarkup(details({ details: { ...DETAILS, in_system } }));
+      expect(unknown).not.toContain('לכרטיס הלקוח');
+      expect(unknown).not.toContain('href="/customers');
+      expect(unknown).not.toContain(l.actGridCard);
+    }
+    // Until the details were read the row alone does not say: the actions stand as they always did.
+    const waiting = renderToStaticMarkup(details({ details: null, status: 'loading' }));
+    expect(waiting).not.toContain('לכרטיס הלקוח');
+  });
+
+  it('a closed lead of a customer: "פתח שיחה" and "לכרטיס הלקוח" side by side', () => {
+    const closed = renderToStaticMarkup(details({ lead: lead(52, { stage: 'registered', stage_label: 'נרשם', owner: '' }), details: { ...DETAILS, in_system: '/customers?child=77' } }));
+    const actions = closed.slice(closed.indexOf(`class="${l.actions}"`), closed.indexOf(l.dScroll));
+    expect(actions).toContain('href="/customers?child=77"');
+    expect(actions).toContain(l.actGridTwo);
+    expect(actions).not.toContain(l.actGridCard);
   });
 
   it('what is not known is not drawn — no title over nothing', () => {

@@ -3,14 +3,18 @@
 import { useEffect, useId, useState, type ReactNode } from 'react';
 import { ArrowRight, CalendarClock, Check, ChevronDown, Hand, MessageCircle, PanelLeftClose, Pencil, Plus, Undo2, X } from 'lucide-react';
 import { formatWhatsAppLink } from '@/lib/customerUtils';
+import { customerCardFor } from '@/lib/wahub/customerCard';
 import { isDemoContact } from '@/lib/wahub/demo';
 import { callbackLine } from '@/lib/wahub/followup';
 import { displayName, formatShortDate, hasName } from '@/lib/wahub/format';
 import { futureOf, knowsFutureLeads, waitingOf } from '@/lib/wahub/futureLeads';
 import { knownHeadline, leadOf } from '@/lib/wahub/leadStage';
+import { readWaitingSummary } from '@/lib/wahub/waitingSummary';
 import type { WahubContactDetail, WahubFollowupPatch, WahubTag } from '@/types/wahub';
 import { LeadStateBlock } from '../leads/LeadBits';
+import WantedBlock from '../leads/v2/WantedBlock';
 import { ContactAvatar, DemoTag, LiveTestTag, Pill, Spinner } from '../shared/bits';
+import CustomerCardLink from '../shared/CustomerCardLink';
 import { EventsList, FollowupMarks, KnownBox, KogoBox, NoteField, TagPicker } from '../shared/ContactParts';
 import { Fold } from '../shared/motion';
 import { cx } from '../shared/tones';
@@ -19,6 +23,7 @@ import { ContactStatusList } from './ContactStatusBlock';
 import LiveTestBlock from './LiveTestBlock';
 import { NoteList, WaitingCardMark, type NoteActions } from '../shared/FutureParts';
 import w from '../waiting.module.css';
+import x from '../search.module.css';
 
 /**
  * The sections of the card that open on a press, in the order they stand
@@ -274,12 +279,17 @@ export default function ContactPanel({
   const knows = knowsFutureLeads(contact);
   const future = knows ? futureOf(contact) : null;
   const waitingList = waitingOf(contact);
+  // "מה רצו" (docs/WAHUB-CONTRACT-FUTURE-LEADS.md, ח.3.2): what they asked for, the number to call, and what
+  // could be offered instead — in the card too, for whoever is talking to them right now.
+  const wanted = waitingList ? readWaitingSummary(contact.waiting_summary) : null;
   const notes = knows ? contact.notes : undefined;
   // A future lead a person holds is handed back from its own chip, at the head of the conversation: the plain
   // hand-back would leave the mark standing.
   const offerHandover = !(future && human);
   // "טופל" is the ✓ of the conversation's title row where there is one.
   const offerResolve = contact.chat.needs_human && !knows;
+  // Somebody Kogo knows: one clear button to their card in the customers section, among the actions.
+  const customerCard = customerCardFor(contact);
 
   const [open, setOpen] = useState<ReadonlySet<CardFold>>(() => new Set(defaultOpen ?? []));
   // Another person: the card is tidy again, every section folded.
@@ -351,6 +361,17 @@ export default function ContactPanel({
         )}
         {/* The waiting list: quiet while they wait, standing out once a place was freed. */}
         {waitingList && <WaitingCardMark mark={waitingList} />}
+        {/* A title first, the rest on a press: what they asked for, the number to call, and what could be
+            offered instead — for whoever is talking to them right now. */}
+        {wanted && (
+          <details className={cx(x.wantedFold, x.cardFold)}>
+            <summary>
+              מה רצו, ומה אפשר להציע במקום
+              <ChevronDown aria-hidden="true" />
+            </summary>
+            <WantedBlock summary={wanted} bare />
+          </details>
+        )}
         {/* A quiet line, not a button among the actions: putting this person on the list of a lesson that is full. */}
         {onAddWaiting && (
           <button type="button" onClick={onAddWaiting} className={cx(w.quietLink, w.addLink)}>
@@ -361,10 +382,10 @@ export default function ContactPanel({
       </CardSection>
 
       {/* 3. The actions, in one row. */}
-      {actions && (offerHandover || offerResolve) && (
+      {((actions && (offerHandover || offerResolve)) || customerCard) && (
         <CardSection title="פעולות">
           <div className="flex flex-wrap items-center gap-2" role="group" aria-label="פעולות על השיחה">
-            {!offerHandover ? null : human ? (
+            {!actions || !offerHandover ? null : human ? (
               <button type="button" onClick={actions.onRelease} disabled={actions.handoverBusy} className={cx(s.btn, s.btnSm)}>
                 {actions.handoverBusy ? <Spinner className="h-3.5 w-3.5" /> : <Undo2 aria-hidden="true" />}
                 החזר לבוט
@@ -375,7 +396,7 @@ export default function ContactPanel({
                 קח שיחה
               </button>
             )}
-            {offerResolve && (
+            {actions && offerResolve && (
               <button
                 type="button"
                 onClick={actions.onResolveNeedsHuman}
@@ -386,11 +407,12 @@ export default function ContactPanel({
                 טופל
               </button>
             )}
+            {customerCard && <CustomerCardLink href={customerCard} />}
           </div>
         </CardSection>
       )}
 
-      {/* 4. In Kogo: registered or not, where, the children, the way to the customer's card. */}
+      {/* 4. In Kogo: registered or not, where, and the children by name. */}
       <CardSection title="במערכת">
         <KogoBox contact={contact} now={now} onRecheck={onRecheck} rechecking={rechecking} />
       </CardSection>

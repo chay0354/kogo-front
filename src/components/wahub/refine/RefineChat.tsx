@@ -42,7 +42,7 @@ const LINE_TONE: Record<RefineWho, string> = {
 };
 
 /** The marked piece of the conversation (or the proposal): folded to its title and one line; the rest on a press. */
-function Excerpt({ lines, count, title }: { lines: ReadonlyArray<RefineExcerptLine>; count: number; title?: string }) {
+export function Excerpt({ lines, count, title }: { lines: ReadonlyArray<RefineExcerptLine>; count: number; title?: string }) {
   const unseen = Math.max(0, count - lines.filter((line) => line.id !== null).length);
   return (
     <details className={r.fold}>

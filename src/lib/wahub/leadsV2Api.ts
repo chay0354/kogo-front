@@ -26,7 +26,10 @@ function statusOf(error: unknown): number | null {
 
 /** The query of GET leads/: the list asked for, and — only when chosen — a state, a search and where to go on from. */
 export function leadsParams(query: WahubLeadsQuery): Record<string, string> {
-  const params: Record<string, string> = { owner: query.owner };
+  // `waiting=apart` (docs/WAHUB-CONTRACT-FUTURE-LEADS.md, ח.3.1), on every read: the leads of the waiting list
+  // stand under their own title, "מחכים שיתפנה מקום", and not inside "מחכים לך" or "הבוט מטפל". A server built
+  // before it ignores the word, and lists them where it always did.
+  const params: Record<string, string> = { owner: query.owner, waiting: 'apart' };
   if (query.stage) params.stage = query.stage;
   const q = (query.q ?? '').trim();
   if (q) params.q = q;

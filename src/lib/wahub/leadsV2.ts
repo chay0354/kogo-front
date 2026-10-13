@@ -17,6 +17,8 @@ import type {
 } from '@/types/wahub';
 import { dayKey, daysBetween, formatClock, formatDateTime, formatFullDate, formatShortDate, israelToday } from './format';
 import { readFuture, readNotes, readWaitingEntries, readWaitingMark } from './futureLeads';
+import { readCustomerRef, readFoundBy, readSearchExtras } from './search';
+import { readWaitingSummary } from './waitingSummary';
 
 /**
  * The leads tab, version 2 (docs/WAHUB-CONTRACT-LEADS-V2.md, ה): the words of
@@ -39,6 +41,15 @@ export const LEADS_VIEW_LABELS: Record<WahubLeadsView, string> = {
   bot: 'הבוט מטפל',
   closed: 'נסגרו',
 };
+
+/**
+ * The waiting list under a name of its own (owner, 13.10.2026: "'מחכים לך' זה כללי מדי… תרשום 'מחכים שיתפנה
+ * מקום', ושיישאר ככה"). It is a title above the lists and a screen of its own — not a fourth tab.
+ */
+export const WAITING_LIST_TITLE = 'מחכים שיתפנה מקום';
+
+/** The four lists a lead may stand in (docs/WAHUB-CONTRACT-FUTURE-LEADS.md, ח.3.1), for a row whose label the server left out. */
+export const LEADS_LIST_LABELS: Record<string, string> = { ...LEADS_VIEW_LABELS, waiting: WAITING_LIST_TITLE };
 
 /** The list an address asks for. Anything it does not know opens the one that waits for the office. */
 export function parseLeadsView(value: string | null | undefined): WahubLeadsView {
@@ -192,6 +203,15 @@ export function readLeadRow(raw: unknown): WahubLeadRow | null {
   if (waiting) row.waiting_list = waiting;
   const future = readFuture(data.future);
   if (future) row.future = future;
+  // The afternoon of 13.10.2026 (ח): which list the lead stands in, the way to the customer's card, and — in
+  // a search — why the row was found. Each only when the server says it.
+  const list = str(data.list);
+  if (list) {
+    row.list = list;
+    row.list_label = str(data.list_label) || LEADS_LIST_LABELS[list] || '';
+  }
+  if ('customer' in data) row.customer = readCustomerRef(data.customer);
+  if ('found_by' in data) row.found_by = readFoundBy(data.found_by);
   return row;
 }
 
@@ -219,9 +239,26 @@ export function readLeadsPage(raw: unknown): WahubLeadsPage {
     results,
     next_cursor: str(data.next_cursor) || null,
   };
+  // "מחכים שיתפנה מקום" in numbers (ח.3.1): sent always by a server that knows ח, and so its sign.
+  if ('waiting' in counts) {
+    page.counts.waiting = count(counts.waiting);
+    page.counts.waiting_act = count(counts.waiting_act);
+  }
   const stages = readStages(data.stages);
   if (stages) page.stages = stages;
+  // What a search brings beside its rows (ח.1.3).
+  const extras = readSearchExtras(data);
+  if (extras) {
+    page.contacts = extras.contacts;
+    page.customers = extras.customers;
+    page.customers_more = extras.customers_more;
+  }
   return page;
+}
+
+/** The server knows ח: it lists the waiting list apart, and can search through every list at once (`owner=all`). */
+export function knowsListsApart(counts: Pick<WahubLeadCounts, 'waiting'> | null | undefined): boolean {
+  return typeof counts?.waiting === 'number';
 }
 
 function readChild(raw: unknown): WahubLeadChild | null {
@@ -320,6 +357,8 @@ function readDetails(raw: unknown): WahubLeadDetails {
   if (notes) details.notes = notes.slice(0, 10);
   const entries = readWaitingEntries(data.waiting_list_entries);
   if (entries) details.waiting_list_entries = entries.slice(0, 20);
+  // What they asked for, when they are on a waiting list (ח.3.2): said only by a server that knows ח.
+  if ('waiting_summary' in data) details.waiting_summary = readWaitingSummary(data.waiting_summary);
   return details;
 }
 
@@ -938,14 +977,15 @@ function stepCount(counts: WahubLeadCounts, from: WahubLeadsView | null, to: Wah
  */
 export function applyLeadChange(
   pages: ReadonlyArray<WahubLeadsPage | null>,
-  view: WahubLeadsView,
+  view: WahubLeadsView | 'all',
   lead: WahubLeadRow,
   change: LeadChange,
   from: WahubLeadsView | null = leadView(lead),
 ): Array<WahubLeadsPage | null> {
   const after = changedLead(lead, change);
   const to = change.kind === 'reopen' ? null : leadView(after);
-  const stays = to === view;
+  // The results of a search through every list hold a lead wherever it stands: it is rewritten in place.
+  const stays = view === 'all' || to === view;
   return pages.map((page) => {
     if (!page) return page;
     const held = page.results.some((row) => row.contact_id === lead.contact_id);
@@ -984,6 +1024,11 @@ function readRowFields(lead: WahubLeadRow): WahubLeadRow {
   };
   if (lead.waiting_list) row.waiting_list = lead.waiting_list;
   if (lead.future) row.future = lead.future;
+  if (lead.list) {
+    row.list = lead.list;
+    row.list_label = lead.list_label;
+  }
+  if (lead.customer !== undefined) row.customer = lead.customer;
   return row;
 }
 

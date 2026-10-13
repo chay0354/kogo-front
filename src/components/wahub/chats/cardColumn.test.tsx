@@ -471,7 +471,7 @@ describe('"דיוק" with the card put away', () => {
     const made = drawn(screen(standIn({ target })));
     expect(buttonSaying(made, 'הצג כרטיס')).toHaveLength(0);
     expect(buttonSaying(made, 'קח שיחה')).toHaveLength(0);
-    expect(buttonSaying(made, 'דיוק')).toHaveLength(1);
+    expect(made.filter((element) => element.type === 'button' && element.props['aria-label'] === 'דיוק')).toHaveLength(1);
     // Closed, they are back.
     const closed = drawn(screen(standIn({ target: null })));
     expect(buttonSaying(closed, 'הצג כרטיס')).toHaveLength(1);

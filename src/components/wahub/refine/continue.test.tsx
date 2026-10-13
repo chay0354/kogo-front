@@ -200,7 +200,8 @@ describe('before "דיוק" is pressed', () => {
   it('the button of the title row is what starts it', () => {
     picking.active = false;
     const made = drawn(screen(standIn()));
-    const button = buttonSaying(made, 'דיוק');
+    // An icon, named for a reader of the screen (13.10.2026): found by its name, not by words on it.
+    const button = made.filter((element) => element.type === 'button' && element.props['aria-label'] === 'דיוק');
     expect(button).toHaveLength(1);
     (button[0].props.onClick as () => void)();
     expect(picking.start).toHaveBeenCalledTimes(1);

@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { readableError } from '@/lib/apiError';
 import { formatDateTime, formatShortDate } from '@/lib/wahub/format';
-import { buildWahubUrl } from '@/lib/wahub/params';
+import { DEFAULT_CHAT_BOX, buildWahubUrl } from '@/lib/wahub/params';
 import { lastMessageWho, leadName, leadPhone } from '@/lib/wahub/unregistered';
 import { fetchWahubForCustomer, recheckWahubForCustomer } from '@/lib/wahubApi';
 import type { WahubForCustomer, WahubForCustomerContact } from '@/types/wahub';
@@ -18,7 +18,7 @@ type LoadState = 'idle' | 'loading' | 'ready' | 'error';
 function conversationLink(contact: Pick<WahubForCustomerContact, 'id' | 'link'>): string {
   return (
     contact.link ||
-    buildWahubUrl({ tab: 'chats', contact: contact.id, box: 'all', queue: 'all', sub: 'knowledge', item: null })
+    buildWahubUrl({ tab: 'chats', contact: contact.id, box: DEFAULT_CHAT_BOX, queue: 'all', sub: 'knowledge', item: null })
   );
 }
 

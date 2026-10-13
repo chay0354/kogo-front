@@ -2,9 +2,12 @@
 
 import { AlertCircle, Bot, CheckCircle2, ChevronDown, ChevronLeft, Inbox, PauseCircle, Search, X } from 'lucide-react';
 import { LEADS_VIEW_LABELS, emptyWords, stageOptionText } from '@/lib/wahub/leadsV2';
+import { SEARCH_MAX_LENGTH, SEARCH_TEXT, notFoundWords } from '@/lib/wahub/search';
 import type { WahubLeadCounts, WahubLeadRow, WahubLeadStageCount, WahubLeadsView } from '@/types/wahub';
+import type { WahubSearchExtras } from '@/types/wahubSearch';
 import { EmptyState, Skeleton, Spinner } from '../../shared/bits';
 import { RefreshNote } from '../../shared/loading';
+import { EverywhereStrip, FoundContacts, SystemCustomers } from '../../shared/SearchParts';
 import { cx } from '../../shared/tones';
 import m from '../../motion.module.css';
 import s from '../../wahub.module.css';
@@ -47,7 +50,25 @@ export interface LeadsListProps {
    * (docs/WAHUB-CONTRACT-FUTURE-LEADS.md, ז.1). Null: the server has no waiting list, and there is no way in.
    */
   waitingList?: { waiting: number; freed: number } | null;
+  /**
+   * How many people wait, and how many of them call on the office now (a place was freed, or the customer
+   * answered); null when the server does not say.
+   */
+  waitingPeople?: number | null;
+  waitingAct?: number | null;
   onWaitingList?: () => void;
+  /**
+   * The rows are the results of a search through every list — "מחכים לך", "הבוט מטפל", "מחכים שיתפנה מקום" and
+   * "נסגרו" at once (docs/WAHUB-CONTRACT-FUTURE-LEADS.md, ח.1.3). No tab is then the one in front, each row
+   * says which list it stands in, and what matched is marked.
+   */
+  everywhere?: boolean;
+  /** The search the rows answer. */
+  found?: string;
+  /** What the search brought beside its rows. */
+  extras?: WahubSearchExtras | null;
+  /** To a conversation — of somebody the search found who is not a lead. */
+  onOpenChat?: (id: number) => void;
   onView: (view: WahubLeadsView) => void;
   onStage: (stage: string | null) => void;
   onSearch: (value: string) => void;
@@ -106,7 +127,13 @@ export default function LeadsList({
   held = '',
   onHeld,
   waitingList = null,
+  waitingPeople = null,
+  waitingAct = null,
   onWaitingList,
+  everywhere = false,
+  found = '',
+  extras = null,
+  onOpenChat,
   onView,
   onStage,
   onSearch,
@@ -116,7 +143,19 @@ export default function LeadsList({
 }: LeadsListProps) {
   const filtered = Boolean(stage) || Boolean(search.trim());
   const total = counts ? counts[view] : null;
-  const empty = emptyWords(view, counts, filtered);
+  // A search through every list that found nothing says what was looked for, and what was looked through.
+  const empty = everywhere ? notFoundWords(found, 'leads', true) : emptyWords(view, counts, filtered);
+  const beside = everywhere && extras && (extras.contacts.length > 0 || extras.customers.length > 0) && (
+    <>
+      {onOpenChat && <FoundContacts contacts={extras.contacts} query={found} onOpenChat={onOpenChat} />}
+      <SystemCustomers customers={extras.customers} more={extras.customers_more} query={found} inset onOpenChat={onOpenChat} />
+    </>
+  );
+  // A search looks everywhere: no list is the one in front while it is on, and a press on one leaves the search for it.
+  const pick = (next: WahubLeadsView) => {
+    if (everywhere) onSearch('');
+    onView(next);
+  };
 
   return (
     <>
@@ -127,9 +166,9 @@ export default function LeadsList({
               key={key}
               type="button"
               role="tab"
-              aria-selected={view === key}
-              onClick={() => onView(key)}
-              className={cx(l.tab, view === key && l.tabOn)}
+              aria-selected={!everywhere && view === key}
+              onClick={() => pick(key)}
+              className={cx(l.tab, !everywhere && view === key && l.tabOn)}
             >
               {LEADS_VIEW_LABELS[key]}
               <TabCount value={counts?.[key]} loud={key === 'office'} />
@@ -139,9 +178,9 @@ export default function LeadsList({
 
         <button
           type="button"
-          aria-pressed={view === 'closed'}
-          onClick={() => onView('closed')}
-          className={cx(l.closedLink, view === 'closed' && l.closedOn)}
+          aria-pressed={!everywhere && view === 'closed'}
+          onClick={() => pick('closed')}
+          className={cx(l.closedLink, !everywhere && view === 'closed' && l.closedOn)}
         >
           {LEADS_VIEW_LABELS.closed}
           {counts && <span className={s.num}>({counts.closed.toLocaleString('he-IL')})</span>}
@@ -157,6 +196,7 @@ export default function LeadsList({
               placeholder="שם או טלפון"
               aria-label="חיפוש בלידים"
               enterKeyHint="search"
+              maxLength={SEARCH_MAX_LENGTH}
             />
             {search && (
               <button type="button" onClick={() => onSearch('')} aria-label="נקה חיפוש">
@@ -165,7 +205,7 @@ export default function LeadsList({
             )}
           </label>
           {/* Only states that have someone in them; with none to choose between, the filter is not drawn at all. */}
-          {(stages.length > 1 || stage) && (
+          {!everywhere && (stages.length > 1 || stage) && (
             <label className={cx(l.stage, stage && l.stageOn)}>
               <select value={stage ?? ''} onChange={(event) => onStage(event.target.value || null)} aria-label="סינון לפי מצב">
                 <option value="">{total != null ? `כל המצבים (${total.toLocaleString('he-IL')})` : 'כל המצבים'}</option>
@@ -184,9 +224,17 @@ export default function LeadsList({
       {/* The lists are read again every half minute; a read that drags says so, quietly, at the foot. */}
       <RefreshNote active={refreshing} className={s.refreshFloat} />
 
-      <div className={l.scroll} role="tabpanel" aria-label={LEADS_VIEW_LABELS[view]} aria-busy={status === 'loading' || refreshing}>
-        {/* "רשימת המתנה": a quiet line above the two open lists — not a tab of its own. Out of the way of a search. */}
-        {waitingList && onWaitingList && view !== 'closed' && !search.trim() && <WaitingWay counts={waitingList} onOpen={onWaitingList} />}
+      <div
+        className={l.scroll}
+        role="tabpanel"
+        aria-label={everywhere ? SEARCH_TEXT.leadsEverywhere : LEADS_VIEW_LABELS[view]}
+        aria-busy={status === 'loading' || refreshing}
+      >
+        {/* "מחכים שיתפנה מקום": a title of its own above the two open lists — not inside "מחכים לך", and not a
+            tab. Out of the way of a search. */}
+        {waitingList && onWaitingList && view !== 'closed' && !search.trim() && <WaitingWay counts={waitingList} people={waitingPeople} act={waitingAct} onOpen={onWaitingList} />}
+        {/* The search looked through every list: said once, above its results. */}
+        {everywhere && status !== 'error' && <EverywhereStrip words={SEARCH_TEXT.leadsEverywhere} count={status === 'ready' && !hasMore ? rows.length : null} inset />}
         {/* The bot planned, and nothing went out: said once, quietly, above its list — and it leads to what is missing. */}
         {view === 'bot' && held && (
           <button type="button" onClick={onHeld} className={cx(l.held, m.rise)}>
@@ -232,6 +280,8 @@ export default function LeadsList({
                 </button>
               )}
             </EmptyState>
+            {/* Not a lead — but somebody the system knows: a conversation, or a customer in Kogo. */}
+            {beside}
           </div>
         ) : (
           <>
@@ -243,7 +293,8 @@ export default function LeadsList({
                   now={now}
                   sendingOn={sendingOn}
                   selected={lead.contact_id === selectedId}
-                  closed={view === 'closed'}
+                  closed={everywhere ? lead.list === 'closed' : view === 'closed'}
+                  query={everywhere ? found : ''}
                   onOpen={onOpen}
                 />
               ))}
@@ -256,6 +307,7 @@ export default function LeadsList({
                 </button>
               </div>
             )}
+            {!hasMore && beside}
           </>
         )}
       </div>

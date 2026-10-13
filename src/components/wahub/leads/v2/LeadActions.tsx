@@ -12,6 +12,7 @@ import {
 } from '@/lib/wahub/leadsV2';
 import type { WahubLeadRow } from '@/types/wahub';
 import { InlineConfirm, Spinner } from '../../shared/bits';
+import CustomerCardLink from '../../shared/CustomerCardLink';
 import { cx } from '../../shared/tones';
 import s from '../../wahub.module.css';
 import l from './leads.module.css';
@@ -35,6 +36,11 @@ export interface LeadActionsViewProps {
   onNote: (value: string) => void;
   onOpenChat: () => void;
   onChange: (change: LeadChange) => void;
+  /**
+   * The customer's card in the customers section, for a lead Kogo knows (lib/wahub/customerCard.ts). Absent or
+   * null — nobody identified, or the details not read yet — and "לכרטיס הלקוח" is not drawn.
+   */
+  customerCard?: string | null;
 }
 
 /**
@@ -42,6 +48,10 @@ export interface LeadActionsViewProps {
  * open the conversation; take it or hand it back to the bot; put it off to a
  * day (a date and a note); and "לא רלוונטי", which asks first and then writes
  * `deleted`. A closed lead can only be opened or brought back.
+ *
+ * For somebody Kogo knows there is one more way out, beside "פתח שיחה": "לכרטיס
+ * הלקוח" (owner, 13.10.2026). The two ways out share the first row; what
+ * changes the lead shares the second.
  *
  * The two that ask something ask it here, in place of the buttons — the
  * browser's own boxes are not used anywhere in this section. Drawn from what
@@ -60,6 +70,7 @@ export function LeadActionsView({
   onNote,
   onOpenChat,
   onChange,
+  customerCard = null,
 }: LeadActionsViewProps) {
   const can = leadActions(lead, closed || undefined);
   const dates = snoozeDates(now);
@@ -132,13 +143,20 @@ export function LeadActionsView({
 
   // A closed lead has one action or two; they share a row rather than leave it half empty.
   const others = [can.owner, can.snooze, can.remove, can.reopen].filter(Boolean).length;
+  // With the way to the customer's card: the two ways out side by side, and whatever else there is under them.
+  const shape = customerCard
+    ? others === 0
+      ? l.actGridTwo
+      : l.actGridCard
+    : cx(others === 0 && l.actGridOne, others === 1 && l.actGridTwo);
   return (
     <div className={l.actions}>
-      <div className={cx(l.actGrid, others === 0 && l.actGridOne, others === 1 && l.actGridTwo)} role="group" aria-label="פעולות">
+      <div className={cx(l.actGrid, shape)} role="group" aria-label="פעולות">
         <button type="button" onClick={onOpenChat} className={cx(s.btn, s.btnP, l.act, l.actMain)}>
           <MessagesSquare aria-hidden="true" />
           פתח שיחה
         </button>
+        {customerCard && <CustomerCardLink href={customerCard} className={cx(s.btn, l.act, l.actCard)} />}
         {can.owner && (
           <button
             type="button"
@@ -182,10 +200,12 @@ interface LeadActionsProps {
   onOpenChat: () => void;
   /** Resolves true once the change was saved; the question that asked for it then closes. */
   onChange: (change: LeadChange) => Promise<boolean> | void;
+  /** The customer's card, for a lead Kogo knows; null or absent — no button. */
+  customerCard?: string | null;
 }
 
 /** The actions of one lead, with what they keep while a question is open: which one, the day chosen, the note. */
-export default function LeadActions({ lead, closed, now, busy, initialMode = 'idle', onOpenChat, onChange }: LeadActionsProps) {
+export default function LeadActions({ lead, closed, now, busy, initialMode = 'idle', onOpenChat, onChange, customerCard }: LeadActionsProps) {
   const [mode, setMode] = useState<LeadActionsMode>(initialMode);
   const [until, setUntil] = useState(() => snoozeDates(now).suggested);
   const [note, setNote] = useState('');
@@ -210,6 +230,7 @@ export default function LeadActions({ lead, closed, now, busy, initialMode = 'id
       onNote={setNote}
       onOpenChat={onOpenChat}
       onChange={(what) => void change(what)}
+      customerCard={customerCard}
     />
   );
 }

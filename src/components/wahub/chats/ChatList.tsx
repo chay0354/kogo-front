@@ -1,13 +1,15 @@
 'use client';
 
 import { memo, useEffect, useRef, useState } from 'react';
-import { Inbox, Plug, Search, X } from 'lucide-react';
-import { BOX_GROUPS, boxCount, boxesInGroup, handledByChip } from '@/lib/wahub/boxes';
+import { CheckCircle2, Inbox, Plug, Search, X } from 'lucide-react';
+import { BOX_GROUPS, boxCount, boxesInGroup, handledByChip, openEmptyWords } from '@/lib/wahub/boxes';
 import { isDemoContact } from '@/lib/wahub/demo';
 import { displayName, formatListTime, israelToday, previewText, waitingLabel } from '@/lib/wahub/format';
 import { futureOf, waitingOf } from '@/lib/wahub/futureLeads';
+import { SEARCH_MAX_LENGTH, SEARCH_TEXT, chatPlace, notFoundWords } from '@/lib/wahub/search';
 import { leadOf, showsInList } from '@/lib/wahub/leadStage';
 import type { WahubBox, WahubBoxCounts, WahubContact } from '@/types/wahub';
+import type { WahubSearchExtras } from '@/types/wahubSearch';
 import f from '../future.module.css';
 import type { ListStatus } from '../hooks/usePagedContacts';
 import { LeadStageTag } from '../leads/LeadBits';
@@ -18,6 +20,7 @@ import { useStagger } from '../shared/motion';
 import { cx } from '../shared/tones';
 import s from '../wahub.module.css';
 import { FutureRowMark, WaitingRowMark } from '../shared/FutureParts';
+import { EverywhereStrip, FoundLines, MarkedName, PlaceTag, SystemCustomers } from '../shared/SearchParts';
 
 interface RowProps {
   contact: WahubContact;
@@ -25,6 +28,12 @@ interface RowProps {
   /** The row was not in the list a moment ago: it comes in softly. */
   arrived: boolean;
   now: Date;
+  /**
+   * What was searched for, while the rows are a search's results — from every box
+   * (docs/WAHUB-CONTRACT-FUTURE-LEADS.md, ח.1.2). The row then marks what matched, says in which box the
+   * conversation stands, and why it was found. Empty: the row is the one it always was.
+   */
+  query?: string;
   onOpen: (id: number) => void;
 }
 
@@ -41,7 +50,7 @@ interface RowProps {
  * (docs/WAHUB-CONTRACT-FUTURE-LEADS.md, ה): quiet while they only wait, and
  * standing out once the day has come, the customer wrote, or a place was freed.
  */
-const ChatRow = memo(function ChatRow({ contact, selected, arrived, now, onOpen }: RowProps) {
+const ChatRow = memo(function ChatRow({ contact, selected, arrived, now, query = '', onOpen }: RowProps) {
   const { chat } = contact;
   const unread = chat.unread_count > 0;
   const waiting = waitingLabel(chat.waiting_since, now);
@@ -52,7 +61,13 @@ const ChatRow = memo(function ChatRow({ contact, selected, arrived, now, onOpen 
   const liveTest = contact.live_test === true;
   const future = futureOf(contact);
   const waitingList = waitingOf(contact);
-  const marks = lead ? demo || liveTest || who.tone === 'human' || Boolean(future) || Boolean(waitingList) : true;
+  // A search's result says where it stands in the server's own word — the box. A future lead's own mark already
+  // says it (with its day), so it is not said twice; and the box's word stands in place of the row's own marks
+  // of the same thing: who answers, "מבקש נציג", how long they wait.
+  const found = query ? chatPlace(chat) : null;
+  const place = found && !(future && (chat.box === 'future' || chat.box === 'open')) ? found : null;
+  const marks = lead ? demo || liveTest || who.tone === 'human' || Boolean(future) || Boolean(waitingList) || Boolean(place) : true;
+  const name = displayName(contact);
 
   return (
     <li className={arrived ? m.drop : undefined}>
@@ -68,7 +83,7 @@ const ChatRow = memo(function ChatRow({ contact, selected, arrived, now, onOpen 
             {/* The state's tag stands beside the name; in a column too narrow for both it drops under it, whole. */}
             <span className={s.rowNameLine}>
               <span className={cx(s.t1, s.rowName, 'truncate', unread && '!font-extrabold')} dir="auto">
-                {displayName(contact)}
+                <MarkedName name={name} query={query} />
               </span>
               {showsInList(lead) && <LeadStageTag lead={lead} needsHuman={chat.needs_human} size="row" />}
             </span>
@@ -86,9 +101,14 @@ const ChatRow = memo(function ChatRow({ contact, selected, arrived, now, onOpen 
             )}
           </span>
 
+          {/* The phone that matched, and why the row was found when it was not by its name or its phone. */}
+          <FoundLines query={query} phone={contact.phone_display || contact.phone} phoneShown={name === (contact.phone_display || contact.phone)} found={contact.found_by} />
+
           {marks && (
             <span className="mt-1.5 flex flex-wrap items-center gap-1.5">
-              {lead ? (
+              {place ? (
+                <PlaceTag label={place.label} tone={place.tone} />
+              ) : lead ? (
                 who.tone === 'human' && <span className={cx(s.rowTag, s.pGold)}>{who.label}</span>
               ) : (
                 // Who answers this conversation — on every row, so the state is never a guess (owner, 10.10).
@@ -97,13 +117,13 @@ const ChatRow = memo(function ChatRow({ contact, selected, arrived, now, onOpen 
               )}
               {demo && <DemoTag size="row" />}
               {liveTest && <LiveTestTag size="row" />}
-              {!lead && chat.needs_human && (
+              {!place && !lead && chat.needs_human && (
                 <span className={cx(s.rowTag, s.pBad)}>
                   <i className={s.pillDot} aria-hidden="true" />
                   מבקש נציג
                 </span>
               )}
-              {!lead && waiting && <span className={cx(s.rowTag, s.pWarn)}>{waiting}</span>}
+              {!place && !lead && waiting && <span className={cx(s.rowTag, s.pWarn)}>{waiting}</span>}
               {waitingList && <WaitingRowMark mark={waitingList} />}
               {future && <FutureRowMark future={future} today={israelToday(now)} now={now} />}
             </span>
@@ -123,6 +143,15 @@ interface ChatListProps {
   box: WahubBox;
   counts: WahubBoxCounts | null;
   search: string;
+  /**
+   * The search the rows on screen answer (the typed words, a moment later) — empty when they are a box's own.
+   * While it stands the rows come from every box, and say so.
+   */
+  found?: string;
+  /** How many the search found in all, when the server said. */
+  total?: number | null;
+  /** What the search brought beside its rows: customers in Kogo who have no conversation. */
+  extras?: WahubSearchExtras | null;
   selectedId: number | null;
   now: Date;
   /** The copy from ManyChat is not connected yet, so an empty list is no surprise. */
@@ -148,6 +177,9 @@ export default function ChatList({
   box,
   counts,
   search,
+  found = '',
+  total = null,
+  extras = null,
   selectedId,
   now,
   notConnected,
@@ -200,7 +232,16 @@ export default function ChatList({
     return () => observer.disconnect();
   }, [hasMore, items.length]);
 
-  const filtered = Boolean(search.trim()) || box !== 'all';
+  const searching = Boolean(search.trim());
+  // The tab opens on "פתוחות"; with nobody in it the list says so, and shows the way to every conversation.
+  const nothingOpen = box === 'open' && !searching;
+  const filtered = searching || (box !== 'all' && !nothingOpen);
+  const openEmpty = openEmptyWords(counts);
+  // The rows are a search's results: from every box, whatever was chosen. Until the answer to what is typed now
+  // has landed, the rows of a moment ago are not passed off as its results.
+  const results = searching && Boolean(found);
+  const notFound = notFoundWords(found || search, 'chats', extras !== null);
+  const customers = results && extras ? extras.customers : [];
   // A list that was just read comes in a row at a time; once it is on screen its rows only move with the live update.
   const stagger = useStagger(status === 'ready');
 
@@ -216,6 +257,7 @@ export default function ChatList({
             onChange={(event) => onSearch(event.target.value)}
             placeholder="חיפוש לפי שם, טלפון או טקסט"
             aria-label="חיפוש בשיחות"
+            maxLength={SEARCH_MAX_LENGTH}
           />
           {search && (
             <button type="button" onClick={() => onSearch('')} aria-label="נקה חיפוש">
@@ -249,7 +291,9 @@ export default function ChatList({
               {group.label && <span className={s.boxGroupLabel}>{group.label}</span>}
               {/* "פתוחות" and "לידים עתידיים" only where the server counts them. */}
               {boxesInGroup(group.key, counts).map((def) => {
-                const active = box === def.key;
+                // A search looks everywhere: no box is the one in front while it is on. A press on one leaves the
+                // search for that box.
+                const active = !searching && box === def.key;
                 const count = boxCount(counts, def.key);
                 const loud = def.key === 'needs_human' && (count ?? 0) > 0 && !active;
                 return (
@@ -257,7 +301,10 @@ export default function ChatList({
                     key={def.key}
                     type="button"
                     aria-pressed={active}
-                    onClick={() => onBox(def.key)}
+                    onClick={() => {
+                      if (searching) onSearch('');
+                      onBox(def.key);
+                    }}
                     title={def.hint}
                     className={cx(s.chipbtn, active && s.on, def.quiet && f.boxQuiet)}
                   >
@@ -285,8 +332,22 @@ export default function ChatList({
         ) : status === 'error' ? (
           <ErrorState title="לא הצלחנו לטעון את השיחות" text={error} onRetry={onRetry} />
         ) : items.length === 0 ? (
-          filtered ? (
+          results ? (
+            // Nothing was found: said with what was looked for and what was looked through — and, when Kogo knows
+            // the number or the name, the customer it belongs to.
+            <>
+              <EverywhereStrip words={SEARCH_TEXT.chatsEverywhere} count={null} />
+              <EmptyState icon={<Search />} title={notFound.title} text={notFound.text} tight={customers.length > 0} />
+              <SystemCustomers customers={customers} more={Boolean(extras?.customers_more)} query={found} onOpenChat={onOpen} />
+            </>
+          ) : filtered ? (
             <EmptyState icon={<Search />} title="אין שיחות שמתאימות" text="נסו תיבה אחרת או חיפוש אחר." />
+          ) : nothingOpen && !notConnected ? (
+            <EmptyState icon={<CheckCircle2 />} title={openEmpty.title} text={openEmpty.text}>
+              <button type="button" onClick={() => onBox('all')} className={cx(s.btn, s.btnP)}>
+                {openEmpty.go}
+              </button>
+            </EmptyState>
           ) : notConnected ? (
             <EmptyState
               icon={<Plug />}
@@ -302,7 +363,9 @@ export default function ChatList({
           )
         ) : (
           <>
-            <ul className={cx(s.list, stagger)} aria-label="שיחות">
+            {/* How many is said only of the answer that is on screen — never of the rows that were there a moment ago. */}
+            {results && <EverywhereStrip words={SEARCH_TEXT.chatsEverywhere} count={status === 'ready' ? (total ?? (hasMore ? null : items.length)) : null} />}
+            <ul className={cx(s.list, stagger)} aria-label={results ? SEARCH_TEXT.chatsEverywhere : 'שיחות'}>
               {items.map((contact) => (
                 <ChatRow
                   key={contact.id}
@@ -310,6 +373,7 @@ export default function ChatList({
                   selected={contact.id === selectedId}
                   arrived={greet && !before.ids.has(contact.id)}
                   now={now}
+                  query={results ? found : ''}
                   onOpen={onOpen}
                 />
               ))}
@@ -322,6 +386,7 @@ export default function ChatList({
                 </button>
               </div>
             )}
+            {!hasMore && <SystemCustomers customers={customers} more={Boolean(extras?.customers_more)} query={found} onOpenChat={onOpen} />}
           </>
         )}
       </div>

@@ -43,6 +43,33 @@ export async function startWahubTeach(text: string): Promise<WahubTeachThread> {
   return threadOrThrow(res.data);
 }
 
+export interface TeachFromChat {
+  /** The conversation the marked pieces are of. */
+  contactId: number;
+  /** The marked messages, in the conversation's order. */
+  messageIds: ReadonlyArray<number>;
+  /** "לתקן" was pressed on this answer of the bot in the shadow. */
+  shadowId?: number | null;
+  /** What was not good. Left out, the system speaks first: it sums the piece up, and asks. */
+  text?: string;
+}
+
+/**
+ * POST refine/ {mode: "teach", contact, message_ids / shadow_ids, text?} — "דיוק" inside a conversation, as the
+ * very same teaching as "ללמד" (docs/WAHUB-CONTRACT-FUTURE-LEADS.md, ח.4.2): nothing is applied until "מאשר",
+ * and the answer comes in the shape of a teach thread. A server built before it drops `mode` and answers in the
+ * shape of "דיוק" — told as `TeachNotBuilt`, and the screen then shows the small chat it showed before.
+ */
+export async function startWahubTeachFromChat(input: TeachFromChat): Promise<WahubTeachThread> {
+  const body: Record<string, unknown> = { mode: 'teach', contact: input.contactId };
+  if (input.messageIds.length) body.message_ids = input.messageIds.slice();
+  if (input.shadowId != null) body.shadow_ids = [input.shadowId];
+  const text = (input.text ?? '').trim();
+  if (text) body.text = text;
+  const res = await api.post(`${BASE}/refine/`, body, { timeout: TEACH_TIMEOUT_MS });
+  return threadOrThrow(res.data);
+}
+
 /** POST refine/{id}/say/ {text} — "לא בדיוק…", or the answer to the bot's question. */
 export async function sayWahubTeach(id: number, text: string): Promise<WahubTeachThread> {
   const res = await api.post(`${BASE}/refine/${id}/say/`, { text: text.trim() }, { timeout: TEACH_TIMEOUT_MS });
@@ -92,8 +119,10 @@ export async function fetchWahubTeachCheck(id: number): Promise<WahubTeachCheck 
  * before "ללמד" ignores `mode` and answers the plain list of "דיוק" threads:
  * that is not a page, and it is told as `TeachNotBuilt`.
  */
-export async function fetchWahubTeachPage(page = 1, pageSize = TEACH_PAGE_SIZE): Promise<WahubTeachPage> {
+export async function fetchWahubTeachPage(page = 1, pageSize = TEACH_PAGE_SIZE, contactId: number | null = null): Promise<WahubTeachPage> {
   const params: Record<string, string> = { mode: 'teach' };
+  // What was taught from one conversation (ח.4.2) — "מה נלמד מהשיחה הזאת".
+  if (contactId != null) params.contact = String(contactId);
   if (page > 1) params.page = String(page);
   if (pageSize !== TEACH_PAGE_SIZE) params.page_size = String(Math.min(Math.max(1, pageSize), 100));
   const res = await api.get(`${BASE}/refine/`, { params });

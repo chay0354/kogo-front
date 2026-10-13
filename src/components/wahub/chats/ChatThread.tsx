@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { AlertCircle, ArrowDown, ArrowRight, Bot, Check, Clock, Crosshair, Hand, Info, MessageCircle, PanelLeftOpen, Undo2, UserRound } from 'lucide-react';
 import { formatWhatsAppLink } from '@/lib/customerUtils';
+import { knowsChatBox } from '@/lib/wahub/boxes';
+import { customerCardFor } from '@/lib/wahub/customerCard';
 import { isDemoContact, type DemoInput } from '@/lib/wahub/demo';
 import { agoText, displayName, hasName } from '@/lib/wahub/format';
 import { futureOf, knowsFutureLeads, threadDays } from '@/lib/wahub/futureLeads';
@@ -17,6 +19,7 @@ import { useRefine } from '../refine/RefineContext';
 import { RefineRow, RefineSelectBar } from '../refine/RefineRow';
 import { useRefineSelection } from '../refine/useRefineSelection';
 import { ContactAvatar, DemoTag, ErrorState, LiveTestTag, Skeleton, Spinner, useDismiss } from '../shared/bits';
+import CustomerCardLink from '../shared/CustomerCardLink';
 import { NoteRow, type NoteActions } from '../shared/FutureParts';
 import { useStayAtEnd } from '../shared/motion';
 import { cx } from '../shared/tones';
@@ -171,6 +174,8 @@ function ThreadHeader({
   // A future lead a person holds is handed back from its own chip ("להחזיר לבוט" reads the conversation first);
   // the plain hand-back would leave the mark standing, so it is not offered beside it.
   const plainRelease = !(acts?.futureLead && human);
+  // Somebody Kogo knows: one press leads to their card in the customers section. Nobody identified — no button.
+  const customerCard = customerCardFor(contact);
 
   return (
     <header className={s.threadHead}>
@@ -211,32 +216,6 @@ function ThreadHeader({
       </div>
 
       <div className="flex shrink-0 flex-wrap items-center gap-2">
-        {/* "דיוק": mark what was not good in this conversation, and say why (docs/WAHUB-CONTRACT-REFINE.md). The
-            only way into marking: a bubble has no shortcut of its own (docs/WAHUB-CONTRACT-POLISH-1.md, ב). */}
-        {onRefine && (
-          <>
-            <button
-              type="button"
-              onClick={onRefine}
-              aria-pressed={refining}
-              title="דיוק: סמנו הודעות שלא היו טובות. המערכת מסכמת אותן ושואלת מה הבעיה"
-              className={cx(s.btn, s.btnSm, s.deskOnly, refining && s.btnOn)}
-            >
-              <Crosshair aria-hidden="true" />
-              דיוק
-            </button>
-            <button
-              type="button"
-              onClick={onRefine}
-              aria-pressed={refining}
-              aria-label="דיוק"
-              title="דיוק"
-              className={cx(s.ib, s.phoneIb, refining && s.ibNavy)}
-            >
-              <Crosshair aria-hidden="true" />
-            </button>
-          </>
-        )}
         <span className={cx(s.pill, s.deskOnly, human ? s.handHuman : s.handBot)}>
           {human ? <UserRound aria-hidden="true" /> : <Bot aria-hidden="true" />}
           {human ? 'בטיפול שלך' : contact.chat.handled_by_label || 'הבוט עונה'}
@@ -259,6 +238,10 @@ function ThreadHeader({
             קח שיחה
           </button>
         )}
+        {/* "לכרטיס הלקוח" follows the same rule: the card beside the conversation carries it ("פעולות"); where the
+            card is a press away, or was put away, it stands here. A phone's title row has no room for it — there it
+            is in the card, a press on the name away. */}
+        {cardAway && customerCard && <CustomerCardLink href={customerCard} className={cx(s.btn, s.btnSm, s.deskOnly)} />}
         {/* The phone keeps the same action as one icon at the end of the title row — until ✓ and the clock take
             that place: taking the conversation is then in the card, a press on the name away, as on a desktop. */}
         {!acts && (
@@ -298,6 +281,22 @@ function ThreadHeader({
               <Clock aria-hidden="true" />
             </button>
           </>
+        )}
+        {/* "דיוק": mark what was not good in this conversation, and say why (docs/WAHUB-CONTRACT-REFINE.md). The
+            only way into marking: a bubble has no shortcut of its own (docs/WAHUB-CONTRACT-POLISH-1.md, ב).
+            Small and quiet, after the conversation's own actions (owner, 13.10.2026: "בקטן כזה, לא מפריע יותר
+            מדי") — one icon at every width; its name is said to a reader of the screen and on hover. */}
+        {onRefine && (
+          <button
+            type="button"
+            onClick={onRefine}
+            aria-pressed={refining}
+            aria-label="דיוק"
+            title="דיוק: לתקן את הבוט מתוך השיחה"
+            className={cx(s.ib, s.ibSm, s.ibQuiet, refining && s.ibNavy)}
+          >
+            <Crosshair aria-hidden="true" />
+          </button>
         )}
         {showDetailsButton && (
           <button
@@ -434,6 +433,8 @@ export default function ChatThread({
         // Marked messages: the system speaks first — a short summary of the piece, and "מה לא היה טוב כאן?".
         // "לתקן" on an answer keeps to what it was: she says what was wrong with it.
         summarize: !shadow,
+        // "דיוק" works together with "ללמד" where the server offers it: the same flow, on what was marked here.
+        teach: knowsChatBox(shown.contact),
         // Once she has said what was wrong with the answer, it is marked 👎 — without a note, so no second proposal is made of it.
         onSent: shadow && shadow.verdict !== 'bad' ? () => onScreen.current.onShadowVerdict?.(shadow, 'bad', '') : undefined,
       });

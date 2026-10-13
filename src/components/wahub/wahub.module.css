@@ -466,6 +466,16 @@ button.kpi:active {
   height: 15px;
 }
 
+/* A tool that should not call for the eye ("דיוק" in a conversation's title row — owner, 13.10.2026: small, and
+   not in the way). It takes its colour only under the pointer, or while it is on. */
+.ibQuiet {
+  color: var(--muted);
+}
+
+.ibQuiet:not(.ibNavy):hover {
+  color: var(--navy-ink);
+}
+
 .ibBad:hover {
   background: var(--bad-bg);
   color: var(--bad);
@@ -4346,6 +4356,12 @@ textarea.field {
   .threadHead .ib svg {
     width: 20px;
     height: 20px;
+  }
+
+  /* The quiet tool keeps a finger's width to press, and a smaller mark to look at. */
+  .threadHead .ibQuiet svg {
+    width: 17px;
+    height: 17px;
   }
 
   .threadName {

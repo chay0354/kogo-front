@@ -11,6 +11,8 @@ import type {
 } from '@/types/wahub';
 import { dayKey, dayLabel, daysBetween, formatClock, formatDateTime, formatShortDate } from './format';
 import { isOptimistic } from './messages';
+import { readCustomerRef } from './search';
+import { WAITING_STATE_LABELS, readWaitingState } from './waitingSummary';
 
 /**
  * Future leads, the clock and the note; the waiting list
@@ -118,6 +120,17 @@ export function readWaitingMark(raw: unknown): WahubWaitingMark | null {
   };
   // Only a server that can tell the customer of the freed place sends the field at all (ז.4).
   if ('notified_at' in data) mark.notified_at = time(data.notified_at);
+  // Where the entry stands, of four, and whether it calls on the office (ח.3.1): only a server that knows ח says.
+  if ('state' in data) {
+    const state = readWaitingState(data.state);
+    mark.state = state;
+    mark.state_label = str(data.state_label) || (state ? WAITING_STATE_LABELS[state] : '');
+    mark.needs_office = data.needs_office === true;
+    const position = Number(data.position);
+    const queue = Number(data.queue);
+    mark.position = Number.isFinite(position) && position > 0 ? Math.floor(position) : null;
+    mark.queue = Number.isFinite(queue) && queue > 0 ? Math.floor(queue) : null;
+  }
   return mark;
 }
 
@@ -193,6 +206,8 @@ export function readWaitingEntry(raw: unknown): WahubWaitingEntry | null {
     const replied = time(data.customer_replied_at);
     entry.customer_replied_at = replied && entry.notified_at && Date.parse(replied) > Date.parse(entry.notified_at) ? replied : null;
   }
+  // "לכרטיס הלקוח" (ח.2): the child the entry is about. Null — nobody Kogo knows; absent — the server does not say.
+  if ('customer' in data) entry.customer = readCustomerRef(data.customer);
   return entry;
 }
 

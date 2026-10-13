@@ -1179,6 +1179,186 @@
   }
 }
 
+/* ---------- taught from inside a conversation ("דיוק", 13.10.2026) ---------- */
+
+/* Where the thread was born: one quiet line, and the way back to that conversation. */
+.origin {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.originLine {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  font-size: var(--t-meta);
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.originLine svg {
+  flex: none;
+  width: 14px;
+  height: 14px;
+}
+
+.originLink {
+  color: var(--navy-ink);
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* One marked message, as it is quoted: who said it, and what. */
+.quote {
+  margin: 0;
+  border-inline-start: 3px solid var(--lav);
+  padding-inline-start: 10px;
+  font-size: var(--t-meta);
+  line-height: 1.55;
+  color: var(--ink);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.quote > b {
+  display: block;
+  font-size: 11.5px;
+  font-weight: 800;
+  color: var(--muted);
+}
+
+/* The system's first words on the marked piece: three short lines, each under its own small title. */
+.opening {
+  min-width: 0;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: var(--lav-2);
+}
+
+.openingMark {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin: 0 0 8px;
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--navy-ink);
+}
+
+.openingMark svg {
+  width: 14px;
+  height: 14px;
+}
+
+.openingRows {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+}
+
+.openingRows dt {
+  font-size: 11.5px;
+  font-weight: 800;
+  color: var(--muted);
+}
+
+.openingRows dd {
+  margin: 0;
+  font-size: var(--t-body);
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+
+/* In "מה לימדת עד היום": under what was understood, where it was taught from. */
+.rowOrigin {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--muted);
+}
+
+/* The card inside the small chat of "דיוק": the chat is its frame, so it takes the chat's whole width. */
+.inChat {
+  padding: 14px;
+  border-radius: 14px;
+  box-shadow: none;
+}
+
+/* What was taught from this conversation before: a quiet list under the card. */
+.earlier {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.earlierRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 40px;
+  padding: 6px 10px;
+  border: 1px solid var(--line-2);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--t-meta);
+  text-align: start;
+  transition: background-color var(--m-fast, 0.15s);
+}
+
+.earlierRow:hover {
+  background: var(--lav-2);
+}
+
+.earlierRow[aria-current='true'] {
+  border-color: var(--navy);
+}
+
+.earlierText {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 767px) {
+  /* In the small chat the card's foot rests on the chat's own floor — the bottom bar is under the chat there. */
+  .inChat {
+    --dockGap: 0px;
+  }
+
+  .inChat .foot {
+    bottom: 0;
+  }
+
+  .inChat .foot::after {
+    display: none;
+  }
+
+  /* A finger tall: the two that decide ("מאשר" / "לא בדיוק") are pressed with a thumb here. */
+  .inChat .actions .big {
+    height: 44px;
+  }
+
+  .earlierRow {
+    min-height: 44px;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .card,
   .rise,

@@ -1,0 +1,598 @@
+/*
+ * The afternoon of 13.10.2026 (docs/WAHUB-CONTRACT-FUTURE-LEADS.md, ח): what a
+ * search adds to a list — the letters and the digits that matched, where each
+ * result stands, why it was found, the customers in Kogo who have no
+ * conversation — and "מה רצו", the summary of what somebody on the waiting list
+ * asked for.
+ *
+ * It takes the section's own colours and sizes (wahub.module.css) and its own
+ * motion (motion.module.css); nothing here is drawn in red — red stays for
+ * "מבקש נציג" alone.
+ */
+
+/* ---------- what matched ---------- */
+
+/* The piece of a name or of a number that the search matched: marked, not shouted. */
+.hit {
+  padding: 0 1px;
+  border-radius: 4px;
+  background: var(--gold-bg);
+  color: inherit;
+  font-weight: inherit;
+  box-shadow: 0 0 0 1px rgba(245, 197, 24, 0.35);
+}
+
+/* ---------- "תוצאות בכל השיחות" ---------- */
+
+/* One quiet line at the head of the results: the search looks everywhere, whatever box was chosen. It stays at
+   the top while the results scroll under it. */
+.everywhere {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  padding: 7px 14px;
+  background: var(--lav-2);
+  color: var(--navy-ink);
+  font-size: var(--t-meta);
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.everywhere svg {
+  flex: none;
+  width: 14px;
+  height: 14px;
+}
+
+.everywhereCount {
+  color: var(--muted);
+  font-weight: 500;
+}
+
+/* In the leads the strip stands inside the list's own gutter, as a rounded line. */
+.everywhereInset {
+  position: static;
+  margin: 0 0 10px;
+  border-radius: 12px;
+}
+
+/* ---------- on a row ---------- */
+
+/* Where the result stands: the box of a conversation, the list of a lead. A small tag, in the row's own line of tags. */
+.place {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 20px;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: var(--lav-2);
+  color: var(--muted);
+  font-size: 11.5px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.placeGold {
+  background: var(--gold-bg);
+  color: var(--gold-ink);
+}
+
+.placeWarn {
+  background: var(--warn-bg);
+  color: var(--warn);
+}
+
+/* The one place red is asked for by name: "מבקש נציג". */
+.placeAsk {
+  background: var(--bad-bg);
+  color: var(--bad);
+}
+
+/* The phone the search matched, and why a row was found when it was not by what it already shows. */
+.found {
+  display: block;
+  min-width: 0;
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 12.5px;
+  font-weight: 500;
+  line-height: 1.45;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* A phone is read left to right — and still stands at the row's own start, with the rest of it. */
+.digits {
+  display: inline-block;
+  font-variant-numeric: tabular-nums;
+  unicode-bidi: isolate;
+  direction: ltr;
+}
+
+/* ---------- beside the results: people the list does not hold ---------- */
+
+.beside {
+  margin: 14px 12px 6px;
+  padding: 12px 14px 14px;
+  border: 1px dashed var(--line);
+  border-radius: 14px;
+  background: var(--surface);
+}
+
+.besideInset {
+  margin-inline: 0;
+}
+
+.besideTitle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 8px;
+  color: var(--ink);
+  font-size: var(--t-meta);
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.besideTitle svg {
+  flex: none;
+  width: 15px;
+  height: 15px;
+  color: var(--navy-ink);
+}
+
+.besideList {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.besideRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+}
+
+.besideRow + .besideRow {
+  padding-top: 10px;
+  border-top: 1px solid var(--line-2);
+}
+
+.besideWho {
+  flex: 1 1 150px;
+  min-width: 0;
+}
+
+.besideName {
+  display: block;
+  color: var(--ink);
+  font-size: var(--t-body);
+  font-weight: 700;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.besideMeta {
+  display: block;
+  color: var(--muted);
+  font-size: 12.5px;
+  font-weight: 500;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.besideActs {
+  display: flex;
+  flex: none;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.besideNote {
+  margin: 10px 0 0;
+  color: var(--muted);
+  font-size: 12.5px;
+  line-height: 1.45;
+}
+
+/* ---------- "מה רצו" ---------- */
+
+/* The first block of somebody who waits for a place: what they asked for, in one large sentence; the number to
+   call; and what could be offered instead. */
+.wanted {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+  padding: 16px 18px 18px;
+  border-radius: 18px;
+  background: var(--lav-2);
+}
+
+/* A place is free, or the customer answered: the block stands out, in the green of a freed place. */
+.wantedAct {
+  background: var(--good-bg);
+}
+
+/* Inside another card (the contact's card, a person of the full list): no ground of its own, and words of the
+   card's own size — the card is narrow, and has its own largest thing. */
+.wantedBare {
+  padding: 0;
+  border-radius: 0;
+  background: none;
+}
+
+.wantedBare .wantedSentence {
+  font-size: var(--t-title);
+}
+
+.wantedBare .offerRow {
+  background: var(--surface-2);
+}
+
+/* In the contact's card the summary waits behind one line, under the mark that says they wait. */
+.cardFold {
+  margin-top: 8px;
+}
+
+.cardFold[open] > summary {
+  margin-bottom: 8px;
+}
+
+.wantedHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+}
+
+.wantedTitle {
+  margin: 0;
+  color: var(--ink);
+  font-size: var(--t-meta);
+  font-weight: 600;
+  line-height: 1.4;
+  opacity: 0.8;
+}
+
+.wantedState {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 22px;
+  padding: 0 9px;
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.wantedState svg {
+  width: 13px;
+  height: 13px;
+}
+
+.wantedStateAct {
+  background: var(--good);
+  color: #fff;
+}
+
+/* The heart of it, and the largest words of the block. */
+.wantedSentence {
+  margin: 0;
+  color: var(--ink);
+  font-family: var(--font-display, inherit);
+  font-size: var(--t-lead);
+  font-weight: 600;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+  text-wrap: pretty;
+}
+
+.wantedSentence strong {
+  font-weight: 800;
+  color: var(--navy-ink);
+}
+
+.wantedNow {
+  margin: 0;
+  color: var(--ink);
+  font-size: var(--t-body);
+  font-weight: 500;
+  line-height: 1.45;
+}
+
+.wantedNow b {
+  font-weight: 700;
+}
+
+.wantedGone {
+  color: var(--warn);
+  font-weight: 700;
+}
+
+.wantedWays {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+/* "חיוג": the number itself is the button — large enough to read at a glance and to press with a thumb.
+   (A link inside the section is navy by the section's own rule; this one stands on navy, and says so louder.) */
+.wanted a.call,
+.wanted a.call:hover {
+  color: #fff;
+}
+
+.call {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 18px;
+  border-radius: 12px;
+  background: var(--navy);
+  font-size: 17px;
+  font-weight: 800;
+  text-decoration: none;
+  box-shadow: 0 4px 12px rgba(43, 48, 144, 0.22);
+  transition:
+    background-color var(--m-fast),
+    transform var(--m-press) var(--m-out);
+}
+
+.call:hover {
+  background: var(--navy-2);
+}
+
+.call:active {
+  transform: scale(0.97);
+}
+
+.call svg {
+  flex: none;
+  width: 18px;
+  height: 18px;
+}
+
+.callNumber {
+  font-variant-numeric: tabular-nums;
+  unicode-bidi: isolate;
+  direction: ltr;
+}
+
+/* The short lines, behind their title. */
+.wantedFold > summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 28px;
+  color: var(--navy-ink);
+  font-size: var(--t-meta);
+  font-weight: 700;
+  cursor: pointer;
+  list-style: none;
+}
+
+.wantedFold > summary::-webkit-details-marker {
+  display: none;
+}
+
+.wantedFold > summary svg {
+  width: 15px;
+  height: 15px;
+  transition: transform var(--m-fast);
+}
+
+.wantedFold[open] > summary svg {
+  transform: rotate(180deg);
+}
+
+.wantedFacts {
+  display: grid;
+  grid-template-columns: minmax(64px, auto) minmax(0, 1fr);
+  gap: 6px 14px;
+  margin: 8px 0 0;
+}
+
+.wantedFacts > div {
+  display: contents;
+}
+
+.wantedFacts dt {
+  color: var(--muted);
+  font-size: var(--t-meta);
+  font-weight: 500;
+}
+
+.wantedFacts dd {
+  margin: 0;
+  color: var(--ink);
+  font-size: var(--t-body);
+  font-weight: 600;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+/* "אפשר להציע במקום": each lesson that has room now, a row of its own, with how many places are left. */
+.offer {
+  min-width: 0;
+}
+
+.offerTitle {
+  margin: 0 0 8px;
+  color: var(--ink);
+  font-size: var(--t-title);
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.offerList {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.offerRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  border-radius: 12px;
+  background: var(--surface);
+}
+
+.offerWhat {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.offerLabel {
+  display: block;
+  color: var(--ink);
+  font-size: var(--t-body);
+  font-weight: 700;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.offerKind {
+  display: block;
+  color: var(--muted);
+  font-size: 12.5px;
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+.offerSeats {
+  flex: none;
+  padding: 2px 9px;
+  border-radius: 999px;
+  background: var(--good-bg);
+  color: var(--good);
+  font-size: 12.5px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.offerNone {
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--t-body);
+  line-height: 1.5;
+}
+
+.wantedOthers {
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--t-meta);
+  font-weight: 500;
+  line-height: 1.5;
+}
+
+.wantedFoot {
+  min-width: 0;
+}
+
+/* ---------- "מחכים שיתפנה מקום" on the day's tab ---------- */
+
+.todayWaiting {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 16px;
+  border: 0;
+  border-top: 1px solid var(--line-2);
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  font-size: var(--t-body);
+  text-align: start;
+  transition: background-color var(--m-fast);
+}
+
+.todayWaiting:hover {
+  background: var(--lav-2);
+}
+
+.todayWaiting > svg {
+  flex: none;
+  width: 16px;
+  height: 16px;
+}
+
+.todayWaitingText {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.todayWaitingText strong {
+  color: var(--ink);
+  font-weight: 700;
+}
+
+.todayWaitingAct {
+  color: var(--good);
+  font-weight: 800;
+}
+
+@media (max-width: 767px) {
+  .everywhere {
+    padding: 8px 14px;
+  }
+
+  .wanted {
+    padding: 14px 14px 16px;
+    border-radius: 16px;
+  }
+
+  /* On a phone the number to call is the whole width of the block: it is what the block is for. */
+  .wantedWays {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .wantedWays > * {
+    width: 100%;
+    min-height: 44px;
+  }
+
+  .besideActs > * {
+    min-height: 44px;
+  }
+
+  .offerRow {
+    min-height: 44px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .call,
+  .todayWaiting,
+  .wantedFold > summary svg {
+    transition: none;
+  }
+
+  .call:active {
+    transform: none;
+  }
+}
