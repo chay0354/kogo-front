@@ -235,16 +235,25 @@ export interface EntryStanding {
   replied: string;
 }
 
+/**
+ * When the customer was told of the place that is free NOW; null when they were not — also when they were told
+ * of an earlier one that was taken again since. The entry keeps that moment as history; nothing on the screen
+ * goes by it (the server's own rule, word for word: the telling counts from the moment this place was freed).
+ */
+export function toldOfThisPlace(entry: Pick<WahubWaitingEntry, 'status' | 'notified_at' | 'freed_at'>): string | null {
+  if (entry.status !== 'freed' || !entry.notified_at) return null;
+  if (!entry.freed_at) return entry.notified_at;
+  return Date.parse(entry.notified_at) >= Date.parse(entry.freed_at) ? entry.notified_at : null;
+}
+
 /** Where one entry stands, as the office reads it: still waiting, a place freed, the customer told, the customer answered. */
 export function entryStanding(entry: WahubWaitingEntry, now: Date): EntryStanding {
-  const told = entry.notified_at
-    ? ['הודענו ללקוח', formatDateTime(entry.notified_at, now), entry.notified_by_name ?? ''].filter(Boolean).join(' · ')
-    : '';
-  const replied = entry.notified_at && entry.customer_replied_at ? ['הלקוח ענה', formatDateTime(entry.customer_replied_at, now)].filter(Boolean).join(' · ') : '';
+  const toldAt = toldOfThisPlace(entry);
+  const told = toldAt ? ['הודענו ללקוח', formatDateTime(toldAt, now), entry.notified_by_name ?? ''].filter(Boolean).join(' · ') : '';
+  const replied = toldAt && entry.customer_replied_at ? ['הלקוח ענה', formatDateTime(entry.customer_replied_at, now)].filter(Boolean).join(' · ') : '';
   if (!isActiveEntry(entry)) return { tone: 'closed', word: entry.status_label, told, replied };
-  // The message is about the place that is free now: an entry back in the line keeps it as history only.
-  if (entry.status === 'freed' && replied) return { tone: 'replied', word: 'הלקוח ענה', told, replied };
-  if (entry.status === 'freed' && told) return { tone: 'told', word: 'הודענו ללקוח', told, replied };
+  if (replied) return { tone: 'replied', word: 'הלקוח ענה', told, replied };
+  if (told) return { tone: 'told', word: 'הודענו ללקוח', told, replied };
   if (entry.status === 'freed') return { tone: 'freed', word: 'התפנה מקום', told, replied };
   return { tone: 'waiting', word: 'ממתין', told, replied };
 }

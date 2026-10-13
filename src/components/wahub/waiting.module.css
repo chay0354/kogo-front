@@ -1145,6 +1145,12 @@ button.opt:not(:disabled):active {
     padding: 0 8px;
   }
 
+  /* The one thing that can be done with whoever only waits is a quiet one: a finger tall, and no wider than its words. */
+  .acts.actsQuiet > button:not(.quietLink) {
+    flex: none;
+    padding: 0 14px;
+  }
+
   .quietLink {
     min-height: 44px;
   }

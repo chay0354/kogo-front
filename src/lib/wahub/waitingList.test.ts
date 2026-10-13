@@ -40,6 +40,7 @@ import {
   readNotifyResult,
   readWaitingListPage,
   splitLessonOptions,
+  toldOfThisPlace,
   waitersText,
   waitingStripText,
   withEditedNote,
@@ -226,10 +227,22 @@ describe('where one entry stands', () => {
     expect(entryStanding(before, NOW).tone).toBe('told');
   });
 
-  it('the place was taken again: the entry waits — the message it once got is history, not its standing', () => {
-    const back = entry({ status: 'waiting', status_label: 'ממתין', notified_at: '2026-10-12T08:02:00+00:00', notified_by_name: 'מיכל כהן' });
-    expect(entryStanding(back, NOW)).toMatchObject({ tone: 'waiting', word: 'ממתין' });
-    expect(entryStanding(back, NOW).told).toContain('הודענו ללקוח');
+  it('the place was taken again: the entry waits — the message it once got is history, and is not said', () => {
+    const back = entry({ status: 'waiting', status_label: 'ממתין', freed_at: null, notified_at: '2026-10-12T08:02:00+00:00', notified_by_name: 'מיכל כהן' });
+    expect(entryStanding(back, NOW)).toEqual({ tone: 'waiting', word: 'ממתין', told: '', replied: '' });
+    expect(toldOfThisPlace(back)).toBeNull();
+  });
+
+  it('…and freed again: a new place — the customer was not told of THIS one, whatever they were told before', () => {
+    // Told on the 12th of a place that was taken; the place that is free now was freed on the 13th.
+    const again = entry({ notified_at: '2026-10-12T08:02:00+00:00', notified_by_name: 'מיכל כהן', freed_at: '2026-10-13T07:05:00+00:00', customer_replied_at: '2026-10-12T09:00:00+00:00' });
+    expect(toldOfThisPlace(again)).toBeNull();
+    expect(entryStanding(again, NOW)).toEqual({ tone: 'freed', word: 'התפנה מקום', told: '', replied: '' });
+    // Told after it was freed: of this place.
+    const told = entry({ notified_at: '2026-10-13T08:02:00+00:00', freed_at: '2026-10-13T07:05:00+00:00' });
+    expect(toldOfThisPlace(told)).toBe('2026-10-13T08:02:00+00:00');
+    // A server that names no moment of freeing: the telling stands.
+    expect(toldOfThisPlace(entry({ notified_at: '2026-10-13T08:02:00+00:00', freed_at: null }))).toBe('2026-10-13T08:02:00+00:00');
   });
 
   it('who is first is said in words; the rest by their place', () => {

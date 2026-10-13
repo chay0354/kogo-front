@@ -19,6 +19,7 @@ import {
   notSentText,
   notifyHowText,
   placeText,
+  toldOfThisPlace,
   waitingStripText,
   type NotifyOpen,
   type NotifyStep,
@@ -292,7 +293,7 @@ export function WaitingActionsView({
 
   if (!freed) {
     return (
-      <div className={w.acts} role="group" aria-label="פעולות על הרשומה">
+      <div className={cx(w.acts, w.actsQuiet)} role="group" aria-label="פעולות על הרשומה">
         <button type="button" disabled={working} onClick={() => onAsk(true)} className={cx(s.btn, s.btnSm)}>
           להסיר מהרשימה
         </button>
@@ -353,7 +354,7 @@ export function WaitingActions({ entryId, name, lesson, status = 'freed', busy, 
       onAsk={setAsking}
       onAct={(action) => onAct(entryId, action)}
       onNotify={canNotify ? () => notify?.onStart(entryId) : undefined}
-      told={Boolean(entry?.notified_at)}
+      told={entry ? toldOfThisPlace(entry) !== null : false}
       notify={open}
       onNotifySend={notify?.onSend}
       onNotifyClose={notify?.onClose}
