@@ -182,6 +182,56 @@ describe('reading the server\'s answer', () => {
   });
 });
 
+describe('the real server\'s own answer', () => {
+  /**
+   * GET settings/bot-mode/ as the local server (kogo-back, feat/wahub-go-live) answered on 14.10.2026 while its
+   * own check had "כולם" on: moments with six digits after the second, and one number more than the contract
+   * names (`not_started`).
+   */
+  const REAL = {
+    mode: 'all',
+    live: true,
+    live_since: '2026-10-13T21:18:11.516179+00:00',
+    chosen_at: '2026-10-13T21:18:11.502087+00:00',
+    chosen_by: 'e2e-golive@kogo.test',
+    sending_enabled: true,
+    text: 'הבוט החדש עונה לכל הלקוחות, להודעות שהגיעו מ-14.10 00:18',
+    warning: '',
+    stopped: null,
+    test_contacts: 0,
+    today: { sent: 1, failed: 0, late: 0, needs_human: 0, fallback: 0, unanswered: 0, not_started: 0 },
+    last_failure: null,
+    followups: { on: false, since: null, turned_on_at: null, by: '', text: 'כבויות — הבוט מתכנן חזרות ולא שולח אותן', due_now: 0 },
+    limits: { late_after_seconds: 60, late_within_minutes: 15, late_per_run: 8, per_hour: 12, per_day: 30, brake: { in_a_row: 5, minutes: 10, rate_min: 10, rate_percent: 50, in_a_row_slow: 10, slow_minutes: 60 } },
+    log: [
+      { at: '2026-10-13T21:18:11.516179+00:00', what: 'live', to: 'all', by: '', text: 'הבוט החדש עונה לכולם מ-14.10 00:18 — רק להודעות שמגיעות מהרגע הזה' },
+      { at: '2026-10-13T21:18:11.502087+00:00', what: 'mode', to: 'all', by: 'e2e-golive@kogo.test', text: 'המצב שונה ל"כולם": הבוט החדש עונה לכל מי שכותב' },
+    ],
+  };
+
+  it('is read whole: live, since the moment the server itself names in its sentence', () => {
+    const state = read(REAL);
+    expect(state.live).toBe(true);
+    const headline = whoAnswersHeadline(state, NOW);
+    expect(headline).toEqual({ tone: 'live', title: 'הבוט החדש עונה לכולם', sub: 'מאז 14.10 00:18' });
+    // The same hour the server wrote in its own words.
+    expect(REAL.text).toContain(headline.sub.replace('מאז ', ''));
+  });
+
+  it('a number the contract does not name is not drawn: six numbers, as before', () => {
+    const figures = todayFigures(read(REAL).today);
+    expect(figures.map((figure) => figure.key)).toEqual(['sent', 'failed', 'late', 'needs_human', 'fallback', 'unanswered']);
+    expect(figures[0].value).toBe(1);
+  });
+
+  it('the log, with a name where a person changed something', () => {
+    expect(logLines(read(REAL).log, NOW)).toEqual([
+      { when: '14.10 00:18', text: 'הבוט החדש עונה לכולם מ-14.10 00:18 — רק להודעות שמגיעות מהרגע הזה', by: '' },
+      { when: '14.10 00:18', text: 'המצב שונה ל"כולם": הבוט החדש עונה לכל מי שכותב', by: 'e2e-golive@kogo.test' },
+    ]);
+  });
+});
+
 describe('who answers, in one large line', () => {
   it('test: "בדיקה בלבד" — only the test numbers, and how many', () => {
     expect(whoAnswersHeadline(read(RAW_TEST), NOW)).toEqual({ tone: 'test', title: 'בדיקה בלבד', sub: 'הבוט החדש עונה רק למספרי הבדיקה · מספר בדיקה אחד' });
