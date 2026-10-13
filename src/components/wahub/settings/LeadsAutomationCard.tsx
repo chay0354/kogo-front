@@ -104,7 +104,7 @@ export interface LeadsAutomationViewProps {
  * The line of "חזרות אוטומטיות" carries its switch at its end (`followups`), and under its words the question
  * that turning it on asks.
  */
-function Line({ line, followups }: { line: WahubAutomationLine; followups?: LeadsAutomationFollowups }) {
+export function AutomationLineView({ line, followups }: { line: WahubAutomationLine; followups?: LeadsAutomationFollowups }) {
   // The question belongs to a switch that is off: a state that changed under it puts it away.
   const asking = Boolean(followups?.confirming && !followups.on);
   const left = followups ? followupsLeftBehind(followups.dueNow) : '';
@@ -343,7 +343,7 @@ export function LeadsAutomationView({
       {lines.length > 0 && (
         <ul className={cx(s.rows, a.lines)} aria-label="מה עובד ומה חסר">
           {lines.map((line, index) => (
-            <Line key={line.key || index} line={line} followups={line.key === FOLLOWUPS_LINE_KEY ? followups : undefined} />
+            <AutomationLineView key={line.key || index} line={line} followups={line.key === FOLLOWUPS_LINE_KEY ? followups : undefined} />
           ))}
         </ul>
       )}

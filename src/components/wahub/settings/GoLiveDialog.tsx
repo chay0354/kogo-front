@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useId, useRef, useState, type Ref } from 'react';
+import { useEffect, useRef, useState, type Ref } from 'react';
 import { createPortal } from 'react-dom';
 import { AlertTriangle, X } from 'lucide-react';
 import { WHO_ANSWERS_TEXT, canGoLive, type GoLiveStep } from '@/lib/wahub/botMode';
@@ -36,9 +36,12 @@ export interface GoLiveDialogViewProps {
   rootRef?: Ref<HTMLDivElement>;
 }
 
-/** The window itself, drawn from what it is given. */
+/** The window's title, by name: there is one such window on the page at the most. */
+const TITLE_ID = 'wahub-go-live-title';
+
+/** The window itself, drawn from what it is given — and from nothing else, so it can be read and pressed in a test. */
 export function GoLiveDialogView({ step, sendingEnabled, busy, problems, error, onTick, onConfirm, onClose, rootRef }: GoLiveDialogViewProps) {
-  const titleId = useId();
+  const titleId = TITLE_ID;
   const ready = canGoLive(step, busy);
   return (
     <div ref={rootRef} className={g.winRoot}>

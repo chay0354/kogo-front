@@ -103,8 +103,8 @@ function CardHead({ refreshing = false }: { refreshing?: boolean }) {
   );
 }
 
-/** A title, and — a press away — what stands behind it. */
-function FoldRow({ title, value, defaultOpen, children }: { title: string; value?: string; defaultOpen: boolean; children: ReactNode }) {
+/** A title, and — a press away — what stands behind it. Keeps for itself whether it is open. */
+export function WhoAnswersFold({ title, value, defaultOpen, children }: { title: string; value?: string; defaultOpen: boolean; children: ReactNode }) {
   const [open, setOpen] = useState(defaultOpen);
   const panelId = useId();
   return (
@@ -332,12 +332,12 @@ export function WhoAnswersView({
       {(failure || log.length > 0) && (
         <ul className={cx(s.rows, g.folds)}>
           {failure && (
-            <FoldRow title={WHO_ANSWERS_TEXT.failureTitle} value={formatDateTime(failure.at, now)} defaultOpen={defaultOpen?.includes('failure') ?? false}>
+            <WhoAnswersFold title={WHO_ANSWERS_TEXT.failureTitle} value={formatDateTime(failure.at, now)} defaultOpen={defaultOpen?.includes('failure') ?? false}>
               <p className={g.foldText}>{failure.text}</p>
-            </FoldRow>
+            </WhoAnswersFold>
           )}
           {log.length > 0 && (
-            <FoldRow title={WHO_ANSWERS_TEXT.logTitle} defaultOpen={defaultOpen?.includes('log') ?? false}>
+            <WhoAnswersFold title={WHO_ANSWERS_TEXT.logTitle} defaultOpen={defaultOpen?.includes('log') ?? false}>
               <ul className={g.log}>
                 {log.map((line, index) => (
                   <li key={index}>
@@ -349,7 +349,7 @@ export function WhoAnswersView({
                   </li>
                 ))}
               </ul>
-            </FoldRow>
+            </WhoAnswersFold>
           )}
         </ul>
       )}
