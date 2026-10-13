@@ -8,7 +8,8 @@ import { readableError } from '@/lib/apiError';
 import { fetchWahubContacts } from '@/lib/wahubApi';
 import type { Tone } from '@/lib/wahub/boxes';
 import { callbackLine, followupDueLine } from '@/lib/wahub/followup';
-import { dayTick, displayName, israelToday, plainDayLabel, previewText, waitingLabel } from '@/lib/wahub/format';
+import { dayTick, displayName, israelToday, plainDayLabel, previewText } from '@/lib/wahub/format';
+import { chatWaitTag } from '@/lib/wahub/overdue';
 import { leadActOf } from '@/lib/wahub/leadStage';
 import { longestWaiting } from '@/lib/wahub/live';
 import { WAHUB_MAX_PAGE_SIZE } from '@/lib/wahub/params';
@@ -382,7 +383,8 @@ export default function TodayTab({ status, onGo, onOpenChat }: TodayTabProps) {
                 <PersonRow
                   key={contact.id}
                   contact={contact}
-                  line={waitingLabel(contact.chat.waiting_since, now)}
+                  // The server's own words where it counts the office's hours (ט.2.3); the screen's count otherwise.
+                  line={chatWaitTag(contact.chat, now)?.label ?? ''}
                   loud={contact.chat.needs_human}
                   onOpen={onOpenChat}
                 />

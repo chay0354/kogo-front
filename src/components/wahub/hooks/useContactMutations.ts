@@ -19,6 +19,8 @@ import { applyFollowupPatch } from '@/lib/wahub/followup';
 import { israelToday } from '@/lib/wahub/format';
 import type { FutureOutcome, HandToBotOutcome } from '@/lib/wahub/futureLeads';
 import { addWahubNote, closeWahubConversation, handWahubToBot, setWahubFuture } from '@/lib/wahub/futureLeadsApi';
+import { OPT_OUT_TEXT, optOutFailedText } from '@/lib/wahub/optOut';
+import { optInWahubContact, optOutWahubContact } from '@/lib/wahub/optOutApi';
 import { joinFailedText, noteFailedText } from '@/lib/wahub/waitingList';
 import { addWahubWaitingEntry, deleteWahubNote, editWahubNote } from '@/lib/wahub/waitingListApi';
 import type { WahubContact, WahubFollowupPatch, WahubNote, WahubTag, WahubUnderstood } from '@/types/wahub';
@@ -285,6 +287,46 @@ export function useContactMutations(store: ContactStore, live: WahubLiveHandle, 
           report: () => {},
         });
         return joined ? '' : got.reason || 'הלקוח לא נוסף לרשימת ההמתנה';
+      },
+
+      // "ביקש הסר" (docs/WAHUB-CONTRACT-FUTURE-LEADS.md, ט.1.4). Each is asked from a question of its own in the
+      // card, so a refusal is said there. Nothing is shown before the server has answered: a mark that says
+      // "no broadcast reaches them" must never stand while the list says otherwise.
+
+      /** Marking by hand. Resolves '' once the number is on the list, or why it is not. */
+      async optOut(id: number): Promise<string> {
+        const got = { reason: '' };
+        const marked = await run(id, {
+          request: async () => {
+            try {
+              return await optOutWahubContact(id);
+            } catch (error) {
+              got.reason = optOutFailedText(error, OPT_OUT_TEXT.markFailed);
+              throw error;
+            }
+          },
+          failure: OPT_OUT_TEXT.markFailed,
+          report: () => {},
+        });
+        return marked ? '' : got.reason || OPT_OUT_TEXT.markFailed;
+      },
+
+      /** "להחזיר לתפוצה". Resolves '' once the number is off the list, or why it is not. */
+      async optIn(id: number): Promise<string> {
+        const got = { reason: '' };
+        const back = await run(id, {
+          request: async () => {
+            try {
+              return await optInWahubContact(id);
+            } catch (error) {
+              got.reason = optOutFailedText(error, OPT_OUT_TEXT.backFailed);
+              throw error;
+            }
+          },
+          failure: OPT_OUT_TEXT.backFailed,
+          report: () => {},
+        });
+        return back ? '' : got.reason || OPT_OUT_TEXT.backFailed;
       },
     }),
     [isPending, run],

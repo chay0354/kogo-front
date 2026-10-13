@@ -1,0 +1,315 @@
+/*
+ * Two small marks (docs/WAHUB-CONTRACT-FUTURE-LEADS.md, ט.1, ט.2):
+ *
+ *   how long a customer waits for a person — and, once that is more than three
+ *   hours of the office's own hours, a soft pulse on the mark and a quiet line
+ *   over the conversations that were pinned to the head of the list;
+ *
+ *   "ביקש הסר" — quiet, and clear: a row, the head of a conversation and the
+ *   card carry it, and in the card a press opens when, where from, and the way back.
+ *
+ * Everything stands on the section's own variables (wahub.module.css) and on
+ * the timing of its motion layer (motion.module.css). Red is not used here:
+ * it is kept for "מבקש נציג" alone.
+ */
+
+/* ---------- how long they wait ---------- */
+
+/*
+ * Past three office hours. The owner: "הסימן של כמות השעות מהבהב כזה עדין" —
+ * so the mark breathes: its ground fades a little and comes back, slowly, and
+ * a soft halo opens around it and closes. Opacity only; nothing moves, nothing
+ * flashes. It is the one thing in the list that keeps moving, on purpose.
+ */
+.late {
+  position: relative;
+  isolation: isolate;
+  background: var(--warn-bg);
+  color: var(--warn);
+  box-shadow: inset 0 0 0 1px rgba(180, 83, 9, 0.3);
+  animation: waitBreathe 2.8s ease-in-out infinite;
+}
+
+.late::after {
+  content: '';
+  position: absolute;
+  inset: -3px;
+  z-index: -1;
+  border-radius: inherit;
+  background: rgba(245, 197, 24, 0.55);
+  opacity: 0;
+  pointer-events: none;
+  animation: waitHalo 2.8s ease-in-out infinite;
+}
+
+.late svg {
+  flex: none;
+  width: 11px;
+  height: 11px;
+}
+
+@keyframes waitBreathe {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.62;
+  }
+}
+
+@keyframes waitHalo {
+  0%,
+  100% {
+    opacity: 0;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+/* The same words inside the one line under the name, on a phone: they breathe there too, as text. */
+.lateText {
+  color: var(--warn);
+  font-weight: 800;
+  animation: waitBreathe 2.8s ease-in-out infinite;
+}
+
+.waitText {
+  color: var(--warn);
+  font-weight: 700;
+}
+
+/* The quiet line over the conversations that are pinned to the head of the list. */
+.pinHead {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px 2px;
+  color: var(--warn);
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.4;
+}
+
+.pinHead svg {
+  flex: none;
+  width: 13px;
+  height: 13px;
+}
+
+.pinHead .pinCount {
+  font-weight: 700;
+  opacity: 0.85;
+}
+
+/* Where the pinned conversations end and the rest of the list goes on: a thin line, and nothing more. */
+.pinEnd {
+  height: 1px;
+  margin: 6px 10px;
+  background: var(--line);
+}
+
+/* At the head of an open conversation, on a desktop: the two marks have a line of their own under the name, at
+   every width. A phone says them in the one line it has there. */
+.headMarks {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 6px;
+  margin: 3px 0 1px;
+}
+
+@media (max-width: 767px) {
+  .headMarks {
+    display: none;
+  }
+}
+
+/* A lead's row: the mark stands beside the name, whole. */
+.rowWait {
+  flex: none;
+}
+
+/* ---------- "ביקש הסר" ---------- */
+
+/* On a row and at the head of a conversation: outlined, in the ink of a note — it is said, and it does not call. */
+.out {
+  background: var(--surface);
+  color: var(--muted);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+
+.out svg {
+  flex: none;
+  width: 11px;
+  height: 11px;
+}
+
+/* In the card: the same mark as a press — the details are behind it. It stands under the name, inside "who":
+   that section lets it have a line of its own, the whole width of the card. */
+.whoWrap {
+  flex-wrap: wrap;
+  row-gap: 10px;
+}
+
+.outSect {
+  flex: 0 0 100%;
+  min-width: 0;
+}
+
+.outChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 30px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px var(--line);
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--t-meta);
+  font-weight: 700;
+  transition:
+    background-color var(--m-fast),
+    transform var(--m-press) var(--m-out);
+}
+
+.outChip:hover {
+  background: var(--lav-2);
+}
+
+.outChip:active {
+  transform: scale(0.97);
+}
+
+.outChip svg {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  color: var(--muted);
+}
+
+.outChip .outChevron {
+  transition: transform var(--m-fast) var(--m-out);
+}
+
+.outChip[aria-expanded='true'] .outChevron {
+  transform: rotate(180deg);
+}
+
+.outBody {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 2px 2px;
+}
+
+.outFacts {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 4px 12px;
+  margin: 0;
+  font-size: var(--t-meta);
+  line-height: 1.5;
+}
+
+.outFacts dt {
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.outFacts dd {
+  margin: 0;
+  min-width: 0;
+  color: var(--ink);
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+/* The customer's own words. */
+.outQuote {
+  display: inline-block;
+  max-width: 100%;
+  padding: 3px 10px;
+  border-radius: 10px;
+  background: var(--lav-2);
+  font-weight: 500;
+}
+
+.outStill {
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--t-meta);
+  line-height: 1.5;
+}
+
+.outError {
+  margin: 0;
+  color: var(--warn);
+  font-size: var(--t-meta);
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+/* Why a press that would send the bot after them is locked — beside the press, in plain words. */
+.blocked {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 10px 0 0;
+  padding: 9px 12px;
+  border-radius: 12px;
+  background: var(--surface-2);
+  box-shadow: inset 0 0 0 1px var(--line-2);
+  color: var(--ink);
+  font-size: var(--t-meta);
+  line-height: 1.5;
+}
+
+.blocked svg {
+  flex: none;
+  width: 15px;
+  height: 15px;
+  margin-top: 2px;
+  color: var(--muted);
+}
+
+.blocked strong {
+  font-weight: 700;
+}
+
+/* A phone: what is pressed is a finger tall. */
+@media (max-width: 767px) {
+  .outChip {
+    min-height: 36px;
+  }
+}
+
+/*
+ * "Reduce motion": the mark does not breathe. It keeps what says "late" without moving — a firmer edge and
+ * heavier words — so nothing is told by the motion alone.
+ */
+@media (prefers-reduced-motion: reduce) {
+  .late,
+  .late::after,
+  .lateText {
+    animation: none;
+  }
+
+  .late {
+    box-shadow: inset 0 0 0 1.5px var(--warn);
+    font-weight: 800;
+  }
+
+  .late::after {
+    opacity: 0;
+  }
+
+  .outChip,
+  .outChip .outChevron {
+    transition: none;
+  }
+}

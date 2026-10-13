@@ -29,6 +29,7 @@ import {
 import type { WahubFuture, WahubWaitingEntry, WahubWaitingMark } from '@/types/wahub';
 import { InlineConfirm, Spinner } from '../../shared/bits';
 import CustomerCardLink from '../../shared/CustomerCardLink';
+import { BlockedByOptOut } from '../../shared/MarkParts';
 import { ThinkingDots } from '../../shared/motion';
 import { cx } from '../../shared/tones';
 import w from '../../waiting.module.css';
@@ -55,6 +56,13 @@ export interface NotifyControls {
   onStart: (entryId: number) => void;
   onSend: () => void;
   onClose: () => void;
+  /**
+   * The customer asked out ("ביקש הסר", ט.1.6): nothing goes out to them by itself, so "להודיע ללקוח" is locked
+   * from the start and the reason stands beside it. Set by whoever knows the person the entries belong to.
+   */
+  optedOut?: boolean;
+  /** The screen already says "ביקש הסר" in words of its own: the line beside the locked press does not repeat it. */
+  optedOutSaid?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -254,6 +262,10 @@ export interface WaitingActionsViewProps {
   onAct: (action: WaitingAction) => void;
   /** "להודיע ללקוח". Absent: the server cannot tell a customer, and the button is not drawn. */
   onNotify?: () => void;
+  /** The customer asked out: the button is drawn, locked, and one line under the buttons says why. */
+  notifyBlocked?: boolean;
+  /** …in short, where the screen around it already says "ביקש הסר". */
+  notifyBlockedSaid?: boolean;
   /** The customer was already told of this place: "טופל" then leads, and telling again is a quiet second. */
   told?: boolean;
   /** The block of "להודיע ללקוח", while it is open for this entry: it stands in place of the buttons. */
@@ -283,6 +295,8 @@ export function WaitingActionsView({
   onAsk,
   onAct,
   onNotify,
+  notifyBlocked = false,
+  notifyBlockedSaid = false,
   told = false,
   notify = null,
   onNotifySend = NOOP,
@@ -337,25 +351,29 @@ export function WaitingActionsView({
     );
   }
 
-  // The one that leads is the next thing to do: tell the customer; once they were told — mark it as dealt with.
-  const notifyLeads = Boolean(onNotify) && !told;
+  // The one that leads is the next thing to do: tell the customer; once they were told — or when they may not
+  // be told at all — mark it as dealt with.
+  const notifyLeads = Boolean(onNotify) && !told && !notifyBlocked;
   return (
-    <div className={cx(l.freedActs, w.acts)} role="group" aria-label="פעולות על המקום שהתפנה">
-      {onNotify && (
-        <button type="button" disabled={working} onClick={onNotify} className={cx(s.btn, notifyLeads && s.btnP)}>
-          <Send aria-hidden="true" />
-          להודיע ללקוח
+    <>
+      <div className={cx(l.freedActs, w.acts)} role="group" aria-label="פעולות על המקום שהתפנה">
+        {onNotify && (
+          <button type="button" disabled={working || notifyBlocked} onClick={onNotify} className={cx(s.btn, notifyLeads && s.btnP)}>
+            <Send aria-hidden="true" />
+            להודיע ללקוח
+          </button>
+        )}
+        <button type="button" disabled={working} onClick={() => onAct('handled')} className={cx(s.btn, !notifyLeads && s.btnP)}>
+          {busy === 'handled' ? <Spinner /> : <Check aria-hidden="true" />}
+          טופל
         </button>
-      )}
-      <button type="button" disabled={working} onClick={() => onAct('handled')} className={cx(s.btn, !notifyLeads && s.btnP)}>
-        {busy === 'handled' ? <Spinner /> : <Check aria-hidden="true" />}
-        טופל
-      </button>
-      <button type="button" disabled={working} onClick={() => onAsk(true)} className={s.btn}>
-        להסיר מהרשימה
-      </button>
-      {chat}
-    </div>
+        <button type="button" disabled={working} onClick={() => onAsk(true)} className={s.btn}>
+          להסיר מהרשימה
+        </button>
+        {chat}
+      </div>
+      {onNotify && notifyBlocked && <BlockedByOptOut what="notify" said={notifyBlockedSaid} />}
+    </>
   );
 }
 
@@ -390,6 +408,8 @@ export function WaitingActions({ entryId, name, lesson, status = 'freed', busy, 
       onAsk={setAsking}
       onAct={(action) => onAct(entryId, action)}
       onNotify={canNotify ? () => notify?.onStart(entryId) : undefined}
+      notifyBlocked={canNotify && notify?.optedOut === true}
+      notifyBlockedSaid={notify?.optedOutSaid === true}
       told={entry ? toldOfThisPlace(entry) !== null : false}
       notify={open}
       onNotifySend={notify?.onSend}

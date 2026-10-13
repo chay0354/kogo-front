@@ -49,6 +49,11 @@ interface Options {
   sorted: boolean;
   /** A contact a quiet refresh must not drop — the conversation that is open. */
   keepId?: number | null;
+  /**
+   * Keep whoever waits for a person past three office hours at the head of the list, as the server sends them
+   * (docs/WAHUB-CONTRACT-FUTURE-LEADS.md, ט.2.4). Off while a search is on: its results keep their own order.
+   */
+  pin?: boolean;
 }
 
 /**
@@ -59,7 +64,7 @@ interface Options {
  * React has not drawn yet — every merge starts from it, so two changes in the
  * same moment never work from the same stale copy.
  */
-export function usePagedContacts({ query, enabled, live, sorted, keepId = null }: Options) {
+export function usePagedContacts({ query, enabled, live, sorted, keepId = null, pin = false }: Options) {
   const [state, setState] = useState<ListState>(INITIAL);
   const itemsRef = useRef<WahubContact[]>([]);
   const stateRef = useRef(state);
@@ -72,7 +77,7 @@ export function usePagedContacts({ query, enabled, live, sorted, keepId = null }
   keepIdRef.current = keepId;
   const queryKey = JSON.stringify(contactsParams(query));
 
-  const order = useCallback((items: WahubContact[]) => (sorted ? sortChats(items) : items), [sorted]);
+  const order = useCallback((items: WahubContact[]) => (sorted ? sortChats(items, pin) : items), [pin, sorted]);
 
   const load = useCallback(
     async (mode: 'fresh' | 'silent') => {

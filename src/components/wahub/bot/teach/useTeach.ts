@@ -19,6 +19,8 @@ import {
   undoWahubTeach,
 } from '@/lib/wahub/teachApi';
 import { createTinyStore } from '@/lib/wahub/tinyStore';
+import { UNKNOWN_TEXT } from '@/lib/wahub/unknowns';
+import { startWahubTeachFromUnknown } from '@/lib/wahub/unknownsApi';
 import type { WahubTeachCheck, WahubTeachPage, WahubTeachPreview, WahubTeachThread } from '@/types/wahubTeach';
 import { botKeys } from '../../hooks/useBotQueries';
 import type { TeachBusy } from './TeachCard';
@@ -26,6 +28,8 @@ import type { TeachBusy } from './TeachCard';
 export const teachKeys = {
   list: ['wahub', 'teach', 'list'] as const,
   thread: (id: number) => ['wahub', 'teach', 'thread', id] as const,
+  /** "מה הבוט לא ידע השבוע": every read of it (the week, the topics that left the list). */
+  unknowns: ['wahub', 'teach', 'unknowns'] as const,
 };
 
 type BusyKind = Exclude<TeachBusy, null>;
@@ -43,6 +47,10 @@ interface TeachUi {
   openId: number | null;
   /** A new explanation is with the bot. */
   sending: { wrote: string; since: number } | null;
+  /** "ללמד" was pressed on a topic the bot did not know: its thread is being opened. */
+  topic: { id: number; title: string; since: number } | null;
+  /** Why the last such topic could not be opened — said on its own row. */
+  topicError: { id: number; text: string } | null;
   sendError: string;
   /** The server said it has no "ללמד" when words were sent to it. */
   refused: boolean;
@@ -64,6 +72,8 @@ const START: TeachUi = {
   draft: '',
   openId: null,
   sending: null,
+  topic: null,
+  topicError: null,
   sendError: '',
   refused: false,
   busy: {},
@@ -98,6 +108,8 @@ function land(queryClient: QueryClient, thread: WahubTeachThread): void {
   );
   void queryClient.invalidateQueries({ queryKey: teachKeys.list });
   void queryClient.invalidateQueries({ queryKey: ['wahub', 'teach', 'contact'] });
+  // A topic the bot did not know leaves its list once it was taught, and comes back when that is taken back.
+  void queryClient.invalidateQueries({ queryKey: teachKeys.unknowns });
   // A change that waits is a proposal; one that was kept or taken back moved the knowledge.
   void queryClient.invalidateQueries({ queryKey: botKeys.proposalsAll });
   void queryClient.invalidateQueries({ queryKey: botKeys.reviewSummary });
@@ -137,6 +149,27 @@ async function send(queryClient: QueryClient): Promise<void> {
     } else {
       patch((current) => ({ sending: null, draft: back(current), sendError: readableError(error, TEACH_TEXT.failed) }));
     }
+  }
+}
+
+/**
+ * "ללמד" on a topic of "מה הבוט לא ידע השבוע" (docs/WAHUB-CONTRACT-FUTURE-LEADS.md, ט.3.4): the very card of
+ * "ללמד", opened with the context ready — what was asked, how often, what the bot answered — so that he only
+ * writes the right answer. The thread joins "מה לימדת עד היום" once he has written in it; until then it is
+ * only the card.
+ */
+async function teachTopic(queryClient: QueryClient, topicId: number, title: string): Promise<void> {
+  const state = ui.get();
+  if (state.topic || state.sending) return;
+  // The card that was open steps aside; it is still in the list.
+  patch({ topic: { id: topicId, title, since: Date.now() }, topicError: null, sendError: '', openId: null, askingId: null });
+  try {
+    const thread = await startWahubTeachFromUnknown(topicId);
+    queryClient.setQueryData(teachKeys.thread(thread.id), thread);
+    patch((current) => ({ topic: null, openId: thread.id, version: current.version + 1 }));
+  } catch (error) {
+    const text = teachUnanswered(error) ? UNKNOWN_TEXT.teachUnknown : teachNotBuilt(error) ? UNKNOWN_TEXT.teachFailed : readableError(error, UNKNOWN_TEXT.teachFailed);
+    patch({ topic: null, topicError: { id: topicId, text } });
   }
 }
 
@@ -388,6 +421,8 @@ export function useTeach() {
        * Words handed in from elsewhere (a check that did not pass): into the box, for him to finish.
        * True when they were put in; false for a hand-over that was already taken (the sub-tab was only opened again).
        */
+      /** "ללמד" on a topic the bot did not know: its card opens, with the context ready. */
+      teachTopic: (topicId: number, title: string) => void teachTopic(queryClient, topicId, title),
       seed: (text: string, nonce: number): boolean => {
         if (!text || ui.get().seeded === nonce) return false;
         patch({ draft: text, sendError: '', openId: null, askingId: null, seeded: nonce });
@@ -405,6 +440,8 @@ export function useTeach() {
     retryList: () => void list.refetch(),
     draft: state.draft,
     sending: state.sending,
+    topic: state.topic,
+    topicError: state.topicError,
     sendError: state.sendError,
     openId,
     thread,

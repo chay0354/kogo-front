@@ -16,6 +16,7 @@ import {
   type WhatsAppAutomation,
   type WhatsAppContact,
 } from '@/lib/whatsappApi';
+import { optedOutLine } from '@/lib/broadcastRun';
 import api, { fetchCourseTypesList, fetchInstructorsDropdown } from '@/lib/api';
 import { MessageCircle, RefreshCw, Search, Send, Zap } from 'lucide-react';
 import { toast } from 'sonner';
@@ -494,6 +495,8 @@ export default function SettingsWhatsAppPage() {
               {!result.dry_run && result.failed > 0 && (
                 <span className="text-destructive"> · {result.failed} נכשלו</span>
               )}
+              {/* Numbers on the system's "הסר" list are skipped, and said apart from every other reason. */}
+              {(result.opted_out ?? 0) > 0 && <span className="text-muted-foreground"> · {optedOutLine(result.opted_out ?? 0)}</span>}
             </div>
           )}
 

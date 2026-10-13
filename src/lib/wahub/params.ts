@@ -115,6 +115,9 @@ export function parseContactId(value: string | null | undefined): number | null 
 }
 
 export function parseBotSub(value: string | null | undefined): WahubBotSub {
+  // "מה הבוט לא ידע השבוע" stands at the head of "ללמד", not in a sub-tab of its own: the address the server
+  // writes for it (`sub=unknowns`, docs/WAHUB-CONTRACT-FUTURE-LEADS.md, ט.3.4) opens "ללמד".
+  if (value === 'unknowns') return 'teach';
   return WAHUB_BOT_SUBS.includes(value as WahubBotSub) ? (value as WahubBotSub) : 'knowledge';
 }
 

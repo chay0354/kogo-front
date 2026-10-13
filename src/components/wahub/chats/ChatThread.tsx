@@ -9,11 +9,14 @@ import { isDemoContact, type DemoInput } from '@/lib/wahub/demo';
 import { agoText, displayName, hasName } from '@/lib/wahub/format';
 import { futureOf, knowsFutureLeads, threadDays } from '@/lib/wahub/futureLeads';
 import { isOptimistic } from '@/lib/wahub/messages';
+import { OPT_OUT_LABEL, optedOutOf } from '@/lib/wahub/optOut';
+import { personWaitTag } from '@/lib/wahub/overdue';
 import { SHADOW_HEADING, excerptLine, excerptOf, shadowExcerpt } from '@/lib/wahub/refine';
 import { phoneStatusLine } from '@/lib/wahub/screens';
 import type { WahubContactDetail, WahubSender, WahubShadowReply } from '@/types/wahub';
 import f from '../future.module.css';
 import type { ContactThread } from '../hooks/useContactThread';
+import k from '../marks.module.css';
 import m from '../motion.module.css';
 import { useRefine } from '../refine/RefineContext';
 import { RefineRow, RefineSelectBar } from '../refine/RefineRow';
@@ -21,6 +24,7 @@ import { useRefineSelection } from '../refine/useRefineSelection';
 import { ContactAvatar, DemoTag, ErrorState, LiveTestTag, Skeleton, Spinner, useDismiss } from '../shared/bits';
 import CustomerCardLink from '../shared/CustomerCardLink';
 import { NoteRow, type NoteActions } from '../shared/FutureParts';
+import { OptOutMark, WaitMark, WaitWords } from '../shared/MarkParts';
 import { useStayAtEnd } from '../shared/motion';
 import { cx } from '../shared/tones';
 import s from '../wahub.module.css';
@@ -176,6 +180,10 @@ function ThreadHeader({
   const plainRelease = !(acts?.futureLead && human);
   // Somebody Kogo knows: one press leads to their card in the customers section. Nobody identified — no button.
   const customerCard = customerCardFor(contact);
+  // How long they wait for a person, in the office's own hours — pulsing softly past three of them (ט.2); and
+  // "ביקש הסר" (ט.1). Both only where the server says so.
+  const wait = personWaitTag(contact.chat, now);
+  const optedOut = optedOutOf(contact);
 
   return (
     <header className={s.threadHead}>
@@ -190,8 +198,26 @@ function ThreadHeader({
         {/* The name is a press away from the details; on a phone a short state line sits under it, as in a messaging app. */}
         <button type="button" onClick={onDetails} title="פרטי איש הקשר" className={s.threadName}>
           <span dir="auto">{displayName(contact)}</span>
-          <span className={s.threadStatus}>{phoneStatusLine(contact.chat, demo, liveTest)}</span>
+          {/* A phone has this one line: how long they wait leads it, and "ביקש הסר" closes it. */}
+          <span className={s.threadStatus}>
+            {wait && (
+              <>
+                <WaitWords tag={wait} />
+                {' · '}
+              </>
+            )}
+            {phoneStatusLine(contact.chat, demo, liveTest)}
+            {optedOut && ` · ${optedOut.label || OPT_OUT_LABEL}`}
+          </span>
         </button>
+        {/* A desktop: the two marks have a line of their own under the name, at every width — the name keeps its
+            room, and the actions theirs. A phone says them in the one line it has (above). */}
+        {(wait || optedOut) && (
+          <p className={k.headMarks}>
+            {wait && <WaitMark tag={wait} size="pill" />}
+            {optedOut && <OptOutMark opted={optedOut} now={now} size="pill" />}
+          </p>
+        )}
         <p className={cx(s.t2, s.threadSub, 'm-0 flex flex-wrap items-center gap-x-2')}>
           {demo && <DemoTag />}
           {liveTest && <LiveTestTag />}

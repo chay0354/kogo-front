@@ -1,4 +1,5 @@
 import type { WahubBoxCounts, WahubContact, WahubContactDetail } from '@/types/wahub';
+import { comparePinned } from './overdue';
 
 function time(iso: string | null | undefined): number {
   if (!iso) return Number.NEGATIVE_INFINITY;
@@ -13,8 +14,14 @@ export function compareChats(a: WahubContact, b: WahubContact): number {
   return b.id - a.id;
 }
 
-export function sortChats(list: ReadonlyArray<WahubContact>): WahubContact[] {
-  return [...list].sort(compareChats);
+/**
+ * The list in order. With `pin`, the server's own order since 13.10.2026 (docs/WAHUB-CONTRACT-FUTURE-LEADS.md,
+ * ט.2.4): whoever has waited for a person past three office hours stands first, the longest wait at the head,
+ * and the rest follow by the last message. Without it — while a search is on, and on a server that marks
+ * nobody — the order is the one it always was.
+ */
+export function sortChats(list: ReadonlyArray<WahubContact>, pin = false): WahubContact[] {
+  return [...list].sort(pin ? comparePinned : compareChats);
 }
 
 /** One row per contact; the later copy of a contact wins. */
@@ -34,6 +41,8 @@ export interface LiveMergeOptions {
   keepIds?: ReadonlySet<number>;
   /** False while a text search narrows the list: the screen cannot tell whether a new contact matches it. */
   insertUnknown?: boolean;
+  /** Keep whoever waits past three office hours at the head (ט.2.4) — never while a search is on. */
+  pin?: boolean;
 }
 
 export interface LiveMergeResult {
@@ -82,7 +91,7 @@ export function mergeLiveContacts(
     }
   }
 
-  return { list: sortChats(Array.from(byId.values())), removed, unplaced };
+  return { list: sortChats(Array.from(byId.values()), options.pin === true), removed, unplaced };
 }
 
 /**
@@ -187,12 +196,14 @@ export function logMoved(held: WahubContact, fresh: WahubContact): boolean {
     // The waiting list writes to the log as well (a place was freed, an entry was closed).
     (held.waiting_list?.entry_id ?? null) !== (fresh.waiting_list?.entry_id ?? null) ||
     (held.waiting_list?.status ?? null) !== (fresh.waiting_list?.status ?? null) ||
+    // "ביקש הסר" and "הוחזר לתפוצה" are lines of the log too (ט.1.2).
+    (held.opted_out?.at ?? null) !== (fresh.opted_out?.at ?? null) ||
     held.known.analyzed_at !== fresh.known.analyzed_at ||
     tagIds(held) !== tagIds(fresh)
   );
 }
 
-const BOX_KEYS: Array<keyof WahubBoxCounts> = ['all', 'waiting', 'needs_human', 'unread', 'human', 'bot', 'open', 'future'];
+const BOX_KEYS: Array<keyof WahubBoxCounts> = ['all', 'waiting', 'needs_human', 'unread', 'human', 'bot', 'open', 'future', 'overdue'];
 
 /** True when two sets of counts read the same, so an unchanged poll redraws nothing. */
 export function sameBoxCounts(

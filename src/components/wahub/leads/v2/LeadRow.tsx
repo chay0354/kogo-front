@@ -3,8 +3,12 @@
 import { Bot, CalendarClock, ChevronLeft, PauseCircle, UserRound } from 'lucide-react';
 import { israelToday } from '@/lib/wahub/format';
 import { leadChips, leadPhoneText, leadTitle, nextStepLine, saysMore, sinceText, type NextStepLine } from '@/lib/wahub/leadsV2';
+import { optedOutOf, saysOptedOut } from '@/lib/wahub/optOut';
+import { leadWaitTag } from '@/lib/wahub/overdue';
 import type { WahubLeadRow } from '@/types/wahub';
 import { DemoTag } from '../../shared/bits';
+import { OptOutMark, WaitMark } from '../../shared/MarkParts';
+import k from '../../marks.module.css';
 import { FoundLines, MarkedName, PlaceTag } from '../../shared/SearchParts';
 import { cx } from '../../shared/tones';
 import l from './leads.module.css';
@@ -63,6 +67,11 @@ interface LeadRowProps {
  * a place that was freed is the row's headline, in place of a sentence that
  * would only say it again; a lead that still waits shows its exact lesson and
  * since when; a future lead carries its mark and its reason.
+ *
+ * Since the evening of 13.10.2026 (ט): a lead that waits for a person says for
+ * how long, in the office's own hours, beside its name — pulsing softly past
+ * three of them; and "ביקש הסר" is marked, unless the row's own words already
+ * say it ("ביקש הסר — הבוט לא חוזר אליו").
  */
 export default function LeadRow({ lead, now, sendingOn, selected, closed, query = '', onOpen }: LeadRowProps) {
   const chips = leadChips(lead.chips);
@@ -70,6 +79,11 @@ export default function LeadRow({ lead, now, sendingOn, selected, closed, query 
   const waiting = lead.waiting_list ?? null;
   const freed = waiting?.status === 'freed' ? waiting : null;
   const future = lead.future ?? null;
+  const next = nextStepLine(lead, now, sendingOn, closed || undefined);
+  const wait = closed ? null : leadWaitTag(lead, now);
+  const optedOut = optedOutOf(lead);
+  // Nothing is said twice: the next step, or the sentence, of somebody who asked out usually says so itself.
+  const outMark = optedOut && !saysOptedOut(next.text, next.detail, lead.summary) ? optedOut : null;
   return (
     <li>
       <button
@@ -85,6 +99,8 @@ export default function LeadRow({ lead, now, sendingOn, selected, closed, query 
               <MarkedName name={leadTitle(lead)} query={query} />
             </span>
             {lead.is_demo && <DemoTag size="row" />}
+            {wait && <WaitMark tag={wait} className={k.rowWait} />}
+            {outMark && <OptOutMark opted={outMark} now={now} short />}
             {/* A result of a search through every list says which one it stands in. */}
             {query && lead.list_label && <PlaceTag label={lead.list_label} tone={lead.list === 'office' ? 'gold' : 'muted'} />}
           </span>
@@ -108,7 +124,7 @@ export default function LeadRow({ lead, now, sendingOn, selected, closed, query 
             </span>
           )}
         </span>
-        <NextStep line={nextStepLine(lead, now, sendingOn, closed || undefined)} />
+        <NextStep line={next} />
         {/* Always there, so the columns of every row line up — with or without a time to say. */}
         <span className={l.since}>{since}</span>
         <ChevronLeft className={l.chev} aria-hidden="true" />

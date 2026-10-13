@@ -253,6 +253,20 @@ export function runIsHeld(phase: RunPhase) {
   return runIsBusy(phase) || phase === 'paused';
 }
 
+/**
+ * Numbers that asked out ("הסר") among these rows — the parents' own, and the families' extra phones. The server
+ * skips them (status 'skipped', reason 'opted_out'); they are counted here so the screen can say so apart from
+ * every other reason. A server built before the list sends no such reason, and both are then 0.
+ */
+export function optedOutCounts(rows: BroadcastRow[]) {
+  const own = rows.filter((r) => r.status === 'skipped' && r.reason === 'opted_out').length;
+  const extra = rows.reduce(
+    (sum, r) => sum + (r.extra_phones ?? []).filter((phone) => phone.status === 'skipped' && phone.reason === 'opted_out').length,
+    0,
+  );
+  return { own, extra, total: own + extra };
+}
+
 export function previewCounts(rows: BroadcastRow[]) {
   const willSend = rows.filter((r) => r.status === 'preview').length;
   // Extra phones are counted apart: `willSend` and `skipped` stay per child.
@@ -272,6 +286,12 @@ export function sentCounts(rows: BroadcastRow[]) {
     extraSent: extras.filter((extra) => extra.status === 'sent').length,
     extraFailed: extras.filter((extra) => extra.status === 'failed').length,
   };
+}
+
+/** "3 לא יקבלו: ביקשו הסר" — said apart from the other reasons; '' when nobody asked out. */
+export function optedOutLine(count: number): string {
+  if (count <= 0) return '';
+  return count === 1 ? 'אחד לא יקבל: ביקש הסר' : `${count} לא יקבלו: ביקשו הסר`;
 }
 
 export type DockTone = 'check' | 'send' | 'ready' | 'warn' | 'done' | 'error';

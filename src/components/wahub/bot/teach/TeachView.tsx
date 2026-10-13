@@ -2,21 +2,25 @@
 
 import { forwardRef, useEffect, useRef } from 'react';
 import { TEACH_TEXT, teachWaitsForHim } from '@/lib/wahub/teach';
+import { UNKNOWN_TEXT } from '@/lib/wahub/unknowns';
 import type { WahubTeachThread } from '@/types/wahubTeach';
 import { ErrorState, Skeleton } from '../../shared/bits';
 import { cx } from '../../shared/tones';
 import s from '../../wahub.module.css';
 import { NotYet } from './parts';
-import TeachCard, { ThinkingCard, type TeachBusy } from './TeachCard';
+import TeachCard, { Thinking, ThinkingCard, type TeachBusy } from './TeachCard';
 import TeachComposer, { type TeachComposerHandle } from './TeachComposer';
 import TeachHistory, { type TeachHistoryProps } from './TeachHistory';
 import t from './teach.module.css';
+import u from './unknowns.module.css';
 import type { TeachAvailability } from './useTeach';
 
 /** What stands in the card's place. */
 export type TeachSlot =
   /** A new explanation is with the bot. */
   | { kind: 'thinking'; wrote: string; since: number }
+  /** "ללמד" was pressed on a topic the bot did not know: its card is being opened, with the context ready. */
+  | { kind: 'topic'; title: string; since: number }
   /** An earlier explanation, opened from the list, is being read. */
   | { kind: 'opening' }
   | { kind: 'openFailed'; text: string }
@@ -52,6 +56,11 @@ export interface TeachViewProps {
   fabUp?: boolean;
   /** Where the card stands, so a row opened from the list can be brought into view. */
   slotRef?: React.Ref<HTMLDivElement>;
+  /**
+   * What stands at the head of the screen, over everything else: "מה הבוט לא ידע השבוע"
+   * (docs/WAHUB-CONTRACT-FUTURE-LEADS.md, ט.3). Absent — or drawing nothing — on a server that has no such list.
+   */
+  top?: React.ReactNode;
 }
 
 /** The big box steps aside while the card waits for him, or while the bot is reading: one place to write at a time. */
@@ -67,7 +76,7 @@ export function composerShown(slot: TeachSlot | null): boolean {
  * on the bottom bar and the card above it (the stylesheet moves them).
  */
 const TeachView = forwardRef<TeachComposerHandle, TeachViewProps>(function TeachView(
-  { availability, loadError, onRetry, slot, draft, sendError, onDraft, onSend, onApprove, onSay, onUndo, onClose, onRetryOpen, history, fabUp = false, slotRef },
+  { availability, loadError, onRetry, slot, draft, sendError, onDraft, onSend, onApprove, onSay, onUndo, onClose, onRetryOpen, history, fabUp = false, slotRef, top },
   composerRef,
 ) {
   const root = useRef<HTMLDivElement | null>(null);
@@ -115,6 +124,7 @@ const TeachView = forwardRef<TeachComposerHandle, TeachViewProps>(function Teach
 
   return (
     <div ref={root} className={t.teach} data-fab={fabUp ? '' : undefined}>
+      {top}
       {!slot && (
         <header className={t.intro}>
           <h2>{TEACH_TEXT.title}</h2>
@@ -124,6 +134,14 @@ const TeachView = forwardRef<TeachComposerHandle, TeachViewProps>(function Teach
 
       <div ref={slotRef} className="scroll-mt-20 empty:hidden">
         {slot?.kind === 'thinking' && <ThinkingCard wrote={slot.wrote} since={slot.since} />}
+        {slot?.kind === 'topic' && (
+          <section className={t.card} aria-label={UNKNOWN_TEXT.opening}>
+            <p className={u.openingTitle}>
+              <strong dir="auto">{slot.title}</strong>
+            </p>
+            <Thinking since={slot.since} label={UNKNOWN_TEXT.opening} />
+          </section>
+        )}
         {slot?.kind === 'opening' && (
           <section className={t.card} aria-busy="true" aria-label="טוען">
             <Skeleton className={cx(t.skLine, 'w-2/3')} />

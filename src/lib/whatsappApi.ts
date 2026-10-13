@@ -124,6 +124,8 @@ export type BulkSendResult = {
   failed: number;
   skipped: number;
   preview_count: number;
+  /** How many of the skipped asked out ("ביקש הסר") — counted inside `skipped`. Absent on a server built before the list. */
+  opted_out?: number;
   message?: string | null;
   results: Array<{
     phone: string;
@@ -249,8 +251,8 @@ export type BroadcastExtraPhone = {
   parent_name: string;
   phone: string;
   status: BroadcastRowStatus;
-  /** not_mobile: a landline, which WhatsApp does not reach. */
-  reason?: 'duplicate_phone' | 'contact_unfindable' | 'not_mobile' | null;
+  /** not_mobile: a landline, which WhatsApp does not reach. opted_out: this number asked out ("הסר"). */
+  reason?: 'duplicate_phone' | 'contact_unfindable' | 'not_mobile' | 'opted_out' | null;
   method?: string | null;
   error?: string | null;
 };
@@ -261,8 +263,11 @@ export type BroadcastRow = {
   parent_name: string;
   phone: string;
   status: BroadcastRowStatus;
-  /** Why a row was skipped — or, on a failed row, 'contact_unfindable' when it can be fixed by linking the contact. */
-  reason?: 'no_parent_phone' | 'duplicate_phone' | 'no_active_lesson' | 'contact_unfindable' | null;
+  /**
+   * Why a row was skipped — or, on a failed row, 'contact_unfindable' when it can be fixed by linking the contact.
+   * opted_out: the parent's number is on the "הסר" list, and no broadcast goes out to it.
+   */
+  reason?: 'no_parent_phone' | 'duplicate_phone' | 'no_active_lesson' | 'contact_unfindable' | 'opted_out' | null;
   method?: string | null;
   error?: string | null;
   /** The status above is the primary parent's; these are the family's other phones. */

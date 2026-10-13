@@ -6,6 +6,7 @@ import {
   OWNER_ACTION_LABELS,
   isValidSnooze,
   leadActions,
+  leadBotBlocked,
   leadTitle,
   snoozeDates,
   type LeadChange,
@@ -13,6 +14,7 @@ import {
 import type { WahubLeadRow } from '@/types/wahub';
 import { InlineConfirm, Spinner } from '../../shared/bits';
 import CustomerCardLink from '../../shared/CustomerCardLink';
+import { BlockedByOptOut } from '../../shared/MarkParts';
 import { cx } from '../../shared/tones';
 import s from '../../wahub.module.css';
 import l from './leads.module.css';
@@ -41,6 +43,11 @@ export interface LeadActionsViewProps {
    * null — nobody identified, or the details not read yet — and "לכרטיס הלקוח" is not drawn.
    */
   customerCard?: string | null;
+  /**
+   * The screen around these buttons already says "ביקש הסר" in words of its own (the lead's sentence, its next
+   * step): the line under a locked "החזר לבוט" then does not say it again.
+   */
+  optOutSaid?: boolean;
 }
 
 /**
@@ -52,6 +59,10 @@ export interface LeadActionsViewProps {
  * For somebody Kogo knows there is one more way out, beside "פתח שיחה": "לכרטיס
  * הלקוח" (owner, 13.10.2026). The two ways out share the first row; what
  * changes the lead shares the second.
+ *
+ * Somebody who asked out ("ביקש הסר", docs/WAHUB-CONTRACT-FUTURE-LEADS.md,
+ * ט.1.6): the bot does not come back to them, so "החזר לבוט" is locked and one
+ * plain line under the buttons says why, and what can be done instead.
  *
  * The two that ask something ask it here, in place of the buttons — the
  * browser's own boxes are not used anywhere in this section. Drawn from what
@@ -71,8 +82,11 @@ export function LeadActionsView({
   onOpenChat,
   onChange,
   customerCard = null,
+  optOutSaid = false,
 }: LeadActionsViewProps) {
   const can = leadActions(lead, closed || undefined);
+  // Somebody who asked out: the bot does not come back to them, and the press that would send it is locked.
+  const botBlocked = leadBotBlocked(lead, closed || undefined);
   const dates = snoozeDates(now);
   const working = busy !== null;
   const untilOk = isValidSnooze(until, now);
@@ -160,7 +174,8 @@ export function LeadActionsView({
         {can.owner && (
           <button
             type="button"
-            disabled={working}
+            disabled={working || Boolean(botBlocked)}
+            title={botBlocked || undefined}
             onClick={() => onChange({ kind: 'owner', owner: can.owner as 'office' | 'bot' })}
             className={cx(s.btn, l.act)}
           >
@@ -186,6 +201,7 @@ export function LeadActionsView({
           </button>
         )}
       </div>
+      {botBlocked && <BlockedByOptOut said={optOutSaid} />}
     </div>
   );
 }
@@ -202,10 +218,12 @@ interface LeadActionsProps {
   onChange: (change: LeadChange) => Promise<boolean> | void;
   /** The customer's card, for a lead Kogo knows; null or absent — no button. */
   customerCard?: string | null;
+  /** The screen already says "ביקש הסר" in its own words: the line under a locked press does not repeat it. */
+  optOutSaid?: boolean;
 }
 
 /** The actions of one lead, with what they keep while a question is open: which one, the day chosen, the note. */
-export default function LeadActions({ lead, closed, now, busy, initialMode = 'idle', onOpenChat, onChange, customerCard }: LeadActionsProps) {
+export default function LeadActions({ lead, closed, now, busy, initialMode = 'idle', onOpenChat, onChange, customerCard, optOutSaid }: LeadActionsProps) {
   const [mode, setMode] = useState<LeadActionsMode>(initialMode);
   const [until, setUntil] = useState(() => snoozeDates(now).suggested);
   const [note, setNote] = useState('');
@@ -231,6 +249,7 @@ export default function LeadActions({ lead, closed, now, busy, initialMode = 'id
       onOpenChat={onOpenChat}
       onChange={(what) => void change(what)}
       customerCard={customerCard}
+      optOutSaid={optOutSaid}
     />
   );
 }

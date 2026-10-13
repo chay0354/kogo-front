@@ -1,0 +1,543 @@
+/*
+ * "מה הבוט לא ידע השבוע" — at the head of "ללמד"
+ * (docs/WAHUB-CONTRACT-FUTURE-LEADS.md, ט.3).
+ *
+ * Titles first: a topic is one row — its name, how often it was asked this
+ * week, and "ללמד". What the customers actually wrote, what the bot answered
+ * and "לא רלוונטי" are a press away. With nothing to show the block is one
+ * glad line, never an empty frame.
+ *
+ * It stands on the section's own variables (wahub.module.css) and beside the
+ * card of "ללמד" (teach.module.css), whose shape it follows: the same frame,
+ * the same three sizes of text. Motion: opacity and transform only, and off
+ * where the device asks for less of it.
+ */
+
+.block {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  box-shadow: var(--shadow);
+  min-width: 0;
+  overflow: hidden;
+}
+
+/* The title row: the title is a press that folds the block; the way to the other week stands beside it, quietly. */
+.head {
+  display: flex;
+  align-items: center;
+  gap: 6px 12px;
+  padding: 6px 10px 6px 14px;
+}
+
+.headMain {
+  flex: 1;
+  min-width: 0;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 6px;
+  border: 0;
+  border-radius: 10px;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+}
+
+.headMain[disabled] {
+  cursor: default;
+}
+
+.title {
+  min-width: 0;
+  font-family: var(--font-display, inherit);
+  font-size: 17px;
+  font-weight: 800;
+  line-height: 1.3;
+  text-wrap: balance;
+}
+
+/* The number: of some weight, never red — this is a list to learn from, not an alarm. */
+.titleCount {
+  color: var(--navy-ink);
+  font-weight: 800;
+}
+
+.headChevron {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  color: var(--muted);
+  transition: transform var(--m-fast, 160ms) var(--m-out, ease-out);
+}
+
+.headMain[aria-expanded='true'] .headChevron {
+  transform: rotate(180deg);
+}
+
+.week {
+  flex: none;
+}
+
+.week,
+.footLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 32px;
+  padding: 0 6px;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  font-size: var(--t-meta);
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  transition: color var(--m-fast, 160ms);
+}
+
+.week:hover,
+.footLink:hover {
+  color: var(--navy-ink);
+}
+
+.footLink svg {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  transition: transform var(--m-fast, 160ms) var(--m-out, ease-out);
+}
+
+.footLink[aria-expanded='true'] svg {
+  transform: rotate(180deg);
+}
+
+/* While another week is being read the rows that are there stay, a little paler. */
+.reading {
+  opacity: 0.6;
+  transition: opacity var(--m-fast, 160ms);
+}
+
+/* ---------- the topics ---------- */
+
+.topics {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--line-2);
+}
+
+.topics > li + li {
+  border-top: 1px solid var(--line-2);
+}
+
+.topic {
+  animation: unkRise 0.24s var(--ease) backwards;
+  animation-delay: calc(var(--i, 0) * 40ms);
+}
+
+@keyframes unkRise {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
+.topicRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 12px 2px 10px;
+  transition: background-color var(--m-fast, 160ms);
+}
+
+.topicRow:hover {
+  background: var(--surface-2);
+}
+
+.topicOpen > .topicRow,
+.topicOpen > .topicRow:hover {
+  background: var(--lav-2);
+}
+
+/* A desktop: one line a topic — its name, then how often, small — so the list stays short and the big box of
+   "ללמד" under it stays in sight. A phone gives the count a line of its own (below). */
+.topicMain {
+  flex: 1;
+  min-width: 0;
+  min-height: 46px;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-areas: 'title meta chev';
+  align-items: center;
+  gap: 1px 12px;
+  padding: 6px 6px;
+  border: 0;
+  border-radius: 10px;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+}
+
+.topicTitle {
+  grid-area: title;
+  min-width: 0;
+  font-size: var(--t-title);
+  font-weight: 700;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.topicMeta {
+  grid-area: meta;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 8px;
+  min-width: 0;
+  color: var(--muted);
+  font-size: var(--t-meta);
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+/* Against the week before: small, and never by the colour alone — the words are in it. */
+.trend {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--faint);
+  white-space: nowrap;
+}
+
+.trend svg {
+  flex: none;
+  width: 12px;
+  height: 12px;
+}
+
+.trend[data-trend='up'] {
+  color: var(--warn);
+}
+
+.trend[data-trend='down'] {
+  color: var(--good);
+}
+
+/* It was taught, and the customers still ask: it is back on the list, and says so. */
+.still {
+  padding: 0 8px;
+  border-radius: 999px;
+  background: var(--warn-bg);
+  color: var(--warn);
+  font-size: 11.5px;
+  font-weight: 700;
+  line-height: 19px;
+  white-space: nowrap;
+}
+
+.topicChevron {
+  grid-area: chev;
+  width: 16px;
+  height: 16px;
+  color: var(--faint);
+  transition: transform var(--m-fast, 160ms) var(--m-out, ease-out);
+}
+
+.topicMain[aria-expanded='true'] .topicChevron {
+  transform: rotate(180deg);
+}
+
+/* "ללמד": the press the row is for. */
+.teachBtn {
+  flex: none;
+}
+
+/* What a press on the topic opens: the questions in the customers' own words, what the bot said, and when. */
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 4px 18px 14px;
+  background: var(--lav-2);
+}
+
+.bodyLabel {
+  margin: 0 0 5px;
+  font-size: var(--t-meta);
+  font-weight: 800;
+  color: var(--muted);
+}
+
+.examples {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* One question: a customer's bubble, with when it was asked beside it. */
+.example {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 8px;
+}
+
+.example q {
+  max-width: 100%;
+  padding: 6px 12px;
+  border-radius: 14px;
+  border-start-start-radius: 4px;
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px var(--line-2);
+  font-size: var(--t-body);
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+  quotes: none;
+}
+
+.when {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.said {
+  margin: 0;
+  padding: 6px 12px;
+  border-radius: 14px;
+  border-inline-start: 3px solid var(--lav);
+  background: var(--surface);
+  color: var(--ink);
+  font-size: var(--t-body);
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+
+.bodyFoot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px 12px;
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--t-meta);
+  font-weight: 500;
+}
+
+.rowError {
+  margin: 0;
+  padding: 0 18px 10px;
+  color: var(--warn);
+  font-size: var(--t-meta);
+  font-weight: 600;
+}
+
+/* ---------- under the topics: what was not sorted yet, what was taken off, and the rest of a long list ---------- */
+
+.foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 14px;
+  padding: 4px 14px 6px;
+  border-top: 1px solid var(--line-2);
+}
+
+.footPanel {
+  padding: 0 18px 12px;
+}
+
+.footPanel .examples {
+  padding-top: 2px;
+}
+
+.gone {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.gone > li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+}
+
+.gone > li + li {
+  border-top: 1px solid var(--line-2);
+}
+
+.goneTitle {
+  flex: 1;
+  min-width: 0;
+  color: var(--muted);
+  font-size: var(--t-body);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.goneNone {
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--t-meta);
+}
+
+/* ---------- nothing to show: one glad line ---------- */
+
+.glad {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+  margin: 0;
+  padding: 8px 14px;
+  border-radius: 14px;
+  background: var(--good-bg);
+  color: var(--ink);
+  font-size: var(--t-body);
+  font-weight: 600;
+  line-height: 1.5;
+  animation: unkRise 0.24s var(--ease) backwards;
+}
+
+.glad > svg {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  color: var(--good);
+}
+
+.gladText {
+  flex: 1;
+  min-width: 0;
+}
+
+.gladPanel {
+  margin-top: 8px;
+  padding: 6px 14px 10px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface);
+}
+
+/* The list on its way: a quiet line where the block will stand. */
+.sk {
+  height: 54px;
+  border-radius: 18px;
+}
+
+/* ---------- the card of "ללמד", while a topic is being opened ---------- */
+
+.openingTitle {
+  margin: 0;
+  font-size: var(--t-body);
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.openingTitle strong {
+  color: var(--ink);
+  font-weight: 700;
+}
+
+/* ---------- the small number beside "ללמד", in the bot's sub-tabs: quiet, never red ---------- */
+
+.subCount {
+  min-width: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--navy-ink);
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 16px;
+  text-align: center;
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+
+/* ---------- a phone ---------- */
+
+@media (max-width: 767px) {
+  .head {
+    padding: 4px 6px 4px 8px;
+  }
+
+  .title {
+    font-size: 16px;
+  }
+
+  .topicRow {
+    padding: 2px 8px 2px 6px;
+  }
+
+  .topicMain {
+    min-height: 56px;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      'title chev'
+      'meta chev';
+    gap: 1px 8px;
+    padding: 7px 6px;
+  }
+
+  /* A finger tall. */
+  .teachBtn {
+    height: 40px;
+    padding-inline: 16px;
+    font-size: 14px;
+  }
+
+  .week,
+  .footLink {
+    min-height: 40px;
+  }
+
+  .body {
+    padding: 4px 12px 12px;
+  }
+
+  .footPanel,
+  .rowError {
+    padding-inline: 12px;
+  }
+
+  .gone > li {
+    min-height: 44px;
+  }
+
+  .subCount {
+    line-height: 18px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .topic,
+  .glad {
+    animation: none;
+  }
+
+  .headChevron,
+  .topicChevron,
+  .footLink svg,
+  .topicRow,
+  .week,
+  .footLink,
+  .reading {
+    transition: none;
+  }
+}

@@ -12,6 +12,7 @@ import {
   followUpLine,
   fullWhen,
   isClosedLead,
+  leadBotBlocked,
   leadChips,
   leadPhoneText,
   leadStageText,
@@ -27,8 +28,11 @@ import {
   type LeadChange,
   type NextStepLine,
 } from '@/lib/wahub/leadsV2';
+import { optedOutOf, saysOptedOut } from '@/lib/wahub/optOut';
+import { leadWaitTag } from '@/lib/wahub/overdue';
 import type { WahubLeadDetails, WahubLeadFollowUp, WahubLeadRow } from '@/types/wahub';
 import { NoteList } from '../../shared/FutureParts';
+import { OptOutMark, WaitMark } from '../../shared/MarkParts';
 import { DemoTag, Skeleton } from '../../shared/bits';
 import { cx } from '../../shared/tones';
 import w from '../../waiting.module.css';
@@ -347,6 +351,20 @@ export default function LeadDetails({
   const timeline = details?.timeline ?? [];
   // A closed lead has no next step: the same place says how it ended.
   const nowTitle = isClosed ? 'הליד סגור' : 'מה קורה עכשיו';
+  // The evening of 13.10.2026 (ט): how long they wait for a person, beside the name — pulsing softly past three
+  // office hours; and "ביקש הסר", with its day, unless the words under it already say so. Somebody who asked
+  // out is not told of a freed place by a message: "להודיע ללקוח" is locked, with the reason beside it.
+  const wait = lead && !isClosed ? leadWaitTag(lead, now) : null;
+  const optedOut = optedOutOf(lead);
+  // Said once: where the next step or the sentence says it — or the line under a locked "החזר לבוט" does — the
+  // mark is not drawn beside the name as well. (The sentence is read from the row too, so the mark does not come
+  // and go as the details land.)
+  const outWords = saysOptedOut(next?.text, next?.detail, why, lead?.summary);
+  const botLocked = Boolean(lead && leadBotBlocked(lead, closed || undefined));
+  const outMark = optedOut && !outWords && !botLocked ? optedOut : null;
+  // The line beside a locked "להודיע ללקוח" is short where the screen says "ביקש הסר" already — in the lead's own
+  // words, or under its locked "החזר לבוט".
+  const notifyHere = notify && optedOut ? { ...notify, optedOut: true, optedOutSaid: outWords || botLocked } : notify;
 
   return (
     <aside className={cx(l.details, cover && l.detailsCover)} aria-label="פרטי הליד">
@@ -364,6 +382,8 @@ export default function LeadDetails({
                   {leadTitle(lead)}
                 </span>
                 {lead.is_demo && <DemoTag />}
+                {wait && <WaitMark tag={wait} size="pill" />}
+                {outMark && <OptOutMark opted={outMark} now={now} size="pill" />}
               </h2>
               {/* One quiet line: the phone, the state in plain words, how long. Each stays whole when the line breaks. */}
               <p className={l.dSub}>
@@ -419,6 +439,7 @@ export default function LeadDetails({
           // foot of the details. A family with no card to open gets no button. A server that knows ח says it on
           // the row itself, so the button is there before the details land; an older one only in the details.
           customerCard={lead.customer !== undefined ? customerCardFor(lead) : customerCardPath(details?.in_system)}
+          optOutSaid={outWords}
         />
       )}
 
@@ -450,7 +471,7 @@ export default function LeadDetails({
                     status={(wantedEntry ? wantedEntry.status === 'freed' : wanted.state !== 'waiting' && wanted.state !== '') ? 'freed' : 'waiting'}
                     busy={waitingBusy}
                     onAct={onWaiting}
-                    notify={notify}
+                    notify={notifyHere}
                     entry={wantedEntry}
                     now={now}
                   />
@@ -484,7 +505,7 @@ export default function LeadDetails({
                 now={now}
                 busy={waitingBusy}
                 onAct={onWaiting}
-                notify={notify}
+                notify={notifyHere}
               />
             )}
 
@@ -568,7 +589,7 @@ export default function LeadDetails({
                       headId={headId}
                       busy={waitingBusy}
                       onAct={isClosed ? undefined : onWaiting}
-                      notify={isClosed ? undefined : notify}
+                      notify={isClosed ? undefined : notifyHere}
                     />
                     {canAdd && (
                       <button type="button" onClick={onAddWaiting} className={cx(w.quietLink, w.addLink)}>

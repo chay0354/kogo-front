@@ -3,7 +3,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { fetchWahubUpdates } from '@/lib/wahubApi';
 import { isBatchTruncated, sameBoxCounts } from '@/lib/wahub/live';
-import type { WahubBoxCounts, WahubContact } from '@/types/wahub';
+import { sameOverdueRows } from '@/lib/wahub/overdue';
+import type { WahubBoxCounts, WahubContact, WahubOverdueRow } from '@/types/wahub';
 
 /** How often the screen asks "what changed?" while its browser tab is in view. */
 export const LIVE_INTERVAL_MS = 3000;
@@ -49,6 +50,12 @@ export interface WahubLive {
   boxes: WahubBoxCounts | null;
   /** The last poll failed: a small "no connection" strip is shown, and nothing on screen is dropped. */
   offline: boolean;
+  /**
+   * Who has waited for a person past three office hours, as of the last poll — the longest wait first
+   * (docs/WAHUB-CONTRACT-FUTURE-LEADS.md, ט.2.5). A conversation crosses that line by the clock, with nobody
+   * touching it, so the poll names them every time. Null on a server that does not say, and until the first poll.
+   */
+  overdue: ReadonlyArray<WahubOverdueRow> | null;
 }
 
 function retryDelay(failures: number): number {
@@ -64,6 +71,7 @@ function retryDelay(failures: number): number {
 export function useWahubLive(enabled = true): WahubLive {
   const [boxes, setBoxes] = useState<WahubBoxCounts | null>(null);
   const [offline, setOffline] = useState(false);
+  const [overdue, setOverdue] = useState<ReadonlyArray<WahubOverdueRow> | null>(null);
 
   const listeners = useRef(new Set<(batch: LiveBatch) => void>());
   const resyncListeners = useRef(new Set<() => void>());
@@ -143,6 +151,9 @@ export function useWahubLive(enabled = true): WahubLive {
         failures = 0;
         setOffline(false);
         setBoxes((prev) => (sameBoxCounts(prev, data.boxes) ? prev : data.boxes));
+        // The first poll only fetches a cursor on some servers; a list is an answer, its absence is not.
+        const late = data.overdue;
+        if (late) setOverdue((prev) => (sameOverdueRows(prev, late) ? prev : late));
         if (data.contacts.length) {
           const batch: LiveBatch = { contacts: data.contacts };
           listeners.current.forEach((listener) => listener(batch));
@@ -203,5 +214,5 @@ export function useWahubLive(enabled = true): WahubLive {
     };
   }, [enabled]);
 
-  return { handle, boxes, offline };
+  return { handle, boxes, offline, overdue };
 }

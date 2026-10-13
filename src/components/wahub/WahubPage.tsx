@@ -57,7 +57,7 @@ export default function WahubPage() {
 function WahubSection() {
   const searchParams = useSearchParams();
   const url = useMemo(() => parseWahubUrl(searchParams), [searchParams]);
-  const { handle: live, boxes, offline } = useWahubLive();
+  const { handle: live, boxes, offline, overdue } = useWahubLive();
   const status = useWahubStatus();
   const queryClient = useQueryClient();
 
@@ -285,6 +285,7 @@ function WahubSection() {
             active={onChats}
             live={live}
             counts={boxes}
+            overdue={overdue}
             box={chatsBox}
             contactId={chatsContact}
             status={status.data}

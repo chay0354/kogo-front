@@ -9,6 +9,7 @@ import { callbackLine } from '@/lib/wahub/followup';
 import { displayName, formatShortDate, hasName } from '@/lib/wahub/format';
 import { futureOf, knowsFutureLeads, waitingOf } from '@/lib/wahub/futureLeads';
 import { knownHeadline, leadOf } from '@/lib/wahub/leadStage';
+import { knowsOptOut, optedOutOf } from '@/lib/wahub/optOut';
 import { readWaitingSummary } from '@/lib/wahub/waitingSummary';
 import type { WahubContactDetail, WahubFollowupPatch, WahubTag } from '@/types/wahub';
 import { LeadStateBlock } from '../leads/LeadBits';
@@ -22,6 +23,8 @@ import s from '../wahub.module.css';
 import { ContactStatusList } from './ContactStatusBlock';
 import LiveTestBlock from './LiveTestBlock';
 import { NoteList, WaitingCardMark, type NoteActions } from '../shared/FutureParts';
+import { OptOutCard, OptOutMarkLink } from '../shared/MarkParts';
+import k from '../marks.module.css';
 import w from '../waiting.module.css';
 import x from '../search.module.css';
 
@@ -70,6 +73,17 @@ interface ContactPanelProps {
   noteActions?: NoteActions;
   /** "להוסיף לרשימת המתנה" (ז.2): opens the window where a lesson is chosen. Absent: the server cannot, and nothing is drawn. */
   onAddWaiting?: () => void;
+  /**
+   * "ביקש הסר" (ט.1): marking by hand, and bringing back. Used only for a contact the server sends `opted_out`
+   * on; absent, the mark is still shown where there is one, and nothing can be pressed.
+   */
+  optOut?: ContactPanelOptOut;
+}
+
+/** Both resolve '' once saved, or — in words — why not. */
+export interface ContactPanelOptOut {
+  onMark: () => Promise<string>;
+  onBack: () => Promise<string>;
 }
 
 export interface ContactPanelLiveTest {
@@ -266,6 +280,7 @@ export default function ContactPanel({
   defaultOpen,
   noteActions,
   onAddWaiting,
+  optOut,
 }: ContactPanelProps) {
   const human = contact.chat.handled_by === 'human';
   const whatsapp = formatWhatsAppLink(contact.phone);
@@ -290,6 +305,11 @@ export default function ContactPanel({
   const offerResolve = contact.chat.needs_human && !knows;
   // Somebody Kogo knows: one clear button to their card in the customers section, among the actions.
   const customerCard = customerCardFor(contact);
+  // "ביקש הסר" (ט.1): the mark under the name, with its details a press away; and, for whoever is not on the
+  // list, one quiet line under the actions that puts them on it.
+  const optedOut = optedOutOf(contact);
+  const canMarkOut = Boolean(optOut) && knowsOptOut(contact) && !optedOut;
+  const hasButtons = Boolean((actions && (offerHandover || offerResolve)) || customerCard);
 
   const [open, setOpen] = useState<ReadonlySet<CardFold>>(() => new Set(defaultOpen ?? []));
   // Another person: the card is tidy again, every section folded.
@@ -320,7 +340,7 @@ export default function ContactPanel({
       )}
 
       {/* 1. Who. */}
-      <section className={cx(s.sect, s.cardWho, onHide && s.cardWhoHide)} aria-label="מי">
+      <section className={cx(s.sect, s.cardWho, onHide && s.cardWhoHide, optedOut && k.whoWrap)} aria-label="מי">
         <ContactAvatar contact={contact} size="lg" />
         <div className="min-w-0 flex-1">
           <NameLine contact={contact} onRename={onRename} />
@@ -349,6 +369,13 @@ export default function ContactPanel({
             <PanelLeftClose aria-hidden="true" />
             <span>הסתר כרטיס</span>
           </button>
+        )}
+        {/* "ביקש הסר": under the name, as part of who this is — the mark, and its details a press away. Another
+            person's mark starts folded, and never with the question of the one before. */}
+        {optedOut && (
+          <div className={k.outSect}>
+            <OptOutCard key={contact.id} opted={optedOut} now={now} onBack={optOut?.onBack} />
+          </div>
         )}
       </section>
 
@@ -382,33 +409,37 @@ export default function ContactPanel({
       </CardSection>
 
       {/* 3. The actions, in one row. */}
-      {((actions && (offerHandover || offerResolve)) || customerCard) && (
+      {(hasButtons || canMarkOut) && (
         <CardSection title="פעולות">
-          <div className="flex flex-wrap items-center gap-2" role="group" aria-label="פעולות על השיחה">
-            {!actions || !offerHandover ? null : human ? (
-              <button type="button" onClick={actions.onRelease} disabled={actions.handoverBusy} className={cx(s.btn, s.btnSm)}>
-                {actions.handoverBusy ? <Spinner className="h-3.5 w-3.5" /> : <Undo2 aria-hidden="true" />}
-                החזר לבוט
-              </button>
-            ) : (
-              <button type="button" onClick={actions.onTakeover} disabled={actions.handoverBusy} className={cx(s.btn, s.btnSm, s.btnP)}>
-                {actions.handoverBusy ? <Spinner className="h-3.5 w-3.5" /> : <Hand aria-hidden="true" />}
-                קח שיחה
-              </button>
-            )}
-            {actions && offerResolve && (
-              <button
-                type="button"
-                onClick={actions.onResolveNeedsHuman}
-                disabled={actions.resolveBusy}
-                className={cx(s.btn, s.btnSm, s.btnBad)}
-              >
-                {actions.resolveBusy ? <Spinner className="h-3.5 w-3.5" /> : <Check aria-hidden="true" />}
-                טופל
-              </button>
-            )}
-            {customerCard && <CustomerCardLink href={customerCard} />}
-          </div>
+          {hasButtons && (
+            <div className="flex flex-wrap items-center gap-2" role="group" aria-label="פעולות על השיחה">
+              {!actions || !offerHandover ? null : human ? (
+                <button type="button" onClick={actions.onRelease} disabled={actions.handoverBusy} className={cx(s.btn, s.btnSm)}>
+                  {actions.handoverBusy ? <Spinner className="h-3.5 w-3.5" /> : <Undo2 aria-hidden="true" />}
+                  החזר לבוט
+                </button>
+              ) : (
+                <button type="button" onClick={actions.onTakeover} disabled={actions.handoverBusy} className={cx(s.btn, s.btnSm, s.btnP)}>
+                  {actions.handoverBusy ? <Spinner className="h-3.5 w-3.5" /> : <Hand aria-hidden="true" />}
+                  קח שיחה
+                </button>
+              )}
+              {actions && offerResolve && (
+                <button
+                  type="button"
+                  onClick={actions.onResolveNeedsHuman}
+                  disabled={actions.resolveBusy}
+                  className={cx(s.btn, s.btnSm, s.btnBad)}
+                >
+                  {actions.resolveBusy ? <Spinner className="h-3.5 w-3.5" /> : <Check aria-hidden="true" />}
+                  טופל
+                </button>
+              )}
+              {customerCard && <CustomerCardLink href={customerCard} />}
+            </div>
+          )}
+          {/* A quiet line, not a button among the actions and not a switch: somebody who said "הסר" on the phone. */}
+          {canMarkOut && optOut && <OptOutMarkLink key={contact.id} name={displayName(contact)} onMark={optOut.onMark} flush={!hasButtons} />}
         </CardSection>
       )}
 

@@ -42,7 +42,9 @@ import type {
 } from '@/types/wahub';
 import { readNotes } from './wahub/futureLeads';
 import { readLeadBoard } from './wahub/leadStage';
+import { readOverdueRows } from './wahub/overdue';
 import { readSearchExtras } from './wahub/search';
+import { readUnknownsGlance } from './wahub/unknowns';
 import { unregisteredParams } from './wahub/unregistered';
 
 /**
@@ -89,11 +91,15 @@ export async function fetchWahubUpdates(since?: string | null): Promise<WahubUpd
     timeout: 10_000,
   });
   const data = res.data as Partial<WahubUpdates>;
-  return {
+  const updates: WahubUpdates = {
     cursor: String(data.cursor ?? ''),
     contacts: data.contacts ?? [],
     boxes: (data.boxes ?? {}) as WahubUpdates['boxes'],
   };
+  // Who is past three office hours right now (docs/WAHUB-CONTRACT-FUTURE-LEADS.md, ט.2.5) — only a server that knows it says.
+  const overdue = readOverdueRows(data.overdue);
+  if (overdue) updates.overdue = overdue;
+  return updates;
 }
 
 export async function fetchWahubSummary(): Promise<WahubSummary> {
@@ -615,6 +621,8 @@ export async function fetchWahubReviewSummary(): Promise<WahubReviewSummary> {
     // docs/WAHUB-CONTRACT-REFINE.md: left out when the server does not send them, so the screen can tell "0" from "not known".
     auto_applied_7d: data.auto_applied_7d == null ? undefined : Number(data.auto_applied_7d),
     auto_apply: data.auto_apply == null ? undefined : Boolean(data.auto_apply),
+    // "מה הבוט לא ידע השבוע" (ט.3.3): left out when the server does not send it — the screen then shows nothing of it.
+    unknowns: readUnknownsGlance(data.unknowns) ?? undefined,
   };
 }
 

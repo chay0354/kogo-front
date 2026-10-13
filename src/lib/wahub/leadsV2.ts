@@ -17,6 +17,7 @@ import type {
 } from '@/types/wahub';
 import { dayKey, daysBetween, formatClock, formatDateTime, formatFullDate, formatShortDate, israelToday } from './format';
 import { readFuture, readNotes, readWaitingEntries, readWaitingMark } from './futureLeads';
+import { botBlockedReason, readOptedOut } from './optOut';
 import { readCustomerRef, readFoundBy, readSearchExtras } from './search';
 import { readWaitingSummary } from './waitingSummary';
 
@@ -212,6 +213,15 @@ export function readLeadRow(raw: unknown): WahubLeadRow | null {
   }
   if ('customer' in data) row.customer = readCustomerRef(data.customer);
   if ('found_by' in data) row.found_by = readFoundBy(data.found_by);
+  // The evening of 13.10.2026 (ט): "ביקש הסר", and how long the lead waits for a person in the office's own
+  // hours. A server that knows them sends both keys on every row, and so they are read only when they are there.
+  if ('opted_out' in data) row.opted_out = readOptedOut(data.opted_out);
+  if (typeof data.overdue === 'boolean') {
+    row.overdue = data.overdue;
+    row.waiting_label = str(data.waiting_label);
+    row.waiting_from = time(data.waiting_from);
+    row.waited_office_minutes = typeof data.waited_office_minutes === 'number' && data.waited_office_minutes >= 0 ? Math.floor(data.waited_office_minutes) : null;
+  }
   return row;
 }
 
@@ -905,6 +915,16 @@ export function leadActions(lead: Pick<WahubLeadRow, 'owner' | 'stage'>, closed:
   return { owner: lead.owner === 'office' ? 'bot' : 'office', snooze: true, remove: true, reopen: false };
 }
 
+/**
+ * Why "החזר לבוט" is locked, in plain words — the customer asked out, and the bot does not come back to them
+ * (docs/WAHUB-CONTRACT-FUTURE-LEADS.md, ט.1.6). Empty when nothing stops it, and when the press is not offered
+ * at all. "דחה למועד" is the office's own mark and stays open: on its day the lead comes back to the office,
+ * not to the bot.
+ */
+export function leadBotBlocked(lead: Pick<WahubLeadRow, 'owner' | 'stage' | 'opted_out'>, closed: boolean = isClosedLead(lead)): string {
+  return leadActions(lead, closed).owner === 'bot' ? botBlockedReason(lead) : '';
+}
+
 export const OWNER_ACTION_LABELS: Record<'office' | 'bot', string> = { office: 'קח אליי', bot: 'החזר לבוט' };
 
 function addDays(key: string, days: number): string {
@@ -1029,6 +1049,13 @@ function readRowFields(lead: WahubLeadRow): WahubLeadRow {
     row.list_label = lead.list_label;
   }
   if (lead.customer !== undefined) row.customer = lead.customer;
+  if (lead.opted_out !== undefined) row.opted_out = lead.opted_out;
+  if (lead.overdue !== undefined) {
+    row.overdue = lead.overdue;
+    row.waiting_label = lead.waiting_label;
+    row.waiting_from = lead.waiting_from;
+    row.waited_office_minutes = lead.waited_office_minutes;
+  }
   return row;
 }
 
