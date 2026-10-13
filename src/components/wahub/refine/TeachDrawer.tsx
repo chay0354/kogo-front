@@ -79,6 +79,12 @@ export function TeachDrawerView({
   onClose,
 }: TeachDrawerViewProps) {
   const others = earlier.filter((row) => row.thread !== openId);
+  // The box is ready to write in on a desktop; a phone is not handed its keyboard before it asks.
+  const box = useRef<HTMLTextAreaElement | null>(null);
+  const writing = phase.kind === 'writing';
+  useEffect(() => {
+    if (writing && window.matchMedia('(min-width: 768px)').matches) box.current?.focus();
+  }, [writing]);
   return (
     <aside role="dialog" aria-label="דיוק" className={cx(r.drawer, docked && r.drawerDocked)}>
       <header className={r.drawerHead}>
@@ -111,6 +117,7 @@ export function TeachDrawerView({
             <label className={t.field}>
               <span className={t.label}>{TEACH_TEXT.writeFirst}</span>
               <textarea
+                ref={box}
                 value={draft}
                 onChange={(event) => onDraft(event.target.value)}
                 onKeyDown={(event) => sendOnEnter(event, onStart)}
@@ -118,7 +125,6 @@ export function TeachDrawerView({
                 maxLength={TEACH_MAX_LENGTH}
                 className={t.box}
                 dir="auto"
-                autoFocus
               />
             </label>
             {phase.error && (
