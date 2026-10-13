@@ -19,6 +19,8 @@ import { applyFollowupPatch } from '@/lib/wahub/followup';
 import { israelToday } from '@/lib/wahub/format';
 import type { FutureOutcome, HandToBotOutcome } from '@/lib/wahub/futureLeads';
 import { addWahubNote, closeWahubConversation, handWahubToBot, setWahubFuture } from '@/lib/wahub/futureLeadsApi';
+import { joinFailedText, noteFailedText } from '@/lib/wahub/waitingList';
+import { addWahubWaitingEntry, deleteWahubNote, editWahubNote } from '@/lib/wahub/waitingListApi';
 import type { WahubContact, WahubFollowupPatch, WahubNote, WahubTag, WahubUnderstood } from '@/types/wahub';
 import type { WahubLiveHandle } from './useWahubLive';
 
@@ -224,6 +226,65 @@ export function useContactMutations(store: ContactStore, live: WahubLiveHandle, 
           },
         });
         return got.note ? { note: got.note } : { error: got.reason || 'הפתק לא נשמר' };
+      },
+
+      // Editing and deleting a note, and adding to a waiting list (docs/WAHUB-CONTRACT-FUTURE-LEADS.md, ז.2, ז.5).
+      // Each is asked from a box of its own, so the reason for a refusal is said there, in the screen's words.
+
+      /** A note with other words. It comes back as the server now has it — in its place, marked "נערך". */
+      async editNote(id: number, noteId: number, text: string): Promise<{ note: WahubNote } | { error: string }> {
+        const got: { note: WahubNote | null; reason: string } = { note: null, reason: '' };
+        await run(id, {
+          request: async () => {
+            try {
+              const result = await editWahubNote(id, noteId, text);
+              got.note = result.note;
+              return result.contact;
+            } catch (error) {
+              got.reason = noteFailedText(error, 'הפתק לא נשמר');
+              throw error;
+            }
+          },
+          failure: 'הפתק לא נשמר',
+          report: () => {},
+        });
+        return got.note ? { note: got.note } : { error: got.reason || 'הפתק לא נשמר' };
+      },
+
+      /** A note deleted for good. Resolves '' once it is gone, or why it is not. */
+      async deleteNote(id: number, noteId: number): Promise<string> {
+        const got = { reason: '' };
+        const gone = await run(id, {
+          request: async () => {
+            try {
+              return (await deleteWahubNote(id, noteId)).contact;
+            } catch (error) {
+              got.reason = noteFailedText(error, 'הפתק לא נמחק');
+              throw error;
+            }
+          },
+          failure: 'הפתק לא נמחק',
+          report: () => {},
+        });
+        return gone ? '' : got.reason || 'הפתק לא נמחק';
+      },
+
+      /** "להוסיף לרשימת המתנה": resolves '' once the person is on the lesson's list, or why they are not. */
+      async joinWaitingList(id: number, lessonId: string, child: string): Promise<string> {
+        const got = { reason: '' };
+        const joined = await run(id, {
+          request: async () => {
+            try {
+              return (await addWahubWaitingEntry(id, lessonId, child)).contact;
+            } catch (error) {
+              got.reason = joinFailedText(error);
+              throw error;
+            }
+          },
+          failure: 'הלקוח לא נוסף לרשימת ההמתנה',
+          report: () => {},
+        });
+        return joined ? '' : got.reason || 'הלקוח לא נוסף לרשימת ההמתנה';
       },
     }),
     [isPending, run],

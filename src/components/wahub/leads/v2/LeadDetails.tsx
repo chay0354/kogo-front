@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { AlertCircle, ArrowRight, ChevronDown, ExternalLink, X } from 'lucide-react';
+import { AlertCircle, ArrowRight, ChevronDown, ExternalLink, Plus, X } from 'lucide-react';
 import { formatDateTime, israelToday } from '@/lib/wahub/format';
 import { entryOfMark } from '@/lib/wahub/futureLeads';
 import type { WaitingAction } from '@/lib/wahub/futureLeadsApi';
@@ -31,11 +31,12 @@ import type { WahubLeadDetails, WahubLeadFollowUp, WahubLeadRow } from '@/types/
 import { NoteList } from '../../shared/FutureParts';
 import { DemoTag, Skeleton } from '../../shared/bits';
 import { cx } from '../../shared/tones';
+import w from '../../waiting.module.css';
 import s from '../../wahub.module.css';
 import LeadActions, { type LeadActionsMode } from './LeadActions';
 import { NextIcon } from './LeadRow';
 import l from './leads.module.css';
-import { FreedBlock, FutureBlock, WaitingEntries, type WaitingBusy } from './WaitingBits';
+import { FreedBlock, FutureBlock, WaitingEntries, type NotifyControls, type WaitingBusy } from './WaitingBits';
 
 export interface LeadDetailsProps {
   /** The lead as the list (or its own read) has it; null while nothing is known about it yet. */
@@ -64,6 +65,13 @@ export interface LeadDetailsProps {
   onWaiting?: (entryId: number, action: WaitingAction) => void;
   /** The press on an entry that is on its way, if any. */
   waitingBusy?: WaitingBusy | null;
+  /**
+   * "להודיע ללקוח" on an entry whose place was freed (ז.4): the block that is open, and its presses. Absent —
+   * or an entry the server says nothing of telling about — and it is not offered.
+   */
+  notify?: NotifyControls;
+  /** "להוסיף לרשימת המתנה" (ז.2): opens the window where a lesson is chosen. Absent: the server cannot, and nothing is drawn. */
+  onAddWaiting?: () => void;
 }
 
 const NEXT_BOX: Record<NextStepLine['tone'], string> = {
@@ -259,9 +267,10 @@ function DetailsSkeleton() {
  *   and, folded, what is behind us: the bot's earlier messages, the timeline.
  *
  * Since docs/WAHUB-CONTRACT-FUTURE-LEADS.md: a place that was freed stands
- * right under "מה קורה עכשיו", with its two actions; a future lead carries its
- * mark and its reason; and the office's notes and this person's entries on the
- * waiting list each have a section.
+ * right under "מה קורה עכשיו", with what can be done about it — telling the
+ * customer first; a future lead carries its mark and its reason; and the
+ * office's notes and this person's entries on the waiting list each have a
+ * section, with a quiet way to put them on another lesson's list.
  *
  * Nothing is said twice: a line that repeats one already on the screen is left
  * out (lib/wahub/leadsV2.ts, saysMore). A column beside the list on a desktop;
@@ -288,6 +297,8 @@ export default function LeadDetails({
   onChange,
   onWaiting,
   waitingBusy = null,
+  notify,
+  onAddWaiting,
 }: LeadDetailsProps) {
   const isClosed = Boolean(lead && (closed || isClosedLead(lead)));
   const next = lead ? nextStepLine(lead, now, sendingOn, closed || undefined) : null;
@@ -310,6 +321,8 @@ export default function LeadDetails({
   // The freed place that stands at the head of the details; its entry is then not told again in the list.
   const headFreed = freed && !isClosed ? freed : null;
   const otherEntries = headFreed ? entries.filter((entry) => entry.id !== headFreed.entry_id) : entries;
+  // Adding to a waiting list by hand: only for a lead that is open, on a server that can list the lessons.
+  const canAdd = Boolean(onAddWaiting) && !isClosed;
   const blocker = saysMore(details?.blocker_text, ...said) ? details?.blocker_text ?? '' : '';
   const child = factsBeyond(childFacts(details?.child), lead?.chips.child, why);
   const trial = trialFacts(details?.trial, now);
@@ -427,6 +440,7 @@ export default function LeadDetails({
                 now={now}
                 busy={waitingBusy}
                 onAct={onWaiting}
+                notify={notify}
               />
             )}
 
@@ -501,7 +515,7 @@ export default function LeadDetails({
                   </FoldSection>
                 )}
 
-                {otherEntries.length > 0 && (
+                {otherEntries.length > 0 ? (
                   <Section title={headFreed ? 'עוד ברשימת ההמתנה' : 'רשימת המתנה'}>
                     <WaitingEntries
                       entries={otherEntries}
@@ -510,8 +524,25 @@ export default function LeadDetails({
                       headId={headFreed ? headFreed.entry_id : null}
                       busy={waitingBusy}
                       onAct={isClosed ? undefined : onWaiting}
+                      notify={isClosed ? undefined : notify}
                     />
+                    {canAdd && (
+                      <button type="button" onClick={onAddWaiting} className={cx(w.quietLink, w.addLink)}>
+                        <Plus aria-hidden="true" />
+                        להוסיף לשיעור נוסף
+                      </button>
+                    )}
                   </Section>
+                ) : (
+                  // Nobody's list yet: one quiet line is the whole of it — the words themselves are its title.
+                  canAdd && (
+                    <section className={l.dSect} aria-label="רשימת המתנה">
+                      <button type="button" onClick={onAddWaiting} className={w.quietLink}>
+                        <Plus aria-hidden="true" />
+                        להוסיף לרשימת המתנה
+                      </button>
+                    </section>
+                  )
                 )}
 
                 {earlier.length > 0 && (

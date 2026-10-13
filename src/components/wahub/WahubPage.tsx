@@ -91,6 +91,7 @@ function WahubSection() {
     stage: url.stage ?? null,
     owner: url.owner ?? 'office',
     lead: url.lead ?? null,
+    waiting: url.waiting === true,
     sub: url.sub,
     item: url.item,
   });
@@ -103,6 +104,7 @@ function WahubSection() {
     kept.current.stage = url.stage ?? null;
     kept.current.owner = url.owner ?? 'office';
     kept.current.lead = url.lead ?? null;
+    kept.current.waiting = url.waiting === true;
   }
   if (url.tab === 'bot') {
     kept.current.sub = url.sub;
@@ -114,6 +116,7 @@ function WahubSection() {
   const leadsStage = kept.current.stage;
   const leadsOwner = kept.current.owner;
   const leadsLead = kept.current.lead;
+  const leadsWaiting = kept.current.waiting;
   const botSub = kept.current.sub;
   const botItem = kept.current.item;
 
@@ -130,6 +133,7 @@ function WahubSection() {
         stage: kept.current.stage,
         owner: kept.current.owner,
         lead: kept.current.lead,
+        waiting: kept.current.waiting,
         sub: kept.current.sub,
         item: kept.current.item,
       }),
@@ -180,6 +184,8 @@ function WahubSection() {
         // "מחכים לך" on the day's tab names its list, and a lead pressed there opens with its details.
         owner: target.owner ?? kept.current.owner,
         lead: target.lead !== undefined ? target.lead : kept.current.lead,
+        // A list of leads named from "היום" is that list — never the waiting list that happened to be open.
+        waiting: target.tab === 'leads' ? false : kept.current.waiting,
       }),
     [go],
   );
@@ -194,11 +200,13 @@ function WahubSection() {
     [go],
   );
   const setLeads = useCallback(
-    (patch: { owner?: WahubLeadsView; stage?: string | null; lead?: number | null }) => {
-      // From the list into a lead's details is a step "back" can undo (a phone shows one of the two at a time);
-      // another list, another state, another lead, or closing one, is not worth a history entry each.
+    (patch: { owner?: WahubLeadsView; stage?: string | null; lead?: number | null; waiting?: boolean }) => {
+      // From the list into a lead's details is a step "back" can undo (a phone shows one of the two at a time),
+      // and so is the way into the waiting list; another list, another state, another lead, or closing one, is
+      // not worth a history entry each.
       const current = parseWahubUrl(new URLSearchParams(window.location.search));
-      go({ tab: 'leads', ...patch }, current.lead == null && patch.lead != null ? 'push' : 'replace');
+      const deeper = (current.lead == null && patch.lead != null) || (!current.waiting && patch.waiting === true);
+      go({ tab: 'leads', ...patch }, deeper ? 'push' : 'replace');
     },
     [go],
   );
@@ -328,6 +336,7 @@ function WahubSection() {
             stage={leadsStage}
             owner={leadsOwner}
             leadId={leadsLead}
+            waiting={leadsWaiting}
             status={status.data}
             onQueue={setQueue}
             onStage={setStage}

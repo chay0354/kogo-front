@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useId, useState, type ReactNode } from 'react';
-import { ArrowRight, CalendarClock, Check, ChevronDown, Hand, MessageCircle, PanelLeftClose, Pencil, Undo2, X } from 'lucide-react';
+import { ArrowRight, CalendarClock, Check, ChevronDown, Hand, MessageCircle, PanelLeftClose, Pencil, Plus, Undo2, X } from 'lucide-react';
 import { formatWhatsAppLink } from '@/lib/customerUtils';
 import { isDemoContact } from '@/lib/wahub/demo';
 import { callbackLine } from '@/lib/wahub/followup';
@@ -17,7 +17,8 @@ import { cx } from '../shared/tones';
 import s from '../wahub.module.css';
 import { ContactStatusList } from './ContactStatusBlock';
 import LiveTestBlock from './LiveTestBlock';
-import { NoteList, WaitingCardMark } from '../shared/FutureParts';
+import { NoteList, WaitingCardMark, type NoteActions } from '../shared/FutureParts';
+import w from '../waiting.module.css';
 
 /**
  * The sections of the card that open on a press, in the order they stand
@@ -60,6 +61,10 @@ interface ContactPanelProps {
   liveTest?: ContactPanelLiveTest;
   /** Sections open from the start. The card opens with every one of them folded. */
   defaultOpen?: CardFold[];
+  /** Editing and deleting a note (docs/WAHUB-CONTRACT-FUTURE-LEADS.md, ז.5). Absent: the notes are only read. */
+  noteActions?: NoteActions;
+  /** "להוסיף לרשימת המתנה" (ז.2): opens the window where a lesson is chosen. Absent: the server cannot, and nothing is drawn. */
+  onAddWaiting?: () => void;
 }
 
 export interface ContactPanelLiveTest {
@@ -254,6 +259,8 @@ export default function ContactPanel({
   actions,
   liveTest,
   defaultOpen,
+  noteActions,
+  onAddWaiting,
 }: ContactPanelProps) {
   const human = contact.chat.handled_by === 'human';
   const whatsapp = formatWhatsAppLink(contact.phone);
@@ -344,6 +351,13 @@ export default function ContactPanel({
         )}
         {/* The waiting list: quiet while they wait, standing out once a place was freed. */}
         {waitingList && <WaitingCardMark mark={waitingList} />}
+        {/* A quiet line, not a button among the actions: putting this person on the list of a lesson that is full. */}
+        {onAddWaiting && (
+          <button type="button" onClick={onAddWaiting} className={cx(w.quietLink, w.addLink)}>
+            <Plus aria-hidden="true" />
+            {waitingList ? 'להוסיף לשיעור נוסף' : 'להוסיף לרשימת המתנה'}
+          </button>
+        )}
       </CardSection>
 
       {/* 3. The actions, in one row. */}
@@ -400,7 +414,12 @@ export default function ContactPanel({
         // here they are read. What was typed in the old "הערות" box is still shown — unless it is the reason of
         // a future lead, which its chip already says.
         <CardFoldSection title="פתקים" count={notes?.length} open={open.has('notes')} onToggle={() => toggle('notes')}>
-          <NoteList notes={notes ?? []} now={now} empty={note && !future ? undefined : 'עוד אין פתקים. כותבים פתק מהכפתור שליד תיבת ההודעה.'} />
+          <NoteList
+            notes={notes ?? []}
+            now={now}
+            empty={note && !future ? undefined : 'עוד אין פתקים. כותבים פתק מהכפתור שליד תיבת ההודעה.'}
+            actions={noteActions}
+          />
           {note && !future && (
             <p className={cx(s.t2, notes?.length ? 'm-0 mt-2.5' : 'm-0')} dir="auto">
               הערה קודמת: {note}

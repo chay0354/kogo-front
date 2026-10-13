@@ -1,0 +1,1273 @@
+/*
+ * The full waiting list, adding to it by hand, telling a customer that a place
+ * was freed, and the small menu of a note
+ * (docs/WAHUB-CONTRACT-FUTURE-LEADS.md, ז).
+ *
+ * Drawn in the section's own language: the variables set on .wahub
+ * (wahub.module.css), its radii, its type scale (--t-*), and the lengths and
+ * curves of its motion (--m-*, motion.module.css). Only transform and opacity
+ * move, nothing runs longer than --m-slow, and nothing loops.
+ *
+ * Colour: red stays for "מבקש נציג" alone (the owner's rule). A place that was
+ * freed is green — good news that waits for the office; a customer who
+ * answered is gold — the office's own to notice; whoever only waits is quiet.
+ */
+
+/* ---------- the way in: one quiet strip at the head of the leads ---------- */
+
+.way {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 40px;
+  margin: 0 0 10px;
+  padding: 8px 12px;
+  border: 0;
+  border-radius: 12px;
+  background: var(--lav-2);
+  color: var(--muted);
+  font: inherit;
+  font-size: 13.5px;
+  font-weight: 500;
+  line-height: 1.4;
+  text-align: start;
+  transition:
+    background-color var(--m-fast),
+    transform var(--m-press) var(--m-out);
+}
+
+.way:hover {
+  background: var(--lav);
+}
+
+.way:active {
+  transform: scale(0.99);
+}
+
+.way > svg {
+  flex: none;
+  width: 16px;
+  height: 16px;
+}
+
+.wayText {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.wayText strong {
+  color: var(--navy-ink);
+  font-weight: 700;
+}
+
+/* A place was freed for somebody: the strip says so, in green. */
+.wayFreed,
+.wayFreed:hover {
+  background: var(--good-bg);
+  color: var(--ink);
+}
+
+.wayFreed .wayNews {
+  color: var(--good);
+  font-weight: 800;
+}
+
+.wayGo {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  color: var(--muted);
+}
+
+/* ---------- the screen: the lessons, and who waits for each ---------- */
+
+.wl {
+  display: flex;
+  flex: 1 1 0;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  animation: wlIn var(--m-base) var(--m-out) backwards;
+}
+
+@keyframes wlIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
+.wlHead {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: none;
+  padding: 14px 24px 12px;
+}
+
+.wlWho {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+/* What this screen is: the largest words on it. */
+.wlTitle {
+  margin: 0;
+  font-family: var(--font-display, inherit);
+  font-size: var(--t-lead);
+  font-weight: 700;
+  line-height: 1.25;
+  color: var(--ink);
+}
+
+.wlSub {
+  margin: 2px 0 0;
+  color: var(--muted);
+  font-size: var(--t-meta);
+  font-weight: 500;
+  line-height: 1.45;
+}
+
+.wlSub strong {
+  color: var(--good);
+  font-weight: 800;
+}
+
+/* The lessons scroll here and nowhere else. The foot keeps clear of the section's floating button. */
+.wlScroll {
+  display: flex;
+  flex: 1 1 0;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  padding: 0 24px 96px;
+}
+
+.wlScroll > * {
+  flex: none;
+}
+
+/* One lesson: its title row, and — a press away — who waits for it. */
+.lesson {
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+
+/* A place was freed here: first on the screen, and green. */
+.lessonFreed {
+  border-color: rgba(22, 163, 74, 0.45);
+  background: var(--good-bg);
+}
+
+.lessonHead {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 4px 14px;
+  width: 100%;
+  min-height: 64px;
+  padding: 12px 16px;
+  border: 0;
+  background: none;
+  color: var(--ink);
+  font: inherit;
+  text-align: start;
+  transition: transform var(--m-press) var(--m-out);
+}
+
+.lessonHead:active {
+  transform: scale(0.995);
+}
+
+.lessonHead:focus-visible {
+  outline: 2px solid var(--navy);
+  outline-offset: -2px;
+  border-radius: 16px;
+}
+
+.lessonWhat {
+  min-width: 0;
+}
+
+/* "התפנה מקום" — over the name of a lesson that has a place now. */
+.lessonNews {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin: 0 0 2px;
+  color: var(--good);
+  font-size: var(--t-meta);
+  font-weight: 800;
+  line-height: 1.4;
+}
+
+.lessonNews svg {
+  flex: none;
+  width: 15px;
+  height: 15px;
+}
+
+.lessonTitle {
+  display: block;
+  font-family: var(--font-display, inherit);
+  font-size: var(--t-title);
+  font-weight: 700;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.lessonWhen {
+  display: block;
+  margin-top: 1px;
+  color: var(--muted);
+  font-size: var(--t-meta);
+  font-weight: 500;
+  line-height: 1.45;
+}
+
+/* How full the lesson is right now, and how many wait: short, at the end of the row. */
+.lessonNums {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 1px;
+  min-width: 0;
+  text-align: end;
+}
+
+.lessonSeats {
+  color: var(--ink);
+  font-size: var(--t-meta);
+  font-weight: 700;
+  line-height: 1.45;
+}
+
+.lessonWaiters {
+  color: var(--muted);
+  font-size: var(--t-meta);
+  font-weight: 500;
+  line-height: 1.45;
+  white-space: nowrap;
+}
+
+.chevron {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  color: var(--muted);
+  transition: transform var(--m-base) var(--m-out);
+}
+
+.lessonOpen .lessonHead > .chevron,
+.personOpen > .personHead > .chevron,
+.roomHead[aria-expanded='true'] > .chevron {
+  transform: rotate(180deg);
+}
+
+/* Who waits, in the order of the line. */
+.people {
+  margin: 0;
+  padding: 0 10px 10px;
+  list-style: none;
+}
+
+.person {
+  border-radius: 12px;
+  background: var(--surface);
+}
+
+.person + .person {
+  margin-top: 6px;
+}
+
+.lesson:not(.lessonFreed) .person {
+  background: var(--surface-2);
+}
+
+.personHead {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 48px;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 12px;
+  background: none;
+  color: var(--ink);
+  font: inherit;
+  text-align: start;
+  transition: transform var(--m-press) var(--m-out);
+}
+
+.personHead:active {
+  transform: scale(0.995);
+}
+
+.personHead:focus-visible {
+  outline: 2px solid var(--navy);
+  outline-offset: -2px;
+}
+
+/* The place in the line: who is first is seen before the name is read. */
+.place {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: var(--lav-2);
+  color: var(--navy-ink);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.placeFirst {
+  background: var(--navy);
+  color: #fff;
+}
+
+.personWho {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.personName {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  font-size: var(--t-body);
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.personName > span:first-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.personChild {
+  display: block;
+  color: var(--muted);
+  font-size: var(--t-meta);
+  font-weight: 500;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+/* Where the entry stands, in one word. */
+.standing {
+  flex: none;
+  padding: 0 9px;
+  border-radius: 999px;
+  background: var(--lav-2);
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 22px;
+  white-space: nowrap;
+}
+
+.standingFreed {
+  background: var(--good);
+  color: #fff;
+}
+
+.standingTold {
+  background: var(--lav);
+  color: var(--navy-ink);
+}
+
+/* The customer answered: the office's own to notice. */
+.standingReplied {
+  background: var(--gold);
+  color: var(--ink);
+  font-weight: 800;
+}
+
+.personBody {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 0 10px 12px;
+  padding-inline-start: 46px;
+}
+
+.facts {
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--t-meta);
+  font-weight: 500;
+  line-height: 1.5;
+}
+
+/* "הודענו ללקוח · מתי · מי", and under it "הלקוח ענה". */
+.told {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin: 0;
+  color: var(--navy-ink);
+  font-size: var(--t-meta);
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+.told svg {
+  flex: none;
+  width: 15px;
+  height: 15px;
+  margin-top: 2px;
+}
+
+.replied {
+  color: var(--gold-ink);
+  font-weight: 800;
+}
+
+/* What can be done with one entry. */
+.acts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+/* A quiet way on: to the conversation, to choosing a lesson. */
+.quietLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 30px;
+  padding: 0 2px;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  font-size: var(--t-meta);
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  transition: color var(--m-fast);
+}
+
+.quietLink:hover {
+  color: var(--navy-ink);
+}
+
+.quietLink svg {
+  flex: none;
+  width: 14px;
+  height: 14px;
+}
+
+.quietLinkEnd {
+  margin-inline-start: auto;
+}
+
+/* "להוסיף לרשימת המתנה" — in the card and in a lead's details: a quiet line, never a button among the actions. */
+.addLink {
+  margin-top: 8px;
+}
+
+/* ---------- "להודיע ללקוח": what would go out, how — and why not ---------- */
+
+.notify {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border-radius: 14px;
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px var(--line);
+  animation: wlIn var(--m-base) var(--m-out) backwards;
+}
+
+.notifyLabel {
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--t-meta);
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+/* The wording, in a bubble like the one it will arrive in; dashed — nothing has gone out yet. */
+.notifyBubble {
+  max-width: 100%;
+  margin: 0;
+  padding: 10px 14px;
+  border: 1.5px dashed rgba(22, 163, 74, 0.5);
+  border-radius: 16px;
+  border-start-start-radius: 5px;
+  background: var(--good-bg);
+  color: var(--ink);
+  font-size: var(--t-body);
+  line-height: 1.5;
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+
+/* It would not go out: the wording is shown for what it is — words, held back. */
+.notifyBubbleOff {
+  border-color: var(--line);
+  background: var(--surface-2);
+  color: var(--muted);
+}
+
+.notifyHow {
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--t-meta);
+  line-height: 1.5;
+}
+
+/* "כבר נשלחה הודעה ב… לשלוח שוב?" and "ההודעה לא תצא": said plainly, in the amber of something held back. */
+.notifyHeld {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--warn-bg);
+  color: var(--warn);
+  font-size: var(--t-body);
+  font-weight: 700;
+  line-height: 1.5;
+}
+
+.notifyHeld svg {
+  flex: none;
+  width: 17px;
+  height: 17px;
+  margin-top: 3px;
+}
+
+.notifyHeld > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.notifyWait {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  color: var(--navy-ink);
+  font-size: var(--t-body);
+  font-weight: 700;
+}
+
+/* ---------- the window: choosing a lesson to wait for ---------- */
+
+/* Over the whole page: the ground, and the window in the middle of it. */
+.winRoot {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.winScrim {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  padding: 0;
+  background: rgba(10, 12, 40, 0.34);
+  animation: winFade var(--m-base) ease-out backwards;
+}
+
+@keyframes winFade {
+  from {
+    opacity: 0;
+  }
+}
+
+.win {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: min(560px, 100%);
+  max-height: min(720px, 100%);
+  min-height: 0;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  background: var(--surface);
+  box-shadow: var(--float);
+  color: var(--ink);
+  direction: rtl;
+  animation: winIn var(--m-base) var(--m-out) backwards;
+}
+
+@keyframes winIn {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+}
+
+.winHead {
+  flex: none;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding-block: 14px 8px;
+  padding-inline: 20px 10px;
+}
+
+.winWho {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.winTitle {
+  margin: 0;
+  font-family: var(--font-display, inherit);
+  font-size: var(--t-lead);
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.winSub {
+  margin: 2px 0 0;
+  color: var(--muted);
+  font-size: var(--t-meta);
+  font-weight: 500;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+/* The search and the branch: they stay while the lessons scroll under them. */
+.winTools {
+  flex: none;
+  display: flex;
+  gap: 8px;
+  padding: 4px 20px 10px;
+}
+
+.winTools .winSearch {
+  flex: 1 1 0;
+  height: 40px;
+  border-radius: 11px;
+}
+
+.winBranch {
+  position: relative;
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 46%;
+}
+
+.winBranch select {
+  appearance: none;
+  width: 100%;
+  height: 40px;
+  padding-inline: 12px 32px;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--t-body);
+  font-weight: 500;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+
+.winBranch select:focus-visible {
+  outline: 2px solid var(--navy);
+  outline-offset: 0;
+  border-color: transparent;
+}
+
+.winBranch svg {
+  position: absolute;
+  top: 50%;
+  inset-inline-end: 10px;
+  width: 16px;
+  height: 16px;
+  transform: translateY(-50%);
+  color: var(--muted);
+  pointer-events: none;
+}
+
+/* What is inside scrolls by itself; the buttons under it stay where they are. */
+.winBody {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  padding: 2px 20px 16px;
+}
+
+.winFoot {
+  flex: none;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 20px 16px;
+  border-top: 1px solid var(--line-2);
+  background: var(--surface);
+}
+
+/* One step gives way to the next with a small rise. */
+.winStep {
+  animation: wlIn var(--m-base) var(--m-out) backwards;
+}
+
+.stale {
+  opacity: 0.6;
+  transition: opacity var(--m-fast);
+}
+
+/* The lessons that can be chosen: the class first; when and where, quietly, under it. */
+.opts {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.opt {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 56px;
+  padding: 9px 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  text-align: start;
+  transition:
+    border-color var(--m-fast),
+    background-color var(--m-fast),
+    transform var(--m-press) var(--m-out);
+}
+
+button.opt:not(:disabled):hover {
+  border-color: var(--navy);
+  background: var(--lav-2);
+}
+
+button.opt:not(:disabled):active {
+  transform: scale(0.99);
+}
+
+.optWhat {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.optTitle {
+  display: block;
+  font-size: var(--t-body);
+  font-weight: 700;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.optWhen {
+  display: block;
+  color: var(--muted);
+  font-size: var(--t-meta);
+  font-weight: 500;
+  line-height: 1.45;
+}
+
+.optNote {
+  flex: none;
+  max-width: 46%;
+  color: var(--muted);
+  font-size: var(--t-meta);
+  font-weight: 600;
+  line-height: 1.4;
+  text-align: end;
+}
+
+.opt > svg {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  color: var(--muted);
+}
+
+/* A lesson that cannot be chosen — it has room, or this person already waits for it: there, and without weight. */
+.optOff {
+  border-style: dashed;
+  background: var(--surface-2);
+  color: var(--muted);
+}
+
+.optOff .optTitle {
+  font-weight: 600;
+}
+
+.optOn .optNote {
+  color: var(--good);
+  font-weight: 800;
+}
+
+/* "שיעורים שיש בהם מקום" — behind their title: nobody waits for a lesson that has room. */
+.roomHead {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 44px;
+  margin-top: 10px;
+  padding: 6px 2px;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  font-size: var(--t-meta);
+  font-weight: 700;
+  text-align: start;
+}
+
+.roomHead > span {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.roomNote {
+  margin: 0 0 8px;
+  color: var(--muted);
+  font-size: var(--t-meta);
+  line-height: 1.5;
+}
+
+.winEmpty {
+  margin: 0;
+  padding: 22px 8px;
+  color: var(--muted);
+  font-size: var(--t-body);
+  line-height: 1.6;
+  text-align: center;
+}
+
+.winEmpty strong {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--ink);
+  font-weight: 700;
+}
+
+/* The lesson that was chosen: the one thing this step is about, and so the largest. */
+.chosen {
+  padding: 14px 16px;
+  border-radius: 16px;
+  background: var(--lav-2);
+}
+
+.chosenTitle {
+  margin: 0;
+  font-family: var(--font-display, inherit);
+  font-size: var(--t-lead);
+  font-weight: 700;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+
+.chosenWhen {
+  margin: 3px 0 0;
+  color: var(--ink);
+  font-size: var(--t-body);
+  font-weight: 500;
+  line-height: 1.5;
+}
+
+.chosenNote {
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: var(--t-meta);
+  font-weight: 600;
+  line-height: 1.45;
+}
+
+.fieldLabel {
+  display: block;
+  margin: 16px 0 6px;
+  font-size: var(--t-meta);
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.fieldLabel span {
+  color: var(--muted);
+  font-weight: 500;
+}
+
+.input {
+  width: 100%;
+  min-width: 0;
+  height: 42px;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface-2);
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--t-body);
+}
+
+.input:focus {
+  outline: 2px solid var(--navy);
+  outline-offset: 0;
+  border-color: transparent;
+}
+
+.input::placeholder {
+  color: var(--faint);
+}
+
+.formError {
+  margin: 10px 0 0;
+  color: var(--bad);
+  font-size: var(--t-meta);
+  font-weight: 700;
+  line-height: 1.45;
+}
+
+/* ---------- a note's small menu: edit, delete ---------- */
+
+.noteTools {
+  position: relative;
+  flex: none;
+  margin-inline-start: auto;
+}
+
+.noteMore {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 22px;
+  border: 0;
+  border-radius: 7px;
+  background: none;
+  color: var(--gold-ink);
+  opacity: 0.7;
+  transition:
+    opacity var(--m-fast),
+    background-color var(--m-fast);
+}
+
+.noteMore:hover,
+.noteMore[aria-expanded='true'] {
+  opacity: 1;
+  background: rgba(138, 90, 0, 0.12);
+}
+
+.noteMore svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* It grows out of the corner it was pressed in. */
+.noteMenu {
+  position: absolute;
+  top: calc(100% + 4px);
+  inset-inline-end: 0;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  min-width: 132px;
+  padding: 4px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+  box-shadow: var(--float);
+  transform-origin: 0 0;
+  animation: winIn var(--m-fast) var(--m-out) backwards;
+}
+
+.noteMenu button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 36px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  color: var(--ink);
+  font: inherit;
+  font-size: 13.5px;
+  font-weight: 600;
+  text-align: start;
+  white-space: nowrap;
+  transition: background-color var(--m-fast);
+}
+
+.noteMenu button:hover {
+  background: var(--lav-2);
+}
+
+.noteMenu button svg {
+  flex: none;
+  width: 15px;
+  height: 15px;
+  color: var(--muted);
+}
+
+/* "נערך" — quiet, beside who wrote the note and when. */
+.noteEdited {
+  font-weight: 500;
+  opacity: 0.8;
+}
+
+/* The note being edited: its own words, in a box, on its own paper. */
+.noteEdit {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  animation: wlIn var(--m-fast) var(--m-out) backwards;
+}
+
+.noteEdit textarea {
+  width: 100%;
+  min-height: 64px;
+  max-height: 180px;
+  padding: 8px 10px;
+  border: 1px solid rgba(138, 90, 0, 0.25);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  font-size: 14px;
+  line-height: 1.5;
+  resize: none;
+}
+
+.noteEdit textarea:focus {
+  outline: 2px solid var(--gold-ink);
+  outline-offset: 0;
+  border-color: transparent;
+}
+
+.noteEditActs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.noteAsk {
+  margin-top: 4px;
+}
+
+/* ---------- the phone ---------- */
+
+@media (max-width: 767px) {
+  /* The rows of the leads run edge to edge here; the strip keeps the bar's own gutter, at a finger's height. */
+  .way {
+    width: calc(100% - 24px);
+    min-height: 44px;
+    margin: 0 12px 8px;
+  }
+
+  /* The list stands in place of the leads: its head keeps a finger's height, and a way back. */
+  .wlHead {
+    padding: 8px 12px;
+  }
+
+  .wlHead > button {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+  }
+
+  .wlScroll {
+    gap: 8px;
+    padding: 0 12px 76px;
+  }
+
+  .lessonHead {
+    grid-template-columns: minmax(0, 1fr) auto;
+    padding: 12px;
+  }
+
+  /* No room beside the name: how full and how many go under it, in one line. */
+  .lessonNums {
+    grid-column: 1 / 2;
+    grid-row: 2;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 2px 10px;
+    text-align: start;
+  }
+
+  .lessonHead > .chevron {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+  }
+
+  .people {
+    padding: 0 6px 6px;
+  }
+
+  .personHead {
+    min-height: 52px;
+  }
+
+  .personBody {
+    padding-inline-start: 10px;
+  }
+
+  .acts > button:not(.quietLink) {
+    flex: 1 1 0;
+    height: 44px;
+    padding: 0 8px;
+  }
+
+  .quietLink {
+    min-height: 44px;
+  }
+
+  .notify .acts > button {
+    flex: 1 1 0;
+  }
+
+  /* The window becomes a sheet at the foot of the screen: an X at its head, its buttons pinned to its foot. */
+  .winRoot {
+    align-items: flex-end;
+    padding: 0;
+  }
+
+  /* A keyboard is open: the sheet is drawn into the room that is left above it (shared/motion.tsx, useKeyboardRoom). */
+  .winRoot[data-keyboard] {
+    top: var(--kbd-top, 0px);
+    bottom: auto;
+    height: var(--kbd-height);
+  }
+
+  .win {
+    width: 100%;
+    max-height: 92%;
+    border-width: 1px 0 0;
+    border-radius: 20px 20px 0 0;
+    transform-origin: 50% 100%;
+    animation: winUp var(--m-slow) var(--m-move) backwards;
+  }
+
+  .winHead {
+    padding-block: 10px 6px;
+    padding-inline: 16px 8px;
+  }
+
+  .winHead > button {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+  }
+
+  .winTools {
+    padding: 2px 16px 8px;
+  }
+
+  .winTools .winSearch,
+  .winBranch select {
+    height: 44px;
+  }
+
+  /* Sixteen pixels in a box that is typed in: no zoom when it is pressed. */
+  .winTools .winSearch input,
+  .winBranch select,
+  .input,
+  .noteEdit textarea {
+    font-size: 16px;
+  }
+
+  .input {
+    height: 46px;
+  }
+
+  .winBody {
+    padding: 2px 16px 14px;
+  }
+
+  /* A step with no buttons under it (choosing a lesson): its foot keeps clear of the home bar itself. */
+  .winBody:last-child {
+    padding-bottom: calc(14px + env(safe-area-inset-bottom, 0px));
+  }
+
+  /* The buttons are pinned to the foot of the sheet, a finger tall, clear of the home bar. */
+  .winFoot {
+    padding: 10px 16px calc(12px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .winFoot > button {
+    flex: 1 1 0;
+    height: 46px;
+    font-size: 15px;
+  }
+
+  .opt {
+    min-height: 60px;
+  }
+
+  .noteMore {
+    width: 40px;
+    height: 32px;
+  }
+
+  .noteMenu button {
+    min-height: 44px;
+    font-size: 15px;
+  }
+
+  .noteEditActs > button {
+    flex: 1 1 0;
+    height: 42px;
+  }
+}
+
+@keyframes winUp {
+  from {
+    opacity: 0;
+    transform: translateY(28px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wl,
+  .notify,
+  .winScrim,
+  .win,
+  .winStep,
+  .noteMenu,
+  .noteEdit {
+    animation: none;
+  }
+
+  .chevron,
+  .way,
+  .stale {
+    transition: none;
+  }
+}

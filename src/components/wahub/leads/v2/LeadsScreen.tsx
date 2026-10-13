@@ -4,17 +4,21 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { readableError } from '@/lib/apiError';
 import { heldStripText } from '@/lib/wahub/leadsAutomation';
-import { leadRows, leadsLayout, leadsPanes, stageOptions, stuckFirst, type LeadChange } from '@/lib/wahub/leadsV2';
+import { leadRows, leadsLayout, leadsPanes, leadTitle, stageOptions, stuckFirst, type LeadChange } from '@/lib/wahub/leadsV2';
 import { isLeadGone } from '@/lib/wahub/leadsV2Api';
 import { PHONE_MEDIA_QUERY } from '@/lib/wahub/screens';
 import type { WahubLeadRow, WahubLeadsView, WahubStatus } from '@/types/wahub';
 import { useElementWidth } from '../../hooks/useElementWidth';
 import { useLeadsAutomation } from '../../hooks/useLeadsAutomation';
 import { useNow } from '../../hooks/useNow';
+import { useNotify, useWaitingList } from '../../hooks/useWaitingList';
 import type { WahubLiveHandle } from '../../hooks/useWahubLive';
+import LessonPicker from '../../shared/LessonPicker';
 import { cx } from '../../shared/tones';
 import LeadDetails from './LeadDetails';
 import LeadsList from './LeadsList';
+import type { NotifyControls } from './WaitingBits';
+import WaitingListScreen from './WaitingListScreen';
 import l from './leads.module.css';
 import { useLeadChanges, useLeadDetail, useLeadsList, useLeadsLiveRefresh, useWaitingActions } from './useLeads';
 
@@ -25,6 +29,8 @@ export interface LeadsAddress {
   owner?: WahubLeadsView;
   stage?: string | null;
   lead?: number | null;
+  /** The full waiting list stands in place of the lists. */
+  waiting?: boolean;
 }
 
 export interface LeadsScreenProps {
@@ -37,6 +43,8 @@ export interface LeadsScreenProps {
   stage: string | null;
   /** The lead whose details are open; null is the list alone. */
   leadId: number | null;
+  /** The full waiting list stands in place of the lists (docs/WAHUB-CONTRACT-FUTURE-LEADS.md, ז.1). */
+  waiting?: boolean;
   status: WahubStatus | undefined;
   onAddress: (patch: LeadsAddress) => void;
   onOpenChat: (id: number) => void;
@@ -54,7 +62,7 @@ export interface LeadsScreenProps {
  *
  * The list and the details each scroll by themselves; the page does not.
  */
-export default function LeadsScreen({ active, live, view, stage, leadId, status, onAddress, onOpenChat, onOpenAutomation }: LeadsScreenProps) {
+export default function LeadsScreen({ active, live, view, stage, leadId, waiting = false, status, onAddress, onOpenChat, onOpenAutomation }: LeadsScreenProps) {
   const now = useNow(60_000);
   const phone = useMediaQuery(PHONE_MEDIA_QUERY);
   const { ref, width } = useElementWidth<HTMLDivElement>();
@@ -103,8 +111,27 @@ export default function LeadsScreen({ active, live, view, stage, leadId, status,
   const gone = detail.isError && isLeadGone(detail.error);
 
   const { change, busy } = useLeadChanges();
-  // A waiting-list entry whose place was freed: "טופל" / "להסיר מהרשימה".
+  // A waiting-list entry: "טופל" once its place was freed, "להסיר מהרשימה" while it stands — and adding one by hand.
   const waitingList = useWaitingActions();
+  // The full waiting list (ז.1): its numbers are the quiet way in, above the lists; its lessons are the screen
+  // that stands in their place. Null: a server without a waiting list — there is no way in, and no screen.
+  const waitingPage = useWaitingList(active, active);
+  const knowsWaiting = waitingPage.data !== null;
+  const showWaiting = waiting && knowsWaiting;
+  // An address that names the waiting list on a server that has none is put right: the lists are what is shown.
+  useEffect(() => {
+    if (active && waiting && waitingPage.data === null) onAddress({ waiting: false });
+  }, [active, onAddress, waiting, waitingPage.data]);
+  // "להודיע ללקוח" (ז.4): one block at a time, in a lead's details or in the full list.
+  const telling = useNotify();
+  const notify = useMemo<NotifyControls>(
+    () => ({ open: telling.open, onStart: (entryId) => void telling.start(entryId), onSend: () => void telling.send(), onClose: telling.close }),
+    [telling.close, telling.open, telling.send, telling.start],
+  );
+  // "להוסיף לרשימת המתנה" (ז.2): the window where a lesson is chosen, for the lead whose details are open. Only
+  // on a server that lists the lessons — the one that counts the list by lesson is that server.
+  const canAddWaiting = waitingPage.data?.counted === true;
+  const [picker, setPicker] = useState<{ contactId: number; name: string } | null>(null);
   const lastOpened = useRef<number | null>(null);
   if (leadId != null) lastOpened.current = leadId;
 
@@ -120,7 +147,7 @@ export default function LeadsScreen({ active, live, view, stage, leadId, status,
   );
 
   // The details close on Escape, like anything that lies beside or over the page.
-  const open = active && leadId != null;
+  const open = active && leadId != null && !picker;
   useEffect(() => {
     if (!open) return;
     const onKey = (event: KeyboardEvent) => {
@@ -151,7 +178,7 @@ export default function LeadsScreen({ active, live, view, stage, leadId, status,
   return (
     <div ref={setFrame} className={l.screen} data-active={active ? '' : undefined} data-layout={layout}>
       {/* Out of view the list is hidden, not removed: its place in the scroll is still there on the way back. */}
-      <div className={cx(l.main, !panes.list && l.hidden)}>
+      <div className={cx(l.main, (!panes.list || showWaiting) && l.hidden)}>
         <LeadsList
           view={view}
           counts={firstPage?.counts ?? null}
@@ -170,6 +197,8 @@ export default function LeadsScreen({ active, live, view, stage, leadId, status,
           sendingOn={status ? status.sending_enabled : null}
           held={held}
           onHeld={onOpenAutomation}
+          waitingList={waitingPage.data ? waitingPage.data.counts : null}
+          onWaitingList={() => onAddress({ waiting: true, lead: null })}
           onView={(next) => onAddress({ owner: next, stage: null, lead: null })}
           onStage={(next) => onAddress({ stage: next })}
           onSearch={setSearch}
@@ -178,6 +207,25 @@ export default function LeadsScreen({ active, live, view, stage, leadId, status,
           onRetry={() => void list.refetch()}
         />
       </div>
+
+      {/* The full waiting list, in place of the lists — with its own way back to them. */}
+      {showWaiting && (
+        <div className={cx(l.main, !panes.list && l.hidden)}>
+          <WaitingListScreen
+            status={waitingPage.data ? 'ready' : waitingPage.isError ? 'error' : 'loading'}
+            error={waitingPage.isError ? readableError(waitingPage.error, '') : ''}
+            page={waitingPage.data ?? null}
+            now={now}
+            refreshing={Boolean(waitingPage.data) && waitingPage.isFetching}
+            busy={waitingList.busy}
+            notify={notify}
+            onBack={() => onAddress({ waiting: false })}
+            onAct={(entryId, action) => void waitingList.act(entryId, action)}
+            onOpenChat={onOpenChat}
+            onRetry={() => void waitingPage.refetch()}
+          />
+        </div>
+      )}
 
       {panes.details && (
         <LeadDetails
@@ -197,6 +245,19 @@ export default function LeadsScreen({ active, live, view, stage, leadId, status,
           onChange={onChange}
           onWaiting={(entryId, action) => void waitingList.act(entryId, action)}
           waitingBusy={waitingList.busy}
+          notify={notify}
+          onAddWaiting={canAddWaiting && lead ? () => setPicker({ contactId: lead.contact_id, name: leadTitle(lead) }) : undefined}
+        />
+      )}
+
+      {/* Over the whole page, and so outside the columns: each of them is a ground of its own for what lies in it. */}
+      {active && picker && (
+        <LessonPicker
+          key={picker.contactId}
+          contactId={picker.contactId}
+          name={picker.name}
+          onJoin={(lessonId, child) => waitingList.join(picker.contactId, lessonId, child)}
+          onClose={() => setPicker(null)}
         />
       )}
     </div>

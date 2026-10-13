@@ -17,7 +17,7 @@ import { useRefine } from '../refine/RefineContext';
 import { RefineRow, RefineSelectBar } from '../refine/RefineRow';
 import { useRefineSelection } from '../refine/useRefineSelection';
 import { ContactAvatar, DemoTag, ErrorState, LiveTestTag, Skeleton, Spinner, useDismiss } from '../shared/bits';
-import { NoteRow } from '../shared/FutureParts';
+import { NoteRow, type NoteActions } from '../shared/FutureParts';
 import { useStayAtEnd } from '../shared/motion';
 import { cx } from '../shared/tones';
 import s from '../wahub.module.css';
@@ -118,6 +118,11 @@ export interface ThreadFutureActions extends LaterActions {
   onClose: () => void;
   /** A note about the customer: resolves '' once it was saved, or why it was not. */
   onNote: (text: string) => Promise<string>;
+  /**
+   * Editing and deleting a note (ז.5): each resolves '' once done, or why not. The small menu is drawn only on a
+   * note the server says it can change; absent, no note has one.
+   */
+  noteActions?: NoteActions;
 }
 
 /** No server to ask: the hooks of the clock's bubble still run, and nothing ever opens it. */
@@ -684,7 +689,9 @@ export default function ChatThread({
                     <div className="flex flex-col gap-1.5">
                       {day.items.map((item) => {
                         // A note is no message: it is not marked for "דיוק", and nothing answers it.
-                        if (item.kind === 'note') return <NoteRow key={item.key} note={item.note} arrived={freshNotes.has(item.note.id)} />;
+                        if (item.kind === 'note') {
+                          return <NoteRow key={item.key} note={item.note} arrived={freshNotes.has(item.note.id)} now={now} actions={acts?.noteActions} />;
+                        }
                         const { message } = item;
                         const shadow = message.direction === 'in' ? shadowByMessage?.get(message.id) : undefined;
                         return (

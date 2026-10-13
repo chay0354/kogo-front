@@ -127,6 +127,8 @@ export interface WahubUrlState {
   owner?: WahubLeadsView;
   /** The lead whose details are open, on the leads tab. */
   lead?: number | null;
+  /** The full waiting list stands in place of the leads' lists (`list=waiting`), on the leads tab. */
+  waiting?: boolean;
 }
 
 interface ParamReader {
@@ -144,12 +146,14 @@ export function parseWahubUrl(params: ParamReader | null | undefined): WahubUrlS
     stage: parseStage(params?.get('stage')),
     owner: parseLeadsView(params?.get('owner')),
     lead: parseContactId(params?.get('lead')),
+    // Said only when it is so: an address that does not name it is the leads' own lists.
+    ...(params?.get('list') === 'waiting' ? { waiting: true } : {}),
   };
 }
 
 /**
  * /wahub?tab=chats&contact=12 — /wahub?tab=bot&sub=hours — /wahub?tab=bot&item=7 — /wahub?tab=leads&stage=needs_reply
- * — /wahub?tab=leads&owner=bot&lead=12
+ * — /wahub?tab=leads&owner=bot&lead=12 — /wahub?tab=leads&list=waiting
  *
  * The tab is always written, so a copied link says where it leads. An open
  * conversation belongs to the chats tab only; a sub-tab and an open knowledge
@@ -170,6 +174,7 @@ export function buildWahubUrl(state: WahubUrlState, pathname = '/wahub'): string
     const stage = parseStage(state.stage);
     if (stage) params.set('stage', stage);
     if (state.lead) params.set('lead', String(state.lead));
+    if (state.waiting) params.set('list', 'waiting');
   }
   if (state.tab === 'bot') {
     if (state.sub !== 'knowledge') params.set('sub', state.sub);

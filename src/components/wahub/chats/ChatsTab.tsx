@@ -9,8 +9,9 @@ import { attachShadowReplies } from '@/lib/wahub/bot';
 import { matchesBox, shownBox } from '@/lib/wahub/boxes';
 import { cardMaxWidth, cardWidth } from '@/lib/wahub/cardPane';
 import { isDemoContact } from '@/lib/wahub/demo';
-import { israelToday } from '@/lib/wahub/format';
-import { withNote } from '@/lib/wahub/futureLeads';
+import { displayName, israelToday } from '@/lib/wahub/format';
+import { knowsFutureLeads, withNote } from '@/lib/wahub/futureLeads';
+import { withEditedNote, withoutNote } from '@/lib/wahub/waitingList';
 import { mergeLiveContacts } from '@/lib/wahub/live';
 import { paneDepth, paneDirection, type NavDirection } from '@/lib/wahub/motion';
 import { lastServerMessageId } from '@/lib/wahub/messages';
@@ -26,10 +27,13 @@ import { useDemoChat } from '../hooks/useDemoChat';
 import { useElementWidth } from '../hooks/useElementWidth';
 import { useNow } from '../hooks/useNow';
 import { usePagedContacts } from '../hooks/usePagedContacts';
+import { useWaitingList } from '../hooks/useWaitingList';
 import type { WahubLiveHandle } from '../hooks/useWahubLive';
 import { useWahubTags, wahubKeys } from '../hooks/useWahubQueries';
 import { RefineDock, useRefine } from '../refine/RefineContext';
 import { EmptyState } from '../shared/bits';
+import type { NoteActions } from '../shared/FutureParts';
+import LessonPicker from '../shared/LessonPicker';
 import m from '../motion.module.css';
 import { CardSkeleton } from '../shared/loading';
 import { cx } from '../shared/tones';
@@ -300,12 +304,46 @@ export default function ChatsTab({
   // ✓, the clock and the note (docs/WAHUB-CONTRACT-FUTURE-LEADS.md, ה). The conversation itself decides whether
   // to offer them: only for a contact the server marks `chat.open` on.
   const closeBusy = Boolean(busy.close);
+  // Editing and deleting a note (ז.5), from the conversation and from the card alike. The note is put right on
+  // the screen at once — in its place, or gone; the whole contact is read again right after either way.
+  const noteActions = useMemo<NoteActions | undefined>(() => {
+    if (contactId == null) return undefined;
+    const id = contactId;
+    const put = (change: (notes: WahubContactDetail['notes']) => WahubContactDetail['notes']) => {
+      const held = threadRef.current?.stateRef.current.contact;
+      if (held && held.id === id) threadRef.current?.putContact({ ...held, notes: change(held.notes) } as WahubContactDetail);
+    };
+    return {
+      onEdit: async (noteId, text) => {
+        const result = await mutations.editNote(id, noteId, text);
+        if ('error' in result) {
+          // Refused: the note may be gone, or changed by somebody else — what the server has is read again.
+          void threadRef.current?.refreshQuietly();
+          return result.error;
+        }
+        put((notes) => withEditedNote(notes, result.note));
+        return '';
+      },
+      onDelete: async (noteId) => {
+        const reason = await mutations.deleteNote(id, noteId);
+        if (reason) {
+          void threadRef.current?.refreshQuietly();
+          return reason;
+        }
+        put((notes) => withoutNote(notes, noteId));
+        toast.success('הפתק נמחק');
+        return '';
+      },
+    };
+  }, [contactId, mutations]);
+
   const futureActions = useMemo<ThreadFutureActions | undefined>(() => {
     if (contactId == null) return undefined;
     const id = contactId;
     return {
       today,
       closeBusy,
+      noteActions,
       onClose: () =>
         void withBusyRef.current('close', async () => {
           // Nothing on the screen need change when a conversation with nothing open is closed: a word says it was.
@@ -325,7 +363,13 @@ export default function ChatsTab({
         return '';
       },
     };
-  }, [closeBusy, contactId, mutations, today]);
+  }, [closeBusy, contactId, mutations, noteActions, today]);
+
+  // "להוסיף לרשימת המתנה" (ז.2), from the card: only on a server that lists the lessons — the one that counts
+  // the waiting list by lesson is that server. Asked once, and kept; the leads tab keeps it fresh.
+  const waitingServer = useWaitingList(active);
+  const canAddWaiting = waitingServer.data?.counted === true;
+  const [picker, setPicker] = useState<{ contactId: number; name: string } | null>(null);
 
   const wide = layout === 'wide';
   const cardHidden = wide && cardPane.hidden;
@@ -355,7 +399,7 @@ export default function ChatsTab({
   if (paneNav.depth !== depth) setPaneNav({ depth, direction: paneDirection(paneNav.depth, depth, paneNav.direction) });
 
   // The drawer closes on Escape, like anything that lies over the page.
-  const drawerOpen = panes.drawer;
+  const drawerOpen = panes.drawer && !picker;
   useEffect(() => {
     if (!drawerOpen) return;
     const onKey = (event: KeyboardEvent) => {
@@ -495,6 +539,10 @@ export default function ChatsTab({
                       onToggle: (on) => void setLiveTest(contact.id, on),
                     }
               }
+              noteActions={noteActions}
+              onAddWaiting={
+                canAddWaiting && knowsFutureLeads(contact) ? () => setPicker({ contactId: contact.id, name: displayName(contact) }) : undefined
+              }
               // One row of the card at every width (docs/WAHUB-CONTRACT-LAYOUT.md, ב.3).
               actions={{
                 handoverBusy: Boolean(busy.handover),
@@ -511,6 +559,25 @@ export default function ChatsTab({
             <CardSkeleton />
           )}
         </aside>
+      )}
+
+      {/* Over the whole page, and so outside the card: the card is a ground of its own for what lies in it. An
+          open conversation is already drawn into the room above a phone's keyboard, and the window with it. */}
+      {active && picker && (
+        <LessonPicker
+          key={picker.contactId}
+          contactId={picker.contactId}
+          name={picker.name}
+          keyboardRoom={false}
+          onJoin={async (lessonId, child) => {
+            const reason = await mutations.joinWaitingList(picker.contactId, lessonId, child);
+            // The leads and the full list are due a fresh read: somebody new stands in a line.
+            void queryClient.invalidateQueries({ queryKey: ['wahub', 'leads2'] });
+            if (!reason) toast.success('נוסף לרשימת ההמתנה');
+            return reason;
+          }}
+          onClose={() => setPicker(null)}
+        />
       )}
     </div>
   );

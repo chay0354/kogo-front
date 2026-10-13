@@ -16,6 +16,8 @@ interface LeadsTabProps {
   stage: string | null;
   /** The lead whose details are open. */
   leadId: number | null;
+  /** The full waiting list stands in place of the lists (only the list of version 2 has it). */
+  waiting?: boolean;
   status: WahubStatus | undefined;
   onAddress: (patch: LeadsAddress) => void;
   onOpenChat: (id: number) => void;
@@ -41,6 +43,7 @@ export default function LeadsTab({
   owner,
   stage,
   leadId,
+  waiting = false,
   status,
   onAddress,
   onOpenChat,
@@ -76,6 +79,7 @@ export default function LeadsTab({
       view={owner}
       stage={stage}
       leadId={leadId}
+      waiting={waiting}
       status={status}
       onAddress={onAddress}
       onOpenChat={onOpenChat}
