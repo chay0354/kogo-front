@@ -347,7 +347,7 @@ export function lessonOptionNote(option: WahubLessonOption): string {
   return [option.seats_label, option.can_join ? waiting : ''].filter(Boolean).join(' · ');
 }
 
-/** How long what is known of the child may be. */
+/** How long what is known of the child may be: a short field — an age, a class. (The server keeps up to 200.) */
 export const WAITING_CHILD_MAX = 80;
 
 interface Failure {
