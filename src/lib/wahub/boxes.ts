@@ -106,6 +106,15 @@ export function openEmptyWords(counts: Partial<WahubBoxCounts> | null | undefine
   };
 }
 
+/**
+ * The server says in which box each conversation stands (`chat.box`, docs/WAHUB-CONTRACT-FUTURE-LEADS.md,
+ * ח.1.2) — always, and so it is the sign of a server that knows the afternoon of 13.10.2026: the same server
+ * lets "דיוק" in a conversation work together with "ללמד" (ח.4).
+ */
+export function knowsChatBox(contact: Pick<WahubContact, 'chat'> | null | undefined): boolean {
+  return typeof contact?.chat?.box === 'string';
+}
+
 /** The plain line for a box, for hover text and empty states. */
 export function boxHint(box: WahubBox): string {
   return CHAT_BOXES.find((def) => def.key === box)?.hint ?? '';

@@ -6,6 +6,7 @@ import { readableError } from '@/lib/apiError';
 import { TEACH_TEXT, mergePages, patchPages, pollUntilSettled } from '@/lib/wahub/teach';
 import {
   approveWahubTeach,
+  TEACH_PAGE_SIZE,
   fetchWahubTeachCheck,
   fetchWahubTeachPage,
   fetchWahubTeachPreview,
@@ -96,6 +97,7 @@ function land(queryClient: QueryClient, thread: WahubTeachThread): void {
     prev ? { ...prev, pages: patchPages(prev.pages, thread) } : prev,
   );
   void queryClient.invalidateQueries({ queryKey: teachKeys.list });
+  void queryClient.invalidateQueries({ queryKey: ['wahub', 'teach', 'contact'] });
   // A change that waits is a proposal; one that was kept or taken back moved the knowledge.
   void queryClient.invalidateQueries({ queryKey: botKeys.proposalsAll });
   void queryClient.invalidateQueries({ queryKey: botKeys.reviewSummary });
@@ -253,6 +255,80 @@ function useSettle(thread: WahubTeachThread | undefined, busy: boolean): void {
       alive = false;
     };
   }, [busy, id, needCheck, needPreview, queryClient]);
+}
+
+/**
+ * A thread that was just opened somewhere other than the big box — by "דיוק" inside a conversation
+ * (docs/WAHUB-CONTRACT-FUTURE-LEADS.md, ח.4): into the cache and into "מה לימדת עד היום", like any other, and
+ * a new card for it.
+ */
+export function landTeachThread(queryClient: QueryClient, thread: WahubTeachThread): void {
+  land(queryClient, thread);
+  patch((current) => ({ version: current.version + 1 }));
+}
+
+/**
+ * One teach thread, held outside the sub-tab: the small chat of "דיוק" in a conversation shows the very same
+ * thread and offers the very same presses — "מאשר", "לא בדיוק", "בטל" — through the very same code. What is
+ * on its way for it (a press, the example, the check) is kept where the sub-tab keeps it, so the two never
+ * disagree about one thread.
+ */
+export function useTeachThread(id: number | null) {
+  const queryClient = useQueryClient();
+  const state = useSyncExternalStore(ui.subscribe, ui.get, () => START);
+  const opened = useQuery({
+    queryKey: teachKeys.thread(id ?? 0),
+    queryFn: () => fetchWahubTeachThread(id as number),
+    enabled: id != null,
+    staleTime: 30_000,
+    retry: false,
+  });
+  const thread = id != null ? opened.data : undefined;
+  const busy = id != null ? state.busy[id] : undefined;
+  useSettle(thread, Boolean(busy));
+
+  const actions = useMemo(
+    () => ({
+      approve: () => {
+        if (id != null) void approve(queryClient, id);
+      },
+      say: (text: string) => {
+        if (id != null) void say(queryClient, id, text);
+      },
+      undo: () => {
+        if (id != null) void undo(queryClient, id, 'card');
+      },
+    }),
+    [id, queryClient],
+  );
+  const retry = useCallback(() => void opened.refetch(), [opened]);
+
+  return {
+    thread,
+    opening: id != null && opened.isPending,
+    openError: id != null && opened.isError && !opened.data ? readableError(opened.error, TEACH_TEXT.openFailed) : '',
+    retry,
+    busy: (busy?.kind ?? null) as TeachBusy,
+    said: busy?.said ?? '',
+    saidAt: busy?.at ?? 0,
+    error: id != null ? (state.errors[id] ?? '') : '',
+    unsent: id != null ? (state.unsent[id] ?? '') : '',
+    previewStalled: Boolean(id != null && state.stalled[id]?.preview),
+    checkStalled: Boolean(id != null && state.stalled[id]?.check),
+    version: state.version,
+    ...actions,
+  };
+}
+
+/** What was taught from one conversation, newest first — for the small chat of "דיוק" opened in it. */
+export function useTeachOfContact(contactId: number | null, enabled: boolean) {
+  return useQuery({
+    queryKey: ['wahub', 'teach', 'contact', contactId ?? 0] as const,
+    queryFn: () => fetchWahubTeachPage(1, TEACH_PAGE_SIZE, contactId),
+    enabled: enabled && contactId != null,
+    staleTime: 15_000,
+    retry: false,
+  });
 }
 
 export type TeachAvailability = 'loading' | 'ready' | 'unavailable' | 'failed';

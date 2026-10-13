@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { AlertCircle, AlertTriangle, Check, CheckCircle2, ChevronDown, Info, Undo2, X } from 'lucide-react';
+import Link from 'next/link';
+import { AlertCircle, AlertTriangle, Check, CheckCircle2, ChevronDown, Info, MessagesSquare, Sparkles, Undo2, X } from 'lucide-react';
 import { sendOnEnter } from '@/lib/wahub/demo';
 import {
   TEACH_MAX_LENGTH,
@@ -17,7 +18,7 @@ import {
   type CheckLine,
   type TeachAsk,
 } from '@/lib/wahub/teach';
-import type { WahubTeachPreview, WahubTeachThread } from '@/types/wahubTeach';
+import type { WahubTeachPreview, WahubTeachQuote, WahubTeachSummary, WahubTeachThread } from '@/types/wahubTeach';
 import PlainCard from '../../refine/PlainCard';
 import { Spinner } from '../../shared/bits';
 import { cx } from '../../shared/tones';
@@ -41,6 +42,74 @@ export function Wrote({ text, open = false }: { text: string; open?: boolean }) 
         {text}
       </p>
     </details>
+  );
+}
+
+/**
+ * Where the thread was born, when it was not written freely — "מתוך שיחה עם דנה לוי" — with the way to that
+ * conversation, and the marked messages it was written about, folded (docs/WAHUB-CONTRACT-FUTURE-LEADS.md, ח.4.2).
+ */
+export function Origin({ thread }: { thread: Pick<WahubTeachThread, 'origin' | 'quotes'> }) {
+  const { origin, quotes } = thread;
+  if (!origin) return null;
+  return (
+    <div className={t.origin}>
+      <p className={t.originLine}>
+        <MessagesSquare aria-hidden="true" />
+        <span dir="auto">{origin.label}</span>
+        {origin.link && (
+          <Link href={origin.link} className={t.originLink}>
+            {TEACH_TEXT.toConversation}
+          </Link>
+        )}
+      </p>
+      {quotes && quotes.length > 0 && <Quotes quotes={quotes} />}
+    </div>
+  );
+}
+
+function Quotes({ quotes }: { quotes: ReadonlyArray<WahubTeachQuote> }) {
+  return (
+    <details className={t.more}>
+      <summary>
+        {TEACH_TEXT.quotes}
+        <ChevronDown aria-hidden="true" />
+      </summary>
+      <div className={t.moreBody}>
+        {quotes.map((quote, index) => (
+          <p key={`${quote.id ?? 'q'}-${index}`} className={t.quote} dir="auto">
+            <b>{quote.who_label}</b>
+            {quote.text}
+          </p>
+        ))}
+      </div>
+    </details>
+  );
+}
+
+/** The system's first words on the marked piece — three short lines, each under its own small title. */
+function OpeningSummary({ summary }: { summary: WahubTeachSummary }) {
+  const rows = [
+    { title: 'מה קרה', text: summary.what_happened },
+    { title: 'מה נענה', text: summary.what_was_answered },
+    { title: 'מה נראה לא טוב', text: summary.suspected_issue ?? '' },
+  ].filter((row) => row.text);
+  if (!rows.length) return null;
+  return (
+    <div className={t.opening}>
+      <p className={t.openingMark}>
+        <Sparkles aria-hidden="true" />
+        {TEACH_TEXT.summaryMark}
+      </p>
+      <dl className={t.openingRows}>
+        {rows.map((row) => (
+          <div key={row.title}>
+            <dt>{row.title}</dt>
+            <dd dir="auto">{row.text}</dd>
+          </div>
+        ))}
+      </dl>
+    </div>
   );
 }
 
@@ -216,6 +285,11 @@ export interface TeachCardViewProps {
   onFixing: (open: boolean) => void;
   onConfirmingUndo: (open: boolean) => void;
   onClose: () => void;
+  /**
+   * The card stands in the small chat of "דיוק", inside the conversation it was born of: the marked messages
+   * are quoted right above it, and it closes with the chat — so neither is said again on the card.
+   */
+  inChat?: boolean;
 }
 
 /** The changes of the thread, each as the section's one readable card. */
@@ -320,6 +394,7 @@ export function TeachCardView({
   onFixing,
   onConfirmingUndo,
   onClose,
+  inChat = false,
 }: TeachCardViewProps) {
   const ask = teachAsk(thread);
   const reading = busy === 'saying';
@@ -331,24 +406,44 @@ export function TeachCardView({
   const footed = reading || ask === 'answer' || ask === 'approve' || ask === 'stuck' || (ask === 'saved' && Boolean(check?.failed) && thread.can_undo);
 
   return (
-    <section className={cx(t.card, footed && t.cardFooted)} aria-label={ask === 'saved' ? TEACH_TEXT.saved : TEACH_TEXT.understood}>
-      <div className={t.cardTop}>
-        <div className={t.cardTopMain}>
-          <Wrote text={thread.text} />
+    <section className={cx(t.card, footed && t.cardFooted, inChat && t.inChat)} aria-label={ask === 'saved' ? TEACH_TEXT.saved : TEACH_TEXT.understood}>
+      {(thread.text || !inChat) && (
+        <div className={t.cardTop}>
+          <div className={t.cardTopMain}>
+            <Wrote text={thread.text} />
+          </div>
+          {!inChat && (
+            <button type="button" onClick={onClose} className={t.close} aria-label={CLOSE_HINT[ask]} title={CLOSE_HINT[ask]}>
+              <X aria-hidden="true" />
+            </button>
+          )}
         </div>
-        <button type="button" onClick={onClose} className={t.close} aria-label={CLOSE_HINT[ask]} title={CLOSE_HINT[ask]}>
-          <X aria-hidden="true" />
-        </button>
-      </div>
+      )}
+      {/* Taught from inside a conversation: said quietly, with the way back to it and what it was written about. */}
+      {!inChat && <Origin thread={thread} />}
 
       <div className={cx('flex flex-col gap-4', reading && t.dim)} aria-busy={reading || undefined}>
-        {ask === 'answer' && (
-          <Rise order={order++}>
-            <h4 className={t.label}>{TEACH_TEXT.question}</h4>
-            <p className={t.lead} dir="auto">
-              {thread.question || thread.reply}
-            </p>
-          </Rise>
+        {ask === 'answer' && thread.summary ? (
+          // "דיוק" on marked messages: the system speaks first — it sums the piece up, and asks what was wrong.
+          <>
+            <Rise order={order++}>
+              <OpeningSummary summary={thread.summary} />
+            </Rise>
+            <Rise order={order++}>
+              <p className={t.lead} dir="auto">
+                {thread.question || TEACH_TEXT.whatWasWrong}
+              </p>
+            </Rise>
+          </>
+        ) : (
+          ask === 'answer' && (
+            <Rise order={order++}>
+              <h4 className={t.label}>{TEACH_TEXT.question}</h4>
+              <p className={t.lead} dir="auto">
+                {thread.question || thread.reply}
+              </p>
+            </Rise>
+          )
         )}
 
         {(ask === 'approve' || ask === 'stuck') && (

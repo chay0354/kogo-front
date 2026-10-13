@@ -74,6 +74,8 @@ export default function TeachHistory({
                     <span className={cx(t.rowDate, s.num)}>{formatShortDate(row.at, now)}</span>
                     <span className={t.rowText} dir="auto">
                       {row.understood}
+                      {/* Taught from inside a conversation ("דיוק"): said quietly under what was understood. */}
+                      {row.origin && <span className={t.rowOrigin}>{row.origin.label}</span>}
                     </span>
                     <Pill tone={teachRowTone(row.state)} className={t.rowState}>
                       {row.state_label}

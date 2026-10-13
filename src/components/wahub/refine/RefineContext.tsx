@@ -4,6 +4,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { createPortal } from 'react-dom';
 import type { RefineExcerptLine } from '@/lib/wahub/refine';
 import RefineChat from './RefineChat';
+import TeachDrawer from './TeachDrawer';
 import r from './refine.module.css';
 
 /** What the small chat of "דיוק" is opened on: marked messages of a conversation, or a proposal. */
@@ -30,6 +31,12 @@ export interface RefineTarget {
   summarize?: boolean;
   /** Once, after the server answered the first line typed. */
   onSent?: () => void;
+  /**
+   * The server lets "דיוק" in a conversation work together with "ללמד" (docs/WAHUB-CONTRACT-FUTURE-LEADS.md,
+   * ח.4): the chat then shows the very flow of "ללמד" — understood, what would change, an example, "מאשר" — on
+   * what was marked. Never set for a proposal: fixing a proposal stays what it was.
+   */
+  teach?: boolean;
 }
 
 export interface RefineValue {
@@ -101,6 +108,19 @@ export function RefineDock() {
  * moved between the two places — so going to another tab and back does not
  * throw away what was being written.
  */
+/**
+ * The small chat for one opening: the flow of "ללמד" on what was marked, where the server offers it — and the
+ * chat of before for a proposal, on a server built before ח.4, or when the server turned out to answer in the
+ * old shape after all.
+ */
+function RefineSwitch({ target, docked, onClose }: { target: RefineTarget; docked: boolean; onClose: () => void }) {
+  const [old, setOld] = useState(false);
+  if (target.teach && target.proposalId == null && target.contactId != null && !old) {
+    return <TeachDrawer target={target} docked={docked} onClose={onClose} onOld={() => setOld(true)} />;
+  }
+  return <RefineChat target={target} docked={docked} onClose={onClose} />;
+}
+
 export function RefineHost() {
   const { target, seq, close, dock } = useRefine();
   const home = useRef<HTMLDivElement | null>(null);
@@ -116,7 +136,7 @@ export function RefineHost() {
   return (
     <>
       <div ref={home} className={r.node} />
-      {target && node && createPortal(<RefineChat key={seq} target={target} docked={dock !== null} onClose={close} />, node)}
+      {target && node && createPortal(<RefineSwitch key={seq} target={target} docked={dock !== null} onClose={close} />, node)}
     </>
   );
 }

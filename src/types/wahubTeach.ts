@@ -88,6 +88,36 @@ export interface WahubTeachCheck {
   technical: Record<string, unknown> | null;
 }
 
+/**
+ * Where a teach thread was born (docs/WAHUB-CONTRACT-FUTURE-LEADS.md, ח.4.2): written freely in "ללמד", or
+ * opened by "דיוק" inside a conversation — on marked messages, or on an answer of the bot in the shadow.
+ * Never a phone: a contact with no name is "מתוך שיחה".
+ */
+export interface WahubTeachOrigin {
+  kind: 'free' | 'conversation' | 'shadow';
+  /** "מתוך שיחה עם דנה לוי"; empty for a thread that was written freely. */
+  label: string;
+  contact_id: number | null;
+  /** The way to that conversation, inside the CRM; null when it is gone. */
+  link: string | null;
+}
+
+/** One marked piece of the conversation a thread was opened on, as it is quoted: who said it, and what. */
+export interface WahubTeachQuote {
+  id: number | null;
+  /** `customer` / `bot` / `new_bot` / `office` / `system` / `shadow`. */
+  who: string;
+  who_label: string;
+  text: string;
+}
+
+/** The system's first words on the marked piece, before he has written anything (as in "דיוק"). */
+export interface WahubTeachSummary {
+  what_happened: string;
+  what_was_answered: string;
+  suspected_issue: string | null;
+}
+
 export interface WahubTeachTechnical {
   model: string | null;
   reason: string | null;
@@ -121,6 +151,12 @@ export interface WahubTeachThread {
   created_at: string | null;
   created_by_name: string;
   technical: WahubTeachTechnical;
+  /** Where the thread was born; absent on a server built before "דיוק" worked with "ללמד". */
+  origin?: WahubTeachOrigin;
+  /** The marked messages it was opened on, to quote folded ("על מה זה נכתב"). */
+  quotes?: WahubTeachQuote[];
+  /** The summary that opened it, while it is still the last thing said; null afterwards. */
+  summary?: WahubTeachSummary | null;
 }
 
 /** One line of "מה לימדת עד היום". */
@@ -135,6 +171,8 @@ export interface WahubTeachRow {
   state_label: string;
   needs_answer: boolean;
   changes_count: number;
+  /** Where it was taught from, when it was not written freely: "מתוך שיחה עם …", and the way there. */
+  origin?: WahubTeachOrigin;
 }
 
 export interface WahubTeachPage {

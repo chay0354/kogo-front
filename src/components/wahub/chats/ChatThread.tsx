@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { AlertCircle, ArrowDown, ArrowRight, Bot, Check, Clock, Crosshair, Hand, Info, MessageCircle, PanelLeftOpen, Undo2, UserRound } from 'lucide-react';
 import { formatWhatsAppLink } from '@/lib/customerUtils';
+import { knowsChatBox } from '@/lib/wahub/boxes';
 import { customerCardFor } from '@/lib/wahub/customerCard';
 import { isDemoContact, type DemoInput } from '@/lib/wahub/demo';
 import { agoText, displayName, hasName } from '@/lib/wahub/format';
@@ -432,6 +433,8 @@ export default function ChatThread({
         // Marked messages: the system speaks first — a short summary of the piece, and "מה לא היה טוב כאן?".
         // "לתקן" on an answer keeps to what it was: she says what was wrong with it.
         summarize: !shadow,
+        // "דיוק" works together with "ללמד" where the server offers it: the same flow, on what was marked here.
+        teach: knowsChatBox(shown.contact),
         // Once she has said what was wrong with the answer, it is marked 👎 — without a note, so no second proposal is made of it.
         onSent: shadow && shadow.verdict !== 'bad' ? () => onScreen.current.onShadowVerdict?.(shadow, 'bad', '') : undefined,
       });

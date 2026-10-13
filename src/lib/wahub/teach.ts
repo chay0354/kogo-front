@@ -4,11 +4,14 @@ import type {
   WahubTeachCheck,
   WahubTeachCheckDetail,
   WahubTeachConflict,
+  WahubTeachOrigin,
   WahubTeachPage,
   WahubTeachPlain,
   WahubTeachPreview,
+  WahubTeachQuote,
   WahubTeachRow,
   WahubTeachState,
+  WahubTeachSummary,
   WahubTeachThread,
 } from '@/types/wahubTeach';
 import { plainOfChange, type PlainChange } from './plain';
@@ -73,6 +76,16 @@ export const TEACH_TEXT = {
   historyEmpty: 'עוד לא לימדת את הבוט דבר. מה שתלמד יופיע כאן, ותמיד אפשר יהיה לבטל.',
   more: 'הצג עוד',
   technical: 'פרטים טכניים',
+  // "דיוק" inside a conversation is the same teaching, born of marked messages (owner, 13.10.2026).
+  quotes: 'על מה זה נכתב',
+  toConversation: 'לשיחה',
+  summaryMark: 'סיכום חכם',
+  whatWasWrong: 'מה לא היה טוב כאן?',
+  summarizing: 'קורא את מה שסומן',
+  startFailed: 'לא הצלחתי לפתוח את הדיוק. אפשר לנסות שוב',
+  startUnknown: 'לא הגיעה תשובה, אז אני לא יודע אם הדיוק נפתח. אפשר לנסות שוב',
+  writeFirst: 'מה לא היה טוב בתשובה הזאת?',
+  earlier: 'מה נלמד מהשיחה הזאת',
   checkRunning: 'בודק שהבוט באמת עונה כך',
   checkDetails: 'מה נבדק',
   asked: 'שאלתי',
@@ -214,6 +227,45 @@ function readConflicts(raw: unknown): WahubTeachConflict[] {
 }
 
 /**
+ * Where a thread was born (ח.4.2). A thread that was written freely has no origin worth a word: null. The link is
+ * kept only when it stays inside the section.
+ */
+export function readTeachOrigin(raw: unknown): WahubTeachOrigin | null {
+  const data = asRecord(raw);
+  const kind = data?.kind === 'conversation' || data?.kind === 'shadow' ? data.kind : null;
+  if (!data || !kind) return null;
+  const link = asText(data.link);
+  return {
+    kind,
+    label: asText(data.label) || (kind === 'shadow' ? 'על תשובה של הבוט בצל' : 'מתוך שיחה'),
+    contact_id: asId(data.contact_id),
+    link: /^\/wahub(?:\?|$)/.test(link) ? link : null,
+  };
+}
+
+function readQuotes(raw: unknown): WahubTeachQuote[] {
+  const context = asRecord(raw);
+  if (!context || !Array.isArray(context.quotes)) return [];
+  return context.quotes
+    .map((entry) => {
+      const data = asRecord(entry);
+      const text = asText(data?.text);
+      return data && text ? { id: asId(data.id), who: asText(data.who), who_label: asText(data.who_label), text } : null;
+    })
+    .filter((quote): quote is WahubTeachQuote => quote !== null)
+    .slice(0, 8);
+}
+
+function readSummary(raw: unknown): WahubTeachSummary | null {
+  const data = asRecord(raw);
+  if (!data) return null;
+  const happened = asText(data.what_happened);
+  const answered = asText(data.what_was_answered);
+  const issue = asText(data.suspected_issue);
+  return happened || answered || issue ? { what_happened: happened, what_was_answered: answered, suspected_issue: issue || null } : null;
+}
+
+/**
  * A teach thread. Null for anything else — and a thread of "דיוק" is something
  * else: an older server answers POST refine/ in that shape, without `mode`.
  */
@@ -228,7 +280,13 @@ export function readTeachThread(raw: unknown): WahubTeachThread | null {
     : [];
   const needsAnswer = data.needs_answer === true;
   const technical = asRecord(data.technical) ?? {};
+  const origin = readTeachOrigin(data.origin);
+  const quotes = readQuotes(data.context);
+  const summary = readSummary(data.summary);
   return {
+    ...(origin ? { origin } : {}),
+    ...(quotes.length ? { quotes } : {}),
+    ...(summary ? { summary } : {}),
     id,
     status: data.status === 'done' ? 'done' : 'open',
     state,
@@ -262,7 +320,9 @@ function readRow(raw: unknown): WahubTeachRow | null {
   const state = STATES.includes(data.state as WahubTeachState) ? (data.state as WahubTeachState) : 'nothing';
   const needsAnswer = data.needs_answer === true;
   const text = asText(data.text);
+  const origin = readTeachOrigin(data.origin);
   return {
+    ...(origin ? { origin } : {}),
     thread,
     at: asTextOrNull(data.at),
     by: asText(data.by),
@@ -557,7 +617,9 @@ export function undoQuestion(state: WahubTeachState): string {
 
 /** A thread that just changed, as its row in the list — so the list is right before it is read again. */
 export function rowOfThread(thread: WahubTeachThread, previous?: WahubTeachRow): WahubTeachRow {
+  const origin = thread.origin ?? previous?.origin;
   return {
+    ...(origin ? { origin } : {}),
     thread: thread.id,
     at: thread.created_at ?? previous?.at ?? null,
     by: thread.created_by_name || previous?.by || '',
