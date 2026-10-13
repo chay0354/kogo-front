@@ -116,6 +116,9 @@ export const NO_EXTRAS: WahubSearchExtras = { customers: [], customers_more: fal
 // What was typed
 // ---------------------------------------------------------------------------
 
+/** The server reads no more of a search than this (ח.1.1); the boxes take no more. */
+export const SEARCH_MAX_LENGTH = 200;
+
 const DIGIT_RUN = /[+(]?\d[\d\s\-+().]*/g;
 
 /** The numbers in what was typed: four digits or more, whatever stands between them ("+972 50-123 4567" is one). */

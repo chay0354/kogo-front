@@ -2,7 +2,7 @@
 
 import { AlertCircle, Bot, CheckCircle2, ChevronDown, ChevronLeft, Inbox, PauseCircle, Search, X } from 'lucide-react';
 import { LEADS_VIEW_LABELS, emptyWords, stageOptionText } from '@/lib/wahub/leadsV2';
-import { SEARCH_TEXT, notFoundWords } from '@/lib/wahub/search';
+import { SEARCH_MAX_LENGTH, SEARCH_TEXT, notFoundWords } from '@/lib/wahub/search';
 import type { WahubLeadCounts, WahubLeadRow, WahubLeadStageCount, WahubLeadsView } from '@/types/wahub';
 import type { WahubSearchExtras } from '@/types/wahubSearch';
 import { EmptyState, Skeleton, Spinner } from '../../shared/bits';
@@ -196,6 +196,7 @@ export default function LeadsList({
               placeholder="שם או טלפון"
               aria-label="חיפוש בלידים"
               enterKeyHint="search"
+              maxLength={SEARCH_MAX_LENGTH}
             />
             {search && (
               <button type="button" onClick={() => onSearch('')} aria-label="נקה חיפוש">

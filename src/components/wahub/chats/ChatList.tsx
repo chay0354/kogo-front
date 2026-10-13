@@ -6,7 +6,7 @@ import { BOX_GROUPS, boxCount, boxesInGroup, handledByChip, openEmptyWords } fro
 import { isDemoContact } from '@/lib/wahub/demo';
 import { displayName, formatListTime, israelToday, previewText, waitingLabel } from '@/lib/wahub/format';
 import { futureOf, waitingOf } from '@/lib/wahub/futureLeads';
-import { SEARCH_TEXT, chatPlace, notFoundWords } from '@/lib/wahub/search';
+import { SEARCH_MAX_LENGTH, SEARCH_TEXT, chatPlace, notFoundWords } from '@/lib/wahub/search';
 import { leadOf, showsInList } from '@/lib/wahub/leadStage';
 import type { WahubBox, WahubBoxCounts, WahubContact } from '@/types/wahub';
 import type { WahubSearchExtras } from '@/types/wahubSearch';
@@ -257,6 +257,7 @@ export default function ChatList({
             onChange={(event) => onSearch(event.target.value)}
             placeholder="חיפוש לפי שם, טלפון או טקסט"
             aria-label="חיפוש בשיחות"
+            maxLength={SEARCH_MAX_LENGTH}
           />
           {search && (
             <button type="button" onClick={() => onSearch('')} aria-label="נקה חיפוש">
@@ -362,7 +363,8 @@ export default function ChatList({
           )
         ) : (
           <>
-            {results && <EverywhereStrip words={SEARCH_TEXT.chatsEverywhere} count={total ?? (hasMore ? null : items.length)} />}
+            {/* How many is said only of the answer that is on screen — never of the rows that were there a moment ago. */}
+            {results && <EverywhereStrip words={SEARCH_TEXT.chatsEverywhere} count={status === 'ready' ? (total ?? (hasMore ? null : items.length)) : null} />}
             <ul className={cx(s.list, stagger)} aria-label={results ? SEARCH_TEXT.chatsEverywhere : 'שיחות'}>
               {items.map((contact) => (
                 <ChatRow

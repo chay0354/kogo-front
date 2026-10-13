@@ -130,6 +130,14 @@ export default function LeadsScreen({ active, live, view, stage, leadId, waiting
   // that stands in their place. Null: a server without a waiting list — there is no way in, and no screen.
   const waitingPage = useWaitingList(active, active);
   const knowsWaiting = waitingPage.data !== null;
+  // How many people wait: counted from the list itself, so the number above it is the number of people in it —
+  // somebody who waits for two lessons is one, and somebody whose lead stands in another state is still one.
+  const waitingPeople = useMemo(() => {
+    const entries = waitingPage.data?.results;
+    if (!entries) return null;
+    const people = new Set(entries.map((entry) => entry.contact_id ?? `entry-${entry.id}`));
+    return people.size;
+  }, [waitingPage.data]);
   const showWaiting = waiting && knowsWaiting;
   // An address that names the waiting list on a server that has none is put right: the lists are what is shown.
   useEffect(() => {
@@ -215,7 +223,7 @@ export default function LeadsScreen({ active, live, view, stage, leadId, waiting
           extras={searchPage ? { contacts: searchPage.contacts ?? [], customers: searchPage.customers ?? [], customers_more: Boolean(searchPage.customers_more) } : null}
           onOpenChat={onOpenChat}
           waitingList={waitingPage.data ? waitingPage.data.counts : null}
-          waitingPeople={basePage?.counts.waiting ?? null}
+          waitingPeople={waitingPeople}
           waitingAct={basePage?.counts.waiting_act ?? null}
           onWaitingList={() => onAddress({ waiting: true, lead: null })}
           onView={(next) => onAddress({ owner: next, stage: null, lead: null })}
@@ -234,7 +242,7 @@ export default function LeadsScreen({ active, live, view, stage, leadId, waiting
             status={waitingPage.data ? 'ready' : waitingPage.isError ? 'error' : 'loading'}
             error={waitingPage.isError ? readableError(waitingPage.error, '') : ''}
             page={waitingPage.data ?? null}
-            people={basePage?.counts.waiting ?? null}
+            people={waitingPeople}
             act={basePage?.counts.waiting_act ?? null}
             now={now}
             refreshing={Boolean(waitingPage.data) && waitingPage.isFetching}
