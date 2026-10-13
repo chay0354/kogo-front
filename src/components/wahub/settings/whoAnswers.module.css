@@ -159,6 +159,11 @@
   line-height: 1.5;
 }
 
+.headSubPart {
+  display: inline-block;
+  max-width: 100%;
+}
+
 /* The button stands alone at the end of the row — nothing else that can be pressed is beside it. */
 .action {
   flex: none;

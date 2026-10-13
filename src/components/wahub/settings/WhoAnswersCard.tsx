@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useId, useRef, useState, type ReactNode, type Ref } from 'react';
+import { Fragment, useEffect, useId, useRef, useState, type ReactNode, type Ref } from 'react';
 import { AlertCircle, AlertOctagon, AlertTriangle, CheckCircle2, ChevronDown, FlaskConical, MessagesSquare, PauseCircle } from 'lucide-react';
 import { readableError } from '@/lib/apiError';
 import {
@@ -233,19 +233,31 @@ export function WhoAnswersView({
           <ToneIcon tone={headline.tone} />
           <div className="min-w-0">
             <p className={g.headText}>{headline.title}</p>
-            {headline.sub && <p className={g.headSub}>{headline.sub}</p>}
+            {headline.sub && (
+              <p className={g.headSub}>
+                {/* Each part keeps to one line where it can: on a narrow screen the line breaks between the parts. */}
+                {headline.sub.split(' · ').map((part, index) => (
+                  <Fragment key={index}>
+                    {index > 0 && ' '}
+                    <span className={g.headSubPart}>{index > 0 ? `· ${part}` : part}</span>
+                  </Fragment>
+                ))}
+              </p>
+            )}
           </div>
         </div>
 
         {/* The one button, by the state — alone at the end of the row. */}
         {!asking && (
           <div className={g.action}>
+            {/* Two buttons that are never the same one: when the state turns over, the keyboard does not stay on
+                what took the other's place. */}
             {action === 'go_live' ? (
-              <button type="button" onClick={() => onGoLive('open')} disabled={busy !== null} className={cx(s.btn, s.btnP)}>
+              <button key="go" type="button" data-who-answers-action="go_live" onClick={() => onGoLive('open')} disabled={busy !== null} className={cx(s.btn, s.btnP)}>
                 {WHO_ANSWERS_TEXT.goLive}
               </button>
             ) : (
-              <button type="button" onClick={onAskBack} disabled={busy !== null} className={s.btn}>
+              <button key="back" type="button" data-who-answers-action="back_to_test" onClick={onAskBack} disabled={busy !== null} className={s.btn}>
                 {WHO_ANSWERS_TEXT.backToTest}
               </button>
             )}

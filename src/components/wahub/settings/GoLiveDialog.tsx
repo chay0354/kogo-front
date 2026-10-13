@@ -136,7 +136,10 @@ export default function GoLiveDialog({ anchor, ...view }: GoLiveDialogProps) {
   live.current = { busy: view.busy, onClose: view.onClose };
 
   useEffect(() => {
-    const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    // The button that opened it — a press does not always leave the keyboard on the button (Safari), so it is looked for.
+    const active = document.activeElement;
+    const opener =
+      active instanceof HTMLElement && active !== document.body ? active : anchor?.querySelector<HTMLElement>('[data-who-answers-action]') ?? null;
     const win = root.current?.querySelector<HTMLElement>('[data-go-live-window]') ?? null;
     // Into the window, on nothing that can be pressed: a key that was already on its way presses nothing.
     win?.focus();
@@ -168,8 +171,12 @@ export default function GoLiveDialog({ anchor, ...view }: GoLiveDialogProps) {
     document.addEventListener('keydown', onKey, true);
     return () => {
       document.removeEventListener('keydown', onKey, true);
-      opener?.focus();
+      // Closed without turning anything on: back to the button. Once "כולם" is on that button is gone, and the
+      // keyboard is left on nothing — never on the button that takes its place.
+      if (opener?.isConnected) opener.focus();
     };
+    // The window is mounted when it opens and unmounted when it closes: this runs once for each opening.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const sheet = <GoLiveDialogView {...view} rootRef={root} />;
