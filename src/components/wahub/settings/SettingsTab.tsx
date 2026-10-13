@@ -18,6 +18,7 @@ import {
 import { displayName, formatDateTime, hasName } from '@/lib/wahub/format';
 import { liveTestCount } from '@/lib/wahub/liveTest';
 import type { WahubContact, WahubQuickReply, WahubStatus, WahubTag } from '@/types/wahub';
+import { useBotMode } from '../hooks/useBotMode';
 import { useNow } from '../hooks/useNow';
 import { useLiveTestContacts, useWahubQuickReplies, useWahubTags, wahubKeys } from '../hooks/useWahubQueries';
 import AutoApplySection from '../refine/AutoApplySwitch';
@@ -28,6 +29,7 @@ import { cx } from '../shared/tones';
 import s from '../wahub.module.css';
 import LeadsAutomationCard from './LeadsAutomationCard';
 import SystemStatusCard from './SystemStatusCard';
+import WhoAnswersCard from './WhoAnswersCard';
 
 function SettingsCard({
   icon,
@@ -255,10 +257,13 @@ export function LiveTestList({
 
 function LiveTestSection({
   status,
+  everybody,
   onChanged,
   onOpenChat,
 }: {
   status: WahubStatus;
+  /** The new bot was chosen to answer everybody ("מי עונה ללקוחות"): the list no longer says who is answered. */
+  everybody: boolean;
   onChanged: () => void;
   onOpenChat: (id: number) => void;
 }) {
@@ -286,7 +291,11 @@ function LiveTestSection({
     <SettingsCard
       icon={<Radio className="h-[18px] w-[18px]" />}
       title="בדיקה חיה"
-      sub="למי שמסומן כאן הבוט החדש עונה באמת, בוואטסאפ, והבוט הישן מושתק. לכל השאר שום דבר לא משתנה."
+      sub={
+        everybody
+          ? 'למי שמסומן כאן הבוט החדש עונה באמת, בוואטסאפ — גם אחרי חזרה ל“בדיקה בלבד”.'
+          : 'למי שמסומן כאן הבוט החדש עונה באמת, בוואטסאפ, והבוט הישן מושתק. לכל השאר שום דבר לא משתנה.'
+      }
     >
       {contacts.isLoading ? (
         <p className={cx(s.muted, 'm-0 flex items-center gap-2')}>
@@ -706,11 +715,16 @@ interface SettingsTabProps {
 }
 
 export default function SettingsTab({ status, statusLoading, statusError, onRetryStatus, onOpenChat, focus = null }: SettingsTabProps) {
+  // Whom the new bot answers (docs/WAHUB-CONTRACT-GO-LIVE.md): read once, by the card and by the rows that name it.
+  const botMode = useBotMode().data ?? null;
   return (
     // One column on a phone; two columns of cards where the page is wide enough (the stylesheet decides).
     <div className={cx(s.pg, s.settingsGrid)}>
-      {/* How things stand, first: a title and a word a row; the details are a press away (docs/WAHUB-CONTRACT-POLISH-1.md, ג). */}
-      {status && <SystemStatusCard status={status} />}
+      {/* "מי עונה ללקוחות": the first thing on the page, and the one place where every customer is moved to the new bot.
+          Reads for itself; on a server that does not have it yet, it is not there. */}
+      <WhoAnswersCard />
+      {/* How things stand: a title and a word a row; the details are a press away (docs/WAHUB-CONTRACT-POLISH-1.md, ג). */}
+      {status && <SystemStatusCard status={status} botMode={botMode} />}
       {/* "הכול אוטומטי": is the bot coming back to the leads by itself, and what is missing (docs/WAHUB-CONTRACT-LEADS-V2.md, י).
           Reads for itself; on a server that does not have it yet, it is not there. */}
       <LeadsAutomationCard focus={focus === 'automation'} />
@@ -725,7 +739,7 @@ export default function SettingsTab({ status, statusLoading, statusError, onRetr
       )}
       {/* Only on a server that knows the live test (docs/WAHUB-CONTRACT-LIVE-TEST.md). */}
       {status && liveTestCount(status) !== null && (
-        <LiveTestSection status={status} onChanged={onRetryStatus} onOpenChat={onOpenChat} />
+        <LiveTestSection status={status} everybody={botMode?.mode === 'all'} onChanged={onRetryStatus} onOpenChat={onOpenChat} />
       )}
       {/* "דיוק" and the reviewer fix the bot; this decides whether a clear fix waits for a press (docs/WAHUB-CONTRACT-REFINE.md). */}
       <AutoApplySection />

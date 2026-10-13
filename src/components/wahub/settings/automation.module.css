@@ -182,6 +182,26 @@
   overflow-wrap: anywhere;
 }
 
+/* The switch of "חזרות אוטומטיות" (docs/WAHUB-CONTRACT-GO-LIVE.md, ב.6): on its own line, at the line's end —
+   where the line says what is missing, the way to put it right is beside it. */
+.lineSwitch {
+  flex: none;
+  justify-content: center;
+  min-width: 44px;
+  min-height: 30px;
+  margin-top: -4px;
+  padding: 0;
+}
+
+/* The question that turning it on asks, under the line's own words. */
+.lineConfirm {
+  margin-top: 8px;
+}
+
+.lineConfirm b {
+  font-weight: 800;
+}
+
 /* ---------- a part of the card under the lines ---------- */
 
 .block {
@@ -657,6 +677,13 @@ button.upHead:hover .upName {
 @media (max-width: 767px) {
   .headText {
     font-size: 16px;
+  }
+
+  /* A finger's size around the switch. */
+  .lineSwitch {
+    min-width: 48px;
+    min-height: 44px;
+    margin-top: -11px;
   }
 
   /* A finger's height, and sixteen pixels so the phone does not zoom the page when a box is pressed. */
