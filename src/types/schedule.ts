@@ -22,10 +22,12 @@ export type Lesson = {
   enrollment_count: number;
   /** תלמידים שמופיעים בפועל ברשימת הנוכחות של המופע הזה. */
   student_count?: number;
-  /** תלמידים פעילים במופע הזה — הרשימה בלי תלמידי הניסיון. */
+  /** התלמידים של המופע הזה: פעיל או בעיית תשלום במקום רגיל, וילדי העירייה. המספר שכל המסכים מציגים. */
   active_student_count?: number;
   /** תלמידי ניסיון שמופיעים רק במופע הניסיון שנקבע להם. */
   trial_student_count?: number;
+  /** ברשימה באותו יום ואינם תלמידים: טרם שילמו, עזבו והמקום לא נסגר, מזדמנים. */
+  other_student_count?: number;
   notes: string;
   is_recurring: boolean;
   attendance_complete?: boolean;
@@ -49,6 +51,8 @@ export type LessonDetail = Lesson & {
     child_name: string;
     child_phone?: string;
     child_status?: string;
+    /** מה השורה הזאת ברשימה: תלמיד, ניסיון של אותו יום, או אחר (lib/lessonHeadcount). */
+    register_kind?: 'student' | 'trial' | 'other';
     trial_lesson_date?: string | null;
     is_trial?: boolean;
     /** 1 for a first trial; the office may book a second (2, 3…) from the CRM. */

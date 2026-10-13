@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Lesson, ScheduleEvent } from '@/types/schedule';
 import { formatDateISO, formatTime } from '@/lib/scheduleUtils';
+import { lessonCountLabel } from '@/lib/lessonHeadcount';
 import { prefersReducedMotion } from '@/components/ui/motion';
 import {
   buildStudioColumns,
@@ -504,11 +505,7 @@ function Chip({
   // See ScheduleLessonCard: an uncapped lesson shows its headcount, not a
   // ceiling nobody set.
   const capacity = isLesson ? item.lesson.room_capacity || null : null;
-  const countLabel = isLesson
-    ? capacity
-      ? `${item.lesson.enrollment_count}/${capacity}`
-      : `${item.lesson.enrollment_count}`
-    : '';
+  const countLabel = isLesson ? lessonCountLabel(item.lesson, capacity) : '';
   const cancelled = isLesson && item.lesson.status === 'cancelled';
 
   // Chips are read at four heights. Below ~44px only one line survives, so the

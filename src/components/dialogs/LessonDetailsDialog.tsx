@@ -28,6 +28,7 @@ import {
 import { useAuth } from '@/components/AuthProvider';
 import { GroupIdBadge } from '@/components/GroupIdBadge/GroupIdBadge';
 import api from '@/lib/api';
+import { registerCounts } from '@/lib/lessonHeadcount';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -368,6 +369,11 @@ export default function LessonDetailsDialog({
     return { present, absent, notMarked, total, markedPct, presentPct };
   }, [attendance, lesson?.enrollments.length]);
 
+  // The number of students, by the rule the calendar and the instructor's day
+  // use — not the length of the list, which also holds that day's trials and
+  // anyone on the register who is not a student (lib/lessonHeadcount).
+  const headcount = useMemo(() => registerCounts(visibleEnrollments), [visibleEnrollments]);
+
   const isCancelled = lesson?.status === 'cancelled';
 
   return (
@@ -463,8 +469,8 @@ export default function LessonDetailsDialog({
                   />
                   <MetaCard
                     icon={<Users className="h-4 w-4 text-teal-600" />}
-                    label="רשומים"
-                    value={`${lesson.enrollments.length} / ${lesson.room_capacity || 20}`}
+                    label="תלמידים"
+                    value={`${headcount.students} / ${lesson.room_capacity || 20}`}
                   />
                 </div>
 
@@ -573,7 +579,7 @@ export default function LessonDetailsDialog({
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                     <div className="flex flex-wrap items-center gap-3">
                       <h3 className="font-semibold text-gray-900">
-                        תלמידים ({filteredEnrollments.length}
+                        ברשימה ({filteredEnrollments.length}
                         {studentFilter !== 'all' && visibleEnrollments.length !== filteredEnrollments.length
                           ? ` / ${visibleEnrollments.length}`
                           : ''}
@@ -616,6 +622,17 @@ export default function LessonDetailsDialog({
                       </Button>
                     ) : null}
                   </div>
+
+                  {/* Why the list is longer than the number of students, when it is. */}
+                  {headcount.trials > 0 || headcount.others > 0 ? (
+                    <p className="text-xs text-gray-600">
+                      <b>{headcount.students} תלמידים</b>
+                      {headcount.trials > 0 ? ` · ${headcount.trials} ניסיון` : ''}
+                      {headcount.others > 0
+                        ? ` · ${headcount.others} ברשימה שאינם תלמידים פעילים (לא שילמו עדיין, עזבו, או מזדמנים)`
+                        : ''}
+                    </p>
+                  ) : null}
 
                   {showGhostChildForm && !isCancelled ? (
                     <div className="rounded-xl border-2 border-dashed border-amber-200 bg-amber-50/60 p-4 space-y-4">
