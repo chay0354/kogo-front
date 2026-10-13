@@ -2,9 +2,10 @@
 
 import { Bot, CalendarClock, ChevronLeft, PauseCircle, UserRound } from 'lucide-react';
 import { israelToday } from '@/lib/wahub/format';
-import { leadChips, leadTitle, nextStepLine, saysMore, sinceText, type NextStepLine } from '@/lib/wahub/leadsV2';
+import { leadChips, leadPhoneText, leadTitle, nextStepLine, saysMore, sinceText, type NextStepLine } from '@/lib/wahub/leadsV2';
 import type { WahubLeadRow } from '@/types/wahub';
 import { DemoTag } from '../../shared/bits';
+import { FoundLines, MarkedName, PlaceTag } from '../../shared/SearchParts';
 import { cx } from '../../shared/tones';
 import l from './leads.module.css';
 import { FreedLine, FutureLine, WaitingLine } from './WaitingBits';
@@ -43,6 +44,12 @@ interface LeadRowProps {
   selected: boolean;
   /** The row stands in the closed list: with nobody's step, it says how the lead ended. */
   closed?: boolean;
+  /**
+   * What was searched for, while the row is a result of a search through every list
+   * (docs/WAHUB-CONTRACT-FUTURE-LEADS.md, ח.1.3): the row then marks what matched, says which list the lead
+   * stands in, and why it was found. Empty: the row is the one it always was.
+   */
+  query?: string;
   onOpen: (id: number) => void;
 }
 
@@ -57,7 +64,7 @@ interface LeadRowProps {
  * would only say it again; a lead that still waits shows its exact lesson and
  * since when; a future lead carries its mark and its reason.
  */
-export default function LeadRow({ lead, now, sendingOn, selected, closed, onOpen }: LeadRowProps) {
+export default function LeadRow({ lead, now, sendingOn, selected, closed, query = '', onOpen }: LeadRowProps) {
   const chips = leadChips(lead.chips);
   const since = sinceText(lead.since ?? lead.last_message_at, now);
   const waiting = lead.waiting_list ?? null;
@@ -75,10 +82,13 @@ export default function LeadRow({ lead, now, sendingOn, selected, closed, onOpen
         <span className={l.rowMain}>
           <span className={l.rowTop}>
             <span className={l.name} dir="auto">
-              {leadTitle(lead)}
+              <MarkedName name={leadTitle(lead)} query={query} />
             </span>
             {lead.is_demo && <DemoTag size="row" />}
+            {/* A result of a search through every list says which one it stands in. */}
+            {query && lead.list_label && <PlaceTag label={lead.list_label} tone={lead.list === 'office' ? 'gold' : 'muted'} />}
           </span>
+          <FoundLines query={query} phone={leadPhoneText(lead.phone)} phoneShown={!lead.name} found={lead.found_by} />
           {freed && <FreedLine mark={freed} />}
           {/* Under a freed place the sentence is drawn only when it says more than the headline. */}
           {(!freed || saysMore(lead.summary, freed.title)) && (

@@ -3,14 +3,16 @@
 import { useEffect, useId, useState, type ReactNode } from 'react';
 import { ArrowRight, CalendarClock, Check, ChevronDown, Hand, MessageCircle, PanelLeftClose, Pencil, Plus, Undo2, X } from 'lucide-react';
 import { formatWhatsAppLink } from '@/lib/customerUtils';
-import { customerCardHref } from '@/lib/wahub/customerCard';
+import { customerCardFor } from '@/lib/wahub/customerCard';
 import { isDemoContact } from '@/lib/wahub/demo';
 import { callbackLine } from '@/lib/wahub/followup';
 import { displayName, formatShortDate, hasName } from '@/lib/wahub/format';
 import { futureOf, knowsFutureLeads, waitingOf } from '@/lib/wahub/futureLeads';
 import { knownHeadline, leadOf } from '@/lib/wahub/leadStage';
+import { readWaitingSummary } from '@/lib/wahub/waitingSummary';
 import type { WahubContactDetail, WahubFollowupPatch, WahubTag } from '@/types/wahub';
 import { LeadStateBlock } from '../leads/LeadBits';
+import WantedBlock from '../leads/v2/WantedBlock';
 import { ContactAvatar, DemoTag, LiveTestTag, Pill, Spinner } from '../shared/bits';
 import CustomerCardLink from '../shared/CustomerCardLink';
 import { EventsList, FollowupMarks, KnownBox, KogoBox, NoteField, TagPicker } from '../shared/ContactParts';
@@ -276,6 +278,9 @@ export default function ContactPanel({
   const knows = knowsFutureLeads(contact);
   const future = knows ? futureOf(contact) : null;
   const waitingList = waitingOf(contact);
+  // "מה רצו" (docs/WAHUB-CONTRACT-FUTURE-LEADS.md, ח.3.2): what they asked for, the number to call, and what
+  // could be offered instead — in the card too, for whoever is talking to them right now.
+  const wanted = waitingList ? readWaitingSummary(contact.waiting_summary) : null;
   const notes = knows ? contact.notes : undefined;
   // A future lead a person holds is handed back from its own chip, at the head of the conversation: the plain
   // hand-back would leave the mark standing.
@@ -283,7 +288,7 @@ export default function ContactPanel({
   // "טופל" is the ✓ of the conversation's title row where there is one.
   const offerResolve = contact.chat.needs_human && !knows;
   // Somebody Kogo knows: one clear button to their card in the customers section, among the actions.
-  const customerCard = customerCardHref(contact.kogo);
+  const customerCard = customerCardFor(contact);
 
   const [open, setOpen] = useState<ReadonlySet<CardFold>>(() => new Set(defaultOpen ?? []));
   // Another person: the card is tidy again, every section folded.
@@ -353,8 +358,15 @@ export default function ContactPanel({
         ) : (
           <KnownShort contact={contact} today={today} now={now} />
         )}
-        {/* The waiting list: quiet while they wait, standing out once a place was freed. */}
-        {waitingList && <WaitingCardMark mark={waitingList} />}
+        {/* The waiting list: quiet while they wait, standing out once a place was freed. Where the server sums up
+            what they asked for, that block says it — and more — in the mark's place. */}
+        {wanted ? (
+          <div className="mt-3">
+            <WantedBlock summary={wanted} />
+          </div>
+        ) : (
+          waitingList && <WaitingCardMark mark={waitingList} />
+        )}
         {/* A quiet line, not a button among the actions: putting this person on the list of a lesson that is full. */}
         {onAddWaiting && (
           <button type="button" onClick={onAddWaiting} className={cx(w.quietLink, w.addLink)}>

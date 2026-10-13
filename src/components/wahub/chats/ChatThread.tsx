@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { AlertCircle, ArrowDown, ArrowRight, Bot, Check, Clock, Crosshair, Hand, Info, MessageCircle, PanelLeftOpen, Undo2, UserRound } from 'lucide-react';
 import { formatWhatsAppLink } from '@/lib/customerUtils';
-import { customerCardHref } from '@/lib/wahub/customerCard';
+import { customerCardFor } from '@/lib/wahub/customerCard';
 import { isDemoContact, type DemoInput } from '@/lib/wahub/demo';
 import { agoText, displayName, hasName } from '@/lib/wahub/format';
 import { futureOf, knowsFutureLeads, threadDays } from '@/lib/wahub/futureLeads';
@@ -174,7 +174,7 @@ function ThreadHeader({
   // the plain hand-back would leave the mark standing, so it is not offered beside it.
   const plainRelease = !(acts?.futureLead && human);
   // Somebody Kogo knows: one press leads to their card in the customers section. Nobody identified — no button.
-  const customerCard = customerCardHref(contact.kogo);
+  const customerCard = customerCardFor(contact);
 
   return (
     <header className={s.threadHead}>

@@ -1,7 +1,7 @@
 'use client';
 
 import { AlertCircle, ArrowRight, ChevronDown, Plus, X } from 'lucide-react';
-import { customerCardPath } from '@/lib/wahub/customerCard';
+import { customerCardFor, customerCardPath } from '@/lib/wahub/customerCard';
 import { formatDateTime, israelToday } from '@/lib/wahub/format';
 import { entryOfMark, isActiveEntry } from '@/lib/wahub/futureLeads';
 import type { WaitingAction } from '@/lib/wahub/futureLeadsApi';
@@ -36,7 +36,8 @@ import s from '../../wahub.module.css';
 import LeadActions, { type LeadActionsMode } from './LeadActions';
 import { NextIcon } from './LeadRow';
 import l from './leads.module.css';
-import { FreedBlock, FutureBlock, WaitingEntries, type NotifyControls, type WaitingBusy } from './WaitingBits';
+import { FreedBlock, FutureBlock, ToldLines, WaitingActions, WaitingEntries, type NotifyControls, type WaitingBusy } from './WaitingBits';
+import WantedBlock, { WantedPlaceholder } from './WantedBlock';
 
 export interface LeadDetailsProps {
   /** The lead as the list (or its own read) has it; null while nothing is known about it yet. */
@@ -321,9 +322,17 @@ export default function LeadDetails({
   // The entries, from their own read — and until it lands, the one the row already carries.
   const entries = details?.waiting_list_entries ?? (waiting ? [entryOfMark(waiting)] : []);
   const name = lead ? leadTitle(lead) : '';
-  // The freed place that stands at the head of the details; its entry is then not told again in the list.
-  const headFreed = freed && !isClosed ? freed : null;
-  const otherEntries = headFreed ? entries.filter((entry) => entry.id !== headFreed.entry_id) : entries;
+  // "מה רצו" (docs/WAHUB-CONTRACT-FUTURE-LEADS.md, ח.3.2): what somebody on the waiting list asked for, as the
+  // first and clearest block — with the number to call, and what could be offered instead. Only a server that
+  // knows ח sends it; until the details land, the lesson the row already names holds the block's place.
+  const wanted = !isClosed ? details?.waiting_summary ?? null : null;
+  const wantedEntry = wanted ? entries.find((entry) => entry.id === wanted.entry_id) ?? null : null;
+  const wantedSoon = !isClosed && !details && status === 'loading' && waiting?.state !== undefined ? waiting : null;
+  // The freed place that stands at the head of the details; its entry is then not told again in the list. Where
+  // "מה רצו" stands, it is that block which carries the entry — its state, and what can be done with it.
+  const headFreed = freed && !isClosed && !wanted && !wantedSoon ? freed : null;
+  const headId = wanted ? wanted.entry_id : headFreed ? headFreed.entry_id : null;
+  const otherEntries = headId != null ? entries.filter((entry) => entry.id !== headId) : entries;
   // Adding to a waiting list by hand: only for a lead that is open, on a server that can list the lessons.
   const canAdd = Boolean(onAddWaiting) && !isClosed;
   // Somebody who already waits for a lesson is offered another one; the words say which it is.
@@ -407,8 +416,9 @@ export default function LeadDetails({
           onOpenChat={() => onOpenChat(lead.contact_id)}
           onChange={(change) => onChange(lead, change)}
           // Somebody Kogo knows: one press to their card in the customers section — beside "פתח שיחה", not at the
-          // foot of the details. A family with no card to open gets no button.
-          customerCard={customerCardPath(details?.in_system)}
+          // foot of the details. A family with no card to open gets no button. A server that knows ח says it on
+          // the row itself, so the button is there before the details land; an older one only in the details.
+          customerCard={lead.customer !== undefined ? customerCardFor(lead) : customerCardPath(details?.in_system)}
         />
       )}
 
@@ -423,6 +433,32 @@ export default function LeadDetails({
           </div>
         ) : (
           <>
+            {/* Somebody who waits for a place: what they asked for comes first, and says the most. */}
+            {wanted && (
+              <WantedBlock summary={wanted}>
+                {wantedEntry && (
+                  <div className={l.freedTold}>
+                    <ToldLines entry={wantedEntry} now={now} />
+                  </div>
+                )}
+                {onWaiting && wanted.entry_id > 0 && (
+                  <WaitingActions
+                    key={wanted.entry_id}
+                    entryId={wanted.entry_id}
+                    name={name}
+                    lesson={wanted.wanted.label}
+                    status={(wantedEntry ? wantedEntry.status === 'freed' : wanted.state !== 'waiting' && wanted.state !== '') ? 'freed' : 'waiting'}
+                    busy={waitingBusy}
+                    onAct={onWaiting}
+                    notify={notify}
+                    entry={wantedEntry}
+                    now={now}
+                  />
+                )}
+              </WantedBlock>
+            )}
+            {wantedSoon && <WantedPlaceholder label={wantedSoon.label || wantedSoon.title} stateLabel={wantedSoon.state_label ?? ''} act={wantedSoon.needs_office === true} />}
+
             {lead && next && (
               <section className={cx(l.now, NEXT_BOX[next.tone])} aria-label={nowTitle}>
                 <h3 className={l.nowLabel}>{nowTitle}</h3>
@@ -524,12 +560,12 @@ export default function LeadDetails({
                 )}
 
                 {otherEntries.length > 0 ? (
-                  <Section title={headFreed ? 'עוד ברשימת ההמתנה' : 'רשימת המתנה'}>
+                  <Section title={headId != null ? 'עוד ברשימת ההמתנה' : 'רשימת המתנה'}>
                     <WaitingEntries
                       entries={otherEntries}
                       now={now}
                       name={name}
-                      headId={headFreed ? headFreed.entry_id : null}
+                      headId={headId}
                       busy={waitingBusy}
                       onAct={isClosed ? undefined : onWaiting}
                       notify={isClosed ? undefined : notify}

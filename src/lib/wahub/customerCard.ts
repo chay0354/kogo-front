@@ -8,6 +8,10 @@
  * link is the same one (kogo-back apps/wahub/leads.py, `_in_system`): the first
  * child, the one whose state says most.
  *
+ * Since the afternoon of 13.10.2026 the server names the card itself, on every
+ * contact, lead and waiting-list entry (`customer`, ח.2) — and for an entry it
+ * is the child the entry is about. `customerCardFor` reads that first.
+ *
  * Nobody identified, or a family with no child to open: there is no address —
  * and then no button is drawn at all, rather than one that leads to the whole
  * list of customers.
@@ -61,6 +65,23 @@ export function customerCardOf(raw: unknown): string | null {
     const path = typeof value === 'string' ? customerCardPath(value) : null;
     if (path) return path;
   }
-  const ids = Array.isArray(data.child_ids) ? (data.child_ids as Array<number | string | null>) : null;
+  // `customer` names one child (ח.2); `kogo` and `in_system` list them.
+  const one = data.child_id as number | string | null | undefined;
+  const ids = one != null && one !== '' ? [one] : Array.isArray(data.child_ids) ? (data.child_ids as Array<number | string | null>) : null;
   return customerCardHref({ family_id: data.family_id as number | string | null | undefined, child_ids: ids });
+}
+
+/**
+ * The card of a contact, a lead's row or an entry of the waiting list — whatever carries the person.
+ *
+ * A server that knows ח says it itself (`customer`, docs/WAHUB-CONTRACT-FUTURE-LEADS.md, ח.2): its link is the
+ * one used, and its `null` means "nobody Kogo knows" — no button. A server built before ח has no such key; a
+ * contact then falls back on what it always carried (`kogo.family_id` with a child of the family).
+ */
+export function customerCardFor(
+  holder: { customer?: unknown; kogo?: Identified | null } | null | undefined,
+): string | null {
+  if (!holder) return null;
+  if (holder.customer !== undefined) return customerCardOf(holder.customer);
+  return customerCardHref(holder.kogo);
 }

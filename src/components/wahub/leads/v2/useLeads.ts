@@ -40,7 +40,7 @@ export const leadsKeys = {
   all: ['wahub', 'leads2'] as const,
   lists: ['wahub', 'leads2', 'list'] as const,
   /** One list: which of the three, the state it is narrowed to, and the search. */
-  list: (view: WahubLeadsView, stage: string | null, q: string) => ['wahub', 'leads2', 'list', view, stage ?? '', q] as const,
+  list: (view: WahubLeadsView | 'all', stage: string | null, q: string) => ['wahub', 'leads2', 'list', view, stage ?? '', q] as const,
   detail: (id: number) => ['wahub', 'leads2', 'detail', id] as const,
   /** The few lines of "מחכים לך" on the day's tab. */
   glance: ['wahub', 'leads2', 'glance'] as const,
@@ -62,7 +62,7 @@ export function isOldServer(data: LeadsListData | undefined): boolean {
  * One list of leads, a page at a time. A first page of `null` means the server
  * has no such endpoint yet (see `isOldServer`).
  */
-export function useLeadsList(view: WahubLeadsView, stage: string | null, q: string, enabled: boolean) {
+export function useLeadsList(view: WahubLeadsView | 'all', stage: string | null, q: string, enabled: boolean) {
   return useInfiniteQuery({
     queryKey: leadsKeys.list(view, stage, q),
     initialPageParam: null as string | null,
@@ -73,8 +73,9 @@ export function useLeadsList(view: WahubLeadsView, stage: string | null, q: stri
     staleTime: 10_000,
     retry: false,
     // Narrowing a list (a state, a word typed) keeps the rows that are there until the new ones land;
-    // another list starts from its own.
-    placeholderData: (previous, previousQuery) => (previousQuery && previousQuery.queryKey[3] === view ? previous : undefined),
+    // another list starts from its own. A search through every list ("all") is a narrowing of whatever was there.
+    placeholderData: (previous, previousQuery) =>
+      previousQuery && (previousQuery.queryKey[3] === view || view === 'all' || previousQuery.queryKey[3] === 'all') ? previous : undefined,
   });
 }
 
@@ -177,11 +178,13 @@ export function useLeadChanges() {
 
       // The list the lead is counted in: its own to say, or — for one with nobody's step — the list it stands in.
       const viewOf = (key: QueryKey) => parseLeadsView(String(key[3] ?? ''));
-      const holder = lists.find(([, data]) => data?.pages.some((page) => page?.results.some((row) => row.contact_id === id)));
+      // The results of a search through every list are not one of the three: a lead stays in them wherever it goes.
+      const listOf = (key: QueryKey) => (key[3] === 'all' ? ('all' as const) : viewOf(key));
+      const holder = lists.find(([key, data]) => key[3] !== 'all' && data?.pages.some((page) => page?.results.some((row) => row.contact_id === id)));
       const from = leadView(lead) ?? (holder ? viewOf(holder[0]) : null);
       for (const [key, data] of lists) {
         if (!data) continue;
-        queryClient.setQueryData<LeadsListData>(key, { ...data, pages: applyLeadChange(data.pages, viewOf(key), lead, what, from) });
+        queryClient.setQueryData<LeadsListData>(key, { ...data, pages: applyLeadChange(data.pages, listOf(key), lead, what, from) });
       }
       if (detail) queryClient.setQueryData<WahubLeadDetail>(detailKey, changedLead(detail, what));
 

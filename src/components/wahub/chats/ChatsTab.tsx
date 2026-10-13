@@ -122,6 +122,11 @@ export default function ChatsTab({
   const [busy, setBusy] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
+    // A search that was cleared is gone at once: the box that was in front is back without a wait.
+    if (!search.trim()) {
+      setSearchQuery('');
+      return undefined;
+    }
     const timer = window.setTimeout(() => setSearchQuery(search.trim()), SEARCH_DELAY_MS);
     return () => window.clearTimeout(timer);
   }, [search]);
@@ -130,7 +135,10 @@ export default function ChatsTab({
     setDetailsOpen(false);
   }, [contactId]);
 
-  const query = useMemo(() => ({ view: 'chats' as const, box, search: searchQuery }), [box, searchQuery]);
+  // A search looks through every conversation, whatever box is in front (owner, 13.10.2026: "שיציג באמת את כל
+  // מספרי הטלפון שקיימים"). It is the screen that asks for it — `box=all`, which every server knows
+  // (docs/WAHUB-CONTRACT-FUTURE-LEADS.md, ח.1.2) — and the box that was in front is back once the search is cleared.
+  const query = useMemo(() => ({ view: 'chats' as const, box: searchQuery ? ('all' as const) : box, search: searchQuery }), [box, searchQuery]);
   const list = usePagedContacts({ query, enabled: true, live, sorted: true, keepId: contactId });
   const { update: updateList, find: findInList, itemsRef, markDirty, refreshQuietly: refreshListQuietly } = list;
 
@@ -147,7 +155,8 @@ export default function ChatsTab({
     (contacts: WahubContact[]) => {
       const openId = openIdRef.current;
       const result = mergeLiveContacts(itemsRef.current, contacts, {
-        accepts: (contact) => matchesBox(contact, boxRef.current),
+        // While a search is on, its results are from every box: one that changed stays among them.
+        accepts: (contact) => Boolean(searchRef.current) || matchesBox(contact, boxRef.current),
         keepIds: openId != null ? new Set([openId]) : undefined,
         insertUnknown: !searchRef.current,
       });
@@ -435,6 +444,9 @@ export default function ChatsTab({
           box={box}
           counts={counts}
           search={search}
+          found={searchQuery}
+          total={list.total}
+          extras={list.extras}
           selectedId={contactId}
           now={now}
           notConnected={status ? !status.inbound_configured : false}

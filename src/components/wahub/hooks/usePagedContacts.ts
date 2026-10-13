@@ -7,6 +7,7 @@ import { failureStatus, fetchWahubContacts } from '@/lib/wahubApi';
 import { appendPage, dedupeContacts, sortChats } from '@/lib/wahub/live';
 import { WAHUB_PAGE_SIZE, contactsParams } from '@/lib/wahub/params';
 import type { WahubContact, WahubContactsQuery } from '@/types/wahub';
+import type { WahubSearchExtras } from '@/types/wahubSearch';
 import type { WahubLiveHandle } from './useWahubLive';
 
 export type ListStatus = 'loading' | 'refreshing' | 'ready' | 'error';
@@ -21,6 +22,8 @@ interface ListState {
   loadingMore: boolean;
   /** The server's count for the whole list, as of the last read. */
   total: number | null;
+  /** What a search brought beside its rows (customers in Kogo with no conversation); null with no search, or an older server. */
+  extras: WahubSearchExtras | null;
 }
 
 const INITIAL: ListState = {
@@ -31,6 +34,7 @@ const INITIAL: ListState = {
   pages: 0,
   loadingMore: false,
   total: null,
+  extras: null,
 };
 
 /** A quiet refresh reads back no more than this many pages; the rest are a "load more" away. */
@@ -120,6 +124,7 @@ export function usePagedContacts({ query, enabled, live, sorted, keepId = null }
           pages,
           loadingMore: false,
           total: first.count,
+          extras: first.extras ?? null,
         });
         live.rewind(snapshot);
       } catch (error) {
@@ -205,6 +210,7 @@ export function usePagedContacts({ query, enabled, live, sorted, keepId = null }
     hasMore: state.hasMore,
     loadingMore: state.loadingMore,
     total: state.total,
+    extras: state.extras,
     itemsRef,
     update,
     find,

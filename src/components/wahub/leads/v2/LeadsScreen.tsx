@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { readableError } from '@/lib/apiError';
 import { heldStripText } from '@/lib/wahub/leadsAutomation';
-import { leadRows, leadsLayout, leadsPanes, leadTitle, stageOptions, stuckFirst, type LeadChange } from '@/lib/wahub/leadsV2';
+import { knowsListsApart, leadRows, leadsLayout, leadsPanes, leadTitle, stageOptions, stuckFirst, type LeadChange } from '@/lib/wahub/leadsV2';
 import { isLeadGone } from '@/lib/wahub/leadsV2Api';
 import { PHONE_MEDIA_QUERY } from '@/lib/wahub/screens';
 import type { WahubLeadRow, WahubLeadsView, WahubStatus } from '@/types/wahub';
@@ -72,14 +72,24 @@ export default function LeadsScreen({ active, live, view, stage, leadId, waiting
   const [search, setSearch] = useState('');
   const [q, setQ] = useState('');
   useEffect(() => {
+    // A search that was cleared is gone at once: the list that was in front is back without a wait.
+    if (!search.trim()) {
+      setQ('');
+      return undefined;
+    }
     const timer = window.setTimeout(() => setQ(search.trim()), SEARCH_DELAY_MS);
     return () => window.clearTimeout(timer);
   }, [search]);
 
   // The whole list of the tab in front: its numbers, the states it holds, and — with nothing chosen — its rows.
   const base = useLeadsList(view, null, '', active);
+  const basePage = base.data?.pages[0] ?? null;
+  // A search looks through every list at once, whatever tab is in front (owner, 13.10.2026: "שיהיה קל מאוד
+  // לחפש") — on a server that can (docs/WAHUB-CONTRACT-FUTURE-LEADS.md, ח.1.3: `owner=all`). One built before it
+  // refuses that word, so there the search stays inside the list in front, as it always did.
+  const everywhere = Boolean(q) && knowsListsApart(basePage?.counts);
   const narrowed = Boolean(stage) || Boolean(q);
-  const narrow = useLeadsList(view, stage, q, active && narrowed);
+  const narrow = useLeadsList(everywhere ? 'all' : view, everywhere ? null : stage, q, active && narrowed);
   const list = narrowed ? narrow : base;
   useLeadsLiveRefresh(live, active);
 
@@ -88,14 +98,17 @@ export default function LeadsScreen({ active, live, view, stage, leadId, waiting
   const automation = useLeadsAutomation(active && view === 'bot');
   const held = view === 'bot' ? heldStripText(automation.data) : '';
 
-  // The order is the server's — but for "נתקע בהרשמה", which always stands at the head of "מחכים לך".
+  // The order is the server's — but for "נתקע בהרשמה", which always stands at the head of "מחכים לך". A search's
+  // results keep the server's own order: who was found by name or phone first.
   const rows = useMemo(() => {
     const read = leadRows(list.data?.pages);
-    return view === 'office' ? stuckFirst(read) : read;
-  }, [list.data, view]);
+    return view === 'office' && !everywhere ? stuckFirst(read) : read;
+  }, [everywhere, list.data, view]);
   const baseRows = useMemo(() => leadRows(base.data?.pages), [base.data]);
-  const basePage = base.data?.pages[0] ?? null;
   const firstPage = list.data?.pages[0] ?? basePage;
+  // What the search brought beside its rows: people among the conversations who are no leads, customers in Kogo
+  // with no conversation.
+  const searchPage = everywhere ? (narrow.data?.pages[0] ?? null) : null;
   const stages = useMemo(
     () => stageOptions(basePage?.stages ?? firstPage?.stages, baseRows, Boolean(base.data) && !base.hasNextPage, stage),
     [base.data, base.hasNextPage, basePage, baseRows, firstPage, stage],
@@ -181,7 +194,7 @@ export default function LeadsScreen({ active, live, view, stage, leadId, waiting
       <div className={cx(l.main, (!panes.list || showWaiting) && l.hidden)}>
         <LeadsList
           view={view}
-          counts={firstPage?.counts ?? null}
+          counts={(everywhere ? basePage?.counts : firstPage?.counts) ?? null}
           stage={stage}
           stages={stages}
           search={search}
@@ -197,7 +210,12 @@ export default function LeadsScreen({ active, live, view, stage, leadId, waiting
           sendingOn={status ? status.sending_enabled : null}
           held={held}
           onHeld={onOpenAutomation}
+          everywhere={everywhere}
+          found={q}
+          extras={searchPage ? { contacts: searchPage.contacts ?? [], customers: searchPage.customers ?? [], customers_more: Boolean(searchPage.customers_more) } : null}
+          onOpenChat={onOpenChat}
           waitingList={waitingPage.data ? waitingPage.data.counts : null}
+          waitingAct={basePage?.counts.waiting_act ?? null}
           onWaitingList={() => onAddress({ waiting: true, lead: null })}
           onView={(next) => onAddress({ owner: next, stage: null, lead: null })}
           onStage={(next) => onAddress({ stage: next })}
@@ -215,6 +233,7 @@ export default function LeadsScreen({ active, live, view, stage, leadId, waiting
             status={waitingPage.data ? 'ready' : waitingPage.isError ? 'error' : 'loading'}
             error={waitingPage.isError ? readableError(waitingPage.error, '') : ''}
             page={waitingPage.data ?? null}
+            act={basePage?.counts.waiting_act ?? null}
             now={now}
             refreshing={Boolean(waitingPage.data) && waitingPage.isFetching}
             busy={waitingList.busy}
@@ -236,8 +255,9 @@ export default function LeadsScreen({ active, live, view, stage, leadId, waiting
           now={now}
           sendingOn={status ? status.sending_enabled : null}
           cover={panes.cover}
-          // Open from the closed list: closed, whatever its state is called.
-          closed={view === 'closed' && rows.some((row) => row.contact_id === leadId)}
+          // Open from the closed list: closed, whatever its state is called. Among a search's results each row
+          // says which list it stands in.
+          closed={everywhere ? rows.find((row) => row.contact_id === leadId)?.list === 'closed' : view === 'closed' && rows.some((row) => row.contact_id === leadId)}
           busy={lead ? busy[lead.contact_id] ?? null : null}
           onClose={close}
           onRetry={() => void detail.refetch()}

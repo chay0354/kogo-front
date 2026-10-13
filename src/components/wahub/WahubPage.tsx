@@ -172,7 +172,7 @@ function WahubSection() {
     [go],
   );
   const goTo = useCallback(
-    (target: { tab: WahubTab; box?: WahubBox; queue?: WahubQueue; stage?: string | null; owner?: WahubLeadsView; lead?: number | null }) =>
+    (target: { tab: WahubTab; box?: WahubBox; queue?: WahubQueue; stage?: string | null; owner?: WahubLeadsView; lead?: number | null; waiting?: boolean }) =>
       go({
         tab: target.tab,
         box: target.box ?? kept.current.box,
@@ -184,8 +184,9 @@ function WahubSection() {
         // "מחכים לך" on the day's tab names its list, and a lead pressed there opens with its details.
         owner: target.owner ?? kept.current.owner,
         lead: target.lead !== undefined ? target.lead : kept.current.lead,
-        // A list of leads named from "היום" is that list — never the waiting list that happened to be open.
-        waiting: target.tab === 'leads' ? false : kept.current.waiting,
+        // A list of leads named from "היום" is that list — never the waiting list that happened to be open; and
+        // "מחכים שיתפנה מקום", named there, is the waiting list.
+        waiting: target.tab === 'leads' ? target.waiting === true : kept.current.waiting,
       }),
     [go],
   );

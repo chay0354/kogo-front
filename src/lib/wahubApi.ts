@@ -42,6 +42,7 @@ import type {
 } from '@/types/wahub';
 import { readNotes } from './wahub/futureLeads';
 import { readLeadBoard } from './wahub/leadStage';
+import { readSearchExtras } from './wahub/search';
 import { unregisteredParams } from './wahub/unregistered';
 
 /**
@@ -60,12 +61,16 @@ export async function fetchWahubContacts(query: WahubContactsQuery): Promise<Wah
   const res = await api.get(`${BASE}/contacts/`, { params: contactsParams(query) });
   const data = res.data as Partial<WahubPage<WahubContact>> | WahubContact[];
   if (Array.isArray(data)) return { count: data.length, next: null, previous: null, results: data };
-  return {
+  const page: WahubPage<WahubContact> = {
     count: Number(data.count ?? data.results?.length ?? 0),
     next: data.next ?? null,
     previous: data.previous ?? null,
     results: data.results ?? [],
   };
+  // A search brings, beside its rows, the customers in Kogo who have no conversation (ח.1.5).
+  const extras = readSearchExtras(data);
+  if (extras) page.extras = extras;
+  return page;
 }
 
 export async function fetchWahubCounts(

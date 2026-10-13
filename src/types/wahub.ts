@@ -6,6 +6,16 @@
  * does not belong here.
  */
 
+import type {
+  WahubCustomerRef,
+  WahubFoundBy,
+  WahubSearchContact,
+  WahubSearchCustomer,
+  WahubSearchExtras,
+  WahubWaitingState,
+  WahubWaitingSummary,
+} from './wahubSearch';
+
 export type WahubSource =
   | 'whatsapp'
   | 'ad'
@@ -84,6 +94,13 @@ export interface WahubChatState {
   /** Why it is open — the first that holds, in the contract's order. Empty when it is not. */
   open_reason?: WahubOpenReason | '';
   open_label?: string;
+  /**
+   * The one box that says where this conversation stands, and its words — "מבקש נציג", "בטיפול נציג", "הבוט
+   * עונה"… (docs/WAHUB-CONTRACT-FUTURE-LEADS.md, ח.1.2). Sent always by a server that knows ח, and so its sign;
+   * shown on a row while a search looks through every box.
+   */
+  box?: string;
+  box_label?: string;
 }
 
 /** Why a conversation is "open" (ג.1), in the order the server decides by. */
@@ -138,6 +155,16 @@ export interface WahubWaitingMark {
   title: string;
   /** Further active entries of this person. */
   more: number;
+  /**
+   * Where the entry stands, of four (ח.3.1): waiting, a place was freed, the customer was told, the customer
+   * answered — and whether that calls on the office. Absent on a server built before ח.
+   */
+  state?: WahubWaitingState | '';
+  state_label?: string;
+  needs_office?: boolean;
+  /** The place in the lesson's line (1 = the oldest), and how many wait for it. On a lead only; null on a contact. */
+  position?: number | null;
+  queue?: number | null;
   /**
    * When the customer was last told of the freed place (ז.4) — null: not since it was freed. Absent on a server
    * that cannot tell a customer at all: "להודיע ללקוח" is then not offered.
@@ -249,6 +276,13 @@ export interface WahubContact {
   future?: WahubFuture | null;
   /** The waiting list, or null (ג.1, ד). Absent on a server built before it. */
   waiting_list?: WahubWaitingMark | null;
+  /**
+   * "לכרטיס הלקוח" (ח.2): null — Kogo does not know this person, and there is no button. Absent on a server
+   * built before ח: the screen then reads `kogo.child_ids` as it did.
+   */
+  customer?: WahubCustomerRef | null;
+  /** Why a search found this row (ח.1.1); null — by the name or the phone the row shows. Only while searching. */
+  found_by?: WahubFoundBy | null;
 }
 
 export interface WahubMessage {
@@ -309,6 +343,11 @@ export interface WahubContactDetail extends WahubContact {
   events: WahubEvent[];
   /** The notes about this person, newest first, up to 50 (ג.6). Absent on a server built before them. */
   notes?: WahubNote[];
+  /**
+   * What they asked for, when they are on a waiting list (ח.3.2) — as the server sent it; read by
+   * lib/wahub/waitingSummary.ts. Null: no active entry. Absent on a server built before ח.
+   */
+  waiting_summary?: unknown;
 }
 
 /** The boxes every server knows. */
@@ -363,6 +402,8 @@ export interface WahubSummary {
   unregistered_leads?: WahubUnregisteredCounts;
   /** Lead stages: who needs handling now, by state (only states with someone in them). Absent on an older server. */
   lead_act?: WahubLeadActSummary;
+  /** "מחכים שיתפנה מקום" in numbers (ח.3.1): how many wait, and how many of them call on the office now. */
+  waiting_list?: { label?: string; total: number; act: number };
 }
 
 export interface WahubStatus {
@@ -418,6 +459,11 @@ export interface WahubPage<T> {
   next: string | null;
   previous: string | null;
   results: T[];
+  /**
+   * What a search brings beside its rows, on its first page (docs/WAHUB-CONTRACT-FUTURE-LEADS.md, ח.1.5):
+   * families in Kogo with no WhatsApp conversation. Absent with no search, and on a server built before ח.
+   */
+  extras?: WahubSearchExtras;
 }
 
 export interface WahubMessagesPage {
@@ -1117,9 +1163,23 @@ export interface WahubLeadRow {
   waiting_list?: WahubWaitingMark | null;
   /** A future lead (ג.5) — the same object a contact carries. */
   future?: WahubFuture | null;
+  /**
+   * Which of the four lists the lead stands in, and its name — "מחכים לך", "הבוט מטפל", "מחכים שיתפנה מקום",
+   * "נסגרו" (docs/WAHUB-CONTRACT-FUTURE-LEADS.md, ח.3.1). Shown on a row while a search looks through all of them.
+   */
+  list?: string;
+  list_label?: string;
+  /** "לכרטיס הלקוח" (ח.2); null — nobody Kogo knows. Absent on a server built before ח. */
+  customer?: WahubCustomerRef | null;
+  /** Why a search found this row (ח.1.1). Only while searching. */
+  found_by?: WahubFoundBy | null;
 }
 
-export type WahubLeadCounts = Record<WahubLeadsView, number>;
+export type WahubLeadCounts = Record<WahubLeadsView, number> & {
+  /** "מחכים שיתפנה מקום" (ח.3.1): how many, and how many of them call on the office now. A server that knows ח sends both. */
+  waiting?: number;
+  waiting_act?: number;
+};
 
 /** A state of the list asked for, with how many are in it — for the one filter above the list. */
 export interface WahubLeadStageCount {
@@ -1139,10 +1199,18 @@ export interface WahubLeadsPage {
    * Read when the server sends it; without it the filter is built from the rows read so far.
    */
   stages?: WahubLeadStageCount[];
+  /**
+   * What a search brings beside its rows (ח.1.3), on the first page: people it found among the conversations who
+   * are not leads, and families in Kogo with no conversation at all.
+   */
+  contacts?: WahubSearchContact[];
+  customers?: WahubSearchCustomer[];
+  customers_more?: boolean;
 }
 
 export interface WahubLeadsQuery {
-  owner: WahubLeadsView;
+  /** One of the three lists — or, for a search that looks through every one of them, "all" (ח.1.3). */
+  owner: WahubLeadsView | 'all';
   stage?: string | null;
   q?: string;
   cursor?: string | null;
@@ -1209,6 +1277,8 @@ export interface WahubLeadDetails {
   notes?: WahubNote[];
   /** Every waiting-list entry of this person, newest first, up to twenty (ד.3). */
   waiting_list_entries?: WahubWaitingEntry[];
+  /** What they asked for, when they are on a waiting list (ח.3.2); null — no active entry. */
+  waiting_summary?: WahubWaitingSummary | null;
 }
 
 /** GET leads/{contact_id}/ — the row, and everything a press opens. */
@@ -1408,6 +1478,8 @@ export interface WahubWaitingEntry {
   notified_how_label?: string;
   /** The customer's last message, only when it was written after they were told. */
   customer_replied_at?: string | null;
+  /** "לכרטיס הלקוח" (ח.2): the child the entry is about, when Kogo knows the family. */
+  customer?: WahubCustomerRef | null;
 }
 
 /** How a message about a freed place goes out: plain words inside the 24 hours, an approved template after them. */

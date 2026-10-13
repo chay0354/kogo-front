@@ -56,14 +56,21 @@ function refusal(status: number) {
 }
 
 describe('the query of GET leads/', () => {
-  it('the list alone when nothing is chosen', () => {
-    expect(leadsParams({ owner: 'office' })).toEqual({ owner: 'office' });
-    expect(leadsParams({ owner: 'bot', stage: null, q: '   ', cursor: null })).toEqual({ owner: 'bot' });
+  // `waiting=apart` rides on every read (docs/WAHUB-CONTRACT-FUTURE-LEADS.md, ח.3.1): the leads of the waiting
+  // list stand under their own title. A server built before it ignores the word.
+  it('the list alone when nothing is chosen — with the waiting list asked for apart', () => {
+    expect(leadsParams({ owner: 'office' })).toEqual({ owner: 'office', waiting: 'apart' });
+    expect(leadsParams({ owner: 'bot', stage: null, q: '   ', cursor: null })).toEqual({ owner: 'bot', waiting: 'apart' });
+  });
+
+  it('a search through every list asks for all of them at once (ח.1.3)', () => {
+    expect(leadsParams({ owner: 'all', q: ' 050-123 ' })).toEqual({ owner: 'all', waiting: 'apart', q: '050-123' });
   });
 
   it('a state, a search and a cursor under the contract\'s names', () => {
     expect(leadsParams({ owner: 'closed', stage: 'deleted', q: ' תמר ', cursor: 'abc' })).toEqual({
       owner: 'closed',
+      waiting: 'apart',
       stage: 'deleted',
       q: 'תמר',
       cursor: 'abc',
@@ -77,7 +84,7 @@ describe('GET leads/', () => {
 
     const page = await fetchWahubLeads({ owner: 'bot', stage: 'link_sent' });
 
-    expect(api.get).toHaveBeenCalledWith('/wahub/leads/', { params: { owner: 'bot', stage: 'link_sent' } });
+    expect(api.get).toHaveBeenCalledWith('/wahub/leads/', { params: { owner: 'bot', waiting: 'apart', stage: 'link_sent' } });
     expect(page?.counts).toEqual({ office: 7, bot: 41, closed: 212 });
     expect(page?.results[0].contact_id).toBe(12);
     expect(page?.next_cursor).toBe('c2');

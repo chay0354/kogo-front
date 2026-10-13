@@ -11,7 +11,8 @@ import {
   waitingSinceText,
 } from '@/lib/wahub/futureLeads';
 import type { WaitingAction } from '@/lib/wahub/futureLeadsApi';
-import { saysMore } from '@/lib/wahub/leadsV2';
+import { WAITING_LIST_TITLE, saysMore } from '@/lib/wahub/leadsV2';
+import { waitingActText } from '@/lib/wahub/waitingSummary';
 import {
   alreadyNotifiedText,
   entryStanding,
@@ -26,6 +27,7 @@ import {
 } from '@/lib/wahub/waitingList';
 import type { WahubFuture, WahubWaitingEntry, WahubWaitingMark } from '@/types/wahub';
 import { InlineConfirm, Spinner } from '../../shared/bits';
+import CustomerCardLink from '../../shared/CustomerCardLink';
 import { ThinkingDots } from '../../shared/motion';
 import { cx } from '../../shared/tones';
 import w from '../../waiting.module.css';
@@ -58,18 +60,33 @@ export interface NotifyControls {
 // The way in
 // ---------------------------------------------------------------------------
 
-/** The way in, at the head of the leads: "רשימת המתנה", how many wait, and — in green — a place that was freed. */
-export function WaitingWay({ counts, onOpen }: { counts: { waiting: number; freed: number }; onOpen: () => void }) {
+/**
+ * The way in, at the head of the leads — and the title these leads stand under: "מחכים שיתפנה מקום" (owner,
+ * 13.10.2026: "'מחכים לך' זה כללי מדי… תרשום 'מחכים שיתפנה מקום', ושיישאר ככה"). How many wait; and, in green,
+ * what calls on the office: how many of them need it now (a place was freed, or the customer answered) when the
+ * server says so — otherwise for how many a place was freed.
+ */
+export function WaitingWay({
+  counts,
+  act = null,
+  onOpen,
+}: {
+  counts: { waiting: number; freed: number };
+  /** How many call on the office now; null on a server that does not say (docs/WAHUB-CONTRACT-FUTURE-LEADS.md, ח.3.1). */
+  act?: number | null;
+  onOpen: () => void;
+}) {
   const words = waitingStripText(counts);
+  const news = act !== null ? waitingActText(act) : words.freed;
   return (
-    <button type="button" onClick={onOpen} className={cx(w.way, counts.freed > 0 && w.wayFreed)}>
-      {counts.freed > 0 ? <BellRing aria-hidden="true" /> : <Hourglass aria-hidden="true" />}
+    <button type="button" onClick={onOpen} className={cx(w.way, news && w.wayFreed)}>
+      {news ? <BellRing aria-hidden="true" /> : <Hourglass aria-hidden="true" />}
       <span className={w.wayText}>
-        <strong>רשימת המתנה</strong> · {words.total}
-        {words.freed && (
+        <strong>{WAITING_LIST_TITLE}</strong> · {words.total}
+        {news && (
           <>
             {' · '}
-            <span className={w.wayNews}>{words.freed}</span>
+            <span className={w.wayNews}>{news}</span>
           </>
         )}
       </span>
@@ -237,6 +254,8 @@ export interface WaitingActionsViewProps {
   onNotifyClose?: () => void;
   /** "פתח שיחה" — where the entry is shown away from its conversation. */
   onOpenChat?: () => void;
+  /** "לכרטיס הלקוח" — where the entry is shown away from the lead's own actions. Null or absent: no button. */
+  customerCard?: string | null;
   now?: Date;
 }
 
@@ -261,6 +280,7 @@ export function WaitingActionsView({
   onNotifySend = NOOP,
   onNotifyClose = NOOP,
   onOpenChat,
+  customerCard = null,
   now,
 }: WaitingActionsViewProps) {
   if (notify) return <NotifyView step={notify} now={now ?? new Date()} onSend={onNotifySend} onClose={onNotifyClose} />;
@@ -284,11 +304,18 @@ export function WaitingActionsView({
 
   const working = busy !== null;
   const freed = status === 'freed';
-  const chat = onOpenChat && (
-    <button type="button" onClick={onOpenChat} className={cx(w.quietLink, w.quietLinkEnd)}>
-      <MessagesSquare aria-hidden="true" />
-      פתח שיחה
-    </button>
+  // The two ways out of the row, quietly at its end: to the conversation, and — for somebody Kogo knows — to
+  // the customer's card.
+  const chat = (onOpenChat || customerCard) && (
+    <>
+      {onOpenChat && (
+        <button type="button" onClick={onOpenChat} className={cx(w.quietLink, w.quietLinkEnd)}>
+          <MessagesSquare aria-hidden="true" />
+          פתח שיחה
+        </button>
+      )}
+      {customerCard && <CustomerCardLink href={customerCard} className={cx(w.quietLink, !onOpenChat && w.quietLinkEnd)} />}
+    </>
   );
 
   if (!freed) {
@@ -336,11 +363,12 @@ interface WaitingActionsProps {
   /** The entry as the server has it: whether the customer can be told, and whether they were. */
   entry?: WahubWaitingEntry | null;
   onOpenChat?: () => void;
+  customerCard?: string | null;
   now?: Date;
 }
 
 /** The actions of one entry, with what they keep: whether the question is open. */
-export function WaitingActions({ entryId, name, lesson, status = 'freed', busy, onAct, notify, entry, onOpenChat, now }: WaitingActionsProps) {
+export function WaitingActions({ entryId, name, lesson, status = 'freed', busy, onAct, notify, entry, onOpenChat, customerCard, now }: WaitingActionsProps) {
   const [asking, setAsking] = useState(false);
   const canNotify = Boolean(notify) && status === 'freed' && knowsNotify(entry);
   const open = notify?.open && notify.open.entryId === entryId ? notify.open.step : null;
@@ -359,6 +387,7 @@ export function WaitingActions({ entryId, name, lesson, status = 'freed', busy, 
       onNotifySend={notify?.onSend}
       onNotifyClose={notify?.onClose}
       onOpenChat={onOpenChat}
+      customerCard={customerCard}
       now={now}
     />
   );

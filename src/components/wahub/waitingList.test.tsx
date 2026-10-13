@@ -217,9 +217,11 @@ const NO_NOTIFY: NotifyControls = { open: null, onStart: noop, onSend: noop, onC
 // ---------------------------------------------------------------------------
 
 describe('the way into the waiting list: one quiet line above the leads', () => {
-  it('"רשימת המתנה" and how many wait; a place that was freed is said in green', () => {
+  // Owner, 13.10.2026 afternoon: "'מחכים לך' זה כללי מדי… תרשום 'מחכים שיתפנה מקום', ושיישאר ככה".
+  it('"מחכים שיתפנה מקום" and how many wait; a place that was freed is said in green', () => {
     const quiet = render(<WaitingWay counts={{ waiting: 4, freed: 0 }} onOpen={noop} />);
-    expect(quiet).toContain('<strong>רשימת המתנה</strong> · 4 ממתינים');
+    expect(quiet).toContain('<strong>מחכים שיתפנה מקום</strong> · 4 ממתינים');
+    expect(quiet).not.toContain('רשימת המתנה');
     expect(quiet).not.toContain(w.wayFreed);
     const freed = render(<WaitingWay counts={{ waiting: 5, freed: 2 }} onOpen={noop} />);
     expect(freed).toContain(w.wayFreed);
@@ -316,7 +318,7 @@ function listView(over: Partial<WaitingListViewProps> = {}): React.ReactElement 
 describe('the full waiting list, by lesson', () => {
   it('the head says what this is, how many wait, and — apart — for how many a place was freed', () => {
     const html = render(listView());
-    expect(html).toContain('>רשימת המתנה</h2>');
+    expect(html).toContain('>מחכים שיתפנה מקום</h2>');
     expect(html).toContain('3 ממתינים');
     expect(html).toContain('<strong>התפנה מקום ל-2</strong>');
   });
