@@ -104,6 +104,10 @@ export default function InstructorTrials({ branchId, asUser }: Props) {
     [trials],
   );
   const visible = expanded ? shown : shown.slice(0, INITIAL_VISIBLE);
+  const severalTeachers = useMemo(
+    () => new Set((trials ?? []).map((t) => t.instructor_name).filter(Boolean)).size > 1,
+    [trials],
+  );
 
   if (isLoading) {
     return <div className={styles.skeleton} aria-busy="true" aria-label="טוען תלמידי ניסיון" />;
@@ -159,6 +163,8 @@ export default function InstructorTrials({ branchId, asUser }: Props) {
       <div className={styles.list}>
         {visible.map((t) => {
           const meta = [
+            // Whose lesson, when the list holds more than one teacher's (the overall summary).
+            severalTeachers ? t.instructor_name : '',
             t.course_name,
             // A hard space: bidi wrapping would otherwise leave "יום" at the
             // end of one line and its day letter stranded at the start of the next.

@@ -535,3 +535,17 @@
     animation: none;
   }
 }
+
+/* A row that only reports — in the overall summary a register opens under one
+   teacher at a time, so the row is not a way in. */
+.missRow:disabled {
+  cursor: default;
+  color: inherit;
+}
+.missRow:disabled:hover {
+  background: #fbfbfe;
+  transform: none;
+}
+.missRow:disabled .missChev {
+  visibility: hidden;
+}

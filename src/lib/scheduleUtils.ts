@@ -441,10 +441,13 @@ export interface InstructorDashboard {
     start_time: string;
     active_students: number;
     is_low: boolean;
+    /** של מי הקבוצה — בסיכום הכולל מופיעות קבוצות של כמה מדריכים יחד. */
+    instructor_name?: string;
   }>;
   unmarked_lessons: Array<{
     lesson_id: string;
     date: string;
+    instructor_name?: string;
     course_name: string;
     branch_name: string;
     start_time: string;
@@ -455,7 +458,16 @@ export interface InstructorDashboard {
   low_group_threshold: number;
   date_from: string;
   date_to: string;
-  subject: { id: string; name: string; is_self: boolean };
+  subject: { id: string; name: string; is_self: boolean; is_all?: boolean };
+  /** בסיכום הכולל: שורה לכל מדריך שהמשתמש מורשה לראות, והוא עצמו. */
+  teachers?: Array<{
+    id: string;
+    name: string;
+    is_self: boolean;
+    active_students: number;
+    groups: number;
+    unmarked: number;
+  }>;
 }
 
 /**
@@ -495,6 +507,8 @@ export interface InstructorTrial {
   start_time: string;
   trial_date: string | null;
   trial_number: number | null;
+  /** של מי השיעור — בסיכום הכולל. */
+  instructor_name?: string;
   outcome: 'upcoming' | 'attended' | 'no_show' | 'unmarked' | 'registered';
   outcome_label: string;
   child_status: string;
