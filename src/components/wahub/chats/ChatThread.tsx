@@ -17,6 +17,7 @@ import { useRefine } from '../refine/RefineContext';
 import { RefineRow, RefineSelectBar } from '../refine/RefineRow';
 import { useRefineSelection } from '../refine/useRefineSelection';
 import { ContactAvatar, DemoTag, ErrorState, LiveTestTag, Skeleton, Spinner, useDismiss } from '../shared/bits';
+import { NoteRow } from '../shared/FutureParts';
 import { useStayAtEnd } from '../shared/motion';
 import { cx } from '../shared/tones';
 import s from '../wahub.module.css';
@@ -25,7 +26,6 @@ import DemoComposer, { type DemoReplyControls } from './DemoComposer';
 import FutureStrip from './FutureStrip';
 import { LaterPanelView, useLater, type LaterActions } from './LaterPanel';
 import MessageBubble, { TypingBubble } from './MessageBubble';
-import { NoteRow } from '../shared/FutureParts';
 import ShadowRow from './ShadowRow';
 
 /** Scrolling is settled before the browser paints; where there is no browser there is nothing to settle. */
@@ -632,6 +632,8 @@ export default function ChatThread({
       {/* A future lead: its chip at the head of the conversation, with the three things that can be done with it. */}
       {acts && futureLead && (
         <FutureStrip
+          // Another person's chip starts from its own state — open if it needs handling, folded if it waits.
+          key={contact.id}
           future={futureLead}
           today={acts.today}
           now={now}
