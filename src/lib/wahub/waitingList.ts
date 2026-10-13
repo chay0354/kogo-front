@@ -329,8 +329,11 @@ export function splitLessonOptions(options: ReadonlyArray<WahubLessonOption>): {
   };
 }
 
-/** Said wherever a lesson that has room is met: there is nothing to wait for. */
+/** Said when the lesson that was chosen turns out to have room: there is nothing to wait for. */
 export const HAS_ROOM_TEXT = 'בשיעור הזה יש מקום — אפשר לרשום ישר';
+
+/** Said over the lessons that have room, in the window where one is chosen: why none of them can be pressed. */
+export const ROOM_LESSONS_NOTE = 'לשיעור שיש בו מקום לא ממתינים — אפשר לרשום אליו ישר.';
 
 /** "יום שלישי · 17:00 · מינץ" — under the class's name. */
 export function lessonOptionWhen(option: Pick<WahubLessonOption, 'day' | 'start' | 'branch'>): string {

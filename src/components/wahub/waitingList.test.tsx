@@ -7,7 +7,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { readWaitingEntry } from '@/lib/wahub/futureLeads';
 import { makeContact } from '@/lib/wahub/testFixtures';
-import { HAS_ROOM_TEXT, NOTIFY_UNKNOWN_TEXT, notSentText, readWaitingListPage, type NotifyStep } from '@/lib/wahub/waitingList';
+import { HAS_ROOM_TEXT, NOTIFY_UNKNOWN_TEXT, ROOM_LESSONS_NOTE, notSentText, readWaitingListPage, type NotifyStep } from '@/lib/wahub/waitingList';
 import type {
   WahubContactDetail,
   WahubLeadDetails,
@@ -727,7 +727,8 @@ describe('"להוסיף לרשימת המתנה": the window where a lesson is c
     const open = render(node);
     expect(open).toContain('ג׳ודו כיתות א׳–ב׳');
     expect(open).toContain('18 מתוך 20 · נשארו 2');
-    expect(open).toContain(`${HAS_ROOM_TEXT}.`);
+    expect(open).toContain(ROOM_LESSONS_NOTE);
+    expect(ROOM_LESSONS_NOTE).toContain('לרשום אליו ישר');
     expect(open).toMatch(new RegExp(`<li class="${w.opt} ${w.optOff}">`));
     (elements(node).find((element) => element.type === 'button' && (element.props as { className?: string }).className === w.roomHead) as Pressable).props.onClick?.();
     expect(onRoom).toHaveBeenCalledWith(false);
@@ -1028,6 +1029,12 @@ describe('a lead\'s details', () => {
     const html = render(details(waiting, { waiting_list_entries: [entryOf({ status: 'waiting', status_label: 'ממתין' })] }, { onAddWaiting: noop }));
     expect(html).toContain('להוסיף לשיעור נוסף');
     expect(html.indexOf('להסיר מהרשימה')).toBeLessThan(html.indexOf('להוסיף לשיעור נוסף'));
+  });
+
+  it('…a place was freed and it is their only entry: still "another lesson" — they are on a list already', () => {
+    const html = render(details(lead(), { waiting_list_entries: [entryOf()] }, { onAddWaiting: noop }));
+    expect(html).toContain('להוסיף לשיעור נוסף');
+    expect(html).not.toContain('להוסיף לרשימת המתנה');
   });
 
   it('a server that cannot list the lessons, and a lead that is closed: nothing is offered', () => {

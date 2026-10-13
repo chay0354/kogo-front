@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { AlertCircle, ArrowRight, ChevronDown, ExternalLink, Plus, X } from 'lucide-react';
 import { formatDateTime, israelToday } from '@/lib/wahub/format';
-import { entryOfMark } from '@/lib/wahub/futureLeads';
+import { entryOfMark, isActiveEntry } from '@/lib/wahub/futureLeads';
 import type { WaitingAction } from '@/lib/wahub/futureLeadsApi';
 import {
   childFacts,
@@ -323,6 +323,8 @@ export default function LeadDetails({
   const otherEntries = headFreed ? entries.filter((entry) => entry.id !== headFreed.entry_id) : entries;
   // Adding to a waiting list by hand: only for a lead that is open, on a server that can list the lessons.
   const canAdd = Boolean(onAddWaiting) && !isClosed;
+  // Somebody who already waits for a lesson is offered another one; the words say which it is.
+  const addWords = entries.some(isActiveEntry) ? 'להוסיף לשיעור נוסף' : 'להוסיף לרשימת המתנה';
   const blocker = saysMore(details?.blocker_text, ...said) ? details?.blocker_text ?? '' : '';
   const child = factsBeyond(childFacts(details?.child), lead?.chips.child, why);
   const trial = trialFacts(details?.trial, now);
@@ -529,7 +531,7 @@ export default function LeadDetails({
                     {canAdd && (
                       <button type="button" onClick={onAddWaiting} className={cx(w.quietLink, w.addLink)}>
                         <Plus aria-hidden="true" />
-                        להוסיף לשיעור נוסף
+                        {addWords}
                       </button>
                     )}
                   </Section>
@@ -539,7 +541,7 @@ export default function LeadDetails({
                     <section className={l.dSect} aria-label="רשימת המתנה">
                       <button type="button" onClick={onAddWaiting} className={w.quietLink}>
                         <Plus aria-hidden="true" />
-                        להוסיף לרשימת המתנה
+                        {addWords}
                       </button>
                     </section>
                   )

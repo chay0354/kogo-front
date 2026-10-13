@@ -6,7 +6,7 @@ import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { readableError } from '@/lib/apiError';
 import { PHONE_MEDIA_QUERY } from '@/lib/wahub/screens';
 import {
-  HAS_ROOM_TEXT,
+  ROOM_LESSONS_NOTE,
   WAITING_CHILD_MAX,
   lessonOptionNote,
   lessonOptionWhen,
@@ -257,7 +257,7 @@ export function LessonPickerView({
               <ChevronDown className={w.chevron} aria-hidden="true" />
             </button>
             <Fold open={roomOpen} id="waiting-room-lessons">
-              <p className={w.roomNote}>{HAS_ROOM_TEXT}.</p>
+              <p className={w.roomNote}>{ROOM_LESSONS_NOTE}</p>
               <ul className={w.opts} aria-label="שיעורים שיש בהם מקום">
                 {withRoom.map((option) => (
                   <li key={option.id} className={cx(w.opt, w.optOff)}>
