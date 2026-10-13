@@ -15,6 +15,8 @@ const css = (name: string) => readFileSync(fileURLToPath(new URL(name, import.me
 const MOTION = css('./motion.module.css');
 const WAHUB = css('./wahub.module.css');
 const REFINE = css('./refine/refine.module.css');
+// Future leads, the clock and the note (13.10.2026): the same rules, read from the same variables.
+const FUTURE = css('./future.module.css');
 
 /** Every `animation` / `transition` declaration of a stylesheet, whole. */
 function moves(sheet: string): string[] {
@@ -50,6 +52,7 @@ describe('the motion layer: one set of lengths and curves', () => {
       ['motion', MOTION],
       ['wahub', WAHUB],
       ['refine', REFINE],
+      ['future', FUTURE],
     ] as const) {
       const loops = moves(sheet).filter((line) => /\binfinite\b/.test(line));
       for (const line of loops) {
@@ -65,6 +68,7 @@ describe('the motion layer: one set of lengths and curves', () => {
       ['motion', MOTION],
       ['wahub', WAHUB],
       ['refine', REFINE],
+      ['future', FUTURE],
     ] as const) {
       for (const line of moves(sheet)) {
         if (allowed.test(line)) continue;
@@ -78,6 +82,7 @@ describe('the motion layer: one set of lengths and curves', () => {
       ['motion', MOTION],
       ['wahub', WAHUB],
       ['refine', REFINE],
+      ['future', FUTURE],
     ] as const) {
       const frames = [...sheet.matchAll(/@keyframes\s+([\w-]+)\s*\{((?:[^{}]*\{[^{}]*\})*)[^{}]*\}/g)];
       expect(frames.length).toBeGreaterThan(0);
@@ -111,7 +116,28 @@ describe('the scroll fixes stay in the stylesheet', () => {
   });
 
   it('nothing is sized by 100vh — a phone\'s bars would hide its foot', () => {
-    for (const sheet of [WAHUB, REFINE, MOTION]) expect(sheet).not.toMatch(/(?<!max-)height:\s*100vh/);
+    for (const sheet of [WAHUB, REFINE, MOTION, FUTURE]) expect(sheet).not.toMatch(/(?<!max-)height:\s*100vh/);
+  });
+});
+
+describe('the clock\'s bubble and the note keep to the layer', () => {
+  it('every length is one of the layer\'s own — nothing is timed by hand', () => {
+    for (const line of moves(FUTURE)) expect(literalTimes(line), line).toEqual([]);
+  });
+
+  it('on a phone the bubble is a sheet inside the conversation, so a keyboard lifts it instead of covering it', () => {
+    const phone = FUTURE.slice(FUTURE.indexOf('@media (max-width: 767px)'));
+    expect(phone).toMatch(/\.anchor \{\s*position: static;/);
+    expect(phone).toMatch(/\.later \{[^}]*bottom: 0;/);
+    expect(phone).not.toMatch(/position: fixed/);
+    // Its buttons are pinned to its foot, clear of the home bar; its body scrolls by itself.
+    expect(phone).toMatch(/\.laterFoot \{[^}]*env\(safe-area-inset-bottom/);
+    expect(FUTURE).toMatch(/\.laterBody \{[^}]*overflow-y: auto;[^}]*overscroll-behavior: contain;/);
+  });
+
+  it('"reduce motion" stops what it adds', () => {
+    const block = FUTURE.slice(FUTURE.lastIndexOf('@media (prefers-reduced-motion: reduce)'));
+    for (const name of ['.later', '.scrim', '.step', '.strip', '.noteBox']) expect(block).toContain(name);
   });
 });
 

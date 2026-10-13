@@ -914,3 +914,112 @@ describe('the list and the details: which of them is on screen', () => {
     expect(leadsPanes('single', 12)).toEqual({ list: false, details: true, cover: true });
   });
 });
+
+describe('the waiting list and future leads on the leads tab (docs/WAHUB-CONTRACT-FUTURE-LEADS.md, ד.3)', () => {
+  const WAITING = {
+    status: 'waiting',
+    status_label: 'ברשימת המתנה',
+    entry_id: 7,
+    lesson_id: '0b0e',
+    label: 'קפוארה גן חובה · יום שלישי · 17:00 · מינץ',
+    course: 'קפוארה גן חובה',
+    day: 'שלישי',
+    start: '17:00',
+    branch: 'מינץ',
+    child: 'בן 5, גן חובה',
+    since: '2026-10-13T08:40:00+00:00',
+    freed_at: null,
+    title: 'ברשימת המתנה: קפוארה גן חובה · יום שלישי · 17:00 · מינץ',
+    more: 0,
+  };
+  const FUTURE = {
+    due: '2026-12-01',
+    reason: 'הילד יהיה בן 3',
+    by_name: 'מיכל כהן',
+    at: '2026-10-13T09:12:00+00:00',
+    state: 'due',
+    label: 'ליד עתידי',
+    days_left: 0,
+    muted: true,
+  };
+
+  test('a row carries the waiting list and the future lead when the server sends them', () => {
+    const read = readLeadRow({ ...row({ stage: 'waiting_list', stage_label: '' }), waiting_list: WAITING, future: FUTURE });
+    expect(read?.waiting_list).toEqual(WAITING);
+    expect(read?.future).toEqual(FUTURE);
+    // The state has a name of its own, in the owner's word, when the server left the label out.
+    expect(read?.stage_label).toBe('ברשימת המתנה');
+  });
+
+  test('a server built before them: the row is exactly what it was — no such keys at all', () => {
+    const read = readLeadRow(row());
+    expect(read).toEqual(row());
+    expect(read && 'waiting_list' in read).toBe(false);
+    expect(read && 'future' in read).toBe(false);
+    expect(readLeadRow({ ...row(), waiting_list: null, future: null })).toEqual(row());
+  });
+
+  test('the details carry the notes (up to ten) and every entry of the waiting list', () => {
+    const notes = Array.from({ length: 12 }, (_, index) => ({
+      id: index + 1,
+      text: `פתק ${index + 1}`,
+      by_name: 'מיכל כהן',
+      created_at: `2026-10-${String(index + 1).padStart(2, '0')}T08:00:00+00:00`,
+    }));
+    const detail = readLeadDetail({
+      ...row(),
+      details: { reason: 'x', notes, waiting_list_entries: [{ id: 7, status: 'freed', status_label: 'התפנה מקום', lesson: { label: WAITING.label }, position: 1 }] },
+    });
+    expect(detail?.details.notes).toHaveLength(10);
+    // Newest first.
+    expect(detail?.details.notes?.[0].id).toBe(12);
+    expect(detail?.details.waiting_list_entries).toEqual([expect.objectContaining({ id: 7, status: 'freed', lesson_label: WAITING.label, position: 1 })]);
+  });
+
+  test('details from a server built before them have neither', () => {
+    const detail = readLeadDetail({ ...row(), details: { reason: 'x' } });
+    expect(detail?.details.notes).toBeUndefined();
+    expect(detail?.details.waiting_list_entries).toBeUndefined();
+  });
+
+  test('"ברשימת המתנה" is one of the filter\'s states, in its place — before "אין כרגע מה להציע"', () => {
+    const options = stageOptions(
+      [
+        { key: 'nothing_to_offer', label: 'אין כרגע מה להציע', count: 2 },
+        { key: 'waiting_list', label: 'ברשימת המתנה', count: 6 },
+        { key: 'link_sent', label: 'קיבל קישור ועוד לא נרשם', count: 3 },
+      ],
+      [],
+      true,
+    );
+    expect(options.map((option) => option.key)).toEqual(['link_sent', 'waiting_list', 'nothing_to_offer']);
+    expect(stageOptionText(options[1])).toBe('ברשימת המתנה (6)');
+  });
+
+  test('on the list with nobody\'s step, the row still says what it waits for', () => {
+    const waiting = row({ stage: 'waiting_list', stage_label: 'ברשימת המתנה', owner: '', next: next({ who: 'none', state: 'none' }) });
+    expect(nextStepLine(waiting, NOW).text).toBe('ברשימת המתנה — נתריע כשיתפנה מקום');
+    // The server's own words win when it sends them.
+    const said = row({ ...waiting, next: next({ who: 'none', state: 'none', what: 'ברשימת המתנה — נתריע כשיתפנה מקום' }) });
+    expect(nextStepLine(said, NOW)).toMatchObject({ tone: 'quiet', text: 'ברשימת המתנה — נתריע כשיתפנה מקום' });
+  });
+
+  test('a place was freed: the lead is the office\'s, and its step is to offer the place', () => {
+    const freed = row({
+      stage: 'waiting_list',
+      owner: 'office',
+      next: next({ who: 'office', state: 'none', what: 'להציע ללקוח את המקום שהתפנה' }),
+      waiting_list: { ...WAITING, status: 'freed', status_label: 'התפנה מקום', title: 'התפנה מקום בקפוארה גן חובה יום שלישי 17:00' } as never,
+    });
+    expect(leadView(freed)).toBe('office');
+    expect(nextStepLine(freed, NOW)).toMatchObject({ tone: 'office', text: 'מחכה לך: להציע ללקוח את המקום שהתפנה' });
+  });
+
+  test('a change to a lead keeps the marks its row carries', () => {
+    const lead = { ...row({ owner: 'bot' }), waiting_list: WAITING as never, future: FUTURE as never };
+    const page: WahubLeadsPage = { counts: { office: 0, bot: 1, closed: 0 }, results: [lead], next_cursor: null };
+    const [after] = applyLeadChange([page], 'bot', lead, { kind: 'snooze', until: '2026-12-01', note: '' });
+    expect(after?.results[0].waiting_list).toEqual(WAITING);
+    expect(after?.results[0].future).toEqual(FUTURE);
+  });
+});

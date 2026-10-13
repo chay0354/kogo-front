@@ -5,6 +5,7 @@ import {
   LEAD_QUEUES,
   badgeText,
   boxCount,
+  boxesInGroup,
   isHiddenLead,
   labelOptions,
   learnLabels,
@@ -14,19 +15,57 @@ import {
   menuBadgeCount,
   queueCount,
   queueDef,
+  shownBox,
   TOPIC_LABELS,
 } from './boxes';
 import { makeContact } from './testFixtures';
 
 describe('the boxes above the conversations', () => {
-  test('are the five the screen offers, in order, each with its Hebrew name', () => {
+  test('are the ones the screen offers, in order, each with its Hebrew name — "פתוחות" first among the person\'s', () => {
     expect(CHAT_BOXES.map((box) => [box.key, box.label])).toEqual([
       ['all', 'הכול'],
+      ['open', 'פתוחות'],
       ['needs_human', 'מבקשים נציג'],
       ['human', 'בטיפול נציג'],
+      ['future', 'לידים עתידיים'],
       ['waiting', 'מחכים לתשובה'],
       ['unread', 'לא נקראו'],
     ]);
+    // "פתוחות" leads the person's boxes; "לידים עתידיים" closes them, quietly.
+    expect(boxesInGroup('human').map((box) => box.key)).toEqual(['open', 'needs_human', 'human', 'future']);
+    expect(CHAT_BOXES.filter((box) => box.quiet).map((box) => box.key)).toEqual(['future']);
+  });
+
+  test('a server that does not count "פתוחות" is not offered the two new boxes — and never before the first count', () => {
+    const old = { all: 9, waiting: 1, needs_human: 2, unread: 3, human: 1, bot: 8 };
+    expect(boxesInGroup('human', old).map((box) => box.key)).toEqual(['needs_human', 'human']);
+    expect(boxesInGroup('human', null).map((box) => box.key)).toEqual(['needs_human', 'human']);
+    expect(boxesInGroup('human', { ...old, open: 4, future: 0 }).map((box) => box.key)).toEqual(['open', 'needs_human', 'human', 'future']);
+    expect(boxesInGroup('bot', old).map((box) => box.key)).toEqual(['waiting', 'unread']);
+  });
+
+  test('an address that asks for a box the server does not have falls back to "הכול" — it would answer with everything', () => {
+    const old = { all: 9, waiting: 1, needs_human: 2, unread: 3, human: 1, bot: 8 };
+    expect(shownBox('open', old)).toBe('all');
+    expect(shownBox('future', old)).toBe('all');
+    expect(shownBox('open', { ...old, open: 4, future: 0 })).toBe('open');
+    // Nothing is known until the first counts are in hand: the box stands.
+    expect(shownBox('open', null)).toBe('open');
+    expect(shownBox('needs_human', old)).toBe('needs_human');
+  });
+
+  test('"פתוחות", "לידים עתידיים" and "בטיפול נציג" place a contact by the contract\'s own words', () => {
+    const parkedFuture = { due: '2026-12-01', reason: 'x', by_name: 'מיכל', at: null, state: 'parked' as const, label: 'ליד עתידי', days_left: 49, muted: true };
+    const open = makeContact(1, { chat: { open: true, open_reason: 'needs_human', needs_human: true } });
+    const parked = makeContact(2, { chat: { open: false, handled_by: 'human' }, future: parkedFuture });
+    const due = makeContact(3, { chat: { open: true, open_reason: 'future_due', handled_by: 'human' }, future: { ...parkedFuture, state: 'due' } });
+    const held = makeContact(4, { chat: { open: true, open_reason: 'human', handled_by: 'human' }, future: null });
+    const quiet = makeContact(5, { chat: { open: false } });
+
+    expect([open, parked, due, held, quiet].map((contact) => matchesBox(contact, 'open'))).toEqual([true, false, true, true, false]);
+    expect([open, parked, due, held, quiet].map((contact) => matchesBox(contact, 'future'))).toEqual([false, true, false, false, false]);
+    // A person holds it — but a future lead that still waits for its day is not "in handling".
+    expect([open, parked, due, held, quiet].map((contact) => matchesBox(contact, 'human'))).toEqual([false, false, true, true, false]);
   });
 
   test('a contact is placed by the same facts the server uses', () => {
