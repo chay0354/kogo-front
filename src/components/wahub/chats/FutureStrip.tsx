@@ -47,13 +47,14 @@ export function FutureStripView({ chip, muted, open, doneBusy, onToggle, onDone,
         </span>
         <ChevronDown className={f.stripChevron} aria-hidden="true" />
       </button>
+      {/* The bot was not silenced: said under the title whether or not the chip is open — it is not a detail. */}
+      {!muted && (
+        <p className={cx(f.warnLine, f.stripWarn)}>
+          <AlertTriangle aria-hidden="true" />
+          <span>{BOT_STILL_ANSWERS}.</span>
+        </p>
+      )}
       <Fold open={open} innerClassName={f.stripBody}>
-        {!muted && (
-          <p className={f.warnLine}>
-            <AlertTriangle aria-hidden="true" />
-            <span>{BOT_STILL_ANSWERS}.</span>
-          </p>
-        )}
         <div className={f.stripActs} role="group" aria-label="פעולות על הליד העתידי">
           <button type="button" onClick={onDone} disabled={doneBusy} className={cx(s.btn, s.btnSm, s.btnP)}>
             {doneBusy ? <Spinner className="h-3.5 w-3.5" /> : <Check aria-hidden="true" />}

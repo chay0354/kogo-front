@@ -533,6 +533,11 @@ button.ibLaterOn:hover {
   gap: 8px;
 }
 
+/* "הבוט עדיין עונה ללקוח הזה" under the chip's title: inside the chip's own gutters. */
+.stripWarn {
+  margin: 0 20px 8px;
+}
+
 /* ---------- a note: a line of the log, never a message ---------- */
 
 /* Across the middle of the conversation — on neither side, because nobody sent it — on yellow paper with a
@@ -835,6 +840,21 @@ button.boxQuiet:not([aria-pressed='true']) {
 
   .stripBody {
     padding: 0 12px 10px;
+  }
+
+  .stripWarn {
+    margin: 0 12px 8px;
+  }
+
+  /* A step with no buttons under it (the two choices, the reading): its foot keeps clear of the home bar itself. */
+  .laterBody:last-child {
+    padding-bottom: calc(14px + env(safe-area-inset-bottom, 0px));
+  }
+
+  /* "פתק" beside a locked writing box: a finger's width (in the row of tools it takes that row's size). */
+  button.noteBtnAlone {
+    min-width: 44px;
+    height: 40px;
   }
 
   .stripActs > button {

@@ -6,6 +6,7 @@ import { fillQuickReply, formatClock } from '@/lib/wahub/format';
 import { automationDisplayLabel, type WhatsAppAutomation } from '@/lib/whatsappApi';
 import type { WahubContact, WahubQuickReply } from '@/types/wahub';
 import { useWahubAutomations, useWahubQuickReplies } from '../hooks/useWahubQueries';
+import f from '../future.module.css';
 import { Spinner, useDismiss } from '../shared/bits';
 import { cx } from '../shared/tones';
 import s from '../wahub.module.css';
@@ -153,9 +154,15 @@ interface ComposerProps {
 }
 
 /** The small "פתק" button beside the writing box. A button, not a switch: it opens the note's own box. */
-function NoteButton({ onClick }: { onClick: () => void }) {
+function NoteButton({ onClick, alone = false }: { onClick: () => void; /** Beside a locked box rather than in the row of tools. */ alone?: boolean }) {
   return (
-    <button type="button" onClick={onClick} aria-label="פתק על הלקוח" title="פתק על הלקוח – לא נשלח לאף אחד" className={cx(s.btn, s.btnSm)}>
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label="פתק על הלקוח"
+      title="פתק על הלקוח – לא נשלח לאף אחד"
+      className={cx(s.btn, s.btnSm, alone && f.noteBtnAlone)}
+    >
       <StickyNote aria-hidden="true" />
       <span className={s.toolLabel}>פתק</span>
     </button>
@@ -380,7 +387,7 @@ export default function Composer({ contact, sending, simulated, sendingOff, onSe
               </button>
             )}
             {/* Nothing can be sent — a note still can be written: it goes to nobody. */}
-            {onNote && <NoteButton onClick={openNote} />}
+            {onNote && <NoteButton onClick={openNote} alone />}
           </div>
         )}
       </div>

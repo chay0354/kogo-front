@@ -6,6 +6,7 @@ import {
   BOT_STILL_ANSWERS,
   futureChip,
   isActiveEntry,
+  sortEntries,
   waitingEntryFacts,
   waitingSinceText,
 } from '@/lib/wahub/futureLeads';
@@ -68,7 +69,7 @@ export function FutureLine({ future, today, now, said = [] }: { future: WahubFut
     <span className={l.futureLine}>
       <span className={cx(l.futureMark, chip.loud && l.futureMarkLoud)}>
         <CalendarClock aria-hidden="true" />
-        {chip.label} · {chip.when}
+        {chip.label} · {chip.short}
       </span>
       {why && <span dir="auto">{why}</span>}
     </span>
@@ -183,8 +184,8 @@ export function FreedBlock({
 }
 
 /**
- * Every waiting-list entry of this person, newest first: the lesson, and under
- * it where the entry stands. A further entry whose place was freed carries its
+ * Every waiting-list entry of this person — a freed place first, then whoever
+ * still waits, then what was closed: the lesson, and under it where the entry stands. A further entry whose place was freed carries its
  * own two actions; the first one's are in the block at the head of the details.
  */
 export function WaitingEntries({
@@ -205,7 +206,7 @@ export function WaitingEntries({
 }) {
   return (
     <ul className={l.entries}>
-      {entries.map((entry) => {
+      {sortEntries(entries).map((entry) => {
         const active = isActiveEntry(entry);
         return (
           <li key={entry.id} className={cx(l.entry, !active && l.entryOff, entry.status === 'freed' && l.entryFreed)}>

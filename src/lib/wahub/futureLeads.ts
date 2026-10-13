@@ -237,6 +237,8 @@ export interface FutureChip {
   label: string;
   /** "1.12" while it waits; "הגיע היום" / "הגיע ב-10.10" once its day came; "הלקוח כתב · נקבע ל-1.12". */
   when: string;
+  /** The same, as short as a row of a list needs it: "1.12" / "הגיע היום" / "הלקוח כתב". */
+  short: string;
   reason: string;
   /** Whose lead it is. */
   by: string;
@@ -250,14 +252,21 @@ export function futureChip(future: WahubFuture, today: string, now: Date): Futur
   const date = formatShortDate(future.due, now);
   const days = DATE_ONLY.test(today) ? daysBetween(today, future.due) : future.days_left;
   let when = date;
-  if (state === 'due') when = days >= 0 ? 'הגיע היום' : `הגיע ב-${date}`;
-  else if (state === 'wrote') when = `הלקוח כתב · נקבע ל-${date}`;
+  let short = date;
+  if (state === 'due') {
+    when = days >= 0 ? 'הגיע היום' : `הגיע ב-${date}`;
+    short = when;
+  } else if (state === 'wrote') {
+    when = `הלקוח כתב · נקבע ל-${date}`;
+    short = 'הלקוח כתב';
+  }
   const label = future.label || FUTURE_LABEL;
   return {
     state,
     loud: state !== 'parked',
     label,
     when,
+    short,
     reason: future.reason,
     by: future.by_name,
     line: [label, when, future.reason, future.by_name].filter(Boolean).join(' · '),
@@ -431,6 +440,16 @@ export function entryOfMark(mark: WahubWaitingMark): WahubWaitingEntry {
 /** An entry that still stands: waiting, or with a place freed. */
 export function isActiveEntry(entry: Pick<WahubWaitingEntry, 'status'>): boolean {
   return entry.status === 'waiting' || entry.status === 'freed';
+}
+
+/**
+ * The entries in the order they are read: what calls for the office first — a
+ * place that was freed — then whoever still waits, and what was closed last.
+ * Within each, the server's own order (the newest first) is kept.
+ */
+export function sortEntries<T extends Pick<WahubWaitingEntry, 'status'>>(entries: ReadonlyArray<T>): T[] {
+  const rank = (entry: T) => (entry.status === 'freed' ? 0 : entry.status === 'waiting' ? 1 : 2);
+  return entries.map((entry, index) => ({ entry, index })).sort((a, b) => rank(a.entry) - rank(b.entry) || a.index - b.index).map((item) => item.entry);
 }
 
 /** One entry as a line of small facts: where it stands, since when, the child, the place in line, how it ended. */

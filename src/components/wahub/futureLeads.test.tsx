@@ -561,8 +561,9 @@ describe('the chip of a future lead, at the head of its conversation', () => {
     expect(all).toHaveLength(4);
   });
 
-  it('the bot was not silenced: one small line says it still answers — and only then', () => {
+  it('the bot was not silenced: one small line says it still answers — whether or not the chip is open, and only then', () => {
     expect(render(strip({ ...FUTURE, muted: false }, { open: true }))).toContain(`${BOT_STILL_ANSWERS}.`);
+    expect(render(strip({ ...FUTURE, muted: false }, { open: false }))).toContain(`${BOT_STILL_ANSWERS}.`);
     expect(render(strip(FUTURE, { open: true }))).not.toContain(BOT_STILL_ANSWERS);
   });
 
@@ -741,7 +742,8 @@ describe('a row of the list', () => {
     expect(due).toContain('ליד עתידי · הגיע היום');
     const wrote = row(makeContact(2, { chat: { open: true, open_reason: 'future_wrote' }, future: { ...FUTURE, state: 'wrote' } }));
     expect(wrote).toContain(f.markLoud);
-    expect(wrote).toContain('הלקוח כתב');
+    // A row says it shortly; the day it was set for is in the conversation's own chip.
+    expect(wrote).toContain('>ליד עתידי · הלקוח כתב</span>');
   });
 
   it('the waiting list: quiet while they wait, standing out once a place was freed', () => {
@@ -985,6 +987,8 @@ describe('a lead\'s details', () => {
     expect(html).toContain('רשימת המתנה');
     expect(html).toContain('התפנה מקום · נכנס ב-13.10 · בן 5 · מקום 1 בתור');
     expect(html).toContain('הוסר · נכנס ב-1.10 · השיעור נמחק · נסגר ב-5.10');
+    // What still stands is read before what was closed.
+    expect(html.indexOf('מקום 1 בתור')).toBeLessThan(html.indexOf('השיעור נמחק'));
     // The freed entry's two actions are at the head of the details — once, not again in the list.
     expect(html.split('להסיר מהרשימה').length - 1).toBe(1);
   });

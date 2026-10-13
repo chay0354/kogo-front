@@ -35,6 +35,7 @@ import {
   readWaitingEntries,
   readWaitingEntry,
   readWaitingMark,
+  sortEntries,
   threadDays,
   waitingChip,
   waitingEntryFacts,
@@ -205,6 +206,12 @@ describe('the chip of a future lead, in its three states', () => {
     expect(chip).toMatchObject({ loud: true, when: 'הלקוח כתב · נקבע ל-1.12' });
   });
 
+  it('on a row of a list the same is said as shortly as it can be', () => {
+    expect(futureChip(future(), TODAY, NOW).short).toBe('1.12');
+    expect(futureChip(future({ state: 'due', due: TODAY }), TODAY, NOW).short).toBe('הגיע היום');
+    expect(futureChip(future({ state: 'wrote' }), TODAY, NOW).short).toBe('הלקוח כתב');
+  });
+
   it('a screen left open over midnight: a parked lead whose day has come reads as due', () => {
     expect(futureStateNow({ state: 'parked', due: '2026-12-01' }, '2026-11-30')).toBe('parked');
     expect(futureStateNow({ state: 'parked', due: '2026-12-01' }, '2026-12-01')).toBe('due');
@@ -301,6 +308,11 @@ describe('the waiting list, as a chip and as entries', () => {
     });
     expect(closed && isActiveEntry(closed)).toBe(false);
     expect(closed && waitingEntryFacts(closed, NOW)).toEqual(['הוסר', 'נכנס ב-1.10', 'השיעור נמחק', 'נסגר ב-12.10']);
+  });
+
+  it('the entries are read in the order that matters: a freed place, whoever still waits, what was closed', () => {
+    const list = [{ id: 4, status: 'removed' }, { id: 3, status: 'waiting' }, { id: 2, status: 'freed' }, { id: 1, status: 'waiting' }];
+    expect(sortEntries(list).map((entry) => entry.id)).toEqual([2, 3, 1, 4]);
   });
 
   it('the row\'s mark stands in for the entry until the entries are read', () => {

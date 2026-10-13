@@ -165,7 +165,7 @@ export function FutureRowMark({ future, today, now }: { future: WahubFuture; tod
     <>
       <span className={cx(s.rowTag, f.mark, chip.loud ? f.markLoud : f.markQuiet)} title={chip.line}>
         <CalendarClock aria-hidden="true" />
-        {chip.label} · {chip.when}
+        {chip.label} · {chip.short}
       </span>
       {why && (
         <span className={cx(s.t2, f.rowWhy)} dir="auto">
