@@ -6,6 +6,7 @@ import { formatWhatsAppLink } from '@/lib/customerUtils';
 import { isDemoContact } from '@/lib/wahub/demo';
 import { callbackLine } from '@/lib/wahub/followup';
 import { displayName, formatShortDate, hasName } from '@/lib/wahub/format';
+import { futureOf, knowsFutureLeads, waitingOf } from '@/lib/wahub/futureLeads';
 import { knownHeadline, leadOf } from '@/lib/wahub/leadStage';
 import type { WahubContactDetail, WahubFollowupPatch, WahubTag } from '@/types/wahub';
 import { LeadStateBlock } from '../leads/LeadBits';
@@ -16,6 +17,7 @@ import { cx } from '../shared/tones';
 import s from '../wahub.module.css';
 import { ContactStatusList } from './ContactStatusBlock';
 import LiveTestBlock from './LiveTestBlock';
+import { NoteList, WaitingCardMark } from './Notes';
 
 /**
  * The sections of the card that open on a press, in the order they stand
@@ -261,6 +263,16 @@ export default function ContactPanel({
   const tags = contact.tags ?? [];
   const events = contact.events ?? [];
   const note = (contact.followup.note ?? '').trim();
+  // Future leads, notes and the waiting list (docs/WAHUB-CONTRACT-FUTURE-LEADS.md, ה) — only where the server knows them.
+  const knows = knowsFutureLeads(contact);
+  const future = knows ? futureOf(contact) : null;
+  const waitingList = waitingOf(contact);
+  const notes = knows ? contact.notes : undefined;
+  // A future lead a person holds is handed back from its own chip, at the head of the conversation: the plain
+  // hand-back would leave the mark standing.
+  const offerHandover = !(future && human);
+  // "טופל" is the ✓ of the conversation's title row where there is one.
+  const offerResolve = contact.chat.needs_human && !knows;
 
   const [open, setOpen] = useState<ReadonlySet<CardFold>>(() => new Set(defaultOpen ?? []));
   // Another person: the card is tidy again, every section folded.
@@ -330,13 +342,15 @@ export default function ContactPanel({
         ) : (
           <KnownShort contact={contact} today={today} now={now} />
         )}
+        {/* The waiting list: quiet while they wait, standing out once a place was freed. */}
+        {waitingList && <WaitingCardMark mark={waitingList} />}
       </CardSection>
 
       {/* 3. The actions, in one row. */}
-      {actions && (
+      {actions && (offerHandover || offerResolve) && (
         <CardSection title="פעולות">
           <div className="flex flex-wrap items-center gap-2" role="group" aria-label="פעולות על השיחה">
-            {human ? (
+            {!offerHandover ? null : human ? (
               <button type="button" onClick={actions.onRelease} disabled={actions.handoverBusy} className={cx(s.btn, s.btnSm)}>
                 {actions.handoverBusy ? <Spinner className="h-3.5 w-3.5" /> : <Undo2 aria-hidden="true" />}
                 החזר לבוט
@@ -347,7 +361,7 @@ export default function ContactPanel({
                 קח שיחה
               </button>
             )}
-            {contact.chat.needs_human && (
+            {offerResolve && (
               <button
                 type="button"
                 onClick={actions.onResolveNeedsHuman}
@@ -381,9 +395,23 @@ export default function ContactPanel({
         <TagPicker contact={contact} allTags={allTags} onChange={onTags} />
       </CardFoldSection>
 
-      <CardFoldSection title="הערות" hint={note || undefined} open={open.has('notes')} onToggle={() => toggle('notes')}>
-        <NoteField contact={contact} onSave={(text) => onFollowup({ note: text })} rows={3} />
-      </CardFoldSection>
+      {knows ? (
+        // The notes about the customer, newest first. They are written beside the writing box, while talking;
+        // here they are read. What was typed in the old "הערות" box is still shown — unless it is the reason of
+        // a future lead, which its chip already says.
+        <CardFoldSection title="פתקים" count={notes?.length} open={open.has('notes')} onToggle={() => toggle('notes')}>
+          <NoteList notes={notes ?? []} now={now} empty={note && !future ? undefined : 'עוד אין פתקים. כותבים פתק מהכפתור שליד תיבת ההודעה.'} />
+          {note && !future && (
+            <p className={cx(s.t2, notes?.length ? 'm-0 mt-2.5' : 'm-0')} dir="auto">
+              הערה קודמת: {note}
+            </p>
+          )}
+        </CardFoldSection>
+      ) : (
+        <CardFoldSection title="הערות" hint={note || undefined} open={open.has('notes')} onToggle={() => toggle('notes')}>
+          <NoteField contact={contact} onSave={(text) => onFollowup({ note: text })} rows={3} />
+        </CardFoldSection>
+      )}
 
       <CardFoldSection title="סטטוסים" open={open.has('statuses')} onToggle={() => toggle('statuses')}>
         <ContactStatusList contact={contact} now={now} shadow={shadow} />

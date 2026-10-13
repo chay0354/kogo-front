@@ -40,6 +40,7 @@ import type {
   WahubUnregisteredLeads,
   WahubUpdates,
 } from '@/types/wahub';
+import { readNotes } from './wahub/futureLeads';
 import { readLeadBoard } from './wahub/leadStage';
 import { unregisteredParams } from './wahub/unregistered';
 
@@ -102,7 +103,14 @@ export async function fetchWahubSummary(): Promise<WahubSummary> {
 export async function fetchWahubContact(id: number): Promise<WahubContactDetail> {
   const res = await api.get(`${BASE}/contacts/${id}/`);
   const data = res.data as WahubContactDetail;
-  return { ...data, messages: data.messages ?? [], events: data.events ?? [], has_older: Boolean(data.has_older) };
+  return {
+    ...data,
+    messages: data.messages ?? [],
+    events: data.events ?? [],
+    has_older: Boolean(data.has_older),
+    // Undefined on a server that has no notes (docs/WAHUB-CONTRACT-FUTURE-LEADS.md, ג.6): the screen then shows none of them.
+    notes: readNotes(data.notes),
+  };
 }
 
 /** Messages newer than `after` (the live poll), or the 50 before `before`. Always old to new. */

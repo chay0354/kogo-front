@@ -12,11 +12,14 @@ import {
   renameWahubContact,
   setWahubLiveTest,
   setWahubNeedsHuman,
+  serverAnswered,
   takeoverWahubContact,
 } from '@/lib/wahubApi';
 import { applyFollowupPatch } from '@/lib/wahub/followup';
 import { israelToday } from '@/lib/wahub/format';
-import type { WahubContact, WahubFollowupPatch, WahubTag } from '@/types/wahub';
+import type { FutureOutcome, HandToBotOutcome } from '@/lib/wahub/futureLeads';
+import { addWahubNote, closeWahubConversation, handWahubToBot, setWahubFuture } from '@/lib/wahub/futureLeadsApi';
+import type { WahubContact, WahubFollowupPatch, WahubNote, WahubTag, WahubUnderstood } from '@/types/wahub';
 import type { WahubLiveHandle } from './useWahubLive';
 
 /** Where a tab keeps its contacts: read one as it stands now, and put a newer copy in its place. */
@@ -28,9 +31,17 @@ export interface ContactStore {
 interface RunOptions {
   /** How the contact will read once saved — shown at once, taken back if the save fails. */
   optimistic?: (contact: WahubContact) => WahubContact;
-  request: () => Promise<WahubContact>;
+  /** The contact as it now stands — or null when the answer carried none (the live update then brings it). */
+  request: () => Promise<WahubContact | null>;
   /** Said when the server gives no reason of its own. */
   failure: string;
+  /** Said when the server did not answer at all, so what happened is not known. Without it: `failure`. */
+  unknown?: string;
+  /**
+   * Where the reason goes when the change was asked from a box of its own (the clock's bubble, the note):
+   * said there, beside what was typed, rather than in a word that floats over the page.
+   */
+  report?: (reason: string) => void;
 }
 
 /**
@@ -51,7 +62,7 @@ export function useContactMutations(store: ContactStore, live: WahubLiveHandle, 
   const latest = useRef(new Map<number, number>());
 
   const run = useCallback(
-    async (id: number, options: RunOptions): Promise<WahubContact | null> => {
+    async (id: number, options: RunOptions): Promise<boolean> => {
       const before = storeRef.current.get(id);
       const turn = (latest.current.get(id) ?? 0) + 1;
       latest.current.set(id, turn);
@@ -61,15 +72,17 @@ export function useContactMutations(store: ContactStore, live: WahubLiveHandle, 
       try {
         const saved = await options.request();
         // An older answer must not overwrite a newer press on the same contact.
-        if (latest.current.get(id) === turn) {
+        if (saved && latest.current.get(id) === turn) {
           storeRef.current.put(saved);
           onSavedRef.current?.(saved);
         }
-        return saved;
+        return true;
       } catch (error) {
         if (before && options.optimistic && latest.current.get(id) === turn) storeRef.current.put(before);
-        toast.error(readableError(error, options.failure));
-        return null;
+        const reason = options.unknown && !serverAnswered(error) ? options.unknown : readableError(error, options.failure);
+        if (options.report) options.report(reason);
+        else toast.error(reason);
+        return false;
       } finally {
         const left = (inFlight.current.get(id) ?? 1) - 1;
         if (left <= 0) inFlight.current.delete(id);
@@ -143,6 +156,74 @@ export function useContactMutations(store: ContactStore, live: WahubLiveHandle, 
           request: () => setWahubLiveTest(id, on),
           failure: on ? 'הבדיקה החיה לא הופעלה' : 'הבדיקה החיה לא כובתה',
         });
+      },
+
+      // ✓, the clock and the note (docs/WAHUB-CONTRACT-FUTURE-LEADS.md, ג.3–ג.6). The first three may reach
+      // ManyChat — the conversation goes back to the bot, or the bot is silenced — so, like a takeover,
+      // nothing is shown until the server has answered.
+
+      /** "✓ סגירת שיחה". All or nothing: a refusal means nothing changed. */
+      close(id: number) {
+        return run(id, {
+          request: () => closeWahubConversation(id),
+          failure: 'השיחה לא נסגרה',
+          unknown: 'לא ידוע אם השיחה נסגרה. בדקו את מצב השיחה לפני שמנסים שוב.',
+        });
+      },
+
+      /** "הבוט ימשיך לטפל": what the bot understood — or, in words, why the conversation was not handed over. */
+      async handToBot(id: number): Promise<HandToBotOutcome> {
+        // Filled by the request and by the refusal; read once both are over.
+        const got: { understood: WahubUnderstood | null; reason: string } = { understood: null, reason: '' };
+        await run(id, {
+          request: async () => {
+            const result = await handWahubToBot(id);
+            got.understood = result.understood;
+            return result.contact;
+          },
+          failure: 'השיחה לא הועברה לבוט',
+          unknown: 'לא ידוע אם השיחה עברה לבוט. בדקו את מצב השיחה לפני שמנסים שוב.',
+          report: (said) => {
+            got.reason = said;
+          },
+        });
+        return got.understood ? { understood: got.understood } : { error: got.reason || 'השיחה לא הועברה לבוט' };
+      },
+
+      /** "ליד עתידי שלי": saved — with whether the bot was silenced — or, in words, why it was not. */
+      async future(id: number, due: string, reason: string): Promise<FutureOutcome> {
+        const got: { mute: { muted: boolean; detail: string } | null; reason: string } = { mute: null, reason: '' };
+        await run(id, {
+          request: async () => {
+            const result = await setWahubFuture(id, due, reason);
+            got.mute = result.mute;
+            return result.contact;
+          },
+          failure: 'הליד העתידי לא נשמר',
+          unknown: 'לא ידוע אם הליד העתידי נשמר. בדקו בראש השיחה לפני ששומרים שוב.',
+          report: (said) => {
+            got.reason = said;
+          },
+        });
+        return got.mute ?? { error: got.reason || 'הליד העתידי לא נשמר' };
+      },
+
+      /** A note about the customer. The note itself comes back, so it can stand in the conversation at once. */
+      async note(id: number, text: string): Promise<{ note: WahubNote } | { error: string }> {
+        const got: { note: WahubNote | null; reason: string } = { note: null, reason: '' };
+        await run(id, {
+          request: async () => {
+            const result = await addWahubNote(id, text);
+            got.note = result.note;
+            return result.contact;
+          },
+          failure: 'הפתק לא נשמר',
+          unknown: 'לא ידוע אם הפתק נשמר. בדקו בשיחה לפני ששומרים שוב.',
+          report: (said) => {
+            got.reason = said;
+          },
+        });
+        return got.note ? { note: got.note } : { error: got.reason || 'הפתק לא נשמר' };
       },
     }),
     [isPending, run],

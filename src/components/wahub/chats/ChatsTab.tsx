@@ -3,12 +3,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { MessagesSquare } from 'lucide-react';
+import { toast } from 'sonner';
 import { useAuth } from '@/components/AuthProvider';
 import { attachShadowReplies } from '@/lib/wahub/bot';
-import { matchesBox } from '@/lib/wahub/boxes';
+import { matchesBox, shownBox } from '@/lib/wahub/boxes';
 import { cardMaxWidth, cardWidth } from '@/lib/wahub/cardPane';
 import { isDemoContact } from '@/lib/wahub/demo';
 import { israelToday } from '@/lib/wahub/format';
+import { withNote } from '@/lib/wahub/futureLeads';
 import { mergeLiveContacts } from '@/lib/wahub/live';
 import { paneDepth, paneDirection, type NavDirection } from '@/lib/wahub/motion';
 import { lastServerMessageId } from '@/lib/wahub/messages';
@@ -34,7 +36,7 @@ import { cx } from '../shared/tones';
 import s from '../wahub.module.css';
 import CardGrip from './CardGrip';
 import ChatList from './ChatList';
-import ChatThread from './ChatThread';
+import ChatThread, { type ThreadFutureActions } from './ChatThread';
 import ContactPanel from './ContactPanel';
 
 const SEARCH_DELAY_MS = 300;
@@ -79,7 +81,7 @@ export default function ChatsTab({
   active,
   live,
   counts,
-  box,
+  box: askedBox,
   contactId,
   status,
   onBox,
@@ -87,6 +89,12 @@ export default function ChatsTab({
   onOpenSettings,
   onOpenKnowledgeItem,
 }: ChatsTabProps) {
+  // "פתוחות" / "לידים עתידיים" on a server that does not count them: the list is "הכול", and the address says so.
+  const box = shownBox(askedBox, counts);
+  useEffect(() => {
+    if (box !== askedBox) onBox(box);
+  }, [askedBox, box, onBox]);
+
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const now = useNow();
@@ -223,6 +231,9 @@ export default function ChatsTab({
       setBusy((prev) => ({ ...prev, [key]: false }));
     }
   }
+  // For what is built once and pressed later (the conversation's own actions): always the latest.
+  const withBusyRef = useRef(withBusy);
+  withBusyRef.current = withBusy;
 
   const openContact = useCallback((id: number) => onOpenContact(id), [onOpenContact]);
 
@@ -285,6 +296,36 @@ export default function ChatsTab({
   }
   const isManager = user?.role === 'manager';
   const allTags: WahubTag[] = tags.data ?? NO_TAGS;
+
+  // ✓, the clock and the note (docs/WAHUB-CONTRACT-FUTURE-LEADS.md, ה). The conversation itself decides whether
+  // to offer them: only for a contact the server marks `chat.open` on.
+  const closeBusy = Boolean(busy.close);
+  const futureActions = useMemo<ThreadFutureActions | undefined>(() => {
+    if (contactId == null) return undefined;
+    const id = contactId;
+    return {
+      today,
+      closeBusy,
+      onClose: () =>
+        void withBusyRef.current('close', async () => {
+          // Nothing on the screen need change when a conversation with nothing open is closed: a word says it was.
+          if (await mutations.close(id)) toast.success('השיחה נסגרה');
+        }),
+      onHandToBot: () => mutations.handToBot(id),
+      onFuture: (due, reason) => mutations.future(id, due, reason),
+      onNote: async (text) => {
+        const result = await mutations.note(id, text);
+        if ('error' in result) return result.error;
+        // Into the conversation now, where it was written; the whole contact is read again right after.
+        const held = threadRef.current?.stateRef.current.contact;
+        if (held && held.id === id) {
+          const noted: WahubContactDetail = { ...held, notes: withNote(held.notes, result.note) };
+          threadRef.current?.putContact(noted);
+        }
+        return '';
+      },
+    };
+  }, [closeBusy, contactId, mutations, today]);
 
   const wide = layout === 'wide';
   const cardHidden = wide && cardPane.hidden;
@@ -399,6 +440,7 @@ export default function ChatsTab({
             onOpenKnowledgeItem={onOpenKnowledgeItem}
             onSimulate={demoChat.send}
             demoReply={demoChat.reply}
+            future={futureActions}
           />
         </section>
       )}

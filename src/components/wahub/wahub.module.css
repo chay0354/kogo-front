@@ -4462,6 +4462,11 @@ textarea.field {
     background: var(--lav);
   }
 
+  /* Three tools (the note joined the two): each gives a little, so the writing box keeps its width. */
+  .composerTools.composerToolsTight .btn {
+    width: 38px;
+  }
+
   .toolLabel,
   .composerHint {
     display: none;

@@ -129,7 +129,13 @@ export function useContactThread({ contactId, active, seed, onContact, senderNam
           ...prev,
           contact:
             saving && prev.contact
-              ? { ...prev.contact, events: detail.events, kogo: { ...prev.contact.kogo, children: detail.kogo.children } }
+              ? {
+                  ...prev.contact,
+                  events: detail.events,
+                  // The notes come only with the whole contact, like the log they are part of.
+                  notes: detail.notes ?? prev.contact.notes,
+                  kogo: { ...prev.contact.kogo, children: detail.kogo.children },
+                }
               : { ...detail, messages: [] },
           messages: mergeMessages(prev.messages, detail.messages),
           // Once earlier messages were loaded, the answer about "the last 50" no longer applies.

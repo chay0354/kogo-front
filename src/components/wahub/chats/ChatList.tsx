@@ -4,9 +4,11 @@ import { memo, useEffect, useRef, useState } from 'react';
 import { Inbox, Plug, Search, X } from 'lucide-react';
 import { BOX_GROUPS, boxCount, boxesInGroup, handledByChip } from '@/lib/wahub/boxes';
 import { isDemoContact } from '@/lib/wahub/demo';
-import { displayName, formatListTime, previewText, waitingLabel } from '@/lib/wahub/format';
+import { displayName, formatListTime, israelToday, previewText, waitingLabel } from '@/lib/wahub/format';
+import { futureOf, waitingOf } from '@/lib/wahub/futureLeads';
 import { leadOf, showsInList } from '@/lib/wahub/leadStage';
 import type { WahubBox, WahubBoxCounts, WahubContact } from '@/types/wahub';
+import f from '../future.module.css';
 import type { ListStatus } from '../hooks/usePagedContacts';
 import { LeadStageTag } from '../leads/LeadBits';
 import { ContactAvatar, DemoTag, EmptyState, ErrorState, LiveTestTag, Spinner } from '../shared/bits';
@@ -15,6 +17,7 @@ import { ListRowsSkeleton, RefreshNote } from '../shared/loading';
 import { useStagger } from '../shared/motion';
 import { cx } from '../shared/tones';
 import s from '../wahub.module.css';
+import { FutureRowMark, WaitingRowMark } from './Notes';
 
 interface RowProps {
   contact: WahubContact;
@@ -33,6 +36,10 @@ interface RowProps {
  * small marks (docs/WAHUB-CONTRACT-LEAD-STAGES.md, ב). What says who this is
  * stays: an invented contact, a live test, a person answering. On a server
  * that has no lead state yet the row is as it was.
+ *
+ * A future lead and the waiting list are marks of their own
+ * (docs/WAHUB-CONTRACT-FUTURE-LEADS.md, ה): quiet while they only wait, and
+ * standing out once the day has come, the customer wrote, or a place was freed.
  */
 const ChatRow = memo(function ChatRow({ contact, selected, arrived, now, onOpen }: RowProps) {
   const { chat } = contact;
@@ -43,7 +50,9 @@ const ChatRow = memo(function ChatRow({ contact, selected, arrived, now, onOpen 
   const lead = leadOf(contact);
   const demo = isDemoContact(contact);
   const liveTest = contact.live_test === true;
-  const marks = lead ? demo || liveTest || who.tone === 'human' : true;
+  const future = futureOf(contact);
+  const waitingList = waitingOf(contact);
+  const marks = lead ? demo || liveTest || who.tone === 'human' || Boolean(future) || Boolean(waitingList) : true;
 
   return (
     <li className={arrived ? m.drop : undefined}>
@@ -95,6 +104,8 @@ const ChatRow = memo(function ChatRow({ contact, selected, arrived, now, onOpen 
                 </span>
               )}
               {!lead && waiting && <span className={cx(s.rowTag, s.pWarn)}>{waiting}</span>}
+              {waitingList && <WaitingRowMark mark={waitingList} />}
+              {future && <FutureRowMark future={future} today={israelToday(now)} now={now} />}
             </span>
           )}
         </span>
@@ -236,7 +247,8 @@ export default function ChatList({
           {BOX_GROUPS.map((group) => (
             <div key={group.key} className={cx(s.chips, 'items-center')}>
               {group.label && <span className={s.boxGroupLabel}>{group.label}</span>}
-              {boxesInGroup(group.key).map((def) => {
+              {/* "פתוחות" and "לידים עתידיים" only where the server counts them. */}
+              {boxesInGroup(group.key, counts).map((def) => {
                 const active = box === def.key;
                 const count = boxCount(counts, def.key);
                 const loud = def.key === 'needs_human' && (count ?? 0) > 0 && !active;
@@ -247,7 +259,7 @@ export default function ChatList({
                     aria-pressed={active}
                     onClick={() => onBox(def.key)}
                     title={def.hint}
-                    className={cx(s.chipbtn, active && s.on)}
+                    className={cx(s.chipbtn, active && s.on, def.quiet && f.boxQuiet)}
                   >
                     {def.label}
                     {count !== null && (

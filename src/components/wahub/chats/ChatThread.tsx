@@ -1,26 +1,31 @@
 'use client';
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { AlertCircle, ArrowDown, ArrowRight, Bot, Check, Crosshair, Hand, Info, MessageCircle, PanelLeftOpen, Undo2, UserRound } from 'lucide-react';
+import { AlertCircle, ArrowDown, ArrowRight, Bot, Check, Clock, Crosshair, Hand, Info, MessageCircle, PanelLeftOpen, Undo2, UserRound } from 'lucide-react';
 import { formatWhatsAppLink } from '@/lib/customerUtils';
 import { isDemoContact, type DemoInput } from '@/lib/wahub/demo';
 import { agoText, displayName, hasName } from '@/lib/wahub/format';
-import { groupMessagesByDay, isOptimistic } from '@/lib/wahub/messages';
+import { futureOf, knowsFutureLeads, threadDays } from '@/lib/wahub/futureLeads';
+import { isOptimistic } from '@/lib/wahub/messages';
 import { SHADOW_HEADING, excerptLine, excerptOf, shadowExcerpt } from '@/lib/wahub/refine';
 import { phoneStatusLine } from '@/lib/wahub/screens';
 import type { WahubContactDetail, WahubSender, WahubShadowReply } from '@/types/wahub';
+import f from '../future.module.css';
 import type { ContactThread } from '../hooks/useContactThread';
 import m from '../motion.module.css';
 import { useRefine } from '../refine/RefineContext';
 import { RefineRow, RefineSelectBar } from '../refine/RefineRow';
 import { useRefineSelection } from '../refine/useRefineSelection';
-import { ContactAvatar, DemoTag, ErrorState, LiveTestTag, Skeleton, Spinner } from '../shared/bits';
+import { ContactAvatar, DemoTag, ErrorState, LiveTestTag, Skeleton, Spinner, useDismiss } from '../shared/bits';
 import { useStayAtEnd } from '../shared/motion';
 import { cx } from '../shared/tones';
 import s from '../wahub.module.css';
 import Composer from './Composer';
 import DemoComposer, { type DemoReplyControls } from './DemoComposer';
+import FutureStrip from './FutureStrip';
+import { LaterPanelView, useLater, type LaterActions } from './LaterPanel';
 import MessageBubble, { TypingBubble } from './MessageBubble';
+import { NoteRow } from './Notes';
 import ShadowRow from './ShadowRow';
 
 /** Scrolling is settled before the browser paints; where there is no browser there is nothing to settle. */
@@ -97,7 +102,29 @@ interface ChatThreadProps {
   onSimulate?: (input: DemoInput) => Promise<boolean>;
   /** The new bot answering in a demo conversation: its switch, "ענה עכשיו", and "הבוט כותב…". */
   demoReply?: DemoReplyControls;
+  /**
+   * ✓, the clock and the note (docs/WAHUB-CONTRACT-FUTURE-LEADS.md, ה). Used only for a contact the server
+   * marks `chat.open` on: on a server built before it the conversation is exactly as it was.
+   */
+  future?: ThreadFutureActions;
 }
+
+export interface ThreadFutureActions extends LaterActions {
+  /** Today in Israel, YYYY-MM-DD. */
+  today: string;
+  /** "סגירת שיחה" is on its way. */
+  closeBusy: boolean;
+  /** "✓ סגירת שיחה". */
+  onClose: () => void;
+  /** A note about the customer: resolves '' once it was saved, or why it was not. */
+  onNote: (text: string) => Promise<string>;
+}
+
+/** No server to ask: the hooks of the clock's bubble still run, and nothing ever opens it. */
+const NO_LATER: LaterActions = {
+  onHandToBot: async () => ({ error: '' }),
+  onFuture: async () => ({ error: '' }),
+};
 
 /** Until the tab hands the real one over: the switch shows on, and nothing is asked of the server. */
 const NO_REPLY: DemoReplyControls = { auto: true, armed: false, inFlight: false, setAuto: () => {}, replyNow: () => {} };
@@ -115,6 +142,7 @@ function ThreadHeader({
   onRelease,
   refining,
   onRefine,
+  acts,
 }: {
   contact: WahubContactDetail;
   now: Date;
@@ -122,6 +150,8 @@ function ThreadHeader({
   refining: boolean;
   /** "דיוק": start marking messages, or stop. Absent where there is no small chat to open. */
   onRefine?: () => void;
+  /** ✓ and the clock. Absent on a server that does not know them: the row is then as it was. */
+  acts?: HeaderActs;
 } & Pick<
   ChatThreadProps,
   'handoverBusy' | 'showBack' | 'showDetailsButton' | 'onShowCard' | 'onBack' | 'onDetails' | 'onTakeover' | 'onRelease'
@@ -133,6 +163,9 @@ function ThreadHeader({
   const liveTest = contact.live_test === true;
   // The card and its actions are not on screen: a press away (a tablet), or put away (a desktop).
   const cardAway = showDetailsButton || Boolean(onShowCard);
+  // A future lead a person holds is handed back from its own chip ("להחזיר לבוט" reads the conversation first);
+  // the plain hand-back would leave the mark standing, so it is not offered beside it.
+  const plainRelease = !(acts?.futureLead && human);
 
   return (
     <header className={s.threadHead}>
@@ -141,7 +174,8 @@ function ThreadHeader({
           <ArrowRight aria-hidden="true" />
         </button>
       )}
-      <ContactAvatar contact={contact} />
+      {/* One screen at a time (a phone): ✓ and the clock need the round mark's room; the name beside them says who. */}
+      {!(acts && showBack) && <ContactAvatar contact={contact} />}
       <div className="min-w-0 flex-1">
         {/* The name is a press away from the details; on a phone a short state line sits under it, as in a messaging app. */}
         <button type="button" onClick={onDetails} title="פרטי איש הקשר" className={s.threadName}>
@@ -208,27 +242,58 @@ function ThreadHeader({
           away, it stays here.
         */}
         {!cardAway ? null : human ? (
-          <button type="button" onClick={onRelease} disabled={handoverBusy} className={cx(s.btn, s.btnSm, s.deskOnly)}>
-            {handoverBusy ? <Spinner className="h-3.5 w-3.5" /> : <Undo2 aria-hidden="true" />}
-            החזר לבוט
-          </button>
+          plainRelease && (
+            <button type="button" onClick={onRelease} disabled={handoverBusy} className={cx(s.btn, s.btnSm, s.deskOnly)}>
+              {handoverBusy ? <Spinner className="h-3.5 w-3.5" /> : <Undo2 aria-hidden="true" />}
+              החזר לבוט
+            </button>
+          )
         ) : (
           <button type="button" onClick={onTakeover} disabled={handoverBusy} className={cx(s.btn, s.btnSm, s.btnP, s.deskOnly)}>
             {handoverBusy ? <Spinner className="h-3.5 w-3.5" /> : <Hand aria-hidden="true" />}
             קח שיחה
           </button>
         )}
-        {/* The phone keeps the same action as one icon at the end of the title row. */}
-        <button
-          type="button"
-          onClick={human ? onRelease : onTakeover}
-          disabled={handoverBusy}
-          aria-label={human ? 'החזר לבוט' : 'קח שיחה'}
-          title={human ? 'החזר לבוט' : 'קח שיחה'}
-          className={cx(s.ib, s.phoneIb, human ? s.ibGold : s.ibNavy)}
-        >
-          {handoverBusy ? <Spinner /> : human ? <Undo2 aria-hidden="true" /> : <Hand aria-hidden="true" />}
-        </button>
+        {/* The phone keeps the same action as one icon at the end of the title row — until ✓ and the clock take
+            that place: taking the conversation is then in the card, a press on the name away, as on a desktop. */}
+        {!acts && (
+          <button
+            type="button"
+            onClick={human ? onRelease : onTakeover}
+            disabled={handoverBusy}
+            aria-label={human ? 'החזר לבוט' : 'קח שיחה'}
+            title={human ? 'החזר לבוט' : 'קח שיחה'}
+            className={cx(s.ib, s.phoneIb, human ? s.ibGold : s.ibNavy)}
+          >
+            {handoverBusy ? <Spinner /> : human ? <Undo2 aria-hidden="true" /> : <Hand aria-hidden="true" />}
+          </button>
+        )}
+        {/* ✓ closes the conversation; the clock puts it off — to the bot, or to a day of one's own. At every width. */}
+        {acts && (
+          <>
+            <button
+              type="button"
+              onClick={acts.onClose}
+              disabled={acts.closeBusy}
+              aria-label="סגירת שיחה"
+              title="סגירת שיחה – סיימתי כאן"
+              className={cx(s.ib, f.ibDone)}
+            >
+              {acts.closeBusy ? <Spinner /> : <Check aria-hidden="true" />}
+            </button>
+            <button
+              type="button"
+              onClick={acts.onLater}
+              aria-expanded={acts.laterOpen}
+              aria-haspopup="dialog"
+              aria-label="לטפל בהמשך"
+              title="לטפל בהמשך"
+              className={cx(s.ib, f.ibLater, acts.laterOpen && f.ibLaterOn)}
+            >
+              <Clock aria-hidden="true" />
+            </button>
+          </>
+        )}
         {showDetailsButton && (
           <button
             type="button"
@@ -250,6 +315,16 @@ function ThreadHeader({
       </div>
     </header>
   );
+}
+
+interface HeaderActs {
+  closeBusy: boolean;
+  /** The clock's bubble is open. */
+  laterOpen: boolean;
+  /** The contact is a future lead. */
+  futureLead: boolean;
+  onClose: () => void;
+  onLater: () => void;
 }
 
 /**
@@ -279,8 +354,16 @@ export default function ChatThread({
   onOpenKnowledgeItem,
   onSimulate,
   demoReply = NO_REPLY,
+  future,
 }: ChatThreadProps) {
   const { contact, messages, status } = thread;
+  // ✓, the clock and the note: only where the server knows them (`chat.open` on the contact).
+  const acts = future && knowsFutureLeads(contact) ? future : null;
+  const futureLead = acts ? futureOf(contact) : null;
+  const notes = acts ? contact?.notes : undefined;
+  const later = useLater(thread.contactId, futureLead, acts ?? NO_LATER);
+  // A press beside the bubble, or Escape, puts it away — but not from under a save that is on its way.
+  const laterBox = useDismiss(later.isOpen && !later.locked, later.close);
   // "הבוט כותב…" stands at the end of a demo conversation while the new bot's answer is on its way.
   const typing = demoReply.inFlight && isDemoContact(contact);
   const scroller = useRef<HTMLDivElement | null>(null);
@@ -293,15 +376,26 @@ export default function ChatThread({
     pending: Map<number, WahubSender>;
     height: number;
     olderLoads: number;
+    /** The notes that were on screen; null until this conversation's notes were read once. */
+    notes: Set<number> | null;
   }>({
     contactId: null,
     ids: new Set(),
     pending: new Map(),
     height: 0,
     olderLoads: 0,
+    notes: null,
   });
 
-  const days = useMemo(() => groupMessagesByDay(messages, now), [messages, now]);
+  // The messages by day — and, where it was written, each note about the customer.
+  const days = useMemo(() => threadDays(messages, notes, now, thread.hasOlder), [messages, notes, now, thread.hasOlder]);
+  // A note that was not on screen at the last draw of this conversation was just written: it comes in softly.
+  const freshNotes = useMemo(() => {
+    const before = seen.current;
+    if (!notes || before.contactId !== thread.contactId || !before.notes) return NO_IDS;
+    const fresh = notes.filter((note) => !before.notes?.has(note.id));
+    return fresh.length > 0 && fresh.length <= 2 ? new Set(fresh.map((note) => note.id)) : NO_IDS;
+  }, [notes, thread.contactId]);
 
   // "דיוק": marking messages here, and the small chat it opens (docs/WAHUB-CONTRACT-REFINE.md, ב). The marks
   // come up only from the button at the top of the conversation (docs/WAHUB-CONTRACT-POLISH-1.md, ב).
@@ -379,9 +473,13 @@ export default function ChatThread({
     const before = seen.current;
     const ids = new Set(messages.map((message) => message.id));
     const pending = new Map(messages.filter(isOptimistic).map((message) => [message.id, message.sender] as const));
+    const noteIds = notes ? new Set(notes.map((note) => note.id)) : null;
+    // A note was written here a moment ago: it is shown, wherever the reader had scrolled to.
+    const wroteNote =
+      before.contactId === thread.contactId && before.notes !== null && noteIds !== null && [...noteIds].some((id) => !before.notes?.has(id));
 
     if (!element) {
-      seen.current = { contactId: thread.contactId, ids, pending, height: 0, olderLoads: thread.olderLoads };
+      seen.current = { contactId: thread.contactId, ids, pending, height: 0, olderLoads: thread.olderLoads, notes: noteIds };
       return;
     }
 
@@ -406,14 +504,22 @@ export default function ChatThread({
         } else if (news.length) {
           setUnseen((count) => count + news.length);
         }
-      } else if (atBottom.current) {
-        // Nothing new, but the end may have grown ("הבוט כותב…" came or went): stay on it.
+      } else if (atBottom.current || wroteNote) {
+        // Nothing new, but the end may have grown ("הבוט כותב…" came or went, a note was written): stay on it.
         element.scrollTop = element.scrollHeight;
+        atBottom.current = true;
       }
     }
 
-    seen.current = { contactId: thread.contactId, ids, pending, height: element.scrollHeight, olderLoads: thread.olderLoads };
-  }, [messages, thread.contactId, thread.olderLoads, status, typing]);
+    seen.current = {
+      contactId: thread.contactId,
+      ids,
+      pending,
+      height: element.scrollHeight,
+      olderLoads: thread.olderLoads,
+      notes: noteIds,
+    };
+  }, [messages, notes, thread.contactId, thread.olderLoads, status, typing]);
 
   // Out of view the scroller has no size, so "stay at the newest" could not be
   // kept while messages arrived. Coming back into view puts it right.
@@ -446,21 +552,59 @@ export default function ChatThread({
   }
 
   return (
-    <div className={cx(s.pane, 'flex-1')}>
-      <ThreadHeader
-        contact={contact}
-        now={now}
-        handoverBusy={handoverBusy}
-        showBack={showBack}
-        showDetailsButton={showDetailsButton}
-        onShowCard={onShowCard}
-        onBack={onBack}
-        onDetails={onDetails}
-        onTakeover={onTakeover}
-        onRelease={onRelease}
-        refining={picking.active}
-        onRefine={refine.available ? () => (picking.active ? picking.cancel() : picking.start()) : undefined}
-      />
+    // Positioned: on a phone the clock's sheet lies over this column, and only over it.
+    <div className={cx(s.pane, 'relative flex-1')}>
+      {/* The title row, and the clock's bubble hanging from it. */}
+      <div ref={laterBox} className={f.anchor}>
+        <ThreadHeader
+          contact={contact}
+          now={now}
+          handoverBusy={handoverBusy}
+          showBack={showBack}
+          showDetailsButton={showDetailsButton}
+          onShowCard={onShowCard}
+          onBack={onBack}
+          onDetails={onDetails}
+          onTakeover={onTakeover}
+          onRelease={onRelease}
+          refining={picking.active}
+          onRefine={refine.available ? () => (picking.active ? picking.cancel() : picking.start()) : undefined}
+          acts={
+            acts
+              ? {
+                  closeBusy: acts.closeBusy,
+                  laterOpen: later.isOpen,
+                  futureLead: futureLead !== null,
+                  onClose: acts.onClose,
+                  onLater: () => (later.isOpen ? later.close() : later.openMenu()),
+                }
+              : undefined
+          }
+        />
+        {acts && later.step && (
+          <>
+            {/* A phone only: the ground behind the sheet; a press on it puts the sheet away. */}
+            <button type="button" onClick={later.close} disabled={later.locked} aria-label="סגור" tabIndex={-1} className={f.scrim} />
+            <LaterPanelView
+              step={later.step}
+              future={futureLead}
+              today={acts.today}
+              due={later.due}
+              reason={later.reason}
+              onDue={later.setDue}
+              onReason={later.setReason}
+              onBot={() => void later.handToBot()}
+              onMine={later.openForm}
+              onSave={() => void later.save()}
+              onDone={() => {
+                later.close();
+                acts.onClose();
+              }}
+              onClose={later.close}
+            />
+          </>
+        )}
+      </div>
 
       {contact.chat.needs_human && (
         <div role="status" className={s.needStrip}>
@@ -470,16 +614,32 @@ export default function ChatThread({
             {contact.chat.needs_human_reason ? ` · ${contact.chat.needs_human_reason}` : ''}
             {contact.chat.needs_human_at ? <span> · {agoText(contact.chat.needs_human_at, now)}</span> : null}
           </p>
-          <button
-            type="button"
-            onClick={onResolveNeedsHuman}
-            disabled={resolveBusy}
-            className={cx(s.btn, s.btnSm, s.btnBad)}
-          >
-            <Check aria-hidden="true" />
-            טופל
-          </button>
+          {/* "טופל" is the ✓ of the title row where there is one — one button for "done", not two. */}
+          {!acts && (
+            <button
+              type="button"
+              onClick={onResolveNeedsHuman}
+              disabled={resolveBusy}
+              className={cx(s.btn, s.btnSm, s.btnBad)}
+            >
+              <Check aria-hidden="true" />
+              טופל
+            </button>
+          )}
         </div>
+      )}
+
+      {/* A future lead: its chip at the head of the conversation, with the three things that can be done with it. */}
+      {acts && futureLead && (
+        <FutureStrip
+          future={futureLead}
+          today={acts.today}
+          now={now}
+          doneBusy={acts.closeBusy}
+          onDone={acts.onClose}
+          onPostpone={later.openForm}
+          onToBot={() => void later.handToBot()}
+        />
       )}
 
       <div className="relative min-h-0 flex-1">
@@ -511,7 +671,7 @@ export default function ChatThread({
                 </div>
               )}
 
-              {messages.length === 0 ? (
+              {days.length === 0 ? (
                 <p className={cx(s.muted, 'py-10 text-center')}>עוד אין הודעות בשיחה הזו.</p>
               ) : (
                 days.map((day) => (
@@ -520,7 +680,10 @@ export default function ChatThread({
                       <span>{day.label}</span>
                     </p>
                     <div className="flex flex-col gap-1.5">
-                      {day.messages.map((message) => {
+                      {day.items.map((item) => {
+                        // A note is no message: it is not marked for "דיוק", and nothing answers it.
+                        if (item.kind === 'note') return <NoteRow key={item.key} note={item.note} arrived={freshNotes.has(item.note.id)} />;
+                        const { message } = item;
                         const shadow = message.direction === 'in' ? shadowByMessage?.get(message.id) : undefined;
                         return (
                           <RefineRow
@@ -586,6 +749,7 @@ export default function ChatThread({
         onSend={thread.send}
         onSendFlow={thread.sendFlow}
         onOpenSettings={onOpenSettings}
+        onNote={acts?.onNote}
       />
       {onSimulate && isDemoContact(contact) && <DemoComposer contact={contact} onSend={onSimulate} reply={demoReply} />}
     </div>
