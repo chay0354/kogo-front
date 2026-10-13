@@ -164,7 +164,8 @@ function NoteButton({ onClick, alone = false }: { onClick: () => void; /** Besid
       className={cx(s.btn, s.btnSm, alone && f.noteBtnAlone)}
     >
       <StickyNote aria-hidden="true" />
-      <span className={s.toolLabel}>פתק</span>
+      {/* In the row of tools a phone keeps the icons alone; beside a locked box there is room for the word, and it is said. */}
+      <span className={alone ? undefined : s.toolLabel}>פתק</span>
     </button>
   );
 }

@@ -152,28 +152,38 @@ export function WaitingActions({ entryId, name, lesson, busy, onAct }: WaitingAc
   );
 }
 
-/** A place was freed: the headline, and the two actions — the first thing under "מה קורה עכשיו". */
+/**
+ * A place was freed: the headline, what is known of the entry — the child, since when they wait, their place
+ * in line — and the two actions. The first thing under "מה קורה עכשיו"; the entry is then not told again
+ * in the list under it.
+ */
 export function FreedBlock({
   mark,
+  entry,
   name,
+  now,
   busy,
   onAct,
 }: {
   mark: WahubWaitingMark;
+  /** The same entry as the full read has it — it knows the place in line. Absent until that read lands. */
+  entry?: WahubWaitingEntry | null;
   name: string;
+  now: Date;
   busy: WaitingBusy | null;
   /** Absent: the headline alone (the screen cannot act on entries). */
   onAct?: (entryId: number, action: WaitingAction) => void;
 }) {
+  const facts = [mark.child, waitingSinceText(mark.since, now), entry?.position ? `מקום ${entry.position} בתור` : ''].filter(Boolean);
   return (
     <section className={l.freedBox} aria-label="התפנה מקום">
       <p className={l.freedTitle}>
         <BellRing aria-hidden="true" />
         <span dir="auto">{mark.title}</span>
       </p>
-      {mark.child && (
+      {facts.length > 0 && (
         <p className={l.freedChild} dir="auto">
-          {mark.child}
+          {facts.join(' · ')}
         </p>
       )}
       {onAct && mark.entry_id > 0 && (
@@ -184,9 +194,11 @@ export function FreedBlock({
 }
 
 /**
- * Every waiting-list entry of this person — a freed place first, then whoever
- * still waits, then what was closed: the lesson, and under it where the entry stands. A further entry whose place was freed carries its
- * own two actions; the first one's are in the block at the head of the details.
+ * The waiting-list entries of this person — a freed place first, then whoever
+ * still waits, then what was closed: the lesson, and under it where the entry
+ * stands. The entry the block at the head of the details already tells is left
+ * out (each thing once); a further entry whose place was freed carries its own
+ * two actions.
  */
 export function WaitingEntries({
   entries,
@@ -206,7 +218,7 @@ export function WaitingEntries({
 }) {
   return (
     <ul className={l.entries}>
-      {sortEntries(entries).map((entry) => {
+      {sortEntries(entries.filter((entry) => entry.id !== headId)).map((entry) => {
         const active = isActiveEntry(entry);
         return (
           <li key={entry.id} className={cx(l.entry, !active && l.entryOff, entry.status === 'freed' && l.entryFreed)}>
@@ -214,7 +226,7 @@ export function WaitingEntries({
               {entry.lesson_label || entry.title}
             </p>
             <p className={l.entryFacts}>{waitingEntryFacts(entry, now).join(' · ')}</p>
-            {onAct && entry.status === 'freed' && entry.id !== headId && (
+            {onAct && entry.status === 'freed' && (
               <WaitingActions entryId={entry.id} name={name} lesson={entry.lesson_label} busy={busy} onAct={onAct} />
             )}
           </li>

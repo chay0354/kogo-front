@@ -307,6 +307,9 @@ export default function LeadDetails({
   // The entries, from their own read — and until it lands, the one the row already carries.
   const entries = details?.waiting_list_entries ?? (waiting ? [entryOfMark(waiting)] : []);
   const name = lead ? leadTitle(lead) : '';
+  // The freed place that stands at the head of the details; its entry is then not told again in the list.
+  const headFreed = freed && !isClosed ? freed : null;
+  const otherEntries = headFreed ? entries.filter((entry) => entry.id !== headFreed.entry_id) : entries;
   const blocker = saysMore(details?.blocker_text, ...said) ? details?.blocker_text ?? '' : '';
   const child = factsBeyond(childFacts(details?.child), lead?.chips.child, why);
   const trial = trialFacts(details?.trial, now);
@@ -416,7 +419,16 @@ export default function LeadDetails({
             )}
 
             {/* A place was freed: what to offer, and the two things that can be done about it. */}
-            {freed && !isClosed && <FreedBlock mark={freed} name={name} busy={waitingBusy} onAct={onWaiting} />}
+            {headFreed && (
+              <FreedBlock
+                mark={headFreed}
+                entry={entries.find((entry) => entry.id === headFreed.entry_id)}
+                name={name}
+                now={now}
+                busy={waitingBusy}
+                onAct={onWaiting}
+              />
+            )}
 
             {/* A future lead: its mark, the reason the office wrote, whose it is. */}
             {future && !isClosed && <FutureBlock future={future} today={israelToday(now)} now={now} said={nowWords} />}
@@ -489,13 +501,13 @@ export default function LeadDetails({
                   </FoldSection>
                 )}
 
-                {entries.length > 0 && (
-                  <Section title="רשימת המתנה">
+                {otherEntries.length > 0 && (
+                  <Section title={headFreed ? 'עוד ברשימת ההמתנה' : 'רשימת המתנה'}>
                     <WaitingEntries
-                      entries={entries}
+                      entries={otherEntries}
                       now={now}
                       name={name}
-                      headId={freed && !isClosed ? freed.entry_id : null}
+                      headId={headFreed ? headFreed.entry_id : null}
                       busy={waitingBusy}
                       onAct={isClosed ? undefined : onWaiting}
                     />

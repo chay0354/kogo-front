@@ -620,6 +620,8 @@ describe('a note about the customer: a line of the log, and it looks it', () => 
   it('the small "פתק" button stands beside the writing box — also when nothing can be sent', () => {
     const locked = conversation(knowing(), { sendingOff: true });
     expect(locked).toContain('aria-label="פתק על הלקוח"');
+    // Beside a locked box its word is said on a phone too; in the row of tools a phone keeps the icons alone.
+    expect(locked).toMatch(/aria-label="פתק על הלקוח"[^>]*>(?:<svg[^]*?<\/svg>)<span>פתק<\/span>/);
     const open = conversation(knowing(), { sendingOff: false });
     expect(open).toContain('aria-label="פתק על הלקוח"');
     // A button, not a switch.
@@ -984,13 +986,35 @@ describe('a lead\'s details', () => {
     const html = render(details(FREED_LEAD, { notes: [NOTE], waiting_list_entries: entries }));
     expect(html).toMatch(/פתקים <span[^>]*>\(1\)<\/span>/);
     expect(html).toContain('אמא ביקשה שנחזור אחרי החגים');
-    expect(html).toContain('רשימת המתנה');
-    expect(html).toContain('התפנה מקום · נכנס ב-13.10 · בן 5 · מקום 1 בתור');
+    // The freed place tells its own facts at the head of the details — the child, since when, the place in line…
+    expect(html).toContain('בן 5, גן חובה · נכנס ב-13.10 · מקום 1 בתור');
+    // …and is not told a second time in the list, which holds the rest.
+    expect(html).toContain('עוד ברשימת ההמתנה');
+    expect(html.split('מקום 1 בתור').length - 1).toBe(1);
     expect(html).toContain('הוסר · נכנס ב-1.10 · השיעור נמחק · נסגר ב-5.10');
-    // What still stands is read before what was closed.
-    expect(html.indexOf('מקום 1 בתור')).toBeLessThan(html.indexOf('השיעור נמחק'));
-    // The freed entry's two actions are at the head of the details — once, not again in the list.
     expect(html.split('להסיר מהרשימה').length - 1).toBe(1);
+  });
+
+  it('a freed place that is the only entry needs no list under it', () => {
+    const only = [{ id: 7, status: 'freed', status_label: 'התפנה מקום', lesson_label: WAITING.label, child: 'בן 5', added_by: 'bot' as const, added_by_name: '', created_at: WAITING.since, freed_at: FREED.freed_at, closed_at: null, closed_by_name: '', closed_reason: '', position: 1, title: FREED.title }];
+    const html = render(details(FREED_LEAD, { waiting_list_entries: only }));
+    expect(html).toContain(l.freedBox);
+    expect(html).not.toContain('>רשימת המתנה<');
+    expect(html).not.toContain('עוד ברשימת ההמתנה');
+    expect(html).not.toContain(l.entries);
+  });
+
+  it('a lead that only waits shows its entries under their own title, the one that waits before the one that was closed', () => {
+    const entries = [
+      { id: 5, status: 'removed', status_label: 'הוסר', lesson_label: 'אקרובטיקה · יום ראשון · 16:00 · מינץ', child: '', added_by: 'person' as const, added_by_name: 'דור', created_at: '2026-10-01T08:00:00Z', freed_at: null, closed_at: '2026-10-05T08:00:00Z', closed_by_name: 'דור', closed_reason: 'השיעור נמחק', position: null, title: '' },
+      { id: 7, status: 'waiting', status_label: 'ממתין', lesson_label: WAITING.label, child: 'בן 5', added_by: 'bot' as const, added_by_name: '', created_at: WAITING.since, freed_at: null, closed_at: null, closed_by_name: '', closed_reason: '', position: 2, title: WAITING.title },
+    ];
+    const html = render(details(lead({ waiting_list: WAITING }), { waiting_list_entries: entries }));
+    expect(html).toContain('>רשימת המתנה<');
+    expect(html).toContain('ממתין · נכנס ב-13.10 · בן 5 · מקום 2 בתור');
+    expect(html.indexOf('מקום 2 בתור')).toBeLessThan(html.indexOf('השיעור נמחק'));
+    // Nothing to press on an entry that only waits.
+    expect(html).not.toContain('להסיר מהרשימה');
   });
 
   it('a second place that was freed carries its own two actions in the list', () => {
@@ -1000,6 +1024,9 @@ describe('a lead\'s details', () => {
     }));
     const html = render(details({ ...FREED_LEAD, waiting_list: { ...FREED, more: 1 } }, { waiting_list_entries: entries }));
     expect(html.split('להסיר מהרשימה').length - 1).toBe(2);
+    // The first is at the head; only the second is in the list.
+    expect(html).not.toContain('שיעור 7');
+    expect(html).toContain('שיעור 9');
   });
 
   it('a future lead: its mark, the reason in full, whose it is — and that the bot still answers, only when it does', () => {

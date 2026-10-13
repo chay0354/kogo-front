@@ -851,10 +851,11 @@ button.boxQuiet:not([aria-pressed='true']) {
     padding-bottom: calc(14px + env(safe-area-inset-bottom, 0px));
   }
 
-  /* "פתק" beside a locked writing box: a finger's width (in the row of tools it takes that row's size). */
+  /* "פתק" beside a locked writing box: a finger tall (in the row of tools it takes that row's size). */
   button.noteBtnAlone {
-    min-width: 44px;
     height: 40px;
+    padding: 0 12px;
+    font-size: 13.5px;
   }
 
   .stripActs > button {
