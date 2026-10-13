@@ -360,6 +360,11 @@ export default function InstructorAttendance({
                           </span>
                         )
                       )}
+                      {student.leaving && (
+                        <span className={styles.trialTag} title="ביטל את החוג, ומגיע עד סוף החודש ששילם עליו">
+                          עד סוף החודש
+                        </span>
+                      )}
                       {student.child_status === 'ghost' && (
                         <button
                           type="button"

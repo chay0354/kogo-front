@@ -12,8 +12,8 @@ export const DAY_LETTERS: Record<WeekDay, string> = {
 };
 
 /**
- * כמה תלמידים פעילים בשיעור — הרשימה כוללת גם את תלמידי הניסיון של אותו מופע,
- * והם נספרים בנפרד. מופעים שנשמרו לפני שהשדה נוסף נגזרים מהרשימה פחות הניסיון.
+ * כמה רשומים לשיעור (lib/lessonHeadcount) — הרשימה כוללת גם את תלמידי הניסיון של
+ * אותו מופע, והם נספרים בנפרד. מופעים שנשמרו לפני שהשדה נוסף נגזרים מהרשימה פחות הניסיון.
  */
 export function activeCount(lesson: Lesson, trialCount: number): number {
   if (lesson.active_student_count != null) return lesson.active_student_count;

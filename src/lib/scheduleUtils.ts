@@ -503,6 +503,8 @@ export interface InstructorTrial {
 export interface InstructorTrials {
   counts: Record<string, number>;
   total: number;
+  /** היו בניסיון ולא נרשמו: הגיעו, לא הגיעו, או שלא סומן. */
+  not_registered?: number;
   trials: InstructorTrial[];
   labels: Record<string, string>;
   date_from: string;

@@ -27,7 +27,7 @@ describe('one number of students for a lesson', () => {
   it('says what else is on the register that day', () => {
     expect(lessonTrials(lesson)).toBe(1);
     expect(lessonOthers(lesson)).toBe(3);
-    expect(lessonCountDetail(lesson, 20)).toBe('4/20 · 1 ניסיון · 3 ברשימה שאינם תלמידים פעילים');
+    expect(lessonCountDetail(lesson, 20)).toBe('4/20 · 1 ניסיון · 3 מזדמנים');
     expect(lessonCountDetail({ enrollment_count: 5, active_student_count: 5 }, 20)).toBe('5/20');
   });
 
@@ -48,7 +48,7 @@ describe('the same split from the register itself', () => {
     expect(registerCounts(rows)).toEqual({ students: 2, trials: 1, others: 1, total: 4 });
   });
 
-  it('without it, the same rule from the row: פעיל, בעיית תשלום and the municipality\'s children are students', () => {
+  it('without it, the same rule from the row: פעיל, בעיה באשראי, בתהליך רישום and the municipality\'s children are registered', () => {
     const rows = [
       { child_status: 'active' },
       { child_status: 'payment_problem' },
@@ -59,7 +59,7 @@ describe('the same split from the register itself', () => {
       { child_status: 'ghost' },
       { child_status: 'active', is_trial: true },
     ];
-    expect(registerCounts(rows)).toEqual({ students: 3, trials: 1, others: 4, total: 8 });
+    expect(registerCounts(rows)).toEqual({ students: 4, trials: 1, others: 3, total: 8 });
   });
 
   it('an empty register', () => {
