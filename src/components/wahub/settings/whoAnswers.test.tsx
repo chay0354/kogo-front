@@ -483,7 +483,7 @@ describe('going back to "בדיקה בלבד"', () => {
   });
 
   it('a change that was refused, or whose outcome is not known, is said on the card', () => {
-    const html = card({ state: HELD, notice: 'השרת לא ענה, ולא ידוע אם השינוי נשמר. המצב שמוצג כאן נקרא עכשיו שוב מהשרת.' });
+    const html = card({ state: HELD, notice: 'השרת לא ענה, ולא ידוע אם השינוי נשמר. לפני שמנסים שוב — בדקו מה מוצג כאן.' });
     expect(html).toContain(`<p role="alert" class="${g.error}">`);
     expect(html).toContain('השרת לא ענה, ולא ידוע אם השינוי נשמר.');
   });
@@ -625,7 +625,14 @@ const FOUR_LINES = [
   { key: 'sending', ok: true, title: 'שליחה ללקוחות', detail: 'פעילה, דרך ManyChat' },
   { key: 'templates', ok: true, title: 'תבניות וואטסאפ', detail: '5 מתוך 5 של שלב 1 מחוברות' },
 ];
-const FIFTH_OFF = { key: 'followups', ok: false, title: 'חזרות אוטומטיות', detail: 'כבויות — הבוט מתכנן חזרות ולא שולח אותן', how: 'מדליקים במתג שבשורה הזאת' };
+/** As the server words it (lead_automation.py): its "how" names the settings, where the switch is not. */
+const FIFTH_OFF = {
+  key: 'followups',
+  ok: false,
+  title: 'חזרות אוטומטיות',
+  detail: 'כבויות — הבוט מתכנן חזרות ולא שולח אותן',
+  how: 'מדליקים בהגדרות, ליד "למי הבוט החדש עונה". רק חזרות שמועדן אחרי ההדלקה יוצאות — מה שחיכה עד אז מדולג',
+};
 const FIFTH_ON = { key: 'followups', ok: true, title: 'חזרות אוטומטיות', detail: 'דלוקות — יוצאות רק חזרות שמועדן אחרי 12:05' };
 
 const automationOf = (lines: unknown[], ready: boolean) =>
@@ -698,7 +705,9 @@ describe('the switch of the comings back', () => {
     expect(fifth).toContain('aria-label="חסר"');
     expect(fifth).toContain(`<p class="${a.lineDetail}">כבויות — הבוט מתכנן חזרות ולא שולח אותן</p>`);
     expect(fifth).toContain('<b>איך מתקנים:</b>');
-    expect(fifth).toContain('מדליקים במתג שבשורה הזאת');
+    // The switch is on this very line: the line says so, and does not send the reader elsewhere.
+    expect(fifth).toContain('מדליקים במתג שבשורה הזאת.');
+    expect(fifth).not.toContain('למי הבוט החדש עונה');
   });
 
   it('off: said by the switch and by the words — "כבויות"', () => {
@@ -802,10 +811,12 @@ describe('the switch of the comings back', () => {
     expect(html).not.toContain('חזרות אוטומטיות');
   });
 
-  it('a line from a newer server without the switch\'s state is still a line like the others', () => {
+  it('the line without the switch\'s state (it is still being read) is a line like the others, in the server\'s words', () => {
     const html = automationCard({ automation: AUTO_OFF });
     expect(switches(html)).toBe(0);
-    expect(lineOf(html, 'חזרות אוטומטיות')).toContain('כבויות — הבוט מתכנן חזרות ולא שולח אותן');
+    const fifth = lineOf(html, 'חזרות אוטומטיות');
+    expect(fifth).toContain('כבויות — הבוט מתכנן חזרות ולא שולח אותן');
+    expect(fifth).toContain('מדליקים בהגדרות, ליד');
   });
 });
 

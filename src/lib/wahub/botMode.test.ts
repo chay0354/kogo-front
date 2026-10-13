@@ -405,22 +405,36 @@ describe('the switch of the comings back to the leads', () => {
   ];
   const FIFTH = { key: FOLLOWUPS_LINE_KEY, ok: false, title: 'חזרות אוטומטיות', detail: 'כבויות', how: 'מדליקים במתג' };
 
-  it('the server\'s fifth line stays the server\'s — only its sentence follows the switch beside it', () => {
+  it('the server\'s fifth line keeps its tick and its title — its sentence follows the switch beside it', () => {
     const lines = withFollowupsLine([...FOUR, FIFTH], { on: true, text: 'דלוקות — יוצאות רק חזרות שמועדן אחרי 12:05' });
     expect(lines).toHaveLength(5);
-    expect(lines[4]).toEqual({ ...FIFTH, detail: 'דלוקות — יוצאות רק חזרות שמועדן אחרי 12:05' });
+    expect(lines[4]).toMatchObject({ key: 'followups', ok: false, title: 'חזרות אוטומטיות', detail: 'דלוקות — יוצאות רק חזרות שמועדן אחרי 12:05' });
     expect(lines.slice(0, 4)).toEqual(FOUR);
   });
 
-  it('the switch says nothing: the server\'s line as it is', () => {
-    expect(withFollowupsLine([...FOUR, FIFTH], { on: false, text: '' })[4]).toEqual(FIFTH);
+  it('the switch stands on the line itself, so "how it is put right" points at it — not at somewhere else in the settings', () => {
+    const elsewhere = { ...FIFTH, how: 'מדליקים בהגדרות, ליד "למי הבוט החדש עונה". רק חזרות שמועדן אחרי ההדלקה יוצאות' };
+    const line = withFollowupsLine([...FOUR, elsewhere], { on: false, text: 'כבויות — הבוט מתכנן חזרות ולא שולח אותן' })[4];
+    expect(line.how).toBe('מדליקים במתג שבשורה הזאת.');
+    // A line that stands needs no putting right.
+    expect(withFollowupsLine([...FOUR, { ...FIFTH, ok: true }], { on: true, text: 'דלוקות' })[4].how).toBe('');
+  });
+
+  it('the switch says nothing: the server\'s own sentence stays', () => {
+    expect(withFollowupsLine([...FOUR, FIFTH], { on: false, text: '' })[4].detail).toBe('כבויות');
   });
 
   it('a server that sent no such line: one is added from what the switch says, so the switch has a line to stand on', () => {
     const lines = withFollowupsLine(FOUR, { on: false, text: 'כבויות — הבוט מתכנן חזרות ולא שולח אותן' });
     expect(lines).toHaveLength(5);
-    expect(lines[4]).toEqual({ key: 'followups', ok: false, title: 'חזרות אוטומטיות', detail: 'כבויות — הבוט מתכנן חזרות ולא שולח אותן', how: '' });
-    expect(withFollowupsLine(FOUR, { on: true, text: 'דלוקות' })[4].ok).toBe(true);
+    expect(lines[4]).toEqual({
+      key: 'followups',
+      ok: false,
+      title: 'חזרות אוטומטיות',
+      detail: 'כבויות — הבוט מתכנן חזרות ולא שולח אותן',
+      how: 'מדליקים במתג שבשורה הזאת.',
+    });
+    expect(withFollowupsLine(FOUR, { on: true, text: 'דלוקות' })[4]).toMatchObject({ ok: true, how: '' });
   });
 
   it('what turning it on leaves behind, with the number', () => {

@@ -184,8 +184,9 @@ export const WHO_ANSWERS_TEXT = {
   todayTitle: 'היום',
   failureTitle: 'הכשל האחרון',
   logTitle: 'מי שינה ומתי',
-  /** A change that was sent and not answered: whether it was kept is not known. */
-  unknown: 'השרת לא ענה, ולא ידוע אם השינוי נשמר. המצב שמוצג כאן נקרא עכשיו שוב מהשרת.',
+  /** A change that was sent and not answered: whether it was kept is not known. The card is read again from the server
+   *  (and says so itself when that, too, got no answer). */
+  unknown: 'השרת לא ענה, ולא ידוע אם השינוי נשמר. לפני שמנסים שוב — בדקו מה מוצג כאן.',
   goLiveFailed: 'ההדלקה לא נשמרה. נסו שוב.',
   backFailed: 'החזרה לבדיקה בלבד לא נשמרה. נסו שוב.',
 } as const;
@@ -193,6 +194,8 @@ export const WHO_ANSWERS_TEXT = {
 export const FOLLOWUPS_TEXT = {
   switchLabel: 'חזרות אוטומטיות ללידים',
   title: 'חזרות אוטומטיות',
+  /** How the line is put right, where the switch stands on the line itself. */
+  how: 'מדליקים במתג שבשורה הזאת.',
   question: 'להדליק את החזרות האוטומטיות ללידים?',
   line: 'ייצאו רק חזרות שמועדן מעכשיו והלאה; מה שהגיע זמנו קודם לא יישלח.',
   confirm: 'כן, להדליק',
@@ -351,16 +354,23 @@ interface AutomationLine {
 
 /**
  * The lines of "חזרה אוטומטית ללידים" with the line of the switch among them.
- * Where the server sent that line it stays the server's — its tick, its title,
- * its "how" — and only its sentence is taken from the switch itself, so the
- * words and the switch beside them never disagree. Where the server sent none,
- * one is added from what the switch says.
+ * Where the server sent that line, its tick and its title stay the server's.
+ * Its sentence is taken from the switch itself, so the words and the switch
+ * beside them never disagree. And how it is put right is said by the screen:
+ * the switch stands on this very line, so the line does not send the reader
+ * to look for it elsewhere. Where the server sent no such line, one is added
+ * from what the switch says.
  */
 export function withFollowupsLine<T extends AutomationLine>(lines: readonly T[], followups: { on: boolean; text: string }): AutomationLine[] {
   if (lines.some((line) => line.key === FOLLOWUPS_LINE_KEY)) {
-    return lines.map((line) => (line.key === FOLLOWUPS_LINE_KEY && followups.text ? { ...line, detail: followups.text } : line));
+    return lines.map((line) =>
+      line.key === FOLLOWUPS_LINE_KEY ? { ...line, detail: followups.text || line.detail, how: line.ok ? '' : FOLLOWUPS_TEXT.how } : line,
+    );
   }
-  return [...lines, { key: FOLLOWUPS_LINE_KEY, ok: followups.on, title: FOLLOWUPS_TEXT.title, detail: followups.text, how: '' }];
+  return [
+    ...lines,
+    { key: FOLLOWUPS_LINE_KEY, ok: followups.on, title: FOLLOWUPS_TEXT.title, detail: followups.text, how: followups.on ? '' : FOLLOWUPS_TEXT.how },
+  ];
 }
 
 /**

@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useRef, useState } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { readableError } from '@/lib/apiError';
 import { FOLLOWUPS_TEXT, WHO_ANSWERS_TEXT, botModeInterval } from '@/lib/wahub/botMode';
 import { botModeRefusal, fetchWahubBotMode, isUnanswered, setWahubBotFollowups, setWahubBotMode } from '@/lib/wahub/botModeApi';
@@ -50,6 +50,40 @@ export interface BotModeOutcome {
 }
 
 const DONE: BotModeOutcome = { ok: true, problems: [], message: '', unknown: false };
+/** A press that came while another change was on its way: it did nothing, and says nothing. */
+const SKIPPED: BotModeOutcome = { ok: false, problems: [], message: '', unknown: false };
+
+/**
+ * One change, from the press to the state on screen. Nothing is shown before
+ * the server has answered: what goes into the cache is what the server said —
+ * the answer to the change, or, when it refused, the state it sent beside its
+ * reasons. Whichever way it went the state is read again, and so are the cards
+ * that read from it.
+ */
+export async function applyBotModeChange(queryClient: QueryClient, call: () => Promise<WahubBotMode>, fallback: string): Promise<BotModeOutcome> {
+  try {
+    // A read that is on its way would put the old state back over the answer.
+    await queryClient.cancelQueries({ queryKey: botModeKeys.state });
+    const state = await call();
+    queryClient.setQueryData<WahubBotMode | null>(botModeKeys.state, state);
+    return DONE;
+  } catch (error) {
+    const refusal = botModeRefusal(error);
+    // A refusal carries the state as it stands: it is shown as it is.
+    if (refusal?.state) queryClient.setQueryData<WahubBotMode | null>(botModeKeys.state, refusal.state);
+    if (refusal && refusal.problems.length > 0) {
+      return { ok: false, problems: refusal.problems, message: hebrewOr(refusal.detail, ''), unknown: false };
+    }
+    // No answer: the server may or may not have kept the change. Said as it is, and the state is read again.
+    if (isUnanswered(error)) return { ok: false, problems: [], message: WHO_ANSWERS_TEXT.unknown, unknown: true };
+    return { ok: false, problems: [], message: hebrewOr(readableError(error, fallback), fallback), unknown: false };
+  } finally {
+    // The server has the last word, whichever way it went — and the cards beside this one read from it too.
+    void queryClient.invalidateQueries({ queryKey: botModeKeys.state });
+    void queryClient.invalidateQueries({ queryKey: wahubKeys.status });
+    void queryClient.invalidateQueries({ queryKey: automationKeys.status });
+  }
+}
 
 export interface BotModeChanges {
   /** What is on its way to the server right now; null when nothing is. */
@@ -61,9 +95,8 @@ export interface BotModeChanges {
 }
 
 /**
- * The three changes. Nothing is shown before the server has answered: the
- * state on screen is always what the server last said. One change at a time —
- * a second press while one is on its way does nothing.
+ * The three changes, one at a time: a second press while one is on its way
+ * does nothing.
  */
 export function useBotModeChanges(): BotModeChanges {
   const queryClient = useQueryClient();
@@ -72,32 +105,14 @@ export function useBotModeChanges(): BotModeChanges {
 
   const run = useCallback(
     async (kind: BotModeBusy, call: () => Promise<WahubBotMode>, fallback: string): Promise<BotModeOutcome> => {
-      if (inFlight.current) return { ok: false, problems: [], message: '', unknown: false };
+      if (inFlight.current) return SKIPPED;
       inFlight.current = true;
       setBusy(kind);
       try {
-        // A read that is on its way would put the old state back over the answer.
-        await queryClient.cancelQueries({ queryKey: botModeKeys.state });
-        const state = await call();
-        queryClient.setQueryData<WahubBotMode | null>(botModeKeys.state, state);
-        return DONE;
-      } catch (error) {
-        const refusal = botModeRefusal(error);
-        // A refusal carries the state as it stands: it is shown as it is.
-        if (refusal?.state) queryClient.setQueryData<WahubBotMode | null>(botModeKeys.state, refusal.state);
-        if (refusal && refusal.problems.length > 0) {
-          return { ok: false, problems: refusal.problems, message: hebrewOr(refusal.detail, ''), unknown: false };
-        }
-        // No answer: the server may or may not have kept the change. Said as it is, and the state is read again.
-        if (isUnanswered(error)) return { ok: false, problems: [], message: WHO_ANSWERS_TEXT.unknown, unknown: true };
-        return { ok: false, problems: [], message: hebrewOr(readableError(error, fallback), fallback), unknown: false };
+        return await applyBotModeChange(queryClient, call, fallback);
       } finally {
         inFlight.current = false;
         setBusy(null);
-        // The server has the last word, whichever way it went — and the cards beside this one read from it too.
-        void queryClient.invalidateQueries({ queryKey: botModeKeys.state });
-        void queryClient.invalidateQueries({ queryKey: wahubKeys.status });
-        void queryClient.invalidateQueries({ queryKey: automationKeys.status });
       }
     },
     [queryClient],
