@@ -110,6 +110,22 @@
   background: var(--line);
 }
 
+/* At the head of an open conversation, on a desktop: the two marks have a line of their own under the name, at
+   every width. A phone says them in the one line it has there. */
+.headMarks {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 6px;
+  margin: 3px 0 1px;
+}
+
+@media (max-width: 767px) {
+  .headMarks {
+    display: none;
+  }
+}
+
 /* A lead's row: the mark stands beside the name, whole. */
 .rowWait {
   flex: none;
@@ -130,9 +146,16 @@
   height: 11px;
 }
 
-/* In the card: the same mark as a press — the details are behind it. */
-.outCard {
-  margin-top: 8px;
+/* In the card: the same mark as a press — the details are behind it. It stands under the name, inside "who":
+   that section lets it have a line of its own, the whole width of the card. */
+.whoWrap {
+  flex-wrap: wrap;
+  row-gap: 10px;
+}
+
+.outSect {
+  flex: 0 0 100%;
+  min-width: 0;
 }
 
 .outChip {

@@ -34,6 +34,8 @@ export const OPT_OUT_TEXT = {
   botBlockedMore: 'אפשר להתקשר, או להחזיר לתפוצה מתוך השיחה.',
   /** A freed place on the waiting list: "להודיע ללקוח" does not go out to somebody who asked out. */
   notifyBlocked: 'ביקש הסר — לא שולחים הודעה יזומה',
+  /** Short: the way to call stands right beside it, and a lead's own actions already say how to bring them back. */
+  notifyBlockedMore: 'אפשר להתקשר.',
   markFailed: 'הסימון לא נשמר',
   backFailed: 'ההחזרה לתפוצה לא נשמרה',
   unknown: 'לא ידוע אם זה נשמר. בדקו בכרטיס לפני שמנסים שוב.',

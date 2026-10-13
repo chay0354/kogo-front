@@ -47,8 +47,16 @@ export const UNKNOWN_TEXT = {
   answerHere: 'התשובה הנכונה, במילים שלך',
 } as const;
 
-/** How many topics the block shows before "הצג עוד". */
-export const UNKNOWN_SHOWN = 5;
+/**
+ * How many topics the block shows before "הצג עוד" — the most asked ones; the rest are a press away, so the big
+ * box of "ללמד" under the block stays in sight.
+ */
+export const UNKNOWN_SHOWN = 3;
+
+/** The topics shown before "הצג עוד" is pressed. One topic more than the few is simply shown — never "הצג עוד (1)". */
+export function shownTopics<T>(topics: ReadonlyArray<T>, all: boolean): T[] {
+  return all || topics.length <= UNKNOWN_SHOWN + 1 ? topics.slice() : topics.slice(0, UNKNOWN_SHOWN);
+}
 
 type Raw = Record<string, unknown>;
 

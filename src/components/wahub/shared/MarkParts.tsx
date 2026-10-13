@@ -131,7 +131,7 @@ export function OptOutCard({ opted, now, onBack, defaultOpen = false, defaultAsk
   }
 
   return (
-    <div className={k.outCard} data-opted-out="">
+    <div data-opted-out="">
       <button type="button" onClick={() => setOpen((was) => !was)} aria-expanded={open} aria-controls={panelId} className={k.outChip}>
         <BellOff aria-hidden="true" />
         {chip.text}
@@ -259,7 +259,8 @@ export function BlockedByOptOut({ what = 'bot' }: { what?: 'bot' | 'notify' }) {
     <p className={k.blocked} role="note" data-blocked="opted_out">
       <BellOff aria-hidden="true" />
       <span>
-        <strong>{what === 'notify' ? OPT_OUT_TEXT.notifyBlocked : OPT_OUT_TEXT.botBlocked}.</strong> {OPT_OUT_TEXT.botBlockedMore}
+        <strong>{what === 'notify' ? OPT_OUT_TEXT.notifyBlocked : OPT_OUT_TEXT.botBlocked}.</strong>{' '}
+        {what === 'notify' ? OPT_OUT_TEXT.notifyBlockedMore : OPT_OUT_TEXT.botBlockedMore}
       </span>
     </p>
   );

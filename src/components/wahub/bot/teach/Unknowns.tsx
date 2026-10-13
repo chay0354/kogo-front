@@ -5,9 +5,9 @@ import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-quer
 import { ChevronDown, PartyPopper, Sparkle, TrendingDown, TrendingUp } from 'lucide-react';
 import { readableError } from '@/lib/apiError';
 import {
-  UNKNOWN_SHOWN,
   UNKNOWN_TEXT,
   askedWhen,
+  shownTopics,
   timesText,
   trendWords,
   unknownsTitle,
@@ -209,7 +209,7 @@ export function UnknownsView({
   const bodyId = useId();
   const panelId = useId();
   const topics = data.results;
-  const shown = showAll ? topics : topics.slice(0, UNKNOWN_SHOWN);
+  const shown = shownTopics(topics, showAll);
   const hidden = topics.length - shown.length;
   const unsorted = data.unsorted.count;
   const gone = dismissed ?? [];

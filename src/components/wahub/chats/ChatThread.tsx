@@ -16,6 +16,7 @@ import { phoneStatusLine } from '@/lib/wahub/screens';
 import type { WahubContactDetail, WahubSender, WahubShadowReply } from '@/types/wahub';
 import f from '../future.module.css';
 import type { ContactThread } from '../hooks/useContactThread';
+import k from '../marks.module.css';
 import m from '../motion.module.css';
 import { useRefine } from '../refine/RefineContext';
 import { RefineRow, RefineSelectBar } from '../refine/RefineRow';
@@ -209,10 +210,17 @@ function ThreadHeader({
             {optedOut && ` · ${optedOut.label || OPT_OUT_LABEL}`}
           </span>
         </button>
+        {/* A desktop: the two marks have a line of their own under the name, at every width — the name keeps its
+            room, and the actions theirs. A phone says them in the one line it has (above). */}
+        {(wait || optedOut) && (
+          <p className={k.headMarks}>
+            {wait && <WaitMark tag={wait} size="pill" />}
+            {optedOut && <OptOutMark opted={optedOut} now={now} size="pill" />}
+          </p>
+        )}
         <p className={cx(s.t2, s.threadSub, 'm-0 flex flex-wrap items-center gap-x-2')}>
           {demo && <DemoTag />}
           {liveTest && <LiveTestTag />}
-          {optedOut && <OptOutMark opted={optedOut} now={now} size="pill" />}
           {hasName(contact) && (
             <span dir="ltr" className={cx(s.num, 'select-all')}>
               {phone}
@@ -234,8 +242,6 @@ function ThreadHeader({
       </div>
 
       <div className="flex shrink-0 flex-wrap items-center gap-2">
-        {/* Beside who answers, where every width of a desktop shows it; a phone says it in the line under the name. */}
-        {wait && <WaitMark tag={wait} size="pill" className={s.deskOnly} />}
         <span className={cx(s.pill, s.deskOnly, human ? s.handHuman : s.handBot)}>
           {human ? <UserRound aria-hidden="true" /> : <Bot aria-hidden="true" />}
           {human ? 'בטיפול שלך' : contact.chat.handled_by_label || 'הבוט עונה'}

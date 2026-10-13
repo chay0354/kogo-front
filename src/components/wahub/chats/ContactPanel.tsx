@@ -24,6 +24,7 @@ import { ContactStatusList } from './ContactStatusBlock';
 import LiveTestBlock from './LiveTestBlock';
 import { NoteList, WaitingCardMark, type NoteActions } from '../shared/FutureParts';
 import { OptOutCard, OptOutMarkLink } from '../shared/MarkParts';
+import k from '../marks.module.css';
 import w from '../waiting.module.css';
 import x from '../search.module.css';
 
@@ -339,7 +340,7 @@ export default function ContactPanel({
       )}
 
       {/* 1. Who. */}
-      <section className={cx(s.sect, s.cardWho, onHide && s.cardWhoHide)} aria-label="מי">
+      <section className={cx(s.sect, s.cardWho, onHide && s.cardWhoHide, optedOut && k.whoWrap)} aria-label="מי">
         <ContactAvatar contact={contact} size="lg" />
         <div className="min-w-0 flex-1">
           <NameLine contact={contact} onRename={onRename} />
@@ -360,8 +361,6 @@ export default function ContactPanel({
               {liveOn && <LiveTestTag />}
             </div>
           )}
-          {/* Another person's mark starts folded, and never with the question of the one before. */}
-          {optedOut && <OptOutCard key={contact.id} opted={optedOut} now={now} onBack={optOut?.onBack} />}
         </div>
         {/* At the head of the card, in its corner: one small button puts it away. Its words show where the card has
             room for them; the name's line keeps clear of it. */}
@@ -370,6 +369,13 @@ export default function ContactPanel({
             <PanelLeftClose aria-hidden="true" />
             <span>הסתר כרטיס</span>
           </button>
+        )}
+        {/* "ביקש הסר": under the name, as part of who this is — the mark, and its details a press away. Another
+            person's mark starts folded, and never with the question of the one before. */}
+        {optedOut && (
+          <div className={k.outSect}>
+            <OptOutCard key={contact.id} opted={optedOut} now={now} onBack={optOut?.onBack} />
+          </div>
         )}
       </section>
 
