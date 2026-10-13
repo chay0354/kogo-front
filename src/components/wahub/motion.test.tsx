@@ -17,6 +17,8 @@ const WAHUB = css('./wahub.module.css');
 const REFINE = css('./refine/refine.module.css');
 // Future leads, the clock and the note (13.10.2026): the same rules, read from the same variables.
 const FUTURE = css('./future.module.css');
+// The full waiting list, the window where a lesson is chosen, and a note's menu (13.10.2026, noon): the same rules.
+const WAITING = css('./waiting.module.css');
 
 /** Every `animation` / `transition` declaration of a stylesheet, whole. */
 function moves(sheet: string): string[] {
@@ -53,6 +55,7 @@ describe('the motion layer: one set of lengths and curves', () => {
       ['wahub', WAHUB],
       ['refine', REFINE],
       ['future', FUTURE],
+      ['waiting', WAITING],
     ] as const) {
       const loops = moves(sheet).filter((line) => /\binfinite\b/.test(line));
       for (const line of loops) {
@@ -69,6 +72,7 @@ describe('the motion layer: one set of lengths and curves', () => {
       ['wahub', WAHUB],
       ['refine', REFINE],
       ['future', FUTURE],
+      ['waiting', WAITING],
     ] as const) {
       for (const line of moves(sheet)) {
         if (allowed.test(line)) continue;
@@ -83,6 +87,7 @@ describe('the motion layer: one set of lengths and curves', () => {
       ['wahub', WAHUB],
       ['refine', REFINE],
       ['future', FUTURE],
+      ['waiting', WAITING],
     ] as const) {
       const frames = [...sheet.matchAll(/@keyframes\s+([\w-]+)\s*\{((?:[^{}]*\{[^{}]*\})*)[^{}]*\}/g)];
       expect(frames.length).toBeGreaterThan(0);
@@ -116,13 +121,14 @@ describe('the scroll fixes stay in the stylesheet', () => {
   });
 
   it('nothing is sized by 100vh — a phone\'s bars would hide its foot', () => {
-    for (const sheet of [WAHUB, REFINE, MOTION, FUTURE]) expect(sheet).not.toMatch(/(?<!max-)height:\s*100vh/);
+    for (const sheet of [WAHUB, REFINE, MOTION, FUTURE, WAITING]) expect(sheet).not.toMatch(/(?<!max-)height:\s*100vh/);
   });
 });
 
 describe('the clock\'s bubble and the note keep to the layer', () => {
   it('every length is one of the layer\'s own — nothing is timed by hand', () => {
     for (const line of moves(FUTURE)) expect(literalTimes(line), line).toEqual([]);
+    for (const line of moves(WAITING)) expect(literalTimes(line), line).toEqual([]);
   });
 
   it('on a phone the bubble is a sheet inside the conversation, so a keyboard lifts it instead of covering it', () => {

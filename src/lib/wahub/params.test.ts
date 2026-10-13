@@ -219,4 +219,16 @@ describe('the address of the page', () => {
     const open = { ...base, tab: 'leads' as const, owner: 'bot' as const, stage: 'link_sent', lead: 31 };
     expect(parseWahubUrl(new URLSearchParams(buildWahubUrl(open).split('?')[1]))).toEqual(open);
   });
+
+  test('the full waiting list has an address of its own, on the leads tab only (13.10.2026)', () => {
+    const waiting = { ...base, tab: 'leads' as const, waiting: true };
+    expect(buildWahubUrl(waiting)).toBe('/wahub?tab=leads&list=waiting');
+    expect(parseWahubUrl(new URLSearchParams('tab=leads&list=waiting'))).toEqual(waiting);
+    // It keeps the list it was opened from, for the way back.
+    expect(buildWahubUrl({ ...waiting, owner: 'bot' })).toBe('/wahub?tab=leads&owner=bot&list=waiting');
+    // Another tab does not carry it, and an address that does not name it is the leads' own lists.
+    expect(buildWahubUrl({ ...waiting, tab: 'chats' })).toBe('/wahub?tab=chats');
+    expect(parseWahubUrl(new URLSearchParams('tab=leads')).waiting).toBeUndefined();
+    expect(parseWahubUrl(new URLSearchParams('tab=leads&list=everything')).waiting).toBeUndefined();
+  });
 });
