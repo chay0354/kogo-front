@@ -100,7 +100,7 @@ export function readWaitingMark(raw: unknown): WahubWaitingMark | null {
   const title = str(data.title) || (label ? `${status === 'freed' ? 'התפנה מקום: ' : 'ברשימת המתנה: '}${label}` : '');
   if (!title) return null;
   const more = Number(data.more);
-  return {
+  const mark: WahubWaitingMark = {
     status,
     status_label: str(data.status_label) || WAITING_LABELS[status],
     entry_id: positiveId(data.entry_id) ?? 0,
@@ -116,6 +116,9 @@ export function readWaitingMark(raw: unknown): WahubWaitingMark | null {
     title,
     more: Number.isFinite(more) && more > 0 ? Math.floor(more) : 0,
   };
+  // Only a server that can tell the customer of the freed place sends the field at all (ז.4).
+  if ('notified_at' in data) mark.notified_at = time(data.notified_at);
+  return mark;
 }
 
 export function readNote(raw: unknown): WahubNote | null {
@@ -124,7 +127,13 @@ export function readNote(raw: unknown): WahubNote | null {
   const text = str(data?.text);
   const createdAt = time(data?.created_at);
   if (!data || id == null || !text || !createdAt) return null;
-  return { id, text, by_name: str(data.by_name), created_at: createdAt };
+  const note: WahubNote = { id, text, by_name: str(data.by_name), created_at: createdAt };
+  // Only a server that can edit and delete a note sends the field at all (ז.5): without it the note has no menu.
+  if ('edited_at' in data) {
+    note.edited_at = time(data.edited_at);
+    note.edited_by_name = str(data.edited_by_name);
+  }
+  return note;
 }
 
 /** A list of notes, newest first. Undefined when the server sent no list at all — it does not know notes. */
@@ -150,7 +159,7 @@ export function readWaitingEntry(raw: unknown): WahubWaitingEntry | null {
       .join(' · ');
   const status = str(data.status);
   const position = Number(data.position);
-  return {
+  const entry: WahubWaitingEntry = {
     id,
     status,
     status_label: str(data.status_label) || ENTRY_LABELS[status] || status,
@@ -166,6 +175,25 @@ export function readWaitingEntry(raw: unknown): WahubWaitingEntry | null {
     position: Number.isFinite(position) && position > 0 ? Math.floor(position) : null,
     title: str(data.title),
   };
+  // Whose entry it is and for which lesson — the full list sends them with every entry (ד.4).
+  const contactId = positiveId(data.contact_id);
+  if (contactId != null) entry.contact_id = contactId;
+  if ('name' in data) entry.name = str(data.name);
+  if ('phone_display' in data) entry.phone_display = str(data.phone_display);
+  if ('is_demo' in data) entry.is_demo = data.is_demo === true;
+  const lessonId = str(lesson.id ?? data.lesson_id);
+  if (lessonId) entry.lesson_id = lessonId;
+  // Telling the customer of the freed place (ז.1): only a server that can sends the field at all.
+  if ('notified_at' in data) {
+    entry.notified_at = time(data.notified_at);
+    entry.notified_by_name = str(data.notified_by_name);
+    entry.notified_how = data.notified_how === 'text' || data.notified_how === 'template' ? data.notified_how : '';
+    entry.notified_how_label = str(data.notified_how_label);
+    // Counted only when it was written after the customer was told — the server's own rule, kept here too.
+    const replied = time(data.customer_replied_at);
+    entry.customer_replied_at = replied && entry.notified_at && Date.parse(replied) > Date.parse(entry.notified_at) ? replied : null;
+  }
+  return entry;
 }
 
 export function readWaitingEntries(raw: unknown): WahubWaitingEntry[] | undefined {
@@ -420,6 +448,9 @@ export function waitingSinceText(since: string | null | undefined, now: Date): s
  */
 export function entryOfMark(mark: WahubWaitingMark): WahubWaitingEntry {
   return {
+    // Whether the customer can be told of the freed place, and whether they were — when the row says so.
+    ...(mark.notified_at !== undefined ? { notified_at: mark.notified_at } : {}),
+    ...(mark.lesson_id ? { lesson_id: mark.lesson_id } : {}),
     id: mark.entry_id,
     status: mark.status,
     status_label: mark.status_label,
@@ -452,6 +483,12 @@ export function sortEntries<T extends Pick<WahubWaitingEntry, 'status'>>(entries
   return entries.map((entry, index) => ({ entry, index })).sort((a, b) => rank(a.entry) - rank(b.entry) || a.index - b.index).map((item) => item.entry);
 }
 
+/** "ראשון בתור" / "מקום 3 בתור" — '' when the server did not say. */
+export function placeText(position: number | null | undefined): string {
+  if (!position || position < 1) return '';
+  return position === 1 ? 'ראשון בתור' : `מקום ${position} בתור`;
+}
+
 /** One entry as a line of small facts: where it stands, since when, the child, the place in line, how it ended. */
 export function waitingEntryFacts(entry: WahubWaitingEntry, now: Date): string[] {
   const active = isActiveEntry(entry);
@@ -460,7 +497,7 @@ export function waitingEntryFacts(entry: WahubWaitingEntry, now: Date): string[]
     entry.status_label,
     waitingSinceText(entry.created_at, now),
     entry.child,
-    active && entry.position ? `מקום ${entry.position} בתור` : '',
+    active ? placeText(entry.position) : '',
     !active && entry.closed_reason ? entry.closed_reason : '',
     !active && closed ? `נסגר ב-${closed}` : '',
   ].filter(Boolean);

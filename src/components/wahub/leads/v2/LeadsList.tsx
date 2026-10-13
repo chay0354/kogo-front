@@ -10,6 +10,7 @@ import m from '../../motion.module.css';
 import s from '../../wahub.module.css';
 import LeadRow from './LeadRow';
 import l from './leads.module.css';
+import { WaitingWay } from './WaitingBits';
 
 export interface LeadsListProps {
   /** Which of the three lists is in front. */
@@ -41,6 +42,12 @@ export interface LeadsListProps {
   held?: string;
   /** The strip was pressed: to the card in the settings that says what is missing. */
   onHeld?: () => void;
+  /**
+   * The waiting list in numbers — the quiet way into its screen, at the head of the two open lists
+   * (docs/WAHUB-CONTRACT-FUTURE-LEADS.md, ז.1). Null: the server has no waiting list, and there is no way in.
+   */
+  waitingList?: { waiting: number; freed: number } | null;
+  onWaitingList?: () => void;
   onView: (view: WahubLeadsView) => void;
   onStage: (stage: string | null) => void;
   onSearch: (value: string) => void;
@@ -98,6 +105,8 @@ export default function LeadsList({
   sendingOn,
   held = '',
   onHeld,
+  waitingList = null,
+  onWaitingList,
   onView,
   onStage,
   onSearch,
@@ -176,6 +185,8 @@ export default function LeadsList({
       <RefreshNote active={refreshing} className={s.refreshFloat} />
 
       <div className={l.scroll} role="tabpanel" aria-label={LEADS_VIEW_LABELS[view]} aria-busy={status === 'loading' || refreshing}>
+        {/* "רשימת המתנה": a quiet line above the two open lists — not a tab of its own. Out of the way of a search. */}
+        {waitingList && onWaitingList && view !== 'closed' && !search.trim() && <WaitingWay counts={waitingList} onOpen={onWaitingList} />}
         {/* The bot planned, and nothing went out: said once, quietly, above its list — and it leads to what is missing. */}
         {view === 'bot' && held && (
           <button type="button" onClick={onHeld} className={cx(l.held, m.rise)}>

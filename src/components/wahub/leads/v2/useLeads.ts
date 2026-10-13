@@ -14,6 +14,8 @@ import {
   type LeadChange,
 } from '@/lib/wahub/leadsV2';
 import { actOnWahubWaitingEntry, type WaitingAction } from '@/lib/wahub/futureLeadsApi';
+import { joinFailedText } from '@/lib/wahub/waitingList';
+import { addWahubWaitingEntry } from '@/lib/wahub/waitingListApi';
 import {
   closeWahubLead,
   fetchWahubLead,
@@ -212,8 +214,9 @@ export function useLeadChanges() {
 }
 
 /**
- * "טופל" / "להסיר מהרשימה" on a waiting-list entry whose place was freed
- * (docs/WAHUB-CONTRACT-FUTURE-LEADS.md, ד.4). Nothing is shown before the
+ * "טופל" on a waiting-list entry whose place was freed, and "להסיר מהרשימה" on
+ * any entry that still stands — one that only waits as well (ד.4, ז.3)
+ * (docs/WAHUB-CONTRACT-FUTURE-LEADS.md). Nothing is shown before the
  * server has answered — where the lead stands afterwards is its to say — and
  * the lists and the open details are read again either way. `busy` names the
  * press that is on its way, so its button can say so and a second one is not sent.
@@ -246,5 +249,25 @@ export function useWaitingActions() {
     [queryClient],
   );
 
-  return { act, busy };
+  /**
+   * "להוסיף לרשימת המתנה" (ד.4, ז.2): the office puts somebody on a lesson's list. Resolves '' once they are
+   * on it, or — in words — why they are not; the window that asked stays open on a refusal, with what was chosen.
+   */
+  const join = useCallback(
+    async (contactId: number, lessonId: string, child: string): Promise<string> => {
+      try {
+        await addWahubWaitingEntry(contactId, lessonId, child);
+        toast.success('נוסף לרשימת ההמתנה');
+        return '';
+      } catch (error) {
+        return joinFailedText(error);
+      } finally {
+        void queryClient.invalidateQueries({ queryKey: leadsKeys.all });
+        void queryClient.invalidateQueries({ queryKey: wahubKeys.summary });
+      }
+    },
+    [queryClient],
+  );
+
+  return { act, busy, join };
 }

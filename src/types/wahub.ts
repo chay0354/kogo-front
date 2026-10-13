@@ -138,6 +138,11 @@ export interface WahubWaitingMark {
   title: string;
   /** Further active entries of this person. */
   more: number;
+  /**
+   * When the customer was last told of the freed place (ז.4) — null: not since it was freed. Absent on a server
+   * that cannot tell a customer at all: "להודיע ללקוח" is then not offered.
+   */
+  notified_at?: string | null;
 }
 
 /** A note about the customer (ג.6): a line of the log — not a message, sent to nobody. */
@@ -146,6 +151,12 @@ export interface WahubNote {
   text: string;
   by_name: string;
   created_at: string;
+  /**
+   * When the note was last edited (ז.5) — null: never. Absent on a server that cannot edit or delete a note:
+   * the note is then shown as it always was, with no menu.
+   */
+  edited_at?: string | null;
+  edited_by_name?: string;
 }
 
 /** What the system worked out by itself. Never written by a person. */
@@ -1383,6 +1394,124 @@ export interface WahubWaitingEntry {
   /** The place in the line for that lesson among the active entries (1 = the oldest); null once closed. */
   position: number | null;
   title: string;
+  // --- whose entry it is, and for which lesson: sent with every entry of the full list (ד.4) ---
+  contact_id?: number;
+  name?: string;
+  phone_display?: string;
+  is_demo?: boolean;
+  lesson_id?: string;
+  // --- telling the customer of the freed place (ז.1, ז.4): absent on a server that cannot ---
+  /** When the customer was last told; null: not told. Absent: the server has no "להודיע ללקוח". */
+  notified_at?: string | null;
+  notified_by_name?: string;
+  notified_how?: WahubNotifyHow;
+  notified_how_label?: string;
+  /** The customer's last message, only when it was written after they were told. */
+  customer_replied_at?: string | null;
+}
+
+/** How a message about a freed place goes out: plain words inside the 24 hours, an approved template after them. */
+export type WahubNotifyHow = 'text' | 'template' | '';
+
+/**
+ * One lesson of the full waiting list (ז.1, `lessons`): what it is, how full it is right now by the sign-up
+ * form's own count, and which entries of the list are its own.
+ */
+export interface WahubWaitingLesson {
+  id: string;
+  course: string;
+  day: string;
+  start: string;
+  end: string;
+  branch: string;
+  /** "קפוארה גן חובה · יום שלישי · 17:00 · מינץ" */
+  label: string;
+  /** False: the lesson was deleted or no longer takes place — the numbers are then unknown. */
+  exists: boolean;
+  enrolled: number | null;
+  /** Null: the lesson has no limit. */
+  capacity: number | null;
+  seats_left: number | null;
+  is_full: boolean;
+  /** "19 מתוך 20 · נשאר מקום אחד" — ready to show; '' when the server did not say. */
+  seats_label: string;
+  /** Active entries of this lesson in the whole list, whatever the list is narrowed to. */
+  waiting: number;
+  freed: number;
+  /** The entries of this lesson among the results, in the order of the line. */
+  entry_ids: number[];
+}
+
+/** GET waiting-list/ */
+export interface WahubWaitingListPage {
+  counts: { waiting: number; freed: number };
+  /**
+   * The lessons, a place that was freed first. `counted` is false on a server that sends no `lessons` (before ז):
+   * the groups are then built from the entries themselves, and carry no numbers.
+   */
+  lessons: WahubWaitingLesson[];
+  counted: boolean;
+  results: WahubWaitingEntry[];
+}
+
+/** One lesson that can be chosen for the waiting list (ז.2). */
+export interface WahubLessonOption {
+  id: string;
+  course: string;
+  day: string;
+  start: string;
+  end: string;
+  branch_id: string;
+  branch: string;
+  label: string;
+  seats_label: string;
+  is_full: boolean;
+  /** Only a full lesson can be waited for — the office adds to the same lessons the bot does. */
+  can_join: boolean;
+  /** How many wait for it now. */
+  waiting: number;
+  /** This contact is already on its list. */
+  on_list: boolean;
+}
+
+/** GET waiting-list/lessons/ */
+export interface WahubLessonOptions {
+  branches: Array<{ id: string; name: string }>;
+  total: number;
+  results: WahubLessonOption[];
+}
+
+/** GET waiting-list/{entry_id}/notify/ — what would go out, how, and — when it would not — why (ז.4). */
+export interface WahubNotifyPreview {
+  can: boolean;
+  how: WahubNotifyHow;
+  how_label: string;
+  /** The wording as it will stand in the conversation. */
+  text: string;
+  /** Why it would not go out now — a code; '' when it would. */
+  blocked: string;
+  /** The same, in words, ready to show. */
+  detail: string;
+  /**
+   * The customer was already told of the place that is free now. It may be sent again — but only when the
+   * office says so: the screen asks first, and the send then says `again`.
+   */
+  needs_again: boolean;
+  already_notified_at: string | null;
+  already_notified_by_name: string;
+}
+
+/** POST waiting-list/{entry_id}/notify/ */
+export interface WahubNotifyResult {
+  sent: boolean;
+  how: WahubNotifyHow;
+  code: string;
+  detail: string;
+  text: string;
+  already_notified_at: string | null;
+  already_notified_by_name: string;
+  entry: WahubWaitingEntry | null;
+  contact: WahubContact | null;
 }
 
 /** POST waiting-list/{entry_id}/handled/ and …/remove/ */

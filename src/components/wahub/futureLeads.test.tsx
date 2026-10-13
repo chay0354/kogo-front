@@ -987,10 +987,10 @@ describe('a lead\'s details', () => {
     expect(html).toMatch(/פתקים <span[^>]*>\(1\)<\/span>/);
     expect(html).toContain('אמא ביקשה שנחזור אחרי החגים');
     // The freed place tells its own facts at the head of the details — the child, since when, the place in line…
-    expect(html).toContain('בן 5, גן חובה · נכנס ב-13.10 · מקום 1 בתור');
+    expect(html).toContain('בן 5, גן חובה · נכנס ב-13.10 · ראשון בתור');
     // …and is not told a second time in the list, which holds the rest.
     expect(html).toContain('עוד ברשימת ההמתנה');
-    expect(html.split('מקום 1 בתור').length - 1).toBe(1);
+    expect(html.split('ראשון בתור').length - 1).toBe(1);
     expect(html).toContain('הוסר · נכנס ב-1.10 · השיעור נמחק · נסגר ב-5.10');
     expect(html.split('להסיר מהרשימה').length - 1).toBe(1);
   });
@@ -1013,8 +1013,11 @@ describe('a lead\'s details', () => {
     expect(html).toContain('>רשימת המתנה<');
     expect(html).toContain('ממתין · נכנס ב-13.10 · בן 5 · מקום 2 בתור');
     expect(html.indexOf('מקום 2 בתור')).toBeLessThan(html.indexOf('השיעור נמחק'));
-    // Nothing to press on an entry that only waits.
-    expect(html).not.toContain('להסיר מהרשימה');
+    // An entry that only waits can be taken off the list (13.10, ז.3) — and nothing else: no "טופל", nothing to tell.
+    expect(html.split('להסיר מהרשימה').length - 1).toBe(1);
+    expect(html).toContain('aria-label="פעולות על הרשומה"');
+    expect(html).not.toContain('טופל');
+    expect(html).not.toContain('להודיע ללקוח');
   });
 
   it('a second place that was freed carries its own two actions in the list', () => {
@@ -1068,7 +1071,7 @@ describe('the two actions of a freed place', () => {
     return <WaitingActionsView name="דנה לוי" lesson={WAITING.label} busy={null} asking={false} onAsk={noop} onAct={noop} {...over} />;
   }
 
-  it('"טופל" is one press; "להסיר מהרשימה" asks first — nothing here puts a person back on the list', () => {
+  it('"טופל" is one press; "להסיר מהרשימה" asks first — the place in the line is not kept', () => {
     const onAct = vi.fn();
     const onAsk = vi.fn();
     const node = actions({ onAct, onAsk });
@@ -1086,7 +1089,8 @@ describe('the two actions of a freed place', () => {
     const html = render(node);
     expect(html).toContain('דנה לוי');
     expect(html).toContain('קפוארה גן חובה · יום שלישי · 17:00 · מינץ');
-    expect(html).toContain('אי אפשר להחזיר מכאן');
+    // Since the office can put a person on a list by hand, what is lost is said as it is: the place in the line.
+    expect(html).toContain('המקום בתור לא נשמר');
     button(node, 'כן, להסיר').props.onClick?.();
     expect(onAct).toHaveBeenCalledWith('remove');
     button(node, 'ביטול').props.onClick?.();
