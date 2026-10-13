@@ -61,6 +61,8 @@ export interface NotifyControls {
    * from the start and the reason stands beside it. Set by whoever knows the person the entries belong to.
    */
   optedOut?: boolean;
+  /** The screen already says "ביקש הסר" in words of its own: the line beside the locked press does not repeat it. */
+  optedOutSaid?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -262,6 +264,8 @@ export interface WaitingActionsViewProps {
   onNotify?: () => void;
   /** The customer asked out: the button is drawn, locked, and one line under the buttons says why. */
   notifyBlocked?: boolean;
+  /** …in short, where the screen around it already says "ביקש הסר". */
+  notifyBlockedSaid?: boolean;
   /** The customer was already told of this place: "טופל" then leads, and telling again is a quiet second. */
   told?: boolean;
   /** The block of "להודיע ללקוח", while it is open for this entry: it stands in place of the buttons. */
@@ -292,6 +296,7 @@ export function WaitingActionsView({
   onAct,
   onNotify,
   notifyBlocked = false,
+  notifyBlockedSaid = false,
   told = false,
   notify = null,
   onNotifySend = NOOP,
@@ -367,7 +372,7 @@ export function WaitingActionsView({
         </button>
         {chat}
       </div>
-      {onNotify && notifyBlocked && <BlockedByOptOut what="notify" />}
+      {onNotify && notifyBlocked && <BlockedByOptOut what="notify" said={notifyBlockedSaid} />}
     </>
   );
 }
@@ -404,6 +409,7 @@ export function WaitingActions({ entryId, name, lesson, status = 'freed', busy, 
       onAct={(action) => onAct(entryId, action)}
       onNotify={canNotify ? () => notify?.onStart(entryId) : undefined}
       notifyBlocked={canNotify && notify?.optedOut === true}
+      notifyBlockedSaid={notify?.optedOutSaid === true}
       told={entry ? toldOfThisPlace(entry) !== null : false}
       notify={open}
       onNotifySend={notify?.onSend}

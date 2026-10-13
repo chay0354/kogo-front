@@ -43,6 +43,11 @@ export interface LeadActionsViewProps {
    * null — nobody identified, or the details not read yet — and "לכרטיס הלקוח" is not drawn.
    */
   customerCard?: string | null;
+  /**
+   * The screen around these buttons already says "ביקש הסר" in words of its own (the lead's sentence, its next
+   * step): the line under a locked "החזר לבוט" then does not say it again.
+   */
+  optOutSaid?: boolean;
 }
 
 /**
@@ -77,6 +82,7 @@ export function LeadActionsView({
   onOpenChat,
   onChange,
   customerCard = null,
+  optOutSaid = false,
 }: LeadActionsViewProps) {
   const can = leadActions(lead, closed || undefined);
   // Somebody who asked out: the bot does not come back to them, and the press that would send it is locked.
@@ -195,7 +201,7 @@ export function LeadActionsView({
           </button>
         )}
       </div>
-      {botBlocked && <BlockedByOptOut />}
+      {botBlocked && <BlockedByOptOut said={optOutSaid} />}
     </div>
   );
 }
@@ -212,10 +218,12 @@ interface LeadActionsProps {
   onChange: (change: LeadChange) => Promise<boolean> | void;
   /** The customer's card, for a lead Kogo knows; null or absent — no button. */
   customerCard?: string | null;
+  /** The screen already says "ביקש הסר" in its own words: the line under a locked press does not repeat it. */
+  optOutSaid?: boolean;
 }
 
 /** The actions of one lead, with what they keep while a question is open: which one, the day chosen, the note. */
-export default function LeadActions({ lead, closed, now, busy, initialMode = 'idle', onOpenChat, onChange, customerCard }: LeadActionsProps) {
+export default function LeadActions({ lead, closed, now, busy, initialMode = 'idle', onOpenChat, onChange, customerCard, optOutSaid }: LeadActionsProps) {
   const [mode, setMode] = useState<LeadActionsMode>(initialMode);
   const [until, setUntil] = useState(() => snoozeDates(now).suggested);
   const [note, setNote] = useState('');
@@ -241,6 +249,7 @@ export default function LeadActions({ lead, closed, now, busy, initialMode = 'id
       onOpenChat={onOpenChat}
       onChange={(what) => void change(what)}
       customerCard={customerCard}
+      optOutSaid={optOutSaid}
     />
   );
 }

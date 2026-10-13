@@ -359,9 +359,12 @@ export default function LeadDetails({
   // Said once: where the next step or the sentence says it — or the line under a locked "החזר לבוט" does — the
   // mark is not drawn beside the name as well. (The sentence is read from the row too, so the mark does not come
   // and go as the details land.)
-  const outSaid = saysOptedOut(next?.text, next?.detail, why, lead?.summary) || Boolean(lead && leadBotBlocked(lead, closed || undefined));
-  const outMark = optedOut && !outSaid ? optedOut : null;
-  const notifyHere = notify && optedOut ? { ...notify, optedOut: true } : notify;
+  const outWords = saysOptedOut(next?.text, next?.detail, why, lead?.summary);
+  const botLocked = Boolean(lead && leadBotBlocked(lead, closed || undefined));
+  const outMark = optedOut && !outWords && !botLocked ? optedOut : null;
+  // The line beside a locked "להודיע ללקוח" is short where the screen says "ביקש הסר" already — in the lead's own
+  // words, or under its locked "החזר לבוט".
+  const notifyHere = notify && optedOut ? { ...notify, optedOut: true, optedOutSaid: outWords || botLocked } : notify;
 
   return (
     <aside className={cx(l.details, cover && l.detailsCover)} aria-label="פרטי הליד">
@@ -436,6 +439,7 @@ export default function LeadDetails({
           // foot of the details. A family with no card to open gets no button. A server that knows ח says it on
           // the row itself, so the button is there before the details land; an older one only in the details.
           customerCard={lead.customer !== undefined ? customerCardFor(lead) : customerCardPath(details?.in_system)}
+          optOutSaid={outWords}
         />
       )}
 

@@ -252,15 +252,16 @@ export function OptOutMarkLink({ name, onMark, defaultAsking = false, flush = fa
 /**
  * Beside a press that is locked because the customer asked out: why, in plain words, and what can be done
  * instead. `bot` — the bot does not come back to them; `notify` — they are not told of a freed place by a
- * message.
+ * message. `said`: the screen already says "ביקש הסר" in words of its own, right there — the line then says only
+ * that the press is locked and what can be done, so nothing is said twice.
  */
-export function BlockedByOptOut({ what = 'bot' }: { what?: 'bot' | 'notify' }) {
+export function BlockedByOptOut({ what = 'bot', said = false }: { what?: 'bot' | 'notify'; said?: boolean }) {
+  const why = what === 'notify' ? (said ? OPT_OUT_TEXT.notifyLocked : OPT_OUT_TEXT.notifyBlocked) : said ? OPT_OUT_TEXT.botLocked : OPT_OUT_TEXT.botBlocked;
   return (
     <p className={k.blocked} role="note" data-blocked="opted_out">
       <BellOff aria-hidden="true" />
       <span>
-        <strong>{what === 'notify' ? OPT_OUT_TEXT.notifyBlocked : OPT_OUT_TEXT.botBlocked}.</strong>{' '}
-        {what === 'notify' ? OPT_OUT_TEXT.notifyBlockedMore : OPT_OUT_TEXT.botBlockedMore}
+        <strong>{why}.</strong> {what === 'notify' ? OPT_OUT_TEXT.notifyBlockedMore : OPT_OUT_TEXT.botBlockedMore}
       </span>
     </p>
   );

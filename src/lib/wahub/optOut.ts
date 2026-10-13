@@ -36,6 +36,12 @@ export const OPT_OUT_TEXT = {
   notifyBlocked: 'ביקש הסר — לא שולחים הודעה יזומה',
   /** Short: the way to call stands right beside it, and a lead's own actions already say how to bring them back. */
   notifyBlockedMore: 'אפשר להתקשר.',
+  /**
+   * Where the screen already says "ביקש הסר" in its own words (the lead's sentence, its next step), the line
+   * beside a locked press does not say it again: only that the press is locked, and what can be done instead.
+   */
+  botLocked: '"החזר לבוט" נעול',
+  notifyLocked: '"להודיע ללקוח" נעול',
   markFailed: 'הסימון לא נשמר',
   backFailed: 'ההחזרה לתפוצה לא נשמרה',
   unknown: 'לא ידוע אם זה נשמר. בדקו בכרטיס לפני שמנסים שוב.',

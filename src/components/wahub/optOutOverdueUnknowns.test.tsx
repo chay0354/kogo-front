@@ -501,6 +501,15 @@ describe('"ביקש הסר" locks what would send something by itself — and sa
     expect(made.find((element) => element.type === 'button' && words(element.props.children).includes('דחה למועד'))?.props.disabled).toBe(false);
   });
 
+  it('where the screen already says "ביקש הסר" in its own words, the line under the locked press does not say it again', () => {
+    const said = <LeadActionsView lead={lead()} now={NOW} busy={null} mode="idle" until="" note="" onMode={noop} onUntil={noop} onNote={noop} onOpenChat={noop} onChange={noop} optOutSaid />;
+    expect(text(render(said))).toContain('"החזר לבוט" נעול. אפשר להתקשר, או להחזיר לתפוצה מתוך השיחה.');
+    // On the page, that is: the locked press itself still names the reason for whoever hovers over it.
+    expect(text(render(said))).not.toContain('ביקש הסר');
+    expect(pressable(drawn(said), 'החזר לבוט')[0].props.title).toBe('ביקש הסר — הבוט לא חוזר אליו');
+    expect(pressable(drawn(said), 'החזר לבוט')[0].props.disabled).toBe(true);
+  });
+
   it('nothing is locked for a lead who did not ask out, or for one the office can only take ("קח אליי")', () => {
     const free = render(actions(lead({ opted_out: null })));
     expect(free).not.toContain('data-blocked');
@@ -525,12 +534,12 @@ describe('"ביקש הסר" locks what would send something by itself — and sa
   const ENTRY = readWaitingEntry({ id: 7, status: 'freed', status_label: 'התפנה מקום', lesson: { id: 'l1', label: 'קפוארה גן חובה · יום שלישי · 17:00 · מינץ' }, child: 'בת 5', created_at: '2026-10-11T08:40:00+00:00', freed_at: '2026-10-13T07:05:00+00:00', position: 1, notified_at: null })!;
   const DETAILS: WahubLeadDetails = { reason: 'התפנה מקום בקפוארה גן חובה יום שלישי 17:00 (מינץ)', blocker_text: '', child: null, come_back_on: null, come_back_why: '', trial: null, followups: [], timeline: [], in_system: null, waiting_list_entries: [ENTRY] };
 
-  function waitingLead(optedOut: unknown): React.ReactElement {
+  function waitingLead(optedOut: unknown, details: WahubLeadDetails = DETAILS): React.ReactElement {
     const item = lead({ contact_id: 16, name: 'אורי נחום', stage: 'waiting_list', stage_label: 'ברשימת המתנה', summary: DETAILS.reason, next: { who: 'office', what: 'להציע ללקוח את המקום שהתפנה' }, waiting_list: FREED, opted_out: optedOut });
     return (
       <LeadDetails
         lead={item}
-        details={DETAILS}
+        details={details}
         status="ready"
         error=""
         now={NOW}
@@ -553,7 +562,27 @@ describe('"ביקש הסר" locks what would send something by itself — and sa
     expect(tell.props.disabled).toBe(true);
     expect(String(tell.props.className)).not.toContain(s.btnP);
     expect(String(pressable(made, 'טופל')[0].props.className)).toContain(s.btnP);
-    expect(text(render(waitingLead(BY_MESSAGE)))).toContain('ביקש הסר — לא שולחים הודעה יזומה. אפשר להתקשר.');
+    const said = text(render(waitingLead(BY_MESSAGE)));
+    // The lead's own locked "החזר לבוט" says why; the line beside "להודיע ללקוח" then only says it is locked.
+    expect(said).toContain('ביקש הסר — הבוט לא חוזר אליו. אפשר להתקשר, או להחזיר לתפוצה מתוך השיחה.');
+    expect(said).toContain('"להודיע ללקוח" נעול. אפשר להתקשר.');
+    expect((said.match(/ביקש הסר/g) ?? []).length).toBe(1);
+  });
+
+  it('…and where the lead\'s own sentence says it (as the server writes it), it is said there — once — and both lines are short', () => {
+    const reason = `${DETAILS.reason}. ביקש הסר — הבוט לא חוזר אליו`;
+    const said = text(render(waitingLead(BY_MESSAGE, { ...DETAILS, reason })));
+    expect((said.match(/ביקש הסר/g) ?? []).length).toBe(1);
+    expect(said).toContain('"החזר לבוט" נעול. אפשר להתקשר, או להחזיר לתפוצה מתוך השיחה.');
+    expect(said).toContain('"להודיע ללקוח" נעול. אפשר להתקשר.');
+    // No mark beside the name either: the sentence is the one place.
+    expect(render(waitingLead(BY_MESSAGE, { ...DETAILS, reason }))).not.toContain('data-opted-out');
+  });
+
+  it('a locked "להודיע ללקוח" with nothing around it that says why carries the whole reason', () => {
+    const alone = <WaitingActionsView name="אורי נחום" lesson="קפוארה גן חובה" busy={null} asking={false} onAsk={noop} onAct={noop} onNotify={noop} notifyBlocked now={NOW} />;
+    expect(text(render(alone))).toContain('ביקש הסר — לא שולחים הודעה יזומה. אפשר להתקשר.');
+    expect(pressable(drawn(alone), 'להודיע ללקוח')[0].props.disabled).toBe(true);
   });
 
   it('…and for whoever did not ask out it is the press that leads, as it was', () => {
