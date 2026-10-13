@@ -2,6 +2,7 @@
 
 import { Lesson } from '@/types/schedule';
 import { formatTime } from '@/lib/scheduleUtils';
+import { lessonCountDetail, lessonCountLabel } from '@/lib/lessonHeadcount';
 
 type ScheduleLessonCardProps = {
   lesson: Lesson;
@@ -35,13 +36,14 @@ export default function ScheduleLessonCard({
   // headcount alone — "/20" on a class nobody capped reads as a real limit and
   // makes a full class of twelve look half empty.
   const capacity = lesson.room_capacity || null;
-  const countLabel = capacity ? `${lesson.enrollment_count}/${capacity}` : `${lesson.enrollment_count}`;
+  // The students — the figure the instructor's own day shows (lib/lessonHeadcount).
+  const countLabel = lessonCountLabel(lesson, capacity);
   const timeLabel = `${formatTime(lesson.start_time)}–${formatTime(lesson.end_time)}`;
   const titleLabel = [
     lesson.course_display_id ? `${lesson.course_name} #${lesson.course_display_id}` : lesson.course_name,
     lesson.course_type_name,
     timeLabel,
-    showEnrollment ? countLabel : null,
+    showEnrollment ? lessonCountDetail(lesson, capacity) : null,
     lesson.branch_name,
   ]
     .filter(Boolean)
