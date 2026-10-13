@@ -944,9 +944,10 @@ button.opt:not(:disabled):active {
   color: var(--faint);
 }
 
+/* Why somebody was not added — the lesson has room, they already wait for it: held back, in amber. Never red. */
 .formError {
   margin: 10px 0 0;
-  color: var(--bad);
+  color: var(--warn);
   font-size: var(--t-meta);
   font-weight: 700;
   line-height: 1.45;

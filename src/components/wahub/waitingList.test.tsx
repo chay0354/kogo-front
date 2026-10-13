@@ -784,6 +784,19 @@ describe('"להוסיף לרשימת המתנה": the window where a lesson is c
     expect(html).toContain('קפוארה גן חובה');
   });
 
+  it('a lesson that turned out to have room cannot be added to: its numbers say so, and the button is locked', () => {
+    const onSave = vi.fn();
+    const room: WahubLessonOption = { ...OPTION, is_full: false, can_join: false, seats_label: '18 מתוך 20 · נשארו 2', waiting: 0 };
+    const node = picker({ chosen: room, saveError: `${HAS_ROOM_TEXT}.`, onSave });
+    expect(render(node)).toContain('18 מתוך 20 · נשארו 2');
+    expect(button(node, 'להוסיף לרשימה').props.disabled).toBe(true);
+    const form = elements(node).find((element) => element.type === 'form') as React.ReactElement<{ onSubmit: (event: { preventDefault: () => void }) => void }>;
+    form.props.onSubmit({ preventDefault: noop });
+    expect(onSave).not.toHaveBeenCalled();
+    // The way on is still there.
+    expect(button(node, 'שיעור אחר').props.disabled).toBe(false);
+  });
+
   it('while it is being added nothing can be pressed — not the X either', () => {
     const onSave = vi.fn();
     const node = picker({ chosen: OPTION, saving: true, onSave });
@@ -1141,8 +1154,8 @@ describe('the window and the list keep to the section\'s rules', () => {
     for (const name of ['.wl', '.notify', '.win', '.winScrim', '.winStep', '.noteMenu', '.noteEdit']) expect(block).toContain(name);
   });
 
-  it('red stays for "מבקש נציג" alone: nothing here is drawn in it but the words of a failure', () => {
-    const reds = [...WAITING.matchAll(/([^{}]+)\{[^}]*var\(--bad(?:-bg)?\)[^}]*\}/g)].map(([, selector]) => selector.trim());
-    expect(reds).toEqual(['.formError']);
+  it('red stays for "מבקש נציג" alone: nothing here is drawn in it — what is held back is amber', () => {
+    expect(WAITING).not.toMatch(/var\(--bad(?:-bg)?\)/);
+    expect(WAITING).toMatch(/\.formError \{[^}]*color: var\(--warn\);/);
   });
 });

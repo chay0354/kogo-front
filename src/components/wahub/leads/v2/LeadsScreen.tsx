@@ -123,10 +123,10 @@ export default function LeadsScreen({ active, live, view, stage, leadId, waiting
     if (active && waiting && waitingPage.data === null) onAddress({ waiting: false });
   }, [active, onAddress, waiting, waitingPage.data]);
   // "להודיע ללקוח" (ז.4): one block at a time, in a lead's details or in the full list.
-  const telling = useNotify();
+  const { open: telling, start: startTelling, send: sendTelling, close: closeTelling } = useNotify();
   const notify = useMemo<NotifyControls>(
-    () => ({ open: telling.open, onStart: (entryId) => void telling.start(entryId), onSend: () => void telling.send(), onClose: telling.close }),
-    [telling.close, telling.open, telling.send, telling.start],
+    () => ({ open: telling, onStart: (entryId) => void startTelling(entryId), onSend: () => void sendTelling(), onClose: closeTelling }),
+    [closeTelling, sendTelling, startTelling, telling],
   );
   // "להוסיף לרשימת המתנה" (ז.2): the window where a lesson is chosen, for the lead whose details are open. Only
   // on a server that lists the lessons — the one that counts the list by lesson is that server.

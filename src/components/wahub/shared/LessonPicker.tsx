@@ -129,7 +129,7 @@ export function LessonPickerView({
   if (chosen) {
     const submit = (event: FormEvent) => {
       event.preventDefault();
-      if (!saving) onSave();
+      if (!saving && chosen.can_join) onSave();
     };
     return (
       <div ref={rootRef} className={w.winRoot}>
@@ -169,7 +169,8 @@ export function LessonPickerView({
             </div>
           </div>
           <div className={w.winFoot}>
-            <button type="submit" disabled={saving} className={cx(s.btn, s.btnP)}>
+            {/* A lesson that turned out to have room (the server refused, and the list was read again) cannot be added to. */}
+            <button type="submit" disabled={saving || !chosen.can_join} className={cx(s.btn, s.btnP)}>
               {saving && <Spinner />}
               להוסיף לרשימה
             </button>
@@ -402,6 +403,9 @@ export default function LessonPicker({ contactId, name, onJoin, onClose, keyboar
   }
 
   const status = lessons.data === null ? 'missing' : lessons.data ? 'ready' : lessons.isError ? 'error' : 'loading';
+  // The lesson that was chosen, as the list has it NOW: after a refusal the list is read again, and a lesson that
+  // turned out to have room says so — its numbers, and a button that can no longer be pressed.
+  const current = chosen ? lessons.data?.results.find((option) => option.id === chosen.id) ?? chosen : null;
 
   return (
     <LessonPickerView
@@ -413,7 +417,7 @@ export default function LessonPicker({ contactId, name, onJoin, onClose, keyboar
       search={search}
       branch={branch}
       roomOpen={roomOpen}
-      chosen={chosen}
+      chosen={current}
       child={child}
       saving={saving}
       saveError={saveError}
