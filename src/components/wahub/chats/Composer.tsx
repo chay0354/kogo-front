@@ -9,7 +9,7 @@ import { useWahubAutomations, useWahubQuickReplies } from '../hooks/useWahubQuer
 import { Spinner, useDismiss } from '../shared/bits';
 import { cx } from '../shared/tones';
 import s from '../wahub.module.css';
-import { NoteBox } from './Notes';
+import { NoteBox } from '../shared/FutureParts';
 
 const MAX_LENGTH = 4096;
 

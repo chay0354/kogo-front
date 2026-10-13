@@ -2,7 +2,9 @@
 
 import Link from 'next/link';
 import { AlertCircle, ArrowRight, ChevronDown, ExternalLink, X } from 'lucide-react';
-import { formatDateTime } from '@/lib/wahub/format';
+import { formatDateTime, israelToday } from '@/lib/wahub/format';
+import { entryOfMark } from '@/lib/wahub/futureLeads';
+import type { WaitingAction } from '@/lib/wahub/futureLeadsApi';
 import {
   childFacts,
   currentFollowUp,
@@ -26,12 +28,14 @@ import {
   type NextStepLine,
 } from '@/lib/wahub/leadsV2';
 import type { WahubLeadDetails, WahubLeadFollowUp, WahubLeadRow } from '@/types/wahub';
+import { NoteList } from '../../shared/FutureParts';
 import { DemoTag, Skeleton } from '../../shared/bits';
 import { cx } from '../../shared/tones';
 import s from '../../wahub.module.css';
 import LeadActions, { type LeadActionsMode } from './LeadActions';
 import { NextIcon } from './LeadRow';
 import l from './leads.module.css';
+import { FreedBlock, FutureBlock, WaitingEntries, type WaitingBusy } from './WaitingBits';
 
 export interface LeadDetailsProps {
   /** The lead as the list (or its own read) has it; null while nothing is known about it yet. */
@@ -53,6 +57,13 @@ export interface LeadDetailsProps {
   onRetry: () => void;
   onOpenChat: (id: number) => void;
   onChange: (lead: WahubLeadRow, change: LeadChange) => Promise<boolean> | void;
+  /**
+   * "טופל" / "להסיר מהרשימה" on a waiting-list entry whose place was freed
+   * (docs/WAHUB-CONTRACT-FUTURE-LEADS.md, ד.4). Absent: the entries are shown, and nothing can be pressed.
+   */
+  onWaiting?: (entryId: number, action: WaitingAction) => void;
+  /** The press on an entry that is on its way, if any. */
+  waitingBusy?: WaitingBusy | null;
 }
 
 const NEXT_BOX: Record<NextStepLine['tone'], string> = {
@@ -84,10 +95,21 @@ function Section({ title, children }: { title: string; children: React.ReactNode
  * many, and the rest a press away. The browser's own fold, so the details keep
  * no state of their own and it works before any script has run.
  */
-function FoldSection({ title, count, children }: { title: string; count: number; children: React.ReactNode }) {
+function FoldSection({
+  title,
+  count,
+  open,
+  children,
+}: {
+  title: string;
+  count: number;
+  /** Open from the start — for the few lines that are worth reading before anything is pressed. */
+  open?: boolean;
+  children: React.ReactNode;
+}) {
   return (
     <section className={l.dSect} aria-label={title}>
-      <details className={l.dFold}>
+      <details className={l.dFold} open={open || undefined}>
         <summary className={l.dFoldHead}>
           <h3 className={l.dTitle}>
             {title} <span className={cx(s.num, l.dFoldCount)}>({count})</span>
@@ -236,6 +258,11 @@ function DetailsSkeleton() {
  *   the trial, the child, the day to come back — a small label and a value;
  *   and, folded, what is behind us: the bot's earlier messages, the timeline.
  *
+ * Since docs/WAHUB-CONTRACT-FUTURE-LEADS.md: a place that was freed stands
+ * right under "מה קורה עכשיו", with its two actions; a future lead carries its
+ * mark and its reason; and the office's notes and this person's entries on the
+ * waiting list each have a section.
+ *
  * Nothing is said twice: a line that repeats one already on the screen is left
  * out (lib/wahub/leadsV2.ts, saysMore). A column beside the list on a desktop;
  * a screen of its own, with a way back, on a phone.
@@ -259,16 +286,27 @@ export default function LeadDetails({
   onRetry,
   onOpenChat,
   onChange,
+  onWaiting,
+  waitingBusy = null,
 }: LeadDetailsProps) {
   const isClosed = Boolean(lead && (closed || isClosedLead(lead)));
   const next = lead ? nextStepLine(lead, now, sendingOn, closed || undefined) : null;
   const chips = lead ? leadChips(lead.chips) : [];
   const phone = lead ? leadPhoneText(lead.phone) : '';
   const since = lead ? sinceText(lead.since, now) : '';
-  const why = details?.reason || lead?.summary || '';
+  const waiting = lead?.waiting_list ?? null;
+  const freed = waiting?.status === 'freed' ? waiting : null;
+  const future = lead?.future ?? null;
+  const reason = details?.reason || lead?.summary || '';
+  // A place was freed: its headline is the reason, and the reason is not said again under it.
+  const why = freed && !saysMore(reason, freed.title) ? '' : reason;
   // What the screen has said by the time the eye reaches the rest: nothing under it repeats these.
   const nowWords = [next?.text ?? '', next?.detail ?? ''];
-  const said = [...nowWords, why];
+  const said = [...nowWords, why, freed?.title ?? ''];
+  const notes = details?.notes ?? [];
+  // The entries, from their own read — and until it lands, the one the row already carries.
+  const entries = details?.waiting_list_entries ?? (waiting ? [entryOfMark(waiting)] : []);
+  const name = lead ? leadTitle(lead) : '';
   const blocker = saysMore(details?.blocker_text, ...said) ? details?.blocker_text ?? '' : '';
   const child = factsBeyond(childFacts(details?.child), lead?.chips.child, why);
   const trial = trialFacts(details?.trial, now);
@@ -377,6 +415,12 @@ export default function LeadDetails({
               </section>
             )}
 
+            {/* A place was freed: what to offer, and the two things that can be done about it. */}
+            {freed && !isClosed && <FreedBlock mark={freed} name={name} busy={waitingBusy} onAct={onWaiting} />}
+
+            {/* A future lead: its mark, the reason the office wrote, whose it is. */}
+            {future && !isClosed && <FutureBlock future={future} today={israelToday(now)} now={now} said={nowWords} />}
+
             {why && (
               <Section title="למה זה ליד">
                 <p className={l.dText} dir="auto">
@@ -435,6 +479,26 @@ export default function LeadDetails({
                 {child.length > 0 && (
                   <Section title="הילד">
                     <Facts facts={child} />
+                  </Section>
+                )}
+
+                {/* What the office wrote about this person. A few are read at once; many wait behind their title. */}
+                {notes.length > 0 && (
+                  <FoldSection title="פתקים" count={notes.length} open={notes.length <= 3}>
+                    <NoteList notes={notes} now={now} />
+                  </FoldSection>
+                )}
+
+                {entries.length > 0 && (
+                  <Section title="רשימת המתנה">
+                    <WaitingEntries
+                      entries={entries}
+                      now={now}
+                      name={name}
+                      headId={freed && !isClosed ? freed.entry_id : null}
+                      busy={waitingBusy}
+                      onAct={isClosed ? undefined : onWaiting}
+                    />
                   </Section>
                 )}
 

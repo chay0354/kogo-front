@@ -17,7 +17,7 @@ import { cx } from '../shared/tones';
 import s from '../wahub.module.css';
 import { ContactStatusList } from './ContactStatusBlock';
 import LiveTestBlock from './LiveTestBlock';
-import { NoteList, WaitingCardMark } from './Notes';
+import { NoteList, WaitingCardMark } from '../shared/FutureParts';
 
 /**
  * The sections of the card that open on a press, in the order they stand

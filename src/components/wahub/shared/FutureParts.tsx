@@ -13,9 +13,9 @@ import {
 import type { WahubFuture, WahubNote, WahubWaitingMark } from '@/types/wahub';
 import f from '../future.module.css';
 import m from '../motion.module.css';
-import { Spinner } from '../shared/bits';
-import { cx } from '../shared/tones';
 import s from '../wahub.module.css';
+import { Spinner } from './bits';
+import { cx } from './tones';
 
 /**
  * The small pieces of docs/WAHUB-CONTRACT-FUTURE-LEADS.md that more than one

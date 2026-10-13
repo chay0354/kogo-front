@@ -25,7 +25,7 @@ import DemoComposer, { type DemoReplyControls } from './DemoComposer';
 import FutureStrip from './FutureStrip';
 import { LaterPanelView, useLater, type LaterActions } from './LaterPanel';
 import MessageBubble, { TypingBubble } from './MessageBubble';
-import { NoteRow } from './Notes';
+import { NoteRow } from '../shared/FutureParts';
 import ShadowRow from './ShadowRow';
 
 /** Scrolling is settled before the browser paints; where there is no browser there is nothing to settle. */

@@ -1300,6 +1300,224 @@
   }
 }
 
+/* ---------- the waiting list and a future lead (docs/WAHUB-CONTRACT-FUTURE-LEADS.md, ד.3, ה) ---------- */
+
+/* On a row of "הבוט מטפל": the exact lesson, and since when — quiet, under the row's sentence. */
+.wait {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: var(--t-meta);
+  font-weight: 500;
+  line-height: 1.45;
+}
+
+.wait svg {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  margin-top: 2px;
+}
+
+.wait > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.wait strong {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+/* On a row of "מחכים לך": a place was freed — the row's headline. Green: good news that waits for the office. */
+.freed {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  color: var(--good);
+  font-size: var(--t-body);
+  font-weight: 700;
+  line-height: 1.45;
+}
+
+.freed svg {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  margin-top: 2px;
+}
+
+.freed > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* A future lead: its mark, and beside it the reason and whose lead it is. */
+.futureLine {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  margin: 2px 0 0;
+  color: var(--muted);
+  font-size: var(--t-meta);
+  font-weight: 500;
+  line-height: 1.45;
+}
+
+.futureLine > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.futureMark {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 0 9px;
+  border-radius: 999px;
+  background: var(--lav-2);
+  color: var(--muted);
+  font-weight: 700;
+  line-height: 22px;
+  white-space: nowrap;
+}
+
+.futureMark svg {
+  flex: none;
+  width: 13px;
+  height: 13px;
+}
+
+.rowOn .futureMark {
+  background: var(--surface);
+}
+
+/* Its day has come, or the customer wrote before it: full gold. */
+.futureMarkLoud,
+.rowOn .futureMarkLoud {
+  background: var(--gold);
+  color: var(--ink);
+  font-weight: 800;
+}
+
+/* In the details, the bot was not silenced for a future lead: one small line. */
+.botAnswers {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin: 8px 0 0;
+  color: var(--warn);
+  font-size: var(--t-meta);
+  font-weight: 600;
+  line-height: 1.45;
+}
+
+.botAnswers svg {
+  flex: none;
+  width: 15px;
+  height: 15px;
+  margin-top: 2px;
+}
+
+/* In the details: a place was freed — what to offer, and the two things that can be done about it. */
+.freedBox {
+  padding: 14px 16px 16px;
+  border-radius: 16px;
+  background: var(--good-bg);
+}
+
+.freedTitle {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 0;
+  color: var(--ink);
+  font-family: var(--font-display, inherit);
+  font-size: var(--t-title);
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.freedTitle svg {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  margin-top: 1px;
+  color: var(--good);
+}
+
+.freedTitle > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.freedChild {
+  margin: 4px 0 0;
+  padding-inline-start: 28px;
+  color: var(--muted);
+  font-size: var(--t-meta);
+  font-weight: 500;
+}
+
+.freedActs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.freedBox > [role='group']:not(.freedActs) {
+  margin-top: 12px;
+}
+
+/* Every entry of this person on the waiting list: the lesson, and under it where the entry stands. */
+.entries {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.entry {
+  padding: 10px 12px;
+  border: 1px solid var(--line-2);
+  border-radius: 12px;
+  background: var(--surface-2);
+}
+
+.entryFreed {
+  border-color: transparent;
+  background: var(--good-bg);
+}
+
+/* An entry that was closed: still told, without weight. */
+.entryOff .entryLesson {
+  color: var(--muted);
+  font-weight: 500;
+}
+
+.entryLesson {
+  margin: 0;
+  color: var(--ink);
+  font-size: var(--t-body);
+  font-weight: 600;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.entryFacts {
+  margin: 2px 0 0;
+  color: var(--muted);
+  font-size: var(--t-meta);
+  font-weight: 500;
+  line-height: 1.45;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .rows,
   .details,
@@ -1452,6 +1670,14 @@
   }
 
   .snoozeButtons > * {
+    flex: 1 1 0;
+    height: 44px;
+  }
+}
+
+/* A phone: the two actions of a freed place share the row, a finger tall. */
+@media (max-width: 767px) {
+  .freedActs > button {
     flex: 1 1 0;
     height: 44px;
   }

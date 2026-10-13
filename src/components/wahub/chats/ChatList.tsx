@@ -17,7 +17,7 @@ import { ListRowsSkeleton, RefreshNote } from '../shared/loading';
 import { useStagger } from '../shared/motion';
 import { cx } from '../shared/tones';
 import s from '../wahub.module.css';
-import { FutureRowMark, WaitingRowMark } from './Notes';
+import { FutureRowMark, WaitingRowMark } from '../shared/FutureParts';
 
 interface RowProps {
   contact: WahubContact;

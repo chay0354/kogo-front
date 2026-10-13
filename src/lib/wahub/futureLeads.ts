@@ -405,6 +405,29 @@ export function waitingSinceText(since: string | null | undefined, now: Date): s
   return date ? `נכנס ב-${date}` : '';
 }
 
+/**
+ * The mark a row carries, as an entry — so a lead's details can show its lesson at once, from the row that was
+ * pressed, before the full list of its entries has been read.
+ */
+export function entryOfMark(mark: WahubWaitingMark): WahubWaitingEntry {
+  return {
+    id: mark.entry_id,
+    status: mark.status,
+    status_label: mark.status_label,
+    lesson_label: mark.label,
+    child: mark.child,
+    added_by: '',
+    added_by_name: '',
+    created_at: mark.since,
+    freed_at: mark.freed_at,
+    closed_at: null,
+    closed_by_name: '',
+    closed_reason: '',
+    position: null,
+    title: mark.title,
+  };
+}
+
 /** An entry that still stands: waiting, or with a place freed. */
 export function isActiveEntry(entry: Pick<WahubWaitingEntry, 'status'>): boolean {
   return entry.status === 'waiting' || entry.status === 'freed';

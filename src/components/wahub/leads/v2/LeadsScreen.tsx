@@ -16,7 +16,7 @@ import { cx } from '../../shared/tones';
 import LeadDetails from './LeadDetails';
 import LeadsList from './LeadsList';
 import l from './leads.module.css';
-import { useLeadChanges, useLeadDetail, useLeadsList, useLeadsLiveRefresh } from './useLeads';
+import { useLeadChanges, useLeadDetail, useLeadsList, useLeadsLiveRefresh, useWaitingActions } from './useLeads';
 
 const SEARCH_DELAY_MS = 300;
 
@@ -103,6 +103,8 @@ export default function LeadsScreen({ active, live, view, stage, leadId, status,
   const gone = detail.isError && isLeadGone(detail.error);
 
   const { change, busy } = useLeadChanges();
+  // A waiting-list entry whose place was freed: "טופל" / "להסיר מהרשימה".
+  const waitingList = useWaitingActions();
   const lastOpened = useRef<number | null>(null);
   if (leadId != null) lastOpened.current = leadId;
 
@@ -193,6 +195,8 @@ export default function LeadsScreen({ active, live, view, stage, leadId, status,
           onRetry={() => void detail.refetch()}
           onOpenChat={onOpenChat}
           onChange={onChange}
+          onWaiting={(entryId, action) => void waitingList.act(entryId, action)}
+          waitingBusy={waitingList.busy}
         />
       )}
     </div>
