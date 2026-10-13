@@ -27,7 +27,7 @@ describe('one number of students for a lesson', () => {
   it('says what else is on the register that day', () => {
     expect(lessonTrials(lesson)).toBe(1);
     expect(lessonOthers(lesson)).toBe(3);
-    expect(lessonCountDetail(lesson, 20)).toBe('4/20 · 1 ניסיון · 3 ברשימה שאינם רשומים');
+    expect(lessonCountDetail(lesson, 20)).toBe('4/20 · 1 ניסיון · 3 מזדמנים');
     expect(lessonCountDetail({ enrollment_count: 5, active_student_count: 5 }, 20)).toBe('5/20');
   });
 

@@ -628,9 +628,18 @@ export default function LessonDetailsDialog({
                     <p className="text-xs text-gray-600">
                       <b>{headcount.students} רשומים</b>
                       {headcount.trials > 0 ? ` · ${headcount.trials} ניסיון` : ''}
-                      {headcount.others > 0
-                        ? ` · ${headcount.others} ברשימה שאינם רשומים (עזבו, ניסיון ישן שנשאר, או מזדמנים)`
-                        : ''}
+                      {headcount.others > 0 ? ` · ${headcount.others} מזדמנים` : ''}
+                    </p>
+                  ) : null}
+
+                  {/* Not on the register any more, but the place was never closed:
+                      it still holds a seat until the office closes it. */}
+                  {(lesson.stale_places?.length ?? 0) > 0 ? (
+                    <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+                      <b>{lesson.stale_places!.length} מקומות שלא נסגרו</b> — לא מופיעים למדריך, ועדיין תופסים מקום בשיעור:{' '}
+                      {lesson.stale_places!
+                        .map((row) => `${row.child_name} (${row.child_status === 'inactive' ? 'לא פעיל' : 'ניסיון ישן'})`)
+                        .join(' · ')}
                     </p>
                   ) : null}
 

@@ -32,7 +32,7 @@ export function lessonTrials(lesson: CountedLesson): number {
   return lesson.trial_student_count ?? 0;
 }
 
-/** On the register that day but not registered: left without the place being closed, an old trial, a walk-in. */
+/** On the register that day but not registered: a walk-in the instructor added. A child who left is not on it at all. */
 export function lessonOthers(lesson: CountedLesson): number {
   return lesson.other_student_count ?? 0;
 }
@@ -49,7 +49,7 @@ export function lessonCountDetail(lesson: CountedLesson, capacity: number | null
   const trials = lessonTrials(lesson);
   const others = lessonOthers(lesson);
   if (trials > 0) parts.push(`${trials} ניסיון`);
-  if (others > 0) parts.push(`${others} ברשימה שאינם רשומים`);
+  if (others > 0) parts.push(`${others} מזדמנים`);
   return parts.join(' · ');
 }
 

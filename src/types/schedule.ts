@@ -26,7 +26,7 @@ export type Lesson = {
   active_student_count?: number;
   /** תלמידי ניסיון שמופיעים רק במופע הניסיון שנקבע להם. */
   trial_student_count?: number;
-  /** ברשימה באותו יום ואינם רשומים: עזבו והמקום לא נסגר, ניסיון ישן, מזדמנים. */
+  /** ברשימה באותו יום ואינם רשומים: מזדמנים שהמדריך הוסיף. */
   other_student_count?: number;
   notes: string;
   is_recurring: boolean;
@@ -60,6 +60,13 @@ export type LessonDetail = Lesson & {
     /** 1 for a first trial; the office may book a second (2, 3…) from the CRM. */
     trial_number?: number | null;
     trial_outcome?: 'attended' | 'no_show' | 'unmarked' | null;
+  }>;
+  /** מקומות שעדיין פתוחים לילדים שאינם רשומים עוד — לא מוצגים ברשימה; למשרד, לסגירה. */
+  stale_places?: Array<{
+    id: string;
+    child_id: string;
+    child_name: string;
+    child_status: string;
   }>;
   attendance: Array<{
     id: string;
