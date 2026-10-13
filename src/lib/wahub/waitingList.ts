@@ -408,6 +408,8 @@ const NOT_SENT_WORDS: Record<string, string> = {
   demo: 'זה איש קשר דמו — לא שולחים אליו הודעות.',
   // "ביקש הסר" (ט.1.6): nothing goes out by itself to somebody who asked out; a call, or bringing them back, does.
   opted_out: 'הלקוח ביקש הסר — לא שולחים הודעה יזומה. אפשר להתקשר, או להחזיר לתפוצה מתוך השיחה.',
+  // The list itself could not be read: nothing goes out on a guess (ט.1.6).
+  opt_out_list_unavailable: 'לא ניתן לקרוא עכשיו את רשימת "הסר", ולכן ההודעה לא נשלחה. נסו שוב בעוד רגע.',
   sending_off: 'השליחה ללקוחות כבויה — ההודעה לא תצא עד שתודלק.',
   no_manychat: 'אין חיבור ל-ManyChat — ההודעה לא יכולה לצאת.',
   no_template: 'אין תבנית מחוברת: עברו 24 שעות מההודעה האחרונה של הלקוח, ואז וואטסאפ מרשה רק תבנית מאושרת. מחברים אותה בהגדרות, בכרטיס "חזרה אוטומטית ללידים".',

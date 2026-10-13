@@ -126,6 +126,12 @@ describe('"להודיע ללקוח" on the waiting list', () => {
     const outcome = notifyOutcome({ sent: false, how: '', code: 'opted_out', detail: '', text: '', already_notified_at: null, already_notified_by_name: '', entry: null, contact: null });
     expect(outcome).toEqual({ kind: 'held', text: 'הלקוח ביקש הסר — לא שולחים הודעה יזומה. אפשר להתקשר, או להחזיר לתפוצה מתוך השיחה.' });
   });
+
+  it('the list itself could not be read: nothing goes out on a guess, and the screen says that', () => {
+    const preview = readNotifyPreview({ notify: { can: false, how: '', text: '', blocked: 'opt_out_list_unavailable', detail: 'לא ניתן לקרוא עכשיו את רשימת "הסר", ולכן שום הודעה לא נשלחה. נסו שוב בעוד רגע.' } })!;
+    expect(preview.can).toBe(false);
+    expect(notSentText(preview.blocked, preview.detail)).toBe('לא ניתן לקרוא עכשיו את רשימת "הסר", ולכן ההודעה לא נשלחה. נסו שוב בעוד רגע.');
+  });
 });
 
 describe('a mark that was not saved', () => {

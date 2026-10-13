@@ -12,6 +12,7 @@ import {
   followUpLine,
   fullWhen,
   isClosedLead,
+  leadBotBlocked,
   leadChips,
   leadPhoneText,
   leadStageText,
@@ -355,7 +356,11 @@ export default function LeadDetails({
   // out is not told of a freed place by a message: "להודיע ללקוח" is locked, with the reason beside it.
   const wait = lead && !isClosed ? leadWaitTag(lead, now) : null;
   const optedOut = optedOutOf(lead);
-  const outMark = optedOut && !saysOptedOut(next?.text, next?.detail, why) ? optedOut : null;
+  // Said once: where the next step or the sentence says it — or the line under a locked "החזר לבוט" does — the
+  // mark is not drawn beside the name as well. (The sentence is read from the row too, so the mark does not come
+  // and go as the details land.)
+  const outSaid = saysOptedOut(next?.text, next?.detail, why, lead?.summary) || Boolean(lead && leadBotBlocked(lead, closed || undefined));
+  const outMark = optedOut && !outSaid ? optedOut : null;
   const notifyHere = notify && optedOut ? { ...notify, optedOut: true } : notify;
 
   return (
