@@ -75,6 +75,77 @@ export interface WahubChatState {
   needs_human_at: string | null;
   can_free_text: boolean;
   window_closes_at: string | null;
+  /**
+   * "פתוחה": the conversation waits for a person now (docs/WAHUB-CONTRACT-FUTURE-LEADS.md, ג.1).
+   * Absent on a server built before it — and with it absent, the screen offers none of what came
+   * with it: no "פתוחות" box, no ✓, no clock, no note.
+   */
+  open?: boolean;
+  /** Why it is open — the first that holds, in the contract's order. Empty when it is not. */
+  open_reason?: WahubOpenReason | '';
+  open_label?: string;
+}
+
+/** Why a conversation is "open" (ג.1), in the order the server decides by. */
+export type WahubOpenReason = 'needs_human' | 'future_due' | 'future_wrote' | 'human';
+
+/** Where a future lead stands: waiting for its day, its day has come, or the customer wrote before it. */
+export type WahubFutureState = 'parked' | 'due' | 'wrote';
+
+/**
+ * "ליד עתידי" (ג.1, ג.5): the office's own mark "בזמן אחר" with a day — whoever set it, on whichever
+ * screen. Null when there is none; absent on a server built before it.
+ */
+export interface WahubFuture {
+  /** YYYY-MM-DD. */
+  due: string;
+  /** What the person wrote; empty when nothing was written. */
+  reason: string;
+  /** Whose lead it is. */
+  by_name: string;
+  at: string | null;
+  state: WahubFutureState;
+  /** Always "ליד עתידי". */
+  label: string;
+  /** Days until the day; 0 and below once it has come. */
+  days_left: number;
+  /** The bot is silenced for this person now. False: it still answers them if they write. */
+  muted: boolean;
+}
+
+export type WahubWaitingStatus = 'waiting' | 'freed';
+
+/**
+ * "רשימת המתנה" as a contact (and a lead) carries it (ג.1): the one active entry that matters most —
+ * a freed place first, then the oldest — and how many more there are. Null when there is none.
+ */
+export interface WahubWaitingMark {
+  status: WahubWaitingStatus;
+  status_label: string;
+  entry_id: number;
+  lesson_id: string;
+  /** The lesson, ready to show: "קפוארה גן חובה · יום שלישי · 17:00 · מינץ". */
+  label: string;
+  course: string;
+  day: string;
+  start: string;
+  branch: string;
+  /** What is known of the child, in a few words. */
+  child: string;
+  since: string | null;
+  freed_at: string | null;
+  /** Ready to show: "ברשימת המתנה: …", or "התפנה מקום ב…" once a place is free. */
+  title: string;
+  /** Further active entries of this person. */
+  more: number;
+}
+
+/** A note about the customer (ג.6): a line of the log — not a message, sent to nobody. */
+export interface WahubNote {
+  id: number;
+  text: string;
+  by_name: string;
+  created_at: string;
 }
 
 /** What the system worked out by itself. Never written by a person. */
@@ -163,6 +234,10 @@ export interface WahubContact {
    * Absent on a server built before it — the screens then show what they showed before.
    */
   lead?: WahubLead | null;
+  /** A future lead, or null (docs/WAHUB-CONTRACT-FUTURE-LEADS.md, ג.1). Absent on a server built before it. */
+  future?: WahubFuture | null;
+  /** The waiting list, or null (ג.1, ד). Absent on a server built before it. */
+  waiting_list?: WahubWaitingMark | null;
 }
 
 export interface WahubMessage {
@@ -203,7 +278,9 @@ export type WahubEventKind =
   | 'analyzed'
   | 'handled_by_changed'
   | 'needs_human_changed'
-  | 'note';
+  | 'note'
+  | 'conversation_closed'
+  | 'waiting_list';
 
 export interface WahubEvent {
   id: number;
@@ -219,9 +296,15 @@ export interface WahubContactDetail extends WahubContact {
   messages: WahubMessage[];
   has_older: boolean;
   events: WahubEvent[];
+  /** The notes about this person, newest first, up to 50 (ג.6). Absent on a server built before them. */
+  notes?: WahubNote[];
 }
 
-export type WahubBox = 'all' | 'waiting' | 'needs_human' | 'unread' | 'human' | 'bot';
+/** The boxes every server knows. */
+export type WahubBaseBox = 'all' | 'waiting' | 'needs_human' | 'unread' | 'human' | 'bot';
+/** "פתוחות" and "לידים עתידיים" (docs/WAHUB-CONTRACT-FUTURE-LEADS.md, ג.2): only a server that sends their counts has them. */
+export type WahubFutureBox = 'open' | 'future';
+export type WahubBox = WahubBaseBox | WahubFutureBox;
 
 export type WahubQueue =
   | 'all'
@@ -233,7 +316,7 @@ export type WahubQueue =
   | 'registered'
   | 'not_relevant';
 
-export type WahubBoxCounts = Record<WahubBox, number>;
+export type WahubBoxCounts = Record<WahubBaseBox, number> & Partial<Record<WahubFutureBox, number>>;
 export type WahubQueueCounts = Record<WahubQueue | 'hidden', number>;
 
 export interface WahubCounts {
@@ -904,6 +987,7 @@ export type WahubLeadStage =
   | 'answered_silent'
   | 'trial_booked'
   | 'waiting_date'
+  | 'waiting_list'
   | 'in_conversation'
   | 'registered'
   | 'customer'
@@ -1018,6 +1102,10 @@ export interface WahubLeadRow {
   since: string | null;
   next: WahubLeadNext;
   last_message_at: string | null;
+  /** The waiting list (docs/WAHUB-CONTRACT-FUTURE-LEADS.md, ד.3) — null when there is none, absent on an older server. */
+  waiting_list?: WahubWaitingMark | null;
+  /** A future lead (ג.5) — the same object a contact carries. */
+  future?: WahubFuture | null;
 }
 
 export type WahubLeadCounts = Record<WahubLeadsView, number>;
@@ -1106,6 +1194,10 @@ export interface WahubLeadDetails {
   timeline: WahubLeadTimelineEvent[];
   /** The customer's card in Kogo, as a path inside the CRM; null when there is none. */
   in_system: string | null;
+  /** The notes the office wrote about this person, newest first, up to ten (docs/WAHUB-CONTRACT-FUTURE-LEADS.md, ג.6). */
+  notes?: WahubNote[];
+  /** Every waiting-list entry of this person, newest first, up to twenty (ד.3). */
+  waiting_list_entries?: WahubWaitingEntry[];
 }
 
 /** GET leads/{contact_id}/ — the row, and everything a press opens. */
@@ -1227,4 +1319,74 @@ export interface WahubLeadTemplateOptions {
   options: WahubLeadTemplateOption[] | null;
   /** Why it cannot be listed, in Hebrew, when the server says. */
   reason: string;
+}
+
+// ---------------------------------------------------------------------------
+// Future leads, the clock and the note; the waiting list
+// (docs/WAHUB-CONTRACT-FUTURE-LEADS.md). Field for field; what a server built
+// before it leaves out is optional above, and read tolerantly in
+// lib/wahub/futureLeads.ts.
+// ---------------------------------------------------------------------------
+
+/** What the bot understood when the conversation was handed to it (ג.4). */
+export interface WahubUnderstood {
+  /** The bot has a dated step: it was applied. False: nothing changed, and `text` says why. */
+  ok: boolean;
+  /** The one sentence to show. */
+  text: string;
+  why: string;
+  stage: string;
+  stage_label: string;
+  come_back_on: string | null;
+  /** When the bot comes back, or null when there is no step (and always when `ok` is false). */
+  next_when: string | null;
+  source: 'ai' | 'rules' | '';
+  /** False: the comeback waits until sending to customers is turned on. Null: the server did not say. */
+  sending_enabled: boolean | null;
+}
+
+/** POST contacts/{id}/hand-to-bot/ */
+export interface WahubHandToBotResult {
+  contact: WahubContact | null;
+  understood: WahubUnderstood;
+}
+
+/** POST contacts/{id}/future/ — saved either way; `muted` false means the bot still answers this person. */
+export interface WahubFutureResult {
+  contact: WahubContact | null;
+  mute: { muted: boolean; detail: string };
+}
+
+/** POST contacts/{id}/notes/ */
+export interface WahubNoteResult {
+  note: WahubNote;
+  contact: WahubContact | null;
+}
+
+export type WahubWaitingEntryStatus = WahubWaitingStatus | 'handled' | 'removed';
+
+/** One entry of the waiting list (ד.4): a person, one lesson, and where the entry stands. */
+export interface WahubWaitingEntry {
+  id: number;
+  status: WahubWaitingEntryStatus | string;
+  status_label: string;
+  /** The lesson as it was when the entry was made — it shows itself even after the lesson is gone. */
+  lesson_label: string;
+  child: string;
+  added_by: 'bot' | 'person' | '';
+  added_by_name: string;
+  created_at: string | null;
+  freed_at: string | null;
+  closed_at: string | null;
+  closed_by_name: string;
+  closed_reason: string;
+  /** The place in the line for that lesson among the active entries (1 = the oldest); null once closed. */
+  position: number | null;
+  title: string;
+}
+
+/** POST waiting-list/{entry_id}/handled/ and …/remove/ */
+export interface WahubWaitingResult {
+  entry: WahubWaitingEntry | null;
+  contact: WahubContact | null;
 }

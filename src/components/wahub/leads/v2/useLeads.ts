@@ -13,6 +13,7 @@ import {
   parseLeadsView,
   type LeadChange,
 } from '@/lib/wahub/leadsV2';
+import { actOnWahubWaitingEntry, type WaitingAction } from '@/lib/wahub/futureLeadsApi';
 import {
   closeWahubLead,
   fetchWahubLead,
@@ -208,4 +209,42 @@ export function useLeadChanges() {
   );
 
   return { change, busy };
+}
+
+/**
+ * "טופל" / "להסיר מהרשימה" on a waiting-list entry whose place was freed
+ * (docs/WAHUB-CONTRACT-FUTURE-LEADS.md, ד.4). Nothing is shown before the
+ * server has answered — where the lead stands afterwards is its to say — and
+ * the lists and the open details are read again either way. `busy` names the
+ * press that is on its way, so its button can say so and a second one is not sent.
+ */
+export function useWaitingActions() {
+  const queryClient = useQueryClient();
+  const [busy, setBusy] = useState<{ entryId: number; action: WaitingAction } | null>(null);
+  const inFlight = useRef(false);
+
+  const act = useCallback(
+    async (entryId: number, action: WaitingAction): Promise<boolean> => {
+      if (inFlight.current) return false;
+      inFlight.current = true;
+      setBusy({ entryId, action });
+      try {
+        await actOnWahubWaitingEntry(entryId, action);
+        // The block that was pressed goes with the entry: a word says what became of it.
+        toast.success(action === 'handled' ? 'סומן כטופל' : 'הוסר מרשימת ההמתנה');
+        return true;
+      } catch (error) {
+        toast.error(readableError(error, action === 'handled' ? 'הסימון לא נשמר' : 'לא הוסר מרשימת ההמתנה'));
+        return false;
+      } finally {
+        inFlight.current = false;
+        setBusy(null);
+        void queryClient.invalidateQueries({ queryKey: leadsKeys.all });
+        void queryClient.invalidateQueries({ queryKey: wahubKeys.summary });
+      }
+    },
+    [queryClient],
+  );
+
+  return { act, busy };
 }

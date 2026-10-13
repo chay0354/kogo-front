@@ -1,0 +1,901 @@
+/*
+ * Future leads, the clock and the note; the waiting list
+ * (docs/WAHUB-CONTRACT-FUTURE-LEADS.md, ה) — what the conversations screen
+ * shows of them: ✓ and the clock in a conversation's title row, the clock's
+ * bubble, the chip of a future lead, a note inside the conversation and where
+ * it is written, and the small marks on a row of the list.
+ *
+ * Drawn in the section's own language: the variables set on .wahub
+ * (wahub.module.css), its radii, its type scale (--t-*), and the lengths and
+ * curves of its motion (--m-*, motion.module.css). Only transform and opacity
+ * move, nothing runs longer than --m-slow, and nothing loops.
+ *
+ * Colour: red stays for "מבקש נציג" alone (the owner's rule). What is the
+ * office's own to notice is gold — a future lead whose day has come; good news
+ * that waits for it is green — a place that was freed; everything that only
+ * waits is quiet.
+ */
+
+/* ---------- ✓ and the clock, in the conversation's title row ---------- */
+
+/* These sit on the section's icon button (wahub.module.css, .ib), which is a class of another sheet: said with
+   the element as well, so they win over it whichever sheet the page happens to load last. */
+
+/* "סגירת שיחה": the one way to say "done here". Green, so it is never taken for the red of a request. */
+button.ibDone {
+  background: var(--good-bg);
+  color: var(--good);
+}
+
+button.ibDone:hover {
+  background: var(--good-bg);
+  filter: brightness(0.95);
+}
+
+/* "לטפל בהמשך" */
+button.ibLater {
+  background: var(--lav-2);
+}
+
+button.ibLaterOn,
+button.ibLaterOn:hover {
+  background: var(--navy);
+  color: #fff;
+}
+
+/* The title row and, hanging from it, the clock's bubble. */
+.anchor {
+  position: relative;
+  flex: none;
+  z-index: 3;
+}
+
+/* ---------- the clock's bubble ---------- */
+
+/* A desktop: a bubble under the clock, at the end of the title row. It grows out of that corner. */
+.later {
+  position: absolute;
+  top: calc(100% + 6px);
+  inset-inline-end: 14px;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  width: min(372px, calc(100% - 28px));
+  max-height: min(540px, 72dvh);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--surface);
+  box-shadow: var(--float);
+  transform-origin: 0 0;
+  animation: laterIn var(--m-fast) var(--m-out) backwards;
+}
+
+@keyframes laterIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+}
+
+/* A phone only: the ground behind the sheet. */
+.scrim {
+  display: none;
+}
+
+.laterHead {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-block: 10px 6px;
+  padding-inline: 16px 8px;
+}
+
+.laterTitle {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--font-display, inherit);
+  font-size: var(--t-title);
+  font-weight: 700;
+  line-height: 1.35;
+  color: var(--ink);
+}
+
+/* What is inside scrolls by itself; the buttons under it stay where they are. */
+.laterBody {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 4px 16px 14px;
+}
+
+.laterBody > :first-child {
+  margin-top: 0;
+}
+
+.laterFoot {
+  flex: none;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 14px;
+  padding: 10px 16px 14px;
+  border-top: 1px solid var(--line-2);
+}
+
+/* One step gives way to the next with a small rise, so the bubble is seen to move on. */
+.step {
+  animation: stepIn var(--m-base) var(--m-out) backwards;
+}
+
+@keyframes stepIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
+/* The two choices — and only two. The title first; what it does, quietly, under it. */
+.opt {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  width: 100%;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  text-align: start;
+  transition:
+    border-color var(--m-fast),
+    background-color var(--m-fast),
+    transform var(--m-press) var(--m-out);
+}
+
+.opt + .opt {
+  margin-top: 8px;
+}
+
+.opt:hover {
+  border-color: var(--navy);
+  background: var(--lav-2);
+}
+
+.opt:active {
+  transform: scale(0.98);
+}
+
+.optIcon {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  background: var(--lav-2);
+  color: var(--navy-ink);
+}
+
+.opt:hover .optIcon {
+  background: var(--surface);
+}
+
+.optIcon svg {
+  width: 20px;
+  height: 20px;
+}
+
+.optTitle {
+  display: block;
+  font-family: var(--font-display, inherit);
+  font-size: var(--t-title);
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.optHint {
+  display: block;
+  margin-top: 2px;
+  font-size: var(--t-meta);
+  line-height: 1.45;
+  color: var(--muted);
+}
+
+/* "הבוט קורא את השיחה…" — the three dots of the section, and one quiet line about how long. */
+.reading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 18px 8px 12px;
+  text-align: center;
+  color: var(--navy-ink);
+}
+
+.readingIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 52px;
+  height: 52px;
+  border-radius: 16px;
+  background: var(--lav-2);
+}
+
+.readingIcon svg {
+  width: 26px;
+  height: 26px;
+}
+
+.readingText {
+  margin: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-display, inherit);
+  font-size: var(--t-lead);
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.quiet {
+  margin: 8px 0 0;
+  font-size: var(--t-meta);
+  line-height: 1.5;
+  color: var(--muted);
+}
+
+/* What the bot understood: the one sentence, large — it is what the bubble is for. */
+.got {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 14px;
+  border-radius: 14px;
+  background: var(--good-bg);
+  color: var(--ink);
+}
+
+.got > svg {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  margin-top: 3px;
+  color: var(--good);
+}
+
+.gotText {
+  margin: 0;
+  min-width: 0;
+  font-family: var(--font-display, inherit);
+  font-size: var(--t-lead);
+  font-weight: 700;
+  line-height: 1.35;
+  text-wrap: balance;
+}
+
+/* It found no step: nothing changed, and it says why. */
+.notGot {
+  margin: 0;
+  padding: 14px;
+  border-radius: 14px;
+  background: var(--surface-2);
+  font-size: var(--t-body);
+  font-weight: 600;
+  line-height: 1.5;
+  color: var(--ink);
+}
+
+/* Refused, or not known: said plainly, in the amber of something held back. */
+.failed {
+  margin: 0;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: var(--warn-bg);
+  font-size: var(--t-body);
+  font-weight: 600;
+  line-height: 1.5;
+  color: var(--warn);
+}
+
+/* "נשמר. הבוט עדיין עונה ללקוח הזה אם יכתוב: …" — quiet, and impossible to miss. */
+.warnLine {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--warn-bg);
+  font-size: var(--t-meta);
+  font-weight: 600;
+  line-height: 1.5;
+  color: var(--warn);
+}
+
+.warnLine svg {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  margin-top: 2px;
+}
+
+.warnLine > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.warnLarge {
+  padding: 14px;
+  font-size: var(--t-body);
+}
+
+/* The two quiet ways on from what the bot understood. */
+.quietLink {
+  padding: 6px 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: var(--t-meta);
+  font-weight: 600;
+  color: var(--muted);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  transition: color var(--m-fast);
+}
+
+.quietLink:hover {
+  color: var(--navy-ink);
+}
+
+/* ---------- "ליד עתידי שלי": a day and a reason ---------- */
+
+.formLabel {
+  display: block;
+  margin: 14px 0 6px;
+  font-size: var(--t-meta);
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.shortcuts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.shortcut {
+  height: 34px;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  font-size: 13.5px;
+  font-weight: 600;
+  white-space: nowrap;
+  transition:
+    background-color var(--m-fast),
+    border-color var(--m-fast),
+    color var(--m-fast),
+    transform var(--m-press) var(--m-out);
+}
+
+.shortcut:hover {
+  border-color: var(--navy);
+  color: var(--navy-ink);
+}
+
+.shortcut:active {
+  transform: scale(0.95);
+}
+
+.shortcutOn,
+.shortcutOn:hover {
+  border-color: transparent;
+  background: var(--navy);
+  color: #fff;
+}
+
+.dateRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  margin-top: 8px;
+}
+
+/* The day that was chosen, in words — so a Saturday is seen before it is saved. */
+.dateWords {
+  font-size: var(--t-meta);
+  font-weight: 700;
+  color: var(--navy-ink);
+}
+
+.input {
+  width: 100%;
+  min-width: 0;
+  height: 40px;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface-2);
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--t-body);
+}
+
+.inputDate {
+  width: auto;
+  flex: none;
+}
+
+.input:focus {
+  outline: 2px solid var(--navy);
+  outline-offset: 0;
+  border-color: transparent;
+}
+
+.input::placeholder {
+  color: var(--faint);
+}
+
+.formError {
+  margin: 10px 0 0;
+  font-size: var(--t-meta);
+  font-weight: 700;
+  line-height: 1.45;
+  color: var(--bad);
+}
+
+/* ---------- the chip of a future lead, at the head of the conversation ---------- */
+
+.strip {
+  flex: none;
+  border-bottom: 1px solid var(--line-2);
+  background: var(--surface-2);
+  color: var(--muted);
+  animation: stepIn var(--m-base) var(--m-out) backwards;
+}
+
+/* Its day has come, or the customer wrote before it: gold, and a line of full gold at its edge. */
+.stripLoud {
+  background: var(--gold-bg);
+  color: var(--gold-ink);
+  border-inline-start: 4px solid var(--gold);
+}
+
+.stripHead {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 40px;
+  padding: 8px 20px;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-size: 13.5px;
+  line-height: 1.4;
+  text-align: start;
+  transition: transform var(--m-press) var(--m-out);
+}
+
+.stripHead:active {
+  transform: scale(0.995);
+}
+
+.stripHead > svg {
+  flex: none;
+  width: 16px;
+  height: 16px;
+}
+
+/* The mark, the day, the reason, whose it is: one line where there is room, two where there is not. */
+.stripLine {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.stripLine strong {
+  font-weight: 800;
+}
+
+.stripLoud .stripLine {
+  font-weight: 600;
+}
+
+.stripChevron {
+  transition: transform var(--m-base) var(--m-out);
+}
+
+.stripOpen .stripChevron {
+  transform: rotate(180deg);
+}
+
+.stripBody {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 0 20px 10px;
+}
+
+.stripActs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* "הבוט עדיין עונה ללקוח הזה" under the chip's title: inside the chip's own gutters. */
+.stripWarn {
+  margin: 0 20px 8px;
+}
+
+/* ---------- a note: a line of the log, never a message ---------- */
+
+/* Across the middle of the conversation — on neither side, because nobody sent it — on yellow paper with a
+   dashed edge. Nothing else in a conversation looks like it. */
+.noteRow {
+  display: flex;
+  justify-content: center;
+  margin: 4px 0;
+}
+
+.note {
+  width: min(92%, 520px);
+  padding: 8px 12px 9px;
+  border: 1px dashed rgba(138, 90, 0, 0.45);
+  border-radius: 4px 12px 12px 12px;
+  background: var(--gold-bg);
+  color: var(--ink);
+}
+
+.noteMeta {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin: 0 0 2px;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--gold-ink);
+}
+
+.noteMeta svg {
+  flex: none;
+  width: 13px;
+  height: 13px;
+}
+
+.noteText {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* The notes in the contact's card and in a lead's details: the same paper, one under another. */
+.noteList {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.noteList .note {
+  width: 100%;
+}
+
+/* Where a note is written: in place of the writing box, on the note's own paper. */
+.noteBox {
+  flex: 1;
+  min-width: 0;
+  padding: 8px 10px 10px;
+  border: 1px dashed rgba(138, 90, 0, 0.45);
+  border-radius: 12px;
+  background: var(--gold-bg);
+  animation: stepIn var(--m-base) var(--m-out) backwards;
+}
+
+.noteBoxHead {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 6px;
+  font-size: var(--t-meta);
+  color: var(--gold-ink);
+}
+
+.noteBoxHead svg {
+  flex: none;
+  width: 15px;
+  height: 15px;
+}
+
+.noteBoxHead strong {
+  font-weight: 800;
+}
+
+.noteBoxHead > span {
+  flex: 1;
+  min-width: 0;
+}
+
+.noteBoxLine {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+/* The writing box's own rule gives a textarea the look of a message; a note's is its own (and says so more
+   heavily, so it wins over that rule). */
+.noteBox .noteBoxLine textarea {
+  flex: 1;
+  min-width: 0;
+  min-height: 40px;
+  max-height: 140px;
+  padding: 8px 10px;
+  border: 1px solid rgba(138, 90, 0, 0.25);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  font-size: 14px;
+  line-height: 1.5;
+  resize: none;
+}
+
+.noteBox .noteBoxLine textarea:focus {
+  outline: 2px solid var(--gold-ink);
+  outline-offset: 0;
+  border-color: transparent;
+}
+
+/* ---------- small marks: on a row of the list, in the card ---------- */
+
+.mark {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mark svg {
+  flex: none;
+  width: 12px;
+  height: 12px;
+}
+
+/* A mark may hold a whole lesson's name: it is cut with three dots rather than pushing the row wider. */
+.mark.markClip {
+  display: inline-block;
+  vertical-align: bottom;
+}
+
+.markQuiet {
+  background: var(--lav-2);
+  color: var(--muted);
+}
+
+/* A future lead whose day has come, or whose customer wrote: full gold. */
+.markLoud {
+  background: var(--gold);
+  color: var(--ink);
+  font-weight: 800;
+}
+
+/* A place was freed. */
+.markFreed {
+  background: var(--good-bg);
+  color: var(--good);
+  font-weight: 800;
+}
+
+/* The reason and whose lead it is, beside the mark on a row: quiet, and cut where the row ends. */
+.rowWhy {
+  flex: 1 1 60px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* In the card: the mark may take two lines — there is room, and the lesson's name should be read whole. */
+.cardMark {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 10px 0 0;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: var(--lav-2);
+  font-size: var(--t-meta);
+  font-weight: 600;
+  line-height: 1.45;
+  color: var(--muted);
+}
+
+.cardMark svg {
+  flex: none;
+  width: 15px;
+  height: 15px;
+  margin-top: 2px;
+}
+
+.cardMarkFreed {
+  background: var(--good-bg);
+  color: var(--good);
+  font-weight: 700;
+}
+
+/* A box of the list that calls for nobody's attention ("לידים עתידיים"): no weight, a dashed edge. Chosen, it
+   is a box like any other. */
+button.boxQuiet:not([aria-pressed='true']) {
+  border-style: dashed;
+  color: var(--muted);
+  font-weight: 500;
+}
+
+.noteBoxLine > button {
+  height: 38px;
+}
+
+/* ---------- the phone ---------- */
+
+@media (max-width: 767px) {
+  /* The bubble becomes a sheet at the foot of the conversation — inside it, so a keyboard that opens for the
+     reason lifts the sheet with the conversation (shared/motion.tsx, useKeyboardRoom) rather than covering it. */
+  .anchor {
+    position: static;
+  }
+
+  .scrim {
+    display: block;
+    position: absolute;
+    inset: 0;
+    z-index: 29;
+    border: 0;
+    padding: 0;
+    background: rgba(10, 12, 40, 0.34);
+    animation: scrimIn var(--m-base) ease-out backwards;
+  }
+
+  .later {
+    top: auto;
+    bottom: 0;
+    inset-inline: 0;
+    width: auto;
+    max-height: 88%;
+    border-width: 1px 0 0;
+    border-radius: 20px 20px 0 0;
+    transform-origin: 50% 100%;
+    animation: sheetUp var(--m-slow) var(--m-move) backwards;
+  }
+
+  /* The X: a finger's width, at the head of the sheet. */
+  .laterHead {
+    padding-block: 10px 4px;
+  }
+
+  .laterHead button {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+  }
+
+  .laterTitle {
+    font-size: 18px;
+  }
+
+  /* The buttons are pinned to the foot of the sheet, a finger tall, clear of the home bar. */
+  .laterFoot {
+    padding: 10px 16px calc(12px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .laterFoot > button:not(.quietLink) {
+    flex: 1 1 0;
+    height: 46px;
+    font-size: 15px;
+  }
+
+  .quietLink {
+    padding: 12px 0;
+    font-size: 14px;
+  }
+
+  .opt {
+    padding: 14px 12px;
+  }
+
+  .shortcut {
+    height: 40px;
+    padding: 0 14px;
+    font-size: 14.5px;
+  }
+
+  /* Sixteen pixels in a box that is typed in: no zoom when it is pressed. */
+  .input {
+    height: 46px;
+    font-size: 16px;
+  }
+
+  .noteBox .noteBoxLine textarea {
+    min-height: 44px;
+    font-size: 16px;
+  }
+
+  .stripHead {
+    min-height: 44px;
+    padding: 8px 12px;
+    font-size: 13px;
+  }
+
+  .stripBody {
+    padding: 0 12px 10px;
+  }
+
+  .stripWarn {
+    margin: 0 12px 8px;
+  }
+
+  /* A step with no buttons under it (the two choices, the reading): its foot keeps clear of the home bar itself. */
+  .laterBody:last-child {
+    padding-bottom: calc(14px + env(safe-area-inset-bottom, 0px));
+  }
+
+  /* "פתק" beside a locked writing box: a finger tall (in the row of tools it takes that row's size). */
+  button.noteBtnAlone {
+    height: 40px;
+    padding: 0 12px;
+    font-size: 13.5px;
+  }
+
+  .stripActs > button {
+    flex: 1 1 0;
+    height: 40px;
+    padding: 0 8px;
+  }
+
+  .note {
+    width: 94%;
+  }
+
+  .noteBoxLine > button {
+    height: 44px;
+  }
+}
+
+@keyframes scrimIn {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes sheetUp {
+  from {
+    opacity: 0;
+    transform: translateY(28px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .later,
+  .scrim,
+  .step,
+  .strip,
+  .noteBox {
+    animation: none;
+  }
+
+  .stripChevron {
+    transition: none;
+  }
+}

@@ -232,6 +232,17 @@ describe('mergeContactIntoDetail', () => {
   test('ignores a contact that is not the one open', () => {
     expect(mergeContactIntoDetail(detail, makeContact(2))).toBe(detail);
   });
+
+  test('the notes stay too — the lists do not carry them; a copy that does carry them (one was just saved) brings them', () => {
+    const first = { id: 5, text: 'אמא ביקשה שנחזור אחרי החגים', by_name: 'מיכל כהן', created_at: at('09:20') };
+    const noted = { ...detail, notes: [first] };
+    expect(mergeContactIntoDetail(noted, makeContact(1, { name: 'שם חדש' })).notes).toEqual([first]);
+    const second = { id: 6, text: 'חזרה אלינו', by_name: 'מיכל כהן', created_at: at('09:40') };
+    const fresh = { ...makeContact(1), notes: [second, first] };
+    expect(mergeContactIntoDetail(noted, fresh).notes).toEqual([second, first]);
+    // A server without notes: there were none, and there are none.
+    expect(mergeContactIntoDetail(detail, makeContact(1)).notes).toBeUndefined();
+  });
 });
 
 describe('longestWaiting', () => {
@@ -265,6 +276,16 @@ describe('counts and batches', () => {
     expect(sameBoxCounts(null, null)).toBe(true);
   });
 
+  test('sameBoxCounts reads "פתוחות" and "לידים עתידיים" too, where the server counts them', () => {
+    const a = { all: 5, waiting: 2, needs_human: 0, unread: 1, human: 0, bot: 5, open: 3, future: 1 };
+    expect(sameBoxCounts(a, { ...a })).toBe(true);
+    expect(sameBoxCounts(a, { ...a, open: 4 })).toBe(false);
+    expect(sameBoxCounts(a, { ...a, future: 0 })).toBe(false);
+    // An older server sends neither: two answers without them are still the same answer.
+    const old = { all: 5, waiting: 2, needs_human: 0, unread: 1, human: 0, bot: 5 };
+    expect(sameBoxCounts(old, { ...old })).toBe(true);
+  });
+
   test('a batch of a hundred may have left some out', () => {
     expect(isBatchTruncated(new Array(100).fill(0))).toBe(true);
     expect(isBatchTruncated(new Array(99).fill(0))).toBe(false);
@@ -288,6 +309,20 @@ describe('what a newer copy of the open contact asks the conversation to do', ()
     expect(logMoved(held, { ...held, chat: { ...held.chat, handled_by: 'human' } })).toBe(true);
     expect(logMoved(held, { ...held, chat: { ...held.chat, needs_human: true } })).toBe(true);
     expect(logMoved(held, { ...held, known: { ...held.known, analyzed_at: at('10:00') } })).toBe(true);
+  });
+
+  test('the waiting list writes to the log as well: a place that was freed, an entry that was closed', () => {
+    const mark = {
+      status: 'waiting' as const, status_label: 'ברשימת המתנה', entry_id: 7, lesson_id: 'a', label: 'קפוארה', course: 'קפוארה',
+      day: 'שלישי', start: '17:00', branch: 'מינץ', child: '', since: at('08:00'), freed_at: null, title: 'ברשימת המתנה: קפוארה', more: 0,
+    };
+    const waiting = { ...held, waiting_list: mark };
+    expect(logMoved(waiting, { ...waiting })).toBe(false);
+    expect(logMoved(waiting, { ...waiting, waiting_list: { ...mark, status: 'freed' as const } })).toBe(true);
+    expect(logMoved(waiting, { ...waiting, waiting_list: null })).toBe(true);
+    expect(logMoved(held, waiting)).toBe(true);
+    // An older server sends no such field on either copy.
+    expect(logMoved(held, { ...held })).toBe(false);
   });
 
   test('being read, or a new unread count, is not a reason to read the log', () => {

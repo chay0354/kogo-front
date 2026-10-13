@@ -1,11 +1,13 @@
 'use client';
 
 import { Bot, CalendarClock, ChevronLeft, PauseCircle, UserRound } from 'lucide-react';
-import { leadChips, leadTitle, nextStepLine, sinceText, type NextStepLine } from '@/lib/wahub/leadsV2';
+import { israelToday } from '@/lib/wahub/format';
+import { leadChips, leadTitle, nextStepLine, saysMore, sinceText, type NextStepLine } from '@/lib/wahub/leadsV2';
 import type { WahubLeadRow } from '@/types/wahub';
 import { DemoTag } from '../../shared/bits';
 import { cx } from '../../shared/tones';
 import l from './leads.module.css';
+import { FreedLine, FutureLine, WaitingLine } from './WaitingBits';
 
 const NEXT_CLASS: Record<NextStepLine['tone'], string> = {
   office: l.nextOffice,
@@ -49,10 +51,18 @@ interface LeadRowProps {
  * sentence that says why they are a lead, what the bot understood as quiet
  * words, and — the second thing the eye lands on — the next step. The whole
  * row is one button; everything else about the lead is a press away.
+ *
+ * The waiting list and a future lead (docs/WAHUB-CONTRACT-FUTURE-LEADS.md, ה):
+ * a place that was freed is the row's headline, in place of a sentence that
+ * would only say it again; a lead that still waits shows its exact lesson and
+ * since when; a future lead carries its mark and its reason.
  */
 export default function LeadRow({ lead, now, sendingOn, selected, closed, onOpen }: LeadRowProps) {
   const chips = leadChips(lead.chips);
   const since = sinceText(lead.since ?? lead.last_message_at, now);
+  const waiting = lead.waiting_list ?? null;
+  const freed = waiting?.status === 'freed' ? waiting : null;
+  const future = lead.future ?? null;
   return (
     <li>
       <button
@@ -69,9 +79,15 @@ export default function LeadRow({ lead, now, sendingOn, selected, closed, onOpen
             </span>
             {lead.is_demo && <DemoTag size="row" />}
           </span>
-          <span className={cx(l.summary, !lead.summary && l.summaryNone)} dir="auto" title={lead.summary || undefined}>
-            {lead.summary || 'הבוט עוד לא סיכם את השיחה'}
-          </span>
+          {freed && <FreedLine mark={freed} />}
+          {/* Under a freed place the sentence is drawn only when it says more than the headline. */}
+          {(!freed || saysMore(lead.summary, freed.title)) && (
+            <span className={cx(l.summary, !lead.summary && l.summaryNone)} dir="auto" title={lead.summary || undefined}>
+              {lead.summary || 'הבוט עוד לא סיכם את השיחה'}
+            </span>
+          )}
+          {waiting && !freed && <WaitingLine mark={waiting} now={now} />}
+          {future && <FutureLine future={future} today={israelToday(now)} now={now} said={[lead.summary]} />}
           {chips.length > 0 && (
             <span className={l.chips}>
               {chips.map((chip) => (

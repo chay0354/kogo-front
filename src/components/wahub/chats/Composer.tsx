@@ -1,18 +1,23 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { LayoutTemplate, Lock, MessageSquareText, Send } from 'lucide-react';
+import { LayoutTemplate, Lock, MessageSquareText, Send, StickyNote } from 'lucide-react';
 import { fillQuickReply, formatClock } from '@/lib/wahub/format';
 import { automationDisplayLabel, type WhatsAppAutomation } from '@/lib/whatsappApi';
 import type { WahubContact, WahubQuickReply } from '@/types/wahub';
 import { useWahubAutomations, useWahubQuickReplies } from '../hooks/useWahubQueries';
+import f from '../future.module.css';
 import { Spinner, useDismiss } from '../shared/bits';
 import { cx } from '../shared/tones';
 import s from '../wahub.module.css';
+import { NoteBox } from '../shared/FutureParts';
 
 const MAX_LENGTH = 4096;
 
 type Menu = 'replies' | 'templates' | null;
+
+/** The note's box, closed and empty. What was typed is kept while the box is only put away. */
+const NO_NOTE = { open: false, text: '', saving: false, error: '' };
 
 /** Automations that can go to someone who has no enrollment: the plain ManyChat ones. */
 function sendableAutomations(list: WhatsAppAutomation[] | undefined): WhatsAppAutomation[] {
@@ -141,16 +146,43 @@ interface ComposerProps {
   onSend: (text: string) => Promise<boolean>;
   onSendFlow: (automationId: string) => Promise<boolean>;
   onOpenSettings: () => void;
+  /**
+   * A note about the customer (docs/WAHUB-CONTRACT-FUTURE-LEADS.md, ג.6): resolves '' once it was saved, or
+   * why it was not. Absent on a server that has no notes — the button is then not offered.
+   */
+  onNote?: (text: string) => Promise<string>;
+}
+
+/** The small "פתק" button beside the writing box. A button, not a switch: it opens the note's own box. */
+function NoteButton({ onClick, alone = false }: { onClick: () => void; /** Beside a locked box rather than in the row of tools. */ alone?: boolean }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label="פתק על הלקוח"
+      title="פתק על הלקוח – לא נשלח לאף אחד"
+      className={cx(s.btn, s.btnSm, alone && f.noteBtnAlone)}
+    >
+      <StickyNote aria-hidden="true" />
+      {/* In the row of tools a phone keeps the icons alone; beside a locked box there is room for the word, and it is said. */}
+      <span className={alone ? undefined : s.toolLabel}>פתק</span>
+    </button>
+  );
 }
 
 /**
  * The writing box. Enter sends, Shift+Enter breaks the line. More than 24
  * hours after the customer's last message WhatsApp takes a template only, so
  * the box locks and says why.
+ *
+ * A note is written here as well, in a box of its own that takes the writing
+ * box's place — and is there whether or not a message can be sent: a note is
+ * sent to nobody.
  */
-export default function Composer({ contact, sending, simulated, sendingOff, onSend, onSendFlow, onOpenSettings }: ComposerProps) {
+export default function Composer({ contact, sending, simulated, sendingOff, onSend, onSendFlow, onOpenSettings, onNote }: ComposerProps) {
   const [text, setText] = useState('');
   const [menu, setMenu] = useState<Menu>(null);
+  const [note, setNote] = useState<{ open: boolean; text: string; saving: boolean; error: string }>(NO_NOTE);
   const textarea = useRef<HTMLTextAreaElement | null>(null);
   const menuRef = useDismiss(menu !== null, () => setMenu(null));
 
@@ -158,12 +190,32 @@ export default function Composer({ contact, sending, simulated, sendingOff, onSe
   const automations = useWahubAutomations(menu === 'templates');
   const canType = contact.chat.can_free_text && !sendingOff;
   const name = contact.name || contact.phone_display || contact.phone;
+  const idRef = useRef(contact.id);
+  idRef.current = contact.id;
 
   // Each conversation starts with an empty box.
   useEffect(() => {
     setText('');
     setMenu(null);
+    setNote(NO_NOTE);
   }, [contact.id]);
+
+  function openNote() {
+    setMenu(null);
+    setNote((current) => ({ ...current, open: true, error: '' }));
+  }
+
+  async function saveNote() {
+    const body = note.text.trim();
+    if (!onNote || !body || note.saving) return;
+    const id = contact.id;
+    setNote((current) => ({ ...current, saving: true, error: '' }));
+    const problem = await onNote(body);
+    // Another conversation was opened meanwhile: its box is its own.
+    if (idRef.current !== id) return;
+    // Saved: the box closes, and the note stands in the conversation. Not saved: the words stay, with the reason.
+    setNote((current) => (problem ? { ...current, saving: false, error: problem } : NO_NOTE));
+  }
 
   // The box grows with what is typed, up to a few lines.
   useEffect(() => {
@@ -241,7 +293,17 @@ export default function Composer({ contact, sending, simulated, sendingOff, onSe
           </div>
         )}
 
-        {canType ? (
+        {onNote && note.open ? (
+          <NoteBox
+            name={name}
+            text={note.text}
+            saving={note.saving}
+            error={note.error}
+            onText={(value) => setNote((current) => ({ ...current, text: value }))}
+            onSave={() => void saveNote()}
+            onClose={() => setNote((current) => ({ ...current, open: false, error: '' }))}
+          />
+        ) : canType ? (
           <>
             <div className={cx(s.composerLine, 'flex items-end gap-2')}>
               <textarea
@@ -271,7 +333,7 @@ export default function Composer({ contact, sending, simulated, sendingOff, onSe
                 <span className="hidden sm:inline">שלח</span>
               </button>
             </div>
-            <div className={cx(s.composerTools, 'mt-2 flex flex-wrap items-center gap-x-2 gap-y-1')}>
+            <div className={cx(s.composerTools, onNote && s.composerToolsTight, 'mt-2 flex flex-wrap items-center gap-x-2 gap-y-1')}>
               <button
                 type="button"
                 onClick={() => setMenu(menu === 'replies' ? null : 'replies')}
@@ -294,6 +356,7 @@ export default function Composer({ contact, sending, simulated, sendingOff, onSe
                 <LayoutTemplate aria-hidden="true" />
                 <span className={s.toolLabel}>שלח תבנית</span>
               </button>
+              {onNote && <NoteButton onClick={openNote} />}
               <span className={cx(s.t2, s.composerHint, 'ms-auto !text-[11px]')}>
                 {simulated ? (
                   <strong className={cx(s.warnText, 'font-bold')}>הדמיה – ההודעה נרשמת ולא נשלחת</strong>
@@ -324,6 +387,8 @@ export default function Composer({ contact, sending, simulated, sendingOff, onSe
                 שלח תבנית
               </button>
             )}
+            {/* Nothing can be sent — a note still can be written: it goes to nobody. */}
+            {onNote && <NoteButton onClick={openNote} alone />}
           </div>
         )}
       </div>

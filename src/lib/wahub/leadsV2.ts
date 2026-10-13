@@ -16,6 +16,7 @@ import type {
   WahubLeadsView,
 } from '@/types/wahub';
 import { dayKey, daysBetween, formatClock, formatDateTime, formatFullDate, formatShortDate, israelToday } from './format';
+import { readFuture, readNotes, readWaitingEntries, readWaitingMark } from './futureLeads';
 
 /**
  * The leads tab, version 2 (docs/WAHUB-CONTRACT-LEADS-V2.md, ה): the words of
@@ -61,6 +62,8 @@ export const LEAD_V2_STAGE_LABELS: Record<string, string> = {
   trial_no_show: 'נרשם לניסיון ולא הגיע',
   trial_done: 'עשה ניסיון ולא נרשם',
   waiting_date: 'מחכה למועד',
+  // docs/WAHUB-CONTRACT-FUTURE-LEADS.md, ד.3: on the list of one lesson, until a place is freed.
+  waiting_list: 'ברשימת המתנה',
   nothing_to_offer: 'אין כרגע מה להציע',
   answered_silent: 'קיבל תשובה ולא נרשם',
   in_conversation: 'בשיחה',
@@ -169,7 +172,7 @@ export function readLeadRow(raw: unknown): WahubLeadRow | null {
   const id = Number(data.contact_id ?? data.id);
   if (!Number.isSafeInteger(id) || id <= 0) return null;
   const stage = str(data.stage);
-  return {
+  const row: WahubLeadRow = {
     contact_id: id,
     name: str(data.name),
     phone: str(data.phone),
@@ -183,6 +186,13 @@ export function readLeadRow(raw: unknown): WahubLeadRow | null {
     next: readNext(data.next),
     last_message_at: time(data.last_message_at),
   };
+  // The waiting list and a future lead (docs/WAHUB-CONTRACT-FUTURE-LEADS.md, ד.3): on the row only when there
+  // is one — a server built before them sends neither, and the row is then exactly what it was.
+  const waiting = readWaitingMark(data.waiting_list);
+  if (waiting) row.waiting_list = waiting;
+  const future = readFuture(data.future);
+  if (future) row.future = future;
+  return row;
 }
 
 function readStages(raw: unknown): WahubLeadStageCount[] | undefined {
@@ -294,7 +304,7 @@ function readDetails(raw: unknown): WahubLeadDetails {
   if (!data) return NO_DETAILS;
   const list = <T>(value: unknown, read: (item: unknown) => T | null): T[] =>
     (Array.isArray(value) ? value : []).map(read).filter((item): item is T => item !== null);
-  return {
+  const details: WahubLeadDetails = {
     reason: str(data.reason),
     blocker_text: str(data.blocker_text),
     child: readChild(data.child),
@@ -305,6 +315,12 @@ function readDetails(raw: unknown): WahubLeadDetails {
     timeline: list(data.timeline, readTimelineEvent).slice(0, 10),
     in_system: readInternalPath(data.in_system),
   };
+  // The office's notes and the waiting-list entries: only from a server that sends them.
+  const notes = readNotes(data.notes);
+  if (notes) details.notes = notes.slice(0, 10);
+  const entries = readWaitingEntries(data.waiting_list_entries);
+  if (entries) details.waiting_list_entries = entries.slice(0, 20);
+  return details;
 }
 
 /** GET leads/{contact_id}/: the row, and `details`. Null when the answer names no contact. */
@@ -477,6 +493,7 @@ export function heldReason(sendingOn: boolean | null | undefined): string {
 /** What a lead with no next step is waiting on, by its state — when the server did not say it in its own words. */
 const IDLE_WORDS: Record<string, string> = {
   trial_booked: 'מחכים לשיעור הניסיון',
+  waiting_list: 'ברשימת המתנה — נתריע כשיתפנה מקום',
   nothing_to_offer: 'נשמר: נודיע כשנפתח',
   in_conversation: 'בשיחה עכשיו',
 };
@@ -951,7 +968,7 @@ export function applyLeadChange(
 
 /** The row's own fields of a lead that may carry more (its details). */
 function readRowFields(lead: WahubLeadRow): WahubLeadRow {
-  return {
+  const row: WahubLeadRow = {
     contact_id: lead.contact_id,
     name: lead.name,
     phone: lead.phone,
@@ -965,6 +982,9 @@ function readRowFields(lead: WahubLeadRow): WahubLeadRow {
     next: lead.next,
     last_message_at: lead.last_message_at,
   };
+  if (lead.waiting_list) row.waiting_list = lead.waiting_list;
+  if (lead.future) row.future = lead.future;
+  return row;
 }
 
 /** What the screen says once a change was saved. */

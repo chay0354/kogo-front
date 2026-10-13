@@ -20,6 +20,13 @@ export interface BoxDef {
   tone: Tone;
   /** Two worlds the owner wants kept apart on screen: what a person must handle, and what the bot handles. */
   group: BoxGroup;
+  /**
+   * A box only a server that counts it has (docs/WAHUB-CONTRACT-FUTURE-LEADS.md, ג.2): without its count it
+   * is not offered — an older server would answer it with every conversation.
+   */
+  needsCount?: boolean;
+  /** Not a call on anyone's attention: drawn without weight. */
+  quiet?: boolean;
 }
 
 /**
@@ -29,11 +36,32 @@ export interface BoxDef {
  * what the office works from; then the two bot-side states. The server also
  * knows a "bot" box; the screen does not offer it, because "הכול" less
  * "בטיפול נציג" already is that list.
+ *
+ * Since 13.10.2026 (docs/WAHUB-CONTRACT-FUTURE-LEADS.md, ג.2) "פתוחות" leads the
+ * person's boxes — everything that waits for a person now, whatever the reason —
+ * and "לידים עתידיים" closes them, quietly: the leads that wait for their day.
  */
 export const CHAT_BOXES: BoxDef[] = [
   { key: 'all', label: 'הכול', hint: 'כל השיחות', tone: 'neutral', group: 'all' },
+  {
+    key: 'open',
+    label: 'פתוחות',
+    hint: 'מחכות לך עכשיו: מבקשים נציג, שיחות אצל נציג, ולידים עתידיים שהגיע יומם או שהלקוח כתב',
+    tone: 'primary',
+    group: 'human',
+    needsCount: true,
+  },
   { key: 'needs_human', label: 'מבקשים נציג', hint: 'הלקוח ביקש בן אדם, ואף אחד עוד לא לקח את השיחה', tone: 'danger', group: 'human' },
   { key: 'human', label: 'בטיפול נציג', hint: 'נציג לקח את השיחה, הבוט שותק', tone: 'info', group: 'human' },
+  {
+    key: 'future',
+    label: 'לידים עתידיים',
+    hint: 'ממתינים לתאריך שנקבע; ביום הזה הם חוזרים ל״פתוחות״',
+    tone: 'muted',
+    group: 'human',
+    needsCount: true,
+    quiet: true,
+  },
   { key: 'waiting', label: 'מחכים לתשובה', hint: 'הלקוח כתב, והבוט עוד לא ענה', tone: 'warning', group: 'bot' },
   { key: 'unread', label: 'לא נקראו', hint: 'הודעות שאף אחד מהצוות עוד לא פתח', tone: 'primary', group: 'bot' },
 ];
@@ -45,8 +73,24 @@ export const BOX_GROUPS: { key: BoxGroup; label: string }[] = [
   { key: 'bot', label: 'בוט' },
 ];
 
-export function boxesInGroup(group: BoxGroup): BoxDef[] {
-  return CHAT_BOXES.filter((def) => def.group === group);
+/**
+ * The boxes of a group. Given the counts, a box that needs its own is left out
+ * until the server sends it — a server built before "פתוחות" never does.
+ */
+export function boxesInGroup(group: BoxGroup, counts?: Partial<WahubBoxCounts> | null): BoxDef[] {
+  return CHAT_BOXES.filter((def) => def.group === group && (counts === undefined || !def.needsCount || boxCount(counts, def.key) !== null));
+}
+
+/**
+ * The box to show for the one the address asks for. "פתוחות" and "לידים
+ * עתידיים" on a server that does not count them fall back to "הכול" — it would
+ * answer them with every conversation, under a name that says otherwise. Until
+ * the first counts are in hand nothing is known, and the box stands.
+ */
+export function shownBox(box: WahubBox, counts: Partial<WahubBoxCounts> | null | undefined): WahubBox {
+  const def = CHAT_BOXES.find((item) => item.key === box);
+  if (!counts || !def?.needsCount) return box;
+  return boxCount(counts, box) === null ? 'all' : box;
 }
 
 /** The plain line for a box, for hover text and empty states. */
@@ -115,9 +159,14 @@ export function matchesBox(contact: WahubContact, box: WahubBox): boolean {
     case 'unread':
       return contact.chat.unread_count > 0;
     case 'human':
-      return contact.chat.handled_by === 'human';
+      // A person holds it — but not a future lead that still waits for its day: that one is not "open" yet.
+      return contact.chat.handled_by === 'human' && contact.future?.state !== 'parked';
     case 'bot':
       return contact.chat.handled_by === 'bot';
+    case 'open':
+      return contact.chat.open === true;
+    case 'future':
+      return contact.future?.state === 'parked';
     default:
       return true;
   }

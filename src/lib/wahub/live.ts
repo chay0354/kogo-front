@@ -143,8 +143,9 @@ export function appendPage(
 
 /**
  * A contact as the lists carry it, laid over the open conversation. The parts
- * only the single-contact request brings — the messages, the log and the
- * children found in Kogo — stay as they were.
+ * only the single-contact request brings — the messages, the log, the notes
+ * and the children found in Kogo — stay as they were. A copy that does carry
+ * notes (one was just saved here) brings them.
  */
 export function mergeContactIntoDetail(
   detail: WahubContactDetail,
@@ -158,6 +159,7 @@ export function mergeContactIntoDetail(
     messages: detail.messages,
     has_older: detail.has_older,
     events: detail.events,
+    notes: (contact as Partial<WahubContactDetail>).notes ?? detail.notes,
   };
 }
 
@@ -182,12 +184,15 @@ export function logMoved(held: WahubContact, fresh: WahubContact): boolean {
     held.kogo.checked_at !== fresh.kogo.checked_at ||
     held.chat.handled_by !== fresh.chat.handled_by ||
     held.chat.needs_human !== fresh.chat.needs_human ||
+    // The waiting list writes to the log as well (a place was freed, an entry was closed).
+    (held.waiting_list?.entry_id ?? null) !== (fresh.waiting_list?.entry_id ?? null) ||
+    (held.waiting_list?.status ?? null) !== (fresh.waiting_list?.status ?? null) ||
     held.known.analyzed_at !== fresh.known.analyzed_at ||
     tagIds(held) !== tagIds(fresh)
   );
 }
 
-const BOX_KEYS: Array<keyof WahubBoxCounts> = ['all', 'waiting', 'needs_human', 'unread', 'human', 'bot'];
+const BOX_KEYS: Array<keyof WahubBoxCounts> = ['all', 'waiting', 'needs_human', 'unread', 'human', 'bot', 'open', 'future'];
 
 /** True when two sets of counts read the same, so an unchanged poll redraws nothing. */
 export function sameBoxCounts(
