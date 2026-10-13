@@ -6,6 +6,7 @@ import { useProposals, useReviewSummary } from '../../hooks/useBotQueries';
 import { useNow } from '../../hooks/useNow';
 import type { TeachComposerHandle } from './TeachComposer';
 import TeachView, { type TeachSlot } from './TeachView';
+import Unknowns from './Unknowns';
 import { useTeach } from './useTeach';
 
 export interface TeachSeed {
@@ -47,7 +48,7 @@ export default function TeachTab({ seed = null }: TeachTabProps) {
   // A card that was just opened, or that just changed (a new answer, "נשמר") is brought into view — only when
   // its top is not already there, so nothing moves that does not have to.
   const shownFor = useRef<string>('');
-  const slotKey = teach.sending ? 'thinking' : teach.openId != null ? `thread-${teach.openId}-${teach.version}` : '';
+  const slotKey = teach.sending ? 'thinking' : teach.topic ? `topic-${teach.topic.id}` : teach.openId != null ? `thread-${teach.openId}-${teach.version}` : '';
   useEffect(() => {
     if (slotKey === shownFor.current) return;
     shownFor.current = slotKey;
@@ -61,6 +62,7 @@ export default function TeachTab({ seed = null }: TeachTabProps) {
 
   let slot: TeachSlot | null = null;
   if (teach.sending) slot = { kind: 'thinking', wrote: teach.sending.wrote, since: teach.sending.since };
+  else if (teach.topic) slot = { kind: 'topic', title: teach.topic.title, since: teach.topic.since };
   else if (teach.openId != null && teach.thread) {
     slot = {
       kind: 'thread',
@@ -97,6 +99,19 @@ export default function TeachTab({ seed = null }: TeachTabProps) {
       onClose={teach.close}
       onRetryOpen={teach.retryOpen}
       fabUp={fabUp}
+      // "מה הבוט לא ידע השבוע", at the head of the screen. "ללמד" on a topic opens this very card, with the
+      // context ready; while a card stands under it the block folds to its title.
+      top={
+        <Unknowns
+          enabled={teach.availability === 'ready'}
+          known={summary.data?.unknowns !== undefined}
+          cardOpen={slot !== null}
+          teachingId={teach.topic?.id ?? null}
+          teachError={teach.topicError}
+          now={now}
+          onTeach={(topic) => teach.teachTopic(topic.id, topic.title)}
+        />
+      }
       history={{
         rows: teach.rows,
         count: teach.count,

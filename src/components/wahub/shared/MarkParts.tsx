@@ -251,14 +251,15 @@ export function OptOutMarkLink({ name, onMark, defaultAsking = false, flush = fa
 
 /**
  * Beside a press that is locked because the customer asked out: why, in plain words, and what can be done
- * instead. `more` is the server's own sentence where it sent one.
+ * instead. `bot` — the bot does not come back to them; `notify` — they are not told of a freed place by a
+ * message.
  */
-export function BlockedByOptOut({ more = OPT_OUT_TEXT.botBlockedMore }: { more?: string }) {
+export function BlockedByOptOut({ what = 'bot' }: { what?: 'bot' | 'notify' }) {
   return (
     <p className={k.blocked} role="note" data-blocked="opted_out">
       <BellOff aria-hidden="true" />
       <span>
-        <strong>{OPT_OUT_TEXT.botBlocked}.</strong> {more}
+        <strong>{what === 'notify' ? OPT_OUT_TEXT.notifyBlocked : OPT_OUT_TEXT.botBlocked}.</strong> {OPT_OUT_TEXT.botBlockedMore}
       </span>
     </p>
   );

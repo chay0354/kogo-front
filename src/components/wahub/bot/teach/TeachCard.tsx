@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import { AlertCircle, AlertTriangle, Check, CheckCircle2, ChevronDown, Info, MessagesSquare, Sparkles, Undo2, X } from 'lucide-react';
+import { AlertCircle, AlertTriangle, Check, CheckCircle2, ChevronDown, HelpCircle, Info, MessagesSquare, Sparkles, Undo2, X } from 'lucide-react';
 import { sendOnEnter } from '@/lib/wahub/demo';
 import {
   TEACH_MAX_LENGTH,
@@ -18,6 +18,7 @@ import {
   type CheckLine,
   type TeachAsk,
 } from '@/lib/wahub/teach';
+import { UNKNOWN_TEXT } from '@/lib/wahub/unknowns';
 import type { WahubTeachPreview, WahubTeachQuote, WahubTeachSummary, WahubTeachThread } from '@/types/wahubTeach';
 import PlainCard from '../../refine/PlainCard';
 import { Spinner } from '../../shared/bits';
@@ -55,7 +56,8 @@ export function Origin({ thread }: { thread: Pick<WahubTeachThread, 'origin' | '
   return (
     <div className={t.origin}>
       <p className={t.originLine}>
-        <MessagesSquare aria-hidden="true" />
+        {/* A topic of "מה הבוט לא ידע השבוע" has no conversation behind it — and so no way to one. */}
+        {origin.kind === 'unknown' ? <HelpCircle aria-hidden="true" /> : <MessagesSquare aria-hidden="true" />}
         <span dir="auto">{origin.label}</span>
         {origin.link && (
           <Link href={origin.link} className={t.originLink}>
@@ -596,8 +598,9 @@ export function TeachCardView({
       ) : ask === 'answer' ? (
         <div className={t.foot}>
           <ShortField
-            label={TEACH_TEXT.answerHere}
-            placeholder={TEACH_TEXT.answerHere}
+            // Opened on a topic the bot did not know: the one thing asked of him is the right answer.
+            label={thread.origin?.kind === 'unknown' ? UNKNOWN_TEXT.answerHere : TEACH_TEXT.answerHere}
+            placeholder={thread.origin?.kind === 'unknown' ? UNKNOWN_TEXT.answerHere : TEACH_TEXT.answerHere}
             sendLabel={TEACH_TEXT.sendAnswer}
             busy={busy !== null}
             autoFocus

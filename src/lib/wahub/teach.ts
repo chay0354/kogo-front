@@ -232,8 +232,13 @@ function readConflicts(raw: unknown): WahubTeachConflict[] {
  */
 export function readTeachOrigin(raw: unknown): WahubTeachOrigin | null {
   const data = asRecord(raw);
-  const kind = data?.kind === 'conversation' || data?.kind === 'shadow' ? data.kind : null;
+  const kind = data?.kind === 'conversation' || data?.kind === 'shadow' || data?.kind === 'unknown' ? data.kind : null;
   if (!data || !kind) return null;
+  // A thread opened on a topic of "מה הבוט לא ידע השבוע" (ט.3.4): no conversation stands behind it, so it has
+  // no way "to the conversation" — the topics are at the head of this very screen.
+  if (kind === 'unknown') {
+    return { kind, label: asText(data.label) || 'מתוך מה שהבוט לא ידע', contact_id: null, link: null, topic_id: asId(data.topic_id) };
+  }
   const link = asText(data.link);
   return {
     kind,

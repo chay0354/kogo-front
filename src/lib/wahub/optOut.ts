@@ -32,6 +32,8 @@ export const OPT_OUT_TEXT = {
   /** A lead: the bot does not come back to somebody who asked out (ט.1.6). */
   botBlocked: 'ביקש הסר — הבוט לא חוזר אליו',
   botBlockedMore: 'אפשר להתקשר, או להחזיר לתפוצה מתוך השיחה.',
+  /** A freed place on the waiting list: "להודיע ללקוח" does not go out to somebody who asked out. */
+  notifyBlocked: 'ביקש הסר — לא שולחים הודעה יזומה',
   markFailed: 'הסימון לא נשמר',
   backFailed: 'ההחזרה לתפוצה לא נשמרה',
   unknown: 'לא ידוע אם זה נשמר. בדקו בכרטיס לפני שמנסים שוב.',

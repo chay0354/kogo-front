@@ -6,6 +6,7 @@ import {
   OWNER_ACTION_LABELS,
   isValidSnooze,
   leadActions,
+  leadBotBlocked,
   leadTitle,
   snoozeDates,
   type LeadChange,
@@ -13,6 +14,7 @@ import {
 import type { WahubLeadRow } from '@/types/wahub';
 import { InlineConfirm, Spinner } from '../../shared/bits';
 import CustomerCardLink from '../../shared/CustomerCardLink';
+import { BlockedByOptOut } from '../../shared/MarkParts';
 import { cx } from '../../shared/tones';
 import s from '../../wahub.module.css';
 import l from './leads.module.css';
@@ -53,6 +55,10 @@ export interface LeadActionsViewProps {
  * הלקוח" (owner, 13.10.2026). The two ways out share the first row; what
  * changes the lead shares the second.
  *
+ * Somebody who asked out ("ביקש הסר", docs/WAHUB-CONTRACT-FUTURE-LEADS.md,
+ * ט.1.6): the bot does not come back to them, so "החזר לבוט" is locked and one
+ * plain line under the buttons says why, and what can be done instead.
+ *
  * The two that ask something ask it here, in place of the buttons — the
  * browser's own boxes are not used anywhere in this section. Drawn from what
  * it is given; what is open and what was typed is kept by LeadActions.
@@ -73,6 +79,8 @@ export function LeadActionsView({
   customerCard = null,
 }: LeadActionsViewProps) {
   const can = leadActions(lead, closed || undefined);
+  // Somebody who asked out: the bot does not come back to them, and the press that would send it is locked.
+  const botBlocked = leadBotBlocked(lead, closed || undefined);
   const dates = snoozeDates(now);
   const working = busy !== null;
   const untilOk = isValidSnooze(until, now);
@@ -160,7 +168,8 @@ export function LeadActionsView({
         {can.owner && (
           <button
             type="button"
-            disabled={working}
+            disabled={working || Boolean(botBlocked)}
+            title={botBlocked || undefined}
             onClick={() => onChange({ kind: 'owner', owner: can.owner as 'office' | 'bot' })}
             className={cx(s.btn, l.act)}
           >
@@ -186,6 +195,7 @@ export function LeadActionsView({
           </button>
         )}
       </div>
+      {botBlocked && <BlockedByOptOut />}
     </div>
   );
 }

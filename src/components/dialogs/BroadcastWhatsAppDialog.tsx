@@ -11,6 +11,8 @@ import LinkContactPanel from '@/components/broadcast/LinkContactPanel';
 import ContactIndexPanel, { unfindablePhones } from '@/components/broadcast/ContactIndexPanel';
 import type { BroadcastDraft } from '@/components/broadcast/BroadcastRunProvider';
 import {
+  optedOutCounts,
+  optedOutLine,
   previewCounts,
   sentCounts,
   type BroadcastRun,
@@ -57,7 +59,20 @@ const REASON_LABELS: Record<string, string> = {
   duplicate_phone: 'כפול (אותו טלפון)',
   no_active_lesson: 'ללא שיעור פעיל',
   not_mobile: 'מספר קווי',
+  // The number is on the system's "הסר" list: no broadcast goes out to it.
+  opted_out: 'ביקש הסר',
 };
+
+/** "N לא יקבלו: ביקשו הסר" — its own line, apart from the other reasons. Nothing when nobody asked out. */
+function OptedOutLine({ count }: { count: number }) {
+  const line = optedOutLine(count);
+  if (!line) return null;
+  return (
+    <p className="rounded-md border px-3 py-2 text-sm text-muted-foreground" role="status" data-opted-out="">
+      {line}
+    </p>
+  );
+}
 
 /** The family's extra phones under a row, each with what happened to it. */
 function ExtraPhoneLines({ row }: { row: BroadcastRow }) {
@@ -223,12 +238,13 @@ export default function BroadcastWhatsAppDialog({
     const { willSend, skipped, extraWillSend, messages } = previewCounts(previewRows);
     const reasons: Record<string, number> = {};
     for (const r of previewRows) {
-      if (r.status === 'skipped') reasons[r.reason || 'other'] = (reasons[r.reason || 'other'] || 0) + 1;
+      // Whoever asked out has a line of their own under the chips, and is not said twice.
+      if (r.status === 'skipped' && r.reason !== 'opted_out') reasons[r.reason || 'other'] = (reasons[r.reason || 'other'] || 0) + 1;
     }
-    return { willSend, skipped, extraWillSend, messages, reasons };
+    return { willSend, skipped, extraWillSend, messages, reasons, optedOut: optedOutCounts(previewRows).total };
   }, [previewRows]);
 
-  const sentSummary = useMemo(() => sentCounts(sentRows), [sentRows]);
+  const sentSummary = useMemo(() => ({ ...sentCounts(sentRows), optedOut: optedOutCounts(sentRows).total }), [sentRows]);
 
   const copyFailures = async () => {
     const lines = sentRows.flatMap((r) => [
@@ -400,6 +416,7 @@ export default function BroadcastWhatsAppDialog({
                 </span>
               ))}
             </div>
+            <OptedOutLine count={previewSummary.optedOut} />
             <div className="max-h-72 overflow-y-auto rounded-lg border divide-y text-sm">
               {previewRows.map((row) => (
                 <div key={row.child_id} className="px-3 py-2">
@@ -498,6 +515,7 @@ export default function BroadcastWhatsAppDialog({
                 </div>
               </div>
             )}
+            <OptedOutLine count={sentSummary.optedOut} />
             {phase === 'done' && unfindablePhones(sentRows).length > 0 && (
               <ContactIndexPanel
                 phones={unfindablePhones(sentRows)}

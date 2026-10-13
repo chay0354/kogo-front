@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { BOT_SUBS } from '@/lib/wahub/bot';
 import type { WahubBotSub, WahubStatus } from '@/types/wahub';
+import { useReviewSummary } from '../hooks/useBotQueries';
 import { useSlideClass } from '../shared/motion';
 import { cx } from '../shared/tones';
 import s from '../wahub.module.css';
@@ -13,6 +14,7 @@ import KnowledgeTab from './knowledge/KnowledgeTab';
 import ReviewTab from './review/ReviewTab';
 import ShadowTab from './shadow/ShadowTab';
 import TeachTab, { type TeachSeed } from './teach/TeachTab';
+import u from './teach/unknowns.module.css';
 import TryTab from './try/TryTab';
 
 interface BotTabProps {
@@ -44,6 +46,9 @@ export default function BotTab({ sub, status, openItemId, tryQuestion, onSub, on
     setTeachSeed((prev) => ({ text, nonce: (prev?.nonce ?? 0) + 1 }));
     onSub('teach');
   };
+  // How many topics the bot did not know this week (docs/WAHUB-CONTRACT-FUTURE-LEADS.md, ט.3.3): a small, quiet
+  // number beside "ללמד", where they wait to be taught. Never red, and nothing at all on a server that does not count them.
+  const unknownTopics = useReviewSummary(true).data?.unknowns?.topics ?? 0;
   return (
     <div className={cx(s.pg, 'flex flex-col gap-3.5')}>
       {/* A phone turns these into a row of chips that scrolls sideways (see the stylesheet). */}
@@ -63,6 +68,11 @@ export default function BotTab({ sub, status, openItemId, tryQuestion, onSub, on
               className={cx(active && s.on)}
             >
               {def.label}
+              {def.key === 'teach' && unknownTopics > 0 && (
+                <span className={u.subCount} title={`${unknownTopics.toLocaleString('he-IL')} נושאים שהבוט לא ידע השבוע`} data-unknowns-count="">
+                  {unknownTopics > 99 ? '99+' : unknownTopics}
+                </span>
+              )}
             </button>
           );
         })}
