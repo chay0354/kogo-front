@@ -1,8 +1,8 @@
 'use client';
 
 import { memo, useEffect, useRef, useState } from 'react';
-import { Inbox, Plug, Search, X } from 'lucide-react';
-import { BOX_GROUPS, boxCount, boxesInGroup, handledByChip } from '@/lib/wahub/boxes';
+import { CheckCircle2, Inbox, Plug, Search, X } from 'lucide-react';
+import { BOX_GROUPS, boxCount, boxesInGroup, handledByChip, openEmptyWords } from '@/lib/wahub/boxes';
 import { isDemoContact } from '@/lib/wahub/demo';
 import { displayName, formatListTime, israelToday, previewText, waitingLabel } from '@/lib/wahub/format';
 import { futureOf, waitingOf } from '@/lib/wahub/futureLeads';
@@ -200,7 +200,11 @@ export default function ChatList({
     return () => observer.disconnect();
   }, [hasMore, items.length]);
 
-  const filtered = Boolean(search.trim()) || box !== 'all';
+  const searching = Boolean(search.trim());
+  // The tab opens on "פתוחות"; with nobody in it the list says so, and shows the way to every conversation.
+  const nothingOpen = box === 'open' && !searching;
+  const filtered = searching || (box !== 'all' && !nothingOpen);
+  const openEmpty = openEmptyWords(counts);
   // A list that was just read comes in a row at a time; once it is on screen its rows only move with the live update.
   const stagger = useStagger(status === 'ready');
 
@@ -287,6 +291,12 @@ export default function ChatList({
         ) : items.length === 0 ? (
           filtered ? (
             <EmptyState icon={<Search />} title="אין שיחות שמתאימות" text="נסו תיבה אחרת או חיפוש אחר." />
+          ) : nothingOpen && !notConnected ? (
+            <EmptyState icon={<CheckCircle2 />} title={openEmpty.title} text={openEmpty.text}>
+              <button type="button" onClick={() => onBox('all')} className={cx(s.btn, s.btnP)}>
+                {openEmpty.go}
+              </button>
+            </EmptyState>
           ) : notConnected ? (
             <EmptyState
               icon={<Plug />}

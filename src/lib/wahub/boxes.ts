@@ -93,6 +93,19 @@ export function shownBox(box: WahubBox, counts: Partial<WahubBoxCounts> | null |
   return boxCount(counts, box) === null ? 'all' : box;
 }
 
+/**
+ * What "פתוחות" says when nobody waits for a person: that it is so — and where every other conversation is, so
+ * an empty first screen never reads as if the conversations were gone (the tab opens on this box; owner, 13.10.2026).
+ */
+export function openEmptyWords(counts: Partial<WahubBoxCounts> | null | undefined): { title: string; text: string; go: string } {
+  const all = boxCount(counts, 'all');
+  return {
+    title: 'אין שיחות שמחכות לכם כרגע',
+    text: 'מי שיבקש נציג יופיע כאן לבד. כל שאר השיחות נמצאות ב״הכול״.',
+    go: all !== null && all > 0 ? `לכל השיחות (${all.toLocaleString('he-IL')})` : 'לכל השיחות',
+  };
+}
+
 /** The plain line for a box, for hover text and empty states. */
 export function boxHint(box: WahubBox): string {
   return CHAT_BOXES.find((def) => def.key === box)?.hint ?? '';

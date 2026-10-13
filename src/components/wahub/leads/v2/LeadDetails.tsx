@@ -1,7 +1,7 @@
 'use client';
 
-import Link from 'next/link';
-import { AlertCircle, ArrowRight, ChevronDown, ExternalLink, Plus, X } from 'lucide-react';
+import { AlertCircle, ArrowRight, ChevronDown, Plus, X } from 'lucide-react';
+import { customerCardPath } from '@/lib/wahub/customerCard';
 import { formatDateTime, israelToday } from '@/lib/wahub/format';
 import { entryOfMark, isActiveEntry } from '@/lib/wahub/futureLeads';
 import type { WaitingAction } from '@/lib/wahub/futureLeadsApi';
@@ -272,6 +272,9 @@ function DetailsSkeleton() {
  * office's notes and this person's entries on the waiting list each have a
  * section, with a quiet way to put them on another lesson's list.
  *
+ * Since 13.10.2026 the way to the customer's card is a button among the
+ * actions, beside "פתח שיחה" — it was a link at the foot of the details.
+ *
  * Nothing is said twice: a line that repeats one already on the screen is left
  * out (lib/wahub/leadsV2.ts, saysMore). A column beside the list on a desktop;
  * a screen of its own, with a way back, on a phone.
@@ -403,6 +406,9 @@ export default function LeadDetails({
           initialMode={initialMode}
           onOpenChat={() => onOpenChat(lead.contact_id)}
           onChange={(change) => onChange(lead, change)}
+          // Somebody Kogo knows: one press to their card in the customers section — beside "פתח שיחה", not at the
+          // foot of the details. A family with no card to open gets no button.
+          customerCard={customerCardPath(details?.in_system)}
         />
       )}
 
@@ -570,15 +576,6 @@ export default function LeadDetails({
                       ))}
                     </ol>
                   </FoldSection>
-                )}
-
-                {details.in_system && (
-                  <Section title="במערכת">
-                    <Link href={details.in_system} className={l.dLink}>
-                      כרטיס הלקוח ב-Kogo
-                      <ExternalLink aria-hidden="true" />
-                    </Link>
-                  </Section>
                 )}
               </>
             )}

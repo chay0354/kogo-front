@@ -718,13 +718,28 @@
   grid-column: auto;
 }
 
+/* With the way to the customer's card ("לכרטיס הלקוח"): the two ways out share the first row, half each; what
+   changes the lead shares the second, a third each. */
+.actGridCard {
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+}
+
+.actGridCard .act {
+  grid-column: span 2;
+}
+
+.actGridCard .actMain,
+.actGridCard .actCard {
+  grid-column: span 3;
+}
+
 /* A pane wide enough for every action in one row. */
 @container leadpane (min-width: 430px) {
-  .actGrid:not(.actGridOne):not(.actGridTwo) {
+  .actGrid:not(.actGridOne):not(.actGridTwo):not(.actGridCard) {
     grid-template-columns: 1.25fr repeat(3, minmax(0, 1fr));
   }
 
-  .actGrid:not(.actGridOne):not(.actGridTwo) .actMain {
+  .actGrid:not(.actGridOne):not(.actGridTwo):not(.actGridCard) .actMain {
     grid-column: auto;
   }
 }
@@ -1132,20 +1147,6 @@
   font-size: var(--t-body);
   line-height: 1.5;
   overflow-wrap: anywhere;
-}
-
-.dLink {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  min-height: 32px;
-  font-size: var(--t-body);
-  font-weight: 600;
-}
-
-.dLink svg {
-  width: 16px;
-  height: 16px;
 }
 
 .dSk {

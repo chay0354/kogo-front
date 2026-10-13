@@ -78,6 +78,13 @@ export const WAHUB_BOT_SUBS: WahubBotSub[] = ['teach', 'knowledge', 'hours', 'tr
 
 export const WAHUB_BOXES: WahubBox[] = ['all', 'waiting', 'needs_human', 'unread', 'human', 'bot', 'open', 'future'];
 
+/**
+ * The box the conversations open on when the address names none: "פתוחות" — what waits for a person now (owner,
+ * 13.10.2026: "שיהיה פתוחות קודם"). A server that does not count that box shows "הכול" instead, as it always did
+ * (lib/wahub/boxes.ts, shownBox). A box the address does name — "הכול" among them — is the one shown.
+ */
+export const DEFAULT_CHAT_BOX: WahubBox = 'open';
+
 export const WAHUB_QUEUES: WahubQueue[] = [
   'all',
   'due',
@@ -94,7 +101,7 @@ export function parseTab(value: string | null | undefined): WahubTab {
 }
 
 export function parseBox(value: string | null | undefined): WahubBox {
-  return WAHUB_BOXES.includes(value as WahubBox) ? (value as WahubBox) : 'all';
+  return WAHUB_BOXES.includes(value as WahubBox) ? (value as WahubBox) : DEFAULT_CHAT_BOX;
 }
 
 export function parseQueue(value: string | null | undefined): WahubQueue {
@@ -152,8 +159,8 @@ export function parseWahubUrl(params: ParamReader | null | undefined): WahubUrlS
 }
 
 /**
- * /wahub?tab=chats&contact=12 — /wahub?tab=bot&sub=hours — /wahub?tab=bot&item=7 — /wahub?tab=leads&stage=needs_reply
- * — /wahub?tab=leads&owner=bot&lead=12 — /wahub?tab=leads&list=waiting
+ * /wahub?tab=chats&contact=12 — /wahub?tab=chats&box=all — /wahub?tab=bot&sub=hours — /wahub?tab=bot&item=7 —
+ * /wahub?tab=leads&stage=needs_reply — /wahub?tab=leads&owner=bot&lead=12 — /wahub?tab=leads&list=waiting
  *
  * The tab is always written, so a copied link says where it leads. An open
  * conversation belongs to the chats tab only; a sub-tab and an open knowledge
@@ -164,7 +171,8 @@ export function buildWahubUrl(state: WahubUrlState, pathname = '/wahub'): string
   const params = new URLSearchParams();
   params.set('tab', state.tab);
   if (state.tab === 'chats') {
-    if (state.box !== 'all') params.set('box', state.box);
+    // The box the tab opens on by itself is not written; every other — "הכול" too — is, so a link keeps it.
+    if (state.box !== DEFAULT_CHAT_BOX) params.set('box', state.box);
     if (state.contact) params.set('contact', String(state.contact));
   }
   if (state.tab === 'leads') {

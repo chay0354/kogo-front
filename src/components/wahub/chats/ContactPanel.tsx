@@ -3,6 +3,7 @@
 import { useEffect, useId, useState, type ReactNode } from 'react';
 import { ArrowRight, CalendarClock, Check, ChevronDown, Hand, MessageCircle, PanelLeftClose, Pencil, Plus, Undo2, X } from 'lucide-react';
 import { formatWhatsAppLink } from '@/lib/customerUtils';
+import { customerCardHref } from '@/lib/wahub/customerCard';
 import { isDemoContact } from '@/lib/wahub/demo';
 import { callbackLine } from '@/lib/wahub/followup';
 import { displayName, formatShortDate, hasName } from '@/lib/wahub/format';
@@ -11,6 +12,7 @@ import { knownHeadline, leadOf } from '@/lib/wahub/leadStage';
 import type { WahubContactDetail, WahubFollowupPatch, WahubTag } from '@/types/wahub';
 import { LeadStateBlock } from '../leads/LeadBits';
 import { ContactAvatar, DemoTag, LiveTestTag, Pill, Spinner } from '../shared/bits';
+import CustomerCardLink from '../shared/CustomerCardLink';
 import { EventsList, FollowupMarks, KnownBox, KogoBox, NoteField, TagPicker } from '../shared/ContactParts';
 import { Fold } from '../shared/motion';
 import { cx } from '../shared/tones';
@@ -280,6 +282,8 @@ export default function ContactPanel({
   const offerHandover = !(future && human);
   // "טופל" is the ✓ of the conversation's title row where there is one.
   const offerResolve = contact.chat.needs_human && !knows;
+  // Somebody Kogo knows: one clear button to their card in the customers section, among the actions.
+  const customerCard = customerCardHref(contact.kogo);
 
   const [open, setOpen] = useState<ReadonlySet<CardFold>>(() => new Set(defaultOpen ?? []));
   // Another person: the card is tidy again, every section folded.
@@ -361,10 +365,10 @@ export default function ContactPanel({
       </CardSection>
 
       {/* 3. The actions, in one row. */}
-      {actions && (offerHandover || offerResolve) && (
+      {((actions && (offerHandover || offerResolve)) || customerCard) && (
         <CardSection title="פעולות">
           <div className="flex flex-wrap items-center gap-2" role="group" aria-label="פעולות על השיחה">
-            {!offerHandover ? null : human ? (
+            {!actions || !offerHandover ? null : human ? (
               <button type="button" onClick={actions.onRelease} disabled={actions.handoverBusy} className={cx(s.btn, s.btnSm)}>
                 {actions.handoverBusy ? <Spinner className="h-3.5 w-3.5" /> : <Undo2 aria-hidden="true" />}
                 החזר לבוט
@@ -375,7 +379,7 @@ export default function ContactPanel({
                 קח שיחה
               </button>
             )}
-            {offerResolve && (
+            {actions && offerResolve && (
               <button
                 type="button"
                 onClick={actions.onResolveNeedsHuman}
@@ -386,11 +390,12 @@ export default function ContactPanel({
                 טופל
               </button>
             )}
+            {customerCard && <CustomerCardLink href={customerCard} />}
           </div>
         </CardSection>
       )}
 
-      {/* 4. In Kogo: registered or not, where, the children, the way to the customer's card. */}
+      {/* 4. In Kogo: registered or not, where, and the children by name. */}
       <CardSection title="במערכת">
         <KogoBox contact={contact} now={now} onRecheck={onRecheck} rechecking={rechecking} />
       </CardSection>

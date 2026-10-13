@@ -158,15 +158,25 @@ const within = (value: RefineValue, node: React.ReactElement) => <RefineContext.
 // ---------------------------------------------------------------------------
 
 describe('"דיוק" at the top of a conversation', () => {
-  it('is in the header of every conversation of the section — as a word on a desktop and as an icon on a phone', () => {
+  it('is in the header of every conversation of the section — one small, quiet icon at every width (owner, 13.10.2026)', () => {
     const html = render(
       <RefineProvider>
         <ChatThread thread={thread(detail(), MESSAGES)} {...threadProps} />
       </RefineProvider>,
     );
-    expect(html).toContain('>דיוק</button>');
-    expect(html).toContain('aria-label="דיוק"');
-    expect((html.match(/aria-pressed="false"/g) ?? []).length).toBeGreaterThanOrEqual(2);
+    // No worded button with a frame any more: an icon, named for a reader of the screen and on hover.
+    expect(html).not.toContain('>דיוק</button>');
+    expect((html.match(/aria-label="דיוק"/g) ?? []).length).toBe(1);
+    expect(html).toContain('title="דיוק: לתקן את הבוט מתוך השיחה"');
+    const button = html.match(/<button[^>]*aria-label="דיוק"[^>]*>/)?.[0] ?? '';
+    expect(button).toContain(s.ibQuiet);
+    expect(button).toContain(s.ibSm);
+    expect(button).toContain('aria-pressed="false"');
+    // One button for the desktop and the phone alike — not one hidden from each.
+    expect(button).not.toContain(s.deskOnly);
+    expect(button).not.toContain(s.phoneIb);
+    // It stands after the conversation's own actions, not before them.
+    expect(html.indexOf('aria-label="דיוק"')).toBeGreaterThan(html.indexOf('קח שיחה'));
     // Nothing is being marked yet: no bar, and the bubbles are not checkboxes.
     expect(html).not.toContain('role="toolbar"');
     expect(html).not.toContain('role="checkbox"');
@@ -178,7 +188,7 @@ describe('"דיוק" at the top of a conversation', () => {
         <ChatThread thread={thread(detail(), MESSAGES)} {...threadProps} showBack={false} showDetailsButton={false} />
       </RefineProvider>,
     );
-    expect(beside).toContain('>דיוק</button>');
+    expect(beside).toContain('aria-label="דיוק"');
     // No worded button; the phone's icon (drawn only under a phone's width) is all that names the action.
     expect(beside).not.toContain('קח שיחה</button>');
     expect(beside.match(/קח שיחה/g)!.length).toBe(2);
@@ -316,9 +326,9 @@ describe('a bubble has no "דיוק" of its own', () => {
     }
   });
 
-  it('the only "דיוק" on screen is the button of the title row (a word on a desktop, an icon on a phone)', () => {
+  it('the only "דיוק" on screen is the small button of the title row', () => {
     const html = render(conversation());
-    expect((html.match(/>דיוק<\/button>/g) ?? []).length).toBe(1);
+    expect((html.match(/>דיוק<\/button>/g) ?? []).length).toBe(0);
     expect((html.match(/aria-label="דיוק"/g) ?? []).length).toBe(1);
     expect(html).not.toContain('דיוק על ההודעה');
     expect(html).not.toContain('מה לא היה טוב בהודעה הזו');

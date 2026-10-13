@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'vitest';
 
 import {
+  DEFAULT_CHAT_BOX,
   buildWahubUrl,
   contactsParams,
   countsParams,
@@ -111,7 +112,7 @@ describe('the address of the page', () => {
     expect(parseWahubUrl(new URLSearchParams('tab=chats&contact=12'))).toEqual({
       tab: 'chats',
       contact: 12,
-      box: 'all',
+      box: 'open',
       queue: 'all',
       sub: 'knowledge',
       item: null,
@@ -125,7 +126,7 @@ describe('the address of the page', () => {
     expect(parseWahubUrl(new URLSearchParams(''))).toEqual({
       tab: 'chats',
       contact: null,
-      box: 'all',
+      box: 'open',
       queue: 'all',
       sub: 'knowledge',
       item: null,
@@ -138,7 +139,7 @@ describe('the address of the page', () => {
 
   test('anything it does not know falls back rather than breaking the page', () => {
     expect(parseTab('nonsense')).toBe('chats');
-    expect(parseBox('nonsense')).toBe('all');
+    expect(parseBox('nonsense')).toBe('open');
     expect(parseQueue('waiting')).toBe('all');
     expect(parseContactId('abc')).toBeNull();
     expect(parseContactId('-3')).toBeNull();
@@ -146,10 +147,32 @@ describe('the address of the page', () => {
     expect(parseContactId('12')).toBe(12);
   });
 
-  const base = { contact: null, box: 'all', queue: 'all', sub: 'knowledge', item: null, stage: null, owner: 'office', lead: null } as const;
+  // "פתוחות" is where the conversations open (13.10.2026): it is the box an address that names none stands for.
+  const base = { contact: null, box: 'open', queue: 'all', sub: 'knowledge', item: null, stage: null, owner: 'office', lead: null } as const;
 
   test('writes a link that opens the same conversation', () => {
     expect(buildWahubUrl({ ...base, tab: 'chats', contact: 12 })).toBe('/wahub?tab=chats&contact=12');
+  });
+
+  test('the conversations open on "פתוחות"; a box the address names — "הכול" too — is the one shown (13.10.2026)', () => {
+    expect(DEFAULT_CHAT_BOX).toBe('open');
+    expect(parseBox(null)).toBe('open');
+    expect(parseBox(undefined)).toBe('open');
+    expect(parseBox('')).toBe('open');
+    // A link that names a box keeps it: from the day's tab, from a notice, from a copied address.
+    for (const box of ['all', 'waiting', 'needs_human', 'unread', 'human', 'future', 'open'] as const) {
+      expect(parseWahubUrl(new URLSearchParams(`tab=chats&box=${box}`)).box).toBe(box);
+    }
+    // "הכול" is no longer what an empty address means, so it is written — and read back as itself.
+    expect(buildWahubUrl({ ...base, tab: 'chats', box: 'all' })).toBe('/wahub?tab=chats&box=all');
+    expect(buildWahubUrl({ ...base, tab: 'chats', box: 'all', contact: 12 })).toBe('/wahub?tab=chats&box=all&contact=12');
+    expect(parseWahubUrl(new URLSearchParams('tab=chats&box=all&contact=12'))).toMatchObject({ box: 'all', contact: 12 });
+    // "פתוחות" itself is not written: it is where the tab opens.
+    expect(buildWahubUrl({ ...base, tab: 'chats', box: 'open' })).toBe('/wahub?tab=chats');
+    // The links that exist today name no box — the office's notice, the customer's card: the conversation they
+    // name opens, and the list beside it is "פתוחות".
+    expect(parseWahubUrl(new URLSearchParams('contact=12'))).toMatchObject({ tab: 'chats', box: 'open', contact: 12 });
+    expect(parseWahubUrl(new URLSearchParams('tab=chats&contact=12'))).toMatchObject({ box: 'open', contact: 12 });
   });
 
   test('a box and a queue are written only when one is chosen, each on its own tab', () => {
@@ -203,7 +226,7 @@ describe('the address of the page', () => {
   });
 
   test('a link written before the lead states (no stage at all) still builds', () => {
-    expect(buildWahubUrl({ tab: 'chats', contact: 12, box: 'all', queue: 'all', sub: 'knowledge', item: null })).toBe(
+    expect(buildWahubUrl({ tab: 'chats', contact: 12, box: 'open', queue: 'all', sub: 'knowledge', item: null })).toBe(
       '/wahub?tab=chats&contact=12',
     );
   });
