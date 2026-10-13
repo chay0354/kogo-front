@@ -1,0 +1,707 @@
+/*
+ * "מי עונה ללקוחות" — the card at the top of the settings, and the window of
+ * going live (docs/WAHUB-CONTRACT-GO-LIVE.md, ג).
+ *
+ * One question is answered here, in the order the eye should take it: who
+ * answers the customers right now (one large line) — the one button that
+ * changes it, apart from everything else — what happened today (six small
+ * numbers) — and, a press away, the last failure and who changed what.
+ *
+ * Drawn in the section's own language: the variables set on .wahub
+ * (wahub.module.css) and the timing set on .motion (motion.module.css). Quiet
+ * blue is "בדיקה בלבד", green is "עונה לכולם", amber is "chosen, and not
+ * answering yet". Red is kept for one thing only: the bot stopped itself and
+ * nobody answers the customers.
+ */
+
+/* Reached from "מצב המערכת": it stops clear of the section's title row. */
+.card {
+  scroll-margin-top: 84px;
+}
+
+/* Where the settings are two columns of cards, this one lies across both: it is the first thing on the page,
+   and it does not move from one column to the other as the cards under it open and close. */
+@media (min-width: 1280px) {
+  .card {
+    column-span: all;
+  }
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.head h3 {
+  flex: 1 1 0;
+  min-width: 0;
+  font-size: 15px;
+  font-weight: 800;
+}
+
+/* ---------- the bot stopped itself ---------- */
+
+.stopped {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 12px;
+  padding: 14px 16px;
+  border: 1px solid rgba(200, 30, 30, 0.28);
+  border-radius: 14px;
+  background: var(--bad-bg);
+  color: var(--ink);
+  animation: waIn var(--m-base) var(--m-out) backwards;
+}
+
+.stopped > svg {
+  flex: none;
+  width: 26px;
+  height: 26px;
+  margin-top: 1px;
+  color: var(--bad);
+}
+
+.stoppedText {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 800;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.stoppedWhen {
+  margin: 2px 0 0;
+  color: var(--muted);
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+.stoppedLine {
+  margin: 8px 0 0;
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+.stoppedLine b {
+  font-weight: 800;
+}
+
+/* ---------- the state, and its one button ---------- */
+
+.state {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 16px;
+}
+
+.headline {
+  flex: 1 1 300px;
+  min-width: 0;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 16px;
+  border-radius: 14px;
+  transition: background-color var(--m-base);
+}
+
+.headline > svg {
+  flex: none;
+  width: 26px;
+  height: 26px;
+  margin-top: 2px;
+}
+
+.toneTest {
+  background: var(--lav-2);
+}
+
+.toneTest > svg {
+  color: var(--navy-ink);
+}
+
+.toneLive {
+  background: var(--good-bg);
+}
+
+.toneLive > svg {
+  color: var(--good);
+}
+
+.toneHeld {
+  background: var(--warn-bg);
+}
+
+.toneHeld > svg {
+  color: var(--warn);
+}
+
+.headText {
+  margin: 0;
+  color: var(--ink);
+  font-family: var(--font-display, inherit);
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1.3;
+  text-wrap: balance;
+  overflow-wrap: anywhere;
+}
+
+.headSub {
+  margin: 3px 0 0;
+  color: var(--muted);
+  font-size: 13.5px;
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+/* The button stands alone at the end of the row — nothing else that can be pressed is beside it. */
+.action {
+  flex: none;
+}
+
+.action > button {
+  height: 44px;
+  padding: 0 20px;
+  border-radius: 12px;
+  font-size: 15px;
+}
+
+/* What opens under the state takes the whole row. */
+.wide {
+  flex: 1 1 100%;
+  min-width: 0;
+}
+
+.wide b {
+  font-weight: 800;
+}
+
+.note,
+.warning,
+.error {
+  flex: 1 1 100%;
+  min-width: 0;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--warn-bg);
+  color: var(--ink);
+  font-size: 13.5px;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+  animation: waIn var(--m-fast) var(--m-out) backwards;
+}
+
+.note svg,
+.warning svg,
+.error svg {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  margin-top: 2px;
+  color: var(--warn);
+}
+
+.warning {
+  font-weight: 600;
+}
+
+.note b {
+  font-weight: 800;
+}
+
+/* The state on screen is the last one the server gave; it could not be asked again just now. */
+.stale {
+  flex: 1 1 100%;
+  margin: 0;
+  color: var(--muted);
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+/* ---------- today, in six small numbers ---------- */
+
+.today {
+  margin-top: 14px;
+}
+
+.figures {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 8px;
+  margin: 6px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.figure {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+  padding: 8px 10px;
+  border-radius: 12px;
+  background: var(--surface-2);
+}
+
+.figureValue {
+  color: var(--ink);
+  font-size: 20px;
+  font-weight: 800;
+  line-height: 1.2;
+}
+
+.figureLabel {
+  color: var(--muted);
+  font-size: 12.5px;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+/* Nothing to count: the nought steps back, so the numbers that are something stand out. */
+.figureZero .figureValue {
+  color: var(--faint);
+}
+
+/* Something failed, or somebody was not answered: amber, and still a word beside the number. */
+.figureAlert {
+  background: var(--warn-bg);
+}
+
+.figureAlert .figureValue,
+.figureAlert .figureLabel {
+  color: var(--warn);
+}
+
+/* ---------- a press away: the last failure, and who changed what ---------- */
+
+.folds {
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.foldValue {
+  flex: none;
+  color: var(--muted);
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+.foldText {
+  margin: 0;
+  font-size: 13.5px;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+
+.log {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.log li {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  font-size: 13.5px;
+  line-height: 1.5;
+}
+
+.logWhen {
+  flex: none;
+  min-width: 78px;
+  color: var(--muted);
+  font-size: 12.5px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.logText {
+  flex: 1 1 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.logBy {
+  color: var(--muted);
+  font-weight: 600;
+}
+
+/* ---------- waiting for the first answer ---------- */
+
+.sk {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* ---------- the window: "הבוט החדש עונה לכולם" ---------- */
+
+/* Over the whole page: the ground, and the window in the middle of it. */
+.winRoot {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.winScrim {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  padding: 0;
+  background: rgba(10, 12, 40, 0.42);
+  animation: waFade var(--m-base) ease-out backwards;
+}
+
+.win {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: min(480px, 100%);
+  max-height: min(640px, 100%);
+  min-height: 0;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  background: var(--surface);
+  box-shadow: var(--float);
+  color: var(--ink);
+  direction: rtl;
+  animation: waWin var(--m-base) var(--m-out) backwards;
+}
+
+.win:focus {
+  outline: none;
+}
+
+.winHead {
+  flex: none;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding-block: 16px 6px;
+  padding-inline: 20px 10px;
+}
+
+.winTitle {
+  flex: 1 1 0;
+  min-width: 0;
+  margin: 0;
+  padding-top: 4px;
+  font-family: var(--font-display, inherit);
+  font-size: var(--t-lead);
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+/* What is inside scrolls by itself; the buttons under it stay where they are. */
+.winBody {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  padding: 4px 20px 18px;
+}
+
+.winLines {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--t-body);
+  line-height: 1.55;
+}
+
+.winLines li {
+  position: relative;
+  padding-inline-start: 16px;
+}
+
+.winLines li::before {
+  content: '';
+  position: absolute;
+  inset-inline-start: 2px;
+  top: 0.62em;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--navy);
+}
+
+.winNote {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 14px 0 0;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--warn-bg);
+  font-size: 13.5px;
+  font-weight: 600;
+  line-height: 1.55;
+}
+
+.winNote svg {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  margin-top: 2px;
+  color: var(--warn);
+}
+
+/* The tick: without it "להדליק לכולם" cannot be pressed. A whole row to press, a finger tall. */
+.tick {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 52px;
+  margin-top: 16px;
+  padding: 10px 14px;
+  border: 1.5px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface-2);
+  font-size: var(--t-body);
+  font-weight: 700;
+  line-height: 1.4;
+  cursor: pointer;
+  transition:
+    background-color var(--m-fast),
+    border-color var(--m-fast);
+}
+
+.tick input {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  margin: 0;
+  accent-color: var(--navy);
+  cursor: pointer;
+}
+
+.tick:has(input:checked) {
+  border-color: var(--navy);
+  background: var(--lav-2);
+}
+
+.tick:has(input:focus-visible) {
+  outline: 2px solid var(--navy);
+  outline-offset: 2px;
+}
+
+.tick:has(input:disabled),
+.tick:has(input:disabled) input {
+  cursor: default;
+}
+
+/* Why the server cannot go live, in its own words. Amber: nothing was turned on, and nothing went wrong for a customer. */
+.problems {
+  margin-top: 14px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: var(--warn-bg);
+  font-size: 13.5px;
+  line-height: 1.55;
+  animation: waIn var(--m-fast) var(--m-out) backwards;
+}
+
+.problemsTitle {
+  margin: 0;
+  color: var(--warn);
+  font-weight: 800;
+}
+
+.problems ul {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 6px 0 0;
+  padding: 0;
+  padding-inline-start: 18px;
+  overflow-wrap: anywhere;
+}
+
+/* The two buttons keep apart: "להדליק לכולם" at the start, "ביטול" at the far end. */
+.winFoot {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 12px 20px 16px;
+  border-top: 1px solid var(--line-2);
+  background: var(--surface);
+}
+
+.winFoot > button {
+  height: 44px;
+  border-radius: 12px;
+  font-size: 15px;
+}
+
+.winGo {
+  padding: 0 22px;
+}
+
+.winCancel {
+  margin-inline-start: auto;
+  padding: 0 18px;
+}
+
+@keyframes waIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+
+@keyframes waFade {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes waWin {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+}
+
+@keyframes waUp {
+  from {
+    opacity: 0;
+    transform: translateY(28px);
+  }
+}
+
+/* ---------- the phone ---------- */
+
+@media (max-width: 767px) {
+  .headText {
+    font-size: 20px;
+  }
+
+  /* The button under the state, the whole width, a finger tall. */
+  .action {
+    flex: 1 1 100%;
+  }
+
+  .action > button {
+    width: 100%;
+    height: 48px;
+    font-size: 16px;
+  }
+
+  .figures {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .log li {
+    flex-wrap: wrap;
+    gap: 0 10px;
+  }
+
+  .logText {
+    flex-basis: 100%;
+  }
+
+  /* The window becomes a sheet at the foot of the screen: an X at its head, its buttons pinned to its foot. */
+  .winRoot {
+    align-items: flex-end;
+    padding: 0;
+  }
+
+  .win {
+    width: 100%;
+    max-height: 92%;
+    border-width: 1px 0 0;
+    border-radius: 20px 20px 0 0;
+    transform-origin: 50% 100%;
+    animation: waUp var(--m-slow) var(--m-move) backwards;
+  }
+
+  .winHead {
+    padding-block: 10px 4px;
+    padding-inline: 16px 8px;
+  }
+
+  .winHead > button {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+  }
+
+  .winTitle {
+    padding-top: 9px;
+  }
+
+  .winBody {
+    padding: 4px 16px 16px;
+  }
+
+  .winLines,
+  .tick {
+    font-size: 16px;
+  }
+
+  .tick input {
+    width: 24px;
+    height: 24px;
+  }
+
+  /* The buttons are pinned to the foot of the sheet, a finger tall, clear of the home bar. */
+  .winFoot {
+    gap: 12px;
+    padding: 10px 16px calc(12px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .winFoot > button {
+    height: 48px;
+    font-size: 16px;
+  }
+
+  .winGo {
+    flex: 1 1 auto;
+  }
+
+  .winCancel {
+    flex: none;
+    margin-inline-start: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .stopped,
+  .note,
+  .warning,
+  .error,
+  .problems,
+  .winScrim,
+  .win {
+    animation: none;
+  }
+
+  .headline,
+  .tick {
+    transition: none;
+  }
+}

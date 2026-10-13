@@ -1,7 +1,8 @@
 'use client';
 
 import { useId, useState, type ReactNode } from 'react';
-import { Activity, ChevronDown } from 'lucide-react';
+import { Activity, ArrowUp, ChevronDown } from 'lucide-react';
+import { WHO_ANSWERS_CARD_ID } from '@/lib/wahub/botMode';
 import { agoText, formatDateTime } from '@/lib/wahub/format';
 import {
   connectionMissing,
@@ -12,8 +13,9 @@ import {
   type SystemStatusRow,
 } from '@/lib/wahub/systemStatus';
 import type { WahubStatus } from '@/types/wahub';
+import type { WahubBotMode } from '@/types/wahubBotMode';
 import { useNow } from '../hooks/useNow';
-import { Fold } from '../shared/motion';
+import { Fold, prefersReducedMotion } from '../shared/motion';
 import { cx } from '../shared/tones';
 import s from '../wahub.module.css';
 
@@ -31,7 +33,7 @@ function Line({ children }: { children: ReactNode }) {
 }
 
 /** What stands behind a row's word, in a few short lines — the point of each in bold. */
-function Details({ row, status, now }: { row: SystemStatusKey; status: WahubStatus; now: Date }) {
+function Details({ row, status, now, everybody }: { row: SystemStatusKey; status: WahubStatus; now: Date; everybody: boolean }) {
   if (row === 'connection') {
     const missing = connectionMissing(status);
     return (
@@ -180,7 +182,15 @@ function Details({ row, status, now }: { row: SystemStatusKey; status: WahubStat
   return (
     <>
       <Line>
-        למי שמסומן הבוט החדש <B>עונה באמת</B>, בוואטסאפ, והבוט הישן מושתק. לכל השאר שום דבר לא משתנה.
+        {everybody ? (
+          <>
+            למי שמסומן הבוט החדש <B>עונה באמת</B>, בוואטסאפ — גם אחרי חזרה ל“בדיקה בלבד”.
+          </>
+        ) : (
+          <>
+            למי שמסומן הבוט החדש <B>עונה באמת</B>, בוואטסאפ, והבוט הישן מושתק. לכל השאר שום דבר לא משתנה.
+          </>
+        )}
       </Line>
       <Line>
         הרשימה בכרטיס <B>“בדיקה חיה”</B>, כאן למטה. מפעילים מפרטי איש הקשר, בתוך השיחה שלו.
@@ -220,13 +230,45 @@ function StatusRow({
   );
 }
 
+/** A row that leads to a card of its own: the same title and word, and a press that brings the page to that card. */
+function LinkRow({ row, onGo }: { row: SystemStatusRow; onGo: () => void }) {
+  return (
+    <li>
+      <button type="button" onClick={onGo} aria-label={`${row.title}: ${row.value}. לכרטיס “מי עונה ללקוחות”`} className={s.statusHead}>
+        <span className={s.statusTitle}>{row.title}</span>
+        <span className={cx(s.pill, LEVEL_PILL[row.level], s.statusValue)}>
+          <i className={s.pillDot} aria-hidden="true" />
+          <span className="truncate">{row.value}</span>
+        </span>
+        <ArrowUp className={s.foldChevron} aria-hidden="true" />
+      </button>
+    </li>
+  );
+}
+
+function bringWhoAnswers() {
+  document.getElementById(WHO_ANSWERS_CARD_ID)?.scrollIntoView({ block: 'start', behavior: prefersReducedMotion() ? 'auto' : 'smooth' });
+}
+
 /**
  * "מצב המערכת" — at the top of the settings (docs/WAHUB-CONTRACT-POLISH-1.md, ג):
  * the connection to WhatsApp and what it is short of, the automatic summary,
  * the shadow bot, sending to customers and the live test. A title and a word
  * each; pressing a row opens a few short lines under it.
+ *
+ * `botMode` (docs/WAHUB-CONTRACT-GO-LIVE.md): where the server knows whom the
+ * new bot answers, a row "מי עונה" says it in a word and leads to the card
+ * "מי עונה ללקוחות" — nothing of that card is said here a second time.
  */
-export default function SystemStatusCard({ status, defaultOpen }: { status: WahubStatus; defaultOpen?: SystemStatusKey[] }) {
+export default function SystemStatusCard({
+  status,
+  defaultOpen,
+  botMode,
+}: {
+  status: WahubStatus;
+  defaultOpen?: SystemStatusKey[];
+  botMode?: WahubBotMode | null;
+}) {
   const now = useNow();
   const [open, setOpen] = useState<ReadonlySet<SystemStatusKey>>(() => new Set(defaultOpen ?? []));
   const toggle = (key: SystemStatusKey) =>
@@ -246,11 +288,15 @@ export default function SystemStatusCard({ status, defaultOpen }: { status: Wahu
         <h3 className="text-[15px] font-extrabold">מצב המערכת</h3>
       </div>
       <ul className={cx(s.rows, 'm-0 list-none p-0')}>
-        {systemStatusRows(status).map((row) => (
-          <StatusRow key={row.key} row={row} open={open.has(row.key)} onToggle={() => toggle(row.key)}>
-            <Details row={row.key} status={status} now={now} />
-          </StatusRow>
-        ))}
+        {systemStatusRows(status, botMode).map((row) =>
+          row.link ? (
+            <LinkRow key={row.key} row={row} onGo={bringWhoAnswers} />
+          ) : (
+            <StatusRow key={row.key} row={row} open={open.has(row.key)} onToggle={() => toggle(row.key)}>
+              <Details row={row.key} status={status} now={now} everybody={botMode?.mode === 'all'} />
+            </StatusRow>
+          ),
+        )}
       </ul>
     </section>
   );
