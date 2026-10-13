@@ -126,7 +126,8 @@ export function phoneTokens(query: string): string[] {
 /** The words in what was typed: everything that is not a number. Fewer than four digits is a word. */
 export function wordTokens(query: string): string[] {
   const without = query.replace(DIGIT_RUN, (run) => (run.replace(/\D/g, '').length >= 4 ? ' ' : run));
-  return without.split(/\s+/).map((word) => fold(word).folded.trim()).filter(Boolean);
+  // Folded first, then cut: a hyphen is a space, so "בן-דוד" is two words.
+  return fold(without).folded.split(/\s+/).filter(Boolean);
 }
 
 export type SearchKind = 'phone' | 'words' | 'mixed' | '';
@@ -294,7 +295,7 @@ export function notFoundWords(query: string, where: 'chats' | 'leads', known: bo
     return { title: `${found} ${noun} עם השם והמספר האלה יחד`, text: `חיפשנו ${everywhere}${family}. אפשר לנסות רק שם, או רק מספר.` };
   }
   return {
-    title: `${found} ${noun} שמתאימ${where === 'chats' ? 'ה' : ''} לחיפוש`,
+    title: `${found} ${noun} ${where === 'chats' ? 'שמתאימה' : 'שמתאים'} לחיפוש`,
     text: `חיפשנו ${everywhere}: בשמות, בטלפונים${known ? ', בפרטי המשפחות במערכת' : ''} ובמה שנכתב.`,
   };
 }

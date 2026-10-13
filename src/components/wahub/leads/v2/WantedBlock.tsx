@@ -26,7 +26,7 @@ export interface WantedBlockProps {
    * be offered instead.
    */
   compact?: boolean;
-  /** Inside another card: no ground of its own. */
+  /** Inside another card: no ground of its own, and no title of its own — the card around it has both. */
   bare?: boolean;
   /**
    * "לכרטיס הלקוח" beside the number to call. Left out where the screen around the block already carries that
@@ -65,15 +65,18 @@ export default function WantedBlock({ summary, compact = false, bare = false, sh
     <section className={cx(x.wanted, !bare && summary.needs_office && x.wantedAct, bare && x.wantedBare)} aria-label={WANTED_TEXT.title}>
       {!compact && (
         <>
-          <div className={x.wantedHead}>
-            <h3 className={x.wantedTitle}>{WANTED_TEXT.title}</h3>
-            {summary.state_label && (
-              <span className={cx(x.wantedState, summary.needs_office && x.wantedStateAct)}>
-                <StateIcon state={summary.state} />
-                {summary.state_label}
-              </span>
-            )}
-          </div>
+          {/* Inside another card the card itself names the block and says where the entry stands. */}
+          {!bare && (
+            <div className={x.wantedHead}>
+              <h3 className={x.wantedTitle}>{WANTED_TEXT.title}</h3>
+              {summary.state_label && (
+                <span className={cx(x.wantedState, summary.needs_office && x.wantedStateAct)}>
+                  <StateIcon state={summary.state} />
+                  {summary.state_label}
+                </span>
+              )}
+            </div>
+          )}
 
           <p className={x.wantedSentence} dir="auto">
             {sentenceParts(summary.sentence || wanted.label).map((part, index) =>

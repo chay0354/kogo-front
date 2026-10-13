@@ -85,8 +85,10 @@ export function FoundLines({
   return (
     <>
       {digits && (
-        <span className={cx(x.found, x.foundPhone)}>
-          <Marked parts={digits} />
+        <span className={x.found}>
+          <bdi dir="ltr" className={x.digits}>
+            <Marked parts={digits} />
+          </bdi>
         </span>
       )}
       {why && (
@@ -122,7 +124,7 @@ export function EverywhereStrip({ words, count, inset = false }: { words: string
     <p className={cx(x.everywhere, inset && x.everywhereInset)} role="status">
       <Search aria-hidden="true" />
       <span>{words}</span>
-      {count !== null && count > 0 && <span className={cx(x.everywhereCount, s.num)}>· {resultsWord(count)}</span>}
+      {count !== null && count > 0 && <span className={x.everywhereCount}>· {resultsWord(count)}</span>}
     </p>
   );
 }
@@ -169,8 +171,10 @@ export function SystemCustomers({
                   <MarkedName name={customer.name || customer.phone_display || 'משפחה'} query={query} />
                 </span>
                 {customer.name && customer.phone_display && (
-                  <span className={cx(x.besideMeta, x.foundPhone)}>
-                    <Marked parts={markPhone(customer.phone_display, query) ?? [{ text: customer.phone_display, hit: false }]} />
+                  <span className={x.besideMeta}>
+                    <bdi dir="ltr" className={x.digits}>
+                      <Marked parts={markPhone(customer.phone_display, query) ?? [{ text: customer.phone_display, hit: false }]} />
+                    </bdi>
                   </span>
                 )}
                 {children && (

@@ -12,6 +12,7 @@ import {
 } from '@/lib/wahub/futureLeads';
 import type { WaitingAction } from '@/lib/wahub/futureLeadsApi';
 import { WAITING_LIST_TITLE, saysMore } from '@/lib/wahub/leadsV2';
+import { waitersText } from '@/lib/wahub/waitingList';
 import { waitingActText } from '@/lib/wahub/waitingSummary';
 import {
   alreadyNotifiedText,
@@ -68,21 +69,28 @@ export interface NotifyControls {
  */
 export function WaitingWay({
   counts,
+  people = null,
   act = null,
   onOpen,
 }: {
   counts: { waiting: number; freed: number };
-  /** How many call on the office now; null on a server that does not say (docs/WAHUB-CONTRACT-FUTURE-LEADS.md, ח.3.1). */
+  /**
+   * How many people wait, and how many of them call on the office now — the same two numbers the day's tab
+   * shows; null on a server that does not say (docs/WAHUB-CONTRACT-FUTURE-LEADS.md, ח.3.1), and then the
+   * entries of the list are what is counted.
+   */
+  people?: number | null;
   act?: number | null;
   onOpen: () => void;
 }) {
   const words = waitingStripText(counts);
+  const total = people !== null ? waitersText(people) : words.total;
   const news = act !== null ? waitingActText(act) : words.freed;
   return (
     <button type="button" onClick={onOpen} className={cx(w.way, news && w.wayFreed)}>
       {news ? <BellRing aria-hidden="true" /> : <Hourglass aria-hidden="true" />}
       <span className={w.wayText}>
-        <strong>{WAITING_LIST_TITLE}</strong> · {words.total}
+        <strong>{WAITING_LIST_TITLE}</strong> · {total}
         {news && (
           <>
             {' · '}

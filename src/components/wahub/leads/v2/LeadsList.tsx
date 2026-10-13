@@ -50,7 +50,11 @@ export interface LeadsListProps {
    * (docs/WAHUB-CONTRACT-FUTURE-LEADS.md, ז.1). Null: the server has no waiting list, and there is no way in.
    */
   waitingList?: { waiting: number; freed: number } | null;
-  /** How many of them call on the office now (a place was freed, or the customer answered); null when the server does not say. */
+  /**
+   * How many people wait, and how many of them call on the office now (a place was freed, or the customer
+   * answered); null when the server does not say.
+   */
+  waitingPeople?: number | null;
   waitingAct?: number | null;
   onWaitingList?: () => void;
   /**
@@ -123,6 +127,7 @@ export default function LeadsList({
   held = '',
   onHeld,
   waitingList = null,
+  waitingPeople = null,
   waitingAct = null,
   onWaitingList,
   everywhere = false,
@@ -226,7 +231,7 @@ export default function LeadsList({
       >
         {/* "מחכים שיתפנה מקום": a title of its own above the two open lists — not inside "מחכים לך", and not a
             tab. Out of the way of a search. */}
-        {waitingList && onWaitingList && view !== 'closed' && !search.trim() && <WaitingWay counts={waitingList} act={waitingAct} onOpen={onWaitingList} />}
+        {waitingList && onWaitingList && view !== 'closed' && !search.trim() && <WaitingWay counts={waitingList} people={waitingPeople} act={waitingAct} onOpen={onWaitingList} />}
         {/* The search looked through every list: said once, above its results. */}
         {everywhere && status !== 'error' && <EverywhereStrip words={SEARCH_TEXT.leadsEverywhere} count={status === 'ready' && !hasMore ? rows.length : null} inset />}
         {/* The bot planned, and nothing went out: said once, quietly, above its list — and it leads to what is missing. */}

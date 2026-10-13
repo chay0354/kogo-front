@@ -23,6 +23,7 @@ import { ContactStatusList } from './ContactStatusBlock';
 import LiveTestBlock from './LiveTestBlock';
 import { NoteList, WaitingCardMark, type NoteActions } from '../shared/FutureParts';
 import w from '../waiting.module.css';
+import x from '../search.module.css';
 
 /**
  * The sections of the card that open on a press, in the order they stand
@@ -358,14 +359,18 @@ export default function ContactPanel({
         ) : (
           <KnownShort contact={contact} today={today} now={now} />
         )}
-        {/* The waiting list: quiet while they wait, standing out once a place was freed. Where the server sums up
-            what they asked for, that block says it — and more — in the mark's place. */}
-        {wanted ? (
-          <div className="mt-3">
-            <WantedBlock summary={wanted} />
-          </div>
-        ) : (
-          waitingList && <WaitingCardMark mark={waitingList} />
+        {/* The waiting list: quiet while they wait, standing out once a place was freed. */}
+        {waitingList && <WaitingCardMark mark={waitingList} />}
+        {/* A title first, the rest on a press: what they asked for, the number to call, and what could be
+            offered instead — for whoever is talking to them right now. */}
+        {wanted && (
+          <details className={cx(x.wantedFold, x.cardFold)}>
+            <summary>
+              מה רצו, ומה אפשר להציע במקום
+              <ChevronDown aria-hidden="true" />
+            </summary>
+            <WantedBlock summary={wanted} bare />
+          </details>
         )}
         {/* A quiet line, not a button among the actions: putting this person on the list of a lesson that is full. */}
         {onAddWaiting && (

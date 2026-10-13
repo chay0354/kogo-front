@@ -215,6 +215,7 @@ export default function LeadsScreen({ active, live, view, stage, leadId, waiting
           extras={searchPage ? { contacts: searchPage.contacts ?? [], customers: searchPage.customers ?? [], customers_more: Boolean(searchPage.customers_more) } : null}
           onOpenChat={onOpenChat}
           waitingList={waitingPage.data ? waitingPage.data.counts : null}
+          waitingPeople={basePage?.counts.waiting ?? null}
           waitingAct={basePage?.counts.waiting_act ?? null}
           onWaitingList={() => onAddress({ waiting: true, lead: null })}
           onView={(next) => onAddress({ owner: next, stage: null, lead: null })}
@@ -233,6 +234,7 @@ export default function LeadsScreen({ active, live, view, stage, leadId, waiting
             status={waitingPage.data ? 'ready' : waitingPage.isError ? 'error' : 'loading'}
             error={waitingPage.isError ? readableError(waitingPage.error, '') : ''}
             page={waitingPage.data ?? null}
+            people={basePage?.counts.waiting ?? null}
             act={basePage?.counts.waiting_act ?? null}
             now={now}
             refreshing={Boolean(waitingPage.data) && waitingPage.isFetching}

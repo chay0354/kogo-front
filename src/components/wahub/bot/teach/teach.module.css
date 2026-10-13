@@ -1349,6 +1349,11 @@
     display: none;
   }
 
+  /* A finger tall: the two that decide ("מאשר" / "לא בדיוק") are pressed with a thumb here. */
+  .inChat .actions .big {
+    height: 44px;
+  }
+
   .earlierRow {
     min-height: 44px;
   }

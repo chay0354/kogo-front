@@ -113,9 +113,17 @@ export function RefineDock() {
  * chat of before for a proposal, on a server built before ח.4, or when the server turned out to answer in the
  * old shape after all.
  */
+/**
+ * Whether an opening goes through the flow of "ללמד": the server offers it, and it is on a conversation — never
+ * on a proposal, whose fixing stays the small chat it was (docs/WAHUB-CONTRACT-FUTURE-LEADS.md, ח.4.3).
+ */
+export function opensTeachFlow(target: Pick<RefineTarget, 'teach' | 'proposalId' | 'contactId'>): boolean {
+  return target.teach === true && target.proposalId == null && target.contactId != null;
+}
+
 function RefineSwitch({ target, docked, onClose }: { target: RefineTarget; docked: boolean; onClose: () => void }) {
   const [old, setOld] = useState(false);
-  if (target.teach && target.proposalId == null && target.contactId != null && !old) {
+  if (opensTeachFlow(target) && !old) {
     return <TeachDrawer target={target} docked={docked} onClose={onClose} onOld={() => setOld(true)} />;
   }
   return <RefineChat target={target} docked={docked} onClose={onClose} />;

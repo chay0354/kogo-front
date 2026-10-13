@@ -107,7 +107,9 @@
   white-space: nowrap;
 }
 
-.foundPhone {
+/* A phone is read left to right — and still stands at the row's own start, with the rest of it. */
+.digits {
+  display: inline-block;
   font-variant-numeric: tabular-nums;
   unicode-bidi: isolate;
   direction: ltr;
@@ -222,11 +224,29 @@
   background: var(--good-bg);
 }
 
-/* Inside another card (the contact's card, a person of the full list): no ground of its own. */
+/* Inside another card (the contact's card, a person of the full list): no ground of its own, and words of the
+   card's own size — the card is narrow, and has its own largest thing. */
 .wantedBare {
   padding: 0;
   border-radius: 0;
   background: none;
+}
+
+.wantedBare .wantedSentence {
+  font-size: var(--t-title);
+}
+
+.wantedBare .offerRow {
+  background: var(--surface-2);
+}
+
+/* In the contact's card the summary waits behind one line, under the mark that says they wait. */
+.cardFold {
+  margin-top: 8px;
+}
+
+.cardFold[open] > summary {
+  margin-bottom: 8px;
 }
 
 .wantedHead {
@@ -310,7 +330,13 @@
   gap: 8px;
 }
 
-/* "חיוג": the number itself is the button — large enough to read at a glance and to press with a thumb. */
+/* "חיוג": the number itself is the button — large enough to read at a glance and to press with a thumb.
+   (A link inside the section is navy by the section's own rule; this one stands on navy, and says so louder.) */
+.wanted a.call,
+.wanted a.call:hover {
+  color: #fff;
+}
+
 .call {
   display: inline-flex;
   align-items: center;
@@ -320,7 +346,6 @@
   padding: 0 18px;
   border-radius: 12px;
   background: var(--navy);
-  color: #fff;
   font-size: 17px;
   font-weight: 800;
   text-decoration: none;

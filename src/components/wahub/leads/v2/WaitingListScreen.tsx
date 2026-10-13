@@ -13,6 +13,7 @@ import {
   lessonFreed,
   lessonHead,
   placeText,
+  waitersText,
   waitingStripText,
   type EntryTone,
 } from '@/lib/wahub/waitingList';
@@ -191,7 +192,11 @@ export interface WaitingListViewProps {
   status: 'loading' | 'ready' | 'error';
   error: string;
   page: WahubWaitingListPage | null;
-  /** How many of them call on the office now; null on a server that does not say — the freed places are then what is counted. */
+  /**
+   * How many people wait, and how many of them call on the office now; null on a server that does not say — the
+   * entries, and the freed places, are then what is counted.
+   */
+  people?: number | null;
   act?: number | null;
   now: Date;
   /** The list is being read again while it is on screen. */
@@ -216,6 +221,7 @@ export function WaitingListView({
   status,
   error,
   page,
+  people = null,
   act = null,
   now,
   refreshing,
@@ -248,7 +254,7 @@ export function WaitingListView({
           <h2 className={w.wlTitle}>{WAITING_LIST_TITLE}</h2>
           {words && (
             <p className={w.wlSub}>
-              {words.total}
+              {people !== null ? waitersText(people) : words.total}
               {news && (
                 <>
                   {' · '}
