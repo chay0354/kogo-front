@@ -2,17 +2,18 @@
 
 import { useEffect, useRef } from 'react';
 import { prefersReducedMotion } from '../widgetMotion';
-import { movePiece, newPiece, pieceCount, pieceOpacity, type ConfettiLevel, type ConfettiPiece } from './confettiPieces';
+import { movePiece, newPiece, pieceCount, pieceOpacity, type ConfettiLayer, type ConfettiLevel, type ConfettiPiece } from './confettiPieces';
 import look from './newLook.module.css';
 
 /**
  * Confetti falling behind a finished registration (see `confettiPieces.ts`).
  *
- * A canvas under the content: nothing it draws can cover a figure or take a
- * tap. It stops while the tab is hidden, and is not drawn at all for someone
- * who asked their device for less motion.
+ * A canvas under the content — or, on a screen filled edge to edge, over it
+ * and see-through. Either way it takes no tap. It stops while the tab is
+ * hidden, and is not drawn at all for someone who asked their device for less
+ * motion.
  */
-export default function Confetti({ level }: { level: ConfettiLevel }) {
+export default function Confetti({ level, layer = 'behind' }: { level: ConfettiLevel; layer?: ConfettiLayer }) {
   const ref = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
@@ -35,7 +36,7 @@ export default function Confetti({ level }: { level: ConfettiLevel }) {
       canvas.width = Math.round(width * ratio);
       canvas.height = Math.round(height * ratio);
       ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
-      const wanted = pieceCount(level, width);
+      const wanted = pieceCount(level, width, layer);
       while (pieces.length < wanted) pieces.push(newPiece(pieces.length, width, height, level, true));
       pieces.length = wanted;
     };
@@ -51,7 +52,7 @@ export default function Confetti({ level }: { level: ConfettiLevel }) {
           piece = newPiece(i, width, height, level);
           pieces[i] = piece;
         }
-        const opacity = pieceOpacity(piece.y, height);
+        const opacity = pieceOpacity(piece.y, height, layer);
         if (opacity <= 0 || piece.y < -20) continue;
         ctx.save();
         ctx.globalAlpha = opacity;
@@ -91,7 +92,13 @@ export default function Confetti({ level }: { level: ConfettiLevel }) {
       observer?.disconnect();
       document.removeEventListener('visibilitychange', onVisibility);
     };
-  }, [level]);
+  }, [level, layer]);
 
-  return <canvas ref={ref} className={look.confetti} aria-hidden="true" />;
+  return (
+    <canvas
+      ref={ref}
+      className={layer === 'front' ? `${look.confetti} ${look.confettiFront}` : look.confetti}
+      aria-hidden="true"
+    />
+  );
 }

@@ -10,6 +10,21 @@
  */
 export type ConfettiLevel = 'regular' | 'gentle';
 
+/**
+ * Where the canvas sits. `behind`: under the content, seen in the gaps — right
+ * for a screen with air in it. `front`: over the screen and see-through — for
+ * a screen filled edge to edge, where behind left nothing to see (the booked
+ * trial, 13.10.2026: "זה לא הופיע בשיעור ניסיון").
+ */
+export type ConfettiLayer = 'behind' | 'front';
+
+/** How solid a piece is at the top, and between which shares of the height it fades out. */
+export const CONFETTI_LAYERS: Record<ConfettiLayer, { solid: number; fadeFrom: number; goneBy: number; more: number }> = {
+  behind: { solid: 0.9, fadeFrom: 0.5, goneBy: 1, more: 1 },
+  // Fewer would not read at all over a full screen; see-through keeps every word legible.
+  front: { solid: 0.6, fadeFrom: 0.4, goneBy: 0.92, more: 1.45 },
+};
+
 /** Pieces in the air on a phone-wide screen, and how fast they fall. */
 export const CONFETTI_LEVELS: Record<ConfettiLevel, { pieces: number; speed: number }> = {
   regular: { pieces: 38, speed: 1 },
@@ -45,9 +60,9 @@ export interface ConfettiPiece {
 }
 
 /** A wider screen gets more pieces, so the fall looks as full as on a phone — up to twice. */
-export function pieceCount(level: ConfettiLevel, width: number): number {
+export function pieceCount(level: ConfettiLevel, width: number, layer: ConfettiLayer = 'behind'): number {
   const scale = Math.min(2, Math.max(1, width / TUNED_WIDTH));
-  return Math.round(CONFETTI_LEVELS[level].pieces * scale);
+  return Math.round(CONFETTI_LEVELS[level].pieces * CONFETTI_LAYERS[layer].more * scale);
 }
 
 /**
@@ -85,10 +100,11 @@ export function movePiece(piece: ConfettiPiece, dt: number, seconds: number): vo
   piece.turn += piece.turnSpeed * dt;
 }
 
-/** Full in the top half of the screen, gone by the bottom. */
-export function pieceOpacity(y: number, height: number): number {
+/** Full at the top of the screen, thinning out below, gone before the buttons at the bottom. */
+export function pieceOpacity(y: number, height: number, layer: ConfettiLayer = 'behind'): number {
   if (height <= 0) return 0;
+  const { solid, fadeFrom, goneBy } = CONFETTI_LAYERS[layer];
   const k = y / height;
-  if (k < 0.5) return 0.9;
-  return Math.max(0, 0.9 * (1 - (k - 0.5) / 0.5));
+  if (k < fadeFrom) return solid;
+  return Math.max(0, solid * (1 - (k - fadeFrom) / (goneBy - fadeFrom)));
 }
