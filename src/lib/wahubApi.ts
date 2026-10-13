@@ -42,6 +42,7 @@ import type {
 } from '@/types/wahub';
 import { readNotes } from './wahub/futureLeads';
 import { readLeadBoard } from './wahub/leadStage';
+import { readOverdueRows } from './wahub/overdue';
 import { readSearchExtras } from './wahub/search';
 import { unregisteredParams } from './wahub/unregistered';
 
@@ -89,11 +90,15 @@ export async function fetchWahubUpdates(since?: string | null): Promise<WahubUpd
     timeout: 10_000,
   });
   const data = res.data as Partial<WahubUpdates>;
-  return {
+  const updates: WahubUpdates = {
     cursor: String(data.cursor ?? ''),
     contacts: data.contacts ?? [],
     boxes: (data.boxes ?? {}) as WahubUpdates['boxes'],
   };
+  // Who is past three office hours right now (docs/WAHUB-CONTRACT-FUTURE-LEADS.md, ט.2.5) — only a server that knows it says.
+  const overdue = readOverdueRows(data.overdue);
+  if (overdue) updates.overdue = overdue;
+  return updates;
 }
 
 export async function fetchWahubSummary(): Promise<WahubSummary> {

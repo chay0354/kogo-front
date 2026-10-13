@@ -15,9 +15,10 @@ import { withEditedNote, withoutNote } from '@/lib/wahub/waitingList';
 import { mergeLiveContacts } from '@/lib/wahub/live';
 import { paneDepth, paneDirection, type NavDirection } from '@/lib/wahub/motion';
 import { lastServerMessageId } from '@/lib/wahub/messages';
+import { OPT_OUT_TEXT } from '@/lib/wahub/optOut';
 import { BELOW_DESKTOP_MEDIA_QUERY, chatColumns, chatLayout, chatPanes, PHONE_MEDIA_QUERY } from '@/lib/wahub/screens';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
-import type { WahubBox, WahubBoxCounts, WahubContact, WahubContactDetail, WahubStatus, WahubTag } from '@/types/wahub';
+import type { WahubBox, WahubBoxCounts, WahubContact, WahubContactDetail, WahubOverdueRow, WahubStatus, WahubTag } from '@/types/wahub';
 import { useVerdict } from '../bot/shadow/useVerdict';
 import { useContactShadow } from '../hooks/useBotQueries';
 import { useCardPane } from '../hooks/useCardPane';
@@ -27,6 +28,7 @@ import { useDemoChat } from '../hooks/useDemoChat';
 import { useElementWidth } from '../hooks/useElementWidth';
 import { useNow } from '../hooks/useNow';
 import { usePagedContacts } from '../hooks/usePagedContacts';
+import { useWaitMarks } from '../hooks/useWaitMarks';
 import { useWaitingList } from '../hooks/useWaitingList';
 import type { WahubLiveHandle } from '../hooks/useWahubLive';
 import { useWahubTags, wahubKeys } from '../hooks/useWahubQueries';
@@ -59,6 +61,11 @@ interface ChatsTabProps {
   active: boolean;
   live: WahubLiveHandle;
   counts: WahubBoxCounts | null;
+  /**
+   * Who has waited for a person past three office hours, as of the last poll (docs/WAHUB-CONTRACT-FUTURE-LEADS.md,
+   * ט.2.5). Null on a server that does not say — nothing is then pinned, and nothing pulses.
+   */
+  overdue?: ReadonlyArray<WahubOverdueRow> | null;
   box: WahubBox;
   contactId: number | null;
   status: WahubStatus | undefined;
@@ -85,6 +92,7 @@ export default function ChatsTab({
   active,
   live,
   counts,
+  overdue = null,
   box: askedBox,
   contactId,
   status,
@@ -139,7 +147,9 @@ export default function ChatsTab({
   // מספרי הטלפון שקיימים"). It is the screen that asks for it — `box=all`, which every server knows
   // (docs/WAHUB-CONTRACT-FUTURE-LEADS.md, ח.1.2) — and the box that was in front is back once the search is cleared.
   const query = useMemo(() => ({ view: 'chats' as const, box: searchQuery ? ('all' as const) : box, search: searchQuery }), [box, searchQuery]);
-  const list = usePagedContacts({ query, enabled: true, live, sorted: true, keepId: contactId });
+  // Whoever waits for a person past three office hours stands at the head, as the server sends them (ט.2.4);
+  // a search keeps its own order.
+  const list = usePagedContacts({ query, enabled: true, live, sorted: true, keepId: contactId, pin: !searchQuery });
   const { update: updateList, find: findInList, itemsRef, markDirty, refreshQuietly: refreshListQuietly } = list;
 
   const boxRef = useRef(box);
@@ -159,6 +169,7 @@ export default function ChatsTab({
         accepts: (contact) => Boolean(searchRef.current) || matchesBox(contact, boxRef.current),
         keepIds: openId != null ? new Set([openId]) : undefined,
         insertUnknown: !searchRef.current,
+        pin: !searchRef.current,
       });
       updateList(() => result.list);
       if (result.removed) markDirty();
@@ -224,6 +235,10 @@ export default function ChatsTab({
       }),
     [isPending, live, mergeIntoList],
   );
+
+  // "How long they wait" on a list nobody touches: who crossed the three office hours, and the words of every
+  // mark that has not yet (ט.2.5).
+  useWaitMarks({ active, live, overdue, items: list.items, update: updateList, isPending, searchRef, openIdRef, threadRef });
 
   // Back after a while away, or more changed than one poll carries: read again, quietly.
   useEffect(
@@ -552,6 +567,19 @@ export default function ChatsTab({
                     }
               }
               noteActions={noteActions}
+              // "ביקש הסר" (ט.1): the card offers it only for a contact the server sends the mark on.
+              optOut={{
+                onMark: async () => {
+                  const reason = await mutations.optOut(contact.id);
+                  if (!reason) toast.success(OPT_OUT_TEXT.marked);
+                  return reason;
+                },
+                onBack: async () => {
+                  const reason = await mutations.optIn(contact.id);
+                  if (!reason) toast.success(OPT_OUT_TEXT.backDone);
+                  return reason;
+                },
+              }}
               onAddWaiting={
                 canAddWaiting && knowsFutureLeads(contact) ? () => setPicker({ contactId: contact.id, name: displayName(contact) }) : undefined
               }

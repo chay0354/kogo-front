@@ -1,11 +1,13 @@
 'use client';
 
-import { memo, useEffect, useRef, useState } from 'react';
+import { Fragment, memo, useEffect, useRef, useState } from 'react';
 import { CheckCircle2, Inbox, Plug, Search, X } from 'lucide-react';
 import { BOX_GROUPS, boxCount, boxesInGroup, handledByChip, openEmptyWords } from '@/lib/wahub/boxes';
 import { isDemoContact } from '@/lib/wahub/demo';
-import { displayName, formatListTime, israelToday, previewText, waitingLabel } from '@/lib/wahub/format';
+import { displayName, formatListTime, israelToday, previewText } from '@/lib/wahub/format';
 import { futureOf, waitingOf } from '@/lib/wahub/futureLeads';
+import { optedOutOf } from '@/lib/wahub/optOut';
+import { chatWaitTag, isOverdue, knowsOverdue, overdueHeadCount, pinnedCount } from '@/lib/wahub/overdue';
 import { SEARCH_MAX_LENGTH, SEARCH_TEXT, chatPlace, notFoundWords } from '@/lib/wahub/search';
 import { leadOf, showsInList } from '@/lib/wahub/leadStage';
 import type { WahubBox, WahubBoxCounts, WahubContact } from '@/types/wahub';
@@ -20,6 +22,7 @@ import { useStagger } from '../shared/motion';
 import { cx } from '../shared/tones';
 import s from '../wahub.module.css';
 import { FutureRowMark, WaitingRowMark } from '../shared/FutureParts';
+import { OptOutMark, PinnedEnd, PinnedHead, WaitMark } from '../shared/MarkParts';
 import { EverywhereStrip, FoundLines, MarkedName, PlaceTag, SystemCustomers } from '../shared/SearchParts';
 
 interface RowProps {
@@ -49,11 +52,19 @@ interface RowProps {
  * A future lead and the waiting list are marks of their own
  * (docs/WAHUB-CONTRACT-FUTURE-LEADS.md, ה): quiet while they only wait, and
  * standing out once the day has come, the customer wrote, or a place was freed.
+ *
+ * How long the customer waits (ט.2): where the server says the conversation
+ * waits for a person, the mark carries its words — the office's own hours — on
+ * every such row, and past three of them it pulses softly and leads the row's
+ * marks. "ביקש הסר" (ט.1) closes them, quietly.
  */
 const ChatRow = memo(function ChatRow({ contact, selected, arrived, now, query = '', onOpen }: RowProps) {
   const { chat } = contact;
   const unread = chat.unread_count > 0;
-  const waiting = waitingLabel(chat.waiting_since, now);
+  const wait = chatWaitTag(chat, now);
+  // The server's own words for somebody who waits for a person — or the mark the screen always drew by itself.
+  const personWaits = Boolean(wait) && knowsOverdue(contact) && (chat.overdue === true || Boolean(chat.waiting_label));
+  const optedOut = optedOutOf(contact);
   const who = handledByChip(contact);
   const preview = previewText(contact.last_message);
   const lead = leadOf(contact);
@@ -66,7 +77,13 @@ const ChatRow = memo(function ChatRow({ contact, selected, arrived, now, query =
   // of the same thing: who answers, "מבקש נציג", how long they wait.
   const found = query ? chatPlace(chat) : null;
   const place = found && !(future && (chat.box === 'future' || chat.box === 'open')) ? found : null;
-  const marks = lead ? demo || liveTest || who.tone === 'human' || Boolean(future) || Boolean(waitingList) || Boolean(place) : true;
+  // Somebody who waits for a person carries the mark beside whatever else the row says — unless the row is a
+  // search's result, where the box's word already stands for it; past three office hours it is always there.
+  // The screen's own mark stays where it always was: on a row with no lead state, outside a search.
+  const waitShown = wait && (personWaits ? wait.overdue || !place : !place && !lead) ? wait : null;
+  const marks = lead
+    ? demo || liveTest || who.tone === 'human' || Boolean(future) || Boolean(waitingList) || Boolean(place) || Boolean(waitShown) || Boolean(optedOut)
+    : true;
   const name = displayName(contact);
 
   return (
@@ -106,6 +123,8 @@ const ChatRow = memo(function ChatRow({ contact, selected, arrived, now, query =
 
           {marks && (
             <span className="mt-1.5 flex flex-wrap items-center gap-1.5">
+              {/* Past three office hours: the first thing the row's marks say. */}
+              {waitShown?.overdue && <WaitMark tag={waitShown} />}
               {place ? (
                 <PlaceTag label={place.label} tone={place.tone} />
               ) : lead ? (
@@ -123,9 +142,10 @@ const ChatRow = memo(function ChatRow({ contact, selected, arrived, now, query =
                   מבקש נציג
                 </span>
               )}
-              {!place && !lead && waiting && <span className={cx(s.rowTag, s.pWarn)}>{waiting}</span>}
+              {waitShown && !waitShown.overdue && <WaitMark tag={waitShown} />}
               {waitingList && <WaitingRowMark mark={waitingList} />}
               {future && <FutureRowMark future={future} today={israelToday(now)} now={now} />}
+              {optedOut && <OptOutMark opted={optedOut} now={now} />}
             </span>
           )}
         </span>
@@ -207,14 +227,23 @@ export default function ChatList({
   // Which contacts the list already showed. One that was not there at the last
   // draw of a list already on screen is a newcomer, and gets the soft entrance;
   // a list that was just read (first load, another box, a search) gets none.
-  const shown = useRef<{ ids: Set<number>; settled: boolean }>({ ids: new Set(), settled: false });
+  const shown = useRef<{ ids: Set<number>; late: Set<number>; settled: boolean }>({ ids: new Set(), late: new Set(), settled: false });
   const before = shown.current;
   const settled = status === 'ready';
   const newcomers = before.settled && settled ? items.filter((contact) => !before.ids.has(contact.id)).length : 0;
   // A whole page added by "load more" is not an arrival; a handful of rows is.
   const greet = newcomers > 0 && newcomers <= 5;
+  // A conversation that crossed the three hours while it was on screen rises to the head of the list: it comes
+  // in softly there, like a row that just arrived — it did, to its new place.
+  const justLate = (contact: WahubContact) => isOverdue(contact) && before.ids.has(contact.id) && !before.late.has(contact.id);
+  const risen = before.settled && settled ? items.filter(justLate).length : 0;
+  const greetRisen = risen > 0 && risen <= 3;
   useEffect(() => {
-    shown.current = { ids: new Set(items.map((contact) => contact.id)), settled };
+    shown.current = {
+      ids: new Set(items.map((contact) => contact.id)),
+      late: new Set(items.filter(isOverdue).map((contact) => contact.id)),
+      settled,
+    };
   }, [items, settled]);
 
   // Reaching the end of the list loads the next page; the button under it does the same.
@@ -242,6 +271,9 @@ export default function ChatList({
   const results = searching && Boolean(found);
   const notFound = notFoundWords(found || search, 'chats', extras !== null);
   const customers = results && extras ? extras.customers : [];
+  // Whoever has waited for a person more than three office hours stands at the head of the list, in the
+  // server's own order (ט.2.4), under one quiet line. A search keeps its own order, and pins nobody.
+  const pinned = searching ? 0 : pinnedCount(items);
   // A list that was just read comes in a row at a time; once it is on screen its rows only move with the live update.
   const stagger = useStagger(status === 'ready');
 
@@ -366,16 +398,19 @@ export default function ChatList({
             {/* How many is said only of the answer that is on screen — never of the rows that were there a moment ago. */}
             {results && <EverywhereStrip words={SEARCH_TEXT.chatsEverywhere} count={status === 'ready' ? (total ?? (hasMore ? null : items.length)) : null} />}
             <ul className={cx(s.list, stagger)} aria-label={results ? SEARCH_TEXT.chatsEverywhere : 'שיחות'}>
-              {items.map((contact) => (
-                <ChatRow
-                  key={contact.id}
-                  contact={contact}
-                  selected={contact.id === selectedId}
-                  arrived={greet && !before.ids.has(contact.id)}
-                  now={now}
-                  query={results ? found : ''}
-                  onOpen={onOpen}
-                />
+              {pinned > 0 && <PinnedHead count={overdueHeadCount(pinned, box, counts, hasMore)} />}
+              {items.map((contact, index) => (
+                <Fragment key={contact.id}>
+                  {pinned > 0 && index === pinned && <PinnedEnd />}
+                  <ChatRow
+                    contact={contact}
+                    selected={contact.id === selectedId}
+                    arrived={(greet && !before.ids.has(contact.id)) || (greetRisen && justLate(contact))}
+                    now={now}
+                    query={results ? found : ''}
+                    onOpen={onOpen}
+                  />
+                </Fragment>
               ))}
             </ul>
             {hasMore && (

@@ -101,6 +101,43 @@ export interface WahubChatState {
    */
   box?: string;
   box_label?: string;
+  /**
+   * The conversation has waited for a person three hours of the office's own hours, or more
+   * (docs/WAHUB-CONTRACT-FUTURE-LEADS.md, ט.2.3) — nights, the weekend and closed days are not counted. Sent
+   * always by a server that knows ט, and so its sign: without it nothing is pinned and nothing pulses.
+   */
+  overdue?: boolean;
+  /** How long it has waited, in minutes of the office's hours; null when it does not wait for a person. */
+  waited_office_minutes?: number | null;
+  /** Ready to show in place of "מחכה X": "מחכה 3:20 שע׳". Empty when the conversation does not wait for a person. */
+  waiting_label?: string;
+  /** The moment the wait is counted from; null when there is none. */
+  waiting_from?: string | null;
+}
+
+/**
+ * "ביקש הסר" (ט.1.3): the number is on the one list every broadcast of the system skips. Null — it is not;
+ * absent on a server built before ט, and then no chip is drawn and no action offered.
+ */
+export interface WahubOptedOut {
+  at: string | null;
+  /** `message` — the customer wrote it; `office` — a person marked it. */
+  source: 'message' | 'office' | '';
+  source_label: string;
+  /** Who marked it, when a person did. */
+  by_name: string;
+  /** The customer's message that did it, up to 160 characters; empty when a person marked it. */
+  text: string;
+  /** Always "ביקש הסר". */
+  label: string;
+}
+
+/** One line of `overdue` in GET contacts/updates/ (ט.2.5): who is past the three hours right now. */
+export interface WahubOverdueRow {
+  id: number;
+  waited_office_minutes: number | null;
+  waiting_label: string;
+  waiting_from: string | null;
 }
 
 /** Why a conversation is "open" (ג.1), in the order the server decides by. */
@@ -283,6 +320,8 @@ export interface WahubContact {
   customer?: WahubCustomerRef | null;
   /** Why a search found this row (ח.1.1); null — by the name or the phone the row shows. Only while searching. */
   found_by?: WahubFoundBy | null;
+  /** "ביקש הסר" (ט.1.3): null — not on the list. Absent on a server built before ט. */
+  opted_out?: WahubOptedOut | null;
 }
 
 export interface WahubMessage {
@@ -325,7 +364,8 @@ export type WahubEventKind =
   | 'needs_human_changed'
   | 'note'
   | 'conversation_closed'
-  | 'waiting_list';
+  | 'waiting_list'
+  | 'opt_out';
 
 export interface WahubEvent {
   id: number;
@@ -366,7 +406,8 @@ export type WahubQueue =
   | 'registered'
   | 'not_relevant';
 
-export type WahubBoxCounts = Record<WahubBaseBox, number> & Partial<Record<WahubFutureBox, number>>;
+/** `overdue` (ט.2.5): how many conversations have waited for a person past three office hours — a count, not a box of the screen. */
+export type WahubBoxCounts = Record<WahubBaseBox, number> & Partial<Record<WahubFutureBox | 'overdue', number>>;
 export type WahubQueueCounts = Record<WahubQueue | 'hidden', number>;
 
 export interface WahubCounts {
@@ -378,6 +419,12 @@ export interface WahubUpdates {
   cursor: string;
   contacts: WahubContact[];
   boxes: WahubBoxCounts;
+  /**
+   * Everybody who is past the three office hours right now, the longest wait first, up to 50 (ט.2.5) — in
+   * every answer, because a conversation crosses the line by the clock, with nobody touching it. Absent on a
+   * server built before ט.
+   */
+  overdue?: WahubOverdueRow[];
 }
 
 export interface WahubDayStat {
@@ -914,6 +961,11 @@ export interface WahubReviewSummary {
   auto_applied_7d?: number;
   /** "אישור אוטומטי של תיקונים" as it stands. Absent on a server built before it. */
   auto_apply?: boolean;
+  /**
+   * "מה הבוט לא ידע השבוע" in two numbers (ט.3.3): the open topics of this week, and the questions in them.
+   * Absent on a server built before ט — the screen then shows nothing of it.
+   */
+  unknowns?: { topics: number; questions: number };
 }
 
 export interface WahubReviewNoteResult {
@@ -1173,6 +1225,13 @@ export interface WahubLeadRow {
   customer?: WahubCustomerRef | null;
   /** Why a search found this row (ח.1.1). Only while searching. */
   found_by?: WahubFoundBy | null;
+  /** "ביקש הסר" (ט.1.6): the bot does not come back to them. Null — not on the list; absent on a server built before ט. */
+  opted_out?: WahubOptedOut | null;
+  /** The same four a conversation carries in `chat` (ט.2.3), on the row itself. Absent on a server built before ט. */
+  overdue?: boolean;
+  waited_office_minutes?: number | null;
+  waiting_label?: string;
+  waiting_from?: string | null;
 }
 
 export type WahubLeadCounts = Record<WahubLeadsView, number> & {

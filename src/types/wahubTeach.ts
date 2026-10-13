@@ -94,12 +94,15 @@ export interface WahubTeachCheck {
  * Never a phone: a contact with no name is "מתוך שיחה".
  */
 export interface WahubTeachOrigin {
-  kind: 'free' | 'conversation' | 'shadow';
-  /** "מתוך שיחה עם דנה לוי"; empty for a thread that was written freely. */
+  /** `unknown`: opened by "ללמד" on a topic of "מה הבוט לא ידע השבוע" (docs/WAHUB-CONTRACT-FUTURE-LEADS.md, ט.3.4). */
+  kind: 'free' | 'conversation' | 'shadow' | 'unknown';
+  /** "מתוך שיחה עם דנה לוי" / "מתוך מה שהבוט לא ידע: חניה בסניף"; empty for a thread that was written freely. */
   label: string;
   contact_id: number | null;
-  /** The way to that conversation, inside the CRM; null when it is gone. */
+  /** The way to that conversation, inside the CRM; null when it is gone — and for a topic, which has none. */
   link: string | null;
+  /** The topic it was opened on, for `unknown`. */
+  topic_id?: number | null;
 }
 
 /** One marked piece of the conversation a thread was opened on, as it is quoted: who said it, and what. */
