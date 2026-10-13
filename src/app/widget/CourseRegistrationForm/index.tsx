@@ -1964,8 +1964,9 @@ export default function CourseRegistrationForm({
 
   const canRegisterAnother = Boolean(onRegisterAnother) && !selfRegistering;
 
-  const successActions = (
-    <div className={look.endActions}>
+  // `small`: under a booked trial, where "הוסיפו ליומן" is the button of the screen.
+  const endActions = (small: boolean) => (
+    <div className={small ? `${look.endActions} ${look.endActionsSmall}` : look.endActions}>
       {canRegisterAnother ? (
         <button type="button" onClick={handleRegisterAnother} className={look.endMain}>
           רשום ילד נוסף
@@ -1980,6 +1981,7 @@ export default function CourseRegistrationForm({
       </button>
     </div>
   );
+  const successActions = endActions(false);
 
   // The terms, read from a modal on the consents form, where reading to the
   // end is required. A free trial's summary asks for no consent and has none.
@@ -3149,7 +3151,7 @@ export default function CourseRegistrationForm({
 
   if (step === 'trial_success') {
     return (
-      <ResultScreen tone="done" title="נרשמתם לשיעור ניסיון" actions={successActions} confetti="gentle">
+      <ResultScreen tone="done" title="נרשמתם לשיעור ניסיון" actions={endActions(true)} confetti="gentle" confettiLayer="front">
         <p className={look.doneText}>אישור ותזכורת יישלחו בוואטסאפ.</p>
         {bookedTrialRef.current ? (
           <div className={look.resultCard}>

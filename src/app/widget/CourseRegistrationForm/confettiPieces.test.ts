@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   CONFETTI_COLORS,
+  CONFETTI_LAYERS,
   CONFETTI_LEVELS,
   OPENING_SPREAD,
   movePiece,
@@ -73,5 +74,31 @@ describe('the confetti behind a finished registration', () => {
     const colours = Array.from({ length: CONFETTI_COLORS.length * 2 }, (_, i) => newPiece(i, 350, 600, 'regular', false, half).color);
     expect(new Set(colours).size).toBe(CONFETTI_COLORS.length);
     expect(colours[0]).toBe(colours[CONFETTI_COLORS.length]);
+  });
+
+  // Owner, 13.10.2026: "זה לא הופיע בשיעור ניסיון עכשיו." The booked-trial screen
+  // is a card and two buttons from edge to edge; behind them nothing was left to see.
+  describe('over a screen with no gaps', () => {
+    it('is see-through, so every word under a passing piece stays legible', () => {
+      expect(CONFETTI_LAYERS.front.solid).toBeLessThanOrEqual(0.6);
+      expect(pieceOpacity(0, 600, 'front')).toBe(CONFETTI_LAYERS.front.solid);
+      expect(pieceOpacity(0, 600, 'front')).toBeLessThan(pieceOpacity(0, 600, 'behind'));
+    });
+
+    it('is gone before the buttons at the bottom of the screen', () => {
+      expect(pieceOpacity(600 * 0.92, 600, 'front')).toBe(0);
+      expect(pieceOpacity(600, 600, 'front')).toBe(0);
+      expect(pieceOpacity(600 * 0.66, 600, 'front')).toBeCloseTo(CONFETTI_LAYERS.front.solid / 2, 5);
+    });
+
+    it('has a few more pieces than behind, and a trial still far fewer than a registration', () => {
+      expect(pieceCount('gentle', 350, 'front')).toBeGreaterThan(pieceCount('gentle', 350, 'behind'));
+      expect(pieceCount('gentle', 350, 'front')).toBeLessThan(pieceCount('regular', 350, 'behind') * 0.6);
+    });
+
+    it('behind is what it was', () => {
+      expect(pieceCount('gentle', 350)).toBe(CONFETTI_LEVELS.gentle.pieces);
+      expect(pieceOpacity(450, 600)).toBeCloseTo(0.45, 5);
+    });
   });
 });
