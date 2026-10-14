@@ -2,6 +2,7 @@
 
 import { leadDaysText, leadStageLabel, leadTone, temperatureLabel } from '@/lib/wahub/leadStage';
 import type { WahubLead, WahubLeadTemperature } from '@/types/wahub';
+import { StageHelp } from '../shared/StageHelp';
 import { PILL_TONE, cx } from '../shared/tones';
 import s from '../wahub.module.css';
 
@@ -23,7 +24,10 @@ export function LeadStageTag({
 }) {
   return (
     <span className={cx(size === 'row' ? s.rowTag : s.pill, PILL_TONE[leadTone(lead, needsHuman)], s.stageTag)}>
-      {leadStageLabel(lead)}
+      {/* "מה זה אומר?": a bubble on the state — in a row of the list too, where a press on it opens only the bubble. */}
+      <StageHelp stage={lead.stage} inRow={size === 'row'} title={leadStageLabel(lead)}>
+        {leadStageLabel(lead)}
+      </StageHelp>
     </span>
   );
 }

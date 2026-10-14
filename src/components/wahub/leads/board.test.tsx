@@ -1,4 +1,5 @@
 import React from 'react';
+import { StageHelp, StagesLegend } from '../shared/StageHelp';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { describe, expect, it, vi } from 'vitest';
@@ -132,6 +133,8 @@ function elements(node: React.ReactNode): React.ReactElement[] {
   if (!React.isValidElement(node)) return [];
   const element = node as React.ReactElement<{ children?: React.ReactNode }>;
   if (typeof element.type === 'function') {
+    // The bubble on a state keeps state of its own: read as the element it is, with what it wraps.
+    if (element.type === StageHelp || element.type === StagesLegend) return [element, ...elements(element.props.children)];
     return elements((element.type as (props: unknown) => React.ReactNode)(element.props));
   }
   return [element, ...elements(element.props.children)];

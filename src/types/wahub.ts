@@ -1180,6 +1180,12 @@ export interface WahubLeadNext {
   /** A moment, or a plain YYYY-MM-DD; null when there is no time to it. */
   when: string | null;
   state: WahubLeadNextState;
+  /**
+   * Why the bot's step will not leave when its time comes — or did not leave now: the server's own words
+   * ("החזרות האוטומטיות כבויות", "השליחה כבויה", "חסרה תבנית"). Empty when it will leave. Absent from an
+   * older server.
+   */
+  hold?: string;
 }
 
 /** What the bot understood, as short words for a row. Each may be empty. */

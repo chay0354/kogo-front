@@ -7,6 +7,7 @@ import type { WahubLeadCounts, WahubLeadRow, WahubLeadStageCount, WahubLeadsView
 import type { WahubSearchExtras } from '@/types/wahubSearch';
 import { EmptyState, Skeleton, Spinner } from '../../shared/bits';
 import { RefreshNote } from '../../shared/loading';
+import { StagesLegend } from '../../shared/StageHelp';
 import { EverywhereStrip, FoundContacts, SystemCustomers } from '../../shared/SearchParts';
 import { cx } from '../../shared/tones';
 import m from '../../motion.module.css';
@@ -218,6 +219,8 @@ export default function LeadsList({
               <ChevronDown aria-hidden="true" />
             </label>
           )}
+          {/* What every state of this list means — the filter is the browser's own list, and cannot open a bubble. */}
+          {!everywhere && (stages.length > 1 || stage) && <StagesLegend stages={stages} />}
         </div>
       </header>
 
