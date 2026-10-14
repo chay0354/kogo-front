@@ -27,6 +27,7 @@ import { toast } from 'sonner';
 import { Dialog, DialogContent, DialogCloseButton } from '@/components/ui/dialog';
 import { Skeleton } from '@/components/ui/skeleton';
 import api, { fetchBranchesList, fetchBusinesses, type Business } from '@/lib/api';
+import { AGE_GROUP_LABELS } from '@/lib/courseUtils';
 import type { ChildWithDetails } from '@/types/customer';
 import {
   cardLinkAction,
@@ -54,6 +55,12 @@ import {
   standingOrderStatusLabel,
 } from './cardUpdateLink';
 import { MAX_SPECIAL_PRICE, specialPriceValue } from './cardLinkSpecialPrice';
+import {
+  NO_LESSON_FILTERS,
+  lessonFilterChoices,
+  lessonInFilters,
+  type LessonFilters,
+} from './lessonSearch';
 import { branchMissing, pickedBranchesBusiness } from './incomePlace';
 import styles from './SendCardLinkDialog.module.css';
 
@@ -86,6 +93,13 @@ type LessonRow = {
   start_time?: string | null;
   end_time?: string | null;
   instructor_name?: string | null;
+  branch_id?: string | null;
+  branch_name?: string | null;
+  course_type?: string | null;
+  course_type_name?: string | null;
+  min_age?: number | null;
+  max_age?: number | null;
+  course_display_id?: number | string | null;
   course?: string;
 };
 
@@ -149,6 +163,14 @@ function whatsappOutcome(result: NonNullable<CardLink['whatsapp']>) {
   if (result.sent) return result.method === 'text' ? 'נשלח כהודעת טקסט (ללא תבנית)' : 'נשלח ב-WhatsApp';
   return `לא נשלח: ${whatsappFailure(result)}`;
 }
+
+/** Everything the office might type to find a lesson: its line, the branch and the group number. */
+function lessonSearchText(l: LessonRow) {
+  return [lessonLabel(l), l.branch_name, l.course_display_id != null ? `#${l.course_display_id}` : ''].filter(Boolean).join(' · ');
+}
+
+/** Rows drawn at once; past this the office narrows with a filter or a word. */
+const LESSON_ROWS = 80;
 
 function lessonLabel(l: LessonRow) {
   const time = [l.start_time, l.end_time].filter(Boolean).map((t) => String(t).slice(0, 5)).join('–');
@@ -696,6 +718,8 @@ export default function SendCardLinkDialog({ open, onOpenChange, child }: SendCa
   const [otherOpen, setOtherOpen] = useState(false);
   const [lessons, setLessons] = useState<LessonRow[] | null>(null);
   const [otherLessonId, setOtherLessonId] = useState('');
+  // null until the lessons arrive: then it starts on the child's own branch.
+  const [lessonFilters, setLessonFilters] = useState<LessonFilters | null>(null);
   // A monthly price for this child alone on the lesson picked by hand ('' = the catalogue's).
   const [specialPrice, setSpecialPrice] = useState('');
   const [includeFee, setIncludeFee] = useState(true);
@@ -781,6 +805,7 @@ export default function SendCardLinkDialog({ open, onOpenChange, child }: SendCa
     setSelectedKey('');
     setOtherOpen(false);
     setOtherLessonId('');
+    setLessonFilters(null);
     setSpecialPrice('');
     setShowAllLinks(false);
     setBranchId('');
@@ -845,6 +870,20 @@ export default function SendCardLinkDialog({ open, onOpenChange, child }: SendCa
   );
   const selectedOption = options?.find((o) => o.key === selectedKey) ?? null;
   const otherLesson = otherLessonId ? sortedLessons.find((l) => l.id === otherLessonId) ?? null : null;
+  const lessonChoices = useMemo(() => lessonFilterChoices(lessons ?? []), [lessons]);
+  // The child's own branch first — the usual case is one more lesson where they already come.
+  useEffect(() => {
+    if (lessons === null || lessonFilters !== null) return;
+    const ownBranch = child.branch_id && lessons.some((l) => l.branch_id === child.branch_id) ? child.branch_id : '';
+    setLessonFilters({ ...NO_LESSON_FILTERS, branchId: ownBranch });
+  }, [lessons, lessonFilters, child.branch_id]);
+  const filters = lessonFilters ?? NO_LESSON_FILTERS;
+  const setFilter = (key: keyof LessonFilters, value: string) => setLessonFilters({ ...filters, [key]: value });
+  const lessonResults = useMemo(
+    () => sortedLessons.filter((l) => lessonInFilters(l, filters, lessonSearchText(l))),
+    [sortedLessons, filters],
+  );
+  const filtersOn = Boolean(filters.branchId || filters.typeId || filters.day || filters.age || filters.query.trim());
   const special = otherLessonId ? specialPriceValue(specialPrice) : null;
   const tabStop = selectableKeys.includes(selectedKey) ? selectedKey : selectableKeys[0] ?? '';
   const parentPhone = child.parent_phone || child.family_phone;
@@ -1374,24 +1413,112 @@ export default function SendCardLinkDialog({ open, onOpenChange, child }: SendCa
                       <ChevronDown className={`h-4 w-4 ${styles.chevron}`} aria-hidden />
                     </button>
                     <div id="cl-other" className={styles.otherBody} hidden={!otherOpen}>
-                      <label className={styles.label} htmlFor="cl-lesson">שיעור</label>
-                      <select
-                        id="cl-lesson"
-                        className={styles.input}
-                        value={otherLessonId}
-                        onChange={(e) => chooseOtherLesson(e.target.value)}
-                        disabled={lessons === null}
-                      >
-                        <option value="" disabled>
-                          {lessons === null ? 'טוען שיעורים…' : 'בחרו שיעור'}
-                        </option>
-                        {sortedLessons.map((l) => (
-                          <option key={l.id} value={l.id}>
-                            {enrolledIds.has(l.id) ? '★ ' : ''}
-                            {lessonLabel(l)}
-                          </option>
-                        ))}
-                      </select>
+                      {/* A few hundred lessons: narrow by branch, field, day and age, or a word,
+                          and press the lesson (owner, 14.10.2026). Starts on the child's branch. */}
+                      <div className={styles.lessonFilters}>
+                        <div>
+                          <label className={styles.label} htmlFor="cl-f-branch">סניף</label>
+                          <select id="cl-f-branch" className={styles.input} value={filters.branchId} onChange={(e) => setFilter('branchId', e.target.value)} disabled={lessons === null}>
+                            <option value="">כל הסניפים</option>
+                            {lessonChoices.branches.map((b) => (
+                              <option key={b.id} value={b.id}>{b.name}</option>
+                            ))}
+                          </select>
+                        </div>
+                        <div>
+                          <label className={styles.label} htmlFor="cl-f-type">תחום</label>
+                          <select id="cl-f-type" className={styles.input} value={filters.typeId} onChange={(e) => setFilter('typeId', e.target.value)} disabled={lessons === null}>
+                            <option value="">כל התחומים</option>
+                            {lessonChoices.types.map((t) => (
+                              <option key={t.id} value={t.id}>{t.name}</option>
+                            ))}
+                          </select>
+                        </div>
+                        <div>
+                          <label className={styles.label} htmlFor="cl-f-day">יום</label>
+                          <select id="cl-f-day" className={styles.input} value={filters.day} onChange={(e) => setFilter('day', e.target.value)} disabled={lessons === null}>
+                            <option value="">כל הימים</option>
+                            {lessonChoices.days.map((d) => (
+                              <option key={d} value={String(d)}>{DAYS[d]}</option>
+                            ))}
+                          </select>
+                        </div>
+                        <div>
+                          <label className={styles.label} htmlFor="cl-f-age">גיל</label>
+                          <select id="cl-f-age" className={styles.input} value={filters.age} onChange={(e) => setFilter('age', e.target.value)} disabled={lessons === null}>
+                            <option value="">כל הגילים</option>
+                            {AGE_GROUP_LABELS.map((label, i) => (
+                              <option key={label} value={String(i + 1)}>{label}</option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+                      <div className={styles.searchBox}>
+                        <Search className={`h-4 w-4 ${styles.searchIcon}`} aria-hidden />
+                        <input
+                          id="cl-lesson-search"
+                          type="search"
+                          className={styles.input}
+                          aria-label="חיפוש שיעור"
+                          placeholder="חיפוש חופשי — שם חוג, שעה או מדריך"
+                          value={filters.query}
+                          onChange={(e) => setFilter('query', e.target.value)}
+                          disabled={lessons === null}
+                          autoComplete="off"
+                        />
+                      </div>
+                      <div className={styles.lessonCount}>
+                        <span>
+                          {lessons === null
+                            ? 'טוען שיעורים…'
+                            : lessonResults.length === 0
+                              ? 'לא נמצא שיעור — שנו סינון'
+                              : lessonResults.length === 1
+                                ? 'שיעור אחד'
+                                : `${lessonResults.length} שיעורים`}
+                        </span>
+                        {filtersOn ? (
+                          <button type="button" className={styles.clearFilters} onClick={() => setLessonFilters({ ...NO_LESSON_FILTERS })}>
+                            ניקוי סינון
+                          </button>
+                        ) : null}
+                      </div>
+                      {lessonResults.length > 0 ? (
+                        <ul className={`${styles.linkList} ${styles.lessonPicker}`} role="radiogroup" aria-label="שיעורים">
+                          {lessonResults.slice(0, LESSON_ROWS).map((l) => (
+                            <li key={l.id} className={styles.linkRow}>
+                              <span className={styles.rowIcon} aria-hidden>
+                                {otherLessonId === l.id ? <Check className="h-4 w-4" /> : <CalendarDays className="h-4 w-4" />}
+                              </span>
+                              <button
+                                type="button"
+                                role="radio"
+                                aria-checked={otherLessonId === l.id}
+                                className={styles.pickRow}
+                                onClick={() => chooseOtherLesson(l.id)}
+                              >
+                                <p className={styles.rowTitle}>
+                                  {enrolledIds.has(l.id) ? '★ ' : ''}
+                                  {l.course_name}
+                                </p>
+                                <p className={styles.rowMeta}>
+                                  {[
+                                    DAYS[l.day_of_week],
+                                    [l.start_time, l.end_time].filter(Boolean).map((t) => String(t).slice(0, 5)).join('–'),
+                                    l.instructor_name,
+                                    filters.branchId ? '' : l.branch_name,
+                                  ]
+                                    .filter(Boolean)
+                                    .join(' · ')}
+                                </p>
+                              </button>
+                            </li>
+                          ))}
+                          {lessonResults.length > LESSON_ROWS ? (
+                            <li className={styles.otherNote}>ועוד {lessonResults.length - LESSON_ROWS} — צמצמו בסינון</li>
+                          ) : null}
+                        </ul>
+                      ) : null}
                       <p className={styles.otherNote}>
                         ★ = הילד רשום לשיעור. אם כבר יש לו הוראת קבע לשיעור — השרת ידחה. המחיר מחושב כמו בהרשמה רגילה: יחסי לחודש + דמי רישום אם עוד לא שולמו.
                       </p>
