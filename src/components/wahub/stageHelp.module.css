@@ -8,13 +8,18 @@
 
 .wrap {
   position: relative;
-  display: inline-flex;
-  min-width: 0;
+  display: inline;
 }
 
 /* The state itself is the way in: a dotted line under it says there is more to read. */
 .trigger {
   display: inline;
+  width: auto;
+  height: auto;
+  min-width: 0;
+  min-height: 0;
+  white-space: inherit;
+  line-height: inherit;
   padding: 0;
   border: 0;
   background: none;

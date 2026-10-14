@@ -1,7 +1,7 @@
 'use client';
 
 import { HelpCircle } from 'lucide-react';
-import { useEffect, useId, useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode } from 'react';
+import { useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode } from 'react';
 import { helpParts, stageHelp, stageHelpText, STAGE_HELP } from '@/lib/wahub/stageHelp';
 import h from '../stageHelp.module.css';
 
@@ -19,6 +19,23 @@ function Line({ text, className }: { text: string; className?: string }) {
       {helpParts(text).map((part, index) => (part.bold ? <b key={index}>{part.text}</b> : <span key={index}>{part.text}</span>))}
     </span>
   );
+}
+
+// A layout effect in the browser (the bubble is put in place before it is painted), a plain one on the server.
+const useBrowserLayoutEffect = typeof window === 'undefined' ? useEffect : useLayoutEffect;
+// The least room kept between a bubble and the edge of the screen.
+const EDGE = 12;
+
+/**
+ * How far to move an open bubble sideways so that the whole of it is on the screen — 0 when it already is.
+ * On a phone the state may stand near an edge, and a bubble opened from it would be cut (seen in production,
+ * 14.10.2026: 41 pixels of it outside the screen).
+ */
+export function onScreenShift(left: number, right: number, screen: number, edge: number = EDGE): number {
+  if (right - left > screen - 2 * edge) return edge - left;
+  if (left < edge) return edge - left;
+  if (right > screen - edge) return screen - edge - right;
+  return 0;
 }
 
 /** Open while it is wanted, closed by a press outside it or by Escape. */
@@ -64,6 +81,18 @@ export function StageHelp({ stage, children, inRow = false, title, defaultOpen =
   const help = stageHelp(stage);
   const { open, setOpen, byHover, wrap } = useBubble(defaultOpen);
   const id = useId();
+  const bubble = useRef<HTMLSpanElement>(null);
+  const [shift, setShift] = useState(0);
+  useBrowserLayoutEffect(() => {
+    if (!open || !bubble.current) {
+      setShift(0);
+      return;
+    }
+    const box = bubble.current.getBoundingClientRect();
+    setShift(onScreenShift(box.left - shift, box.right - shift, document.documentElement.clientWidth));
+    // Measured once, as it opens; `shift` is read only to measure the place it would have had without it.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
   if (!help) return <>{children}</>;
 
   const toggle = (event: MouseEvent) => {
@@ -81,6 +110,8 @@ export function StageHelp({ stage, children, inRow = false, title, defaultOpen =
   };
   const shared = {
     className: h.trigger,
+    // Not one of the round 44-pixel buttons of the details' head on a phone (leads.module.css).
+    'data-stage-help': '',
     'aria-describedby': open ? id : undefined,
     title: 'מה זה אומר?',
     onClick: toggle,
@@ -113,7 +144,14 @@ export function StageHelp({ stage, children, inRow = false, title, defaultOpen =
         </button>
       )}
       {open && (
-        <span id={id} role="tooltip" className={h.bubble} onClick={(event) => event.stopPropagation()}>
+        <span
+          ref={bubble}
+          id={id}
+          role="tooltip"
+          className={h.bubble}
+          style={shift ? { transform: `translateX(${shift}px)` } : undefined}
+          onClick={(event) => event.stopPropagation()}
+        >
           {title && <span className={h.title}>{title}</span>}
           <Line text={help.what} className={h.line} />
           <Line text={help.now} className={h.line} />

@@ -1650,7 +1650,8 @@
     padding-inline-start: var(--menuGap, 56px);
   }
 
-  .detailsCover .dHead :global(button) {
+  /* The round buttons of the head — back, close; not the state's "מה זה אומר?" (StageHelp), which is words. */
+  .detailsCover .dHead :global(button:not([data-stage-help])) {
     width: 44px;
     height: 44px;
     border-radius: 50%;
