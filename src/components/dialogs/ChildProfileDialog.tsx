@@ -57,6 +57,7 @@ import CustomerDetailsEditor from '@/components/dialogs/CustomerDetailsEditor';
 import ChildStatusHistory from '@/components/dialogs/ChildStatusHistory';
 import { normalisePhone } from '@/components/dialogs/customerDetailsForm';
 import SendCardLinkDialog from '@/components/dialogs/SendCardLinkDialog';
+import WalkInBlock from '@/components/dialogs/WalkInBlock';
 import RegisterCashDialog from '@/components/dialogs/RegisterCashDialog';
 import CashPlansSection from '@/components/dialogs/CashPlansSection';
 import ReplaceCardDialog from '@/components/dialogs/ReplaceCardDialog';
@@ -1181,6 +1182,7 @@ export default function ChildProfileDialog({
                     עריכת פרטים
                   </Button>
                 </div>
+                {child.walk_in ? <WalkInBlock summary={child.walk_in} /> : null}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6 px-6 pb-6">
                   {/* Left column */}
                   <div className="space-y-6">

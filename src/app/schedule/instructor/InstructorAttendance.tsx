@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Calendar, Check, ChevronDown, ChevronRight, Clock, Plus, RotateCcw, Sparkles, Trash2, X } from 'lucide-react';
+import { Calendar, Check, ChevronDown, ChevronRight, Clock, History, Info, Phone, Plus, RotateCcw, Sparkles, Trash2, X } from 'lucide-react';
 import {
   addWalkInStudent,
   fetchLessonDetail,
@@ -12,6 +12,7 @@ import {
   formatTime,
   markAttendance,
   removeWalkInStudent,
+  updateWalkInStudent,
 } from '@/lib/scheduleUtils';
 import ContactSheet from '@/components/ContactSheet';
 import {
@@ -22,10 +23,19 @@ import {
 } from '@/lib/attendanceMarks';
 import type { AttendanceStatus, Lesson, LessonDetail } from '@/types/schedule';
 import { hebrewDayLetter, lessonTitle } from './instructorUtils';
+import { findSimilarChild, type RegisterChild } from './walkInMatch';
 import styles from './InstructorAttendance.module.css';
 
 const INITIAL_VISIBLE = 8;
 const ISSUE_STATUSES = new Set(['payment_problem', 'trial_signed', 'trial_completed']);
+
+type RegisterRow = LessonDetail['enrollments'][number];
+
+/** The server's own Hebrew sentence for a refusal, when it sent one. */
+function serverMessage(err: unknown): string {
+  const data = (err as { response?: { data?: { error?: unknown } } })?.response?.data;
+  return typeof data?.error === 'string' ? data.error : '';
+}
 
 type InstructorAttendanceProps = {
   lesson: Lesson;
@@ -65,9 +75,21 @@ export default function InstructorAttendance({
   const [removing, setRemoving] = useState<{ id: string; child_id: string; name: string } | null>(null);
   // Instructors meet this tag on a child they did not put there, and the word
   // alone explains nothing. Tapping it says what a ghost is and what to do.
-  const [ghostInfo, setGhostInfo] = useState<string | null>(null);
+  const [ghostInfo, setGhostInfo] = useState<RegisterRow | null>(null);
+  // "הגיע בשיעור שעבר" tapped: this is the last lesson the walk-in is shown on.
+  const [lastTimeInfo, setLastTimeInfo] = useState<RegisterRow | null>(null);
+  // The walk-in whose phone is being filled in (owner, 14.10.2026).
+  const [phoneFor, setPhoneFor] = useState<RegisterRow | null>(null);
+  const [phoneDraft, setPhoneDraft] = useState('');
+  const [isSavingPhone, setIsSavingPhone] = useState(false);
+  // "התכוונת לילד הזה?" — a registered child whose name is close to the one
+  // typed, offered on the real register before a second child is made.
+  const [suggest, setSuggest] = useState<RegisterChild | null>(null);
+  // The name typed and the child the instructor already said it is not.
+  const [notThisChild, setNotThisChild] = useState<string | null>(null);
   const [isRemoving, setIsRemoving] = useState(false);
   const addFormRef = useRef<HTMLDivElement>(null);
+  const rowRefs = useRef(new Map<string, HTMLElement>());
 
   const occurrenceDate = lesson.lesson_date || '';
 
@@ -144,12 +166,27 @@ export default function InstructorAttendance({
   useEffect(() => {
     if (!onOverlayChange) return;
     if (removing) onOverlayChange(() => setRemoving(null));
-    if (ghostInfo) onOverlayChange(() => setGhostInfo(null));
+    else if (phoneFor) onOverlayChange(() => setPhoneFor(null));
+    else if (lastTimeInfo) onOverlayChange(() => setLastTimeInfo(null));
+    else if (ghostInfo) onOverlayChange(() => setGhostInfo(null));
+    else if (suggest) onOverlayChange(() => rejectSuggestion());
     else if (contact) onOverlayChange(() => setContact(null));
     else if (addOpen) onOverlayChange(() => setAddOpen(false));
     else onOverlayChange(null);
     return () => onOverlayChange(null);
-  }, [removing, ghostInfo, contact, addOpen, onOverlayChange]);
+    // rejectSuggestion reads only setters and the form.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [removing, phoneFor, lastTimeInfo, ghostInfo, suggest, contact, addOpen, onOverlayChange]);
+
+  /* The child the typed name probably means is on the register already: bring
+     its row to the middle of the screen, where the question waits on it. */
+  useEffect(() => {
+    if (!suggest) return;
+    const node = rowRefs.current.get(suggest.child_id);
+    if (!node) return;
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    node.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'center' });
+  }, [suggest]);
 
   /* The form is revealed below a list that can be longer than the screen. The
      layout keeps it on screen on its own, but a short phone with a long header
@@ -217,10 +254,26 @@ export default function InstructorAttendance({
    * instructor can mark them and the office can follow up — it is not a
    * registration, and the row fades out on its own after a few weeks.
    */
+  const typedKey = `${addForm.first_name.trim()} ${addForm.last_name.trim()}`;
+
   const handleAddWalkIn = async () => {
     if (!addForm.first_name.trim() || !addForm.last_name.trim()) {
       setToast('נדרשים שם פרטי ושם משפחה');
       return;
+    }
+    // A name close to a child already on this register: ask before making a
+    // second child for one (owner, 14.10.2026).
+    if (notThisChild !== typedKey) {
+      const registered = students
+        .filter((row) => row.child_status !== 'ghost' && row.attendee_kind !== 'external')
+        .map((row) => ({ child_id: row.child_id, child_name: row.child_name }));
+      const similar = findSimilarChild(addForm, registered);
+      if (similar) {
+        setSuggest(similar);
+        setAddOpen(false);
+        setExpanded(true);
+        return;
+      }
     }
     setIsAdding(true);
     try {
@@ -247,13 +300,67 @@ export default function InstructorAttendance({
       }
       setExpanded(true);
       setAddForm({ first_name: '', last_name: '', phone: '' });
+      setNotThisChild(null);
       setAddOpen(false);
     } catch (err) {
       console.error(err);
       if (isSessionLost(err)) signedOutElsewhere();
-      else setToast('לא הצלחנו להוסיף את התלמיד');
+      else setToast(serverMessage(err) || 'לא הצלחנו להוסיף את התלמיד');
     } finally {
       setIsAdding(false);
+    }
+  };
+
+  /** "כן, זה הוא": the child is on the register already — mark them, add nobody. */
+  const acceptSuggestion = () => {
+    if (!suggest) return;
+    if ((attendance[suggest.child_id] || 'not_marked') !== 'present') {
+      void handleToggle(suggest.child_id, 'present');
+    }
+    setToast(`סומן נוכח: ${suggest.child_name}`);
+    setSuggest(null);
+    setNotThisChild(null);
+    setAddForm({ first_name: '', last_name: '', phone: '' });
+  };
+
+  /** "לא, ילד אחר": back to the form as it was, and this name is not asked about again. */
+  const rejectSuggestion = () => {
+    setSuggest(null);
+    setNotThisChild(typedKey);
+    setAddOpen(true);
+  };
+
+  const openPhone = (row: RegisterRow) => {
+    setGhostInfo(null);
+    setLastTimeInfo(null);
+    setPhoneDraft('');
+    setPhoneFor(row);
+  };
+
+  /** The walk-in's phone, filled in after it was added — it is no lead without one. */
+  const handleSavePhone = async () => {
+    if (!phoneFor) return;
+    const digits = phoneDraft.replace(/\D/g, '');
+    if (digits.length < 9) {
+      setToast('מספר טלפון לא תקין');
+      return;
+    }
+    setIsSavingPhone(true);
+    try {
+      const updated = await updateWalkInStudent(lesson.id, phoneFor.id, occurrenceDate, { phone: phoneDraft.trim() }, asUser);
+      setDetail((prev) =>
+        prev
+          ? { ...prev, enrollments: prev.enrollments.map((row) => (row.id === updated.id ? { ...row, ...updated } : row)) }
+          : prev,
+      );
+      setToast('הטלפון נשמר');
+      setPhoneFor(null);
+    } catch (err) {
+      console.error(err);
+      if (isSessionLost(err)) signedOutElsewhere();
+      else setToast(serverMessage(err) || 'לא הצלחנו לשמור את הטלפון');
+    } finally {
+      setIsSavingPhone(false);
     }
   };
 
@@ -337,7 +444,13 @@ export default function InstructorAttendance({
             return (
               <article
                 key={student.id}
-                className={`${styles.card} ${flagged ? styles.cardAlert : ''}`}
+                ref={(node) => {
+                  if (node) rowRefs.current.set(student.child_id, node);
+                  else rowRefs.current.delete(student.child_id);
+                }}
+                className={`${styles.card} ${flagged ? styles.cardAlert : ''} ${
+                  suggest?.child_id === student.child_id ? styles.cardSuggested : ''
+                }`}
               >
                 <div className={styles.cardTop}>
                   <div className={styles.index}>{index + 1}</div>
@@ -365,16 +478,28 @@ export default function InstructorAttendance({
                           עד סוף החודש
                         </span>
                       )}
-                      {student.child_status === 'ghost' && (
-                        <button
-                          type="button"
-                          className={styles.walkInTag}
-                          onClick={() => setGhostInfo(student.child_name)}
-                          aria-label="תלמיד רפאים — למה הוא מופיע כאן"
-                        >
-                          תלמיד רפאים
-                        </button>
-                      )}
+                      {student.child_status === 'ghost' &&
+                        (student.walk_in?.came_before ? (
+                          <button
+                            type="button"
+                            className={`${styles.walkInTag} ${styles.walkInTagBefore}`}
+                            onClick={() => setLastTimeInfo(student)}
+                            aria-label="הגיע בשיעור שעבר — מה זה אומר"
+                          >
+                            <History size={12} strokeWidth={2.4} aria-hidden />
+                            הגיע בשיעור שעבר
+                            <Info size={12} strokeWidth={2.4} aria-hidden />
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            className={styles.walkInTag}
+                            onClick={() => setGhostInfo(student)}
+                            aria-label="תלמיד רפאים — למה הוא מופיע כאן"
+                          >
+                            תלמיד רפאים
+                          </button>
+                        ))}
                       {/* Only on a walk-in. A registered child belongs to the
                           office, and this screen offers no way to remove one. */}
                       {student.child_status === 'ghost' && (
@@ -405,11 +530,34 @@ export default function InstructorAttendance({
                       >
                         {student.child_phone}
                       </button>
+                    ) : student.child_status === 'ghost' ? (
+                      <button
+                        type="button"
+                        className={styles.phoneMissing}
+                        onClick={() => openPhone(student)}
+                        aria-label={`הוספת טלפון ל${student.child_name}`}
+                      >
+                        <Phone size={13} strokeWidth={2.4} aria-hidden />
+                        חסר טלפון · הוספה
+                      </button>
                     ) : (
                       <div className={styles.phone}>—</div>
                     )}
                   </div>
                 </div>
+                {suggest?.child_id === student.child_id && (
+                  <div className={styles.suggest} role="alertdialog" aria-label="התכוונת לילד הזה?">
+                    <div className={styles.suggestText}>התכוונת ל{student.child_name}?</div>
+                    <div className={styles.suggestActions}>
+                      <button type="button" className={styles.suggestYes} onClick={acceptSuggestion}>
+                        כן, זה הוא
+                      </button>
+                      <button type="button" className={styles.suggestNo} onClick={rejectSuggestion}>
+                        לא, ילד אחר
+                      </button>
+                    </div>
+                  </div>
+                )}
                 <div className={styles.toggle}>
                   <button
                     type="button"
@@ -537,25 +685,110 @@ export default function InstructorAttendance({
           }}
         >
           <div className={styles.contactBox}>
-            <div className={styles.contactName}>{ghostInfo}</div>
+            <div className={styles.contactName}>{ghostInfo.child_name}</div>
             <p className={styles.ghostHint}>
-              הילד הזה לא נמצא ברשימת השיעור — מישהו הוסיף אותו כאן כדי שאפשר יהיה
-              לסמן לו נוכחות.
+              הילד לא רשום לשיעור — הוסיפו אותו כאן כדי לסמן לו נוכחות. הוא לא נספר
+              בקיבולת ולא מחויב בכלום.
             </p>
             <p className={styles.ghostHint}>
-              הוא לא נספר בקיבולת השיעור, לא מחויב בכלום, ולא מקבל הודעות. הוא מוצג
-              רק לשיעורים הקרובים, ונעלם מעצמו ברגע שהמשרד רושם אותו כתלמיד.
+              הוא מופיע היום ובשיעור הבא. הגיע שוב? סמנו נוכח — והוא יישאר עוד שיעור.
             </p>
             <p className={styles.ghostHint}>
-              אם הוא ממשיך להגיע — כדאי לומר למשרד שירשמו אותו.
+              {ghostInfo.walk_in?.phone_missing
+                ? 'אין לו מספר טלפון: בלי טלפון הוא יימחק מהמערכת אחרי השיעור הבא. עם טלפון — המשרד יחזור אליו.'
+                : 'יש לו מספר טלפון — המשרד יחזור אליו.'}
             </p>
             <div className={styles.removeActions}>
+              {ghostInfo.walk_in?.phone_missing && (
+                <button type="button" className={styles.phoneSave} onClick={() => openPhone(ghostInfo)}>
+                  הוספת טלפון
+                </button>
+              )}
               <button
                 type="button"
                 className={styles.contactCancel}
                 onClick={() => setGhostInfo(null)}
               >
                 הבנתי
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {lastTimeInfo && (
+        <div
+          className={styles.contactScrim}
+          role="dialog"
+          aria-modal="true"
+          aria-label="הגיע בשיעור שעבר"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setLastTimeInfo(null);
+          }}
+        >
+          <div className={styles.contactBox}>
+            <div className={styles.lastTimeIcon} aria-hidden>
+              <History size={22} strokeWidth={2.2} />
+            </div>
+            <div className={styles.contactName}>{lastTimeInfo.child_name}</div>
+            <p className={styles.ghostHint}>
+              <strong>זה השיעור האחרון שהוא מופיע ברשימה.</strong>
+            </p>
+            <p className={styles.ghostHint}>הגיע גם היום? סמנו נוכח — והוא יישאר לשיעור הבא.</p>
+            {lastTimeInfo.walk_in?.phone_missing && (
+              <p className={styles.ghostHint}>אין לו מספר טלפון: בלי טלפון הוא יימחק מהמערכת אחרי השיעור הזה.</p>
+            )}
+            <div className={styles.removeActions}>
+              {lastTimeInfo.walk_in?.phone_missing && (
+                <button type="button" className={styles.phoneSave} onClick={() => openPhone(lastTimeInfo)}>
+                  הוספת טלפון
+                </button>
+              )}
+              <button type="button" className={styles.contactCancel} onClick={() => setLastTimeInfo(null)}>
+                הבנתי
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {phoneFor && (
+        <div
+          className={styles.contactScrim}
+          role="dialog"
+          aria-modal="true"
+          aria-label={`טלפון של ${phoneFor.child_name}`}
+          onClick={(e) => {
+            if (e.target === e.currentTarget && !isSavingPhone) setPhoneFor(null);
+          }}
+        >
+          <div className={styles.contactBox}>
+            <div className={styles.contactName}>{phoneFor.child_name}</div>
+            <p className={styles.removeHint}>הטלפון של ההורה — כדי שהמשרד יוכל לחזור אליהם</p>
+            <input
+              className={styles.addInput}
+              inputMode="tel"
+              dir="ltr"
+              autoFocus
+              placeholder="05X-XXXXXXX"
+              aria-label="מספר טלפון"
+              value={phoneDraft}
+              onChange={(e) => setPhoneDraft(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') void handleSavePhone();
+              }}
+            />
+            <div className={`${styles.removeActions} ${styles.phoneActions}`}>
+              <button type="button" className={styles.phoneSave} onClick={handleSavePhone} disabled={isSavingPhone}>
+                {isSavingPhone ? 'שומר…' : 'שמירה'}
+              </button>
+              <button
+                type="button"
+                className={styles.contactCancel}
+                onClick={() => setPhoneFor(null)}
+                disabled={isSavingPhone}
+              >
+                ביטול
               </button>
             </div>
           </div>

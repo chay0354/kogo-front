@@ -900,3 +900,145 @@
   background: #e6efff;
   color: #1e40af;
 }
+
+/* --- תלמיד מזדמן: "הגיע בשיעור שעבר", חסר טלפון, "התכוונת לילד הזה?" (14.10.2026) --- */
+
+/* The lesson after the one it came to: a calm blue, with the icon that opens why. */
+.walkInTagBefore {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: #e8eefc;
+  color: #2b3090;
+  text-decoration: none;
+}
+
+.walkInTagBefore:active {
+  background: #d6e0fb;
+}
+
+/* No phone yet: a soft orange that breathes, never loud enough to pull the eye
+   away from the register being called. */
+.phoneMissing {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 4px;
+  min-height: 28px;
+  padding: 2px 10px;
+  border: 1px solid rgba(234, 135, 30, 0.45);
+  border-radius: 999px;
+  background: rgba(255, 166, 64, 0.12);
+  color: #b45a09;
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 700;
+  cursor: pointer;
+  animation: phoneMissingBreath 2.6s ease-in-out infinite;
+}
+
+.phoneMissing:active {
+  background: rgba(255, 166, 64, 0.24);
+}
+
+@keyframes phoneMissingBreath {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(255, 150, 40, 0); opacity: 1; }
+  50% { box-shadow: 0 0 0 4px rgba(255, 150, 40, 0.16); opacity: 0.78; }
+}
+
+/* The registered child the typed name probably means. */
+.cardSuggested {
+  border-color: #f5c518;
+  box-shadow: 0 0 0 3px rgba(245, 197, 24, 0.35), 0 8px 22px rgba(30, 42, 110, 0.1);
+  animation: suggestPulse 1.6s ease-in-out 2;
+}
+
+@keyframes suggestPulse {
+  0%, 100% { box-shadow: 0 0 0 3px rgba(245, 197, 24, 0.35), 0 8px 22px rgba(30, 42, 110, 0.1); }
+  50% { box-shadow: 0 0 0 7px rgba(245, 197, 24, 0.18), 0 8px 22px rgba(30, 42, 110, 0.1); }
+}
+
+.suggest {
+  margin: -2px 0 12px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: #fff8db;
+  animation: contactIn 0.22s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.suggestText {
+  font-size: 15px;
+  font-weight: 800;
+  color: #1e2a6e;
+  margin-bottom: 8px;
+}
+
+.suggestActions {
+  display: flex;
+  gap: 8px;
+}
+
+.suggestYes,
+.suggestNo {
+  flex: 1;
+  min-height: 40px;
+  border-radius: 999px;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.suggestYes {
+  border: 0;
+  background: #2b3090;
+  color: #fff;
+}
+
+.suggestNo {
+  border: 1.5px solid rgba(43, 48, 144, 0.25);
+  background: #fff;
+  color: #2b3090;
+}
+
+.lastTimeIcon {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  margin: 0 auto 8px;
+  border-radius: 50%;
+  background: #e8eefc;
+  color: #2b3090;
+}
+
+.phoneActions {
+  margin-top: 12px;
+}
+
+.phoneSave {
+  width: 100%;
+  border: 0;
+  border-radius: 999px;
+  padding: 13px;
+  background: #2b3090;
+  font: inherit;
+  font-weight: 800;
+  font-size: 15px;
+  color: #fff;
+  cursor: pointer;
+}
+
+.phoneSave:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .phoneMissing,
+  .cardSuggested,
+  .suggest {
+    animation: none;
+  }
+}
+

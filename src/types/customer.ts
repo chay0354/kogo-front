@@ -97,6 +97,8 @@ export interface ChildWithDetails {
   trial_classes_attended: number;
   absent_irregularly: boolean;
   is_ghost_visible: boolean;
+  /** A walk-in only: the lesson(s) it came to and when (server: ghost_students.walk_in_summary). */
+  walk_in?: WalkInSummary | null;
   
   // Subscription dates (reference)
   subscription_start_date: string | null;
@@ -211,3 +213,21 @@ export interface AbsenceRecord {
   occurrence_date: string;
   created_at: string;
 }
+
+/** What the office sees about a child an instructor added on the register (owner, 14.10.2026). */
+export type WalkInSummary = {
+  lessons: Array<{
+    lesson_id: string;
+    course_name: string;
+    branch_name: string;
+    instructor_name: string;
+    day_of_week: number;
+    start_time: string;
+    first_seen: string | null;
+    last_seen: string | null;
+    visits: number;
+    /** The last lesson date the instructor still sees it on. */
+    shown_until: string | null;
+  }>;
+  phone_missing: boolean;
+};
