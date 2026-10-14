@@ -24,6 +24,7 @@ import {
   sortFollowUps,
   timelineWords,
   trialFacts,
+  trialTitle,
   type Fact,
   type FollowUpTone,
   type LeadChange,
@@ -569,7 +570,7 @@ export default function LeadDetails({
                 )}
 
                 {trial.length > 0 && (
-                  <Section title="שיעור הניסיון">
+                  <Section title={trialTitle(details?.trial)}>
                     <Facts facts={trial} />
                   </Section>
                 )}

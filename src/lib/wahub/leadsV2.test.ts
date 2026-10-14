@@ -36,6 +36,7 @@ import {
   stuckFirst,
   timelineWords,
   trialFacts,
+  trialTitle,
   whenWords,
 } from './leadsV2';
 
@@ -225,6 +226,18 @@ describe('reading GET leads/{id}/', () => {
     });
     expect(lead?.details.child).toBeNull();
     expect(lead?.details.trial).toEqual({ course: 'אקרובטיקה', branch: 'כפר סבא', date: null, instructor: '', attended: null });
+  });
+
+  test('a walk-in: the child came to a lesson without registering, and how many times', () => {
+    const lead = readLeadDetail({
+      contact_id: 5,
+      details: { trial: { course: 'קפוארה גן חובה', branch: 'מינץ', date: '2026-10-13', instructor: 'יואב', attended: true, walk_in: true, visits: 2 } },
+    });
+    expect(lead?.details.trial).toEqual({
+      course: 'קפוארה גן חובה', branch: 'מינץ', date: '2026-10-13', instructor: 'יואב', attended: true, walk_in: true, visits: 2,
+    });
+    const odd = readLeadDetail({ contact_id: 5, details: { trial: { course: 'קפוארה', walk_in: true, visits: 'שתיים' } } });
+    expect(odd?.details.trial?.visits).toBeNull();
   });
 
   test('the timeline is never longer than ten', () => {
@@ -522,6 +535,19 @@ describe('the child and the trial', () => {
       { label: 'מדריך', value: 'יואב' },
       { label: 'הגעה', value: 'לא הגיעו' },
     ]);
+  });
+
+  test('a walk-in is no trial lesson: its own heading, and that the instructor wrote them down', () => {
+    const walkIn = { course: 'קפוארה גן חובה', branch: 'מינץ', date: '2026-10-13', instructor: 'יואב', attended: true, walk_in: true, visits: 3 };
+    expect(trialTitle(walkIn)).toBe('הגיע לשיעור בלי להירשם');
+    expect(trialTitle({ ...walkIn, walk_in: false })).toBe('שיעור הניסיון');
+    expect(trialTitle(null)).toBe('שיעור הניסיון');
+    const facts = trialFacts(walkIn, NOW);
+    expect(facts.map((fact) => fact.label)).toEqual(['חוג', 'סניף', 'מתי', 'מדריך', 'הגעה']);
+    expect(facts.find((fact) => fact.label === 'הגעה')?.value).toBe('הגיעו 3 פעמים, בלי להירשם · המדריך הוסיף ממסך הנוכחות');
+    expect(trialFacts({ ...walkIn, visits: 1 }, NOW).find((fact) => fact.label === 'הגעה')?.value).toBe(
+      'הגיעו, בלי להירשם · המדריך הוסיף ממסך הנוכחות',
+    );
   });
 
   test('whether they came is said only once it is known — or once the lesson is plainly still ahead', () => {

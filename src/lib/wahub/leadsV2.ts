@@ -298,6 +298,11 @@ function readTrial(raw: unknown): WahubLeadTrial | null {
     instructor: nameOf(data.instructor),
     attended: typeof data.attended === 'boolean' ? data.attended : null,
   };
+  if (data.walk_in === true) {
+    trial.walk_in = true;
+    const visits = Number(data.visits);
+    trial.visits = Number.isSafeInteger(visits) && visits > 0 ? visits : null;
+  }
   return trial.course || trial.branch || trial.date || trial.instructor || trial.attended != null ? trial : null;
 }
 
@@ -653,8 +658,28 @@ function attendedWords(trial: WahubLeadTrial, now: Date): string {
   return when && !when.past ? 'עוד לא התקיים' : '';
 }
 
+/** The heading of the trial block: a walk-in came to a lesson without registering — it was no trial lesson. */
+export function trialTitle(trial: WahubLeadTrial | null | undefined): string {
+  return trial?.walk_in ? 'הגיע לשיעור בלי להירשם' : 'שיעור הניסיון';
+}
+
+/** A walk-in: how many times they came, and that it was the instructor who wrote them down. */
+function walkInWords(trial: WahubLeadTrial): string {
+  const times = trial.visits && trial.visits > 1 ? `${trial.visits} פעמים` : '';
+  return [times ? `הגיעו ${times}, בלי להירשם` : 'הגיעו, בלי להירשם', 'המדריך הוסיף ממסך הנוכחות'].join(' · ');
+}
+
 export function trialFacts(trial: WahubLeadTrial | null | undefined, now: Date): Fact[] {
   if (!trial) return [];
+  if (trial.walk_in) {
+    return facts([
+      ['חוג', trial.course],
+      ['סניף', trial.branch],
+      ['מתי', fullWhen(trial.date)],
+      ['מדריך', trial.instructor],
+      ['הגעה', walkInWords(trial)],
+    ]);
+  }
   return facts([
     ['חוג', trial.course],
     ['סניף', trial.branch],
