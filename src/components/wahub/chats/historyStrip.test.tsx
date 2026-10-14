@@ -5,8 +5,9 @@
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
-import { historyLine } from '@/lib/wahub/history';
+import { historyLine, readHistoryLines } from '@/lib/wahub/history';
 import HistoryStrip from './HistoryStrip';
+import { CopiedBubble } from './MessageBubble';
 
 (globalThis as { React?: typeof React }).React = React;
 
@@ -34,5 +35,43 @@ describe('the strip of a conversation from before the switch', () => {
   it('a conversation from after the switch, or an older server, shows nothing', () => {
     expect(renderToStaticMarkup(<HistoryStrip note={null} now={NOW} />)).toBe('');
     expect(renderToStaticMarkup(<HistoryStrip note={undefined} now={NOW} />)).toBe('');
+  });
+});
+
+describe('once the conversation from before the switch was copied from ManyChat', () => {
+  const COPIED = { ...NOTE, copied_at: '2026-10-14T10:40:00Z' };
+
+  it('the strip says the lines are in the conversation, marked, and ManyChat is left for pictures and recordings', () => {
+    const line = historyLine(COPIED, NOW);
+    expect(line?.text).toContain('הועתק לכאן');
+    expect(line?.text).toContain('"מ-ManyChat"');
+    const html = renderToStaticMarkup(<HistoryStrip note={COPIED} now={NOW} />);
+    expect(html).toContain('תמונות והקלטות — ב-ManyChat');
+    // With no number on record there is nothing to point to, and nothing empty is drawn.
+    expect(renderToStaticMarkup(<HistoryStrip note={{ ...COPIED, manychat_url: '' }} now={NOW} />)).not.toContain('<span class="quiet');
+  });
+
+  it('a copied line is the bubble it was, dashed, with who wrote it and "מ-ManyChat"', () => {
+    const [bot, customer] = readHistoryLines([
+      { id: 1, sent_at: '2026-10-10T08:00:00Z', direction: 'out', sender: 'bot', text: 'החוג עולה 230 ₪', message_type: 'text' },
+      { id: 2, sent_at: '2026-10-10T07:59:00Z', direction: 'in', sender: 'customer', text: 'כמה עולה?', message_type: 'image' },
+    ]);
+    const botHtml = renderToStaticMarkup(<CopiedBubble line={bot} />);
+    expect(botHtml).toContain('בוט ישן · מ-ManyChat');
+    expect(botHtml).toContain('החוג עולה 230 ₪');
+    expect(botHtml).toContain('copied');
+    expect(renderToStaticMarkup(<CopiedBubble line={customer} />)).toContain('תמונה · מ-ManyChat');
+  });
+
+  it('a line that cannot be read is left out, never guessed', () => {
+    expect(readHistoryLines(null)).toEqual([]);
+    const lines = readHistoryLines([
+      { id: 'x', sent_at: '2026-10-10T08:00:00Z', sender: 'bot' },
+      { id: 3, sent_at: '2026-10-10T08:00:00Z', sender: 'stranger' },
+      { id: 4, sent_at: '2026-10-10T08:00:00Z', sender: 'office', direction: 'out', text: 'שלום', message_type: 'weird' },
+    ]);
+    expect(lines).toEqual([
+      { id: 4, sent_at: '2026-10-10T08:00:00Z', sender: 'office', direction: 'out', text: 'שלום', message_type: 'text' },
+    ]);
   });
 });
