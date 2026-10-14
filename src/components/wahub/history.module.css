@@ -48,3 +48,9 @@
 .quiet {
   color: var(--muted);
 }
+
+/* A line copied from ManyChat, among the messages: the bubble it was, with a dashed edge — Kogo did not send it. */
+.copied {
+  border-style: dashed;
+  border-color: color-mix(in srgb, var(--muted) 55%, transparent);
+}

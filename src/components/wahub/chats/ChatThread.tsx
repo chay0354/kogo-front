@@ -8,6 +8,7 @@ import { customerCardFor } from '@/lib/wahub/customerCard';
 import { isDemoContact, type DemoInput } from '@/lib/wahub/demo';
 import { agoText, displayName, hasName } from '@/lib/wahub/format';
 import { futureOf, knowsFutureLeads, threadDays } from '@/lib/wahub/futureLeads';
+import { readHistoryLines } from '@/lib/wahub/history';
 import { isOptimistic } from '@/lib/wahub/messages';
 import { OPT_OUT_LABEL, optedOutOf } from '@/lib/wahub/optOut';
 import { personWaitTag } from '@/lib/wahub/overdue';
@@ -33,7 +34,7 @@ import DemoComposer, { type DemoReplyControls } from './DemoComposer';
 import HistoryStrip from './HistoryStrip';
 import FutureStrip from './FutureStrip';
 import { LaterPanelView, useLater, type LaterActions } from './LaterPanel';
-import MessageBubble, { TypingBubble } from './MessageBubble';
+import MessageBubble, { CopiedBubble, TypingBubble } from './MessageBubble';
 import ShadowRow from './ShadowRow';
 
 /** Scrolling is settled before the browser paints; where there is no browser there is nothing to settle. */
@@ -419,7 +420,9 @@ export default function ChatThread({
   });
 
   // The messages by day — and, where it was written, each note about the customer.
-  const days = useMemo(() => threadDays(messages, notes, now, thread.hasOlder), [messages, notes, now, thread.hasOlder]);
+  // And each line copied from ManyChat, from before the switch (lib/wahub/history.ts).
+  const copied = useMemo(() => readHistoryLines(contact?.history_lines), [contact?.history_lines]);
+  const days = useMemo(() => threadDays(messages, notes, now, thread.hasOlder, copied), [messages, notes, now, thread.hasOlder, copied]);
   // A note that was not on screen at the last draw of this conversation was just written: it comes in softly.
   const freshNotes = useMemo(() => {
     const before = seen.current;
@@ -723,6 +726,8 @@ export default function ChatThread({
                         if (item.kind === 'note') {
                           return <NoteRow key={item.key} note={item.note} arrived={freshNotes.has(item.note.id)} now={now} actions={acts?.noteActions} />;
                         }
+                        // Nor is a line copied from ManyChat: it is read, not answered or marked.
+                        if (item.kind === 'copied') return <CopiedBubble key={item.key} line={item.line} />;
                         const { message } = item;
                         const shadow = message.direction === 'in' ? shadowByMessage?.get(message.id) : undefined;
                         return (

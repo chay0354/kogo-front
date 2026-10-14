@@ -4,7 +4,10 @@ import { History } from 'lucide-react';
 import { historyLine, type WahubHistoryNote } from '@/lib/wahub/history';
 import h from '../history.module.css';
 
-/** At the head of a conversation from before the switch: the old bot's answers are not here, and where they are. */
+/**
+ * At the head of a conversation from before the switch: the old bot's answers are not here, and where they are —
+ * or, once copied from ManyChat, that they stand in the conversation, marked.
+ */
 export default function HistoryStrip({ note, now }: { note: WahubHistoryNote | null | undefined; now: Date }) {
   const line = historyLine(note, now);
   if (!line) return null;
@@ -19,7 +22,7 @@ export default function HistoryStrip({ note, now }: { note: WahubHistoryNote | n
             {line.link} ↗
           </a>
         ) : (
-          <span className={h.quiet}>{line.link}</span>
+          line.link && <span className={h.quiet}>{line.link}</span>
         )}
       </div>
     </div>

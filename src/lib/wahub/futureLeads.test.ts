@@ -369,6 +369,18 @@ describe('a note: a line of the log, in the conversation where it was written', 
     expect(keys(threadDays([], [old], NOW, true))).toEqual([['note-9']]);
   });
 
+  it('a line copied from ManyChat stands where it was written, beside the notes, and waits like them', () => {
+    const line = (id: number, sent_at: string) => ({ id, sent_at, direction: 'out' as const, sender: 'bot' as const, text: 'תשובה', message_type: 'text' as const });
+    const copied = [line(2, `${DAY1}08:01:00+03:00`), line(1, '2026-10-01T08:00:00+03:00')].sort((a, b) => a.sent_at.localeCompare(b.sent_at));
+    const notes = [note(10, `${DAY1}08:30:00+03:00`)];
+    expect(keys(threadDays(messages, notes, NOW, false, copied))).toEqual([
+      ['copied-1'],
+      ['message-1', 'copied-2', 'note-10', 'message-2'],
+      ['message-3'],
+    ]);
+    expect(keys(threadDays(messages, notes, NOW, true, copied)).flat()).not.toContain('copied-1');
+  });
+
   it('a note that was just saved goes to the head of the list — once', () => {
     const first = note(1, `${DAY1}08:00:00+03:00`);
     const second = note(2, `${DAY2}08:00:00+03:00`);

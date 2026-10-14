@@ -386,6 +386,11 @@ export interface WahubContactDetail extends WahubContact {
   /** The notes about this person, newest first, up to 50 (ג.6). Absent on a server built before them. */
   notes?: WahubNote[];
   /**
+   * The conversation from before the switch, copied from ManyChat (lib/wahub/history.ts), oldest first — read
+   * through `readHistoryLines`. Empty until it was copied; absent on a server built before it.
+   */
+  history_lines?: unknown;
+  /**
    * What they asked for, when they are on a waiting list (ח.3.2) — as the server sent it; read by
    * lib/wahub/waitingSummary.ts. Null: no active entry. Absent on a server built before ח.
    */

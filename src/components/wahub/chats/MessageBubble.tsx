@@ -4,6 +4,7 @@ import { memo, useEffect, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { AlertCircle, Check, ExternalLink, X } from 'lucide-react';
 import { formatClock, messageTypeLabel } from '@/lib/wahub/format';
+import { copiedSender, type WahubHistoryLine } from '@/lib/wahub/history';
 import { MEDIA_WORDS, type ExternalMediaKind } from '@/lib/wahub/media';
 import { bubbleMedia, bubbleText, isNewBotMessage, MEDIA_PLACEHOLDER } from '@/lib/wahub/messages';
 import type { WahubMessage } from '@/types/wahub';
@@ -12,6 +13,7 @@ import m from '../motion.module.css';
 import { Skeleton, Spinner } from '../shared/bits';
 import { ThinkingDots } from '../shared/motion';
 import { cx } from '../shared/tones';
+import h from '../history.module.css';
 import s from '../wahub.module.css';
 
 /**
@@ -262,6 +264,39 @@ const MessageBubble = memo(function MessageBubble({ message, arrived }: { messag
 });
 
 export default MessageBubble;
+
+/**
+ * A line copied from ManyChat (lib/wahub/history.ts): the bubble of the message it was — the customer's on their
+ * side, the old bot's lavender, the office's navy — with a dashed edge and "מ-ManyChat", since Kogo neither sent
+ * nor received it. A picture or a recording is named; the file itself stays in ManyChat.
+ */
+export const CopiedBubble = memo(function CopiedBubble({ line }: { line: WahubHistoryLine }) {
+  const mine = line.direction === 'out';
+  const tone =
+    line.sender === 'customer'
+      ? s.bCustomer
+      : line.sender === 'system' || line.message_type === 'template'
+        ? s.bSystem
+        : line.sender === 'bot'
+          ? s.bBot
+          : s.bOffice;
+  const meta = [copiedSender(line), messageTypeLabel(line.message_type), 'מ-ManyChat'].filter(Boolean).join(' · ');
+  return (
+    <div className={cx(s.bubbleRow, mine && s.bubbleRowOut)}>
+      <div className={s.bubbleCol}>
+        <div className={cx(s.bubble, tone, h.copied)}>
+          <p className={s.bubbleMeta}>{meta}</p>
+          {line.text && (
+            <p className={s.bubbleText} dir="auto">
+              {line.text}
+            </p>
+          )}
+          <p className={cx(s.bubbleTime, mine && 'justify-end')}>{formatClock(line.sent_at)}</p>
+        </div>
+      </div>
+    </div>
+  );
+});
 
 /** "הבוט כותב…" — three dots in the new bot's own bubble, at the end of the conversation while its answer is on its way. */
 export function TypingBubble() {

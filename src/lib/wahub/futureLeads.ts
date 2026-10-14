@@ -12,6 +12,7 @@ import type {
 import { dayKey, dayLabel, daysBetween, formatClock, formatDateTime, formatShortDate } from './format';
 import { isOptimistic } from './messages';
 import { readCustomerRef } from './search';
+import type { WahubHistoryLine } from './history';
 import { WAITING_STATE_LABELS, readWaitingState } from './waitingSummary';
 
 /**
@@ -544,7 +545,8 @@ export function withNote(notes: ReadonlyArray<WahubNote> | undefined, note: Wahu
 
 export type ThreadItem =
   | { kind: 'message'; key: string; message: WahubMessage }
-  | { kind: 'note'; key: string; note: WahubNote };
+  | { kind: 'note'; key: string; note: WahubNote }
+  | { kind: 'copied'; key: string; line: WahubHistoryLine };
 
 export interface ThreadDay {
   /** YYYY-MM-DD in Israel time. */
@@ -560,33 +562,37 @@ function ms(iso: string): number {
 }
 
 /**
- * The conversation cut into days, with each note standing where it was written
- * — between the messages before it and the ones after. The messages keep the
- * order they came in (what is still being sent is always last); a note written
- * before the earliest message on screen, while earlier messages are still to be
- * loaded, waits for them rather than standing at the top out of its place.
+ * The conversation cut into days, with each note — and each line copied from ManyChat (lib/wahub/history.ts) —
+ * standing where it was written: between the messages before it and the ones after. The messages keep the
+ * order they came in (what is still being sent is always last); a note or a line written before the earliest
+ * message on screen, while earlier messages are still to be loaded, waits for them rather than standing at the
+ * top out of its place.
  */
 export function threadDays(
   messages: ReadonlyArray<WahubMessage>,
   notes: ReadonlyArray<WahubNote> | undefined,
   now: Date,
   hasOlder = false,
+  copied: ReadonlyArray<WahubHistoryLine> = [],
 ): ThreadDay[] {
   const kept = messages.filter((message) => !isOptimistic(message));
   const pending = messages.filter(isOptimistic);
   const earliest = kept.length ? ms(kept[0].sent_at) : null;
-  const queue = [...(notes ?? [])]
-    .filter((note) => !(hasOlder && earliest !== null && ms(note.created_at) < earliest))
-    .sort((a, b) => ms(a.created_at) - ms(b.created_at) || a.id - b.id);
+  type Placed = { at: string; id: number; item: ThreadItem };
+  const between: Placed[] = [
+    ...(notes ?? []).map((held) => ({ at: held.created_at, id: held.id, item: { kind: 'note', key: `note-${held.id}`, note: held } as ThreadItem })),
+    ...copied.map((line) => ({ at: line.sent_at, id: line.id, item: { kind: 'copied', key: `copied-${line.id}`, line } as ThreadItem })),
+  ]
+    .filter((entry) => !(hasOlder && earliest !== null && ms(entry.at) < earliest))
+    .sort((a, b) => ms(a.at) - ms(b.at) || a.id - b.id);
 
   const items: Array<{ at: string; item: ThreadItem }> = [];
-  const note = (held: WahubNote) => items.push({ at: held.created_at, item: { kind: 'note', key: `note-${held.id}`, note: held } });
   const message = (held: WahubMessage) => items.push({ at: held.sent_at, item: { kind: 'message', key: `message-${held.id}`, message: held } });
   for (const held of kept) {
-    while (queue.length && ms(queue[0].created_at) < ms(held.sent_at)) note(queue.shift() as WahubNote);
+    while (between.length && ms(between[0].at) < ms(held.sent_at)) items.push(between.shift() as Placed);
     message(held);
   }
-  queue.forEach(note);
+  items.push(...between);
   pending.forEach(message);
 
   const days: ThreadDay[] = [];
