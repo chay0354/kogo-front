@@ -35,13 +35,23 @@ describe('the words of every state', () => {
     expect(STAGE_HELP.nothing_to_offer.now).toContain('בודקת כל יום');
   });
 
+  it('the first line adds to the state\'s name, and never says it again (nothing is said twice)', () => {
+    const plain = (text: string) => text.replace(/[^\u05d0-\u05ea ]/g, '').replace(/\s+/g, ' ').trim();
+    for (const [stage, label] of Object.entries(LEAD_V2_STAGE_LABELS)) {
+      const help = stageHelp(stage);
+      if (!help) continue;
+      const what = plain(help.what);
+      expect(what.includes(plain(label)), `${stage}: "${help.what}" repeats "${label}"`).toBe(false);
+    }
+  });
+
   it('the marks become bold parts, and a plain sentence for a reader', () => {
     expect(helpParts('**הבוט מזכיר** אחרי יום')).toEqual([
       { text: 'הבוט מזכיר', bold: true },
       { text: ' אחרי יום', bold: false },
     ]);
     expect(helpParts('בלי סימן')).toEqual([{ text: 'בלי סימן', bold: false }]);
-    expect(stageHelpText('will_check')).toBe('אמר שיבדוק ויחזור. הבוט שואל פעם אחת, יום אחרי. לא ענה — עובר אליך');
+    expect(stageHelpText('will_check')).toBe('ענה שקודם יבדוק או ישאל מישהו, ויחזור אלינו. הבוט שואל פעם אחת, יום אחרי. לא ענה — עובר אליך');
     expect(stageHelpText('nonsense')).toBe('');
   });
 });
@@ -62,7 +72,7 @@ describe('the bubble', () => {
       </StageHelp>,
     );
     expect(html).toContain('role="tooltip"');
-    expect(html).toContain('קיבל קישור להרשמה ועוד לא נרשם');
+    expect(html).toContain('שלחו לו קישור להרשמה');
     expect(html).toContain('<b>הבוט מזכיר</b>');
   });
 
