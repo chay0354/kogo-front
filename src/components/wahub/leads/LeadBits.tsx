@@ -2,7 +2,7 @@
 
 import { leadDaysText, leadStageLabel, leadTone, temperatureLabel } from '@/lib/wahub/leadStage';
 import type { WahubLead, WahubLeadTemperature } from '@/types/wahub';
-import { StageHelp } from '../shared/StageHelp';
+import { StageHelp, stageHelpText } from '../shared/StageHelp';
 import { PILL_TONE, cx } from '../shared/tones';
 import s from '../wahub.module.css';
 
@@ -22,13 +22,23 @@ export function LeadStageTag({
   needsHuman?: boolean;
   size?: 'pill' | 'row';
 }) {
-  return (
-    <span className={cx(size === 'row' ? s.rowTag : s.pill, PILL_TONE[leadTone(lead, needsHuman)], s.stageTag)}>
-      {/* "מה זה אומר?": a bubble on the state — in a row of the list too, where a press on it opens only the bubble. */}
-      <StageHelp stage={lead.stage} inRow={size === 'row'} title={leadStageLabel(lead)}>
-        {leadStageLabel(lead)}
-      </StageHelp>
+  const label = leadStageLabel(lead);
+  const tag = (
+    <span
+      className={cx(size === 'row' ? s.rowTag : s.pill, PILL_TONE[leadTone(lead, needsHuman)], s.stageTag)}
+      title={size === 'row' ? stageHelpText(lead.stage) || undefined : undefined}
+    >
+      {label}
     </span>
+  );
+  // "מה זה אומר?" (the owner, 14.10.2026). In a row of the list a press opens the conversation, and the row cuts
+  // whatever opens from it: there the words are the tag's title, for a mouse resting on it, and the bubble is in the
+  // contact's card, one press away. Everywhere else the tag opens the bubble — around the tag, which cuts its own text.
+  if (size === 'row') return tag;
+  return (
+    <StageHelp stage={lead.stage} title={label}>
+      {tag}
+    </StageHelp>
   );
 }
 

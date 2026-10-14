@@ -8,7 +8,7 @@ import { describe, expect, it } from 'vitest';
 import { LEAD_V2_STAGE_LABELS } from '@/lib/wahub/leadsV2';
 import { LEAD_STAGE_LABELS } from '@/lib/wahub/leadStage';
 import { STAGE_HELP, helpParts, stageHelp, stageHelpText } from '@/lib/wahub/stageHelp';
-import { StageHelp, StagesLegend } from './StageHelp';
+import { StageHelp, StagesLegend, onScreenShift } from './StageHelp';
 
 // The components are compiled with the classic JSX of the tests, which reads `React` from the global scope.
 (globalThis as { React?: typeof React }).React = React;
@@ -101,5 +101,20 @@ describe('the bubble', () => {
     expect(open).toContain('<dt>בשיחה</dt>');
     expect(open).not.toContain('מצב לא מוכר');
     expect(renderToStaticMarkup(<StagesLegend stages={[{ key: 'unknown_one', label: 'x' }]} />)).toBe('');
+  });
+});
+
+describe('the bubble stays on the screen', () => {
+  it('a bubble cut on the left moves right, one cut on the right moves left, one on the screen stays', () => {
+    // The production case of 14.10.2026: 243 pixels wide, from -41 to 202, on a 400-pixel phone.
+    expect(onScreenShift(-41, 202, 400)).toBe(53);
+    expect(onScreenShift(300, 420, 400)).toBe(-32);
+    expect(onScreenShift(50, 300, 400)).toBe(0);
+    // Wider than the screen: its start at the edge.
+    expect(onScreenShift(-10, 500, 400)).toBe(22);
+  });
+
+  it('the state is marked, so that the round buttons of the head on a phone leave it as words', () => {
+    expect(renderToStaticMarkup(<StageHelp stage="link_sent">קיבל קישור</StageHelp>)).toContain('data-stage-help=""');
   });
 });
