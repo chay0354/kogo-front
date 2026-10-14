@@ -1,5 +1,5 @@
 import React from 'react';
-import { StageHelp, StagesLegend } from '../../shared/StageHelp';
+import { HoverHelp, StageHelp, StagesLegend } from '../../shared/StageHelp';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { describe, expect, it, vi } from 'vitest';
@@ -292,7 +292,7 @@ function elements(node: React.ReactNode, skip: unknown[] = []): React.ReactEleme
   return [element, ...elements(element.props.children, skip)];
 }
 
-const BUBBLES: unknown[] = [StageHelp, StagesLegend];
+const BUBBLES: unknown[] = [StageHelp, StagesLegend, HoverHelp];
 
 /** A component that keeps state, as the element its parent drew for it — so what it was handed can be read. */
 function componentOf<P>(node: React.ReactNode, component: (props: P) => React.ReactNode): React.ReactElement<P> {
@@ -468,7 +468,8 @@ describe('a row: who, the one sentence, quiet chips, and the next step', () => {
     expect(html).toContain('data-next="held"');
     expect(html).toContain(l.nextHeld);
     expect(html).toContain('היה נשלח עכשיו — השליחה כבויה');
-    expect(html).toContain('title="הבוט ישאל אם יש חדש"');
+    // The server's own words are in the bubble a mouse opens on the line (nextStepHelp), not a second, native title.
+    expect(html).not.toContain('title="הבוט ישאל אם יש חדש"');
     expect(row(HELD, { sendingOn: true })).toContain('היה נשלח עכשיו — אין תבנית מאושרת');
     expect(row(HELD, { sendingOn: null })).toContain('היה נשלח עכשיו — עוד לא נשלח');
   });
