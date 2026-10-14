@@ -54,6 +54,7 @@ import {
   standingOrderStatusLabel,
 } from './cardUpdateLink';
 import { MAX_SPECIAL_PRICE, specialPriceValue } from './cardLinkSpecialPrice';
+import { lessonMatches } from './lessonSearch';
 import { branchMissing, pickedBranchesBusiness } from './incomePlace';
 import styles from './SendCardLinkDialog.module.css';
 
@@ -86,6 +87,8 @@ type LessonRow = {
   start_time?: string | null;
   end_time?: string | null;
   instructor_name?: string | null;
+  branch_name?: string | null;
+  course_display_id?: number | string | null;
   course?: string;
 };
 
@@ -149,6 +152,14 @@ function whatsappOutcome(result: NonNullable<CardLink['whatsapp']>) {
   if (result.sent) return result.method === 'text' ? 'נשלח כהודעת טקסט (ללא תבנית)' : 'נשלח ב-WhatsApp';
   return `לא נשלח: ${whatsappFailure(result)}`;
 }
+
+/** Everything the office might type to find a lesson: its line, the branch and the group number. */
+function lessonSearchText(l: LessonRow) {
+  return [lessonLabel(l), l.branch_name, l.course_display_id != null ? `#${l.course_display_id}` : ''].filter(Boolean).join(' · ');
+}
+
+/** How many matches show under the search box before asking for one more word. */
+const LESSON_RESULTS = 8;
 
 function lessonLabel(l: LessonRow) {
   const time = [l.start_time, l.end_time].filter(Boolean).map((t) => String(t).slice(0, 5)).join('–');
@@ -696,6 +707,7 @@ export default function SendCardLinkDialog({ open, onOpenChange, child }: SendCa
   const [otherOpen, setOtherOpen] = useState(false);
   const [lessons, setLessons] = useState<LessonRow[] | null>(null);
   const [otherLessonId, setOtherLessonId] = useState('');
+  const [lessonQuery, setLessonQuery] = useState('');
   // A monthly price for this child alone on the lesson picked by hand ('' = the catalogue's).
   const [specialPrice, setSpecialPrice] = useState('');
   const [includeFee, setIncludeFee] = useState(true);
@@ -781,6 +793,7 @@ export default function SendCardLinkDialog({ open, onOpenChange, child }: SendCa
     setSelectedKey('');
     setOtherOpen(false);
     setOtherLessonId('');
+    setLessonQuery('');
     setSpecialPrice('');
     setShowAllLinks(false);
     setBranchId('');
@@ -845,6 +858,10 @@ export default function SendCardLinkDialog({ open, onOpenChange, child }: SendCa
   );
   const selectedOption = options?.find((o) => o.key === selectedKey) ?? null;
   const otherLesson = otherLessonId ? sortedLessons.find((l) => l.id === otherLessonId) ?? null : null;
+  const lessonResults = useMemo(
+    () => (lessonQuery.trim() ? sortedLessons.filter((l) => lessonMatches(lessonSearchText(l), lessonQuery)) : []),
+    [sortedLessons, lessonQuery],
+  );
   const special = otherLessonId ? specialPriceValue(specialPrice) : null;
   const tabStop = selectableKeys.includes(selectedKey) ? selectedKey : selectableKeys[0] ?? '';
   const parentPhone = child.parent_phone || child.family_phone;
@@ -1374,7 +1391,64 @@ export default function SendCardLinkDialog({ open, onOpenChange, child }: SendCa
                       <ChevronDown className={`h-4 w-4 ${styles.chevron}`} aria-hidden />
                     </button>
                     <div id="cl-other" className={styles.otherBody} hidden={!otherOpen}>
-                      <label className={styles.label} htmlFor="cl-lesson">שיעור</label>
+                      {/* A few hundred lessons in one list: type a word or two and pick from what is left. */}
+                      <label className={styles.label} htmlFor="cl-lesson-search">חיפוש שיעור</label>
+                      <div className={styles.searchBox}>
+                        <Search className={`h-4 w-4 ${styles.searchIcon}`} aria-hidden />
+                        <input
+                          id="cl-lesson-search"
+                          type="search"
+                          className={styles.input}
+                          placeholder="שם חוג, יום, שעה, מדריך או סניף — למשל: פאנקי ראשון"
+                          value={lessonQuery}
+                          onChange={(e) => setLessonQuery(e.target.value)}
+                          disabled={lessons === null}
+                          autoComplete="off"
+                        />
+                      </div>
+                      {lessonQuery.trim() ? (
+                        lessonResults.length === 0 ? (
+                          <p className={styles.otherNote}>לא נמצא שיעור. נסו מילה אחרת.</p>
+                        ) : (
+                          <ul className={`${styles.linkList} ${styles.lessonResults}`} role="radiogroup" aria-label="שיעורים שנמצאו">
+                            {lessonResults.slice(0, LESSON_RESULTS).map((l) => (
+                              <li key={l.id} className={styles.linkRow}>
+                                <span className={styles.rowIcon} aria-hidden>
+                                  {otherLessonId === l.id ? <Check className="h-4 w-4" /> : <CalendarDays className="h-4 w-4" />}
+                                </span>
+                                <button
+                                  type="button"
+                                  role="radio"
+                                  aria-checked={otherLessonId === l.id}
+                                  className={styles.pickRow}
+                                  onClick={() => chooseOtherLesson(l.id)}
+                                >
+                                  <p className={styles.rowTitle}>
+                                    {enrolledIds.has(l.id) ? '★ ' : ''}
+                                    {l.course_name}
+                                  </p>
+                                  <p className={styles.rowMeta}>
+                                    {[
+                                      DAYS[l.day_of_week],
+                                      [l.start_time, l.end_time].filter(Boolean).map((t) => String(t).slice(0, 5)).join('–'),
+                                      l.instructor_name,
+                                      l.branch_name,
+                                    ]
+                                      .filter(Boolean)
+                                      .join(' · ')}
+                                  </p>
+                                </button>
+                              </li>
+                            ))}
+                            {lessonResults.length > LESSON_RESULTS ? (
+                              <li className={styles.otherNote}>ועוד {lessonResults.length - LESSON_RESULTS} — הוסיפו מילה (יום, שעה או סניף)</li>
+                            ) : null}
+                          </ul>
+                        )
+                      ) : null}
+                      <label className={styles.label} htmlFor="cl-lesson">
+                        {lessonQuery.trim() ? 'או מהרשימה המלאה' : 'שיעור'}
+                      </label>
                       <select
                         id="cl-lesson"
                         className={styles.input}

@@ -677,6 +677,28 @@
   color: var(--cl-muted);
 }
 
+.searchBox {
+  position: relative;
+  margin-bottom: 10px;
+}
+
+.searchBox .input {
+  padding-inline-start: 36px;
+}
+
+.searchIcon {
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: 12px;
+  margin-block: auto;
+  color: var(--cl-subtle);
+  pointer-events: none;
+}
+
+.lessonResults {
+  margin: 0 0 12px;
+}
+
 .special {
   margin-top: 14px;
   padding-top: 12px;
