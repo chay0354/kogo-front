@@ -291,12 +291,20 @@ export function saveBlob(data: BlobPart, type: string, filename: string): void {
 
 /**
  * Every document in the range — issued by hand, lesson receipts, store sales —
- * one row each, as a CSV the accountant opens in Excel: the period report's
- * rows, and the numbers that never became a document.
+ * as an Excel workbook the accountant reads as it opens (14.10.2026): a summary
+ * sheet, the documents, the income without a document and the refunds no
+ * credit note covers. The server still answers a CSV without `output`.
  */
 export async function downloadDocumentsRegister(params: { start_date: string; end_date: string }): Promise<void> {
-  const res = await api.get('/documents/documents/register-export/', { params, responseType: 'blob' });
-  saveBlob(res.data, 'text/csv;charset=utf-8', `documents-${params.start_date}-${params.end_date}.csv`);
+  const res = await api.get('/documents/documents/register-export/', {
+    params: { ...params, output: 'xlsx' },
+    responseType: 'blob',
+  });
+  saveBlob(
+    res.data,
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    `documents-${params.start_date}-${params.end_date}.xlsx`,
+  );
 }
 
 /**

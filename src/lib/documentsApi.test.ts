@@ -24,6 +24,7 @@ import {
   downloadLessonReceiptCopy,
   fetchOpenInvoices,
   voidSettlement,
+  downloadDocumentsRegister,
   downloadMissingReceiptsCsv,
   fetchMissingReceipts,
   fetchMissingReceiptsNextNumber,
@@ -353,5 +354,24 @@ describe('drafts and credit notes (audit 30.9.2026)', () => {
     const room = await fetchCreditRoom('TI-2026-000012');
     expect(api.get).toHaveBeenCalledWith('/documents/documents/credit-room/', { params: { number: 'TI-2026-000012' } });
     expect(room.left).toBe('150.00');
+  });
+});
+
+describe('downloadDocumentsRegister', () => {
+  it('asks for the Excel workbook and saves it as .xlsx', async () => {
+    const click = vi.fn();
+    const link = { href: '', download: '', click, remove: vi.fn() };
+    vi.stubGlobal('window', { URL: { createObjectURL: vi.fn(() => 'blob:xlsx'), revokeObjectURL: vi.fn() } });
+    vi.stubGlobal('document', { createElement: vi.fn(() => link), body: { appendChild: vi.fn() } });
+    api.get.mockResolvedValue({ data: 'xlsx-bytes' });
+
+    await downloadDocumentsRegister({ start_date: '2026-09-01', end_date: '2026-09-30' });
+
+    expect(api.get).toHaveBeenCalledWith('/documents/documents/register-export/', {
+      params: { start_date: '2026-09-01', end_date: '2026-09-30', output: 'xlsx' },
+      responseType: 'blob',
+    });
+    expect(link.download).toBe('documents-2026-09-01-2026-09-30.xlsx');
+    expect(click).toHaveBeenCalled();
   });
 });
