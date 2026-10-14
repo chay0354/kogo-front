@@ -543,7 +543,7 @@ export function heldReason(sendingOn: boolean | null | undefined): string {
 const IDLE_WORDS: Record<string, string> = {
   trial_booked: 'מחכים לשיעור הניסיון',
   waiting_list: 'ברשימת המתנה — נתריע כשיתפנה מקום',
-  nothing_to_offer: 'נשמר: נודיע כשנפתח',
+  nothing_to_offer: 'נבדק כל יום — כשייפתח חוג שמתאים, יעבור אליך',
   in_conversation: 'בשיחה עכשיו',
 };
 
@@ -569,11 +569,12 @@ export function nextStepLine(
   closed: boolean = isClosedLead(lead),
 ): NextStepLine {
   const { who, what, when, state } = lead.next ?? NO_NEXT;
+  const hold = (lead.next?.hold ?? '').trim();
   const words = whenWords(when, now);
 
-  // The time has come and nothing went out: said plainly, whoever's step it is.
+  // The time has come and nothing went out: said plainly, whoever's step it is — and why, as the server knows it.
   if (state === 'due') {
-    return { who: who === 'none' ? 'bot' : who, tone: 'held', dated: false, text: `היה נשלח עכשיו — ${heldReason(sendingOn)}`, detail: what };
+    return { who: who === 'none' ? 'bot' : who, tone: 'held', dated: false, text: `היה נשלח עכשיו — ${hold || heldReason(sendingOn)}`, detail: what };
   }
 
   if (who === 'office') {
@@ -583,14 +584,17 @@ export function nextStepLine(
   }
 
   if (who === 'bot') {
-    if (!words) return { who, tone: 'bot', dated: false, text: what || 'הבוט מטפל', detail: '' };
+    // A step that will not leave when its time comes says so beside it (the owner, 14.10.2026: "הבוט ישאל
+    // היום ב-10:30" was shown while the follow-ups were switched off, and nothing would have gone out).
+    const held = (line: NextStepLine): NextStepLine => (hold ? { ...line, tone: 'held', text: `${line.text} · לא ייצא: ${hold}` } : line);
+    if (!words) return held({ who, tone: 'bot', dated: false, text: what || 'הבוט מטפל', detail: '' });
     // Planned, and its hour has passed: the next run of the bot takes it, within minutes.
     if (words.past) {
-      return { who, tone: 'bot', dated: false, text: what ? `${what} — בדקות הקרובות` : 'הבוט יחזור בדקות הקרובות', detail: '' };
+      return held({ who, tone: 'bot', dated: false, text: what ? `${what} — בדקות הקרובות` : 'הבוט יחזור בדקות הקרובות', detail: '' });
     }
     const dated = lead.stage === 'waiting_date' || words.days >= 7;
     const text = !what ? `הבוט יחזור ${words.text}` : dated ? `${words.text} — ${what}` : `${what} ${words.text}`;
-    return { who, tone: 'bot', dated, text, detail: '' };
+    return held({ who, tone: 'bot', dated, text, detail: '' });
   }
 
   // Nobody's step. The server's own words come first; without them a closed lead says how it ended,

@@ -343,6 +343,22 @@ describe('"הצעד הבא"', () => {
     });
   });
 
+  test('a step that will not leave says so beside it, in the server\'s words', () => {
+    const off = row({ next: { ...row().next, hold: 'החזרות האוטומטיות כבויות' } });
+    expect(nextStepLine(off, NOW)).toEqual({
+      who: 'bot',
+      tone: 'held',
+      dated: false,
+      text: 'הבוט יזכיר את הקישור מחר ב-10:30 · לא ייצא: החזרות האוטומטיות כבויות',
+      detail: '',
+    });
+    // When it is due, the server's reason comes before the guess by the general switch.
+    const due = row({ next: { ...row().next, when: '2026-10-12T07:30:00Z', state: 'due', hold: 'החזרות האוטומטיות כבויות' } });
+    expect(nextStepLine(due, NOW, true).text).toBe('היה נשלח עכשיו — החזרות האוטומטיות כבויות');
+    // Will leave: nothing is added.
+    expect(nextStepLine(row({ next: { ...row().next, hold: '' } }), NOW).text).toBe('הבוט יזכיר את הקישור מחר ב-10:30');
+  });
+
   test('due and not sent: the line says so, and why — by the owner\'s switch', () => {
     const due = row({ next: next({ what: 'הבוט יזכיר את הקישור', when: '2026-10-12T07:30:00Z', state: 'due' }) });
     expect(nextStepLine(due, NOW, false)).toEqual({
@@ -401,7 +417,7 @@ describe('"הצעד הבא"', () => {
     expect(idle('trial_booked')).toMatchObject({ who: 'none', tone: 'quiet', text: 'מחכים לשיעור הניסיון' });
     expect(idle('trial_booked', '', '', '2026-10-13T14:00:00Z').text).toBe('מחכים לשיעור הניסיון · מחר ב-17:00');
     expect(idle('trial_booked', '', 'שיעור ניסיון בקפוארה', '2026-10-13T14:00:00Z').text).toBe('שיעור ניסיון בקפוארה מחר ב-17:00');
-    expect(idle('nothing_to_offer').text).toBe('נשמר: נודיע כשנפתח');
+    expect(idle('nothing_to_offer').text).toBe('נבדק כל יום — כשייפתח חוג שמתאים, יעבור אליך');
     expect(idle('in_conversation').text).toBe('בשיחה עכשיו');
     expect(idle('something_new').text).toBe('אין צעד כרגע');
     expect(idle('registered', 'נרשם').text).toBe('נרשם');
