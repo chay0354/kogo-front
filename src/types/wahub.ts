@@ -281,6 +281,8 @@ export interface WahubTag {
 
 export interface WahubContact {
   id: number;
+  /** Began before the switch from the old bot: its answers are not here, and where to read them. Absent on an older server. */
+  history?: import('@/lib/wahub/history').WahubHistoryNote | null;
   phone: string;
   phone_display: string;
   name: string;
