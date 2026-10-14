@@ -1304,6 +1304,13 @@ export interface WahubLeadTrial {
   instructor: string;
   /** Null: not known yet (the lesson is still ahead, or nobody marked it). */
   attended: boolean | null;
+  /**
+   * Not a trial at all: the child came to a lesson without being registered, and the instructor added them on the
+   * attendance screen with the parent's phone (a walk-in). `date` is the last time they came. Absent from an older server.
+   */
+  walk_in?: boolean;
+  /** How many times the walk-in came, when the server counts them. */
+  visits?: number | null;
 }
 
 export type WahubLeadFollowUpStatus = 'planned' | 'due' | 'sent' | 'skipped' | 'failed';
