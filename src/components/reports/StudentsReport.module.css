@@ -1,0 +1,764 @@
+/*
+ * The students report: A4 sheets on screen, the same sheets on paper.
+ *
+ * A sheet is 794px wide on screen (A4 at 96dpi) with 38px inside, which leaves
+ * the 718px a printed page has between 10mm margins — so nothing is laid out
+ * twice and the charts, drawn at a fixed width, fit both.
+ *
+ * Motion is for the screen only (owner: "אוהב תנועה"); none of it is declared
+ * for print, so the paper always shows the finished state.
+ */
+
+.viewer {
+  --ink: #231f6e;
+  --ink2: #4a4599;
+  --muted: #8b88b6;
+  --line: #eae7f8;
+  --soft: #f5f3fc;
+  --tint: #efedfa;
+  --violet: #5b54d6;
+  --deep: #2b2585;
+  --amber: #f7c948;
+  --amber-d: #e0a81f;
+  --pos: #0fa45c;
+  --neg: #e5484d;
+
+  min-height: 100vh;
+  background: radial-gradient(1200px 500px at 85% -10%, #dcd8f6 0%, transparent 60%), #ecebf6;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+.viewer * {
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+/* ---- toolbar (screen only) ---- */
+.bar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 16px;
+  background: rgba(255, 255, 255, 0.78);
+  backdrop-filter: saturate(1.4) blur(14px);
+  -webkit-backdrop-filter: saturate(1.4) blur(14px);
+  border-bottom: 1px solid rgba(35, 31, 110, 0.06);
+}
+.barTitle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.barTitle b {
+  font-size: 15px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+.barTitle span {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.barActions {
+  display: flex;
+  gap: 8px;
+  flex: none;
+}
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 38px;
+  padding: 0 14px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: #fff;
+  color: var(--ink);
+  font: inherit;
+  font-size: 13.5px;
+  font-weight: 800;
+  cursor: pointer;
+  text-decoration: none;
+  transition: transform 0.15s, box-shadow 0.2s;
+}
+.btn:active {
+  transform: scale(0.97);
+}
+.btnPrimary {
+  border: 0;
+  color: #fff;
+  background: linear-gradient(135deg, var(--violet), var(--deep));
+  box-shadow: 0 6px 16px rgba(43, 37, 133, 0.25);
+}
+.btnPrimary:hover {
+  box-shadow: 0 8px 22px rgba(43, 37, 133, 0.32);
+}
+.mark {
+  width: 30px;
+  height: 30px;
+  border-radius: 10px;
+  flex: none;
+  background: conic-gradient(from 210deg, var(--amber), var(--violet), var(--deep), var(--amber));
+  box-shadow: inset 0 0 0 7px rgba(255, 255, 255, 0.92);
+}
+
+/* ---- sheets ---- */
+.sheets {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 28px;
+  padding: 26px 0 70px;
+  zoom: var(--sheet-zoom, 1);
+}
+.sheet {
+  position: relative;
+  width: 794px;
+  min-height: 1123px;
+  padding: 38px;
+  background: #fff;
+  border-radius: 16px;
+  box-shadow: 0 2px 6px rgba(35, 31, 110, 0.05), 0 18px 50px rgba(35, 31, 110, 0.12);
+  display: flex;
+  flex-direction: column;
+}
+
+/* ---- sheet header ---- */
+.head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding-bottom: 12px;
+  margin-bottom: 14px;
+  border-bottom: 1px solid var(--line);
+}
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--muted);
+  letter-spacing: 0.2px;
+}
+.brand .mark {
+  width: 20px;
+  height: 20px;
+  border-radius: 7px;
+  box-shadow: inset 0 0 0 5px rgba(255, 255, 255, 0.92);
+}
+.title {
+  font-size: 28px;
+  font-weight: 800;
+  line-height: 1.1;
+  margin: 6px 0 3px;
+  letter-spacing: -0.3px;
+}
+.subtitle {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+}
+.headSide {
+  text-align: end;
+  flex: none;
+}
+.period {
+  display: inline-block;
+  padding: 7px 12px;
+  border-radius: 10px;
+  background: var(--tint);
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+.pageTag {
+  margin-top: 8px;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+/* ---- kpis ---- */
+.kpis {
+  display: grid;
+  grid-template-columns: 1.25fr 1fr 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+.kpi {
+  border-radius: 16px;
+  padding: 11px 14px;
+  background: var(--soft);
+  min-width: 0;
+}
+.kpiHero {
+  background: linear-gradient(135deg, #312a9e, #231f6e 60%, #1b1755);
+  color: #fff;
+  position: relative;
+  overflow: hidden;
+}
+.kpiHero::after {
+  content: '';
+  position: absolute;
+  inset-inline-start: -40px;
+  top: -60px;
+  width: 170px;
+  height: 170px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(247, 201, 72, 0.32), transparent 68%);
+}
+.kpiLbl {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.kpiHero .kpiLbl {
+  color: rgba(255, 255, 255, 0.72);
+}
+.kpiVal {
+  font-size: 26px;
+  font-weight: 800;
+  line-height: 1.1;
+  margin: 4px 0 3px;
+  letter-spacing: -0.6px;
+}
+.kpiHero .kpiVal {
+  font-size: 36px;
+  letter-spacing: -1.2px;
+}
+.kpiFoot {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--muted);
+  position: relative;
+  z-index: 1;
+}
+.kpiHero .kpiFoot {
+  color: rgba(255, 255, 255, 0.78);
+}
+.up {
+  color: var(--pos);
+}
+.down {
+  color: var(--neg);
+}
+.kpiHero .up {
+  color: #7ff0b6;
+}
+.kpiHero .down {
+  color: #ffb0b2;
+}
+
+/* ---- cards ---- */
+.card {
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 13px 16px;
+  margin-bottom: 10px;
+  background: #fff;
+  min-width: 0;
+}
+.cardHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+/* Two cards side by side: the weekdays and the instructors. */
+.pair {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+  gap: 10px;
+  margin-bottom: 10px;
+  align-items: start;
+}
+.pair > .card {
+  margin-bottom: 0;
+}
+.cardTitle {
+  font-size: 16px;
+  font-weight: 800;
+  margin: 0;
+}
+.cardSub {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--muted);
+  margin-top: 2px;
+}
+.chips {
+  display: flex;
+  gap: 6px;
+  flex: none;
+}
+.chip {
+  font-size: 11px;
+  font-weight: 800;
+  padding: 4px 8px;
+  border-radius: 8px;
+  background: var(--tint);
+  color: var(--ink2);
+  white-space: nowrap;
+}
+.chart {
+  direction: ltr;
+}
+.empty {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--muted);
+  padding: 10px 0;
+}
+
+/* ---- branch comparison ---- */
+.cmpRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) 112px 64px 64px minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+  padding: 9px 0;
+  border-bottom: 1px solid var(--soft);
+}
+.cmpRow:last-child {
+  border-bottom: 0;
+}
+.cmpHead {
+  font-size: 10.5px;
+  font-weight: 800;
+  color: var(--muted);
+  padding-top: 0;
+}
+.cmpName {
+  font-size: 14px;
+  font-weight: 800;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cmpName small {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+}
+.cmpNum {
+  font-size: 20px;
+  font-weight: 800;
+  text-align: center;
+}
+.delta {
+  justify-self: center;
+  font-size: 12px;
+  font-weight: 800;
+  padding: 3px 8px;
+  border-radius: 8px;
+  background: var(--soft);
+  color: var(--ink2);
+}
+.deltaUp {
+  background: #e6f7ee;
+  color: #0b8a4c;
+}
+.deltaDown {
+  background: #fdecec;
+  color: #c93b40;
+}
+.spark {
+  direction: ltr;
+}
+
+/* ---- meters ---- */
+.meter {
+  height: 9px;
+  border-radius: 99px;
+  background: var(--tint);
+  overflow: hidden;
+}
+.meter i {
+  display: block;
+  height: 100%;
+  border-radius: 99px;
+  background: linear-gradient(90deg, var(--deep), var(--violet));
+  transform-origin: right;
+}
+.meterLbl {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--muted);
+  margin-bottom: 4px;
+}
+.tierWeak {
+  background: linear-gradient(90deg, #c93b40, #f0666a) !important;
+}
+.tierMid {
+  background: linear-gradient(90deg, var(--amber-d), #ffd75e) !important;
+}
+.tierGood {
+  background: linear-gradient(90deg, #0b8a4c, #2fc77e) !important;
+}
+.tierNone {
+  background: #d9d6ee !important;
+}
+
+/* ---- weekdays ---- */
+.days {
+  display: flex;
+  gap: 6px;
+  align-items: flex-end;
+}
+.day {
+  flex: 1;
+  min-width: 0;
+  text-align: center;
+}
+.dayNum {
+  font-size: 16px;
+  font-weight: 800;
+  margin-bottom: 4px;
+}
+.dayTrack {
+  height: 58px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+.dayBar {
+  width: 66%;
+  max-width: 38px;
+  border-radius: 10px 10px 5px 5px;
+  background: linear-gradient(180deg, var(--violet), var(--deep));
+  min-height: 6px;
+  transform-origin: bottom;
+}
+.dayLbl {
+  margin-top: 6px;
+  font-size: 12.5px;
+  font-weight: 800;
+}
+.dayMeta {
+  font-size: 10.5px;
+  font-weight: 700;
+  color: var(--muted);
+  margin-top: 1px;
+  line-height: 1.35;
+}
+
+/* ---- instructors ---- */
+.teacher {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 96px 30px;
+  align-items: center;
+  gap: 10px;
+  padding: 5px 0;
+}
+.teacherName {
+  font-size: 13px;
+  font-weight: 800;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.teacherNum {
+  font-size: 16px;
+  font-weight: 800;
+  text-align: center;
+}
+.teacherMeta {
+  font-size: 10.5px;
+  font-weight: 700;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.hbar {
+  height: 10px;
+  border-radius: 99px;
+  background: var(--soft);
+  overflow: hidden;
+}
+.hbar i {
+  display: block;
+  height: 100%;
+  border-radius: 99px;
+  background: linear-gradient(90deg, var(--deep), var(--violet));
+  transform-origin: right;
+}
+
+/* ---- groups ---- */
+.groupTable {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+.groupTable th {
+  text-align: start;
+  font-weight: inherit;
+  padding: 0;
+}
+.scopeName {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--muted);
+}
+.group td {
+  padding: 5px 0;
+  border-bottom: 1px solid var(--soft);
+  vertical-align: middle;
+}
+.group td + td {
+  padding-inline-start: 12px;
+}
+.group:last-child td {
+  border-bottom: 0;
+}
+.rank {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 8px;
+  background: var(--tint);
+  color: var(--ink2);
+  font-size: 11px;
+  font-weight: 800;
+}
+.groupName {
+  font-size: 13.5px;
+  font-weight: 800;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.groupMeta {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.groupLine {
+  font-size: 11px;
+  font-weight: 800;
+  margin-top: 4px;
+  color: var(--ink2);
+}
+.groupLineWeak {
+  color: #c93b40;
+}
+.seats {
+  display: flex;
+  gap: 2px;
+  height: 10px;
+}
+.seats i {
+  flex: 1;
+  border-radius: 3px;
+  background: var(--tint);
+}
+.more {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--muted);
+  padding-top: 10px;
+}
+
+/* ---- footer ---- */
+.foot {
+  margin-top: auto;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--muted);
+  line-height: 1.6;
+}
+.foot b {
+  color: var(--ink2);
+}
+.note {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+  line-height: 1.55;
+  margin-top: 10px;
+}
+
+/* ---- loading / error ---- */
+.state {
+  display: grid;
+  place-items: center;
+  min-height: 70vh;
+  text-align: center;
+  gap: 12px;
+  padding: 24px;
+}
+.state h2 {
+  font-size: 20px;
+  font-weight: 800;
+}
+.state p {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--muted);
+}
+.spinner {
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  border: 4px solid var(--tint);
+  border-top-color: var(--violet);
+  animation: spin 0.9s linear infinite;
+  margin: 0 auto;
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ---- motion, screen only ---- */
+@media screen and (prefers-reduced-motion: no-preference) {
+  .sheet {
+    animation: rise 0.7s cubic-bezier(0.32, 0.72, 0, 1) both;
+    animation-delay: calc(var(--i, 0) * 110ms);
+  }
+  .kpi {
+    animation: rise 0.6s cubic-bezier(0.32, 0.72, 0, 1) both;
+    animation-delay: calc(var(--i, 0) * 110ms + var(--k, 0) * 60ms + 120ms);
+  }
+  .dayBar {
+    animation: grow 0.8s cubic-bezier(0.32, 0.72, 0, 1) both;
+    animation-delay: calc(var(--k, 0) * 50ms + 300ms);
+  }
+  .hbar i,
+  .meter i {
+    animation: stretch 0.9s cubic-bezier(0.32, 0.72, 0, 1) both;
+    animation-delay: 250ms;
+  }
+  .seats i {
+    animation: fadeIn 0.4s ease both;
+    animation-delay: calc(var(--s, 0) * 18ms + 200ms);
+  }
+}
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+}
+@keyframes grow {
+  from {
+    transform: scaleY(0);
+  }
+}
+@keyframes stretch {
+  from {
+    transform: scaleX(0);
+  }
+}
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+}
+
+/* ---- paper ---- */
+@media print {
+  @page {
+    size: A4;
+    margin: 10mm;
+  }
+  :global(html):has(.viewer),
+  :global(body):has(.viewer) {
+    background: #fff !important;
+  }
+  .viewer {
+    background: none;
+    min-height: 0;
+  }
+  .bar {
+    display: none;
+  }
+  .sheets {
+    display: block;
+    padding: 0;
+    zoom: 1;
+  }
+  .sheet {
+    width: auto;
+    min-height: 0;
+    padding: 0;
+    border-radius: 0;
+    box-shadow: none;
+    display: block;
+    break-before: page;
+  }
+  .sheet:first-child {
+    break-before: auto;
+  }
+  .head,
+  .kpis,
+  .card,
+  .cmpRow,
+  .teacher,
+  .group,
+  .pair {
+    break-inside: avoid;
+  }
+  /* A long list may run onto the next page; its heading stays with its first rows. */
+  .cardLong {
+    break-inside: auto;
+  }
+  .cardHead {
+    break-after: avoid;
+  }
+  .foot {
+    margin-top: 12px;
+    break-inside: avoid;
+    break-before: avoid;
+  }
+}
+
+/* ---- narrow screens: the sheet is scaled, never reflowed ---- */
+@media screen and (max-width: 640px) {
+  .bar {
+    padding: 8px 12px;
+  }
+  .barTitle span {
+    display: none;
+  }
+  .btnText {
+    display: none;
+  }
+}
+
+/* The branch's name beside the groups heading is for paper, where a long list
+   continues on a page of its own; on screen the sheet's own header says it. */
+@media screen {
+  .scopeName {
+    display: none;
+  }
+}

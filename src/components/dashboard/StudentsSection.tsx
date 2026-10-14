@@ -26,6 +26,8 @@ import { formatPercent } from './format';
 import { activeStudentsFoot, dropoutFromRows } from './studentCounts';
 import theme from './theme/dashboard.module.css';
 import { SectionSkeleton } from './SectionSkeleton';
+import StudentsReportDialog from './StudentsReportDialog';
+import { FileText } from 'lucide-react';
 
 function formatTrialDate(iso: string): string {
   const [y, m, d] = iso.split('-');
@@ -45,6 +47,7 @@ export default function StudentsSection({ globalDateRange }: Props) {
   const [cityId, setCityId] = useState('all');
   const [branchId, setBranchId] = useState('all');
   const [quitBy, setQuitBy] = useState<'course_type' | 'course'>('course_type');
+  const [reportOpen, setReportOpen] = useState(false);
 
   const apiFilters = useMemo(() => {
     const from = format(globalDateRange.date_from, 'yyyy-MM-dd');
@@ -172,8 +175,17 @@ export default function StudentsSection({ globalDateRange }: Props) {
 
       {/* KPI row */}
       <div className={theme.mt}>
-        <h2 className={theme.cardTitle}>סיכום תלמידים</h2>
-        <p className={theme.cardSub}>מצב הרישום בתקופה שנבחרה</p>
+        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10 }}>
+          <div>
+            <h2 className={theme.cardTitle}>סיכום תלמידים</h2>
+            <p className={theme.cardSub}>מצב הרישום בתקופה שנבחרה</p>
+          </div>
+          {/* The printable report: a period and branches of its own, opened in a new tab. */}
+          <button type="button" onClick={() => setReportOpen(true)} style={reportButtonStyle}>
+            <FileText style={{ width: 16, height: 16 }} aria-hidden />
+            דוח PDF
+          </button>
+        </div>
         <div className={`${theme.grid} ${theme.g3}`}>
           <div className={theme.kpi}>
             <div className={theme.kpiLbl}>תלמידים פעילים</div>
@@ -527,9 +539,33 @@ export default function StudentsSection({ globalDateRange }: Props) {
           </div>
         </div>
       ) : null}
+
+      <StudentsReportDialog
+        open={reportOpen}
+        onOpenChange={setReportOpen}
+        globalDateRange={globalDateRange}
+        branches={scopedBranches}
+      />
     </div>
   );
 }
+
+const reportButtonStyle: React.CSSProperties = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: 7,
+  padding: '8px 14px',
+  borderRadius: 12,
+  border: 0,
+  background: 'linear-gradient(135deg, #5b54d6, #2b2585)',
+  color: '#fff',
+  font: 'inherit',
+  fontSize: 13.5,
+  fontWeight: 800,
+  cursor: 'pointer',
+  boxShadow: '0 6px 16px rgba(43, 37, 133, 0.22)',
+  whiteSpace: 'nowrap',
+};
 
 const selectStyle: React.CSSProperties = {
   display: 'block',
