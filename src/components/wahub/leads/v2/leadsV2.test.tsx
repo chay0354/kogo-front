@@ -1,4 +1,5 @@
 import React from 'react';
+import { StageHelp, StagesLegend } from '../../shared/StageHelp';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { describe, expect, it, vi } from 'vitest';
@@ -284,10 +285,14 @@ function elements(node: React.ReactNode, skip: unknown[] = []): React.ReactEleme
   const element = node as React.ReactElement<{ children?: React.ReactNode }>;
   if (typeof element.type === 'function') {
     if (skip.includes(element.type)) return [];
+    // The bubble on a state keeps state of its own: read as the element it is, with what it wraps.
+    if (BUBBLES.includes(element.type)) return [element, ...elements(element.props.children, skip)];
     return elements((element.type as (props: unknown) => React.ReactNode)(element.props), skip);
   }
   return [element, ...elements(element.props.children, skip)];
 }
+
+const BUBBLES: unknown[] = [StageHelp, StagesLegend];
 
 /** A component that keeps state, as the element its parent drew for it — so what it was handed can be read. */
 function componentOf<P>(node: React.ReactNode, component: (props: P) => React.ReactNode): React.ReactElement<P> {
@@ -296,6 +301,7 @@ function componentOf<P>(node: React.ReactNode, component: (props: P) => React.Re
     if (!React.isValidElement(child)) return null;
     const element = child as React.ReactElement<{ children?: React.ReactNode }>;
     if (element.type === component) return element as unknown as React.ReactElement<P>;
+    if (BUBBLES.includes(element.type)) return walk(element.props.children);
     if (typeof element.type === 'function') return walk((element.type as (props: unknown) => React.ReactNode)(element.props));
     return walk(element.props.children);
   };

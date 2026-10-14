@@ -1,0 +1,170 @@
+'use client';
+
+import { HelpCircle } from 'lucide-react';
+import { useEffect, useId, useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode } from 'react';
+import { helpParts, stageHelp, stageHelpText, STAGE_HELP } from '@/lib/wahub/stageHelp';
+import h from '../stageHelp.module.css';
+
+/**
+ * A lead's state with "מה זה אומר?" behind it (the owner, 14.10.2026): with a
+ * mouse the bubble opens while the pointer is on the state, on a phone a tap
+ * opens it and a second tap — or one anywhere else, or Escape — closes it. Two
+ * short lines: what the state means, and what happens next and who does it.
+ * A state with no words of its own is shown as it was, with nothing to open.
+ */
+
+function Line({ text, className }: { text: string; className?: string }) {
+  return (
+    <span className={className}>
+      {helpParts(text).map((part, index) => (part.bold ? <b key={index}>{part.text}</b> : <span key={index}>{part.text}</span>))}
+    </span>
+  );
+}
+
+/** Open while it is wanted, closed by a press outside it or by Escape. */
+function useBubble(defaultOpen: boolean) {
+  const [open, setOpen] = useState(defaultOpen);
+  // Opened by a mouse resting on it, and so closed when the mouse leaves; a press keeps it open.
+  const byHover = useRef(false);
+  const wrap = useRef<HTMLSpanElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const away = (event: PointerEvent) => {
+      if (wrap.current && !wrap.current.contains(event.target as Node)) setOpen(false);
+    };
+    const escape = (event: globalThis.KeyboardEvent) => {
+      if (event.key === 'Escape') setOpen(false);
+    };
+    document.addEventListener('pointerdown', away);
+    document.addEventListener('keydown', escape);
+    return () => {
+      document.removeEventListener('pointerdown', away);
+      document.removeEventListener('keydown', escape);
+    };
+  }, [open]);
+  return { open, setOpen, byHover, wrap };
+}
+
+export interface StageHelpProps {
+  stage: string | null | undefined;
+  /** The state's name, as the place it stands in writes it. */
+  children: ReactNode;
+  /**
+   * Inside a row that opens something when pressed (a conversation in the list): the state is not a button of
+   * its own there — a button in a button is not allowed — and a press on it opens the bubble, not the row.
+   */
+  inRow?: boolean;
+  /** Its name for the bubble's head. Absent: the bubble opens on the meaning itself. */
+  title?: string;
+  /** Open from the start — for a test, or a picture of the open state. */
+  defaultOpen?: boolean;
+}
+
+export function StageHelp({ stage, children, inRow = false, title, defaultOpen = false }: StageHelpProps) {
+  const help = stageHelp(stage);
+  const { open, setOpen, byHover, wrap } = useBubble(defaultOpen);
+  const id = useId();
+  if (!help) return <>{children}</>;
+
+  const toggle = (event: MouseEvent) => {
+    event.stopPropagation();
+    if (inRow) event.preventDefault();
+    byHover.current = false;
+    setOpen((was) => !was);
+  };
+  const onKey = (event: KeyboardEvent) => {
+    if (event.key !== 'Enter' && event.key !== ' ') return;
+    event.preventDefault();
+    event.stopPropagation();
+    byHover.current = false;
+    setOpen((was) => !was);
+  };
+  const shared = {
+    className: h.trigger,
+    'aria-describedby': open ? id : undefined,
+    title: 'מה זה אומר?',
+    onClick: toggle,
+  };
+
+  return (
+    <span
+      ref={wrap}
+      className={h.wrap}
+      onPointerEnter={(event) => {
+        if (event.pointerType === 'mouse' && !open) {
+          byHover.current = true;
+          setOpen(true);
+        }
+      }}
+      onPointerLeave={(event) => {
+        if (event.pointerType === 'mouse' && byHover.current) {
+          byHover.current = false;
+          setOpen(false);
+        }
+      }}
+    >
+      {inRow ? (
+        <span role="button" tabIndex={0} onKeyDown={onKey} {...shared}>
+          {children}
+        </span>
+      ) : (
+        <button type="button" {...shared}>
+          {children}
+        </button>
+      )}
+      {open && (
+        <span id={id} role="tooltip" className={h.bubble} onClick={(event) => event.stopPropagation()}>
+          {title && <span className={h.title}>{title}</span>}
+          <Line text={help.what} className={h.line} />
+          <Line text={help.now} className={h.line} />
+        </span>
+      )}
+    </span>
+  );
+}
+
+/**
+ * "?" beside the filter of states: every state of the list on one sheet, each with its two lines — the filter
+ * itself is the browser's own list and cannot open a bubble.
+ */
+export function StagesLegend({ stages, defaultOpen = false }: { stages: Array<{ key: string; label: string }>; defaultOpen?: boolean }) {
+  const { open, setOpen, wrap } = useBubble(defaultOpen);
+  const id = useId();
+  const known = stages.filter((stage) => STAGE_HELP[stage.key]);
+  if (!known.length) return null;
+  return (
+    <span ref={wrap} className={h.wrap}>
+      <button
+        type="button"
+        className={h.legendButton}
+        onClick={() => setOpen((was) => !was)}
+        aria-expanded={open}
+        aria-controls={open ? id : undefined}
+        aria-label="מה אומר כל מצב?"
+        title="מה אומר כל מצב?"
+      >
+        <HelpCircle aria-hidden="true" />
+      </button>
+      {open && (
+        <div id={id} className={h.legend} role="dialog" aria-label="מה אומר כל מצב">
+          <dl>
+            {known.map((stage) => {
+              const help = STAGE_HELP[stage.key];
+              return (
+                <div key={stage.key}>
+                  <dt>{stage.label}</dt>
+                  <dd>
+                    <Line text={help.what} className={h.line} />
+                    <Line text={help.now} className={`${h.line} ${h.quiet}`} />
+                  </dd>
+                </div>
+              );
+            })}
+          </dl>
+        </div>
+      )}
+    </span>
+  );
+}
+
+export { stageHelpText };

@@ -34,6 +34,7 @@ import type { WahubLeadDetails, WahubLeadFollowUp, WahubLeadRow } from '@/types/
 import { NoteList } from '../../shared/FutureParts';
 import { OptOutMark, WaitMark } from '../../shared/MarkParts';
 import { DemoTag, Skeleton } from '../../shared/bits';
+import { StageHelp } from '../../shared/StageHelp';
 import { cx } from '../../shared/tones';
 import w from '../../waiting.module.css';
 import s from '../../wahub.module.css';
@@ -395,7 +396,9 @@ export default function LeadDetails({
                   ) : null,
                   leadStageText(lead) ? (
                     <span key="stage" className={l.dSubPart}>
-                      {leadStageText(lead)}
+                      <StageHelp stage={lead.stage} title={leadStageText(lead)}>
+                        {leadStageText(lead)}
+                      </StageHelp>
                     </span>
                   ) : null,
                   since ? (
