@@ -21,6 +21,9 @@ type RangeKey = (typeof RANGES)[number]['key'];
 /** Kept in step with the exit animation in the stylesheet. */
 const EXIT_MS = 220;
 
+/** The server's word for "the signed-in instructor and every colleague linked to them". */
+const ALL_TEACHERS = 'all';
+
 type Props = {
   onClose: () => void;
   /** Jump to a lesson's attendance on a given date. */
@@ -56,6 +59,7 @@ export default function InstructorDashboard({ onClose, onOpenLesson, onDismissCh
   const [linkedUsers, setLinkedUsers] = useState<LinkedUser[]>([]);
   const [viewAs, setViewAs] = useState('self');
   const [isClosing, setIsClosing] = useState(false);
+  const isOverall = viewAs === ALL_TEACHERS;
 
   const { dateFrom, dateTo } = useMemo(() => {
     const months = RANGES.find((r) => r.key === range)?.months ?? 6;
@@ -173,7 +177,11 @@ export default function InstructorDashboard({ onClose, onOpenLesson, onDismissCh
             <X size={22} />
           </button>
           <h2 className={styles.title}>
-            {data && !data.subject.is_self ? `הנתונים של ${data.subject.name}` : 'הנתונים שלי'}
+            {data?.subject.is_all
+              ? 'סיכום כולל'
+              : data && !data.subject.is_self
+                ? `הנתונים של ${data.subject.name}`
+                : 'הנתונים שלי'}
           </h2>
         </header>
 
@@ -189,6 +197,8 @@ export default function InstructorDashboard({ onClose, onOpenLesson, onDismissCh
               aria-label="בחירת מדריך"
             >
               <option value="self">הנתונים שלי</option>
+              {/* Everyone this account may open, added up (owner, 13.10.2026). */}
+              <option value={ALL_TEACHERS}>סיכום כולל — כל המדריכים</option>
               {linkedUsers.map((u) => (
                 <option key={u.id} value={u.id}>
                   {u.name}
@@ -310,6 +320,38 @@ export default function InstructorDashboard({ onClose, onOpenLesson, onDismissCh
                 )}
               </section>
 
+              {/* the overall summary: one line per teacher. Pressing a line
+                  opens that teacher's own numbers. */}
+              {(data.teachers?.length ?? 0) > 1 && (
+                <section className={styles.card}>
+                  <div className={styles.cardTitle}>
+                    <UserCog size={16} /> לפי מדריך
+                  </div>
+                  <div className={styles.missList}>
+                    {data.teachers!.map((teacher) => (
+                      <button
+                        type="button"
+                        className={styles.missRow}
+                        key={teacher.id}
+                        onClick={() => setViewAs(teacher.is_self ? 'self' : teacher.id)}
+                      >
+                        <ChevronRight size={18} className={styles.missChev} />
+                        <div className={styles.missName}>
+                          <span>{teacher.is_self ? `${teacher.name} (אני)` : teacher.name}</span>
+                          <small>
+                            {teacher.groups === 1 ? 'קבוצה אחת' : `${teacher.groups} קבוצות`}
+                            {teacher.unmarked > 0
+                              ? ` · ${teacher.unmarked === 1 ? 'שיעור אחד' : `${teacher.unmarked} שיעורים`} בלי נוכחות`
+                              : ''}
+                          </small>
+                        </div>
+                        <span className={styles.missCount}>{teacher.active_students}</span>
+                      </button>
+                    ))}
+                  </div>
+                </section>
+              )}
+
               {/* groups needing attention */}
               {lowGroups.length > 0 && (
                 <section className={`${styles.card} ${styles.alertCard}`}>
@@ -340,13 +382,20 @@ export default function InstructorDashboard({ onClose, onOpenLesson, onDismissCh
                     שיעורים שלא נקראה בהם נוכחות
                     <span className={styles.badge}>{data.unmarked_total}</span>
                   </div>
-                  <p className={styles.note}>לחצו כדי לפתוח את רשימת הנוכחות באותו תאריך</p>
+                  <p className={styles.note}>
+                    {isOverall
+                      ? 'כדי לפתוח רשימת נוכחות — בחרו את המדריך ב"לפי מדריך"'
+                      : 'לחצו כדי לפתוח את רשימת הנוכחות באותו תאריך'}
+                  </p>
                   <div className={styles.missList}>
                     {data.unmarked_lessons.map((u) => (
                       <button
                         type="button"
                         className={styles.missRow}
                         key={`${u.lesson_id}-${u.date}`}
+                        // In the overall summary the lesson may be a colleague's, and the
+                        // register opens under one account at a time.
+                        disabled={isOverall}
                         onClick={() => {
                           setIsClosing(true);
                           window.setTimeout(() => onOpenLesson(u.lesson_id, u.date), EXIT_MS);
@@ -357,6 +406,7 @@ export default function InstructorDashboard({ onClose, onOpenLesson, onDismissCh
                           <span>{u.course_name}</span>
                           <small>
                             {u.date.split('-').reverse().join('.')} · {u.start_time} · {u.branch_name}
+                            {isOverall && u.instructor_name ? ` · ${u.instructor_name}` : ''}
                           </small>
                         </div>
                         <span className={styles.missCount}>{u.missing}</span>
@@ -392,7 +442,7 @@ export default function InstructorDashboard({ onClose, onOpenLesson, onDismissCh
                         <span
                           className={`${styles.chip} ${g.is_low ? styles.chipLow : ''}`}
                           key={g.lesson_id}
-                          title={`${g.course_name} · ${g.branch_name}`}
+                          title={[g.course_name, g.branch_name, isOverall ? g.instructor_name : ''].filter(Boolean).join(' · ')}
                         >
                           <b>{g.active_students}</b>
                           {g.course_name}
