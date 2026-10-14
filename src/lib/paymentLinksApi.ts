@@ -202,6 +202,8 @@ export type CardLink = {
   bundle_id: string | null;
   lesson_label: string;
   include_registration_fee: boolean;
+  /** A monthly price the office set for this child alone; null = the catalogue price. */
+  special_monthly_price?: string | null;
   amount: string | null;
   description: string;
   branch_id: string | null;
@@ -230,6 +232,8 @@ export type CardLinkInput =
       lesson_id?: string | null;
       bundle_id?: string | null;
       include_registration_fee: boolean;
+      /** Single lesson only: the final monthly price for this child, instead of the catalogue's. */
+      special_monthly_price?: string | null;
       send?: boolean;
     }
   | {

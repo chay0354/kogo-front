@@ -53,6 +53,7 @@ import {
   standingOrderRows,
   standingOrderStatusLabel,
 } from './cardUpdateLink';
+import { MAX_SPECIAL_PRICE, specialPriceValue } from './cardLinkSpecialPrice';
 import { branchMissing, pickedBranchesBusiness } from './incomePlace';
 import styles from './SendCardLinkDialog.module.css';
 
@@ -417,7 +418,7 @@ function Ticket({ link, childName, copied, onCopy }: { link: CardLink; childName
               <span className={styles.tileValue}>{formatShekels(quote.first_charge)}</span>
             </div>
             <div className={styles.tile}>
-              <span className={styles.tileLabel}>חודשי</span>
+              <span className={styles.tileLabel}>{link.special_monthly_price ? 'חודשי · מחיר מיוחד' : 'חודשי'}</span>
               <span className={styles.tileValue}>{formatShekels(quote.monthly_amount)}</span>
             </div>
             <div className={styles.tile}>
@@ -635,7 +636,9 @@ function LinkRow({
   onCancel: () => void;
 }) {
   const sto = link.kind === 'standing_order';
-  const title = sto ? link.lesson_label : `${link.description} · ${formatShekels(link.amount || 0)}`;
+  const title = sto
+    ? `${link.lesson_label}${link.special_monthly_price ? ` · מחיר מיוחד ${formatShekels(link.special_monthly_price)}` : ''}`
+    : `${link.description} · ${formatShekels(link.amount || 0)}`;
   const problems = [link.last_error, link.review_reason].filter(Boolean).map(reasonLabel);
 
   return (
@@ -693,6 +696,8 @@ export default function SendCardLinkDialog({ open, onOpenChange, child }: SendCa
   const [otherOpen, setOtherOpen] = useState(false);
   const [lessons, setLessons] = useState<LessonRow[] | null>(null);
   const [otherLessonId, setOtherLessonId] = useState('');
+  // A monthly price for this child alone on the lesson picked by hand ('' = the catalogue's).
+  const [specialPrice, setSpecialPrice] = useState('');
   const [includeFee, setIncludeFee] = useState(true);
   const [amount, setAmount] = useState('');
   const [description, setDescription] = useState('');
@@ -776,6 +781,7 @@ export default function SendCardLinkDialog({ open, onOpenChange, child }: SendCa
     setSelectedKey('');
     setOtherOpen(false);
     setOtherLessonId('');
+    setSpecialPrice('');
     setShowAllLinks(false);
     setBranchId('');
     setBusinessId('');
@@ -839,6 +845,7 @@ export default function SendCardLinkDialog({ open, onOpenChange, child }: SendCa
   );
   const selectedOption = options?.find((o) => o.key === selectedKey) ?? null;
   const otherLesson = otherLessonId ? sortedLessons.find((l) => l.id === otherLessonId) ?? null : null;
+  const special = otherLessonId ? specialPriceValue(specialPrice) : null;
   const tabStop = selectableKeys.includes(selectedKey) ? selectedKey : selectableKeys[0] ?? '';
   const parentPhone = child.parent_phone || child.family_phone;
   const visibleLinks = showAllLinks ? links : links.slice(0, LINKS_PREVIEW);
@@ -964,7 +971,17 @@ export default function SendCardLinkDialog({ open, onOpenChange, child }: SendCa
         return;
       }
       if (otherLessonId) {
-        input = { kind: 'standing_order', child_id: child.id, lesson_id: otherLessonId, include_registration_fee: includeFee };
+        if (specialPrice.trim() && special === null) {
+          setError(`מחיר מיוחד לא תקין (בין ₪1 ל־₪${MAX_SPECIAL_PRICE.toLocaleString('he-IL')})`);
+          return;
+        }
+        input = {
+          kind: 'standing_order',
+          child_id: child.id,
+          lesson_id: otherLessonId,
+          include_registration_fee: includeFee,
+          special_monthly_price: special === null ? null : special.toFixed(2),
+        };
       } else if (selectedOption && opensNewStandingOrder(selectedOption)) {
         // A track goes by its bundle: the server hangs it on the first day and bills the combined price.
         input =
@@ -1074,7 +1091,19 @@ export default function SendCardLinkDialog({ open, onOpenChange, child }: SendCa
         <span className={`${styles.summaryValue} ${styles.summaryEmpty}`}>בחרו הוראת קבע</span>
       );
     }
-    if (otherLesson) return <span className={styles.summaryValue}>{lessonLabel(otherLesson)}</span>;
+    if (otherLesson) {
+      return (
+        <span className={styles.summaryValue}>
+          {lessonLabel(otherLesson)}
+          {special !== null ? (
+            <>
+              {' · '}
+              <b>{formatShekels(special)}</b> לחודש — מחיר מיוחד
+            </>
+          ) : null}
+        </span>
+      );
+    }
     if (renewable) {
       const figure = renewAmountError(renewAmount) ? renewable.renew_amount : renewAmount;
       return (
@@ -1363,6 +1392,32 @@ export default function SendCardLinkDialog({ open, onOpenChange, child }: SendCa
                       <p className={styles.otherNote}>
                         ★ = הילד רשום לשיעור. אם כבר יש לו הוראת קבע לשיעור — השרת ידחה. המחיר מחושב כמו בהרשמה רגילה: יחסי לחודש + דמי רישום אם עוד לא שולמו.
                       </p>
+                      {/* One child's own price on one lesson (owner, 14.10.2026). The catalogue is not
+                          touched, so nobody else can sign up to the lesson this way. */}
+                      {otherLessonId ? (
+                        <div className={styles.special}>
+                          <label className={styles.label} htmlFor="cl-special">
+                            מחיר חודשי מיוחד (לא חובה)
+                          </label>
+                          <div className={styles.money}>
+                            <span className={styles.moneySign} aria-hidden>₪</span>
+                            <input
+                              id="cl-special"
+                              className={styles.input}
+                              inputMode="decimal"
+                              placeholder="ריק = המחיר הרגיל"
+                              value={specialPrice}
+                              onChange={(e) => {
+                                setSpecialPrice(e.target.value);
+                                setError('');
+                              }}
+                            />
+                          </div>
+                          <p className={styles.otherNote}>
+                            רק ל{child.first_name}, ורק בשיעור הזה. זה המחיר הסופי לחודש — בלי הנחות. השיעור לא נפתח להרשמה לאחרים.
+                          </p>
+                        </div>
+                      ) : null}
                     </div>
                   </div>
                 ) : null}
