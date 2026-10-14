@@ -29,6 +29,9 @@ export interface ReportGroup {
   fill: number | null;
   /** Only on the page of several branches together. */
   branch_name?: string;
+  /** The field (תחום) the group is listed under; missing from a server before 14.10.2026. */
+  field_id?: string | null;
+  field_name?: string;
 }
 
 export interface ReportDay {
@@ -211,6 +214,40 @@ export function groupLine(g: Pick<ReportGroup, 'students' | 'capacity'>): string
   if (missing > 0) return `${g.students} מתוך ${g.capacity} · חסרים ${missing} להרשמה מלאה`;
   if (missing === 0) return `${g.students} מתוך ${g.capacity} · מלאה`;
   return `${g.students} מתוך ${g.capacity} · מעל הקיבולת ב־${-missing}`;
+}
+
+/** Emptiest share of its capacity first; a group with no capacity set last. */
+export function weakestFirst(groups: ReportGroup[]): ReportGroup[] {
+  const share = (g: ReportGroup) => (g.capacity ? g.students / g.capacity : Number.POSITIVE_INFINITY);
+  return [...groups].sort((a, b) => share(a) - share(b) || (b.missing ?? 0) - (a.missing ?? 0));
+}
+
+export type FieldGroups = { field: string; groups: ReportGroup[]; students: number; capacity: number; fill: number | null };
+
+/**
+ * The groups under their field (owner, 14.10.2026: "הקבוצות בדוח יהיו מסודרות
+ * לפי תחום"), fields in the order they first come and each field's groups in
+ * the order given — the server sends them by field, the weakest first within it.
+ */
+export function groupsByField(groups: ReportGroup[]): FieldGroups[] {
+  const out: FieldGroups[] = [];
+  const index = new Map<string, FieldGroups>();
+  for (const g of groups) {
+    const field = g.field_name || 'ללא תחום';
+    let entry = index.get(field);
+    if (!entry) {
+      entry = { field, groups: [], students: 0, capacity: 0, fill: null };
+      index.set(field, entry);
+      out.push(entry);
+    }
+    entry.groups.push(g);
+    if (g.capacity) {
+      entry.students += g.students;
+      entry.capacity += g.capacity;
+    }
+  }
+  for (const entry of out) entry.fill = entry.capacity ? (entry.students / entry.capacity) * 100 : null;
+  return out;
 }
 
 export function percent(fill: number | null | undefined): string {
