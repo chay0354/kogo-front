@@ -178,6 +178,26 @@ export async function addWalkInStudent(
 }
 
 /**
+ * Fill in a walk-in's phone (or a name spelt better) after it was added — the
+ * phone is what makes it a lead. `date` is the occurrence the register is open
+ * on; the answer is the row as that register draws it.
+ */
+export async function updateWalkInStudent(
+  lessonId: string,
+  enrollmentId: string,
+  date: string,
+  changes: { phone?: string; first_name?: string; last_name?: string },
+  asUser?: string,
+): Promise<WalkInStudent> {
+  const suffix = asUser ? `?as_user=${encodeURIComponent(asUser)}` : '';
+  const res = await api.patch(`/scheduling/lessons/${lessonId}/walkin/${enrollmentId}/${suffix}`, {
+    date,
+    ...changes,
+  });
+  return res.data as WalkInStudent;
+}
+
+/**
  * Remove a walk-in an instructor added by mistake.
  *
  * Walk-ins only — the server refuses anything else, so a registered child

@@ -30,6 +30,7 @@ import { ageGroupOptions as ageGroupsOf, coursesForFilters, settleCustomerFilter
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from '@/components/DropdownMenu';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogCloseButton } from '@/components/ui/dialog';
 import ChildProfileDialog from '@/components/dialogs/ChildProfileDialog';
+import { walkInLessonLine, walkInVisitsLine } from '@/components/dialogs/walkInSummary';
 import DeleteChildDialog from '@/components/dialogs/DeleteChildDialog';
 import { serverErrorMessage } from '@/components/dialogs/NewDocumentDialog/utils';
 import { canSaveStatusChange, updateChildStatus } from '@/lib/childStatusApi';
@@ -870,6 +871,26 @@ export default function CustomersPage() {
                                   </div>
                                 );
                               })
+                            ) : child.walk_in?.lessons.length ? (
+                              /* A walk-in has no place of its own: say which lesson it came to and when. */
+                              child.walk_in.lessons.map((lesson) => (
+                                <div
+                                  key={lesson.lesson_id}
+                                  className="inline-flex max-w-full flex-wrap items-center gap-1.5 rounded-full border border-violet-200 bg-violet-50 px-2.5 py-1 text-xs text-violet-950"
+                                  title={walkInLessonLine(lesson)}
+                                >
+                                  <span className="min-w-0 truncate font-medium">{lesson.course_name}</span>
+                                  <span className="whitespace-nowrap opacity-70">{walkInVisitsLine(lesson)}</span>
+                                  {child.walk_in?.phone_missing ? (
+                                    <span className="whitespace-nowrap rounded-full bg-orange-100 px-1.5 py-0.5 text-[10px] font-semibold text-orange-800">
+                                      חסר טלפון
+                                    </span>
+                                  ) : null}
+                                  <span className="whitespace-nowrap rounded-full bg-violet-200/80 px-1.5 py-0.5 text-[10px] font-semibold text-violet-900">
+                                    מזדמן
+                                  </span>
+                                </div>
+                              ))
                             ) : (
                               <span className="text-muted-foreground">-</span>
                             )}

@@ -60,6 +60,10 @@ export type LessonDetail = Lesson & {
     /** 1 for a first trial; the office may book a second (2, 3…) from the CRM. */
     trial_number?: number | null;
     trial_outcome?: 'attended' | 'no_show' | 'unmarked' | null;
+    /** Only on a walk-in the instructor added (server: ghost_students.register_facts). */
+    walk_in?: WalkInFacts | null;
+    /** 'external' for a municipality child (not a Child row); 'child' otherwise. */
+    attendee_kind?: 'child' | 'external';
   }>;
   /** מקומות שעדיין פתוחים לילדים שאינם רשומים עוד — לא מוצגים ברשימה; למשרד, לסגירה. */
   stale_places?: Array<{
@@ -88,6 +92,19 @@ export type AttendanceStatus = 'present' | 'absent' | 'not_marked';
  * records them present in the same request and says so here — the screen shows
  * the tick without asking for the register again.
  */
+/**
+ * What the register says about a walk-in on this date (owner, 14.10.2026): it
+ * came to an earlier lesson ("הגיע בשיעור שעבר"), this is the last lesson it is
+ * shown on unless marked present, and whether anybody has its phone yet.
+ */
+export type WalkInFacts = {
+  added_on: string | null;
+  last_seen: string | null;
+  came_before: boolean;
+  last_time: boolean;
+  phone_missing: boolean;
+};
+
 export type WalkInStudent = LessonDetail['enrollments'][number] & {
   created?: boolean;
   attendance_status?: AttendanceStatus;
