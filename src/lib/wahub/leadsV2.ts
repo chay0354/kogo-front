@@ -166,6 +166,9 @@ function readNext(raw: unknown): WahubLeadNext {
     what: str(data.what),
     when: time(data.when),
     state: data.state === 'planned' || data.state === 'due' ? data.state : 'none',
+    // Why the bot's step will not leave — the server's words; read here, or the row never shows it. A server
+    // built before it sends none, and the row is then exactly what it was.
+    ...(data.hold != null ? { hold: str(data.hold) } : {}),
   };
 }
 

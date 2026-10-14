@@ -343,6 +343,18 @@ describe('"הצעד הבא"', () => {
     });
   });
 
+  test('the server\'s reason reaches the line through the reader of GET leads/', () => {
+    const read = readLeadRow({
+      contact_id: 7, name: 'ליד בדוי', stage: 'trial_done', owner: 'bot',
+      next: { who: 'bot', what: 'הבוט ישלח את הקישור להרשמה', when: '2026-10-13T07:30:00Z', state: 'planned', note: '', hold: 'השליחה כבויה' },
+    });
+    if (!read) throw new Error('the row was not read');
+    expect(read.next.hold).toBe('השליחה כבויה');
+    expect(nextStepLine(read, NOW).text).toBe('הבוט ישלח את הקישור להרשמה מחר ב-10:30 · לא ייצא: השליחה כבויה');
+    expect(readLeadRow({ contact_id: 8, next: { who: 'bot', state: 'planned', hold: '' } })?.next.hold).toBe('');
+    expect('hold' in (readLeadRow({ contact_id: 9, next: { who: 'bot', state: 'planned' } })?.next ?? {})).toBe(false);
+  });
+
   test('a step that will not leave says so beside it, in the server\'s words', () => {
     const off = row({ next: { ...row().next, hold: 'החזרות האוטומטיות כבויות' } });
     expect(nextStepLine(off, NOW)).toEqual({
