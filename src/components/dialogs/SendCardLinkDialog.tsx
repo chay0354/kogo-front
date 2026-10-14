@@ -1354,7 +1354,10 @@ export default function SendCardLinkDialog({ open, onOpenChange, child }: SendCa
                   </div>
                 ) : null}
 
-                {options !== null && !renewOrder ? (
+                {/* Always within reach, also when the card picked by default is a unit the child
+                    already pays for: a child with a standing order is exactly who gets signed to
+                    one more lesson (owner, 14.10.2026). Picking a lesson here leaves the renewal. */}
+                {options !== null ? (
                   <div className={`${styles.other} ${otherLessonId ? styles.otherActive : ''}`}>
                     <button
                       type="button"
