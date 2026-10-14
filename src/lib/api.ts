@@ -13,6 +13,7 @@ import type { BusinessCustomer, BusinessCustomerFormData } from '@/components/di
 import { dedupeCitiesByName } from '@/lib/cityUtils';
 import { unwrapApiList } from '@/lib/scopedFilters';
 import type { City } from '@/types/branch';
+import type { ReportRequest, StudentsReport } from '@/lib/studentsReport';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1';
 
@@ -255,6 +256,16 @@ export const fetchInstructorsData = async (filters: InstructorsFilters) => {
  */
 export const fetchStudentsData = async (filters: StudentsFilters) => {
   const response = await api.get('/core/dashboard/students/', { params: filters });
+  return response.data;
+};
+
+/**
+ * The printable students report — the chosen branches together and each one,
+ * in one answer. See src/lib/studentsReport.ts.
+ */
+export const fetchStudentsReport = async (request: ReportRequest): Promise<StudentsReport> => {
+  // A long period over many branches is a heavier read than the tabs; give it room.
+  const response = await api.get('/core/dashboard/students-report/', { params: request, timeout: 90000 });
   return response.data;
 };
 
