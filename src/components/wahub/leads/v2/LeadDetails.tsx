@@ -1,5 +1,6 @@
 'use client';
 
+import { nextStepHelp } from '@/lib/wahub/stageHelp';
 import { AlertCircle, ArrowRight, ChevronDown, Plus, X } from 'lucide-react';
 import { customerCardFor, customerCardPath } from '@/lib/wahub/customerCard';
 import { formatDateTime, israelToday } from '@/lib/wahub/format';
@@ -488,7 +489,10 @@ export default function LeadDetails({
                 <h3 className={l.nowLabel}>{nowTitle}</h3>
                 <p className={l.nowText}>
                   <NextIcon line={next} />
-                  <span dir="auto">{next.text}</span>
+                  {/* "מה זה אומר?" on what happens now — a tap on the phone, the mouse on a desktop. */}
+                  <StageHelp stage={lead.stage} help={nextStepHelp(lead, next)}>
+                    <span dir="auto">{next.text}</span>
+                  </StageHelp>
                 </p>
                 {next.detail && (
                   <p className={l.nowMore} dir="auto">

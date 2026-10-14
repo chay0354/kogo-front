@@ -1,5 +1,7 @@
 'use client';
 
+import { nextStepHelp, type StageHelp as StageHelpWords } from '@/lib/wahub/stageHelp';
+import { HoverHelp } from '../../shared/StageHelp';
 import { Bot, CalendarClock, ChevronLeft, PauseCircle, UserRound } from 'lucide-react';
 import { israelToday } from '@/lib/wahub/format';
 import { leadChips, leadPhoneText, leadTitle, nextStepLine, saysMore, sinceText, type NextStepLine } from '@/lib/wahub/leadsV2';
@@ -30,12 +32,14 @@ export function NextIcon({ line }: { line: NextStepLine }) {
 }
 
 /** "הצעד הבא" as it stands in a row: who, what and when, on the ground of whose move it is. */
-export function NextStep({ line }: { line: NextStepLine }) {
+export function NextStep({ line, help = null }: { line: NextStepLine; help?: StageHelpWords | null }) {
+  // With words behind it, a mouse resting on the line opens them (a press still opens the lead); without, the
+  // line's own detail is its title, as it always was.
   return (
-    <span className={cx(l.next, NEXT_CLASS[line.tone])} title={line.detail || undefined} data-next={line.tone}>
+    <HoverHelp help={help} className={cx(l.next, NEXT_CLASS[line.tone])} data-next={line.tone} {...(help ? {} : { title: line.detail || undefined })}>
       <NextIcon line={line} />
       <span dir="auto">{line.text}</span>
-    </span>
+    </HoverHelp>
   );
 }
 
@@ -124,7 +128,7 @@ export default function LeadRow({ lead, now, sendingOn, selected, closed, query 
             </span>
           )}
         </span>
-        <NextStep line={next} />
+        <NextStep line={next} help={nextStepHelp(lead, next)} />
         {/* Always there, so the columns of every row line up — with or without a time to say. */}
         <span className={l.since}>{since}</span>
         <ChevronLeft className={l.chev} aria-hidden="true" />

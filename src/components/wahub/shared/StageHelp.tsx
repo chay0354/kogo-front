@@ -2,7 +2,7 @@
 
 import { HelpCircle } from 'lucide-react';
 import { useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode } from 'react';
-import { helpParts, stageHelp, stageHelpText, STAGE_HELP } from '@/lib/wahub/stageHelp';
+import { helpParts, stageHelp, stageHelpText, STAGE_HELP, type StageHelp as StageWords } from '@/lib/wahub/stageHelp';
 import h from '../stageHelp.module.css';
 
 /**
@@ -75,10 +75,12 @@ export interface StageHelpProps {
   title?: string;
   /** Open from the start — for a test, or a picture of the open state. */
   defaultOpen?: boolean;
+  /** Words of its own, in place of the state's (the next-step line of a lead). */
+  help?: StageWords | null;
 }
 
-export function StageHelp({ stage, children, inRow = false, title, defaultOpen = false }: StageHelpProps) {
-  const help = stageHelp(stage);
+export function StageHelp({ stage, children, inRow = false, title, defaultOpen = false, help: own }: StageHelpProps) {
+  const help = own === undefined ? stageHelp(stage) : own;
   const { open, setOpen, byHover, wrap } = useBubble(defaultOpen);
   const id = useId();
   const bubble = useRef<HTMLSpanElement>(null);
@@ -153,6 +155,56 @@ export function StageHelp({ stage, children, inRow = false, title, defaultOpen =
           onClick={(event) => event.stopPropagation()}
         >
           {title && <span className={h.title}>{title}</span>}
+          <Line text={help.what} className={h.line} />
+          <Line text={help.now} className={h.line} />
+        </span>
+      )}
+    </span>
+  );
+}
+
+/**
+ * A bubble that only a mouse opens, resting on what it wraps — for a piece of a row that a press opens
+ * (the next step of a lead in the list): there a tap keeps opening the lead, and the lead's details have the
+ * same words behind a tap. `className` and the rest are the wrapped element's own, so it stays what it was.
+ */
+export function HoverHelp({
+  help,
+  className,
+  children,
+  defaultOpen = false,
+  ...rest
+}: { help: StageWords | null; className?: string; children: ReactNode; defaultOpen?: boolean } & Record<`data-${string}`, string | undefined>) {
+  const [open, setOpen] = useState(defaultOpen);
+  const bubble = useRef<HTMLSpanElement>(null);
+  const [shift, setShift] = useState(0);
+  useBrowserLayoutEffect(() => {
+    if (!open || !bubble.current) {
+      setShift(0);
+      return;
+    }
+    const box = bubble.current.getBoundingClientRect();
+    setShift(onScreenShift(box.left - shift, box.right - shift, document.documentElement.clientWidth));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+  if (!help) {
+    return (
+      <span className={className} {...rest}>
+        {children}
+      </span>
+    );
+  }
+  return (
+    <span
+      className={className}
+      style={{ position: 'relative' }}
+      {...rest}
+      onPointerEnter={(event) => event.pointerType === 'mouse' && setOpen(true)}
+      onPointerLeave={(event) => event.pointerType === 'mouse' && setOpen(false)}
+    >
+      {children}
+      {open && (
+        <span ref={bubble} role="tooltip" className={h.bubble} style={shift ? { transform: `translateX(${shift}px)` } : undefined}>
           <Line text={help.what} className={h.line} />
           <Line text={help.now} className={h.line} />
         </span>

@@ -100,3 +100,33 @@ export function stageHelpText(stage: string | null | undefined): string {
   if (!help) return '';
   return `${help.what}. ${help.now.replace(/\*\*/g, '')}`;
 }
+
+/** The external branch's line, as the server writes it (kogo-back lead_stage.EXTERNAL_BRANCH). */
+const EXTERNAL_LINE = 'סניף חיצוני';
+
+/**
+ * What the next-step line of a lead means, for the bubble on it (the owner, 14.10.2026, on a row that said
+ * "סניף חיצוני — ההרשמה מול העירייה": "זה לא מראה לי בועה… שמסביר לי משהו"). A line that will not go out says
+ * why and what becomes of it; an external branch says why nobody sees the registration; any other line is the
+ * lead's state.
+ */
+export function nextStepHelp(
+  lead: { stage: string },
+  line: { text: string; tone: string; detail?: string },
+): StageHelp | null {
+  const held = line.text.match(/(?:לא ייצא:|היה נשלח עכשיו —)\s*(.+)$/);
+  if (line.tone === 'held' && held) {
+    const step = (line.detail || '').trim();
+    return {
+      what: `${step ? `${step}, ` : 'הבוט היה אמור לשלוח הודעה, '}אבל ${held[1].trim()}`,
+      now: '**לא ייצא באיחור:** כשמדליקים, יוצא רק מה שהגיע זמנו אחרי ההדלקה',
+    };
+  }
+  if (line.text.startsWith(EXTERNAL_LINE)) {
+    return {
+      what: 'ההרשמה בסניף הזה היא מול העירייה או המתנ"ס, ולכן Kogo לא רואה אם נרשם',
+      now: 'כשהשיחה שוקטת, **הבוט בודק איתו פעם אחת** אם הסתדר מול העירייה',
+    };
+  }
+  return stageHelp(lead.stage);
+}

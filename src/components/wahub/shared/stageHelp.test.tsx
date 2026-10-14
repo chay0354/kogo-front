@@ -7,8 +7,8 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import { LEAD_V2_STAGE_LABELS } from '@/lib/wahub/leadsV2';
 import { LEAD_STAGE_LABELS } from '@/lib/wahub/leadStage';
-import { STAGE_HELP, helpParts, stageHelp, stageHelpText } from '@/lib/wahub/stageHelp';
-import { StageHelp, StagesLegend, onScreenShift } from './StageHelp';
+import { STAGE_HELP, helpParts, nextStepHelp, stageHelp, stageHelpText } from '@/lib/wahub/stageHelp';
+import { HoverHelp, StageHelp, StagesLegend, onScreenShift } from './StageHelp';
 
 // The components are compiled with the classic JSX of the tests, which reads `React` from the global scope.
 (globalThis as { React?: typeof React }).React = React;
@@ -116,5 +116,47 @@ describe('the bubble stays on the screen', () => {
 
   it('the state is marked, so that the round buttons of the head on a phone leave it as words', () => {
     expect(renderToStaticMarkup(<StageHelp stage="link_sent">קיבל קישור</StageHelp>)).toContain('data-stage-help=""');
+  });
+});
+
+describe('the words behind a lead\'s next step (the owner, 14.10.2026: "זה לא מראה לי בועה")', () => {
+  it('an external branch says why nobody sees the registration, and what the bot does', () => {
+    const help = nextStepHelp({ stage: 'in_conversation' }, { text: 'סניף חיצוני — ההרשמה מול העירייה', tone: 'quiet' });
+    expect(help?.what).toContain('Kogo לא רואה אם נרשם');
+    expect(help?.now).toContain('**הבוט בודק איתו פעם אחת**');
+  });
+
+  it('a step that will not go out says what it was and why, and that it will not leave late', () => {
+    const help = nextStepHelp(
+      { stage: 'answered_silent' },
+      { text: 'היה נשלח עכשיו — השליחה כבויה', tone: 'held', detail: 'הבוט יציע שיעור ניסיון' },
+    );
+    expect(help).toEqual({
+      what: 'הבוט יציע שיעור ניסיון, אבל השליחה כבויה',
+      now: '**לא ייצא באיחור:** כשמדליקים, יוצא רק מה שהגיע זמנו אחרי ההדלקה',
+    });
+    const planned = nextStepHelp({ stage: 'trial_done' }, { text: 'הבוט ישלח את הקישור להרשמה מחר ב-10:30 · לא ייצא: החזרות האוטומטיות כבויות', tone: 'held' });
+    expect(planned?.what).toBe('הבוט היה אמור לשלוח הודעה, אבל החזרות האוטומטיות כבויות');
+  });
+
+  it('any other line is the lead\'s state', () => {
+    expect(nextStepHelp({ stage: 'link_sent' }, { text: 'הבוט יזכיר את הקישור מחר ב-10:30', tone: 'bot' })).toEqual(STAGE_HELP.link_sent);
+    expect(nextStepHelp({ stage: 'nothing_new' }, { text: 'משהו', tone: 'quiet' })).toBeNull();
+  });
+
+  it('on a row, the line is what it was — the bubble opens only for a mouse resting on it', () => {
+    const html = renderToStaticMarkup(
+      <HoverHelp help={STAGE_HELP.link_sent} className="next" data-next="bot">
+        <span>הבוט יזכיר</span>
+      </HoverHelp>,
+    );
+    expect(html).toBe('<span class="next" style="position:relative" data-next="bot"><span>הבוט יזכיר</span></span>');
+    const open = renderToStaticMarkup(
+      <HoverHelp help={STAGE_HELP.link_sent} className="next" data-next="bot" defaultOpen>
+        <span>הבוט יזכיר</span>
+      </HoverHelp>,
+    );
+    expect(open).toContain('role="tooltip"');
+    expect(open).toContain('<b>הבוט מזכיר</b>');
   });
 });
