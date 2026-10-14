@@ -14,6 +14,8 @@ import {
   formatDay,
   formatDayShort,
   groupLine,
+  groupsByField,
+  weakestFirst,
   percent,
   signed,
   type FillTier,
@@ -205,7 +207,14 @@ function Sheet({
   const summary = !!branches;
   // How it was counted is said once: on the summary, or on the only page there is.
   const explain = summary || report.branches.length === 1;
-  const groups = summary ? scope.groups.slice(0, SUMMARY_GROUPS) : scope.groups;
+  // The summary lists the weakest few across the branches; a branch page lists all of its own.
+  // Either way they are shown under their field (groupsByField).
+  const groups = summary
+    ? (() => {
+        const weakest = new Set(weakestFirst(scope.groups).slice(0, SUMMARY_GROUPS).map((g) => g.lesson_id));
+        return scope.groups.filter((g) => weakest.has(g.lesson_id));
+      })()
+    : scope.groups;
   const untilToday = report.requested_date_to > report.date_to;
 
   return (
@@ -551,7 +560,7 @@ function TeachersCard({ scope }: { scope: ReportScope }) {
 }
 
 /**
- * The groups, weakest first. A table, so that when a branch's list runs onto a
+ * The groups under their field, the weakest first within each. A table, so that when a branch's list runs onto a
  * second sheet of paper its heading — with the branch's name — is printed again
  * at the top of it (a browser repeats a table's head on every printed page).
  */
@@ -584,7 +593,7 @@ function GroupsCard({
                     <span className={css.scopeName}> · {scopeName}</span>
                   </h2>
                   <div className={css.cardSub}>
-                    מהחלשה לחזקה · קיבולת = הנמוכה מבין השיעור, הקבוצה והחדר
+                    לפי תחום · בכל תחום מהחלשה לחזקה · קיבולת = הנמוכה מבין השיעור, הקבוצה והחדר
                   </div>
                 </div>
               </div>
@@ -597,7 +606,17 @@ function GroupsCard({
               <td colSpan={3} className={css.empty}>אין קבוצות פעילות בתאריך הזה</td>
             </tr>
           ) : (
-            groups.map((g, i) => {
+            groupsByField(groups).flatMap((field) => [
+              <tr key={`field-${field.field}`} className={css.fieldRow}>
+                <td colSpan={3}>
+                  <span className={css.fieldName}>{field.field}</span>
+                  <span className={css.fieldMeta}>
+                    {field.groups.length === 1 ? 'קבוצה אחת' : `${field.groups.length} קבוצות`}
+                    {field.fill !== null ? ` · תפוסה ${percent(field.fill)}` : ''}
+                  </span>
+                </td>
+              </tr>,
+              ...field.groups.map((g, i) => {
               const tier = fillTier(g.fill);
               return (
                 <tr key={g.lesson_id} className={css.group}>
@@ -624,7 +643,8 @@ function GroupsCard({
                   </td>
                 </tr>
               );
-            })
+              }),
+            ])
           )}
         </tbody>
       </table>

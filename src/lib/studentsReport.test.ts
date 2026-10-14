@@ -7,11 +7,14 @@ import {
   fillTier,
   formatDay,
   groupLine,
+  groupsByField,
   isoDay,
   parseReportParams,
   presetRange,
   reportRequestProblem,
   signed,
+  weakestFirst,
+  type ReportGroup,
 } from './studentsReport';
 
 describe('the address of a report', () => {
@@ -116,3 +119,29 @@ describe('numbers and dates', () => {
     expect(branchesHeading(['א', 'ב', 'ג'], true)).toBe('כל הסניפים · 3');
   });
 });
+
+describe('groups by field', () => {
+  const g = (id: string, field: string | undefined, students: number, capacity: number | null) =>
+    ({ lesson_id: id, course_name: id, day: 0, day_label: 'ראשון', start_time: '16:00', end_time: '17:00',
+       instructor_name: '', room_name: '', students, capacity, missing: capacity ? capacity - students : null,
+       fill: capacity ? (students / capacity) * 100 : null, field_name: field }) as ReportGroup;
+
+  it('keeps the server order of fields and of groups within them', () => {
+    const fields = groupsByField([g('a', 'אקרובטיקה', 2, 10), g('b', 'אקרובטיקה', 9, 10), g('c', 'קפוארה', 1, 20)]);
+    expect(fields.map((f) => [f.field, f.groups.map((x) => x.lesson_id)])).toEqual([
+      ['אקרובטיקה', ['a', 'b']],
+      ['קפוארה', ['c']],
+    ]);
+    expect(fields[0].fill).toBeCloseTo(55);
+  });
+
+  it('puts a group with no field under ללא תחום', () => {
+    expect(groupsByField([g('a', undefined, 1, 10)])[0].field).toBe('ללא תחום');
+  });
+
+  it('finds the weakest across fields for the summary page', () => {
+    const order = weakestFirst([g('a', 'א', 9, 10), g('b', 'ב', 1, 20), g('c', 'ג', 3, null)]).map((x) => x.lesson_id);
+    expect(order).toEqual(['b', 'a', 'c']);
+  });
+});
+
