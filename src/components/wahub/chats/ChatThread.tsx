@@ -30,6 +30,7 @@ import { cx } from '../shared/tones';
 import s from '../wahub.module.css';
 import Composer from './Composer';
 import DemoComposer, { type DemoReplyControls } from './DemoComposer';
+import HistoryStrip from './HistoryStrip';
 import FutureStrip from './FutureStrip';
 import { LaterPanelView, useLater, type LaterActions } from './LaterPanel';
 import MessageBubble, { TypingBubble } from './MessageBubble';
@@ -675,6 +676,9 @@ export default function ChatThread({
           onToBot={() => void later.handToBot()}
         />
       )}
+
+      {/* Began before the switch: the old bot's answers are not here — said before anybody answers it blind. */}
+      <HistoryStrip note={contact.history} now={now} />
 
       <div className="relative min-h-0 flex-1">
         <div
