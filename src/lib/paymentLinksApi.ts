@@ -222,6 +222,21 @@ export type CardLink = {
   quote?: { first_charge: string; monthly_amount: string; registration_fee: string; next_billing_date: string; trial_credit?: string; trial_credit_reason?: string };
   quote_error?: string;
   whatsapp?: { sent?: boolean; method?: string; reason?: string; error?: string };
+  /** Set when the link bills one payer of a payment split between cards. */
+  split?: CardLinkSplitShare | null;
+};
+
+export type CardLinkSplitShare = {
+  split_id: string;
+  share_id: string;
+  position: number;
+  parts: number;
+  payer_name: string;
+  payer_phone: string;
+  monthly_amount: string;
+  registration_fee: string;
+  monthly_total: string;
+  mode: 'new' | 'existing';
 };
 
 export type CardLinkInput =
@@ -332,6 +347,89 @@ export async function cardLinkAction(id: string, action: 'send' | 'cancel' | 're
   return res.data as CardLink;
 }
 
+// ---------------------------------------------------------------------------
+// One child's monthly payment for one class, split between up to three cards
+// (owner, 15.10.2026). Each payer gets their own card link.
+// ---------------------------------------------------------------------------
+
+export type SplitParent = { id: string; name: string; phone: string; email: string; is_primary: boolean };
+
+export type SplitPreview = {
+  monthly_total: string;
+  registration_fee_total: string;
+  discounts?: Array<{ name: string; reason: string; value: string }>;
+  shares: Array<{ monthly_amount: string; registration_fee: string }>;
+  parents: SplitParent[];
+  /** Splitting an existing standing order: who pays it now (stays the first payer). */
+  first_payer?: { name: string; phone: string };
+  next_billing_date?: string | null;
+};
+
+/** A parent of the family by id, or a payer typed for this split only. */
+export type SplitPayerInput = { parent_id: string } | { name: string; phone: string; email?: string };
+
+export type SplitUnitInput = {
+  child_id: string;
+  lesson_id?: string | null;
+  bundle_id?: string | null;
+  special_monthly_price?: string | null;
+  include_registration_fee?: boolean;
+};
+
+export type PaymentSplitShare = {
+  id: string;
+  position: number;
+  payer_name: string;
+  payer_phone: string;
+  payer_parent_id: string | null;
+  monthly_amount: string;
+  registration_fee: string;
+  /** active = the card is saved; waiting = no card yet. */
+  state: 'active' | 'failed' | 'waiting' | 'cancelled';
+  card_link_id: string | null;
+};
+
+export type PaymentSplit = {
+  id: string;
+  mode: 'new' | 'existing';
+  status: 'active' | 'cancelled';
+  monthly_total: string;
+  registration_fee_total: string;
+  lesson_id: string | null;
+  bundle_id: string | null;
+  created_at: string | null;
+  shares: PaymentSplitShare[];
+};
+
+export type PaymentSplitCreated = { split: PaymentSplit; links: CardLink[] };
+
+export async function previewPaymentSplit(
+  data: (SplitUnitInput | { recurring_payment_id: string }) & { parts: number; amounts?: string[] | null },
+) {
+  const res = await api.post('/customers/payment-splits/preview/', data);
+  return res.data as SplitPreview;
+}
+
+export async function createPaymentSplit(data: SplitUnitInput & { payers: SplitPayerInput[]; amounts?: string[] | null }) {
+  const res = await api.post('/customers/payment-splits/', data);
+  return res.data as PaymentSplitCreated;
+}
+
+export async function splitStandingOrder(data: { recurring_payment_id: string; payers: SplitPayerInput[]; amounts?: string[] | null }) {
+  const res = await api.post('/customers/payment-splits/from-standing-order/', data);
+  return res.data as PaymentSplitCreated;
+}
+
+export async function fetchPaymentSplits(childId: string) {
+  const res = await api.get('/customers/payment-splits/', { params: { child_id: childId } });
+  return res.data as PaymentSplit[];
+}
+
+export async function cancelPaymentSplit(splitId: string) {
+  const res = await api.post(`/customers/payment-splits/${splitId}/cancel/`);
+  return res.data as PaymentSplit;
+}
+
 export type CardLinkSession = {
   lesson_id: string;
   day_name: string;
@@ -365,6 +463,8 @@ export type OptionStandingOrder = {
   /** Their exact total: the full monthly amount once per month, never prorated. */
   renew_amount: string;
   can_renew: boolean;
+  /** Set when this order is one payer of a payment split between cards. */
+  split?: { position: number; parts: number; payer_name: string } | null;
 };
 
 /** Something the office can send a standing-order link for — one lesson, or a whole track. */
@@ -449,6 +549,8 @@ export type CardLinkPreview = {
   quote_error?: string;
   description?: string;
   amount?: string;
+  /** This parent pays a part of the month (a payment split between cards). */
+  split?: { position: number; parts: number; payer_name: string; monthly_total: string; joins_existing: boolean } | null;
 };
 
 export async function fetchCardLinkPreview(token: string) {

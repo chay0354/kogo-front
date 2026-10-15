@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
+import SplitPaymentDialog, { type SplitStandingOrder, type SplitUnit } from '@/components/dialogs/SplitPaymentDialog';
 import {
   AlertTriangle,
   CalendarDays,
@@ -21,6 +22,7 @@ import {
   Search,
   Send,
   User,
+  Users,
   X,
 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -659,7 +661,9 @@ function LinkRow({
 }) {
   const sto = link.kind === 'standing_order';
   const title = sto
-    ? `${link.lesson_label}${link.special_monthly_price ? ` · מחיר מיוחד ${formatShekels(link.special_monthly_price)}` : ''}`
+    ? `${link.lesson_label}${link.special_monthly_price ? ` · מחיר מיוחד ${formatShekels(link.special_monthly_price)}` : ''}${
+        link.split ? ` · ${link.split.payer_name} — ${formatShekels(link.split.monthly_amount)} מתוך ${formatShekels(link.split.monthly_total)}` : ''
+      }`
     : `${link.description} · ${formatShekels(link.amount || 0)}`;
   const problems = [link.last_error, link.review_reason].filter(Boolean).map(reasonLabel);
 
@@ -741,6 +745,7 @@ export default function SendCardLinkDialog({ open, onOpenChange, child }: SendCa
   const [renewAmount, setRenewAmount] = useState('');
   const [cardChangeId, setCardChangeId] = useState('');
   const [copiedUrl, setCopiedUrl] = useState('');
+  const [splitOpen, setSplitOpen] = useState(false);
 
   const optionsRequest = useRef(0);
   const lessonsRequested = useRef(false);
@@ -900,6 +905,31 @@ export default function SendCardLinkDialog({ open, onOpenChange, child }: SendCa
       : null;
   const renewable = renewOrder?.can_renew ? renewOrder : null;
   const renewError = renewable ? renewAmountError(renewAmount) : '';
+
+  // What "חלוקה בין כמה משלמים" would split (owner, 15.10.2026): the unit picked for a
+  // new standing order, or the child's own active order on it — never one already split.
+  const splitUnit: SplitUnit | null =
+    kind !== 'standing_order' || renewOrder
+      ? null
+      : otherLesson
+        ? {
+            lessonId: otherLesson.id,
+            label: lessonLabel(otherLesson),
+            specialPrice: special === null ? null : special.toFixed(2),
+            includeFee,
+          }
+        : selectedOption && opensNewStandingOrder(selectedOption)
+          ? {
+              lessonId: selectedOption.kind === 'bundle' ? null : selectedOption.lesson_id,
+              bundleId: selectedOption.kind === 'bundle' ? selectedOption.bundle_id : null,
+              label: optionSummary(selectedOption),
+              includeFee,
+            }
+          : null;
+  const splitOrder: SplitStandingOrder | null =
+    renewOrder && selectedOption && renewOrder.status === 'active' && !renewOrder.split
+      ? { id: renewOrder.id, label: optionSummary(selectedOption), amount: renewOrder.monthly_amount }
+      : null;
 
   // The computed total fills the box the moment a renewable unit is picked, so the
   // office sees the figure it is about to charge rather than an empty field.
@@ -1562,6 +1592,18 @@ export default function SendCardLinkDialog({ open, onOpenChange, child }: SendCa
                     ) : null}
                   </label>
                 )}
+
+                {/* Parents who each pay a part (owner, 15.10.2026): a link per payer. */}
+                {splitUnit || splitOrder ? (
+                  <button type="button" className={styles.moreBtn} onClick={() => setSplitOpen(true)}>
+                    <Users className="h-4 w-4" aria-hidden />
+                    {splitOrder ? 'חלוקת הוראת הקבע בין כמה משלמים' : 'חלוקה בין כמה משלמים (2–3 כרטיסים)'}
+                  </button>
+                ) : renewOrder?.split ? (
+                  <p className={styles.formNote}>
+                    הוראת הקבע מחולקת: {renewOrder.split.payer_name} משלם/ת חלק {renewOrder.split.position} מתוך {renewOrder.split.parts}.
+                  </p>
+                ) : null}
               </div>
             ) : (
               <div className={`${styles.formCard} ${styles.rise}`}>
@@ -1748,6 +1790,14 @@ export default function SendCardLinkDialog({ open, onOpenChange, child }: SendCa
           </footer>
         </div>
       </DialogContent>
+      <SplitPaymentDialog
+        open={splitOpen}
+        onOpenChange={setSplitOpen}
+        child={child}
+        unit={splitOrder ? null : splitUnit}
+        standingOrder={splitOrder}
+        onDone={() => void loadLinks()}
+      />
     </Dialog>
   );
 }
