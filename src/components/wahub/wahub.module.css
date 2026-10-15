@@ -16,6 +16,18 @@
  */
 
 .wahub {
+  /*
+   * The type of this section only (the owner, 15.10.2026: "הפונט רק של הווצאפ עם הפונט שיש לאפל באייפון
+   * ובאתרים"): Apple's own system face — San Francisco, and SF Hebrew for Hebrew — on an iPhone, an iPad and a
+   * Mac, in Safari and in Chrome alike; elsewhere the system's own face (Segoe UI on Windows, Roboto on Android).
+   * Nothing is downloaded. Set as the two variables the admin's type is made of (globals.css), so a heading, a
+   * button, and whatever the section opens inside itself read the same face; the rest of the admin keeps its own.
+   */
+  --font-app: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Hebrew', system-ui, 'Segoe UI', Roboto,
+    'Helvetica Neue', Arial, 'Heebo';
+  --font-display: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Hebrew', system-ui, 'Segoe UI', Roboto,
+    'Helvetica Neue', Arial, 'Heebo';
+  font-family: var(--font-app), sans-serif;
   --bg: #f3f5fd;
   --surface: #ffffff;
   --surface-2: #f7f8fd;
