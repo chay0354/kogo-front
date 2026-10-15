@@ -101,9 +101,11 @@ function sectionOrder(html: string): string[] {
 }
 
 describe('the contact\'s card: one fixed order', () => {
-  const ORDER = ['מי', 'מצב', 'פעולות', 'במערכת', 'מעקב', 'מה ידוע', 'תגיות', 'הערות', 'סטטוסים', 'היסטוריה', 'בדיקה חיה'];
+  // docs/WAHUB-CONTRACT-LAYOUT.md, ב (15.10.2026): who — what now — the children and their classes — the actions —
+  // and then everything else folded, the office's follow-up mark among them.
+  const ORDER = ['מי', 'מה עכשיו', 'ילדים וחוגים', 'פעולות', 'מה ידוע', 'תגיות', 'הערות', 'מעקב', 'סטטוסים', 'היסטוריה', 'בדיקה חיה'];
 
-  it('who — the state — the actions — in Kogo — follow-up — and then the folded sections', () => {
+  it('who — what now — the children and their classes — the actions — and then the folded sections', () => {
     expect(sectionOrder(card(detail({ lead: lead(), live_test: false })))).toEqual(ORDER);
   });
 
@@ -124,7 +126,7 @@ describe('the contact\'s card: one fixed order', () => {
 
   it('"who" is the initials, the name with its pencil, the phone and the way to WhatsApp', () => {
     const html = card(detail());
-    const who = html.slice(html.indexOf('aria-label="מי"'), html.indexOf('aria-label="מצב"'));
+    const who = html.slice(html.indexOf('aria-label="מי"'), html.indexOf('aria-label="מה עכשיו"'));
     expect(who).toContain('דנה כהן');
     expect(who).toContain('aria-label="ערוך שם"');
     expect(who).toContain('050-0000012');
@@ -133,24 +135,24 @@ describe('the contact\'s card: one fixed order', () => {
 
   it('"who" carries the two tags that say what kind of contact this is: demo, live test', () => {
     const demo = card(detail({ is_demo: true }), { withLiveTest: false });
-    expect(demo.slice(demo.indexOf('aria-label="מי"'), demo.indexOf('aria-label="מצב"'))).toContain('>דמו<');
+    expect(demo.slice(demo.indexOf('aria-label="מי"'), demo.indexOf('aria-label="מה עכשיו"'))).toContain('>דמו<');
     const live = card(detail({ live_test: true }));
-    expect(live.slice(live.indexOf('aria-label="מי"'), live.indexOf('aria-label="מצב"'))).toContain('>בדיקה חיה<');
+    expect(live.slice(live.indexOf('aria-label="מי"'), live.indexOf('aria-label="מה עכשיו"'))).toContain('>בדיקה חיה<');
     const plain = card(detail({ live_test: false }));
-    const who = plain.slice(plain.indexOf('aria-label="מי"'), plain.indexOf('aria-label="מצב"'));
+    const who = plain.slice(plain.indexOf('aria-label="מי"'), plain.indexOf('aria-label="מה עכשיו"'));
     expect(who).not.toContain('>דמו<');
     expect(who).not.toContain('>בדיקה חיה<');
   });
 
   it('the actions are one row: take the conversation, and "טופל" only when a person was asked for', () => {
     const quiet = card(detail());
-    const row = quiet.slice(quiet.indexOf('aria-label="פעולות"'), quiet.indexOf('aria-label="במערכת"'));
+    const row = quiet.slice(quiet.indexOf('aria-label="פעולות"'), quiet.indexOf('aria-label="מה ידוע"'));
     expect(row).toContain('קח שיחה');
     expect(row).not.toContain('טופל');
     const asked = card(detail({ chat: { needs_human: true } }));
-    expect(asked.slice(asked.indexOf('aria-label="פעולות"'), asked.indexOf('aria-label="במערכת"'))).toContain('טופל');
+    expect(asked.slice(asked.indexOf('aria-label="פעולות"'), asked.indexOf('aria-label="מה ידוע"'))).toContain('טופל');
     const taken = card(detail({ chat: { handled_by: 'human' } }));
-    const takenRow = taken.slice(taken.indexOf('aria-label="פעולות"'), taken.indexOf('aria-label="במערכת"'));
+    const takenRow = taken.slice(taken.indexOf('aria-label="פעולות"'), taken.indexOf('aria-label="מה ידוע"'));
     expect(takenRow).toContain('החזר לבוט');
     expect(takenRow).not.toContain('קח שיחה');
   });
@@ -165,8 +167,8 @@ describe('the contact\'s card: one fixed order', () => {
 describe('the contact\'s card: titles first, details on a press', () => {
   const folded = card(detail({ lead: lead(), live_test: false }));
 
-  it('opens with every folded section shut: six titles, no content', () => {
-    expect(folded.match(/aria-expanded="false"/g)).toHaveLength(6);
+  it('opens with every folded section shut: seven titles, no content', () => {
+    expect(folded.match(/aria-expanded="false"/g)).toHaveLength(7);
     expect(folded).not.toContain('aria-expanded="true"');
     // What sits behind the titles is not in the page until it is asked for.
     expect(folded).not.toContain('סכם מחדש');
@@ -175,6 +177,7 @@ describe('the contact\'s card: titles first, details on a press', () => {
     expect(folded).not.toContain('מי עונה');
     expect(folded).not.toContain('השיחה סוכמה');
     expect(folded).not.toContain('role="switch"');
+    expect(folded).not.toContain('aria-label="סימון מעקב"');
   });
 
   it('a folded title says how much is behind it: the number of tags and of log entries, the first words of the note', () => {
@@ -206,17 +209,27 @@ describe('the contact\'s card: titles first, details on a press', () => {
     expect(known).toContain('סכם מחדש');
   });
 
-  it('the follow-up marks stay out in the open — they are the office\'s daily work — as one compact row', () => {
-    const marks = folded.slice(folded.indexOf('aria-label="מעקב"'), folded.indexOf('aria-label="מה ידוע"'));
+  it('the follow-up marks are folded too: the title says the mark that is set and its day; a press opens the six', () => {
+    const later = card(detail({ lead: lead(), live_test: false, followup: { status: 'later', status_label: 'בזמן אחר', due: '2026-10-24' } }));
+    const title = later.slice(later.indexOf('aria-label="מעקב"'), later.indexOf('aria-label="סטטוסים"'));
+    expect(title).toContain('בזמן אחר · לחזור ב-24.10');
+    expect(title).not.toContain('aria-label="סימון מעקב"');
+    // Nothing set: the title alone.
+    const none = folded.slice(folded.indexOf('aria-label="מעקב"'), folded.indexOf('aria-label="סטטוסים"'));
+    expect(none).not.toContain(s.foldHint);
+
+    const open = card(detail({ lead: lead(), live_test: false }), { defaultOpen: ['followup'] });
+    const marks = open.slice(open.indexOf('aria-label="מעקב"'), open.indexOf('aria-label="סטטוסים"'));
     for (const label of ['לחזור אליו', 'לא ענה', 'ענה', 'בזמן אחר', 'נרשם', 'לא רלוונטי']) expect(marks).toContain(label);
     expect(marks).toContain(s.marksRow);
+    expect(open.match(/aria-expanded="true"/g)).toHaveLength(1);
   });
 });
 
-describe('"מצב" at the top of the card — the direction', () => {
+describe('"מה עכשיו" at the top of the card — the direction', () => {
   it('with a lead state: the tag, how long, why in a sentence, and what to do in bold', () => {
     const html = card(detail({ lead: lead() }));
-    const state = html.slice(html.indexOf('aria-label="מצב"'), html.indexOf('aria-label="פעולות"'));
+    const state = html.slice(html.indexOf('aria-label="מה עכשיו"'), html.indexOf('aria-label="ילדים וחוגים"'));
     expect(state).toContain('קיבל תשובה ולא נרשם');
     expect(state).toContain('לפני 4 ימים');
     expect(state).toContain('שאל על קפוארה בראש העין לפני 4 ימים. רק הבוט ענה. לא נרשם.');
@@ -247,7 +260,7 @@ describe('"מצב" at the top of the card — the direction', () => {
 
   it('on a server with no lead state: the short "מה ידוע" — the summary, clipped — in its place', () => {
     const html = card(detail());
-    const state = html.slice(html.indexOf('aria-label="מצב"'), html.indexOf('aria-label="פעולות"'));
+    const state = html.slice(html.indexOf('aria-label="מה עכשיו"'), html.indexOf('aria-label="ילדים וחוגים"'));
     expect(state).toContain('מה ידוע');
     expect(state).toContain('שאלה על קפוארה לבן 5.');
     expect(state).toContain(s.stateClamp);
@@ -256,13 +269,13 @@ describe('"מצב" at the top of the card — the direction', () => {
 
   it('on a server with no lead state and nothing known: it says so, and nothing is invented', () => {
     const html = card(detail({ known: { summary: '', topic_label: '', branch_name: '' } }));
-    const state = html.slice(html.indexOf('aria-label="מצב"'), html.indexOf('aria-label="פעולות"'));
+    const state = html.slice(html.indexOf('aria-label="מה עכשיו"'), html.indexOf('aria-label="ילדים וחוגים"'));
     expect(state).toContain('עוד אין מידע על הפנייה הזו.');
   });
 
   it('a lead object that cannot be shown falls back the same way, rather than drawing an empty block', () => {
     const html = card(detail({ lead: { ...lead(), group: 'nonsense' as never } }));
-    const state = html.slice(html.indexOf('aria-label="מצב"'), html.indexOf('aria-label="פעולות"'));
+    const state = html.slice(html.indexOf('aria-label="מה עכשיו"'), html.indexOf('aria-label="ילדים וחוגים"'));
     expect(state).toContain('שאלה על קפוארה לבן 5.');
     expect(state).not.toContain('מה עושים');
   });

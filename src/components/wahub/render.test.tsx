@@ -345,7 +345,7 @@ describe('the contact panel', () => {
   const html = panel();
 
   it('says what is known in short at the top, and keeps the whole of it a press away', () => {
-    // On a server with no lead state yet, "מצב" is the summary and the day he asked to be called back.
+    // On a server with no lead state yet, "מה עכשיו" is the summary and the day he asked to be called back.
     expect(html).toContain('מה ידוע');
     expect(html).toContain('שאלה על קפוארה לבן 5.');
     expect(html).toContain('הגיע הזמן לחזור');
@@ -361,22 +361,28 @@ describe('the contact panel', () => {
     expect(open).toContain('סכם מחדש');
   });
 
-  it('shows what was found in Kogo, with a link to each child and a re-check', () => {
-    expect(html).toContain('במערכת');
-    expect(html).toContain('עשה ניסיון ולא נרשם');
-    expect(html).toContain('ניסיון ב-2.10, הגיע');
-    expect(html).toContain('נועם כהן');
-    expect(html).toContain('href="/customers?child=31"');
-    expect(html).toContain('בדוק שוב');
+  it('shows what was found in Kogo — the answer, each child with its own link — and a re-check', () => {
+    const kids = html.slice(html.indexOf('aria-label="ילדים וחוגים"'), html.indexOf('aria-label="מה ידוע"'));
+    // No lead state: "מה עכשיו" says nothing of Kogo, so the answer and its sentence are said here.
+    expect(kids).toContain('עשה ניסיון ולא נרשם');
+    expect(kids).toContain('ניסיון ב-2.10, הגיע');
+    expect(kids).toContain('נועם כהן');
+    expect(kids).toContain('ביצע ניסיון');
+    expect(kids).toContain('href="/customers?child=31"');
+    expect(kids).toContain('aria-label="לכרטיס הלקוח של נועם כהן"');
+    expect(kids).toContain('בדוק שוב');
   });
 
-  it('shows the six marks, the one that is set, and its day', () => {
+  it('keeps the six marks a press away: the title says the one that is set and its day', () => {
+    expect(html).toMatch(/מעקב<\/span><span[^>]*>בזמן אחר · לחזור ב-24\.10<\/span>/);
+    expect(html).not.toContain('aria-pressed="true"');
+    const open = panel(['followup']);
     for (const label of ['לחזור אליו', 'לא ענה', 'ענה', 'בזמן אחר', 'נרשם', 'לא רלוונטי']) {
-      expect(html).toContain(label);
+      expect(open).toContain(label);
     }
-    expect(html.match(/aria-pressed="true"/g)).toHaveLength(1);
-    expect(html).toContain('value="2026-10-24"');
-    expect(html).toContain('לחזור ב-24.10');
+    expect(open.match(/aria-pressed="true"/g)).toHaveLength(1);
+    expect(open).toContain('value="2026-10-24"');
+    expect(open).toContain('לחזור ב-24.10');
   });
 
   it('has the note, the tags and the history as titles, each open on a press', () => {

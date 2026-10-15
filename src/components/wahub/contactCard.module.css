@@ -1,0 +1,125 @@
+/*
+ * The contact's card (docs/WAHUB-CONTRACT-LAYOUT.md, ב) — "ילדים וחוגים" (ב.3):
+ * a child a block — the name and its status on one line, the way to the
+ * child's card at its end — and under it each class in one short line, the
+ * class itself in bold. Built on the section's own variables
+ * (wahub.module.css); the rows come in with the section's own stagger
+ * (motion.module.css), which "reduce motion" turns off.
+ */
+
+.said {
+  margin: 0 0 10px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+  font-size: var(--t-body);
+  line-height: 1.5;
+  color: var(--ink);
+}
+
+.kids {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.kidHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+}
+
+.kidName {
+  min-width: 0;
+  font-size: var(--t-body);
+  font-weight: 700;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+
+/* "לכרטיס הלקוח" beside each child: quiet, at the end of its line — the child's own card, a press away. */
+.kidLink {
+  margin-inline-start: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: var(--t-meta);
+  font-weight: 600;
+  color: var(--navy-ink);
+  white-space: nowrap;
+  text-decoration: none;
+  transition: transform var(--m-press, 120ms) var(--m-out, ease-out);
+}
+
+.kidLink:hover {
+  text-decoration: underline;
+}
+
+.kidLink:active {
+  transform: scale(0.97);
+}
+
+.kidLink svg {
+  width: 14px;
+  height: 14px;
+  flex: none;
+}
+
+.classes {
+  margin: 6px 0 0;
+  padding: 0;
+  padding-inline-start: 10px;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  border-inline-start: 2px solid var(--lav);
+}
+
+.classLine {
+  margin: 0;
+  font-size: var(--t-body);
+  line-height: 1.45;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+.classLine b {
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.when {
+  white-space: nowrap;
+}
+
+.classNote {
+  display: inline-flex;
+  margin-inline-end: 6px;
+  vertical-align: 1px;
+}
+
+.recheck {
+  margin-top: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+/*
+ * "מה עכשיו" with nothing to do (a customer, a trial booked): the state itself is the one large line, in place of
+ * a small tag — the important thing first, and large. Doubled, so it wins over the pill's own size wherever the
+ * two stylesheets land.
+ */
+.stageLead.stageLead {
+  font-family: var(--font-display, inherit);
+  font-size: var(--t-title);
+  font-weight: 700;
+  padding: 6px 12px;
+}

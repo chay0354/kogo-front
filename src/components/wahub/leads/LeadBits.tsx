@@ -4,6 +4,7 @@ import { leadDaysText, leadStageLabel, leadTone, temperatureLabel } from '@/lib/
 import type { WahubLead, WahubLeadTemperature } from '@/types/wahub';
 import { StageHelp, stageHelpText } from '../shared/StageHelp';
 import { PILL_TONE, cx } from '../shared/tones';
+import c from '../contactCard.module.css';
 import s from '../wahub.module.css';
 
 /**
@@ -20,12 +21,13 @@ export function LeadStageTag({
   lead: Pick<WahubLead, 'stage' | 'stage_label' | 'group'>;
   /** The person asked for a human: "שאל ולא קיבל תשובה" then wears the red of that request. */
   needsHuman?: boolean;
-  size?: 'pill' | 'row';
+  /** `lead` — the large one, where the state is the one thing a block says (the card's "מה עכשיו" with nothing to do). */
+  size?: 'pill' | 'row' | 'lead';
 }) {
   const label = leadStageLabel(lead);
   const tag = (
     <span
-      className={cx(size === 'row' ? s.rowTag : s.pill, PILL_TONE[leadTone(lead, needsHuman)], s.stageTag)}
+      className={cx(size === 'row' ? s.rowTag : s.pill, PILL_TONE[leadTone(lead, needsHuman)], s.stageTag, size === 'lead' && c.stageLead)}
       title={size === 'row' ? stageHelpText(lead.stage, label) || undefined : undefined}
     >
       {label}
@@ -58,9 +60,21 @@ export function TemperatureDot({ temperature }: { temperature: WahubLeadTemperat
 /**
  * "הכיוון": what to do — the line the eye should land on, and so the first and
  * the largest — then the state, and one sentence why. Used at the top of the
- * contact's card. With nothing to do, the state leads and a quiet line says so.
+ * contact's card ("מה עכשיו"). With nothing to do, the state itself is the
+ * large line, and a quiet line says so.
  */
-export function LeadStateBlock({ lead, needsHuman, now }: { lead: WahubLead; needsHuman: boolean; now: Date }) {
+export function LeadStateBlock({
+  lead,
+  needsHuman,
+  now,
+  reason = lead.reason,
+}: {
+  lead: WahubLead;
+  needsHuman: boolean;
+  now: Date;
+  /** The sentence why, as the card says it — without what the card says below it (the children's names). */
+  reason?: string;
+}) {
   const days = leadDaysText(lead, now);
   return (
     <div className={s.stateBox}>
@@ -71,13 +85,13 @@ export function LeadStateBlock({ lead, needsHuman, now }: { lead: WahubLead; nee
         </p>
       )}
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-        <LeadStageTag lead={lead} needsHuman={needsHuman} />
+        <LeadStageTag lead={lead} needsHuman={needsHuman} size={lead.next_step ? 'pill' : 'lead'} />
         {days && <span className={s.stateDays}>{days}</span>}
         <TemperatureDot temperature={lead.temperature} />
       </div>
-      {lead.reason && (
+      {reason && (
         <p className={s.stateWhy} dir="auto">
-          {lead.reason}
+          {reason}
         </p>
       )}
       {!lead.next_step && lead.group === 'wait' && <p className={s.stateIdle}>אין מה לעשות עכשיו.</p>}

@@ -247,11 +247,36 @@ export interface WahubKnown {
   analysis_source: 'ai' | 'rules' | '';
 }
 
+/**
+ * A class a child is in now, as the card names it (kogo-back apps/wahub/matching.py, `classes_of`): a registration
+ * that counts the child on the lesson, or a trial still ahead (`trial_on`). `ages` is the course's range in a
+ * parent's words ("גיל 4.5-6", "כיתות א–ב"); '' when the course has none.
+ */
+export interface WahubKogoChildClass {
+  lesson_id?: string;
+  course_id?: string;
+  course: string;
+  course_type: string;
+  day: string;
+  start: string;
+  end: string;
+  branch: string;
+  city: string;
+  instructor: string;
+  ages: string;
+  /** YYYY-MM-DD for a trial ahead; null for a registration. */
+  trial_on: string | null;
+  /** The registration's own: 'active', or 'payments_problem' (a billing flag — the child is still on the lesson). */
+  status: string;
+}
+
 export interface WahubKogoChild {
   id: number | string;
   name: string;
   status: string;
   status_label: string;
+  /** Only on a single contact, from a server that sends them; one child once, its duplicate cards folded into it. */
+  classes?: WahubKogoChildClass[];
 }
 
 /** The cross-check against the registrations in Kogo. */
