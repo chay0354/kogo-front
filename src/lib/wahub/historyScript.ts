@@ -18,12 +18,13 @@ export const HISTORY_FILE_NAME = 'kogo-manychat-history.json';
 export const HISTORY_FILE_KIND = 'kogo-manychat-history';
 
 export const MANYCHAT_SCRIPT = `(async function () {
-  var ACCOUNT = '/fb5259597';
   var say = function (text) { console.log('%cKogo%c ' + text, 'color:#fff;background:#5b4bd5;padding:2px 6px;border-radius:4px', ''); };
-  if (location.origin !== 'https://app.manychat.com' || location.pathname.indexOf(ACCOUNT) !== 0) {
-    say('צריך להריץ את זה בתוך ManyChat, בחשבון של קוגומלו');
+  var account = (location.pathname.split('/')[1] || '').toLowerCase();
+  if (!/(^|\\.)manychat\\.com$/i.test(location.hostname) || account !== 'fb5259597') {
+    say('צריך להריץ את זה בלשונית של ManyChat, בחשבון של קוגומלו. הכתובת של הלשונית הזאת: ' + location.href);
     return;
   }
+  var ACCOUNT = '/' + account;
   var wait = function (ms) { return new Promise(function (done) { setTimeout(done, ms); }); };
   var init = window.__INIT__ || {};
   var csrf = init['app.csrf_token'] || (init.app && init.app.csrf_token) || '';

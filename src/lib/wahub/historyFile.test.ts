@@ -78,7 +78,8 @@ async function runScript(origin = 'https://app.manychat.com', pathname = '/fb525
     'window', 'location', 'XMLHttpRequest', 'fetch', 'document', 'Blob', 'URL', 'console', 'setTimeout',
     `return ${MANYCHAT_SCRIPT}`,
   );
-  await run(window, { origin, pathname }, XMLHttpRequest, fetch, document, FakeBlob, URLish, console, setTimeout);
+  const address = new URL(pathname, origin);
+  await run(window, { origin, pathname, hostname: address.hostname, href: address.href }, XMLHttpRequest, fetch, document, FakeBlob, URLish, console, setTimeout);
   return { downloads, logs, calls };
 }
 
@@ -109,11 +110,19 @@ describe('the lines pasted in ManyChat', () => {
     expect(new Set(one.messages.map((line: { id: string }) => line.id)).size).toBe(6);
   });
 
-  it('outside ManyChat they do nothing', async () => {
-    const { downloads, calls, logs } = await runScript('https://example.com', '/');
-    expect(downloads).toHaveLength(0);
-    expect(calls).toHaveLength(0);
-    expect(logs.join(' ')).toContain('בתוך ManyChat');
+  it('outside ManyChat, or in another account of it, they do nothing and say which address they saw', async () => {
+    for (const [origin, pathname] of [['https://example.com', '/'], ['https://app.manychat.com', '/fb1111/inbox'], ['https://notmanychat.com', '/fb5259597/inbox']]) {
+      const { downloads, calls, logs } = await runScript(origin, pathname);
+      expect(downloads).toHaveLength(0);
+      expect(calls).toHaveLength(0);
+      expect(logs.join(' ')).toContain(`הכתובת של הלשונית הזאת: ${origin}${pathname}`);
+    }
+  });
+
+  it('any page of the account will do', async () => {
+    for (const pathname of ['/fb5259597/chat/123', '/fb5259597/dashboard', '/FB5259597/inbox']) {
+      expect((await runScript('https://app.manychat.com', pathname)).downloads).toHaveLength(1);
+    }
   });
 });
 
