@@ -245,9 +245,18 @@ export default function CardLinkPage() {
                         <span className={styles.totalAmount}>{formatShekels(preview.first_charge || 0)}</span>
                       </div>
                       <div className={styles.row}>
-                        <span className={styles.rowLabel}>סכום חודשי</span>
+                        <span className={styles.rowLabel}>{preview.split ? 'החלק שלך בכל חודש' : 'סכום חודשי'}</span>
                         <span className={styles.rowValue}>{formatShekels(preview.monthly_amount || 0)}</span>
                       </div>
+                      {/* A parent who pays a part (owner, 15.10.2026): of what, and that the rest is paid apart. */}
+                      {preview.split ? (
+                        <div className={styles.row}>
+                          <span className={styles.rowLabel}>
+                            מתוך {formatShekels(preview.split.monthly_total)} — התשלום מחולק בין {preview.split.parts} משלמים
+                          </span>
+                          <span className={styles.rowValue}>{preview.split.payer_name}</span>
+                        </div>
+                      ) : null}
                       {Number(preview.registration_fee) > 0 ? (
                         <div className={styles.row}>
                           <span className={styles.rowLabel}>כולל דמי רישום</span>

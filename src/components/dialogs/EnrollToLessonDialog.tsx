@@ -6,6 +6,7 @@ import { X } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import api from '@/lib/api';
 import SubscriptionPaymentDialog from './SubscriptionPaymentDialog';
+import SplitPaymentDialog from './SplitPaymentDialog';
 import RegisterCashDialog from '@/components/dialogs/RegisterCashDialog';
 import RegisterChecksDialog from '@/app/(crm)/invoices/RegisterChecksDialog';
 import dialogMotion from '@/components/ui/motion.module.css';
@@ -128,6 +129,7 @@ export default function EnrollToLessonDialog({ child, isOpen, onClose: dismiss, 
   const [paymentModalOpen, setPaymentModalOpen] = useState(false);
   const [cashDialogOpen, setCashDialogOpen] = useState(false);
   const [checksDialogOpen, setChecksDialogOpen] = useState(false);
+  const [splitOpen, setSplitOpen] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
@@ -823,6 +825,18 @@ export default function EnrollToLessonDialog({ child, isOpen, onClose: dismiss, 
               >
                 רישום במזומן
               </button>
+              {/* Parents who each pay a part (owner, 15.10.2026): a card link per payer.
+                  One lesson or a track — a course whose days are not a track is split per lesson
+                  from "קישור להזנת כרטיס". */}
+              <button
+                type="button"
+                onClick={() => setSplitOpen(true)}
+                className="btn-secondary"
+                disabled={loading || !canEnroll || !(activeBundle || lessons.length === 1)}
+                title={activeBundle || lessons.length === 1 ? 'כל הורה מקבל קישור ומשלם את החלק שלו' : 'לקבוצה כמה ימים בלי מסלול — אפשר לחלק דרך "קישור להזנת כרטיס"'}
+              >
+                תשלום מחולק
+              </button>
               <button
                 type="button"
                 onClick={handleSubscriptionRegistration}
@@ -853,6 +867,19 @@ export default function EnrollToLessonDialog({ child, isOpen, onClose: dismiss, 
         />
       )}
 
+      {splitOpen && selectedCourseDetails ? (
+        <SplitPaymentDialog
+          open={splitOpen}
+          onOpenChange={setSplitOpen}
+          child={child}
+          unit={
+            activeBundle
+              ? { bundleId: activeBundle.id, label: `${selectedCourseDetails.name} · ${activeBundle.name || 'מסלול משולב'}`, includeFee: true }
+              : { lessonId: lessons[0]?.id, label: selectedCourseDetails.name, includeFee: true }
+          }
+          onDone={onEnroll}
+        />
+      ) : null}
       <RegisterCashDialog
         open={cashDialogOpen}
         onOpenChange={setCashDialogOpen}

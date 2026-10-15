@@ -21,6 +21,7 @@ import {
   Users,
 } from 'lucide-react';
 import { childDiscounts } from '@/lib/childDiscounts';
+import SplitPaymentDialog from '@/components/dialogs/SplitPaymentDialog';
 
 import { ChildWithDetails, AbsenceRecord, EnrollmentDetail } from '@/types/customer';
 import { formatWhatsAppLink, formatHebrewDate, formatEnrollmentSlot, groupEnrollmentsForTable } from '@/lib/customerUtils';
@@ -636,6 +637,7 @@ export default function ChildProfileDialog({
   const [downloadingKeys, setDownloadingKeys] = useState<string[]>([]);
   const downloadsInFlight = useRef(new Set<string>());
   const [editingStandingOrder, setEditingStandingOrder] = useState<any | null>(null);
+  const [splittingOrder, setSplittingOrder] = useState<any | null>(null);
   const [dropGroup, setDropGroup] = useState<{
     courseName: string;
     slots: EnrollmentDetail[];
@@ -1802,6 +1804,12 @@ export default function ChildProfileDialog({
                                         || '-'}
                                       <GroupIdBadge displayId={recurring.initial_payment_details?.lesson_course_display_id} />
                                       {recurring.from_other_card && <OtherCardMark />}
+                                      {recurring.split ? (
+                                        <div className="mt-0.5 text-xs text-violet-700">
+                                          {recurring.split.payer_name} · משלם/ת {recurring.split.position} מתוך {recurring.split.parts}
+                                          {' · סה״כ '}{formatShekel(recurring.split.monthly_total)}
+                                        </div>
+                                      ) : null}
                                     </td>
                                     <td className="p-3 font-medium whitespace-nowrap">
                                       {formatShekel(recurring.amount)}
@@ -1844,6 +1852,18 @@ export default function ChildProfileDialog({
                                             <Pencil className="h-3 w-3 ml-1" />
                                             ערוך
                                           </Button>
+                                          {/* Parents who each pay a part (owner, 15.10.2026). */}
+                                          {!recurring.split && !recurring.from_other_card ? (
+                                            <Button
+                                              size="sm"
+                                              variant="outline"
+                                              onClick={() => setSplittingOrder(recurring)}
+                                              title="חלוקת הוראת הקבע בין כמה משלמים"
+                                            >
+                                              <Users className="h-3 w-3 ml-1" />
+                                              חלוקה
+                                            </Button>
+                                          ) : null}
                                           <Button
                                             size="sm"
                                             variant="outline"
@@ -2012,6 +2032,19 @@ export default function ChildProfileDialog({
         paymentId={refundItem.type === 'payment' ? refundItem.id : null}
       />
     )}
+    {splittingOrder ? (
+      <SplitPaymentDialog
+        open={Boolean(splittingOrder)}
+        onOpenChange={(open) => { if (!open) setSplittingOrder(null); }}
+        child={child}
+        standingOrder={{
+          id: splittingOrder.id,
+          label: splittingOrder.initial_payment_details?.lesson_name || splittingOrder.initial_payment_details?.description || '',
+          amount: String(splittingOrder.amount),
+        }}
+        onDone={fetchPaymentData}
+      />
+    ) : null}
     <EditStandingOrderDialog
       order={editingStandingOrder}
       isOpen={Boolean(editingStandingOrder)}
