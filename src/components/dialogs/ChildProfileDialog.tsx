@@ -23,7 +23,7 @@ import {
 import { childDiscounts } from '@/lib/childDiscounts';
 
 import { ChildWithDetails, AbsenceRecord, EnrollmentDetail } from '@/types/customer';
-import { formatWhatsAppLink, formatHebrewDate, formatEnrollmentSlot, groupEnrollmentsForTable } from '@/lib/customerUtils';
+import { formatWhatsAppLink, formatHebrewDate, formatEnrollmentSlot, groupEnrollmentsForTable, swappedDayTitle } from '@/lib/customerUtils';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogCloseButton } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
@@ -1495,7 +1495,7 @@ export default function ChildProfileDialog({
                                   </span>
                                 </div>
                               </td>
-                              <td>{group.slots.map((slot) => formatEnrollmentSlot(slot)).filter(Boolean).join(' · ') || '-'}</td>
+                              <td>{group.slots.map((slot) => [formatEnrollmentSlot(slot), slot.swapped_day ? `(${swappedDayTitle(slot)})` : ''].filter(Boolean).join(' ')).filter(Boolean).join(' · ') || '-'}</td>
                               <td>{first?.branch_name || '-'}</td>
                               <td>{first?.instructor_name || '-'}</td>
                               <td>

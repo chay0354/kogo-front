@@ -15,6 +15,11 @@ export interface EnrollmentDetail {
   instructor_name: string | null;
   status: string;
   bundle_id?: string | null;
+  /** The track (twice/thrice a week) this row belongs to — its own group, which a swapped day is not on. */
+  track_course_id?: string | null;
+  track_course_name?: string | null;
+  /** A day of the track swapped for another group's lesson; the price and the standing order did not change. */
+  swapped_day?: boolean;
   trial_lesson_date?: string | null;
   /** Set once the trial date passed: attended / no_show / unmarked. */
   trial_outcome?: 'attended' | 'no_show' | 'unmarked' | null;
