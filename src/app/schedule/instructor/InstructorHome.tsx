@@ -28,6 +28,7 @@ import {
 import { fetchLinkedUsers, fetchMyBranches, type LinkedUser } from '@/lib/api';
 import type { Lesson } from '@/types/schedule';
 import InstructorAttendance from './InstructorAttendance';
+import { groupSameHour, partnersOf } from './sameHour';
 import InstructorDashboard from './InstructorDashboard';
 import { INSTRUCTOR_MOTION_MS, resolveInstructorMotionDelay } from './instructorMotion';
 import { useInstructorBack, type InstructorBackLayer } from './instructorBack';
@@ -220,6 +221,8 @@ export default function InstructorHome() {
     () => (branchId === 'all' ? lessons : lessons.filter((lesson) => lesson.branch_id === branchId)),
     [lessons, branchId],
   );
+  // Groups taught together at one hour make one card (owner, 15.10.2026).
+  const slots = useMemo(() => groupSameHour(visibleLessons), [visibleLessons]);
 
   const highlightId = useMemo(
     () => findCurrentOrNextLessonId(visibleLessons, selectedDate),
@@ -738,7 +741,7 @@ export default function InstructorHome() {
           </div>
 
           <div className={styles.carouselRow} data-tour="lessons">
-            {visibleLessons.length > 1 && (
+            {slots.length > 1 && (
               <button
                 type="button"
                 className={styles.carouselArrow}
@@ -757,13 +760,16 @@ export default function InstructorHome() {
                     <div className={styles.slotSkeleton} style={{ animationDelay: `${i * 90}ms` }} />
                   </div>
                 ))}
-              {visibleLessons.map((lesson) => {
+              {slots.map(({ primary: lesson, partners }) => {
                 const isCurrent = isLessonNow(lesson, selectedDate);
-                const complete = Boolean(lesson.attendance_complete);
-                const highlighted = highlightId === lesson.id;
-                const selected = isSelected(lesson);
-                const trialStudentCount = lesson.trial_student_count ?? 0;
-                const activeStudentCount = activeCount(lesson, trialStudentCount);
+                const complete = [lesson, ...partners].every((l) => Boolean(l.attendance_complete));
+                const highlighted = highlightId === lesson.id || partners.some((p) => p.id === highlightId);
+                const selected = isSelected(lesson) || partners.some(isSelected);
+                const trialStudentCount = [lesson, ...partners].reduce((sum, l) => sum + (l.trial_student_count ?? 0), 0);
+                const activeStudentCount = [lesson, ...partners].reduce(
+                  (sum, l) => sum + activeCount(l, l.trial_student_count ?? 0),
+                  0,
+                );
                 return (
                   <div
                     key={`${lesson.id}-${lesson.lesson_date}`}
@@ -777,7 +783,10 @@ export default function InstructorHome() {
                       onClick={() => openLesson(lesson)}
                     >
                       <div className={styles.slotTime}>{formatTime(lesson.start_time)}</div>
-                      <div className={styles.slotGroup}>{shortGroupLabel(lesson)}</div>
+                      <div className={styles.slotGroup}>
+                        {shortGroupLabel(lesson)}
+                        {partners.length > 0 ? ` +${partners.length}` : ''}
+                      </div>
                       <div className={styles.slotCounts} aria-label={`${activeStudentCount} רשומים, ${trialStudentCount} תלמידי ניסיון`}>
                         <span title="רשומים">
                           <Users size={13} aria-hidden="true" />
@@ -796,7 +805,7 @@ export default function InstructorHome() {
                 );
               })}
             </div>
-            {visibleLessons.length > 1 && (
+            {slots.length > 1 && (
               <button
                 type="button"
                 className={styles.carouselArrow}
@@ -838,20 +847,27 @@ export default function InstructorHome() {
             {!isLoading && !error && visibleLessons.length === 0 && (
               <div className={styles.empty}>אין שיעורים ביום זה</div>
             )}
-            {visibleLessons.map((lesson) => {
-              const trialStudentCount = lesson.trial_student_count ?? 0;
-              const activeStudentCount = activeCount(lesson, trialStudentCount);
+            {slots.map(({ primary: lesson, partners }) => {
+              const together = [lesson, ...partners];
+              const trialStudentCount = together.reduce((sum, l) => sum + (l.trial_student_count ?? 0), 0);
+              const activeStudentCount = together.reduce((sum, l) => sum + activeCount(l, l.trial_student_count ?? 0), 0);
+              const allMarked = together.every((l) => Boolean(l.attendance_complete));
               return (
                 <button
                   key={`${lesson.id}-${lesson.lesson_date}-row`}
                   type="button"
-                  className={`${styles.card} ${lesson.status === 'cancelled' ? styles.cardCancelled : ''} ${isSelected(lesson) ? styles.cardSelected : ''}`}
+                  className={`${styles.card} ${lesson.status === 'cancelled' ? styles.cardCancelled : ''} ${together.some(isSelected) ? styles.cardSelected : ''}`}
                   onClick={() => openLesson(lesson)}
                 >
                   <div className={styles.cardMain}>
                     <ChevronRight className={styles.cardChevron} size={22} strokeWidth={2.5} />
                     <div className={styles.cardText}>
                       <div className={styles.cardTitle}>{lessonTitle(lesson)}</div>
+                      {partners.length > 0 && (
+                        <div className={styles.cardTogether}>
+                          יחד עם {partners.map((partner) => lessonTitle(partner)).join(' · ')}
+                        </div>
+                      )}
                       <div className={styles.cardMetaRow}>
                         <div className={styles.cardTime}>
                           <Clock size={14} />
@@ -871,7 +887,7 @@ export default function InstructorHome() {
                     </div>
                   </div>
                   <div className={styles.statusCol}>
-                    {lesson.attendance_complete ? (
+                    {allMarked ? (
                       <Check className={styles.ok} size={26} strokeWidth={3} />
                     ) : (
                       <ChevronRight className={styles.cardChevron} size={22} strokeWidth={2.5} />
@@ -891,6 +907,7 @@ export default function InstructorHome() {
                 key={`${selectedLesson.id}-${selectedLesson.lesson_date}`}
                 embedded
                 lesson={selectedLesson}
+                partners={partnersOf(selectedLesson, visibleLessons)}
                 onBack={closeAttendance}
                 asUser={viewAs === 'self' ? undefined : viewAs}
                 onOverlayChange={handleAttendanceOverlay}
