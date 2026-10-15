@@ -183,7 +183,7 @@ describe('the card beside the conversation on a desktop', () => {
 
   it('the button stands in the card\'s first section, before everything else in it', () => {
     const html = render(screen());
-    const who = html.slice(html.indexOf('aria-label="מי"'), html.indexOf('aria-label="מצב"'));
+    const who = html.slice(html.indexOf('aria-label="מי"'), html.indexOf('aria-label="מה עכשיו"'));
     expect(who).toContain('aria-label="הסתר כרטיס"');
     expect(who).toContain('<span>הסתר כרטיס</span>');
   });

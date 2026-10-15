@@ -3,9 +3,10 @@
 import { useEffect, useId, useState, type ReactNode } from 'react';
 import { ArrowRight, CalendarClock, Check, ChevronDown, Hand, MessageCircle, PanelLeftClose, Pencil, Plus, Undo2, X } from 'lucide-react';
 import { formatWhatsAppLink } from '@/lib/customerUtils';
+import { kogoLines, withoutChildNames } from '@/lib/wahub/childClasses';
 import { customerCardFor } from '@/lib/wahub/customerCard';
 import { isDemoContact } from '@/lib/wahub/demo';
-import { callbackLine } from '@/lib/wahub/followup';
+import { callbackLine, followupDueLine } from '@/lib/wahub/followup';
 import { displayName, formatShortDate, hasName } from '@/lib/wahub/format';
 import { futureOf, knowsFutureLeads, waitingOf } from '@/lib/wahub/futureLeads';
 import { knownHeadline, leadOf } from '@/lib/wahub/leadStage';
@@ -30,9 +31,9 @@ import x from '../search.module.css';
 
 /**
  * The sections of the card that open on a press, in the order they stand
- * (docs/WAHUB-CONTRACT-LAYOUT.md, ב.6).
+ * (docs/WAHUB-CONTRACT-LAYOUT.md, ב.5).
  */
-export type CardFold = 'known' | 'tags' | 'notes' | 'statuses' | 'history' | 'liveTest';
+export type CardFold = 'known' | 'tags' | 'notes' | 'followup' | 'statuses' | 'history' | 'liveTest';
 
 interface ContactPanelProps {
   contact: WahubContactDetail;
@@ -229,8 +230,8 @@ function CardFoldSection({
 }
 
 /**
- * "מצב" on a server that has no lead state yet: what is known, in short — the
- * summary cut to a few lines, and the day he asked to be called back.
+ * "מה עכשיו" on a server that has no lead state yet: what is known, in short —
+ * the summary cut to a few lines, and the day he asked to be called back.
  */
 function KnownShort({ contact, today, now }: { contact: WahubContactDetail; today: string; now: Date }) {
   const headline = knownHeadline(contact.known);
@@ -255,9 +256,12 @@ function KnownShort({ contact, today, now }: { contact: WahubContactDetail; toda
 
 /**
  * The contact's card, in one fixed order (docs/WAHUB-CONTRACT-LAYOUT.md, ב):
- * who — the state and what to do — the actions — what Kogo knows — the
- * office's follow-up mark — and under them the sections that open on a press.
- * The same order beside the conversation on a desktop and on a phone's details screen.
+ * who — what now, in one large line — the children and their classes — the
+ * actions — and under them the sections that open on a press, the office's
+ * follow-up mark among them. Nothing is said twice: what "מה עכשיו" says of
+ * Kogo is not said again over the children, and their names are not said
+ * again in its sentence. The same order beside the conversation on a desktop
+ * and on a phone's details screen.
  */
 export default function ContactPanel({
   contact,
@@ -303,8 +307,16 @@ export default function ContactPanel({
   const offerHandover = !(future && human);
   // "טופל" is the ✓ of the conversation's title row where there is one.
   const offerResolve = contact.chat.needs_human && !knows;
-  // Somebody Kogo knows: one clear button to their card in the customers section, among the actions.
-  const customerCard = customerCardFor(contact);
+  // The children Kogo found, each with its own way to its card. Before they are read (the lists carry the ids
+  // alone), or with none to list, one clear button to the card stands among the actions instead.
+  const children = contact.kogo.children ?? [];
+  const customerCard = children.length ? null : customerCardFor(contact);
+  // "מה עכשיו" and the children under it say each thing once (lib/wahub/childClasses.ts).
+  const kogoSaid = kogoLines(contact, lead);
+  const reason = lead ? withoutChildNames(lead.reason, children) : '';
+  const followupHint = [contact.followup.status_label, followupDueLine(contact.followup, today, now)?.text ?? '']
+    .filter(Boolean)
+    .join(' · ');
   // "ביקש הסר" (ט.1): the mark under the name, with its details a press away; and, for whoever is not on the
   // list, one quiet line under the actions that puts them on it.
   const optedOut = optedOutOf(contact);
@@ -379,10 +391,10 @@ export default function ContactPanel({
         )}
       </section>
 
-      {/* 2. The state — "הכיוון": where this person stands, why, and what to do. */}
-      <CardSection title="מצב">
+      {/* 2. What now — "הכיוון", one large line: what to do, or where this person stands; then why. */}
+      <CardSection title="מה עכשיו">
         {lead ? (
-          <LeadStateBlock lead={lead} needsHuman={contact.chat.needs_human} now={now} />
+          <LeadStateBlock lead={lead} needsHuman={contact.chat.needs_human} now={now} reason={reason} />
         ) : (
           <KnownShort contact={contact} today={today} now={now} />
         )}
@@ -408,7 +420,12 @@ export default function ContactPanel({
         )}
       </CardSection>
 
-      {/* 3. The actions, in one row. */}
+      {/* 3. The children and their classes: each child once, by name and status, its classes one line each. */}
+      <CardSection title="ילדים וחוגים">
+        <KogoBox contact={contact} now={now} onRecheck={onRecheck} rechecking={rechecking} lines={kogoSaid} />
+      </CardSection>
+
+      {/* 4. The actions, in one row. */}
       {(hasButtons || canMarkOut) && (
         <CardSection title="פעולות">
           {hasButtons && (
@@ -443,17 +460,7 @@ export default function ContactPanel({
         </CardSection>
       )}
 
-      {/* 4. In Kogo: registered or not, where, and the children by name. */}
-      <CardSection title="במערכת">
-        <KogoBox contact={contact} now={now} onRecheck={onRecheck} rechecking={rechecking} />
-      </CardSection>
-
-      {/* 5. The office's own mark. */}
-      <CardSection title="מעקב">
-        <FollowupMarks contact={contact} today={today} now={now} onChange={onFollowup} showBy compact />
-      </CardSection>
-
-      {/* 6. A title each; the details are a press away. */}
+      {/* 5. A title each; the details are a press away. */}
       <CardFoldSection title="מה ידוע" open={open.has('known')} onToggle={() => toggle('known')}>
         <KnownBox contact={contact} today={today} now={now} onAnalyze={onAnalyze} analyzing={analyzing} bare />
       </CardFoldSection>
@@ -484,6 +491,17 @@ export default function ContactPanel({
           <NoteField contact={contact} onSave={(text) => onFollowup({ note: text })} rows={3} />
         </CardFoldSection>
       )}
+
+      {/* The office's own mark: its word and its day beside the title; the six marks a press away. */}
+      <CardFoldSection
+        title="מעקב"
+        hint={followupHint || undefined}
+        hintTone={contact.followup.is_due ? 'warn' : undefined}
+        open={open.has('followup')}
+        onToggle={() => toggle('followup')}
+      >
+        <FollowupMarks contact={contact} today={today} now={now} onChange={onFollowup} showBy compact />
+      </CardFoldSection>
 
       <CardFoldSection title="סטטוסים" open={open.has('statuses')} onToggle={() => toggle('statuses')}>
         <ContactStatusList contact={contact} now={now} shadow={shadow} />

@@ -6,7 +6,7 @@ import {
   Ban,
   CalendarClock,
   Check,
-  ExternalLink,
+  Contact,
   MessageCircleReply,
   PhoneCall,
   PhoneMissed,
@@ -19,6 +19,8 @@ import { toast } from 'sonner';
 import { useQueryClient } from '@tanstack/react-query';
 import { readableError } from '@/lib/apiError';
 import type { Tone } from '@/lib/wahub/boxes';
+import { classHasBillingNote, classParts, classesOf, childTone, kogoLines, trialOnText } from '@/lib/wahub/childClasses';
+import { CUSTOMER_CARD_HINT, CUSTOMER_CARD_LABEL, childCardHref } from '@/lib/wahub/customerCard';
 import {
   FOLLOWUP_MARKS,
   callbackLine,
@@ -33,10 +35,13 @@ import type {
   WahubContact,
   WahubEvent,
   WahubFollowupPatch,
+  WahubKogoChild,
   WahubOutcome,
   WahubTag,
 } from '@/types/wahub';
 import { wahubKeys } from '../hooks/useWahubQueries';
+import c from '../contactCard.module.css';
+import m from '../motion.module.css';
 import s from '../wahub.module.css';
 import { Pill, Spinner, TagChip } from './bits';
 import { cx } from './tones';
@@ -176,63 +181,114 @@ export function OutcomeChip({ contact }: { contact: WahubContact }) {
   );
 }
 
+/**
+ * One child Kogo found: the name and its status, the way to the child's own card, and under it each class the
+ * child is in now — one line each, the class in bold; a trial ahead says its day first.
+ */
+function ChildRow({ child, now }: { child: WahubKogoChild; now: Date }) {
+  const href = childCardHref(child.id);
+  const classes = classesOf(child);
+  const name = child.name || 'ללא שם';
+  return (
+    <li>
+      <div className={c.kidHead}>
+        <span className={c.kidName} dir="auto">
+          {name}
+        </span>
+        {child.status_label && <Pill tone={childTone(child.status)}>{child.status_label}</Pill>}
+        {href && (
+          <Link href={href} title={CUSTOMER_CARD_HINT} aria-label={`${CUSTOMER_CARD_LABEL} של ${name}`} className={c.kidLink}>
+            <Contact aria-hidden="true" />
+            {CUSTOMER_CARD_LABEL}
+          </Link>
+        )}
+      </div>
+      {classes.length > 0 && (
+        <ul className={c.classes} aria-label={`החוגים של ${name}`}>
+          {classes.map((row, index) => {
+            const { title, when, rest } = classParts(row);
+            const trial = trialOnText(row, now);
+            return (
+              <li key={`${row.lesson_id ?? index}-${row.trial_on ?? ''}`} className={c.classLine} dir="auto">
+                {/* The space after a mark keeps the words apart for a screen reader too, not only to the eye. */}
+                {trial && (
+                  <>
+                    <Pill tone="gold" className={c.classNote}>
+                      {trial}
+                    </Pill>{' '}
+                  </>
+                )}
+                {classHasBillingNote(row, child) && (
+                  <>
+                    <Pill tone="danger" className={c.classNote}>
+                      בעיית תשלום
+                    </Pill>{' '}
+                  </>
+                )}
+                {[
+                  title && <b key="title">{title}</b>,
+                  // The day and its hours stay on one line: "17:00–" is never left at the end of one.
+                  when && (
+                    <span key="when" className={c.when}>
+                      {when}
+                    </span>
+                  ),
+                  rest,
+                ]
+                  .filter(Boolean)
+                  .flatMap((part, at) => (at ? [' · ', part] : [part]))}
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </li>
+  );
+}
+
+/**
+ * "ילדים וחוגים" (docs/WAHUB-CONTRACT-LAYOUT.md, ב.3): what the registrations say of the phone — each child once,
+ * with its classes — and "בדוק שוב". The matching's answer and its sentence stand above the children only where
+ * the card's "מה עכשיו" does not already say them (`lines`, lib/wahub/childClasses.ts `kogoLines`).
+ */
 export function KogoBox({
   contact,
   now,
   onRecheck,
   rechecking = false,
+  lines,
 }: {
   contact: WahubContact;
   now: Date;
   onRecheck?: () => void;
   rechecking?: boolean;
+  /** What to say above the children. Absent: as nothing above it said a word of Kogo. */
+  lines?: { outcome: boolean; detail: string };
 }) {
   const { kogo } = contact;
+  // The lists carry the ids alone; the names and the classes come with the single contact.
   const children = kogo.children ?? [];
-  // The lists carry the ids alone; the names come with the single contact.
-  const bareIds = children.length ? [] : kogo.child_ids ?? [];
+  const said = lines ?? kogoLines(contact, null);
 
   return (
     <div>
-      <div className="flex flex-wrap items-center gap-1.5">
-        <OutcomeChip contact={contact} />
-        {kogo.is_customer && <Pill tone="success">לקוח</Pill>}
-      </div>
-      {kogo.detail && <p className="mt-1.5 text-[13.5px] leading-relaxed">{kogo.detail}</p>}
+      {(said.outcome || said.detail) && (
+        <p className={c.said}>
+          {said.outcome && <OutcomeChip contact={contact} />}
+          {said.detail && <span dir="auto">{said.detail}</span>}
+        </p>
+      )}
 
       {children.length > 0 && (
-        <ul className={cx(s.list, '!px-0')}>
+        <ul className={cx(c.kids, m.stagger)}>
           {children.map((child) => (
-            <li key={String(child.id)}>
-              <Link href={`/customers?child=${encodeURIComponent(String(child.id))}`} className={s.listRow}>
-                <span className={cx(s.t1, 'min-w-0 flex-1 truncate')}>{child.name}</span>
-                <span className={cx(s.t2, 'flex shrink-0 items-center gap-1.5')}>
-                  {child.status_label}
-                  <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
-                </span>
-              </Link>
-            </li>
+            <ChildRow key={String(child.id)} child={child} now={now} />
           ))}
         </ul>
       )}
 
-      {bareIds.length > 0 && (
-        <div className="mt-2 flex flex-wrap gap-1.5">
-          {bareIds.map((id, index) => (
-            <Link
-              key={String(id)}
-              href={`/customers?child=${encodeURIComponent(String(id))}`}
-              className={cx(s.btn, s.btnSm)}
-            >
-              <ExternalLink aria-hidden="true" />
-              {bareIds.length > 1 ? `כרטיס הילד ${index + 1}` : 'כרטיס הילד'}
-            </Link>
-          ))}
-        </div>
-      )}
-
       {onRecheck && (
-        <div className="mt-2 flex flex-wrap items-center gap-2">
+        <div className={c.recheck}>
           <button type="button" onClick={onRecheck} disabled={rechecking} className={cx(s.btn, s.btnSm)}>
             {rechecking ? <Spinner className="h-3.5 w-3.5" /> : <RefreshCw aria-hidden="true" />}
             בדוק שוב

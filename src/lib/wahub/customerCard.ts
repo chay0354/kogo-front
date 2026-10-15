@@ -33,6 +33,11 @@ function childPath(id: unknown): string | null {
   return text ? `/customers?child=${encodeURIComponent(text)}` : null;
 }
 
+/** The card of one child Kogo found — each child of the contact's card links to its own; null for no id. */
+export function childCardHref(id: unknown): string | null {
+  return childPath(id);
+}
+
 /** The card of a contact Kogo knows (`kogo.family_id` with a child of the family); null when there is none to open. */
 export function customerCardHref(kogo: Identified | null | undefined): string | null {
   if (!kogo || kogo.family_id == null || String(kogo.family_id).trim() === '') return null;

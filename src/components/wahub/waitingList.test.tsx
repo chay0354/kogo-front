@@ -1097,7 +1097,7 @@ describe('the contact\'s card', () => {
   it('"להוסיף לרשימת המתנה" stands under the state, as a quiet line — not among the conversation\'s actions', () => {
     const html = render(card(knowing(), { onAddWaiting: noop }));
     expect(html).toContain('להוסיף לרשימת המתנה');
-    const state = html.slice(html.indexOf('aria-label="מצב"'), html.indexOf('aria-label="פעולות"'));
+    const state = html.slice(html.indexOf('aria-label="מה עכשיו"'), html.indexOf('aria-label="ילדים וחוגים"'));
     expect(state).toContain('להוסיף לרשימת המתנה');
     expect(state).toContain(w.quietLink);
   });

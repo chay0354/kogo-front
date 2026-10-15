@@ -351,7 +351,7 @@ describe('the conversations open on "פתוחות"', () => {
 describe('"לכרטיס הלקוח" from a conversation', () => {
   it('the contact\'s card carries it, among the actions — one clear button, leading to the customer\'s card', () => {
     const html = card(knowing({ kogo: KNOWN }));
-    const actions = html.slice(html.indexOf('aria-label="פעולות"'), html.indexOf('aria-label="במערכת"'));
+    const actions = html.slice(html.indexOf('aria-label="פעולות"'), html.indexOf('aria-label="מה ידוע"'));
     expect(actions).toMatch(/<a [^>]*href="\/customers\?child=child-7"[^>]*>.*לכרטיס הלקוח<\/a>/);
     expect(actions).toContain('title="כרטיס הלקוח במדור לקוחות"');
     expect((html.match(/לכרטיס הלקוח/g) ?? []).length).toBe(1);
@@ -372,7 +372,7 @@ describe('"לכרטיס הלקוח" from a conversation', () => {
       future: { due: '2026-12-01', reason: 'אחרי החגים', by_name: 'מיכל', at: null, state: 'parked', label: 'ליד עתידי', days_left: 49, muted: true },
     });
     const html = card(held);
-    const actions = html.slice(html.indexOf('aria-label="פעולות"'), html.indexOf('aria-label="במערכת"'));
+    const actions = html.slice(html.indexOf('aria-label="פעולות"'), html.indexOf('aria-label="מה ידוע"'));
     expect(actions).toContain('לכרטיס הלקוח');
     expect(actions).not.toContain('החזר לבוט');
     // …and with nothing to offer at all the section is not drawn.
