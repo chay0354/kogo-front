@@ -120,8 +120,9 @@ export function BroadcastRunProvider({ children }: { children: React.ReactNode }
     [run],
   );
 
+  /** `marketing` — the office's required choice: marketing is not sent to whoever asked "הסר", anything else is. */
   const check = useCallback(
-    (automation: WhatsAppAutomation) => {
+    (automation: WhatsAppAutomation, marketing: boolean) => {
       if (!draft) return;
       if (run && runIsHeld(run.snapshot.phase)) return;
       const hint = {
@@ -136,6 +137,7 @@ export function BroadcastRunProvider({ children }: { children: React.ReactNode }
           automation_id: automation.automation_id,
           label: automationDisplayLabel(automation),
         },
+        marketing,
         chunkSize: broadcastChunkSize(automation.automation_type),
         sendChunk: (req) =>
           broadcastToChildren({

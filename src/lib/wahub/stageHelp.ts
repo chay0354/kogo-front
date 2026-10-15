@@ -48,9 +48,10 @@ export const STAGE_HELP: Record<string, StageHelp> = {
     now: 'עד אז אף אחד לא כותב לו. במועד **הבוט חוזר** — או **עובר אליך**, אם המשרד קבע',
   },
   waiting_list: { what: 'מחכה למקום בשיעור מלא', now: 'כשמתפנה מקום — **עובר אליך**, ואתה מחליט אם להודיע לו' },
+  // Closed since 15.10.2026 ("לא רלוונטי · אין מה להציע"): nobody's step, and the daily look goes on.
   nothing_to_offer: {
-    what: 'אין סניף באזור שלו, אין חוג שמתאים לגיל, או שהחוג מלא',
-    now: '**המערכת בודקת כל יום.** כשנפתח חוג שמתאים — **עובר אליך**',
+    what: 'אין סניף באזור, אין חוג לגיל, או שהחוג מלא',
+    now: 'המערכת בודקת כל יום. **אם ייפתח חוג שמתאים, הליד יחזור אליך**',
   },
   answered_silent: {
     what: 'קיבל תשובה, ושותק כבר יומיים בלי להירשם',
@@ -71,7 +72,20 @@ export const STAGE_HELP: Record<string, StageHelp> = {
   },
 };
 
-export function stageHelp(stage: string | null | undefined): StageHelp | null {
+/**
+ * A class opened for a lead that had nothing to offer: it is back as a question for the office ("נפתח חוג שמתאים",
+ * in the state of a question waiting for its answer — kogo-back lead_stage.OPENED_LABEL). Its own two lines, not
+ * those of a question nobody answered.
+ */
+export const OPENED_LABEL = 'נפתח חוג שמתאים';
+export const OPENED_HELP: StageHelp = {
+  what: 'הבדיקה היומית מצאה חוג עם מקום, למי שלא היה לו מה להציע',
+  now: '**מחכה לך:** להציע לו את החוג. ללקוח לא נשלח כלום לבד',
+};
+
+/** `label` — the state's name as the server wrote it, where one state has two meanings (a class that opened). */
+export function stageHelp(stage: string | null | undefined, label?: string | null): StageHelp | null {
+  if (stage === 'needs_reply' && label === OPENED_LABEL) return OPENED_HELP;
   return (stage && STAGE_HELP[stage]) || null;
 }
 
@@ -95,8 +109,8 @@ export function helpParts(line: string): HelpPart[] {
 }
 
 /** The two lines as one plain sentence — for a screen reader, and for the `title` of a row where a bubble cannot open. */
-export function stageHelpText(stage: string | null | undefined): string {
-  const help = stageHelp(stage);
+export function stageHelpText(stage: string | null | undefined, label?: string | null): string {
+  const help = stageHelp(stage, label);
   if (!help) return '';
   return `${help.what}. ${help.now.replace(/\*\*/g, '')}`;
 }
@@ -111,7 +125,7 @@ const EXTERNAL_LINE = 'סניף חיצוני';
  * lead's state.
  */
 export function nextStepHelp(
-  lead: { stage: string },
+  lead: { stage: string; stage_label?: string },
   line: { text: string; tone: string; detail?: string },
 ): StageHelp | null {
   const held = line.text.match(/(?:לא ייצא:|היה נשלח עכשיו —)\s*(.+)$/);
@@ -128,5 +142,5 @@ export function nextStepHelp(
       now: 'כשהשיחה שוקטת, **הבוט בודק איתו פעם אחת** אם הסתדר מול העירייה',
     };
   }
-  return stageHelp(lead.stage);
+  return stageHelp(lead.stage, lead.stage_label);
 }

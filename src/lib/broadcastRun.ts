@@ -21,6 +21,11 @@
  *
  * What is new is only that a run can be started, resumed or stopped once: a
  * double click, or a second screen holding the same run, cannot send it twice.
+ *
+ * And the office says what the message is (15.10.2026): marketing, which is not
+ * sent to whoever asked "הסר", or an update / service message, which is. The
+ * choice is the run's, made before the preview, and goes with every chunk — the
+ * preview's and the send's — so what is sent is what was shown.
  */
 import type { BroadcastRow } from './whatsappApi';
 
@@ -71,6 +76,8 @@ export interface ChunkRequest {
   child_ids: string[];
   dry_run: boolean;
   skip_phones: string[];
+  /** The office's choice; left out when there is none, and the server then takes it as marketing. */
+  marketing?: boolean;
 }
 
 export interface ChunkReply {
@@ -102,6 +109,8 @@ export interface BroadcastRunOptions {
   ids: string[];
   names: Record<string, string>;
   automation: RunAutomation;
+  /** Marketing (true) or an update / service message (false). Required of the dialog; absent, the run cannot start. */
+  marketing?: boolean;
   chunkSize: number;
   sendChunk: (req: ChunkRequest) => Promise<ChunkReply>;
   /** How long the finished ring is held before the preview replaces it. */
@@ -121,6 +130,8 @@ export class BroadcastRun {
   readonly ids: string[];
   readonly names: Record<string, string>;
   readonly automation: RunAutomation;
+  /** Null: nobody said — the preview runs as the server's marketing, and the real send is never started. */
+  readonly marketing: boolean | null;
   readonly chunks: string[][];
   /** The real send's chunks, packed by messages once the preview is in. */
   sendChunks: string[][];
@@ -137,6 +148,7 @@ export class BroadcastRun {
     this.ids = opts.ids.slice();
     this.names = { ...opts.names };
     this.automation = opts.automation;
+    this.marketing = typeof opts.marketing === 'boolean' ? opts.marketing : null;
     const size = Math.max(1, opts.chunkSize);
     this.chunks = [];
     for (let i = 0; i < this.ids.length; i += size) this.chunks.push(this.ids.slice(i, i + size));
@@ -159,6 +171,11 @@ export class BroadcastRun {
     return this.current;
   }
 
+  /** The office's choice, on every chunk it says one. */
+  private chunk(child_ids: string[], dry_run: boolean, skip_phones: string[]): ChunkRequest {
+    return this.marketing === null ? { child_ids, dry_run, skip_phones } : { child_ids, dry_run, skip_phones, marketing: this.marketing };
+  }
+
   subscribe(listener: (snapshot: RunSnapshot) => void): () => void {
     this.listeners.add(listener);
     return () => {
@@ -179,7 +196,7 @@ export class BroadcastRun {
     let skipPhones: string[] = [];
     try {
       for (const chunk of this.chunks) {
-        const res = await this.sendChunk({ child_ids: chunk, dry_run: true, skip_phones: skipPhones });
+        const res = await this.sendChunk(this.chunk(chunk, true, skipPhones));
         rows.push(...res.results);
         skipPhones = skipPhones.concat(res.phones);
         this.update({ previewRows: rows.slice() });
@@ -192,9 +209,9 @@ export class BroadcastRun {
     }
   }
 
-  /** The real send. Only from a finished preview, and only once. */
+  /** The real send. Only from a finished preview, only once — and only once the office said what the message is. */
   start(): Promise<void> {
-    if (this.current.phase !== 'preview') return Promise.resolve();
+    if (this.current.phase !== 'preview' || this.marketing === null) return Promise.resolve();
     this.sendChunks = packSendChunks(this.ids, this.current.previewRows, this.chunkSize);
     this.skipPhones = [];
     this.update({ sentRows: [] });
@@ -218,11 +235,7 @@ export class BroadcastRun {
     this.update({ phase: 'sending', pausedAt: null });
     for (let i = startIndex; i < this.sendChunks.length; i += 1) {
       try {
-        const res = await this.sendChunk({
-          child_ids: this.sendChunks[i],
-          dry_run: false,
-          skip_phones: this.skipPhones,
-        });
+        const res = await this.sendChunk(this.chunk(this.sendChunks[i], false, this.skipPhones));
         this.skipPhones = this.skipPhones.concat(res.phones);
         this.update({ sentRows: this.current.sentRows.concat(res.results) });
       } catch {
@@ -288,10 +301,70 @@ export function sentCounts(rows: BroadcastRow[]) {
   };
 }
 
+/**
+ * Numbers that asked out ("הסר") and got the message all the same — or, in the preview, will: a message that is not
+ * marketing reaches them too. The server marks such a row (`opted_out: true`); only one that went out, or will, counts.
+ */
+export function includedOptedOutCounts(rows: BroadcastRow[]) {
+  const reached = (status: BroadcastRow['status']) => status === 'preview' || status === 'sent';
+  const own = rows.filter((r) => r.opted_out === true && reached(r.status)).length;
+  const extra = rows.reduce(
+    (sum, r) => sum + (r.extra_phones ?? []).filter((phone) => phone.opted_out === true && reached(phone.status)).length,
+    0,
+  );
+  return { own, extra, total: own + extra };
+}
+
 /** "3 לא יקבלו: ביקשו הסר" — said apart from the other reasons; '' when nobody asked out. */
 export function optedOutLine(count: number): string {
   if (count <= 0) return '';
   return count === 1 ? 'אחד לא יקבל: ביקש הסר' : `${count} לא יקבלו: ביקשו הסר`;
+}
+
+/**
+ * The customers list's line of who asked out, apart from the other reasons, with the kind of message the office chose:
+ * "3 שביקשו הסר לא יקבלו (הודעה שיווקית)" — or, once it went out, "לא קיבלו"; "3 שביקשו הסר יקבלו (הודעה לא
+ * שיווקית)" / "קיבלו". `held` — skipped because they asked out; `included` — reached all the same. '' when there
+ * is nobody to say it of. A run nobody chose for is the server's marketing. A server that does not know the choice
+ * skips them whatever was chosen: the line then says only that, without a kind it did not keep to.
+ */
+export function optedOutKindLine(
+  counts: { held: number; included: number },
+  { marketing, done }: { marketing: boolean | null; done: boolean },
+): string {
+  const one = (n: number) => n === 1;
+  if (marketing === false && counts.included > 0) {
+    const verb = one(counts.included) ? (done ? 'קיבל' : 'יקבל') : done ? 'קיבלו' : 'יקבלו';
+    return `${one(counts.included) ? 'אחד שביקש' : `${counts.included} שביקשו`} הסר ${verb} (הודעה לא שיווקית)`;
+  }
+  if (counts.held <= 0) return '';
+  const verb = one(counts.held) ? (done ? 'לא קיבל' : 'לא יקבל') : done ? 'לא קיבלו' : 'לא יקבלו';
+  const kind = marketing === false ? '' : ' (הודעה שיווקית)';
+  return `${one(counts.held) ? 'אחד שביקש' : `${counts.held} שביקשו`} הסר ${verb}${kind}`;
+}
+
+/** What the message is — the office's to say on every broadcast, with nothing chosen to begin with. */
+export type MessageKind = 'marketing' | 'service';
+
+export const MESSAGE_KINDS: ReadonlyArray<{ value: MessageKind; label: string }> = [
+  { value: 'marketing', label: 'הודעה שיווקית' },
+  { value: 'service', label: 'הודעה לא שיווקית (עדכון / שירות)' },
+];
+
+/** The one line under the choice: what each kind does to whoever asked "הסר". */
+export const MESSAGE_KIND_HINT = 'שיווקית לא נשלחת למי שביקש הסר. לא שיווקית נשלחת גם להם.';
+
+/** Why the preview — and so the send — cannot begin yet; '' once it can. The kind is never assumed. */
+export function previewBlocked(automationChosen: boolean, kind: MessageKind | null): string {
+  if (!automationChosen) return 'בחרו אוטומציה';
+  if (!kind) return 'בחרו אם ההודעה שיווקית או לא';
+  return '';
+}
+
+/** What the office said the message is, in its words — for the head of the preview. '' when nobody said. */
+export function messageKindLabel(marketing: boolean | null): string {
+  if (marketing === null) return '';
+  return MESSAGE_KINDS.find((kind) => kind.value === (marketing ? 'marketing' : 'service'))?.label ?? '';
 }
 
 export type DockTone = 'check' | 'send' | 'ready' | 'warn' | 'done' | 'error';

@@ -7,7 +7,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import { LEAD_V2_STAGE_LABELS } from '@/lib/wahub/leadsV2';
 import { LEAD_STAGE_LABELS } from '@/lib/wahub/leadStage';
-import { STAGE_HELP, helpParts, nextStepHelp, stageHelp, stageHelpText } from '@/lib/wahub/stageHelp';
+import { OPENED_HELP, STAGE_HELP, helpParts, nextStepHelp, stageHelp, stageHelpText } from '@/lib/wahub/stageHelp';
 import { HoverHelp, StageHelp, StagesLegend, onScreenShift } from './StageHelp';
 
 // The components are compiled with the classic JSX of the tests, which reads `React` from the global scope.
@@ -158,5 +158,38 @@ describe('the words behind a lead\'s next step (the owner, 14.10.2026: "זה ל�
     );
     expect(open).toContain('role="tooltip"');
     expect(open).toContain('<b>הבוט מזכיר</b>');
+  });
+});
+
+describe('"לא רלוונטי · אין מה להציע", and the class that opened (the owner, 15.10.2026)', () => {
+  it('nothing to offer: why, and that the lead comes back by itself when a class that fits opens', () => {
+    expect(STAGE_HELP.nothing_to_offer).toEqual({
+      what: 'אין סניף באזור, אין חוג לגיל, או שהחוג מלא',
+      now: 'המערכת בודקת כל יום. **אם ייפתח חוג שמתאים, הליד יחזור אליך**',
+    });
+    expect(stageHelpText('nothing_to_offer')).toBe(
+      'אין סניף באזור, אין חוג לגיל, או שהחוג מלא. המערכת בודקת כל יום. אם ייפתח חוג שמתאים, הליד יחזור אליך',
+    );
+  });
+
+  it('a class that opened is a question of the office\'s with words of its own — not "nobody answered him"', () => {
+    expect(stageHelp('needs_reply', 'נפתח חוג שמתאים')).toEqual(OPENED_HELP);
+    expect(OPENED_HELP.now).toContain('**מחכה לך:**');
+    // Any other question waiting for its answer keeps its own two lines.
+    expect(stageHelp('needs_reply', 'שאל ולא קיבל מענה')).toBe(STAGE_HELP.needs_reply);
+    expect(stageHelp('needs_reply')).toBe(STAGE_HELP.needs_reply);
+    // The bubble on the state, and the one on the office's step of the row.
+    const html = renderToStaticMarkup(
+      <StageHelp stage="needs_reply" title="נפתח חוג שמתאים" defaultOpen>
+        נפתח חוג שמתאים
+      </StageHelp>,
+    );
+    expect(html).toContain('הבדיקה היומית מצאה חוג עם מקום');
+    expect(html).not.toContain(STAGE_HELP.needs_reply.what);
+    const step = nextStepHelp(
+      { stage: 'needs_reply', stage_label: 'נפתח חוג שמתאים' },
+      { text: 'מחכה לך: נפתח: קפוארה גן חובה בראש העין — להציע לו', tone: 'office' },
+    );
+    expect(step).toEqual(OPENED_HELP);
   });
 });

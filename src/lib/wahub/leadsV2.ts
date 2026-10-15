@@ -76,7 +76,8 @@ export const LEAD_V2_STAGE_LABELS: Record<string, string> = {
   waiting_date: 'מחכה למועד',
   // docs/WAHUB-CONTRACT-FUTURE-LEADS.md, ד.3: on the list of one lesson, until a place is freed.
   waiting_list: 'ברשימת המתנה',
-  nothing_to_offer: 'אין כרגע מה להציע',
+  // Closed since 15.10.2026 (the owner: "לא רלוונטי"); the daily look brings it back when a class opens.
+  nothing_to_offer: 'לא רלוונטי · אין מה להציע',
   answered_silent: 'קיבל תשובה ולא נרשם',
   in_conversation: 'בשיחה',
   registered: 'נרשם',
@@ -89,9 +90,13 @@ export const LEAD_V2_STAGE_LABELS: Record<string, string> = {
 
 const STAGE_ORDER = Object.keys(LEAD_V2_STAGE_LABELS);
 
-const CLOSED_STAGES = new Set(['registered', 'customer', 'not_interested', 'not_relevant', 'deleted', 'cold']);
-/** Closed because Kogo says so: there is nothing to bring back. */
-const SETTLED_STAGES = new Set(['registered', 'customer']);
+const CLOSED_STAGES = new Set(['nothing_to_offer', 'registered', 'customer', 'not_interested', 'not_relevant', 'deleted', 'cold']);
+/**
+ * Closed because Kogo says so: there is nothing to bring back by hand. Nothing to offer is one of them — it comes
+ * back by itself, as a question for the office, once a class that fits opens (the server looks every day); a press
+ * of "החזר לרשימה" would only put it back where it is.
+ */
+const SETTLED_STAGES = new Set(['registered', 'customer', 'nothing_to_offer']);
 
 export function leadStageText(lead: Pick<WahubLeadRow, 'stage' | 'stage_label'>): string {
   return lead.stage_label || LEAD_V2_STAGE_LABELS[lead.stage] || lead.stage;
@@ -551,8 +556,11 @@ export function heldReason(sendingOn: boolean | null | undefined): string {
 const IDLE_WORDS: Record<string, string> = {
   trial_booked: 'מחכים לשיעור הניסיון',
   waiting_list: 'ברשימת המתנה — נתריע כשיתפנה מקום',
-  nothing_to_offer: 'נבדק כל יום — כשייפתח חוג שמתאים, יעבור אליך',
   in_conversation: 'בשיחה עכשיו',
+};
+/** What a closed lead that is not over says when the server did not say it: nothing to offer comes back by itself. */
+const CLOSED_WORDS: Record<string, string> = {
+  nothing_to_offer: 'נבדק כל יום — אם ייפתח חוג שמתאים, הליד יחזור אליך',
 };
 
 /** "מחכה לך: להתקשר" must not come out as "מחכה לך: מחכה לך – להתקשר" when the server already says so. */
@@ -607,7 +615,7 @@ export function nextStepLine(
 
   // Nobody's step. The server's own words come first; without them a closed lead says how it ended,
   // and an open one what it is waiting on.
-  if (closed) return { who, tone: 'quiet', dated: false, text: what || leadStageText(lead) || 'נסגר', detail: '' };
+  if (closed) return { who, tone: 'quiet', dated: false, text: what || CLOSED_WORDS[lead.stage] || leadStageText(lead) || 'נסגר', detail: '' };
   if (what) return { who, tone: 'quiet', dated: false, text: words && !words.past ? `${what} ${words.text}` : what, detail: '' };
   const idle = IDLE_WORDS[lead.stage];
   if (idle) return { who, tone: 'quiet', dated: false, text: words && !words.past ? `${idle} · ${words.text}` : idle, detail: '' };
