@@ -45,6 +45,12 @@ type InstructorAttendanceProps = {
    *  user. Every call about the lesson has to carry it or the server cannot
    *  reach the lesson at all. */
   asUser?: string;
+  /** The other groups taught at this hour in this room (sameHour.ts). Their
+   *  lists are drawn on this screen, each marking its own lesson. */
+  partners?: Lesson[];
+  /** Drawn as one of those lists under another group's header: no header, no
+   *  back button, no add button of its own. */
+  asSection?: boolean;
   /** Hands up the way to close whichever of the register's own layers is open
    *  — the contact sheet, or the walk-in form — so the phone's back button
    *  closes that before it reaches the register underneath. Null when the
@@ -58,6 +64,8 @@ export default function InstructorAttendance({
   embedded = false,
   asUser,
   onOverlayChange,
+  partners,
+  asSection = false,
 }: InstructorAttendanceProps) {
   const router = useRouter();
   const [detail, setDetail] = useState<LessonDetail | null>(null);
@@ -395,281 +403,185 @@ export default function InstructorAttendance({
     }
   };
 
-  return (
-    <div className={embedded ? styles.panel : styles.page} dir={embedded ? undefined : 'rtl'}>
-      <div className={embedded ? styles.panelShell : styles.shell}>
-        <header className={styles.header}>
-          <button type="button" className={styles.backBtn} onClick={onBack} aria-label="חזרה">
-            <ChevronRight size={26} />
-          </button>
-          <h1 className={styles.title}>רשימת נוכחות</h1>
-          <div className={styles.infoBox}>
-            <div className={styles.infoRow}>
-              <Calendar className={styles.gold} size={16} />
-              <span>{lesson.branch_name}</span>
+  const rosterBody = (
+    <>
+      {isLoading && (
+        /* Skeleton rather than a "loading" line: the rows land in the same
+           place the real ones will, so the list does not jump when it
+           arrives. */
+        <div className={styles.skeletonList} aria-busy="true" aria-label="טוען תלמידים">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <div className={styles.skeletonRow} key={i} style={{ animationDelay: `${i * 80}ms` }}>
+              <span className={styles.skeletonAvatar} />
+              <span className={styles.skeletonText} />
+              <span className={styles.skeletonPill} />
             </div>
-            <div className={styles.infoCourse}>{lessonTitle(lesson)}</div>
-            <div className={styles.infoMeta}>
-              <Clock className={styles.gold} size={16} />
-              <span>
-                יום {hebrewDayLetter(lessonDate)} {formatTime(lesson.start_time)}-{formatTime(lesson.end_time)}
-              </span>
-            </div>
-          </div>
-        </header>
-
-        <section className={styles.list}>
-          {isLoading && (
-            /* Skeleton rather than a "loading" line: the rows land in the same
-               place the real ones will, so the list does not jump when it
-               arrives. */
-            <div className={styles.skeletonList} aria-busy="true" aria-label="טוען תלמידים">
-              {Array.from({ length: 5 }).map((_, i) => (
-                <div className={styles.skeletonRow} key={i} style={{ animationDelay: `${i * 80}ms` }}>
-                  <span className={styles.skeletonAvatar} />
-                  <span className={styles.skeletonText} />
-                  <span className={styles.skeletonPill} />
-                </div>
-              ))}
-            </div>
-          )}
-          {error && <div className={styles.error}>{error}</div>}
-          {isCancelled && <div className={styles.cancelled}>לא ניתן לסמן נוכחות בשיעור מבוטל</div>}
-          {!isLoading && !error && students.length === 0 && (
-            <div className={styles.empty}>אין תלמידים רשומים לשיעור זה</div>
-          )}
-          {visibleStudents.map((student, index) => {
-            const status = attendance[student.child_id] || 'not_marked';
-            const flagged = Boolean(student.is_trial) || ISSUE_STATUSES.has(student.child_status || '');
-            return (
-              <article
-                key={student.id}
-                ref={(node) => {
-                  if (node) rowRefs.current.set(student.child_id, node);
-                  else rowRefs.current.delete(student.child_id);
-                }}
-                className={`${styles.card} ${flagged ? styles.cardAlert : ''} ${
-                  suggest?.child_id === student.child_id ? styles.cardSuggested : ''
-                }`}
-              >
-                <div className={styles.cardTop}>
-                  <div className={styles.index}>{index + 1}</div>
-                  <div className={styles.identity}>
-                    <div className={styles.name}>
-                      {student.child_name}
-                      {student.is_trial && student.child_status !== 'ghost' && (
-                        (student.trial_number ?? 1) > 1 ? (
-                          <span
-                            className={`${styles.trialTag} ${styles.trialTagRepeat}`}
-                            title={`שיעור ניסיון ${student.trial_number} — הילד כבר היה בניסיון`}
-                          >
-                            <RotateCcw size={13} strokeWidth={2.4} aria-hidden />
-                            ניסיון {student.trial_number}
-                          </span>
-                        ) : (
-                          <span className={styles.trialTag} title="שיעור ניסיון">
-                            <Sparkles size={13} strokeWidth={2.4} aria-hidden />
-                            ניסיון
-                          </span>
-                        )
-                      )}
-                      {student.leaving && (
-                        <span className={styles.trialTag} title="ביטל את החוג, ומגיע עד סוף החודש ששילם עליו">
-                          עד סוף החודש
-                        </span>
-                      )}
-                      {student.child_status === 'ghost' &&
-                        (student.walk_in?.came_before ? (
-                          <button
-                            type="button"
-                            className={`${styles.walkInTag} ${styles.walkInTagBefore}`}
-                            onClick={() => setLastTimeInfo(student)}
-                            aria-label="הגיע בשיעור שעבר — מה זה אומר"
-                          >
-                            <History size={12} strokeWidth={2.4} aria-hidden />
-                            הגיע בשיעור שעבר
-                            <Info size={12} strokeWidth={2.4} aria-hidden />
-                          </button>
-                        ) : (
-                          <button
-                            type="button"
-                            className={styles.walkInTag}
-                            onClick={() => setGhostInfo(student)}
-                            aria-label="תלמיד רפאים — למה הוא מופיע כאן"
-                          >
-                            תלמיד רפאים
-                          </button>
-                        ))}
-                      {/* Only on a walk-in. A registered child belongs to the
-                          office, and this screen offers no way to remove one. */}
-                      {student.child_status === 'ghost' && (
-                        <button
-                          type="button"
-                          className={styles.removeBtn}
-                          onClick={() =>
-                            setRemoving({
-                              id: student.id,
-                              child_id: student.child_id,
-                              name: student.child_name,
-                            })
-                          }
-                          aria-label={`הסרת ${student.child_name} מהרשימה`}
-                        >
-                          <Trash2 size={15} strokeWidth={2.4} />
-                        </button>
-                      )}
-                    </div>
-                    {student.child_phone ? (
+          ))}
+        </div>
+      )}
+      {error && <div className={styles.error}>{error}</div>}
+      {isCancelled && <div className={styles.cancelled}>לא ניתן לסמן נוכחות בשיעור מבוטל</div>}
+      {!isLoading && !error && students.length === 0 && (
+        <div className={styles.empty}>אין תלמידים רשומים לשיעור זה</div>
+      )}
+      {visibleStudents.map((student, index) => {
+        const status = attendance[student.child_id] || 'not_marked';
+        const flagged = Boolean(student.is_trial) || ISSUE_STATUSES.has(student.child_status || '');
+        return (
+          <article
+            key={student.id}
+            ref={(node) => {
+              if (node) rowRefs.current.set(student.child_id, node);
+              else rowRefs.current.delete(student.child_id);
+            }}
+            className={`${styles.card} ${flagged ? styles.cardAlert : ''} ${
+              suggest?.child_id === student.child_id ? styles.cardSuggested : ''
+            }`}
+          >
+            <div className={styles.cardTop}>
+              <div className={styles.index}>{index + 1}</div>
+              <div className={styles.identity}>
+                <div className={styles.name}>
+                  {student.child_name}
+                  {student.is_trial && student.child_status !== 'ghost' && (
+                    (student.trial_number ?? 1) > 1 ? (
+                      <span
+                        className={`${styles.trialTag} ${styles.trialTagRepeat}`}
+                        title={`שיעור ניסיון ${student.trial_number} — הילד כבר היה בניסיון`}
+                      >
+                        <RotateCcw size={13} strokeWidth={2.4} aria-hidden />
+                        ניסיון {student.trial_number}
+                      </span>
+                    ) : (
+                      <span className={styles.trialTag} title="שיעור ניסיון">
+                        <Sparkles size={13} strokeWidth={2.4} aria-hidden />
+                        ניסיון
+                      </span>
+                    )
+                  )}
+                  {student.leaving && (
+                    <span className={styles.trialTag} title="ביטל את החוג, ומגיע עד סוף החודש ששילם עליו">
+                      עד סוף החודש
+                    </span>
+                  )}
+                  {student.child_status === 'ghost' &&
+                    (student.walk_in?.came_before ? (
                       <button
                         type="button"
-                        className={styles.phoneBtn}
-                        onClick={() =>
-                          setContact({ name: student.child_name, phone: student.child_phone as string })
-                        }
-                        aria-label={`יצירת קשר עם ${student.child_name}`}
+                        className={`${styles.walkInTag} ${styles.walkInTagBefore}`}
+                        onClick={() => setLastTimeInfo(student)}
+                        aria-label="הגיע בשיעור שעבר — מה זה אומר"
                       >
-                        {student.child_phone}
-                      </button>
-                    ) : student.child_status === 'ghost' ? (
-                      <button
-                        type="button"
-                        className={styles.phoneMissing}
-                        onClick={() => openPhone(student)}
-                        aria-label={`הוספת טלפון ל${student.child_name}`}
-                      >
-                        <Phone size={13} strokeWidth={2.4} aria-hidden />
-                        חסר טלפון · הוספה
+                        <History size={12} strokeWidth={2.4} aria-hidden />
+                        הגיע בשיעור שעבר
+                        <Info size={12} strokeWidth={2.4} aria-hidden />
                       </button>
                     ) : (
-                      <div className={styles.phone}>—</div>
-                    )}
-                  </div>
+                      <button
+                        type="button"
+                        className={styles.walkInTag}
+                        onClick={() => setGhostInfo(student)}
+                        aria-label="תלמיד רפאים — למה הוא מופיע כאן"
+                      >
+                        תלמיד רפאים
+                      </button>
+                    ))}
+                  {/* Only on a walk-in. A registered child belongs to the
+                      office, and this screen offers no way to remove one. */}
+                  {student.child_status === 'ghost' && (
+                    <button
+                      type="button"
+                      className={styles.removeBtn}
+                      onClick={() =>
+                        setRemoving({
+                          id: student.id,
+                          child_id: student.child_id,
+                          name: student.child_name,
+                        })
+                      }
+                      aria-label={`הסרת ${student.child_name} מהרשימה`}
+                    >
+                      <Trash2 size={15} strokeWidth={2.4} />
+                    </button>
+                  )}
                 </div>
-                {suggest?.child_id === student.child_id && (
-                  <div className={styles.suggest} role="alertdialog" aria-label="התכוונת לילד הזה?">
-                    <div className={styles.suggestText}>התכוונת ל{student.child_name}?</div>
-                    <div className={styles.suggestActions}>
-                      <button type="button" className={styles.suggestYes} onClick={acceptSuggestion}>
-                        כן, זה הוא
-                      </button>
-                      <button type="button" className={styles.suggestNo} onClick={rejectSuggestion}>
-                        לא, ילד אחר
-                      </button>
-                    </div>
-                  </div>
+                {student.child_phone ? (
+                  <button
+                    type="button"
+                    className={styles.phoneBtn}
+                    onClick={() =>
+                      setContact({ name: student.child_name, phone: student.child_phone as string })
+                    }
+                    aria-label={`יצירת קשר עם ${student.child_name}`}
+                  >
+                    {student.child_phone}
+                  </button>
+                ) : student.child_status === 'ghost' ? (
+                  <button
+                    type="button"
+                    className={styles.phoneMissing}
+                    onClick={() => openPhone(student)}
+                    aria-label={`הוספת טלפון ל${student.child_name}`}
+                  >
+                    <Phone size={13} strokeWidth={2.4} aria-hidden />
+                    חסר טלפון · הוספה
+                  </button>
+                ) : (
+                  <div className={styles.phone}>—</div>
                 )}
-                <div className={styles.toggle}>
-                  <button
-                    type="button"
-                    data-tour-mark className={status === 'present' ? styles.presentOn : ''}
-                    disabled={isCancelled}
-                    onClick={() => handleToggle(student.child_id, 'present')}
-                    aria-label={`נוכח: ${student.child_name}`}
-                    aria-pressed={status === 'present'}
-                  >
-                    <Check size={22} strokeWidth={3} />
-                  </button>
-                  <button
-                    type="button"
-                    className={status === 'absent' ? styles.absentOn : ''}
-                    disabled={isCancelled}
-                    onClick={() => handleToggle(student.child_id, 'absent')}
-                    aria-label={`נעדר: ${student.child_name}`}
-                    aria-pressed={status === 'absent'}
-                  >
-                    <X size={22} strokeWidth={3} />
-                  </button>
-                </div>
-              </article>
-            );
-          })}
-          {/* At the end of the list it belongs to, where the names it reveals
-              are about to appear. */}
-          {hiddenCount > 0 && !expanded && (
-            <button type="button" className={styles.moreBtn} onClick={() => setExpanded(true)}>
-              <span>עוד {hiddenCount} ילדים</span>
-              <ChevronDown size={18} />
-            </button>
-          )}
-          {addOpen && (
-            /* No autofocus anywhere in here: the instructor opens this while the
-               children are still arriving, and a keyboard that springs up over
-               the register hides the rows they are in the middle of marking. */
-            <div className={styles.addForm} ref={addFormRef}>
-              <div className={styles.addTitle}>הוספת תלמיד שהגיע</div>
-              <p className={styles.addHint}>
-                נרשם לשיעור הזה בלבד כדי שתוכלו לסמן נוכחות. המשרד ישלים את ההרשמה.
-              </p>
-              <div className={styles.addFields}>
-                <label className={styles.addField}>
-                  <span className={styles.addLabel}>שם פרטי</span>
-                  <input
-                    className={styles.addInput}
-                    value={addForm.first_name}
-                    onChange={(e) => setAddForm((p) => ({ ...p, first_name: e.target.value }))}
-                  />
-                </label>
-                <label className={styles.addField}>
-                  <span className={styles.addLabel}>שם משפחה</span>
-                  <input
-                    className={styles.addInput}
-                    value={addForm.last_name}
-                    onChange={(e) => setAddForm((p) => ({ ...p, last_name: e.target.value }))}
-                  />
-                </label>
-                <label className={`${styles.addField} ${styles.addFieldWide}`}>
-                  <span className={styles.addLabel}>
-                    טלפון
-                    <span className={styles.addOptional}>לא חובה</span>
-                  </span>
-                  <input
-                    className={styles.addInput}
-                    inputMode="tel"
-                    value={addForm.phone}
-                    onChange={(e) => setAddForm((p) => ({ ...p, phone: e.target.value }))}
-                  />
-                </label>
-              </div>
-              <div className={styles.addActions}>
-                <button
-                  type="button"
-                  className={styles.addSave}
-                  onClick={handleAddWalkIn}
-                  disabled={isAdding}
-                >
-                  {isAdding ? 'מוסיף…' : 'הוסף'}
-                </button>
-                <button
-                  type="button"
-                  className={styles.addCancel}
-                  onClick={() => setAddOpen(false)}
-                  disabled={isAdding}
-                >
-                  ביטול
-                </button>
               </div>
             </div>
-          )}
-        </section>
+            {suggest?.child_id === student.child_id && (
+              <div className={styles.suggest} role="alertdialog" aria-label="התכוונת לילד הזה?">
+                <div className={styles.suggestText}>התכוונת ל{student.child_name}?</div>
+                <div className={styles.suggestActions}>
+                  <button type="button" className={styles.suggestYes} onClick={acceptSuggestion}>
+                    כן, זה הוא
+                  </button>
+                  <button type="button" className={styles.suggestNo} onClick={rejectSuggestion}>
+                    לא, ילד אחר
+                  </button>
+                </div>
+              </div>
+            )}
+            <div className={styles.toggle}>
+              <button
+                type="button"
+                data-tour-mark className={status === 'present' ? styles.presentOn : ''}
+                disabled={isCancelled}
+                onClick={() => handleToggle(student.child_id, 'present')}
+                aria-label={`נוכח: ${student.child_name}`}
+                aria-pressed={status === 'present'}
+              >
+                <Check size={22} strokeWidth={3} />
+              </button>
+              <button
+                type="button"
+                className={status === 'absent' ? styles.absentOn : ''}
+                disabled={isCancelled}
+                onClick={() => handleToggle(student.child_id, 'absent')}
+                aria-label={`נעדר: ${student.child_name}`}
+                aria-pressed={status === 'absent'}
+              >
+                <X size={22} strokeWidth={3} />
+              </button>
+            </div>
+          </article>
+        );
+      })}
+      {/* At the end of the list it belongs to, where the names it reveals
+          are about to appear. */}
+      {hiddenCount > 0 && !expanded && (
+        <button type="button" className={styles.moreBtn} onClick={() => setExpanded(true)}>
+          <span>עוד {hiddenCount} ילדים</span>
+          <ChevronDown size={18} />
+        </button>
+      )}
+    </>
+  );
 
-        {/* Stands down while the form is open: the form pulls itself against the
-            bottom of the list, and a button floating there would come down on
-            the very actions it just revealed. The form closes on its own
-            ביטול. */}
-        {!addOpen && (
-          <footer className={styles.footer} data-tour="add-student">
-            <button
-              type="button"
-              className={styles.addBtn}
-              onClick={() => setAddOpen(true)}
-              disabled={isCancelled}
-            >
-              <Plus size={18} strokeWidth={3} />
-              הוסף לקוח
-            </button>
-          </footer>
-        )}
-      </div>
+  const overlays = (
+    <>
       {contact && (
         <ContactSheet name={contact.name} phone={contact.phone} onClose={() => setContact(null)} />
       )}
@@ -831,6 +743,146 @@ export default function InstructorAttendance({
       )}
 
       {toast && <div className={styles.toast}>{toast}</div>}
+    </>
+  );
+
+  // One of several groups taught at this hour, drawn under the first one's header.
+  if (asSection) {
+    return (
+      <div className={styles.sharedSection} aria-label={lessonTitle(lesson)}>
+        <div className={styles.sharedHead}>
+          <span className={styles.sharedName}>{lessonTitle(lesson)}</span>
+          <span className={styles.sharedTime}>
+            {formatTime(lesson.start_time)}-{formatTime(lesson.end_time)}
+          </span>
+        </div>
+        {rosterBody}
+        {overlays}
+      </div>
+    );
+  }
+
+  return (
+    <div className={embedded ? styles.panel : styles.page} dir={embedded ? undefined : 'rtl'}>
+      <div className={embedded ? styles.panelShell : styles.shell}>
+        <header className={styles.header}>
+          <button type="button" className={styles.backBtn} onClick={onBack} aria-label="חזרה">
+            <ChevronRight size={26} />
+          </button>
+          <h1 className={styles.title}>רשימת נוכחות</h1>
+          <div className={styles.infoBox}>
+            <div className={styles.infoRow}>
+              <Calendar className={styles.gold} size={16} />
+              <span>{lesson.branch_name}</span>
+            </div>
+            <div className={styles.infoCourse}>{lessonTitle(lesson)}</div>
+            {partners && partners.length > 0 && (
+              <div className={styles.infoTogether}>
+                יחד עם: {partners.map((partner) => lessonTitle(partner)).join(' · ')}
+              </div>
+            )}
+            <div className={styles.infoMeta}>
+              <Clock className={styles.gold} size={16} />
+              <span>
+                יום {hebrewDayLetter(lessonDate)} {formatTime(lesson.start_time)}-{formatTime(lesson.end_time)}
+              </span>
+            </div>
+          </div>
+        </header>
+
+        <section className={styles.list}>
+          {rosterBody}
+          {/* The other groups of this hour (owner, 15.10.2026): the same room, so the
+              same screen — each list marks its own lesson. */}
+          {partners?.map((partner) => (
+            <InstructorAttendance
+              key={`${partner.id}-${partner.lesson_date}`}
+              lesson={partner}
+              asUser={asUser}
+              onBack={onBack}
+              asSection
+            />
+          ))}
+          {addOpen && (
+            /* No autofocus anywhere in here: the instructor opens this while the
+               children are still arriving, and a keyboard that springs up over
+               the register hides the rows they are in the middle of marking. */
+            <div className={styles.addForm} ref={addFormRef}>
+              <div className={styles.addTitle}>הוספת תלמיד שהגיע</div>
+              <p className={styles.addHint}>
+                נרשם לשיעור הזה בלבד כדי שתוכלו לסמן נוכחות. המשרד ישלים את ההרשמה.
+              </p>
+              <div className={styles.addFields}>
+                <label className={styles.addField}>
+                  <span className={styles.addLabel}>שם פרטי</span>
+                  <input
+                    className={styles.addInput}
+                    value={addForm.first_name}
+                    onChange={(e) => setAddForm((p) => ({ ...p, first_name: e.target.value }))}
+                  />
+                </label>
+                <label className={styles.addField}>
+                  <span className={styles.addLabel}>שם משפחה</span>
+                  <input
+                    className={styles.addInput}
+                    value={addForm.last_name}
+                    onChange={(e) => setAddForm((p) => ({ ...p, last_name: e.target.value }))}
+                  />
+                </label>
+                <label className={`${styles.addField} ${styles.addFieldWide}`}>
+                  <span className={styles.addLabel}>
+                    טלפון
+                    <span className={styles.addOptional}>לא חובה</span>
+                  </span>
+                  <input
+                    className={styles.addInput}
+                    inputMode="tel"
+                    value={addForm.phone}
+                    onChange={(e) => setAddForm((p) => ({ ...p, phone: e.target.value }))}
+                  />
+                </label>
+              </div>
+              <div className={styles.addActions}>
+                <button
+                  type="button"
+                  className={styles.addSave}
+                  onClick={handleAddWalkIn}
+                  disabled={isAdding}
+                >
+                  {isAdding ? 'מוסיף…' : 'הוסף'}
+                </button>
+                <button
+                  type="button"
+                  className={styles.addCancel}
+                  onClick={() => setAddOpen(false)}
+                  disabled={isAdding}
+                >
+                  ביטול
+                </button>
+              </div>
+            </div>
+          )}
+        </section>
+
+        {/* Stands down while the form is open: the form pulls itself against the
+            bottom of the list, and a button floating there would come down on
+            the very actions it just revealed. The form closes on its own
+            ביטול. */}
+        {!addOpen && (
+          <footer className={styles.footer} data-tour="add-student">
+            <button
+              type="button"
+              className={styles.addBtn}
+              onClick={() => setAddOpen(true)}
+              disabled={isCancelled}
+            >
+              <Plus size={18} strokeWidth={3} />
+              הוסף לקוח
+            </button>
+          </footer>
+        )}
+      </div>
+      {overlays}
     </div>
   );
 }
