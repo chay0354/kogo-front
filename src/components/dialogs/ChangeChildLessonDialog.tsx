@@ -26,6 +26,7 @@ type LessonOption = {
   start_time: string;
   end_time: string;
   status?: string;
+  instructor_name?: string | null;
 };
 
 type BundleRow = {
@@ -244,6 +245,9 @@ function currentOfferingKey(
   offerings: Offering[],
 ): string {
   if (!enrollment) return '';
+  // A day swapped for another group's lesson: the child is not on the track's
+  // own days, so the track is a real choice — the way back to them.
+  if (slots.some((slot) => slot.swapped_day)) return '';
   if (enrollment.bundle_id) return `bundle:${enrollment.bundle_id}`;
   if (slots.length > 1) {
     const slotIds = new Set(slots.map((slot) => slot.lesson_id));
@@ -287,7 +291,19 @@ export default function ChangeChildLessonDialog({
   const [quoting, setQuoting] = useState(false);
   const [quoteError, setQuoteError] = useState('');
   const [priceConfirmed, setPriceConfirmed] = useState(false);
+  // One day of a twice/thrice-a-week track for another lesson at the same branch
+  // (owner, 15.10.2026): the other days, the price and the standing order stay.
+  const [swapMode, setSwapMode] = useState(false);
+  const [swapSlotId, setSwapSlotId] = useState('');
+  const [reason, setReason] = useState('');
+  const [currentBranchId, setCurrentBranchId] = useState('');
   const isTrial = Boolean(enrollment?.trial_lesson_date);
+  const canSwapDay = !isTrial
+    && slots.length >= 2
+    && Boolean(enrollment?.bundle_id)
+    && slots.every((slot) => slot.bundle_id === enrollment?.bundle_id);
+  const swapping = canSwapDay && swapMode;
+  const swapSlot = swapping ? slots.find((slot) => slot.enrollment_id === swapSlotId) : undefined;
 
   useEffect(() => {
     if (!isOpen) return;
@@ -307,20 +323,29 @@ export default function ChangeChildLessonDialog({
         setBundles(bundleRows);
         const current = rows.find((row) => row.id === enrollment?.lesson_id);
         setBranchFilter(current?.branch_id || 'all');
+        setCurrentBranchId(current?.branch_id || '');
       })
       .catch(() => setError('לא ניתן לטעון את רשימת החוגים'))
       .finally(() => setLoading(false));
   }, [isOpen, enrollment?.lesson_id, enrollment?.course_id]);
 
+  const takenLessonIds = slots.map((slot) => slot.lesson_id).join(',');
   const offerings = useMemo(() => {
+    if (swapping) {
+      // A single lesson at the child's branch that is not already one of their days.
+      const taken = new Set(takenLessonIds.split(','));
+      return lessons
+        .filter((lesson) => !taken.has(lesson.id) && (!currentBranchId || lesson.branch_id === currentBranchId))
+        .map((lesson) => offeringFromLesson(lesson));
+    }
     if (isTrial) {
       return lessons.map((lesson) => offeringFromLesson(lesson));
     }
     return buildOfferings(lessons, bundles);
-  }, [lessons, bundles, isTrial]);
+  }, [lessons, bundles, isTrial, swapping, currentBranchId, takenLessonIds]);
   const currentKey = useMemo(
-    () => currentOfferingKey(enrollment, slots, offerings),
-    [enrollment, slots, offerings],
+    () => (swapping ? '' : currentOfferingKey(enrollment, slots, offerings)),
+    [enrollment, slots, offerings, swapping],
   );
 
   useEffect(() => {
@@ -328,6 +353,21 @@ export default function ChangeChildLessonDialog({
     setSelectedKey(currentKey);
     setSelectedDate(enrollment?.trial_lesson_date || '');
   }, [isOpen, currentKey, enrollment?.trial_lesson_date]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    setSwapMode(false);
+    setSwapSlotId('');
+    setReason('');
+  }, [isOpen, enrollment?.enrollment_id]);
+
+  const chooseSwapMode = (next: boolean) => {
+    setSwapMode(next);
+    setSwapSlotId('');
+    setReason('');
+    setError('');
+    if (next && currentBranchId) setBranchFilter(currentBranchId);
+  };
 
   const branchOptions = useMemo(() => {
     const byId = new Map<string, string>();
@@ -416,7 +456,13 @@ export default function ChangeChildLessonDialog({
   const trialChanged = isTrial && (selectedKey !== currentKey || selectedDate !== currentDate);
   // Anything that touches the standing order needs the office's confirmation and the quoted figure.
   const priceChanges = Boolean(quote && (quote.direction === 'up' || quote.direction === 'down' || quote.clears_pending));
-  const canSave = Boolean(selectedKey)
+  const canSave = swapping
+    ? Boolean(selectedKey && swapSlot && quote && !quoting && !quoteError)
+      && (!quote?.blocked || quote?.direction === 'no_sto')
+      && !quote?.pending_change
+      && (quote?.direction === 'same' || quote?.direction === 'no_sto')
+      && !quote?.clears_pending
+    : Boolean(selectedKey)
     && (isTrial ? trialChanged : selectedKey !== currentKey)
     && (isTrial || (!quoting && !quoteError && Boolean(quote)))
     && (isTrial || !quote?.blocked || quote.direction === 'no_sto')
@@ -427,18 +473,21 @@ export default function ChangeChildLessonDialog({
   useEffect(() => {
     setPriceConfirmed(false);
     setQuoteError('');
-    if (!isOpen || isTrial || !enrollment?.enrollment_id || !selected || selectedKey === currentKey) {
+    if (!isOpen || isTrial || !enrollment?.enrollment_id || !selected || selectedKey === currentKey || (swapping && !swapSlotId)) {
       setQuote(null);
       return;
     }
     let cancelled = false;
     setQuoting(true);
-    const body = selected.kind === 'bundle'
-      ? { bundle_id: selected.bundleId }
-      : selected.kind === 'course'
-        ? { course_id: selected.courseId }
-        : { lesson_id: selected.lessonId };
-    api.post(`/enrollments/lesson-enrollments/${enrollment.enrollment_id}/change-lesson/quote/`, body)
+    const body = swapping
+      ? { swap_day: true, lesson_id: selected.lessonId }
+      : selected.kind === 'bundle'
+        ? { bundle_id: selected.bundleId }
+        : selected.kind === 'course'
+          ? { course_id: selected.courseId }
+          : { lesson_id: selected.lessonId };
+    const rowId = swapping ? swapSlotId : enrollment.enrollment_id;
+    api.post(`/enrollments/lesson-enrollments/${rowId}/change-lesson/quote/`, body)
       .then((res) => { if (!cancelled) setQuote(res.data as ChangeLessonQuote); })
       .catch((err: unknown) => {
         if (cancelled) return;
@@ -448,7 +497,7 @@ export default function ChangeChildLessonDialog({
       .finally(() => { if (!cancelled) setQuoting(false); });
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen, isTrial, enrollment?.enrollment_id, selectedKey, currentKey]);
+  }, [isOpen, isTrial, enrollment?.enrollment_id, selectedKey, currentKey, swapping, swapSlotId]);
 
   const cancelScheduled = async () => {
     if (!enrollment?.enrollment_id) return;
@@ -514,7 +563,9 @@ export default function ChangeChildLessonDialog({
     setSaving(true);
     setError('');
     try {
-      const target = isTrial
+      const target = swapping
+        ? { swap_day: true, lesson_id: selected.lessonId, reason: reason.trim() }
+        : isTrial
         ? { lesson_id: selected.lessonId, trial_lesson_date: selectedDate }
         : selected.kind === 'bundle'
           ? { bundle_id: selected.bundleId }
@@ -524,7 +575,7 @@ export default function ChangeChildLessonDialog({
       // The quoted amount travels with the request: the server refuses if the price moved meanwhile.
       const body = priceChanges && quote?.new_amount ? { ...target, expected_new_amount: quote.new_amount } : target;
       const res = await api.post(
-        `/enrollments/lesson-enrollments/${enrollment.enrollment_id}/change-lesson/`,
+        `/enrollments/lesson-enrollments/${swapping ? swapSlotId : enrollment.enrollment_id}/change-lesson/`,
         body,
       );
       const fallback = enrollment;
@@ -583,7 +634,9 @@ export default function ChangeChildLessonDialog({
           <p className="text-sm text-muted-foreground">
             {isTrial
               ? 'אפשר להחליף יום או חוג ולבחור תאריך לשיעור הניסיון.'
-              : 'אפשר לבחור פעם, פעמיים או שלוש פעמים בשבוע. אם המחיר החודשי שונה — תוצג הצעת מחיר לאישור לפני ההחלפה.'}
+              : swapping
+                ? 'בוחרים איזה יום מתחלף ואיזה שיעור בא במקומו, באותו סניף. שאר הימים, המחיר והוראת הקבע לא משתנים.'
+                : 'אפשר לבחור פעם, פעמיים או שלוש פעמים בשבוע. אם המחיר החודשי שונה — תוצג הצעת מחיר לאישור לפני ההחלפה.'}
           </p>
           {!isTrial && enrollment?.scheduled_change ? (
             <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
@@ -609,6 +662,58 @@ export default function ChangeChildLessonDialog({
             </p>
           ) : null}
 
+          {canSwapDay ? (
+            <div className="grid grid-cols-2 gap-1 rounded-xl bg-muted/60 p-1 text-sm" role="radiogroup" aria-label="מה מחליפים">
+              {[
+                { value: false, label: 'כל המסלול' },
+                { value: true, label: 'יום אחד בלבד' },
+              ].map((option) => (
+                <button
+                  key={option.label}
+                  type="button"
+                  role="radio"
+                  aria-checked={swapMode === option.value}
+                  onClick={() => chooseSwapMode(option.value)}
+                  className={`rounded-lg px-3 py-1.5 font-medium transition-all duration-200 ${
+                    swapMode === option.value ? 'bg-white text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+          ) : null}
+
+          {swapping ? (
+            <div className="space-y-2">
+              <p className="text-sm font-medium">איזה יום מתחלף?</p>
+              <div className="grid grid-cols-2 gap-2">
+                {slots.map((slot) => {
+                  const active = swapSlotId === slot.enrollment_id;
+                  return (
+                    <button
+                      key={slot.enrollment_id}
+                      type="button"
+                      onClick={() => setSwapSlotId(slot.enrollment_id)}
+                      className={`rounded-xl border px-3 py-2 text-right text-sm transition-colors ${
+                        active ? 'border-primary bg-primary/5 shadow-sm' : 'border-border hover:bg-muted/40'
+                      }`}
+                    >
+                      <span className="block font-semibold">{formatSlots([slot])}</span>
+                      <span className="mt-0.5 block truncate text-[11px] text-muted-foreground">
+                        {[slot.swapped_day ? slot.course_name : '', slot.instructor_name].filter(Boolean).join(' · ') || ' '}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+              {swapSlot ? (
+                <p className="text-sm font-medium">ומה במקומו?</p>
+              ) : null}
+            </div>
+          ) : null}
+
+          {!swapping || swapSlot ? (<>
           <input
             type="search"
             className="input w-full"
@@ -623,6 +728,8 @@ export default function ChangeChildLessonDialog({
               value={branchFilter}
               onChange={(e) => setBranchFilter(e.target.value)}
               aria-label="סניף"
+              disabled={swapping}
+              title={swapping ? 'החלפת יום — באותו סניף בלבד' : undefined}
             >
               <option value="all">סניף</option>
               {branchOptions.map((branch) => (
@@ -700,9 +807,9 @@ export default function ChangeChildLessonDialog({
                                 {active ? <Check className="h-3 w-3" /> : null}
                               </span>
                               <span className="min-w-0">
-                                <span className="block font-medium leading-snug">{offering.frequencyLabel}</span>
+                                <span className="block font-medium leading-snug">{swapping ? formatSlots(offering.slots) : offering.frequencyLabel}</span>
                                 <span className="mt-0.5 block text-[11px] text-muted-foreground">
-                                  {formatSlots(offering.slots)}
+                                  {swapping ? (offering.slots[0]?.instructor_name || '') : formatSlots(offering.slots)}
                                 </span>
                                 {ageLabel || offering.course_type_name ? (
                                   <span className="mt-0.5 block text-[11px] text-muted-foreground">
@@ -725,7 +832,46 @@ export default function ChangeChildLessonDialog({
               ))}
             </div>
           )}
-          {!isTrial && selectedKey && selectedKey !== currentKey ? (
+          </>) : null}
+          {swapping && swapSlot && selected && selectedKey ? (
+            quoting ? (
+              <p className="text-xs text-muted-foreground" aria-busy="true">בודק…</p>
+            ) : quoteError ? (
+              <p className="rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">{quoteError}</p>
+            ) : quote?.pending_change ? (
+              <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+                כבר מתוזמנת החלפה לחוג הזה — בטלו אותה לפני החלפה נוספת.
+              </p>
+            ) : quote && (quote.direction === 'up' || quote.direction === 'down' || quote.clears_pending) ? (
+              <p className="rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                החלפת יום אחד לא משנה את המחיר — לשינוי מחיר יש להחליף את כל המסלול.
+              </p>
+            ) : quote ? (
+              <div className="space-y-2 rounded-lg border border-violet-200 bg-violet-50 px-3 py-2 text-sm text-violet-950">
+                <p className="font-semibold">
+                  {formatSlots([swapSlot])} ← {formatSlots(selected.slots)}
+                </p>
+                <p className="text-xs">
+                  {[selected.courseName, selected.slots[0]?.instructor_name].filter(Boolean).join(' · ')}
+                </p>
+                <p className="text-xs text-violet-900/80">
+                  {quote.direction === 'no_sto'
+                    ? 'לילד אין הוראת קבע פעילה למסלול — ההחלפה לא נוגעת בחיוב.'
+                    : `המחיר החודשי נשאר ${shekels(quote.current_amount)} — הוראת הקבע וההנחות לא משתנות.`}
+                  {' '}שאר הימים נשארים כמו שהם.
+                </p>
+                <input
+                  type="text"
+                  className="input w-full bg-white text-sm"
+                  placeholder="סיבה (לא חובה) — למשל: היום בוטל"
+                  value={reason}
+                  maxLength={300}
+                  onChange={(e) => setReason(e.target.value)}
+                />
+              </div>
+            ) : null
+          ) : null}
+          {!swapping && !isTrial && selectedKey && selectedKey !== currentKey ? (
             quoting ? (
               <p className="text-xs text-muted-foreground" aria-busy="true">מחשב מחיר…</p>
             ) : quoteError ? (
@@ -853,7 +999,7 @@ export default function ChangeChildLessonDialog({
             disabled={saving || loading || !canSave}
             onClick={handleSave}
           >
-            {saving ? 'שומר...' : isTrial ? 'שמור' : quote?.direction === 'down' ? 'תזמן החלפה' : 'החלף חוג'}
+            {saving ? 'שומר...' : isTrial ? 'שמור' : swapping ? 'החלף יום' : quote?.direction === 'down' ? 'תזמן החלפה' : 'החלף חוג'}
           </button>
         </div>
       </DialogContent>

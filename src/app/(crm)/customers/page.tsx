@@ -20,6 +20,7 @@ import { ChildWithDetails, CustomerFilters, Branch, Course, Instructor, Enrollme
 import { 
   getCustomerTableStatus,
   formatEnrollmentSlot,
+  swappedDayTitle,
   chipKindLabel,
   chipsForCustomerRow,
   isTrialEnrollment,
@@ -819,6 +820,14 @@ export default function CustomersPage() {
                                           {slotLabel ? (
                                             <span className="whitespace-nowrap opacity-70">
                                               {slotLabel}
+                                            </span>
+                                          ) : null}
+                                          {enrollment.swapped_day ? (
+                                            <span
+                                              className="whitespace-nowrap rounded bg-violet-100 px-1 text-[10px] font-semibold text-violet-800"
+                                              title={`${swappedDayTitle(enrollment)} — המחיר לא השתנה`}
+                                            >
+                                              מוחלף
                                             </span>
                                           ) : null}
                                           {trial && enrollment.trial_lesson_date ? (

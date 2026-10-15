@@ -5,6 +5,7 @@ import {
   chipsForCustomerRow,
   formatEnrollmentSlot,
   groupEnrollmentsForTable,
+  swappedDayTitle,
 } from '@/lib/customerUtils';
 import type { EnrollmentDetail } from '@/types/customer';
 
@@ -38,6 +39,28 @@ describe('groupEnrollmentsForTable', () => {
       'שני 16:45',
       'חמישי 17:30',
     ]);
+  });
+
+  test('a day swapped onto another group stays on its track, under the track name', () => {
+    // Owner, 15.10.2026: one day of a twice-a-week track was cancelled; the child
+    // goes to another group's Wednesday for the same money. Still one registration.
+    const groups = groupEnrollmentsForTable([
+      enrollment({
+        enrollment_id: 'e1', lesson_id: 'mon', course_id: 'jazz', course_name: 'פאנקי ג׳אז',
+        bundle_id: 'b1', track_course_id: 'jazz', track_course_name: 'פאנקי ג׳אז',
+      }),
+      enrollment({
+        enrollment_id: 'e2', lesson_id: 'wed', day_of_week: 3, course_id: 'hiphop', course_name: 'היפ הופ',
+        instructor_name: 'יעל כהן', bundle_id: 'b1', track_course_id: 'jazz', track_course_name: 'פאנקי ג׳אז',
+        swapped_day: true,
+      }),
+    ]);
+    expect(groups).toHaveLength(1);
+    expect(groups[0].courseId).toBe('jazz');
+    expect(groups[0].courseName).toBe('פאנקי ג׳אז');
+    expect(groups[0].slots.map((slot) => slot.lesson_id)).toEqual(['mon', 'wed']);
+    expect(swappedDayTitle(groups[0].slots[1])).toBe('יום מוחלף · היפ הופ · יעל כהן');
+    expect(swappedDayTitle(groups[0].slots[0])).toBe('');
   });
 
   test('keeps a trial day on its own chip', () => {

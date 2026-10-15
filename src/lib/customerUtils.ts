@@ -129,19 +129,32 @@ export function formatEnrollmentSlot(enrollment: EnrollmentDetail): string {
   return [day, time].filter(Boolean).join(' ');
 }
 
-/** Same חוג twice/thrice a week → one chip; trial stays separate from regular. */
+/** "יום מוחלף · היפ הופ · יעל כהן" — where a swapped day of a track really takes place. */
+export function swappedDayTitle(enrollment: EnrollmentDetail): string {
+  if (!enrollment.swapped_day) return '';
+  return ['יום מוחלף', enrollment.course_name, enrollment.instructor_name].filter(Boolean).join(' · ');
+}
+
+/**
+ * Same חוג twice/thrice a week → one chip; trial stays separate from regular.
+ * A day swapped onto another group's lesson stays in its track's chip, under
+ * the track's name: it is the same registration at the same price.
+ */
 export function groupEnrollmentsForTable(enrollments: EnrollmentDetail[]): GroupedEnrollmentChip[] {
   const groups = new Map<string, GroupedEnrollmentChip>();
   const order: string[] = [];
   for (const enrollment of enrollments) {
     const trial = isTrialEnrollment(enrollment);
-    const key = `${enrollment.course_id || enrollment.course_name}:${trial ? 'trial' : 'regular'}`;
+    const onTrack = !trial && Boolean(enrollment.track_course_id);
+    const courseId = onTrack ? String(enrollment.track_course_id) : enrollment.course_id;
+    const courseName = onTrack ? (enrollment.track_course_name || enrollment.course_name) : enrollment.course_name;
+    const key = `${courseId || courseName}:${trial ? 'trial' : 'regular'}`;
     let group = groups.get(key);
     if (!group) {
       group = {
         key,
-        courseId: enrollment.course_id,
-        courseName: enrollment.course_name,
+        courseId,
+        courseName,
         trial,
         slots: [],
       };
