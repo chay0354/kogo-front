@@ -21,6 +21,19 @@ export function addMinutesToTime(time: string, minutes: number): string {
   return `${String(nextHours).padStart(2, '0')}:${String(nextMinutes).padStart(2, '0')}`;
 }
 
+/**
+ * The end time after the start time moved: the lesson keeps its length. A
+ * lesson with no sensible length yet (end not after start) gets 45 minutes.
+ */
+export function shiftEndWithStart(oldStart: string, oldEnd: string, newStart: string): string {
+  const minutesOf = (time: string) => {
+    const [h, m] = normalizeTimeValue(time).split(':').map(Number);
+    return h * 60 + m;
+  };
+  const length = minutesOf(oldEnd) - minutesOf(oldStart);
+  return addMinutesToTime(newStart, length > 0 ? length : 45);
+}
+
 export function compareTimes(a: string, b: string): number {
   return normalizeTimeValue(a).localeCompare(normalizeTimeValue(b));
 }

@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import api, { fetchInstructorsDropdown } from '@/lib/api';
 import { LessonFormData, Lesson, TrialRegistrationChoice } from '@/types/course';
-import { addMinutesToTime, normalizeTimeValue } from '@/lib/timeUtils';
+import { normalizeTimeValue, shiftEndWithStart } from '@/lib/timeUtils';
 import { LESSON_CAPACITY_ERROR, lessonCapacityText, readLessonCapacity } from '@/lib/lessonCapacity';
 import { TimeField } from '@/components/ui/time-picker';
 import InstructorSelect from '@/components/InstructorSelect';
@@ -152,12 +152,6 @@ export default function EditLessonDialog({
       .catch(() => setRooms([]))
       .finally(() => setLoadingRooms(false));
   }, [open, lesson]);
-
-  useEffect(() => {
-    if (formData.start_time) {
-      setFormData((prev) => ({ ...prev, end_time: addMinutesToTime(prev.start_time, 45) }));
-    }
-  }, [formData.start_time]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -321,7 +315,16 @@ export default function EditLessonDialog({
                 label="שעת התחלה"
                 required
                 value={formData.start_time}
-                onChange={(start_time) => setFormData({ ...formData, start_time })}
+                // The end moves with the start, so the lesson keeps its length. It
+                // used to be reset to start + 45 the moment the window opened, and
+                // saving cut every longer lesson short (found 15.10.2026).
+                onChange={(start_time) =>
+                  setFormData((prev) => ({
+                    ...prev,
+                    start_time,
+                    end_time: shiftEndWithStart(prev.start_time, prev.end_time, start_time),
+                  }))
+                }
                 minuteStep={5}
               />
               <TimeField
@@ -330,7 +333,7 @@ export default function EditLessonDialog({
                 required
                 value={formData.end_time}
                 onChange={(end_time) => setFormData({ ...formData, end_time })}
-                helperText="מתעדכן אוטומטית (+45 דקות)"
+                helperText="זזה יחד עם שעת ההתחלה"
                 minuteStep={5}
               />
             </div>
