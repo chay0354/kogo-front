@@ -13,11 +13,13 @@ import {
   factsBeyond,
   followUpLine,
   fullWhen,
+  isClosedLead,
   isValidSnooze,
   leadActions,
   leadChips,
   leadPhoneText,
   leadRows,
+  leadStageText,
   leadTitle,
   leadView,
   leadsLayout,
@@ -442,7 +444,8 @@ describe('"הצעד הבא"', () => {
     expect(idle('trial_booked')).toMatchObject({ who: 'none', tone: 'quiet', text: 'מחכים לשיעור הניסיון' });
     expect(idle('trial_booked', '', '', '2026-10-13T14:00:00Z').text).toBe('מחכים לשיעור הניסיון · מחר ב-17:00');
     expect(idle('trial_booked', '', 'שיעור ניסיון בקפוארה', '2026-10-13T14:00:00Z').text).toBe('שיעור ניסיון בקפוארה מחר ב-17:00');
-    expect(idle('nothing_to_offer').text).toBe('נבדק כל יום — כשייפתח חוג שמתאים, יעבור אליך');
+    // Closed since 15.10.2026 — and not over: it says it is looked at every day, and comes back.
+    expect(idle('nothing_to_offer').text).toBe('נבדק כל יום — אם ייפתח חוג שמתאים, הליד יחזור אליך');
     expect(idle('in_conversation').text).toBe('בשיחה עכשיו');
     expect(idle('something_new').text).toBe('אין צעד כרגע');
     expect(idle('registered', 'נרשם').text).toBe('נרשם');
@@ -1075,5 +1078,52 @@ describe('the waiting list and future leads on the leads tab (docs/WAHUB-CONTRAC
     const [after] = applyLeadChange([page], 'bot', lead, { kind: 'snooze', until: '2026-12-01', note: '' });
     expect(after?.results[0].waiting_list).toEqual(WAITING);
     expect(after?.results[0].future).toEqual(FUTURE);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// "אין מה להציע" is closed (the owner, 15.10.2026; docs/WAHUB-CONTRACT-LEADS-NO-ONE-LOST.md, ט)
+// ---------------------------------------------------------------------------
+
+describe('"לא רלוונטי · אין מה להציע": closed, and back by itself when a class opens', () => {
+  const kept = row({
+    owner: '',
+    stage: 'nothing_to_offer',
+    stage_label: 'לא רלוונטי · אין מה להציע',
+    next: next({ who: 'none', state: 'none', what: 'נבדק כל יום — אם ייפתח חוג שמתאים, הליד יחזור אליך' }),
+  });
+
+  test('a closed lead, on the closed list — not the bot\'s and not the office\'s', () => {
+    expect(isClosedLead(kept)).toBe(true);
+    expect(leadView(kept)).toBe('closed');
+    // Whoever is written as its owner: a row of an older server, "nobody's step" under the bot.
+    expect(leadView({ owner: 'bot', stage: 'nothing_to_offer' })).toBe('closed');
+    expect(leadStageText(kept)).toBe('לא רלוונטי · אין מה להציע');
+    expect(leadStageText({ stage: 'nothing_to_offer', stage_label: '' })).toBe('לא רלוונטי · אין מה להציע');
+  });
+
+  test('its line says it is looked at every day — the server\'s words, or the same words of the screen', () => {
+    expect(nextStepLine(kept, NOW)).toEqual({ who: 'none', tone: 'quiet', dated: false, text: 'נבדק כל יום — אם ייפתח חוג שמתאים, הליד יחזור אליך', detail: '' });
+    const missing = { ...kept, next: next({ who: 'none', state: 'none', what: 'אין כרגע מה להציע — חסר תחום, גיל או מקום כדי לבדוק כל יום' }) };
+    expect(nextStepLine(missing, NOW).text).toBe('אין כרגע מה להציע — חסר תחום, גיל או מקום כדי לבדוק כל יום');
+  });
+
+  test('nothing to press: it comes back by itself, so "החזר לרשימה" is not offered', () => {
+    expect(leadActions(kept)).toEqual({ owner: null, snooze: false, remove: false, reopen: false });
+    // The other closed states are brought back as before.
+    expect(leadActions({ owner: '', stage: 'not_interested' }).reopen).toBe(true);
+  });
+
+  test('a class that opened: an open question of the office\'s, on the office\'s list', () => {
+    const opened = row({
+      owner: 'office',
+      stage: 'needs_reply',
+      stage_label: 'נפתח חוג שמתאים',
+      next: next({ who: 'office', state: 'none', what: 'נפתח: קפוארה גן חובה בראש העין — להציע לו' }),
+    });
+    expect(isClosedLead(opened)).toBe(false);
+    expect(leadView(opened)).toBe('office');
+    expect(nextStepLine(opened, NOW)).toMatchObject({ tone: 'office', text: 'מחכה לך: נפתח: קפוארה גן חובה בראש העין — להציע לו' });
+    expect(leadActions(opened)).toEqual({ owner: 'bot', snooze: true, remove: true, reopen: false });
   });
 });

@@ -255,6 +255,8 @@ export type BroadcastExtraPhone = {
   reason?: 'duplicate_phone' | 'contact_unfindable' | 'not_mobile' | 'opted_out' | null;
   method?: string | null;
   error?: string | null;
+  /** True when this number is on the "הסר" list — skipped for a marketing message, sent to for any other. */
+  opted_out?: boolean;
 };
 
 export type BroadcastRow = {
@@ -270,6 +272,8 @@ export type BroadcastRow = {
   reason?: 'no_parent_phone' | 'duplicate_phone' | 'no_active_lesson' | 'contact_unfindable' | 'opted_out' | null;
   method?: string | null;
   error?: string | null;
+  /** True when the parent's number is on the "הסר" list — skipped for a marketing message, sent to for any other. */
+  opted_out?: boolean;
   /** The status above is the primary parent's; these are the family's other phones. */
   extra_phones?: BroadcastExtraPhone[];
 };
@@ -285,6 +289,14 @@ export type BroadcastResult = {
   skipped: number;
   preview_count: number;
   missing: number;
+  /** What the server took the message to be: marketing skips whoever asked "הסר". Absent from an older server. */
+  marketing?: boolean;
+  /** Skipped because they asked "הסר" (marketing only), inside `skipped`. */
+  opted_out?: number;
+  extra_opted_out?: number;
+  /** Sent to although they asked "הסר" — a message that is not marketing. */
+  included_opted_out?: number;
+  extra_included_opted_out?: number;
   /** E.164 phones this request used — pass back as skip_phones so siblings across chunks get one message. */
   phones: string[];
   results: BroadcastRow[];
@@ -310,6 +322,11 @@ export async function broadcastToChildren(payload: {
   /** The lesson / weekday the audience was filtered by (see the server's hint handling). */
   lesson_id?: string;
   day_of_week?: number;
+  /**
+   * What the office said the message is. Marketing skips whoever asked "הסר"; an update or a service message
+   * reaches them too. Left out, the server takes it as marketing.
+   */
+  marketing?: boolean;
 }) {
   // This screen shows and counts the families' extra phones, so it asks for them.
   const res = await api.post(

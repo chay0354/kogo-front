@@ -80,7 +80,7 @@ export interface StageHelpProps {
 }
 
 export function StageHelp({ stage, children, inRow = false, title, defaultOpen = false, help: own }: StageHelpProps) {
-  const help = own === undefined ? stageHelp(stage) : own;
+  const help = own === undefined ? stageHelp(stage, title) : own;
   const { open, setOpen, byHover, wrap } = useBubble(defaultOpen);
   const id = useId();
   const bubble = useRef<HTMLSpanElement>(null);

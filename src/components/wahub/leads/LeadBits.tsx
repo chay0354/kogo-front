@@ -26,7 +26,7 @@ export function LeadStageTag({
   const tag = (
     <span
       className={cx(size === 'row' ? s.rowTag : s.pill, PILL_TONE[leadTone(lead, needsHuman)], s.stageTag)}
-      title={size === 'row' ? stageHelpText(lead.stage) || undefined : undefined}
+      title={size === 'row' ? stageHelpText(lead.stage, label) || undefined : undefined}
     >
       {label}
     </span>

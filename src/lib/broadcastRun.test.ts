@@ -39,11 +39,14 @@ function fakeServer(opts: { failOn?: (req: ChunkRequest, call: number) => boolea
 
 const ids = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10'];
 
-function makeRun(server: ReturnType<typeof fakeServer>, chunkSize = 4) {
+/** A run whose message the office said is marketing — as every run of the dialog says one or the other. */
+function makeRun(server: ReturnType<typeof fakeServer>, chunkSize = 4, marketing: boolean | null = true) {
   return new BroadcastRun({
     ids,
     names: {},
     automation: { automation_type: 'kind', automation_id: 'x', label: 'בדיקה' },
+    // null: nobody said (the option left out).
+    ...(marketing === null ? {} : { marketing }),
     chunkSize,
     sendChunk: server.sendChunk,
     holdMs: 0,
@@ -317,5 +320,32 @@ describe('BroadcastRun — extra phones', () => {
     }));
     expect(packSendChunks(['a', 'b'], rows, 4)).toEqual([['a'], ['b']]);
     expect(packSendChunks(['x', 'y'], [], 1)).toEqual([['x'], ['y']]);
+  });
+});
+
+describe('BroadcastRun — marketing or not (15.10.2026)', () => {
+  it('the office\'s choice goes with every chunk, the preview\'s and the send\'s', async () => {
+    for (const marketing of [true, false]) {
+      const server = fakeServer();
+      const run = makeRun(server, 4, marketing);
+      expect(run.marketing).toBe(marketing);
+      await run.check();
+      await run.start();
+      expect(server.calls.filter((c) => c.dry_run)).toHaveLength(3);
+      expect(server.calls.filter((c) => !c.dry_run)).toHaveLength(3);
+      expect(server.calls.every((c) => c.marketing === marketing)).toBe(true);
+    }
+  });
+
+  it('a run nobody chose for is previewed as the server\'s marketing, and never sent', async () => {
+    const server = fakeServer();
+    const run = makeRun(server, 4, null);
+    expect(run.marketing).toBeNull();
+    await run.check();
+    expect(server.calls.every((c) => !('marketing' in c))).toBe(true);
+    expect(run.snapshot.phase).toBe('preview');
+    await run.start();
+    expect(server.calls.some((c) => !c.dry_run)).toBe(false);
+    expect(run.snapshot.phase).toBe('preview');
   });
 });

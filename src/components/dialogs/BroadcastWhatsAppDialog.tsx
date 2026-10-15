@@ -11,11 +11,17 @@ import LinkContactPanel from '@/components/broadcast/LinkContactPanel';
 import ContactIndexPanel, { unfindablePhones } from '@/components/broadcast/ContactIndexPanel';
 import type { BroadcastDraft } from '@/components/broadcast/BroadcastRunProvider';
 import {
+  MESSAGE_KIND_HINT,
+  MESSAGE_KINDS,
+  includedOptedOutCounts,
+  messageKindLabel,
   optedOutCounts,
-  optedOutLine,
+  optedOutKindLine,
+  previewBlocked,
   previewCounts,
   sentCounts,
   type BroadcastRun,
+  type MessageKind,
   type RunSnapshot,
 } from '@/lib/broadcastRun';
 import {
@@ -38,7 +44,8 @@ interface BroadcastWhatsAppDialogProps {
   /** The X, Escape or a click outside: minimises a run under way, ends anything else. */
   onClose: () => void;
   onMinimize: () => void;
-  onCheck: (automation: WhatsAppAutomation) => void;
+  /** `marketing`: the office's choice of what the message is — required before the preview. */
+  onCheck: (automation: WhatsAppAutomation, marketing: boolean) => void;
   onBack: () => void;
   onCancel: () => void;
   onStart: () => void;
@@ -63,14 +70,52 @@ const REASON_LABELS: Record<string, string> = {
   opted_out: 'ביקש הסר',
 };
 
-/** "N לא יקבלו: ביקשו הסר" — its own line, apart from the other reasons. Nothing when nobody asked out. */
-function OptedOutLine({ count }: { count: number }) {
-  const line = optedOutLine(count);
+/**
+ * Who asked out ("הסר"), on a line of its own apart from the other reasons, with the kind of message:
+ * "3 שביקשו הסר לא יקבלו (הודעה שיווקית)" / "3 שביקשו הסר יקבלו (הודעה לא שיווקית)". Nothing when there is nobody.
+ */
+function OptedOutLine({ rows, marketing, done }: { rows: BroadcastRow[]; marketing: boolean | null; done: boolean }) {
+  const line = optedOutKindLine(
+    { held: optedOutCounts(rows).total, included: includedOptedOutCounts(rows).total },
+    { marketing, done },
+  );
   if (!line) return null;
   return (
     <p className="rounded-md border px-3 py-2 text-sm text-muted-foreground" role="status" data-opted-out="">
       {line}
     </p>
+  );
+}
+
+/**
+ * "סוג ההודעה" — marketing or not, required, with nothing ticked to begin with (the owner, 15.10.2026: whoever
+ * asked "הסר" gets no marketing, and still gets an update about their own class).
+ */
+export function MessageKindChoice({ value, onChange }: { value: MessageKind | null; onChange: (kind: MessageKind) => void }) {
+  return (
+    <fieldset className="space-y-2" data-message-kind="">
+      <legend className="text-sm font-semibold">סוג ההודעה</legend>
+      <div className="flex flex-wrap gap-2">
+        {MESSAGE_KINDS.map((kind) => (
+          <label
+            key={kind.value}
+            className={`flex items-center gap-2 rounded-md border px-3 py-2 text-sm cursor-pointer ${
+              value === kind.value ? 'border-primary bg-primary/5 font-medium' : ''
+            }`}
+          >
+            <input
+              type="radio"
+              name="broadcast-kind"
+              value={kind.value}
+              checked={value === kind.value}
+              onChange={() => onChange(kind.value)}
+            />
+            {kind.label}
+          </label>
+        ))}
+      </div>
+      <p className="text-xs text-muted-foreground">{MESSAGE_KIND_HINT}</p>
+    </fieldset>
   );
 }
 
@@ -103,10 +148,14 @@ function ExtraPhoneLines({ row }: { row: BroadcastRow }) {
   );
 }
 
-function rowStatusLabel(row: Pick<BroadcastRow, 'status' | 'method' | 'error'> & { reason?: string | null }) {
-  if (row.status === 'sent') return row.method === 'flow' ? 'נשלח' : 'נשלח (טקסט חופשי)';
+function rowStatusLabel(
+  row: Pick<BroadcastRow, 'status' | 'method' | 'error'> & { reason?: string | null; opted_out?: boolean },
+) {
+  // A message that is not marketing reaches whoever asked "הסר" too — and the row says so.
+  const askedOut = row.opted_out === true ? ` · ${REASON_LABELS.opted_out}` : '';
+  if (row.status === 'sent') return `${row.method === 'flow' ? 'נשלח' : 'נשלח (טקסט חופשי)'}${askedOut}`;
   if (row.status === 'failed') return `נכשל${row.error ? ` · ${row.error}` : ''}`;
-  if (row.status === 'preview') return 'יישלח';
+  if (row.status === 'preview') return `יישלח${askedOut}`;
   return `ידולג · ${REASON_LABELS[row.reason || ''] || row.reason || ''}`;
 }
 
@@ -146,6 +195,8 @@ export default function BroadcastWhatsAppDialog({
   const [automationValue, setAutomationValue] = useState('');
   const [loadError, setLoadError] = useState('');
   const [confirmed, setConfirmed] = useState(false);
+  // Marketing or not — the office's to say every time, with nothing ticked to begin with (15.10.2026).
+  const [kind, setKind] = useState<MessageKind | null>(null);
   // Phones linked to their ManyChat contact from this run's failed rows, with
   // the name ManyChat has for the contact.
   const [linked, setLinked] = useState<Record<string, string>>({});
@@ -169,6 +220,10 @@ export default function BroadcastWhatsAppDialog({
   // The automation list is fetched once per selection, the first time the
   // choosing step is shown for it — going back from a preview keeps it.
   const loadedFor = useRef<BroadcastDraft | null>(null);
+  // A new selection is a new message: its kind is chosen again. Going back from a preview keeps it.
+  useEffect(() => {
+    setKind(null);
+  }, [draft]);
   useEffect(() => {
     if (!open || !picking || !draft || loadedFor.current === draft) return;
     loadedFor.current = draft;
@@ -224,11 +279,12 @@ export default function BroadcastWhatsAppDialog({
   }, [open, picking, draft]);
 
   const runPreview = () => {
-    if (!selectedAutomation) {
-      toast.error('בחרו אוטומציה');
+    const blocked = previewBlocked(Boolean(selectedAutomation), kind);
+    if (blocked || !selectedAutomation) {
+      toast.error(blocked || 'בחרו אוטומציה');
       return;
     }
-    onCheck(selectedAutomation);
+    onCheck(selectedAutomation, kind === 'marketing');
   };
 
   const previewRows = snapshot?.previewRows ?? [];
@@ -241,10 +297,10 @@ export default function BroadcastWhatsAppDialog({
       // Whoever asked out has a line of their own under the chips, and is not said twice.
       if (r.status === 'skipped' && r.reason !== 'opted_out') reasons[r.reason || 'other'] = (reasons[r.reason || 'other'] || 0) + 1;
     }
-    return { willSend, skipped, extraWillSend, messages, reasons, optedOut: optedOutCounts(previewRows).total };
+    return { willSend, skipped, extraWillSend, messages, reasons };
   }, [previewRows]);
 
-  const sentSummary = useMemo(() => ({ ...sentCounts(sentRows), optedOut: optedOutCounts(sentRows).total }), [sentRows]);
+  const sentSummary = useMemo(() => sentCounts(sentRows), [sentRows]);
 
   const copyFailures = async () => {
     const lines = sentRows.flatMap((r) => [
@@ -374,6 +430,7 @@ export default function BroadcastWhatsAppDialog({
                 ) : null}
               </>
             )}
+            <MessageKindChoice value={kind} onChange={setKind} />
             {configured === false && (
               <p className="text-xs text-red-800 bg-red-50 border border-red-200 rounded-md px-3 py-2">
                 ManyChat אינו מוגדר בשרת הזה — אפשר לבנות תצוגה מקדימה, אבל שליחה אמיתית תידחה.
@@ -387,7 +444,11 @@ export default function BroadcastWhatsAppDialog({
               </span>
             </p>
             <div className="flex justify-start gap-2 pt-2">
-              <Button type="button" onClick={runPreview} disabled={loadingAutomations || !selectedAutomation}>
+              <Button
+                type="button"
+                onClick={runPreview}
+                disabled={loadingAutomations || Boolean(previewBlocked(Boolean(selectedAutomation), kind))}
+              >
                 המשך לתצוגה מקדימה
               </Button>
               <Button type="button" variant="outline" onClick={onCancel}>
@@ -399,7 +460,12 @@ export default function BroadcastWhatsAppDialog({
 
         {phase === 'preview' && run && (
           <div className="space-y-4 py-2">
-            <h3 className="font-semibold">2. תצוגה מקדימה — {run.automation.label}</h3>
+            <h3 className="font-semibold">
+              2. תצוגה מקדימה — {run.automation.label}
+              {run.marketing !== null && (
+                <span className="font-normal text-muted-foreground" data-kind-shown=""> · {messageKindLabel(run.marketing)}</span>
+              )}
+            </h3>
             <div className="flex flex-wrap gap-2 text-sm" aria-live="polite">
               <span className="rounded-full bg-emerald-100 text-emerald-900 px-3 py-1 font-medium">
                 יישלחו {previewSummary.messages}
@@ -416,7 +482,7 @@ export default function BroadcastWhatsAppDialog({
                 </span>
               ))}
             </div>
-            <OptedOutLine count={previewSummary.optedOut} />
+            <OptedOutLine rows={previewRows} marketing={run.marketing} done={false} />
             <div className="max-h-72 overflow-y-auto rounded-lg border divide-y text-sm">
               {previewRows.map((row) => (
                 <div key={row.child_id} className="px-3 py-2">
@@ -449,7 +515,11 @@ export default function BroadcastWhatsAppDialog({
               </span>
             </label>
             <div className="flex justify-start gap-2">
-              <Button type="button" onClick={onStart} disabled={!confirmed || previewSummary.messages === 0}>
+              <Button
+                type="button"
+                onClick={onStart}
+                disabled={!confirmed || previewSummary.messages === 0 || run.marketing === null}
+              >
                 <Send className="h-4 w-4 ml-1" />
                 שליחה ל-{previewSummary.messages} {previewSummary.extraWillSend > 0 ? 'מספרים' : 'הורים'}
               </Button>
@@ -515,7 +585,7 @@ export default function BroadcastWhatsAppDialog({
                 </div>
               </div>
             )}
-            <OptedOutLine count={sentSummary.optedOut} />
+            <OptedOutLine rows={sentRows} marketing={run.marketing} done />
             {phase === 'done' && unfindablePhones(sentRows).length > 0 && (
               <ContactIndexPanel
                 phones={unfindablePhones(sentRows)}

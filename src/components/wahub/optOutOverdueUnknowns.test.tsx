@@ -620,10 +620,13 @@ describe('"ביקש הסר" locks what would send something by itself — and sa
 describe('the broadcast says how many will not get it because they asked out — apart from every other reason', () => {
   const row = (id: string, status: BroadcastRow['status'], over: Partial<BroadcastRow> = {}): BroadcastRow => ({ child_id: id, child_name: `ילד ${id}`, parent_name: 'הורה', phone: `97250555${id.padStart(4, '0')}`, status, ...over });
 
-  /** A run as far as its preview — or, with `send`, to its end. The server here skips who asked out, as the real one does. */
+  /**
+   * A run as far as its preview — or, with `send`, to its end. The server here skips who asked out, as the real one
+   * does for a marketing message (the office chose marketing: since 15.10.2026 every run says which).
+   */
   async function runOf(rows: (dry: boolean) => BroadcastRow[], send = false): Promise<BroadcastRun> {
     const sendChunk = async (req: ChunkRequest): Promise<ChunkReply> => ({ results: rows(req.dry_run).filter((r) => req.child_ids.includes(r.child_id)), phones: [] });
-    const run = new BroadcastRun({ ids: rows(true).map((r) => r.child_id), names: {}, automation: { automation_type: 'flow', automation_id: 'x', label: 'עדכון להורים' }, chunkSize: 8, sendChunk, holdMs: 0, wait: async () => {} });
+    const run = new BroadcastRun({ ids: rows(true).map((r) => r.child_id), names: {}, automation: { automation_type: 'flow', automation_id: 'x', label: 'עדכון להורים' }, marketing: true, chunkSize: 8, sendChunk, holdMs: 0, wait: async () => {} });
     await run.check();
     if (send) await run.start();
     return run;
@@ -658,7 +661,7 @@ describe('the broadcast says how many will not get it because they asked out —
     const html = dialog(await runOf(ROWS));
     expect(html).toContain('2. תצוגה מקדימה');
     const line = html.match(/<p[^>]*data-opted-out=""[^>]*>(.*?)<\/p>/)?.[1] ?? '';
-    expect(line).toBe('3 לא יקבלו: ביקשו הסר');
+    expect(line).toBe('3 שביקשו הסר לא יקבלו (הודעה שיווקית)');
     expect((text(html).match(/ידולג · ביקש הסר/g) ?? []).length).toBe(3);
     expect(html).not.toContain('opted_out');
     // It is not said a second time among the reasons; the other reasons are what they were.
@@ -671,7 +674,7 @@ describe('the broadcast says how many will not get it because they asked out —
   it('after the send: the same line in the summary', async () => {
     const html = dialog(await runOf(ROWS, true));
     expect(html).not.toContain('2. תצוגה מקדימה');
-    expect(html.match(/<p[^>]*data-opted-out=""[^>]*>(.*?)<\/p>/)?.[1]).toBe('3 לא יקבלו: ביקשו הסר');
+    expect(html.match(/<p[^>]*data-opted-out=""[^>]*>(.*?)<\/p>/)?.[1]).toBe('3 שביקשו הסר לא קיבלו (הודעה שיווקית)');
   });
 
   it('nobody asked out — and a server built before the list — no line, and the screen is what it was', async () => {
