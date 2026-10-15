@@ -152,7 +152,8 @@ describe('the conversations list', () => {
 
   it('shows the five boxes with their counts', () => {
     const html = render(<ChatList {...listProps} items={[makeContact(1)]} />);
-    for (const label of ['הכול', 'מחכים לתשובה', 'מבקשים נציג', 'לא נקראו', 'בטיפול נציג']) {
+    // The second group's names say what they mean (15.10.2026): "לא נענו" and "לא נפתחו".
+    for (const label of ['הכול', 'לא נענו', 'מבקשים נציג', 'לא נפתחו', 'בטיפול נציג', 'מצב השיחה']) {
       expect(html).toContain(label);
     }
     expect(html.match(/aria-pressed="true"/g)).toHaveLength(1);

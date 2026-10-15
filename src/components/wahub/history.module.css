@@ -1,53 +1,7 @@
 /*
- * "השיחה התחילה לפני המעבר" — one strip at the head of a conversation from before the switch
- * (src/lib/wahub/history.ts). In the section's own language: the variables set on .wahub
- * (wahub.module.css) and its type scale. Gold, the colour of what is the office's own to notice.
+ * The conversation from before the switch (src/lib/wahub/history.ts), in the section's own language: the
+ * variables set on .wahub (wahub.module.css).
  */
-
-.strip {
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  margin: 8px 12px 0;
-  padding: 10px 12px;
-  border: 1px solid color-mix(in srgb, var(--gold, #c9a227) 45%, transparent);
-  border-radius: 12px;
-  background: color-mix(in srgb, var(--gold, #c9a227) 12%, var(--surface));
-  color: var(--ink);
-  font-size: var(--t-meta);
-  line-height: 1.5;
-}
-
-.strip svg {
-  flex: none;
-  width: 18px;
-  height: 18px;
-  margin-top: 1px;
-}
-
-.body {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
-}
-
-.title {
-  font-size: var(--t-body);
-  font-weight: 800;
-}
-
-.link {
-  align-self: flex-start;
-  font-weight: 800;
-  color: var(--accent, currentColor);
-  text-decoration: underline;
-  text-underline-offset: 3px;
-}
-
-.quiet {
-  color: var(--muted);
-}
 
 /* A line copied from ManyChat, among the messages: the bubble it was, with a dashed edge — Kogo did not send it. */
 .copied {

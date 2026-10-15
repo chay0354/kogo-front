@@ -1,3 +1,4 @@
+import type { StageHelp as HelpWords } from './stageHelp';
 import type {
   WahubBox,
   WahubBoxCounts,
@@ -12,11 +13,21 @@ export type Tone = 'neutral' | 'primary' | 'danger' | 'warning' | 'info' | 'succ
 
 export type BoxGroup = 'all' | 'human' | 'bot';
 
+/** A small picture drawn before a box's name — where a word would make it long (owner, 15.10.2026: "אייקון שעון במקום מחכים"). */
+export type BoxIcon = 'clock';
+
 export interface BoxDef {
   key: WahubBox;
   label: string;
-  /** One plain line that says who is in this box — shown on hover and in the empty state. */
+  /** One plain line that says who is in this box — the box's own title text where it has no `help`. */
   hint: string;
+  /**
+   * "מה זה אומר?" — two short lines, the point in bold (lib/wahub/stageHelp.ts): who is in the box, and what
+   * takes them out. A mouse resting on the box opens them, a long press does on a phone, and so does the "?" of
+   * the group — a plain press keeps filtering (owner, 15.10.2026: "מה זה אומר").
+   */
+  help?: HelpWords;
+  icon?: BoxIcon;
   tone: Tone;
   /** Two worlds the owner wants kept apart on screen: what a person must handle, and what the bot handles. */
   group: BoxGroup;
@@ -32,50 +43,102 @@ export interface BoxDef {
 /**
  * The boxes above the conversations list, in the order they are shown.
  *
- * The owner's order (10.10.2026): the two "נציג" boxes first, because they are
- * what the office works from; then the two bot-side states. The server also
- * knows a "bot" box; the screen does not offer it, because "הכול" less
- * "בטיפול נציג" already is that list.
+ * The owner's order (10.10.2026): the "נציג" boxes first, because they are
+ * what the office works from; then the two states of the conversation. The
+ * server also knows a "bot" box; the screen does not offer it, because "הכול"
+ * less "בטיפול נציג" already is that list.
  *
  * Since 13.10.2026 (docs/WAHUB-CONTRACT-FUTURE-LEADS.md, ג.2) "פתוחות" leads the
  * person's boxes — everything that waits for a person now, whatever the reason —
  * and "לידים עתידיים" closes them, quietly: the leads that wait for their day.
+ *
+ * 15.10.2026 (the owner): "ברכת יום הולדת", with a clock — who asked for Kogo's birthday greeting and waits for
+ * a person to send it; and the second group says what it is about — the state of the conversation, not the bot
+ * ("מה זה אומר?") — with names that say it: "לא נענו" (nobody answered yet, not even the bot) and "לא נפתחו"
+ * (nobody in the office opened it yet, even if the bot answered).
  */
 export const CHAT_BOXES: BoxDef[] = [
   { key: 'all', label: 'הכול', hint: 'כל השיחות', tone: 'neutral', group: 'all' },
   {
     key: 'open',
     label: 'פתוחות',
-    hint: 'מחכות לך עכשיו: מבקשים נציג, שיחות אצל נציג, ולידים עתידיים שהגיע יומם או שהלקוח כתב',
+    hint: 'מחכות לך עכשיו: מבקשים נציג, מחכים לברכה, שיחות אצל נציג, ולידים עתידיים שהגיע יומם או שהלקוח כתב',
+    help: {
+      what: 'כל מה **שמחכה לאדם עכשיו**',
+      now: 'מבקשים נציג, מחכים לברכה, שיחות אצל נציג, ולידים עתידיים שהגיע יומם או שהלקוח כתב',
+    },
     tone: 'primary',
     group: 'human',
     needsCount: true,
   },
-  { key: 'needs_human', label: 'מבקשים נציג', hint: 'הלקוח ביקש בן אדם, ואף אחד עוד לא לקח את השיחה', tone: 'danger', group: 'human' },
-  { key: 'human', label: 'בטיפול נציג', hint: 'נציג לקח את השיחה, הבוט שותק', tone: 'info', group: 'human' },
+  {
+    key: 'needs_human',
+    label: 'מבקשים נציג',
+    hint: 'הלקוח ביקש בן אדם, ואף אחד עוד לא לקח את השיחה',
+    help: { what: 'הלקוח **ביקש לדבר עם בן אדם**', now: '**מחכה לך:** לענות לו, ואז לסגור ב-✓' },
+    tone: 'danger',
+    group: 'human',
+  },
+  {
+    key: 'birthday',
+    label: 'ברכת יום הולדת',
+    hint: 'ביקשו ברכה או סרטון ליום הולדת, ומחכים שנשלח',
+    help: { what: 'ביקשו **ברכה או סרטון ליום הולדת** מקוגומלו', now: '**מחכה לך:** לשלוח את הברכה, ואז לסגור ב-✓' },
+    icon: 'clock',
+    tone: 'warning',
+    group: 'human',
+    needsCount: true,
+  },
+  {
+    key: 'human',
+    label: 'בטיפול נציג',
+    hint: 'נציג לקח את השיחה, הבוט שותק',
+    help: { what: 'נציג **לקח את השיחה**, והבוט שותק', now: 'הבוט חוזר לענות כשמחזירים לו את השיחה או סוגרים ב-✓' },
+    tone: 'info',
+    group: 'human',
+  },
   {
     key: 'future',
     label: 'לידים עתידיים',
     hint: 'ממתינים לתאריך שנקבע; ביום הזה הם חוזרים ל״פתוחות״',
+    help: { what: 'לידים שנקבע להם **תאריך לחזור אליהם**', now: 'ביום הזה הם **חוזרים ל״פתוחות״** לבד' },
     tone: 'muted',
     group: 'human',
     needsCount: true,
     quiet: true,
   },
-  { key: 'waiting', label: 'מחכים לתשובה', hint: 'הלקוח כתב, והבוט עוד לא ענה', tone: 'warning', group: 'bot' },
-  { key: 'unread', label: 'לא נקראו', hint: 'הודעות שאף אחד מהצוות עוד לא פתח', tone: 'primary', group: 'bot' },
+  {
+    key: 'waiting',
+    label: 'לא נענו',
+    hint: 'הלקוח כתב, ועוד אף אחד (לא הבוט ולא נציג) לא ענה לו',
+    help: { what: 'הלקוח כתב, ועוד **אף אחד** (לא הבוט ולא נציג) **לא ענה לו**', now: 'יוצא מכאן ברגע שהבוט או נציג עונים' },
+    tone: 'warning',
+    group: 'bot',
+  },
+  {
+    key: 'unread',
+    label: 'לא נפתחו',
+    hint: 'הלקוח כתב, ואף אחד מהמשרד עוד לא פתח את השיחה (גם אם הבוט כבר ענה)',
+    help: {
+      what: 'הלקוח כתב, ו**אף אחד מהמשרד עוד לא פתח** את השיחה (גם אם הבוט כבר ענה)',
+      now: 'יוצא מכאן כשמישהו מהמשרד פותח את השיחה',
+    },
+    tone: 'primary',
+    group: 'bot',
+  },
 ];
 
 /** The group labels, in display order. */
 export const BOX_GROUPS: { key: BoxGroup; label: string }[] = [
   { key: 'all', label: '' },
   { key: 'human', label: 'נציג' },
-  { key: 'bot', label: 'בוט' },
+  { key: 'bot', label: 'מצב השיחה' },
 ];
 
 /**
  * The boxes of a group. Given the counts, a box that needs its own is left out
- * until the server sends it — a server built before "פתוחות" never does.
+ * until the server sends it — a server built before "פתוחות" (or before
+ * "ברכת יום הולדת") never does.
  */
 export function boxesInGroup(group: BoxGroup, counts?: Partial<WahubBoxCounts> | null): BoxDef[] {
   return CHAT_BOXES.filter((def) => def.group === group && (counts === undefined || !def.needsCount || boxCount(counts, def.key) !== null));
@@ -189,6 +252,8 @@ export function matchesBox(contact: WahubContact, box: WahubBox): boolean {
       return contact.chat.open === true;
     case 'future':
       return contact.future?.state === 'parked';
+    case 'birthday':
+      return Boolean(contact.chat.birthday_wait_since);
     default:
       return true;
   }

@@ -8,6 +8,7 @@ import { useAuth } from '@/components/AuthProvider';
 import { attachShadowReplies } from '@/lib/wahub/bot';
 import { matchesBox, shownBox } from '@/lib/wahub/boxes';
 import { cardMaxWidth, cardWidth } from '@/lib/wahub/cardPane';
+import { listMaxWidth, listWidth as listWidthIn } from '@/lib/wahub/listPane';
 import { isDemoContact } from '@/lib/wahub/demo';
 import { displayName, israelToday } from '@/lib/wahub/format';
 import { knowsFutureLeads, withNote } from '@/lib/wahub/futureLeads';
@@ -26,6 +27,7 @@ import { useContactMutations, type ContactStore } from '../hooks/useContactMutat
 import { useContactThread, type ContactThread } from '../hooks/useContactThread';
 import { useDemoChat } from '../hooks/useDemoChat';
 import { useElementWidth } from '../hooks/useElementWidth';
+import { useListWidth } from '../hooks/useListWidth';
 import { useNow } from '../hooks/useNow';
 import { usePagedContacts } from '../hooks/usePagedContacts';
 import { useWaitMarks } from '../hooks/useWaitMarks';
@@ -44,6 +46,7 @@ import CardGrip from './CardGrip';
 import ChatList from './ChatList';
 import ChatThread, { type ThreadFutureActions } from './ChatThread';
 import ContactPanel from './ContactPanel';
+import ListGrip from './ListGrip';
 
 const SEARCH_DELAY_MS = 300;
 /** A search hides contacts the screen cannot place by itself; it re-reads the list for them, this often at most. */
@@ -122,6 +125,9 @@ export default function ChatsTab({
   // The card beside the conversation: put away or not, and how wide — a desktop's own choice, kept in the browser.
   const cardPane = useCardPane();
   const cardRef = useRef<HTMLElement | null>(null);
+  // The list beside it, as wide as it was pulled — likewise a desktop's own choice (the owner, 15.10.2026).
+  const listPane = useListWidth();
+  const listRef = useRef<HTMLElement | null>(null);
   const refine = useRefine();
 
   const [search, setSearch] = useState('');
@@ -402,18 +408,22 @@ export default function ChatsTab({
   const showThread = panes.thread;
   const showDetails = panes.details;
   const showPlaceholder = panes.placeholder;
-  const listWidth = layout === 'narrow' ? undefined : layout === 'medium' ? MEDIUM_LIST_WIDTH : columns.list;
-  // The card's column on a desktop: the width it was pulled to, or the screen's own — never so wide that the
-  // conversation is squeezed.
-  const cardMax = cardMaxWidth(width, columns.list);
-  const cardColumn = cardWidth(cardPane, columns.details, cardMax);
   // "דיוק" opens over the card. With the card put away its column comes back for the small chat alone, so the
   // conversation it is about still stands whole beside it — and goes again when the chat is closed.
   const dockOnly = cardHidden && active && contactId != null && refine.target !== null;
   const showColumn = showDetails || dockOnly;
+  // A desktop's list: the width it was pulled to, or the screen's own — never so wide that the conversation is
+  // squeezed beside the card as the card would be with the screen's own list (the card keeps its room, the list
+  // gives way). The card's column then: its own width, inside what the list now leaves.
+  const cardBeside = showColumn ? cardWidth(cardPane, columns.details, cardMaxWidth(width, columns.list)) : 0;
+  const listMax = listMaxWidth(width, cardBeside);
+  const listColumn = wide ? listWidthIn(listPane.width, columns.list, listMax) : columns.list;
+  const listWidth = layout === 'narrow' ? undefined : layout === 'medium' ? MEDIUM_LIST_WIDTH : listColumn;
+  const cardMax = cardMaxWidth(width, listColumn);
+  const cardColumn = cardWidth(cardPane, columns.details, cardMax);
   // Beside the open card — which carries the phone and the way to WhatsApp — a conversation short of
   // room keeps its own title row to the name and the action (the stylesheet reads this mark).
-  const threadWidth = width !== null && wide ? width - columns.list - (showColumn ? cardColumn : 0) : null;
+  const threadWidth = width !== null && wide ? width - listColumn - (showColumn ? cardColumn : 0) : null;
   const tightThread = threadWidth !== null && showColumn && threadWidth < TIGHT_THREAD_UNDER;
 
   // A phone shows the list, the conversation or the details — one at a time, like pages. Going deeper brings
@@ -446,6 +456,7 @@ export default function ChatsTab({
       data-card={cardHidden && !showColumn ? 'hidden' : undefined}
     >
       <aside
+        ref={listRef}
         aria-label="רשימת השיחות"
         className={showList ? cx(s.pane, s.listPane, m.page, 'shrink-0', layout === 'narrow' ? 'w-full' : s.paneLineEnd) : 'hidden'}
         style={listWidth ? { width: listWidth } : undefined}
@@ -473,6 +484,9 @@ export default function ChatsTab({
           onOpenSettings={onOpenSettings}
         />
       </aside>
+
+      {/* The handle on the line between the list and the conversation: pulled, it changes the list's width. A desktop only. */}
+      {showList && wide && <ListGrip target={listRef} width={listColumn} max={listMax} onResize={listPane.resize} onReset={listPane.reset} />}
 
       {showPlaceholder && (
         <div className={cx(s.threadBg, 'flex min-w-0 flex-1 items-center justify-center')}>

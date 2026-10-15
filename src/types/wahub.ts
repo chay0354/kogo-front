@@ -83,6 +83,11 @@ export interface WahubChatState {
   needs_human: boolean;
   needs_human_reason: string;
   needs_human_at: string | null;
+  /**
+   * Since when the customer waits for Kogo's birthday greeting (or its video), which a person sends — the box
+   * "ברכת יום הולדת"; null when not. Absent on a server built before 15.10.2026.
+   */
+  birthday_wait_since?: string | null;
   can_free_text: boolean;
   window_closes_at: string | null;
   /**
@@ -141,7 +146,7 @@ export interface WahubOverdueRow {
 }
 
 /** Why a conversation is "open" (ג.1), in the order the server decides by. */
-export type WahubOpenReason = 'needs_human' | 'future_due' | 'future_wrote' | 'human';
+export type WahubOpenReason = 'needs_human' | 'birthday' | 'future_due' | 'future_wrote' | 'human';
 
 /** Where a future lead stands: waiting for its day, its day has come, or the customer wrote before it. */
 export type WahubFutureState = 'parked' | 'due' | 'wrote';
@@ -401,7 +406,9 @@ export interface WahubContactDetail extends WahubContact {
 export type WahubBaseBox = 'all' | 'waiting' | 'needs_human' | 'unread' | 'human' | 'bot';
 /** "פתוחות" and "לידים עתידיים" (docs/WAHUB-CONTRACT-FUTURE-LEADS.md, ג.2): only a server that sends their counts has them. */
 export type WahubFutureBox = 'open' | 'future';
-export type WahubBox = WahubBaseBox | WahubFutureBox;
+/** "ברכת יום הולדת" (15.10.2026): who waits for Kogo's birthday greeting — likewise only where the server counts it. */
+export type WahubBirthdayBox = 'birthday';
+export type WahubBox = WahubBaseBox | WahubFutureBox | WahubBirthdayBox;
 
 export type WahubQueue =
   | 'all'
@@ -414,7 +421,7 @@ export type WahubQueue =
   | 'not_relevant';
 
 /** `overdue` (ט.2.5): how many conversations have waited for a person past three office hours — a count, not a box of the screen. */
-export type WahubBoxCounts = Record<WahubBaseBox, number> & Partial<Record<WahubFutureBox | 'overdue', number>>;
+export type WahubBoxCounts = Record<WahubBaseBox, number> & Partial<Record<WahubFutureBox | WahubBirthdayBox | 'overdue', number>>;
 export type WahubQueueCounts = Record<WahubQueue | 'hidden', number>;
 
 export interface WahubCounts {

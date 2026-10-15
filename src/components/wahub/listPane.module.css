@@ -1,0 +1,9 @@
+/*
+ * The handle between the conversations list and the conversation (chats/ListGrip.tsx). It is the card's handle
+ * (`.cardGrip` in wahub.module.css) on the other line: the list's own hairline is on its inline end, so the line
+ * that shows under the pointer leans that way.
+ */
+.listGrip::after {
+  inset-inline-start: -2px;
+  inset-inline-end: -1px;
+}

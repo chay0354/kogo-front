@@ -301,16 +301,25 @@ describe('the conversation with shadow replies', () => {
     onOpenSettings: noop,
   };
 
-  it('hangs the folded line under the customer message it answers, and nowhere else', () => {
-    const html = render(<ChatThread {...props} shadowByMessage={new Map([[1, reply]])} />);
+  // In a demo conversation only — where the owner tries the new bot. A real one reads as it happened (15.10.2026).
+  const demo: WahubContactDetail = { ...contact, is_demo: true, source: 'demo' };
+
+  it('in a demo conversation, hangs the folded line under the customer message it answers, and nowhere else', () => {
+    const html = render(<ChatThread {...props} thread={{ ...thread, contact: demo }} shadowByMessage={new Map([[1, reply]])} />);
     expect((html.match(/הבוט החדש היה עונה…/g) ?? []).length).toBe(1);
     const row = html.indexOf('הבוט החדש היה עונה…');
     expect(row).toBeGreaterThan(html.indexOf('כמה עולה ניסיון בראש העין?'));
     expect(row).toBeLessThan(html.indexOf('שיעור ניסיון בחינם בכל הסניפים'));
   });
 
+  it('a real customer\'s conversation never shows it, whatever replies there are', () => {
+    const html = render(<ChatThread {...props} shadowByMessage={new Map([[1, reply]])} />);
+    expect(html).not.toContain('הבוט החדש היה עונה');
+    expect(html).toContain('כמה עולה ניסיון בראש העין?');
+  });
+
   it('without replies the conversation reads as before', () => {
-    expect(render(<ChatThread {...props} />)).not.toContain('הבוט החדש היה עונה');
+    expect(render(<ChatThread {...props} thread={{ ...thread, contact: demo }} />)).not.toContain('הבוט החדש היה עונה');
   });
 });
 

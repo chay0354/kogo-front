@@ -172,6 +172,8 @@ describe('the words of the screen', () => {
     expect(chatPlace({ box: 'needs_human', box_label: 'מבקש נציג' })).toEqual({ label: 'מבקש נציג', tone: 'danger' });
     expect(chatPlace({ box: 'human', box_label: 'בטיפול נציג' })?.tone).toBe('gold');
     expect(chatPlace({ box: 'open', box_label: 'ליד עתידי — הגיע היום' })?.tone).toBe('gold');
+    // Waits for the birthday greeting a person sends: the office's own colour, as "בטיפול נציג" (15.10.2026).
+    expect(chatPlace({ box: 'birthday', box_label: 'מחכה לברכה ליום הולדת' })).toEqual({ label: 'מחכה לברכה ליום הולדת', tone: 'gold' });
     expect(chatPlace({ box: 'waiting', box_label: 'ממתין למענה' })?.tone).toBe('warning');
     expect(chatPlace({ box: 'future', box_label: 'ליד עתידי' })?.tone).toBe('muted');
     expect(chatPlace({ box: 'all', box_label: 'הבוט עונה' })?.tone).toBe('muted');

@@ -6,13 +6,11 @@ import { BOX_GROUPS, boxCount, boxesInGroup, handledByChip, openEmptyWords } fro
 import { isDemoContact } from '@/lib/wahub/demo';
 import { displayName, formatListTime, israelToday, previewText } from '@/lib/wahub/format';
 import { futureOf, waitingOf } from '@/lib/wahub/futureLeads';
-import { optedOutOf } from '@/lib/wahub/optOut';
 import { chatWaitTag, isOverdue, knowsOverdue, overdueHeadCount, pinnedCount } from '@/lib/wahub/overdue';
 import { SEARCH_MAX_LENGTH, SEARCH_TEXT, chatPlace, notFoundWords } from '@/lib/wahub/search';
 import { leadOf, showsInList } from '@/lib/wahub/leadStage';
 import type { WahubBox, WahubBoxCounts, WahubContact } from '@/types/wahub';
 import type { WahubSearchExtras } from '@/types/wahubSearch';
-import f from '../future.module.css';
 import type { ListStatus } from '../hooks/usePagedContacts';
 import { LeadStageTag } from '../leads/LeadBits';
 import { ContactAvatar, DemoTag, EmptyState, ErrorState, LiveTestTag, Spinner } from '../shared/bits';
@@ -22,8 +20,9 @@ import { useStagger } from '../shared/motion';
 import { cx } from '../shared/tones';
 import s from '../wahub.module.css';
 import { FutureRowMark, WaitingRowMark } from '../shared/FutureParts';
-import { OptOutMark, PinnedEnd, PinnedHead, WaitMark } from '../shared/MarkParts';
+import { PinnedEnd, PinnedHead, WaitMark } from '../shared/MarkParts';
 import { EverywhereStrip, FoundLines, MarkedName, PlaceTag, SystemCustomers } from '../shared/SearchParts';
+import { BoxChip, BoxHelpSheet, GroupHelpButton, type BoxHelpOpen } from './BoxHelp';
 
 interface RowProps {
   contact: WahubContact;
@@ -56,7 +55,8 @@ interface RowProps {
  * How long the customer waits (ט.2): where the server says the conversation
  * waits for a person, the mark carries its words — the office's own hours — on
  * every such row, and past three of them it pulses softly and leads the row's
- * marks. "ביקש הסר" (ט.1) closes them, quietly.
+ * marks. "ביקש הסר" (ט.1) is not said on the row (owner, 15.10.2026): the card
+ * and the leads keep it.
  */
 const ChatRow = memo(function ChatRow({ contact, selected, arrived, now, query = '', onOpen }: RowProps) {
   const { chat } = contact;
@@ -64,7 +64,6 @@ const ChatRow = memo(function ChatRow({ contact, selected, arrived, now, query =
   const wait = chatWaitTag(chat, now);
   // The server's own words for somebody who waits for a person — or the mark the screen always drew by itself.
   const personWaits = Boolean(wait) && knowsOverdue(contact) && (chat.overdue === true || Boolean(chat.waiting_label));
-  const optedOut = optedOutOf(contact);
   const who = handledByChip(contact);
   const preview = previewText(contact.last_message);
   const lead = leadOf(contact);
@@ -82,7 +81,7 @@ const ChatRow = memo(function ChatRow({ contact, selected, arrived, now, query =
   // The screen's own mark stays where it always was: on a row with no lead state, outside a search.
   const waitShown = wait && (personWaits ? wait.overdue || !place : !place && !lead) ? wait : null;
   const marks = lead
-    ? demo || liveTest || who.tone === 'human' || Boolean(future) || Boolean(waitingList) || Boolean(place) || Boolean(waitShown) || Boolean(optedOut)
+    ? demo || liveTest || who.tone === 'human' || Boolean(future) || Boolean(waitingList) || Boolean(place) || Boolean(waitShown)
     : true;
   const name = displayName(contact);
 
@@ -145,7 +144,6 @@ const ChatRow = memo(function ChatRow({ contact, selected, arrived, now, query =
               {waitShown && !waitShown.overdue && <WaitMark tag={waitShown} />}
               {waitingList && <WaitingRowMark mark={waitingList} />}
               {future && <FutureRowMark future={future} today={israelToday(now)} now={now} />}
-              {optedOut && <OptOutMark opted={optedOut} now={now} />}
             </span>
           )}
         </span>
@@ -276,10 +274,12 @@ export default function ChatList({
   const pinned = searching ? 0 : pinnedCount(items);
   // A list that was just read comes in a row at a time; once it is on screen its rows only move with the live update.
   const stagger = useStagger(status === 'ready');
+  // "מה זה אומר?" — one box's words (a long press) or a whole group's (its "?"), under the boxes.
+  const [help, setHelp] = useState<BoxHelpOpen | null>(null);
 
   return (
     <div className="relative flex min-h-0 flex-1 flex-col">
-      <div className={cx(s.paneHead, s.listHead)}>
+      <div className={cx(s.paneHead, s.listHead, 'relative')}>
         <label className={cx(s.search, !searchShown && s.searchFolded)}>
           <Search aria-hidden="true" />
           <input
@@ -318,38 +318,47 @@ export default function ChatList({
           >
             {searchShown ? <X aria-hidden="true" /> : <Search aria-hidden="true" />}
           </button>
-          {BOX_GROUPS.map((group) => (
-            <div key={group.key} className={cx(s.chips, 'items-center')}>
-              {group.label && <span className={s.boxGroupLabel}>{group.label}</span>}
-              {/* "פתוחות" and "לידים עתידיים" only where the server counts them. */}
-              {boxesInGroup(group.key, counts).map((def) => {
-                // A search looks everywhere: no box is the one in front while it is on. A press on one leaves the
-                // search for that box.
-                const active = !searching && box === def.key;
-                const count = boxCount(counts, def.key);
-                const loud = def.key === 'needs_human' && (count ?? 0) > 0 && !active;
-                return (
-                  <button
-                    key={def.key}
-                    type="button"
-                    aria-pressed={active}
-                    onClick={() => {
-                      if (searching) onSearch('');
-                      onBox(def.key);
-                    }}
-                    title={def.hint}
-                    className={cx(s.chipbtn, active && s.on, def.quiet && f.boxQuiet)}
-                  >
-                    {def.label}
-                    {count !== null && (
-                      <span className={cx(s.cnt, s.num, loud && s.cntHot)}>{count.toLocaleString('he-IL')}</span>
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-          ))}
+          {BOX_GROUPS.map((group) => {
+            // "פתוחות", "ברכת יום הולדת" and "לידים עתידיים" only where the server counts them.
+            const defs = boxesInGroup(group.key, counts);
+            const groupOpen = help?.kind === 'group' && help.label === group.label;
+            return (
+              <div key={group.key} className={cx(s.chips, 'items-center')}>
+                {group.label && <span className={s.boxGroupLabel}>{group.label}</span>}
+                {group.label && (
+                  <GroupHelpButton
+                    label={group.label}
+                    open={groupOpen}
+                    onToggle={() => setHelp(groupOpen ? null : { kind: 'group', label: group.label, defs })}
+                  />
+                )}
+                {defs.map((def) => {
+                  // A search looks everywhere: no box is the one in front while it is on. A press on one leaves the
+                  // search for that box.
+                  const active = !searching && box === def.key;
+                  const count = boxCount(counts, def.key);
+                  const loud = def.key === 'needs_human' && (count ?? 0) > 0 && !active;
+                  return (
+                    <BoxChip
+                      key={def.key}
+                      def={def}
+                      count={count}
+                      active={active}
+                      loud={loud}
+                      onPress={() => {
+                        setHelp(null);
+                        if (searching) onSearch('');
+                        onBox(def.key);
+                      }}
+                      onHold={(held) => setHelp({ kind: 'box', def: held })}
+                    />
+                  );
+                })}
+              </div>
+            );
+          })}
         </div>
+        <BoxHelpSheet open={help} onClose={() => setHelp(null)} />
       </div>
 
       {/* Another box or a search over a list already on screen: the rows stay, a quiet word says they are being read again. */}
