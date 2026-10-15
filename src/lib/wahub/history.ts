@@ -1,11 +1,11 @@
 import type { WahubMessageType } from '@/types/wahub';
-import { formatDateTime } from './format';
 
 /**
  * A conversation that began before the switch from the old bot (14.10.2026): the server says so on the contact
  * (`history`), with the address of the same conversation in ManyChat's own inbox — what the old bot answered and
  * what the office wrote there never reached Kogo. The owner, that day: "שלא יהיה מצב… שאתחיל לענות לדברים בלי
- * שאני יודע את ההיסטוריה".
+ * שאני יודע את ההיסטוריה". The lines themselves are copied into the conversation (below); the big strip that said
+ * so at its head is gone (the owner, 15.10.2026) — the copied bubbles say "מ-ManyChat" on their own.
  */
 export interface WahubHistoryNote {
   switched_at: string;
@@ -54,31 +54,4 @@ export function readHistoryLines(data: unknown): WahubHistoryLine[] {
 /** Who wrote it, in the bubble's small line: the old bot, the office, the system — the customer needs no name. */
 export function copiedSender(line: Pick<WahubHistoryLine, 'sender'>): string {
   return { customer: '', bot: 'בוט ישן', office: 'משרד', system: 'מערכת' }[line.sender];
-}
-
-export interface HistoryLine {
-  title: string;
-  text: string;
-  link: string;
-  href: string;
-}
-
-export function historyLine(note: WahubHistoryNote | null | undefined, now: Date): HistoryLine | null {
-  if (!note || !note.switched_at) return null;
-  const when = formatDateTime(note.switched_at, now);
-  if (note.copied_at) {
-    // Copied: what was missing is in the conversation now; ManyChat is left for the pictures and the recordings.
-    return {
-      title: 'השיחה התחילה לפני המעבר לבוט החדש',
-      text: `מה שהבוט הישן והמשרד כתבו ב-ManyChat עד ${when} הועתק לכאן, ומסומן "מ-ManyChat"`,
-      link: note.manychat_url ? 'תמונות והקלטות — ב-ManyChat' : '',
-      href: note.manychat_url,
-    };
-  }
-  return {
-    title: 'השיחה התחילה לפני המעבר לבוט החדש',
-    text: `עד ${when} ענה כאן הבוט הישן: מה שהוא ענה, ומה שנכתב ב-ManyChat, לא מופיע כאן. כדאי לקרוא לפני שעונים`,
-    link: note.manychat_url ? 'לשיחה המלאה ב-ManyChat' : 'את השיחה המלאה פותחים ב-ManyChat לפי מספר הטלפון',
-    href: note.manychat_url,
-  };
 }

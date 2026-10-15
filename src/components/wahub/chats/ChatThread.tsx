@@ -10,7 +10,6 @@ import { agoText, displayName, hasName } from '@/lib/wahub/format';
 import { futureOf, knowsFutureLeads, threadDays } from '@/lib/wahub/futureLeads';
 import { readHistoryLines } from '@/lib/wahub/history';
 import { isOptimistic } from '@/lib/wahub/messages';
-import { OPT_OUT_LABEL, optedOutOf } from '@/lib/wahub/optOut';
 import { personWaitTag } from '@/lib/wahub/overdue';
 import { SHADOW_HEADING, excerptLine, excerptOf, shadowExcerpt } from '@/lib/wahub/refine';
 import { phoneStatusLine } from '@/lib/wahub/screens';
@@ -25,13 +24,12 @@ import { useRefineSelection } from '../refine/useRefineSelection';
 import { ContactAvatar, DemoTag, ErrorState, LiveTestTag, Skeleton, Spinner, useDismiss } from '../shared/bits';
 import CustomerCardLink from '../shared/CustomerCardLink';
 import { NoteRow, type NoteActions } from '../shared/FutureParts';
-import { OptOutMark, WaitMark, WaitWords } from '../shared/MarkParts';
+import { WaitMark, WaitWords } from '../shared/MarkParts';
 import { useStayAtEnd } from '../shared/motion';
 import { cx } from '../shared/tones';
 import s from '../wahub.module.css';
 import Composer from './Composer';
 import DemoComposer, { type DemoReplyControls } from './DemoComposer';
-import HistoryStrip from './HistoryStrip';
 import FutureStrip from './FutureStrip';
 import { LaterPanelView, useLater, type LaterActions } from './LaterPanel';
 import MessageBubble, { CopiedBubble, TypingBubble } from './MessageBubble';
@@ -182,10 +180,9 @@ function ThreadHeader({
   const plainRelease = !(acts?.futureLead && human);
   // Somebody Kogo knows: one press leads to their card in the customers section. Nobody identified — no button.
   const customerCard = customerCardFor(contact);
-  // How long they wait for a person, in the office's own hours — pulsing softly past three of them (ט.2); and
-  // "ביקש הסר" (ט.1). Both only where the server says so.
+  // How long they wait for a person, in the office's own hours — pulsing softly past three of them (ט.2), only
+  // where the server says so. "ביקש הסר" (ט.1) is not said here (owner, 15.10.2026): the card and the leads keep it.
   const wait = personWaitTag(contact.chat, now);
-  const optedOut = optedOutOf(contact);
 
   return (
     <header className={s.threadHead}>
@@ -200,7 +197,7 @@ function ThreadHeader({
         {/* The name is a press away from the details; on a phone a short state line sits under it, as in a messaging app. */}
         <button type="button" onClick={onDetails} title="פרטי איש הקשר" className={s.threadName}>
           <span dir="auto">{displayName(contact)}</span>
-          {/* A phone has this one line: how long they wait leads it, and "ביקש הסר" closes it. */}
+          {/* A phone has this one line: how long they wait leads it. */}
           <span className={s.threadStatus}>
             {wait && (
               <>
@@ -209,15 +206,13 @@ function ThreadHeader({
               </>
             )}
             {phoneStatusLine(contact.chat, demo, liveTest)}
-            {optedOut && ` · ${optedOut.label || OPT_OUT_LABEL}`}
           </span>
         </button>
-        {/* A desktop: the two marks have a line of their own under the name, at every width — the name keeps its
-            room, and the actions theirs. A phone says them in the one line it has (above). */}
-        {(wait || optedOut) && (
+        {/* A desktop: the wait has a line of its own under the name, at every width — the name keeps its room, and
+            the actions theirs. A phone says it in the one line it has (above). */}
+        {wait && (
           <p className={k.headMarks}>
-            {wait && <WaitMark tag={wait} size="pill" />}
-            {optedOut && <OptOutMark opted={optedOut} now={now} size="pill" />}
+            <WaitMark tag={wait} size="pill" />
           </p>
         )}
         <p className={cx(s.t2, s.threadSub, 'm-0 flex flex-wrap items-center gap-x-2')}>
@@ -397,7 +392,8 @@ export default function ChatThread({
   // A press beside the bubble, or Escape, puts it away — but not from under a save that is on its way.
   const laterBox = useDismiss(later.isOpen && !later.locked, later.close);
   // "הבוט כותב…" stands at the end of a demo conversation while the new bot's answer is on its way.
-  const typing = demoReply.inFlight && isDemoContact(contact);
+  const demoChat = isDemoContact(contact);
+  const typing = demoReply.inFlight && demoChat;
   const scroller = useRef<HTMLDivElement | null>(null);
   const atBottom = useRef(true);
   const [unseen, setUnseen] = useState(0);
@@ -680,9 +676,6 @@ export default function ChatThread({
         />
       )}
 
-      {/* Began before the switch: the old bot's answers are not here — said before anybody answers it blind. */}
-      <HistoryStrip note={contact.history} now={now} />
-
       <div className="relative min-h-0 flex-1">
         <div
           ref={scroller}
@@ -729,7 +722,9 @@ export default function ChatThread({
                         // Nor is a line copied from ManyChat: it is read, not answered or marked.
                         if (item.kind === 'copied') return <CopiedBubble key={item.key} line={item.line} />;
                         const { message } = item;
-                        const shadow = message.direction === 'in' ? shadowByMessage?.get(message.id) : undefined;
+                        // "הבוט החדש היה עונה" under a customer's message: in a demo conversation only — the place the
+                        // owner tries the new bot (15.10.2026). A real conversation reads as it happened.
+                        const shadow = message.direction === 'in' && demoChat ? shadowByMessage?.get(message.id) : undefined;
                         return (
                           <RefineRow
                             key={message.id}

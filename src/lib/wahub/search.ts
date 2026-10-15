@@ -313,6 +313,12 @@ export function chatPlace(chat: { box?: string; box_label?: string }): { label: 
   const label = (chat.box_label ?? '').trim();
   if (!label) return null;
   const tone: PlaceTone =
-    chat.box === 'needs_human' ? 'danger' : chat.box === 'human' || chat.box === 'open' ? 'gold' : chat.box === 'waiting' ? 'warning' : 'muted';
+    chat.box === 'needs_human'
+      ? 'danger'
+      : chat.box === 'human' || chat.box === 'open' || chat.box === 'birthday'
+        ? 'gold'
+        : chat.box === 'waiting'
+          ? 'warning'
+          : 'muted';
   return { label, tone };
 }

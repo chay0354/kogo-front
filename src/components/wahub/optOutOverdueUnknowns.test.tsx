@@ -393,24 +393,21 @@ describe('whoever waits for a person more than three office hours is pinned to t
 // 1. "ביקש הסר"
 // ---------------------------------------------------------------------------
 
-describe('"ביקש הסר": a quiet mark on the row, at the head of the conversation and in the card', () => {
-  it('the row says it with its day — outlined, never red and never amber', () => {
+describe('"ביקש הסר": a quiet mark in the card — not on the row, nor at the head of the conversation', () => {
+  // The owner, 15.10.2026: "הסר" is not said in the list of conversations nor at the head of one — the card and
+  // the leads keep it.
+  it('the row does not say it', () => {
     const html = chatList({ items: [IDO], box: 'all' });
-    const mark = html.match(/<span class="[^"]*"[^>]*data-opted-out=""[^>]*>.*?<\/span>/)?.[0] ?? '';
-    expect(text(mark)).toBe('ביקש הסר · 13.10');
-    expect(mark).toContain(k.out);
-    expect(mark).not.toContain(s.pBad);
-    expect(mark).not.toContain(s.pWarn);
-    // The whole of it for whoever hovers.
-    expect(mark).toContain('title="ביקש הסר · 13.10 11:02 · ביקש בהודעה: &quot;הסר&quot;"');
+    expect(html).not.toContain('data-opted-out');
+    expect(text(html)).not.toContain('ביקש הסר');
   });
 
-  it('the head of the conversation says it under the name; a phone in its one line', () => {
+  it('nor does the head of the conversation — not under the name, not in a phone\'s one line', () => {
     const row = titleRow(conversation(IDO));
-    expect(row).toContain(`<p class="${k.headMarks}">`);
-    expect(text(row.slice(row.indexOf(k.headMarks), row.indexOf('</p>', row.indexOf(k.headMarks))))).toContain('ביקש הסר · 13.10');
+    expect(text(row)).not.toContain('ביקש הסר');
+    expect(row).not.toContain('data-opted-out');
     const status = row.slice(row.indexOf(`class="${s.threadStatus}"`));
-    expect(text(status.slice(0, status.indexOf('</button>')))).toMatch(/ · ביקש הסר$/);
+    expect(text(status.slice(0, status.indexOf('</button>')))).not.toContain('ביקש הסר');
   });
 
   it('the card: the mark is a press, folded — a title first, the details behind it', () => {

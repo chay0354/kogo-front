@@ -396,10 +396,11 @@ describe('"לתקן" under a shadow reply', () => {
 
   it('inside a conversation it opens on the answer too, and she speaks first — the summary is for marked messages', () => {
     const value = standIn();
+    // The row stands under a customer's message of a demo conversation only (15.10.2026).
     const made = drawn(
       within(
         value,
-        <ChatThread thread={thread(detail({ name: 'נועה לוי' }), MESSAGES)} {...threadProps} shadowByMessage={new Map([[101, reply]])} onShadowVerdict={noop} />,
+        <ChatThread thread={thread(detail({ name: 'נועה לוי', is_demo: true }), MESSAGES)} {...threadProps} shadowByMessage={new Map([[101, reply]])} onShadowVerdict={noop} />,
       ),
     );
     // The row under the customer's message is folded until it is pressed; "לתקן" inside it is what it was handed.

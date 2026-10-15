@@ -160,7 +160,7 @@ describe('the address of the page', () => {
     expect(parseBox(undefined)).toBe('open');
     expect(parseBox('')).toBe('open');
     // A link that names a box keeps it: from the day's tab, from a notice, from a copied address.
-    for (const box of ['all', 'waiting', 'needs_human', 'unread', 'human', 'future', 'open'] as const) {
+    for (const box of ['all', 'waiting', 'needs_human', 'unread', 'human', 'future', 'open', 'birthday'] as const) {
       expect(parseWahubUrl(new URLSearchParams(`tab=chats&box=${box}`)).box).toBe(box);
     }
     // "הכול" is no longer what an empty address means, so it is written — and read back as itself.

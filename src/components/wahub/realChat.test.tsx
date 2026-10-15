@@ -248,22 +248,23 @@ describe('the new bot\'s line', () => {
     const writing = render(
       <ChatThread {...threadProps} thread={thread(demo, messages)} onSimulate={async () => true} demoReply={{ ...REPLY, inFlight: true }} />,
     );
-    expect(writing).toContain('aria-label="הבוט החדש כותב"');
+    expect(writing).toContain('aria-label="הבוט כותב"');
     expect(writing).toContain(s.typing);
     const idle = render(<ChatThread {...threadProps} thread={thread(demo, messages)} onSimulate={async () => true} demoReply={REPLY} />);
-    expect(idle).not.toContain('הבוט החדש כותב');
+    expect(idle).not.toContain('הבוט כותב');
     // A real customer's conversation never shows it, whatever the flag says.
     const real = render(
       <ChatThread {...threadProps} thread={thread(detail({ name: 'דנה כהן' }), messages)} onSimulate={async () => true} demoReply={{ ...REPLY, inFlight: true }} />,
     );
-    expect(real).not.toContain('הבוט החדש כותב');
+    expect(real).not.toContain('הבוט כותב');
     expect(real).not.toContain('כתוב כלקוח');
   });
 
-  it('the typing bubble is the new bot\'s own, in its colour', () => {
+  it('the typing bubble is the new bot\'s own, in its colour — and named "בוט", it is the bot now (15.10.2026)', () => {
     const html = render(<TypingBubble />);
     expect(html).toContain(s.bNewBot);
-    expect(html).toContain('בוט חדש');
+    expect(html).toContain(`<span class="${s.newBotMark}">בוט</span>`);
+    expect(html).not.toContain('בוט חדש');
     expect(html).toContain('כותב…');
   });
 });
@@ -279,10 +280,12 @@ describe('the new bot\'s bubble', () => {
   });
   const oldBot = makeMessage(41, { direction: 'out', sender: 'bot', sender_label: 'בוט', status: 'sent', text: 'שלום' });
 
-  it('is named "בוט חדש" and has a colour of its own, whichever way it reached the screen', () => {
+  it('is named "בוט" and has a colour of its own, whichever way it reached the screen', () => {
     // The same message, as the answer of reply/ hands it over and as the poll brings it: one payload, one look.
+    // The owner, 15.10.2026: it is the bot now — "בוט", with no "חדש".
     const html = bubble(newBot);
-    expect(html).toContain('בוט חדש');
+    expect(html).toContain(`<span class="${s.newBotMark}">בוט</span>`);
+    expect(html).not.toContain('בוט חדש');
     expect(html).toContain(s.bNewBot);
     expect(html).toContain(s.newBotMark);
     expect(html).not.toContain(s.bBot);
@@ -291,10 +294,11 @@ describe('the new bot\'s bubble', () => {
     expect(html).not.toContain(s.simMark);
   });
 
-  it('the old bot keeps its lavender and its plain name', () => {
+  it('the old bot keeps its lavender, and says it is the old one: "בוט ישן"', () => {
     const html = bubble(oldBot);
     expect(html).toContain(s.bBot);
     expect(html).not.toContain(s.bNewBot);
+    expect(html).toContain('בוט ישן');
     expect(html).not.toContain('בוט חדש');
   });
 

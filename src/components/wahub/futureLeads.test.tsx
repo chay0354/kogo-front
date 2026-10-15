@@ -707,8 +707,8 @@ describe('the boxes above the conversations', () => {
     expect(at('פתוחות')).toBeGreaterThan(-1);
     expect(at('פתוחות')).toBeLessThan(at('מבקשים נציג'));
     expect(at('בטיפול נציג')).toBeLessThan(at('לידים עתידיים'));
-    expect(at('לידים עתידיים')).toBeLessThan(at('מחכים לתשובה'));
-    expect(html).toMatch(new RegExp(`${f.boxQuiet}"[^>]*>לידים עתידיים`));
+    expect(at('לידים עתידיים')).toBeLessThan(at('לא נענו'));
+    expect(html).toMatch(new RegExp(`${f.boxQuiet}[^"]*"[^>]*>לידים עתידיים`));
   });
 
   it('the red number is still the one of "מבקשים נציג" alone', () => {

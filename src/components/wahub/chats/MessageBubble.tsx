@@ -31,11 +31,20 @@ export function bubbleTone(message: WahubMessage): string {
   return s.bOffice;
 }
 
+/**
+ * Who wrote it, in the bubble's small line (the owner, 15.10.2026): the new bot is "בוט" — it is the bot now — and
+ * the old one's answers say "בוט ישן"; the office is "משרד" with the writer's name, never an email (an older
+ * message may still carry one).
+ */
 export function senderLine(message: WahubMessage): string {
   if (message.sender === 'customer') return '';
-  if (isNewBotMessage(message)) return 'בוט חדש';
+  if (isNewBotMessage(message)) return 'בוט';
+  if (message.sender === 'bot') return 'בוט ישן';
   const label = message.sender_label || '';
-  if (message.sender === 'office' && message.sender_name) return `${label || 'משרד'} · ${message.sender_name}`;
+  if (message.sender === 'office') {
+    const name = (message.sender_name ?? '').trim();
+    return name && !name.includes('@') ? `${label || 'משרד'} · ${name}` : label || 'משרד';
+  }
   return label;
 }
 
@@ -298,14 +307,14 @@ export const CopiedBubble = memo(function CopiedBubble({ line }: { line: WahubHi
   );
 });
 
-/** "הבוט כותב…" — three dots in the new bot's own bubble, at the end of the conversation while its answer is on its way. */
+/** "הבוט כותב…" — three dots in the bot's own bubble, at the end of the conversation while its answer is on its way. */
 export function TypingBubble() {
   return (
-    <div className={cx(s.bubbleRow, s.bubbleRowOut, m.messageOut)} role="status" aria-label="הבוט החדש כותב">
+    <div className={cx(s.bubbleRow, s.bubbleRowOut, m.messageOut)} role="status" aria-label="הבוט כותב">
       <div className={s.bubbleCol}>
         <div className={cx(s.bubble, s.bNewBot)}>
           <p className={s.bubbleMeta}>
-            <span className={s.newBotMark}>בוט חדש</span>
+            <span className={s.newBotMark}>בוט</span>
             <span>· כותב…</span>
           </p>
           {/* The same three dots wherever the section waits for the bot (shared/motion.tsx). */}

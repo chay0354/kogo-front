@@ -163,11 +163,11 @@ describe('the card beside the conversation on a desktop', () => {
     expect(html).toContain('aria-label="רשימת השיחות"');
     expect(html).toContain('aria-label="השיחה"');
     expect(column(html)?.tag).toContain('aria-label="פרטי איש הקשר"');
-    expect(html).toContain('role="separator"');
+    expect(html).toContain('aria-label="רוחב כרטיס איש הקשר"');
     expect(html).not.toContain('data-card="hidden"');
     // The order on the page: the conversation, the handle between them, the card.
-    expect(html.indexOf('aria-label="השיחה"')).toBeLessThan(html.indexOf('role="separator"'));
-    expect(html.indexOf('role="separator"')).toBeLessThan(html.indexOf('aria-label="פרטי איש הקשר"'));
+    expect(html.indexOf('aria-label="השיחה"')).toBeLessThan(html.indexOf('aria-label="רוחב כרטיס איש הקשר"'));
+    expect(html.indexOf('aria-label="רוחב כרטיס איש הקשר"')).toBeLessThan(html.indexOf('aria-label="פרטי איש הקשר"'));
   });
 
   it('carries "הסתר כרטיס" at its head, and pressing it puts the card away', () => {
@@ -192,7 +192,7 @@ describe('the card beside the conversation on a desktop', () => {
     held.pane = { hidden: true, width: null };
     const html = render(screen());
     expect(column(html)).toBeNull();
-    expect(html).not.toContain('role="separator"');
+    expect(html).not.toContain('aria-label="רוחב כרטיס איש הקשר"');
     expect(html).not.toContain('aria-label="הסתר כרטיס"');
     expect(html).toContain('data-card="hidden"');
     // The list and the conversation stay as they were.
@@ -252,7 +252,7 @@ describe('the width of the card', () => {
     held.pane = { hidden: false, width: 300 };
     const html = render(screen());
     expect(column(html)?.tag).toContain('style="width:300px"');
-    expect(html).toMatch(/role="separator"[^>]*aria-valuenow="300"/);
+    expect(html).toMatch(/aria-label="רוחב כרטיס איש הקשר"[^>]*aria-valuenow="300"/);
   });
 
   it('never leaves the limits, whatever the browser kept', () => {
@@ -461,7 +461,7 @@ describe('"דיוק" with the card put away', () => {
     // A place for the chat, and nothing of the card under it.
     expect(found?.inside).toContain(r.dock);
     expect(found?.inside).not.toContain('aria-label="מי"');
-    expect(html).toContain('role="separator"');
+    expect(html).toContain('aria-label="רוחב כרטיס איש הקשר"');
     // The conversation does not reach the edge of the screen while the chat stands beside it.
     expect(html).not.toContain('data-card="hidden"');
   });

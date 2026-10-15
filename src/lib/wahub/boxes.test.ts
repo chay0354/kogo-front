@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'vitest';
 
 import {
+  BOX_GROUPS,
   CHAT_BOXES,
   LEAD_QUEUES,
   badgeText,
@@ -26,22 +27,57 @@ describe('the boxes above the conversations', () => {
       ['all', 'הכול'],
       ['open', 'פתוחות'],
       ['needs_human', 'מבקשים נציג'],
+      ['birthday', 'ברכת יום הולדת'],
       ['human', 'בטיפול נציג'],
       ['future', 'לידים עתידיים'],
-      ['waiting', 'מחכים לתשובה'],
-      ['unread', 'לא נקראו'],
+      ['waiting', 'לא נענו'],
+      ['unread', 'לא נפתחו'],
     ]);
     // "פתוחות" leads the person's boxes; "לידים עתידיים" closes them, quietly.
-    expect(boxesInGroup('human').map((box) => box.key)).toEqual(['open', 'needs_human', 'human', 'future']);
+    expect(boxesInGroup('human').map((box) => box.key)).toEqual(['open', 'needs_human', 'birthday', 'human', 'future']);
     expect(CHAT_BOXES.filter((box) => box.quiet).map((box) => box.key)).toEqual(['future']);
   });
 
-  test('a server that does not count "פתוחות" is not offered the two new boxes — and never before the first count', () => {
+  test('the second group is "מצב השיחה" — what the conversation is waiting for, not the bot (owner, 15.10.2026)', () => {
+    expect(BOX_GROUPS.map((group) => group.label)).toEqual(['', 'נציג', 'מצב השיחה']);
+    const byKey = Object.fromEntries(CHAT_BOXES.map((box) => [box.key, box]));
+    expect(byKey.waiting.help?.what).toBe('הלקוח כתב, ועוד **אף אחד** (לא הבוט ולא נציג) **לא ענה לו**');
+    expect(byKey.unread.help?.what).toBe('הלקוח כתב, ו**אף אחד מהמשרד עוד לא פתח** את השיחה (גם אם הבוט כבר ענה)');
+    // Every box a person works from has its two lines, the point in bold; "הכול" needs none.
+    for (const box of CHAT_BOXES.filter((def) => def.key !== 'all')) {
+      expect(box.help?.what, box.key).toMatch(/\*\*.+\*\*/);
+      expect(box.help?.now, box.key).toBeTruthy();
+    }
+    expect(byKey.all.help).toBeUndefined();
+  });
+
+  test('"ברכת יום הולדת" is a box of the person\'s, with a clock in place of "מחכים"', () => {
+    const birthday = CHAT_BOXES.find((box) => box.key === 'birthday');
+    expect(birthday).toMatchObject({ group: 'human', icon: 'clock', needsCount: true });
+    expect(CHAT_BOXES.filter((box) => box.icon).map((box) => box.key)).toEqual(['birthday']);
+  });
+
+  test('a server that does not count "פתוחות" is not offered the new boxes — and never before the first count', () => {
     const old = { all: 9, waiting: 1, needs_human: 2, unread: 3, human: 1, bot: 8 };
     expect(boxesInGroup('human', old).map((box) => box.key)).toEqual(['needs_human', 'human']);
     expect(boxesInGroup('human', null).map((box) => box.key)).toEqual(['needs_human', 'human']);
+    // A server of 13.10 counts "פתוחות" but not "ברכת יום הולדת": that one is not offered.
     expect(boxesInGroup('human', { ...old, open: 4, future: 0 }).map((box) => box.key)).toEqual(['open', 'needs_human', 'human', 'future']);
+    expect(boxesInGroup('human', { ...old, open: 4, future: 0, birthday: 1 }).map((box) => box.key)).toEqual([
+      'open', 'needs_human', 'birthday', 'human', 'future',
+    ]);
     expect(boxesInGroup('bot', old).map((box) => box.key)).toEqual(['waiting', 'unread']);
+    expect(shownBox('birthday', { ...old, open: 4, future: 0 })).toBe('all');
+    expect(shownBox('birthday', { ...old, birthday: 0 })).toBe('birthday');
+  });
+
+  test('a conversation is in "ברכת יום הולדת" while the server says it waits for the greeting', () => {
+    const waits = makeContact(1, { chat: { open: true, open_reason: 'birthday', birthday_wait_since: '2026-10-15T09:00:00+03:00' } });
+    const done = makeContact(2, { chat: { open: false, birthday_wait_since: null } });
+    const older = makeContact(3);
+    expect([waits, done, older].map((contact) => matchesBox(contact, 'birthday'))).toEqual([true, false, false]);
+    // And it is open: "פתוחות" has it too.
+    expect(matchesBox(waits, 'open')).toBe(true);
   });
 
   test('an address that asks for a box the server does not have falls back to "הכול" — it would answer with everything', () => {
