@@ -9,6 +9,7 @@ import { attachShadowReplies } from '@/lib/wahub/bot';
 import { matchesBox, shownBox } from '@/lib/wahub/boxes';
 import { cardMaxWidth, cardWidth } from '@/lib/wahub/cardPane';
 import { listMaxWidth, listWidth as listWidthIn } from '@/lib/wahub/listPane';
+import { closedNotice } from '@/lib/wahub/composer';
 import { isDemoContact } from '@/lib/wahub/demo';
 import { displayName, israelToday } from '@/lib/wahub/format';
 import { knowsFutureLeads, withNote } from '@/lib/wahub/futureLeads';
@@ -376,8 +377,15 @@ export default function ChatsTab({
       noteActions,
       onClose: () =>
         void withBusyRef.current('close', async () => {
-          // Nothing on the screen need change when a conversation with nothing open is closed: a word says it was.
-          if (await mutations.close(id)) toast.success('השיחה נסגרה');
+          // Nothing on the screen need change when a conversation with nothing open is closed: a word says it was —
+          // and whether the goodbye ("סגירת שיחה", the ready-made reply) went out first.
+          const closed = await mutations.close(id);
+          if (!closed) return;
+          const said = closedNotice(closed.goodbye);
+          if (said.tone === 'warning') toast.warning(said.title);
+          else toast.success(said.title, said.description ? { description: said.description } : undefined);
+          // The goodbye is a message: into the conversation now, not at the next poll.
+          if (closed.goodbye?.status === 'sent' || closed.goodbye?.status === 'failed') void threadRef.current?.refreshQuietly();
         }),
       onHandToBot: () => mutations.handToBot(id),
       onFuture: (due, reason) => mutations.future(id, due, reason),

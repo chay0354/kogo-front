@@ -2,6 +2,12 @@ import api from './api';
 import { unwrapApiList } from './scopedFilters';
 import { contactsParams, countsParams } from './wahub/params';
 import { buildSimulateRequest, newContactBody, type DemoInput, type NewContactInput } from './wahub/demo';
+import {
+  attachContentType,
+  readAttachmentTicket,
+  type OpenerKind,
+  type WahubAttachmentTicket,
+} from './wahub/composer';
 import type {
   WahubApproveResult,
   WahubContact,
@@ -160,6 +166,58 @@ export async function sendWahubFlow(id: number, automationId: string): Promise<W
     { automation_id: automationId },
     { timeout: 60_000 },
   );
+  return res.data as WahubSendResult;
+}
+
+/**
+ * "פתיחת שיחה" / "המשך שיחה" — the template under the fixed name `open chat` /
+ * `chat continue`, sent at once, also outside the 24 hours. 409
+ * `template_missing` when ManyChat has no automation under that name.
+ */
+export async function sendWahubOpening(id: number, kind: OpenerKind): Promise<WahubSendResult> {
+  const res = await api.post(`${BASE}/contacts/${id}/send-opening/`, { kind }, { timeout: 60_000 });
+  return res.data as WahubSendResult;
+}
+
+/**
+ * A file the office attaches, step one: the server checks it and hands out a
+ * signed address to upload it to. Nothing is sent yet.
+ */
+export async function prepareWahubAttachment(
+  id: number,
+  file: { name: string; type: string; size: number },
+): Promise<WahubAttachmentTicket> {
+  const res = await api.post(
+    `${BASE}/contacts/${id}/attachments/`,
+    { name: file.name, content_type: attachContentType(file), size: file.size },
+    { timeout: 30_000 },
+  );
+  const ticket = readAttachmentTicket(res.data);
+  if (!ticket) throw new Error('the answer names no upload address');
+  return ticket;
+}
+
+/**
+ * Step two: the browser puts the file at that address itself — Vercel takes no
+ * request body over 4.5MB. A plain request to the storage, with none of
+ * Kogo's own headers: the signed address is all it needs.
+ */
+export async function uploadWahubAttachment(ticket: WahubAttachmentTicket, file: Blob): Promise<void> {
+  const res = await fetch(ticket.upload_url, {
+    method: 'PUT',
+    headers: { 'Content-Type': ticket.content_type || file.type || 'application/octet-stream' },
+    body: file,
+    credentials: 'omit',
+  });
+  if (!res.ok) throw new Error(`upload failed: ${res.status}`);
+}
+
+/** Step three: the uploaded file leaves through ManyChat, the caption after it. Answers like send/. */
+export async function sendWahubMedia(
+  id: number,
+  body: { path: string; kind: string; caption: string; name: string },
+): Promise<WahubSendResult> {
+  const res = await api.post(`${BASE}/contacts/${id}/send-media/`, body, { timeout: 60_000 });
   return res.data as WahubSendResult;
 }
 

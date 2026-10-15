@@ -18,7 +18,8 @@ import {
 import { applyFollowupPatch } from '@/lib/wahub/followup';
 import { israelToday } from '@/lib/wahub/format';
 import type { FutureOutcome, HandToBotOutcome } from '@/lib/wahub/futureLeads';
-import { addWahubNote, closeWahubConversation, handWahubToBot, setWahubFuture } from '@/lib/wahub/futureLeadsApi';
+import type { Goodbye } from '@/lib/wahub/composer';
+import { addWahubNote, closeWahubConversationSaying, handWahubToBot, setWahubFuture } from '@/lib/wahub/futureLeadsApi';
 import { OPT_OUT_TEXT, optOutFailedText } from '@/lib/wahub/optOut';
 import { optInWahubContact, optOutWahubContact } from '@/lib/wahub/optOutApi';
 import { joinFailedText, noteFailedText } from '@/lib/wahub/waitingList';
@@ -166,13 +167,22 @@ export function useContactMutations(store: ContactStore, live: WahubLiveHandle, 
       // ManyChat — the conversation goes back to the bot, or the bot is silenced — so, like a takeover,
       // nothing is shown until the server has answered.
 
-      /** "✓ סגירת שיחה". All or nothing: a refusal means nothing changed. */
-      close(id: number) {
-        return run(id, {
-          request: () => closeWahubConversation(id),
+      /**
+       * "✓ סגירת שיחה". All or nothing: a refusal means nothing changed. Resolves what became of the goodbye the
+       * server sends first ({goodbye}, null on a server that sends none), or null when the conversation was not closed.
+       */
+      async close(id: number): Promise<{ goodbye: Goodbye | null } | null> {
+        const got: { goodbye: Goodbye | null } = { goodbye: null };
+        const closed = await run(id, {
+          request: async () => {
+            const result = await closeWahubConversationSaying(id);
+            got.goodbye = result.goodbye;
+            return result.contact;
+          },
           failure: 'השיחה לא נסגרה',
           unknown: 'לא ידוע אם השיחה נסגרה. בדקו את מצב השיחה לפני שמנסים שוב.',
         });
+        return closed ? got : null;
       },
 
       /** "הבוט ימשיך לטפל": what the bot understood — or, in words, why the conversation was not handed over. */

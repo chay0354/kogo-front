@@ -13,7 +13,7 @@ import { isOptimistic } from '@/lib/wahub/messages';
 import { personWaitTag } from '@/lib/wahub/overdue';
 import { SHADOW_HEADING, excerptLine, excerptOf, shadowExcerpt } from '@/lib/wahub/refine';
 import { phoneStatusLine } from '@/lib/wahub/screens';
-import type { WahubContactDetail, WahubSender, WahubShadowReply } from '@/types/wahub';
+import type { WahubContactDetail, WahubMessage, WahubSender, WahubShadowReply } from '@/types/wahub';
 import f from '../future.module.css';
 import type { ContactThread } from '../hooks/useContactThread';
 import k from '../marks.module.css';
@@ -397,6 +397,10 @@ export default function ChatThread({
   const scroller = useRef<HTMLDivElement | null>(null);
   const atBottom = useRef(true);
   const [unseen, setUnseen] = useState(0);
+  // "השב" on a bubble: the message the next one sent answers (quoted at its head). Each conversation starts with none.
+  const [replyTo, setReplyTo] = useState<WahubMessage | null>(null);
+  useEffect(() => setReplyTo(null), [thread.contactId]);
+  const clearReply = useCallback(() => setReplyTo(null), []);
   const seen = useRef<{
     contactId: number | null;
     ids: Set<number>;
@@ -583,6 +587,8 @@ export default function ChatThread({
     );
   }
 
+  const canReply = contact.chat.can_free_text && !sendingOff;
+
   return (
     // Positioned: on a phone the clock's sheet lies over this column, and only over it.
     <div className={cx(s.pane, 'relative flex-1')}>
@@ -735,7 +741,12 @@ export default function ChatThread({
                             marked={marked.has(message.id)}
                             onPress={picking.press}
                           >
-                            <MessageBubble message={message} arrived={arrived.has(message.id)} />
+                            <MessageBubble
+                              message={message}
+                              arrived={arrived.has(message.id)}
+                              // Answering one message is for a box that can write — and not while messages are marked.
+                              onReply={canReply && !picking.active ? setReplyTo : undefined}
+                            />
                             {shadow && (
                               <ShadowRow
                                 reply={shadow}
@@ -788,6 +799,10 @@ export default function ChatThread({
         sendingOff={sendingOff}
         onSend={thread.send}
         onSendFlow={thread.sendFlow}
+        onSendOpening={thread.sendOpening}
+        onSendMedia={thread.sendMedia}
+        replyTo={canReply ? replyTo : null}
+        onClearReply={clearReply}
         onOpenSettings={onOpenSettings}
         onNote={acts?.onNote}
       />

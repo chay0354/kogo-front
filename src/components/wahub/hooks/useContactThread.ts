@@ -9,9 +9,12 @@ import {
   isWindowClosed,
   markWahubRead,
   sendWahubFlow,
+  sendWahubOpening,
   sendWahubText,
   serverAnswered,
 } from '@/lib/wahubApi';
+import { attachmentFailure, sendAttachment } from '@/lib/wahub/attachmentSend';
+import { openingOutcomeOf, type OpenerKind, type OpeningOutcome } from '@/lib/wahub/composer';
 import { logMoved, mergeContactIntoDetail, messagesMoved } from '@/lib/wahub/live';
 import {
   changedMessages,
@@ -402,11 +405,86 @@ export function useContactThread({ contactId, active, seed, onContact, senderNam
     [commit, poll],
   );
 
+  /** The 24 hours ran out while the box was open: lock it now. */
+  const lockWindow = useCallback((id: number) => {
+    const held = ref.current.contact;
+    if (held && held.id === id) onContactRef.current({ ...held, chat: { ...held.chat, can_free_text: false } });
+  }, []);
+
+  /**
+   * "פתיחת שיחה" / "המשך שיחה" (lib/wahub/composer.ts): sent at once, no step
+   * to confirm. Resolves what to say under the buttons — the line itself lands
+   * in the conversation either way; nothing is said twice in a toast.
+   */
+  const sendOpening = useCallback(
+    async (kind: OpenerKind): Promise<OpeningOutcome> => {
+      const current = ref.current;
+      const id = current.contactId;
+      if (id == null || current.sending) return { ok: false, text: '' };
+      const mine = generation.current;
+      commit((prev) => ({ ...prev, sending: true }));
+      try {
+        const result = await sendWahubOpening(id, kind);
+        onContactRef.current(result.contact);
+        if (mine === generation.current) {
+          commit((prev) => ({ ...prev, messages: mergeMessages(prev.messages, [result.message]), sending: false }));
+        }
+        return openingOutcomeOf(result.message);
+      } catch (error) {
+        if (mine === generation.current) commit((prev) => ({ ...prev, sending: false }));
+        if (!serverAnswered(error)) {
+          void poll();
+          return { ok: false, text: 'לא ידוע אם ההודעה נשלחה. בדקו בשיחה לפני ששולחים שוב.' };
+        }
+        return { ok: false, text: readableError(error, 'ההודעה לא נשלחה') };
+      }
+    },
+    [commit, poll],
+  );
+
+  /**
+   * A picture, a video or a document, with the box's words as its caption — in
+   * three steps (docs/WAHUB-CONTRACT.md, "צירוף קבצים"): the server checks it
+   * and hands out an address, the browser uploads it there, the server sends
+   * it. `onPhase` says which step is on. Resolves true when the server took the
+   * message (whether or not it then reached WhatsApp), false when it must be sent again.
+   */
+  const sendMedia = useCallback(
+    async (file: File, caption: string, onPhase?: (phase: 'upload' | 'send') => void): Promise<boolean> => {
+      const current = ref.current;
+      const id = current.contactId;
+      if (id == null || current.sending) return false;
+      const mine = generation.current;
+      commit((prev) => ({ ...prev, sending: true }));
+      try {
+        const result = await sendAttachment(id, file, caption, onPhase);
+        onContactRef.current(result.contact);
+        if (mine === generation.current) {
+          commit((prev) => ({ ...prev, messages: mergeMessages(prev.messages, [result.message]), sending: false }));
+        }
+        if (result.message.status === 'failed') {
+          toast.error(`הקובץ לא נשלח${result.message.error ? `: ${result.message.error}` : ''}`);
+        }
+        return true;
+      } catch (failure) {
+        if (mine === generation.current) commit((prev) => ({ ...prev, sending: false }));
+        const said = attachmentFailure(failure);
+        if (said.windowClosed) lockWindow(id);
+        if (said.unknown) void poll();
+        toast.error(said.text);
+        return false;
+      }
+    },
+    [commit, lockWindow, poll],
+  );
+
   const retry = useCallback(() => {
     if (ref.current.contactId == null) return;
     commit((prev) => ({ ...prev, status: 'loading', error: '' }));
     void refresh('open');
   }, [commit, refresh]);
+
+  const composerSends: ComposerSends = { sendOpening, sendMedia };
 
   return {
     contactId: state.contactId,
@@ -426,9 +504,18 @@ export function useContactThread({ contactId, active, seed, onContact, senderNam
     loadOlder,
     send,
     sendFlow,
+    // Optional in the type: a thread made by hand (a test, a screen of its own) need not carry them, and the box
+    // then offers what it always did.
+    ...(composerSends as Partial<ComposerSends>),
     refreshQuietly: useCallback(() => refresh('quiet'), [refresh]),
     retry,
   };
+}
+
+/** What the writing box sends beyond words and a template (15.10.2026): an opener, and a file. */
+interface ComposerSends {
+  sendOpening: (kind: OpenerKind) => Promise<OpeningOutcome>;
+  sendMedia: (file: File, caption: string, onPhase?: (phase: 'upload' | 'send') => void) => Promise<boolean>;
 }
 
 export type ContactThread = ReturnType<typeof useContactThread>;
