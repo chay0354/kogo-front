@@ -119,8 +119,9 @@ export default function HistoryImport() {
               פותחים את ManyChat ↗
             </a>
           </li>
-          <li className="flex flex-col items-start gap-2">
-            <button type="button" onClick={() => void copyScript()} className={cx(s.btn, s.btnP)}>
+          <li>
+            {/* A step stays a numbered item: the button sits inside it, never as the item itself. */}
+            <button type="button" onClick={() => void copyScript()} className={cx(s.btn, s.btnP, 'align-middle')}>
               {scriptCopied ? <Check aria-hidden="true" className="h-4 w-4" /> : <Copy aria-hidden="true" className="h-4 w-4" />}
               {scriptCopied ? 'הקוד הועתק' : 'העתק את הקוד'}
             </button>
@@ -129,8 +130,8 @@ export default function HistoryImport() {
             ב-ManyChat: <b>Cmd+Option+J</b>, מדביקים, <b>Enter</b>. בפעם הראשונה Chrome מבקש להקליד <code>allow pasting</code>.
             אחרי כמה דקות יורד קובץ.
           </li>
-          <li className="flex flex-col items-start gap-2">
-            <label className={cx(s.btn, phase === 'sending' && 'pointer-events-none opacity-60')}>
+          <li>
+            <label className={cx(s.btn, 'align-middle', phase === 'sending' && 'pointer-events-none opacity-60')}>
               בחר את הקובץ שירד
               <input type="file" accept="application/json,.json" onChange={(event) => void onFile(event)} className="sr-only" />
             </label>
