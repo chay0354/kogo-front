@@ -2,7 +2,8 @@
 
 import { memo, useEffect, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
-import { AlertCircle, Check, ExternalLink, X } from 'lucide-react';
+import { AlertCircle, Check, ExternalLink, Reply, X } from 'lucide-react';
+import { ATTACH_WORDS, officeMediaKind, splitQuote } from '@/lib/wahub/composer';
 import { formatClock, messageTypeLabel } from '@/lib/wahub/format';
 import { copiedSender, type WahubHistoryLine } from '@/lib/wahub/history';
 import { MEDIA_WORDS, type ExternalMediaKind } from '@/lib/wahub/media';
@@ -15,6 +16,7 @@ import { ThinkingDots } from '../shared/motion';
 import { cx } from '../shared/tones';
 import h from '../history.module.css';
 import s from '../wahub.module.css';
+import c from './composer.module.css';
 
 /**
  * Whose bubble it is, in the section's colours: the customer on a plain
@@ -118,7 +120,8 @@ export function MediaView({
   problem = '',
   onRetry,
 }: {
-  kind: ExternalMediaKind;
+  /** `file`: a document the office sent (lib/wahub/composer.ts) — named, and opened in a tab of its own. */
+  kind: ExternalMediaKind | 'file';
   url: string | null;
   state: MediaState;
   transcript: string;
@@ -131,7 +134,7 @@ export function MediaView({
     body = (
       <p className={cx(s.mediaNote, 'flex flex-wrap items-center gap-1.5')}>
         <AlertCircle className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-        {MEDIA_WORDS[kind]} · לא הצלחנו לטעון את הקובץ
+        {kind === 'file' ? ATTACH_WORDS.file : MEDIA_WORDS[kind]} · לא הצלחנו לטעון את הקובץ
         {onRetry && (
           <button type="button" onClick={onRetry} className={s.mediaRetry}>
             נסו שוב
@@ -148,7 +151,7 @@ export function MediaView({
   } else {
     body = (
       <>
-        <p className={s.bubbleText}>{MEDIA_WORDS.video}</p>
+        <p className={s.bubbleText}>{kind === 'file' ? ATTACH_WORDS.file : MEDIA_WORDS.video}</p>
         <FileLink url={url} />
       </>
     );
@@ -181,7 +184,7 @@ function recordingProblem(message: WahubMessage): string {
 }
 
 /** The file Kogo keeps for this message, by its short-lived address. */
-function StoredMedia({ message, kind }: { message: WahubMessage; kind: 'voice' | 'image' }) {
+function StoredMedia({ message, kind }: { message: WahubMessage; kind: 'voice' | 'image' | 'video' | 'file' }) {
   const media = useMessageMedia(message.id, true);
   const state: MediaState = media.isError ? 'error' : media.data ? 'ready' : 'loading';
   return (
@@ -197,17 +200,58 @@ function StoredMedia({ message, kind }: { message: WahubMessage; kind: 'voice' |
 }
 
 /**
+ * The words of a bubble. A reply's quote — the "> " lines it starts with, as
+ * WhatsApp shows them — is drawn as a quote: a light ground and a bar on the side.
+ */
+function BubbleWords({ text }: { text: string }) {
+  const quoted = splitQuote(text);
+  if (!quoted) {
+    return (
+      <p className={s.bubbleText} dir="auto">
+        {text}
+      </p>
+    );
+  }
+  return (
+    <>
+      <blockquote className={c.quote} dir="auto">
+        {quoted.quote}
+      </blockquote>
+      {quoted.body && (
+        <p className={s.bubbleText} dir="auto">
+          {quoted.body}
+        </p>
+      )}
+    </>
+  );
+}
+
+/**
  * One bubble. The customer stands on one side; the bot, the office and the
  * system on the other, each in its own shade and with a small label saying who.
  * A recording plays inside it, a picture opens large; a file is named or
  * played, never printed as an address.
  */
-const MessageBubble = memo(function MessageBubble({ message, arrived }: { message: WahubMessage; arrived: boolean }) {
+const MessageBubble = memo(function MessageBubble({
+  message,
+  arrived,
+  onReply,
+}: {
+  message: WahubMessage;
+  arrived: boolean;
+  /** "השב": answer this very message. Absent where nothing can be written now. */
+  onReply?: (message: WahubMessage) => void;
+}) {
   const mine = message.direction === 'out';
   const failed = message.status === 'failed';
   const sending = message.local_state === 'sending';
   const who = senderLine(message);
-  const media = bubbleMedia(message);
+  // A file the office attached (office/<contact>/…): a picture is drawn as one; a video or a document is named.
+  const office = message.message_type === 'other' && message.id > 0 && message.has_media !== false ? officeMediaKind(message.media_url) : null;
+  const media = office ? ({ source: 'stored', kind: office } as const) : bubbleMedia(message);
+  const replyable = Boolean(onReply) && message.id > 0;
+  // A phone has no hover: a press on the bubble shows its "השב".
+  const [showReply, setShowReply] = useState(false);
   const text = bubbleText(message);
   // The player, the thumbnail and the placeholder already say what it is; the small label would say it twice.
   const typeLabel = media ? '' : messageTypeLabel(message.message_type);
@@ -217,8 +261,11 @@ const MessageBubble = memo(function MessageBubble({ message, arrived }: { messag
   return (
     // A message that just arrived pops from its own side: the customer's from the right, an answer from the left.
     <div className={cx(s.bubbleRow, mine && s.bubbleRowOut, arrived && (mine ? m.messageOut : m.messageIn))}>
-      <div className={s.bubbleCol}>
-        <div className={cx(s.bubble, bubbleTone(message), sending && s.bSending)}>
+      <div className={cx(s.bubbleCol, replyable && c.replyHost)} data-reply={replyable && showReply ? 'on' : undefined}>
+        <div
+          className={cx(s.bubble, bubbleTone(message), sending && s.bSending)}
+          onClick={replyable ? () => setShowReply((shown) => !shown) : undefined}
+        >
           {(who || typeLabel || simulated) && (
             <p className={s.bubbleMeta}>
               {who && <span className={cx(newBot && s.newBotMark)}>{who}</span>}
@@ -242,11 +289,7 @@ const MessageBubble = memo(function MessageBubble({ message, arrived }: { messag
             />
           )}
           {media?.source === 'none' && <p className={s.bubbleText}>{MEDIA_PLACEHOLDER[media.kind]}</p>}
-          {text && (
-            <p className={s.bubbleText} dir="auto">
-              {text}
-            </p>
-          )}
+          {text && <BubbleWords text={text} />}
           {media?.source === 'none' && media.link && <FileLink url={media.link} />}
           <p className={cx(s.bubbleTime, mine && 'justify-end')}>
             {sending ? (
@@ -266,6 +309,22 @@ const MessageBubble = memo(function MessageBubble({ message, arrived }: { messag
             <AlertCircle aria-hidden="true" />
             לא נשלח{message.error ? ` – ${message.error}` : ''}
           </p>
+        )}
+        {replyable && onReply && (
+          <button
+            type="button"
+            onClick={(event) => {
+              event.stopPropagation();
+              setShowReply(false);
+              onReply(message);
+            }}
+            aria-label="השב להודעה הזו"
+            title="השב להודעה הזו"
+            className={cx(c.replyBtn, mine && c.replyBtnOut)}
+          >
+            <Reply className="-scale-x-100" aria-hidden="true" />
+            <span className={c.replyLabel}>השב</span>
+          </button>
         )}
       </div>
     </div>

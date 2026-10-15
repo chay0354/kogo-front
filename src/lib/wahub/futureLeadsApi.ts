@@ -6,6 +6,7 @@ import type {
   WahubNoteResult,
   WahubWaitingResult,
 } from '@/types/wahub';
+import { readGoodbye, type Goodbye } from './composer';
 import { readActionContact, readMute, readNote, readUnderstood, readWaitingEntry } from './futureLeads';
 
 /**
@@ -29,10 +30,21 @@ const SLOW_MS = 60_000;
  * as it now stands.
  */
 export async function closeWahubConversation(id: number): Promise<WahubContact> {
+  return (await closeWahubConversationSaying(id)).contact;
+}
+
+/**
+ * The same close, with what became of the goodbye (15.10.2026): before the
+ * conversation is closed the ready-made reply "סגירת שיחה" is sent when it can
+ * be — `goodbye` sent / skipped / failed and why; null on a server that sends none.
+ */
+export async function closeWahubConversationSaying(id: number): Promise<{ contact: WahubContact; goodbye: Goodbye | null }> {
   const res = await api.post(`${BASE}/contacts/${id}/close/`, undefined, { timeout: SLOW_MS });
-  const contact = readActionContact(res.data);
-  if (!contact) throw new Error('the answer names no contact');
-  return contact;
+  const found = readActionContact(res.data);
+  if (!found) throw new Error('the answer names no contact');
+  // The goodbye rides on the contact's own answer; it is no field of the contact's.
+  const { goodbye: _goodbye, goodbye_reason: _reason, ...contact } = found as WahubContact & { goodbye?: unknown; goodbye_reason?: unknown };
+  return { contact: contact as WahubContact, goodbye: readGoodbye(res.data) };
 }
 
 /**
